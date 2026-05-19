@@ -37,6 +37,7 @@ import { EventStatus, HeadlampEventType, useEventCallback } from '../../redux/he
 import { Activity } from '../activity/Activity';
 import ActionButton from '../common/ActionButton';
 import Link from '../common/Link';
+import { LogsViewer } from '../common/LogsViewer/LogsViewer';
 import { LogViewer, LogViewerProps } from '../common/LogViewer';
 import {
   ConditionsSection,
@@ -592,15 +593,7 @@ export default function PodDetails(props: PodDetailsProps) {
         cluster: item.cluster,
         icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
         location: 'full',
-        content: (
-          <PodLogViewer
-            noDialog
-            open
-            item={item}
-            onClose={() => {}}
-            initialContainer={autoLaunchContainer}
-          />
-        ),
+        content: <LogsViewer item={item} defaultContainer={autoLaunchContainer} />,
       });
       dispatchHeadlampEvent({
         type: HeadlampEventType.LOGS,

@@ -79,12 +79,12 @@ test('react-hotkey for logs search', async ({ page }) => {
   const showLogsButton = page.getByRole('button', { name: /^Show Logs$/ });
   await showLogsButton.click();
 
-  const terminal = page.locator('#xterm-container');
+  const terminal = page.locator('[data-test-id=logs-display]');
   await expect(terminal).toBeVisible();
 
   await page.keyboard.press('Control+Shift+F');
 
-  const searchInput = page.getByPlaceholder(/^Find$/);
+  const searchInput = page.locator('[data-test-id=logs-display-search] input');
   await expect(searchInput).toBeVisible();
   await expect(searchInput).toBeFocused();
 });

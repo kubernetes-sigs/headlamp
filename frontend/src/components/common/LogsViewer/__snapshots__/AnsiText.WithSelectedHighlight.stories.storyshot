@@ -1,0 +1,30 @@
+<body>
+  <div>
+    <pre
+      style="font-family: monospace; margin: 0px; white-space: pre-wrap;"
+    >
+      <span
+        class=""
+      >
+        <b
+          class="search-highlight"
+        >
+          match
+        </b>
+         one and 
+        <b
+          class="search-highlight-selected"
+        >
+          match
+        </b>
+         two and 
+        <b
+          class="search-highlight"
+        >
+          match
+        </b>
+         three
+      </span>
+    </pre>
+  </div>
+</body>

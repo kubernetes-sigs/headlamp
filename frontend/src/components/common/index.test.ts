@@ -50,6 +50,7 @@ const checkExports = [
   'Link',
   'Loader',
   'LogViewer',
+  'LogsViewer',
   'NamespacesAutocomplete',
   'NameValueTable',
   'Resource',

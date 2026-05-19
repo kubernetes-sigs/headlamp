@@ -277,7 +277,7 @@ describe('PodDetails auto-launch views', () => {
       });
 
       expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
-      expect(mockActivityLaunch.mock.calls[0][0].content.props.initialContainer).toBe('nginx');
+      expect(mockActivityLaunch.mock.calls[0][0].content.props.defaultContainer).toBe('nginx');
 
       act(() => {
         history.push('/c/main/pods/default/test-pod?view=logs&container=sidecar');
@@ -285,10 +285,10 @@ describe('PodDetails auto-launch views', () => {
       });
 
       expect(mockActivityLaunch).toHaveBeenCalledTimes(2);
-      expect(mockActivityLaunch.mock.calls[1][0].content.props.initialContainer).toBe('sidecar');
+      expect(mockActivityLaunch.mock.calls[1][0].content.props.defaultContainer).toBe('sidecar');
     });
 
-    it('passes ?container as initialContainer', () => {
+    it('passes ?container as defaultContainer', () => {
       render(
         <TestContext
           routerMap={{ namespace: 'default', name: 'test-pod' }}
@@ -305,7 +305,7 @@ describe('PodDetails auto-launch views', () => {
 
       expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
       const launchArg = mockActivityLaunch.mock.calls[0][0];
-      expect(launchArg.content.props.initialContainer).toBe('nginx');
+      expect(launchArg.content.props.defaultContainer).toBe('nginx');
     });
 
     it('passes undefined initialContainer when ?container is absent', () => {

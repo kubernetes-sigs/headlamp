@@ -1,0 +1,40 @@
+<body>
+  <div>
+    <pre
+      style="font-family: monospace; margin: 0px; white-space: pre-wrap;"
+    >
+      <span
+        class="ansi-green-fg"
+      >
+        info
+      </span>
+      <span
+        class=""
+      >
+        : 
+        <b
+          class="search-highlight"
+        >
+          starting
+        </b>
+         
+      </span>
+      <span
+        class="ansi-red-fg"
+      >
+        error
+      </span>
+      <span
+        class=""
+      >
+        : fa
+        <b
+          class="search-highlight"
+        >
+          iled t
+        </b>
+        o start
+      </span>
+    </pre>
+  </div>
+</body>
