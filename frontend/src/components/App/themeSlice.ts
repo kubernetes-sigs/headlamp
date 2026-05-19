@@ -17,9 +17,9 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { useSelector } from 'react-redux';
 import { AppTheme } from '../../lib/AppTheme';
-import { getThemeName, setTheme as setAppTheme } from '../../lib/themes';
+import { getThemeName, setTheme as setAppTheme, usePrefersColorScheme } from '../../lib/themes';
 import { AppLogoType } from './AppLogo';
-import defaultAppThemes from './defaultAppThemes';
+import defaultAppThemes, { darkTheme, lightTheme } from './defaultAppThemes';
 export interface ThemeState {
   /**
    * The logo component to use for the app.
@@ -113,6 +113,10 @@ export const useCurrentAppTheme = () => {
     themeName = getThemeName();
   }
   const allThemes = useAppThemes();
+  const osColorScheme = usePrefersColorScheme();
+  if (themeName === 'auto') {
+    return osColorScheme === 'dark' ? darkTheme : lightTheme;
+  }
 
   let currentTheme = allThemes.find(it => it.name === themeName);
 
