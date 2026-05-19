@@ -136,6 +136,22 @@ export interface CallbackActionOptions {
    * A callback to execute when the action is cancelled.
    */
   cancelCallback?: (...args: any[]) => void;
+  /**
+   * A function to format the error message.
+   */
+  errorMessageFormatter?: (error: Error) => string;
+  /**
+   * A callback to execute when the action is successful.
+   */
+  onSuccess?: () => void;
+  /**
+   * A callback to execute when the action fails.
+   */
+  onError?: (error: Error) => void;
+  /**
+   * A callback to execute when the action is cancelled.
+   */
+  onCancelled?: () => void;
 }
 
 /**
@@ -217,6 +233,10 @@ export const executeClusterAction = createAsyncThunk(
       successMessage,
       callbackArgs,
       cancelCallback,
+      errorMessageFormatter,
+      onSuccess,
+      onError,
+      onCancelled,
       startOptions = {},
       cancelledOptions = {},
       successOptions = { variant: 'success' },
@@ -296,6 +316,18 @@ export const executeClusterAction = createAsyncThunk(
         }
       }
 
+      if (errorMessageFormatter && err instanceof Error) {
+        try {
+          const formatted = errorMessageFormatter(err);
+          // Only use the formatter result if it is a non-empty string.
+          if (formatted) {
+            message = formatted;
+          }
+        } catch (formatterErr) {
+          // Formatter threw – fall back to the combined default message.
+          console.error('errorMessageFormatter threw an error:', formatterErr);
+        }
+      }
       dispatch(
         updateClusterAction({
           buttons: undefined,
@@ -336,6 +368,13 @@ export const executeClusterAction = createAsyncThunk(
           await Promise.resolve(callback(...callbackArgs));
         }
         dispatchSuccess();
+        if (onSuccess) {
+          try {
+            onSuccess();
+          } catch (callbackErr) {
+            console.error('onSuccess callback threw an error:', callbackErr);
+          }
+        }
       } catch (err) {
         const error = err instanceof Error ? err : new Error(String(err));
         if (error.message === 'Action cancelled' || controller.signal.aborted) {
@@ -348,8 +387,23 @@ export const executeClusterAction = createAsyncThunk(
               console.error(err);
             }
           }
+
+          if (onCancelled) {
+            try {
+              onCancelled();
+            } catch (err) {
+              console.error(err);
+            }
+          }
         } else {
           dispatchError(error);
+          if (onError) {
+            try {
+              onError(error);
+            } catch (callbackErr) {
+              console.error('onError callback threw an error:', callbackErr);
+            }
+          }
         }
       } finally {
         controllers.delete(actionKey);

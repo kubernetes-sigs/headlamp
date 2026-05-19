@@ -119,6 +119,7 @@
   "Cancelled deletion of {{ itemName }}.": "Se ha cancelado la eliminación de {{ itemName }}.",
   "Deleted plugin {{ itemName }}.": "",
   "Error deleting plugin {{ itemName }}.": "",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Uh-oh! Something went wrong.": "¡Ups! Algo ha fallado.",
   "Error loading {{ routeName }}": "Error al cargar {{ routeName }}",
   "Cluster name must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "El nombre del cluster debe contener solo caracteres alfanuméricos en minúsculas o '-', y debe comenzar y terminar con un carácter alfanumérico.",

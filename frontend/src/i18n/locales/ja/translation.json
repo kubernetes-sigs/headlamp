@@ -119,6 +119,7 @@
   "Cancelled deletion of {{ itemName }}.": "{{ itemName }} の削除をキャンセルしました。",
   "Deleted plugin {{ itemName }}.": "",
   "Error deleting plugin {{ itemName }}.": "",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Uh-oh! Something went wrong.": "あれっ！何か問題が発生しました。",
   "Error loading {{ routeName }}": "{{ routeName }} の読み込み中にエラーが発生しました",
   "Cluster name must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "クラスター名は小文字の英数字または「-」のみを含み、最初と最後は英数字である必要があります。",

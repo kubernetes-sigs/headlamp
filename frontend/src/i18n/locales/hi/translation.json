@@ -119,6 +119,7 @@
   "Cancelled deletion of {{ itemName }}.": "{{ itemName }} के हटाने को रद्द किया गया।",
   "Deleted plugin {{ itemName }}.": "प्लगइन {{ itemName }} हटाया गया।",
   "Error deleting plugin {{ itemName }}.": "प्लगइन {{ itemName }} हटाने में त्रुटि",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Uh-oh! Something went wrong.": "अरे! कुछ गलत हो गया।",
   "Error loading {{ routeName }}": "{{ routeName }} लोड करने में त्रुटि",
   "Cluster name must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "क्लस्टर नाम में केवल लोअरकेस अल्फ़ान्यूमेरिक वर्ण या '-' होने चाहिए, और उन्हें अल्फ़ान्यूमेरिक वर्ण से शुरू और समाप्त होना चाहिए।",

@@ -72,6 +72,16 @@ export function usePluginDelete() {
             errorMessage: t('Error deleting plugin {{ itemName }}.', {
               itemName: pluginFolderName,
             }),
+            errorMessageFormatter: error => {
+              const msg =
+                error && typeof error.message === 'string' && error.message
+                  ? error.message
+                  : String(error);
+              return t('Error deleting plugin {{ itemName }}: {{ error }}', {
+                itemName: pluginFolderName,
+                error: msg,
+              });
+            },
           }
         )
       ).then(() => {

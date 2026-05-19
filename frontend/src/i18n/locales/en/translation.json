@@ -119,6 +119,7 @@
   "Cancelled deletion of {{ itemName }}.": "Cancelled deletion of {{ itemName }}.",
   "Deleted plugin {{ itemName }}.": "Deleted plugin {{ itemName }}.",
   "Error deleting plugin {{ itemName }}.": "Error deleting plugin {{ itemName }}.",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "Error deleting plugin {{ itemName }}: {{ error }}",
   "Uh-oh! Something went wrong.": "Uh-oh! Something went wrong.",
   "Error loading {{ routeName }}": "Error loading {{ routeName }}",
   "Cluster name must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "Cluster name must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.",

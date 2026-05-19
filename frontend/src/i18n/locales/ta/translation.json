@@ -119,6 +119,7 @@
   "Cancelled deletion of {{ itemName }}.": "{{ itemName }} உருப்படியை நீக்குவது ரத்து செய்யப்பட்டது.",
   "Deleted plugin {{ itemName }}.": "",
   "Error deleting plugin {{ itemName }}.": "",
+  "Error deleting plugin {{ itemName }}: {{ error }}": "",
   "Uh-oh! Something went wrong.": "அய்யோ! ஏதோ பிழை நேர்ந்தது.",
   "Error loading {{ routeName }}": "{{ routeName }} ஏற்றுவதில் பிழை",
   "Cluster name must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "க்ளஸ்டர் பெயர் சிறிய எழுத்துக்கள், எண்கள் அல்லது '-' மட்டுமே கொண்டிருக்க வேண்டும், மேலும் எழுத்து அல்லது எண்ணுடன் தொடங்கி முடிய வேண்டும்.",
