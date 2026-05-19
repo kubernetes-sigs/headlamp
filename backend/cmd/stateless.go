@@ -80,6 +80,12 @@ func (c *HeadlampConfig) setKeyInCache(key string, context kubeconfig.Context) e
 	return nil
 }
 
+// statelessContextKey generates a structured context key using a null byte separator
+// to avoid collisions across cluster and user pairs.
+func statelessContextKey(clusterName, userID string) string {
+	return clusterName + "\x00" + userID
+}
+
 // Handles stateless cluster requests if kubeconfig is set and dynamic clusters are enabled.
 // It returns context key which is used to store the context in the cache.
 func (c *HeadlampConfig) handleStatelessReq(r *http.Request, kubeConfig string) (string, error) {
@@ -90,7 +96,7 @@ func (c *HeadlampConfig) handleStatelessReq(r *http.Request, kubeConfig string) 
 	userID := r.Header.Get("X-HEADLAMP-USER-ID")
 	clusterName := mux.Vars(r)["clusterName"]
 	// unique key for the context
-	key = clusterName + userID
+	key = statelessContextKey(clusterName, userID)
 
 	contexts, contextLoadErrors, err := kubeconfig.LoadContextsFromBase64String(kubeConfig, kubeconfig.DynamicCluster)
 	if len(contextLoadErrors) > 0 {
@@ -129,7 +135,7 @@ func (c *HeadlampConfig) handleStatelessReq(r *http.Request, kubeConfig string) 
 
 			// Check if the CustomName field is present
 			if customObj.CustomName != "" {
-				key = customObj.CustomName + userID
+				key = statelessContextKey(customObj.CustomName, userID)
 			}
 		} else if context.Name != clusterName {
 			// Skip contexts that don't match the requested cluster name
@@ -222,7 +228,7 @@ func websocketConnContextKey(r *http.Request, clusterName string) string {
 	// Check if a match is found
 	if len(matches) >= expectedSubmatches {
 		// Extract the value after the specified prefix
-		contextKey = clusterName + matches[1]
+		contextKey = statelessContextKey(clusterName, matches[1])
 	} else {
 		contextKey = clusterName
 	}
