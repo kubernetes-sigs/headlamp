@@ -31,6 +31,7 @@ import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getRoute } from '../../lib/router/getRoute';
 import { getRoutePath } from '../../lib/router/getRoutePath';
 import { setConfig } from '../../redux/configSlice';
+import { useTypedSelector } from '../../redux/hooks';
 import { ClusterDialog } from '../cluster/Chooser';
 import { DialogTitle } from '../common/Dialog';
 import Empty from '../common/EmptyContent';
@@ -59,6 +60,7 @@ function AuthChooser({ children }: AuthChooserProps) {
   const location = useLocation();
   const clusters = useClustersConf();
   const dispatch = useDispatch();
+  const oidcAutoLogin = useTypedSelector(state => state.config.oidcAutoLogin);
   const [testingAuth, setTestingAuth] = React.useState(true);
   const [error, setError] = React.useState<Error | null>(null);
   const { from = { pathname: createRouteURL('cluster') } } = (location.state ||
@@ -79,6 +81,27 @@ function AuthChooser({ children }: AuthChooserProps) {
     setError(null);
     clustersRef.current = null;
   }
+
+  // Auto-redirect to OIDC when oidc-auto-login is enabled.
+  React.useEffect(() => {
+    const attempted = sessionStorage.getItem('oidc_auto_login_attempted');
+
+    if (
+      !clusters ||
+      !clusterName ||
+      clusters[clusterName]?.auth_type !== 'oidc' ||
+      !oidcAutoLogin ||
+      attempted
+    ) {
+      return;
+    }
+
+    sessionStorage.setItem('oidc_auto_login_attempted', 'true');
+    const oidcUrl = new URL(`${getAppUrl()}oidc`);
+    oidcUrl.searchParams.set('dt', Date());
+    oidcUrl.searchParams.set('cluster', clusterName);
+    window.location.href = oidcUrl.toString();
+  }, [clusters, clusterName, oidcAutoLogin]);
 
   React.useEffect(
     () => {

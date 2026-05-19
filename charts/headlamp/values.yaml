@@ -96,6 +96,8 @@ config:
     usePKCE: false
     # -- Enable using OIDC cookie for authentication outside of cluster
     useCookie: false
+    # -- Automatically redirect to OIDC authentication when no session is present
+    autoLogin: false
 
     # Option 3:
     # @param config.oidc - External OIDC secret configuration

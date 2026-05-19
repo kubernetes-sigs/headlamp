@@ -17,21 +17,33 @@
 import Typography from '@mui/material/Typography';
 import { FunctionComponent, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation } from 'react-router-dom';
+import { useHistory, useLocation } from 'react-router-dom';
+import { createRouteURL } from '../../lib/router/createRouteURL';
 
 //@todo: needs cleanup.
 
 const OIDCAuth: FunctionComponent<{}> = () => {
   const location = useLocation();
+  const history = useHistory();
   const urlSearchParams = new URLSearchParams(location.search);
   const cluster = urlSearchParams.get('cluster');
   const { t } = useTranslation();
 
   useEffect(() => {
-    if (cluster) {
-      localStorage.setItem('auth_status', 'success');
+    if (!cluster) {
+      return;
     }
-  }, [cluster]);
+
+    if (window.opener) {
+      // Popup flow: signal the parent window via localStorage.
+      localStorage.setItem('auth_status', 'success');
+    } else {
+      // Full-page redirect flow: clear the auto-login attempt flag
+      // and navigate to the cluster page.
+      sessionStorage.removeItem('oidc_auto_login_attempted');
+      history.replace(createRouteURL('cluster', { cluster }));
+    }
+  }, [cluster, history]);
 
   return <Typography color="textPrimary">{t('Redirecting to main page…')}</Typography>;
 };

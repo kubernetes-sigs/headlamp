@@ -65,6 +65,10 @@ export interface ConfigState {
   defaultDarkTheme?: string;
   forceTheme?: string;
   /**
+   * Automatically redirect to OIDC authentication when no session is present.
+   */
+  oidcAutoLogin?: boolean;
+  /**
    * Settings is a map of settings names to settings values.
    */
   settings: {
@@ -185,6 +189,7 @@ const configSlice = createSlice({
         defaultLightTheme?: string;
         defaultDarkTheme?: string;
         forceTheme?: string;
+        oidcAutoLogin?: boolean;
       }>
     ) {
       state.clusters = action.payload.clusters;
@@ -200,6 +205,7 @@ const configSlice = createSlice({
       state.defaultLightTheme = action.payload.defaultLightTheme;
       state.defaultDarkTheme = action.payload.defaultDarkTheme;
       state.forceTheme = action.payload.forceTheme;
+      state.oidcAutoLogin = action.payload.oidcAutoLogin;
     },
     /**
      * Save the config. To both the store, and localStorage.

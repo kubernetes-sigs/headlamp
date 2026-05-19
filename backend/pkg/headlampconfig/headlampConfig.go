@@ -29,6 +29,7 @@ type HeadlampConfig struct {
 	OidcSkipTLSVerify         bool
 	OidcCACert                string
 	OidcUsePKCE               bool
+	OidcAutoLogin             bool
 	OidcScopes                []string
 	Cache                     cache.Cache[interface{}]
 	Multiplexer               WebSocketMultiplexer

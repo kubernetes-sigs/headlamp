@@ -9,6 +9,7 @@
 {{- $validatorClientID := "" }}
 {{- $validatorIssuerURL := "" }}
 {{- $usePKCE := "" }}
+{{- $autoLogin := "" }}
 {{- $useAccessToken := "" }}
 {{- $meUserInfoURL := "" }}
 {{- $clusterInventory := .Values.config.clusterInventory | default dict }}
@@ -56,6 +57,9 @@
   {{- end }}
   {{- if eq .name "OIDC_USE_PKCE" }}
     {{- $usePKCE = .value | toString }}
+  {{- end }}
+  {{- if eq .name "OIDC_AUTO_LOGIN" }}
+    {{- $autoLogin = .value | toString }}
   {{- end }}
   {{- if eq .name "ME_USER_INFO_URL" }}
     {{- $meUserInfoURL = .value | toString }}
@@ -190,6 +194,13 @@ spec:
                   name: {{ $oidc.secret.name }}
                   key: usePKCE
             {{- end }}
+            {{- if $oidc.autoLogin }}
+            - name: OIDC_AUTO_LOGIN
+              valueFrom:
+                secretKeyRef:
+                  name: {{ $oidc.secret.name }}
+                  key: autoLogin
+            {{- end }}
             {{- if $oidc.meUserInfoURL }}
             - name: ME_USER_INFO_URL
               valueFrom:
@@ -233,6 +244,10 @@ spec:
             {{- if $oidc.usePKCE }}
             - name: OIDC_USE_PKCE
               value: {{ $oidc.usePKCE | quote }}
+            {{- end }}
+            {{- if $oidc.autoLogin }}
+            - name: OIDC_AUTO_LOGIN
+              value: {{ $oidc.autoLogin | quote }}
             {{- end }}
             {{- if $oidc.meUserInfoURL }}
             - name: ME_USER_INFO_URL
@@ -325,6 +340,9 @@ spec:
             {{- if or (eq ($oidc.usePKCE | toString) "true") (eq $usePKCE "true") }}
             - "-oidc-use-pkce=$(OIDC_USE_PKCE)"
             {{- end }}
+            {{- if or (eq ($oidc.autoLogin | toString) "true") (eq $autoLogin "true") }}
+            - "-oidc-auto-login=$(OIDC_AUTO_LOGIN)"
+            {{- end }}
             {{- if or (ne $oidc.meUserInfoURL "") (ne $meUserInfoURL "") }}
             - "-me-user-info-url=$(ME_USER_INFO_URL)"
             {{- end }}
@@ -341,6 +359,9 @@ spec:
             {{- end }}
             {{- if or (eq ($oidc.usePKCE | toString) "true") (eq $usePKCE "true") }}
             - "-oidc-use-pkce=$(OIDC_USE_PKCE)"
+            {{- end }}
+            {{- if or (eq ($oidc.autoLogin | toString) "true") (eq $autoLogin "true") }}
+            - "-oidc-auto-login=$(OIDC_AUTO_LOGIN)"
             {{- end }}
             {{- if or (ne $oidc.validatorClientID "") (ne $validatorClientID "") }}
             # Check if validatorClientID is non empty either from env or oidc.config

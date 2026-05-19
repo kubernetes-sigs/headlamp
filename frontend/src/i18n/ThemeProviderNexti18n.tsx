@@ -105,7 +105,7 @@ const ThemeProviderNexti18n: React.FunctionComponent<ThemeProviderNexti18nProps>
     useSuspense: false,
   });
 
-  const [lang, setLang] = useState(i18n.language);
+  const [lang, setLang] = useState(i18n.language || 'en');
 
   /**
    * Updates the document language and direction based on the selected language.

@@ -168,6 +168,7 @@ type clientConfig struct {
 	DefaultLightTheme       string    `json:"defaultLightTheme,omitempty"`
 	DefaultDarkTheme        string    `json:"defaultDarkTheme,omitempty"`
 	ForceTheme              string    `json:"forceTheme,omitempty"`
+	OidcAutoLogin           bool      `json:"oidcAutoLogin,omitempty"`
 }
 
 type OauthConfig struct {
@@ -2229,6 +2230,7 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 		DefaultLightTheme:       c.DefaultLightTheme,
 		DefaultDarkTheme:        c.DefaultDarkTheme,
 		ForceTheme:              c.ForceTheme,
+		OidcAutoLogin:           c.OidcAutoLogin,
 	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {

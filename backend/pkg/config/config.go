@@ -85,6 +85,7 @@ type Config struct {
 	MeGroupsPath                 string `koanf:"me-groups-path"`
 	MeUserInfoURL                string `koanf:"me-user-info-url"`
 	OidcUsePKCE                  bool   `koanf:"oidc-use-pkce"`
+	OidcAutoLogin                bool   `koanf:"oidc-auto-login"`
 	ProxyAuthEnabled             bool   `koanf:"proxy-auth"`
 	ProxyAuthUsernameHeader      string `koanf:"proxy-auth-username-header"`
 	ProxyAuthGroupHeader         string `koanf:"proxy-auth-group-header"`
@@ -597,6 +598,7 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
 	f.Bool("oidc-use-cookie", false, "Enable OIDC cookie usage even when not running in-cluster")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
+	f.Bool("oidc-auto-login", false, "Automatically redirect to OIDC authentication when no session is present")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")
 	f.String("me-email-path", DefaultMeEmailPath,
