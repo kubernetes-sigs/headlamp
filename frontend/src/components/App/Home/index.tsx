@@ -113,7 +113,7 @@ function HomeComponent(props: HomeComponentProps) {
   React.useEffect(() => {
     if (isBackstage()) {
       window.parent.postMessage({ type: 'HEADLAMP_READY' }, '*');
-      setupBackstageMessageReceiver();
+      return setupBackstageMessageReceiver();
     }
   }, []);
 

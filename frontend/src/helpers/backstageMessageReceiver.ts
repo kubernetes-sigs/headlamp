@@ -146,5 +146,10 @@ export function setupBackstageMessageReceiver() {
     };
 
     window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
   }
+
+  return () => {};
 }
