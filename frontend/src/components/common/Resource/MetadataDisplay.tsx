@@ -69,10 +69,16 @@ export function MetadataDisplay<T extends KubeObject>(props: MetadataDisplayProp
 
     return ownerReferences
       .map((ownerRef, i) => {
-        if (ownerRef.kind in ResourceClasses) {
+        const resourceClass =
+          ownerRef.kind in ResourceClasses
+            ? ResourceClasses[ownerRef.kind as keyof typeof ResourceClasses]
+            : null;
+        const apiVersionMatches =
+          resourceClass !== null && resourceClass.apiVersion === ownerRef.apiVersion;
+        if (apiVersionMatches) {
           let routeName;
           try {
-            routeName = ResourceClasses[ownerRef.kind as keyof typeof ResourceClasses].detailsRoute;
+            routeName = resourceClass.detailsRoute;
           } catch (e) {
             console.error(`Error getting routeName for {ownerRef.kind}`, e);
             return null;
