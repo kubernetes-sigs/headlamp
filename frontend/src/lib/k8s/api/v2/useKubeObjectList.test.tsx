@@ -452,6 +452,50 @@ describe('useKubeObjectList', () => {
     );
   });
 
+  it('should refresh list resourceVersions when watching resumes after a query change', async () => {
+    const queryClient = new QueryClient();
+    mockClusterFetch
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve(makeListResponse({ resourceVersion: '1' })),
+      } as Response)
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve(makeListResponse({ resourceVersion: '2' })),
+      } as Response);
+
+    const result = renderHook(
+      (props: { queryParams: Record<string, number> }) =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default' }],
+          queryParams: props.queryParams,
+        }),
+      {
+        wrapper: queryClientWrapper(queryClient),
+        initialProps: {
+          queryParams: {},
+        },
+      }
+    );
+
+    await waitFor(() =>
+      expect(
+        mockUseWebSockets.mock.calls.some(
+          ([call]) => call.connections[0]?.url === 'api/v1/pods?watch=1&resourceVersion=1'
+        )
+      ).toBe(true)
+    );
+
+    result.rerender({ queryParams: { limit: DEFAULT_LIST_LIMIT } });
+
+    await waitFor(() =>
+      expect(
+        mockUseWebSockets.mock.calls.some(
+          ([call]) => call.connections[0]?.url === 'api/v1/pods?watch=1&resourceVersion=2'
+        )
+      ).toBe(true)
+    );
+  });
+
   it('should split an opt-in limit across namespace requests', async () => {
     mockClusterFetch
       .mockResolvedValueOnce({

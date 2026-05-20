@@ -649,30 +649,27 @@ export function useKubeObjectList<K extends KubeObject>({
           : keptListsToWatch;
       }
 
-      const listsNotYetWatched = query.data
-        .filter(Boolean)
-        .filter(
-          data =>
-            keptListsToWatch.find(
-              // resourceVersion is intentionally omitted to avoid recreating WS connection when list is updated
-              watching =>
-                watching.cluster === data?.cluster && watching.namespace === data.namespace
-            ) === undefined
-        )
-        .map(data => ({
-          cluster: data!.cluster,
-          namespace: data!.namespace,
-          resourceVersion: data!.list.metadata.resourceVersion,
-        }));
+      const nextListsToWatch = query.data.filter(Boolean).map(data => ({
+        cluster: data!.cluster,
+        namespace: data!.namespace,
+        resourceVersion: data!.list.metadata.resourceVersion,
+      }));
 
       if (
-        listsNotYetWatched.length === 0 &&
-        keptListsToWatch.length === currentListsToWatch.length
+        nextListsToWatch.length === currentListsToWatch.length &&
+        nextListsToWatch.every((nextList, index) => {
+          const currentList = currentListsToWatch[index];
+          return (
+            currentList.cluster === nextList.cluster &&
+            currentList.namespace === nextList.namespace &&
+            currentList.resourceVersion === nextList.resourceVersion
+          );
+        })
       ) {
         return currentListsToWatch;
       }
 
-      return [...keptListsToWatch, ...listsNotYetWatched];
+      return nextListsToWatch;
     });
   }, [query.data, requests, shouldWatch]);
 
