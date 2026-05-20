@@ -66,7 +66,7 @@ func RequestHandler(
 	// Get a service connection object and make the request
 	conn := NewConnection(ps)
 
-	handleServiceProxy(conn, requestURI, w)
+	handleServiceProxy(r.Context(), conn, requestURI, w)
 }
 
 func shouldUseUnsafeServiceAccountToken(ctx *kubeconfig.Context, unsafeUseServiceAccountToken bool) bool {
@@ -125,19 +125,40 @@ func disableResponseCaching(w http.ResponseWriter) {
 	w.Header().Set("X-Accel-Expires", "0")
 }
 
-func handleServiceProxy(conn ServiceConnection, requestURI string, w http.ResponseWriter) {
-	resp, err := conn.Get(requestURI)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "service get request failed")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+type trackingResponseWriter struct {
+	http.ResponseWriter
+	wroteHeader  bool
+	bytesWritten int
+}
 
-		return
+func (w *trackingResponseWriter) WriteHeader(code int) {
+	w.wroteHeader = true
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *trackingResponseWriter) Write(p []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(p)
+	if n > 0 {
+		w.wroteHeader = true
+		w.bytesWritten += n
 	}
 
-	_, err = w.Write(resp) //nolint:gosec
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing response")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	return n, err
+}
+
+func (w *trackingResponseWriter) HasWritten() bool {
+	return w.wroteHeader || w.bytesWritten > 0
+}
+
+func handleServiceProxy(ctx context.Context, conn ServiceConnection, requestURI string, w http.ResponseWriter) {
+	trackedWriter := &trackingResponseWriter{ResponseWriter: w}
+
+	if err := conn.Get(ctx, requestURI, trackedWriter); err != nil {
+		logger.Log(logger.LevelError, nil, err, "service get request failed")
+
+		if !trackedWriter.HasWritten() {
+			http.Error(trackedWriter, err.Error(), http.StatusInternalServerError)
+		}
 
 		return
 	}

@@ -772,6 +772,18 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			reader = resp.Body
 		}
 
+		// Read the first chunk before committing the response so early upstream
+		// failures can still return a 502 instead of an empty success response.
+		firstChunk := make([]byte, 32*1024)
+
+		n, readErr := reader.Read(firstChunk)
+		if readErr != nil && !errors.Is(readErr, io.EOF) && n == 0 {
+			logger.Log(logger.LevelError, nil, readErr, "reading response")
+			http.Error(w, readErr.Error(), http.StatusBadGateway)
+
+			return
+		}
+
 		if contentType := resp.Header.Get("Content-Type"); contentType != "" {
 			w.Header().Set("Content-Type", contentType)
 		}
@@ -786,10 +798,12 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 		w.WriteHeader(resp.StatusCode)
 
-		// Stream the response with a limit to prevent memory exhaustion and decompression bombs.
-		// Note: If Content-Length is unknown and the limit is reached, the response will be truncated.
-		_, err = io.Copy(w, io.LimitReader(reader, maxProxyResponseSize))
-		if err != nil {
+		// Stream the body, putting the already-read first chunk back in front of
+		// the reader so a single size limit covers the whole response. The limit
+		// prevents memory exhaustion and decompression bombs; if the length is
+		// unknown and the limit is reached, the response is truncated.
+		body := io.MultiReader(bytes.NewReader(firstChunk[:n]), reader)
+		if _, err := io.Copy(w, io.LimitReader(body, maxProxyResponseSize)); err != nil {
 			logger.Log(logger.LevelError, nil, err, "streaming response")
 
 			return
