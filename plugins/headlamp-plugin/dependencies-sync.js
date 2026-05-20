@@ -74,6 +74,7 @@ const dependenciesToNotCopy = [
   'vitest-canvas-mock',
   '@tanstack/react-query-devtools',
   'remark-gfm',
+  '@typescript/native-preview',
 ];
 
 // Dependencies that can have different versions
