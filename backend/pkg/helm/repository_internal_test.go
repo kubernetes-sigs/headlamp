@@ -19,6 +19,7 @@ package helm
 import (
 	"errors"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -64,4 +65,32 @@ func TestEnsureRepositoryFileLocked(t *testing.T) {
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, errRepositoryLockNotAcquired))
 	})
+}
+
+func TestCreateFileIfNotThere(t *testing.T) {
+	tempDir := t.TempDir()
+	fileName := filepath.Join(tempDir, "new-repo", "config.yaml")
+
+	// 1. Should create missing directory and file
+	err := createFileIfNotThere(fileName)
+	require.NoError(t, err)
+
+	info, err := os.Stat(fileName)
+	require.NoError(t, err)
+	assert.False(t, info.IsDir())
+
+	// 2. We should be able to remove it (verifies no leaked descriptor locking the file, esp on Windows)
+	err = os.Remove(fileName)
+	require.NoError(t, err)
+
+	// 3. Pre-create file and verify createFileIfNotThere doesn't truncate/fail
+	err = os.WriteFile(fileName, []byte("data"), 0644)
+	require.NoError(t, err)
+
+	err = createFileIfNotThere(fileName)
+	require.NoError(t, err)
+
+	content, err := os.ReadFile(fileName)
+	require.NoError(t, err)
+	assert.Equal(t, "data", string(content))
 }

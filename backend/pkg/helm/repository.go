@@ -72,16 +72,14 @@ func (r AddUpdateRepoRequest) Validate() error {
 
 func createFileIfNotThere(fileName string) error {
 	_, err := os.Stat(fileName)
-	if os.IsNotExist(err) {
-		file, err := createFullPath(fileName)
-		if err != nil {
-			return err
+	if err != nil {
+		if os.IsNotExist(err) {
+			return createFullPath(fileName)
 		}
-
-		return file.Close()
+		return err
 	}
 
-	return err
+	return nil
 }
 
 func lockRepositoryFile(lockCtx context.Context, repositoryConfig string) (bool, *flock.Flock, error) {
@@ -250,12 +248,22 @@ type ListRepoResponse struct {
 	Repositories []repositoryInfo `json:"repositories"`
 }
 
-func createFullPath(p string) (*os.File, error) {
+// Create a full path, including directories if it does not exist.
+func createFullPath(p string) error {
 	if err := os.MkdirAll(filepath.Dir(p), defaultNewConfigFolderMode); err != nil {
-		return nil, err
+		return err
 	}
 
-	return os.Create(p) //nolint:gosec
+	//nolint:gosec // G304: path is from helm config, not user input
+	f, err := os.OpenFile(p, os.O_CREATE|os.O_WRONLY, defaultNewConfigFileMode)
+	if err != nil {
+		if os.IsExist(err) {
+			return nil
+		}
+		return err
+	}
+
+	return f.Close()
 }
 
 func listRepositories(settings *cli.EnvSettings) ([]repositoryInfo, error) {
