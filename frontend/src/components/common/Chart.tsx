@@ -19,8 +19,7 @@ import Paper from '@mui/material/Paper';
 import { useTheme } from '@mui/material/styles';
 import { styled } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
-import React, { ReactNode } from 'react';
-import { useRef } from 'react';
+import React, { ReactNode, useCallback, useRef } from 'react';
 import ReactDOM from 'react-dom';
 import {
   Bar,
@@ -200,6 +199,15 @@ export function PercentageBar(props: PercentageBarProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Expose a stable callback so PaperTooltip can read the container's current
+  // viewport rect without accessing ref.current directly in its render phase.
+  // getBoundingClientRect() is called at tooltip-render time (user hover),
+  // so it always reflects the current scroll/layout position.
+  const getContainerRect = useCallback(
+    (): DOMRect | null => containerRef.current?.getBoundingClientRect() ?? null,
+    []
+  );
+
   function formatData() {
     const dataItems: { [name: string]: number } = {};
 
@@ -226,7 +234,7 @@ export function PercentageBar(props: PercentageBarProps) {
                 rechartsProps={props}
                 tooltipFunc={tooltipFunc}
                 data={data}
-                containerRef={containerRef}
+                getContainerRect={getContainerRect}
               />
             )}
           />
@@ -255,14 +263,13 @@ interface PaperTooltipProps {
   rechartsProps?: any;
   tooltipFunc: (data: any) => ReactNode;
   data: any;
-  containerRef: React.RefObject<HTMLDivElement>;
+  getContainerRect: () => DOMRect | null;
 }
 
-function PaperTooltip({ rechartsProps, tooltipFunc, data, containerRef }: PaperTooltipProps) {
+function PaperTooltip({ rechartsProps, tooltipFunc, data, getContainerRect }: PaperTooltipProps) {
   if (!rechartsProps || !rechartsProps.active || !rechartsProps.coordinate) return null;
 
-  // eslint-disable-next-line react-hooks/refs
-  const rect = containerRef.current?.getBoundingClientRect();
+  const rect = getContainerRect();
 
   const { x, y } = rechartsProps.coordinate;
   const left = (rect?.left || 0) + x;
