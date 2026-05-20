@@ -434,6 +434,81 @@
               class="MuiBox-root css-1smd7c5"
             >
               <div
+                class="MuiBox-root css-ba9uxd"
+                role="button"
+                tabindex="0"
+              >
+                <div
+                  class="MuiBox-root css-vlca9m"
+                >
+                  <div
+                    class="MuiBox-root css-197mvd3"
+                  >
+                    <div
+                      class="MuiBox-root css-49u1fq"
+                    >
+                      <div
+                        class="MuiBox-root css-h3uu27"
+                      >
+                        <div
+                          class="MuiBox-root css-1f1uc6a"
+                        />
+                        <div
+                          class="MuiBox-root css-1z0uf79"
+                        />
+                        <div
+                          class="MuiBox-root css-5zxu0k"
+                        />
+                        <div
+                          class="MuiBox-root css-1oxk0si"
+                        />
+                        <div
+                          class="MuiBox-root css-jkymop"
+                        />
+                        <div
+                          class="MuiBox-root css-n01h7b"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="MuiBox-root css-zde7oq"
+                  >
+                    <div
+                      class="MuiBox-root css-12oswcf"
+                    >
+                      <div
+                        class="MuiBox-root css-1giqewv"
+                      >
+                        <div
+                          class="MuiBox-root css-ni9bm1"
+                        />
+                        <div
+                          class="MuiBox-root css-1z0uf79"
+                        />
+                        <div
+                          class="MuiBox-root css-3dcp9m"
+                        />
+                        <div
+                          class="MuiBox-root css-1coq5wc"
+                        />
+                        <div
+                          class="MuiBox-root css-ew82rx"
+                        />
+                        <div
+                          class="MuiBox-root css-1ep3rs4"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  class="MuiBox-root css-164r41r"
+                >
+                  Auto
+                </div>
+              </div>
+              <div
                 class="MuiBox-root css-1yhz2ch"
                 role="button"
                 tabindex="0"
