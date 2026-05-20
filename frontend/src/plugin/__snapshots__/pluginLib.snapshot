@@ -490,9 +490,7 @@
       "default": [Function],
     },
   },
-  "Lodash": Function {
-    "default": [Function],
-  },
+  "Lodash": "Present",
   "MonacoEditor": "Present",
   "MuiCore": "Present",
   "MuiLab": "Present",
@@ -597,6 +595,7 @@
   "registerProjectDetailsTab": [Function],
   "registerProjectHeaderAction": [Function],
   "registerProjectOverviewSection": [Function],
+  "registerResourceActionProvider": [Function],
   "registerResourceTableColumnsProcessor": [Function],
   "registerRoute": [Function],
   "registerRouteFilter": [Function],

@@ -45,10 +45,15 @@ import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
 import { useFilterFunc } from '../../../lib/util';
-import { DefaultHeaderAction, RowAction } from '../../../redux/actionButtonsSlice';
+import {
+  DefaultHeaderAction,
+  dispatchResourceAction,
+  ResourceAction,
+  RowAction,
+} from '../../../redux/actionButtonsSlice';
 import { useNamespaces } from '../../../redux/filterSlice';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
-import { useTypedSelector } from '../../../redux/hooks';
+import { useAppDispatch, useTypedSelector } from '../../../redux/hooks';
 import { useSettings } from '../../App/Settings/hook';
 import { ClusterGroupErrorMessage } from '../../cluster/ClusterGroupErrorMessage';
 import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
@@ -320,6 +325,10 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
   const theme = useTheme();
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const clusters = useSelectedClusters();
+  const dispatch = useAppDispatch();
+  const resourceActionProviders = useTypedSelector(
+    state => state.actionButtons?.resourceActionProviders || []
+  );
   const tableProcessors = useTypedSelector(state => state.resourceTable.tableColumnsProcessors);
   const defaultFilterFunc = useFilterFunc();
   const [columnVisibility, setColumnVisibility] = useState(() =>
@@ -618,18 +627,68 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
   const actionsProcessed: RowAction[] = [...hAccs, a8rAction, ...defaultActions];
 
   const renderRowActionMenuItems = useMemo(() => {
-    if (actionsProcessed.length === 0) {
+    if (actionsProcessed.length === 0 && resourceActionProviders.length === 0) {
       return undefined;
     }
     return ({ closeMenu, row }: { closeMenu: () => void; row: MRT_Row<RowItem> }) => {
-      return actionsProcessed.map(action => {
+      const item = row.original;
+      const customRowActions: ResourceAction[] = [];
+      for (const provider of resourceActionProviders) {
+        try {
+          const res = provider(item as unknown as KubeObject, t);
+          if (res) {
+            if (Array.isArray(res)) {
+              customRowActions.push(...res);
+            } else {
+              customRowActions.push(res);
+            }
+          }
+        } catch (err) {
+          console.error('Error invoking resourceActionProvider inside table:', err);
+        }
+      }
+
+      const visibleCustomActions = customRowActions.filter(action => {
+        if (action.visible === undefined) return true;
+        if (typeof action.visible === 'function') {
+          try {
+            return action.visible(item as unknown as KubeObject);
+          } catch (err) {
+            console.error('Error checking custom action visibility inside table:', err);
+            return false;
+          }
+        }
+        return !!action.visible;
+      });
+
+      const standardActionsElements = actionsProcessed.map(action => {
         if (action.action === undefined || action.action === null) {
           return <MenuItem key={action.id || 'empty'} />;
         }
-        return action.action({ item: row.original, closeMenu });
+        return action.action({ item, closeMenu });
       });
+
+      const customActionsElements = visibleCustomActions.map(action => {
+        const handleExecute = async () => {
+          closeMenu();
+          await dispatchResourceAction(dispatch, t, action, item as unknown as KubeObject);
+        };
+
+        return (
+          <MenuItem key={action.id} onClick={handleExecute}>
+            {action.icon && (
+              <ListItemIcon>
+                <Icon icon={action.icon} />
+              </ListItemIcon>
+            )}
+            <ListItemText>{action.label}</ListItemText>
+          </MenuItem>
+        );
+      });
+
+      return [...standardActionsElements, ...customActionsElements];
     };
-  }, [actionsProcessed]);
+  }, [actionsProcessed, resourceActionProviders, dispatch, t]);
 
   const wrappedEnableRowSelection = useMemo(() => {
     if (import.meta.env.REACT_APP_HEADLAMP_ENABLE_ROW_SELECTION === 'false') {

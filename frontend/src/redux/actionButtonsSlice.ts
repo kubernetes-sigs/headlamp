@@ -19,6 +19,7 @@ import { createSlice } from '@reduxjs/toolkit';
 import { get, set } from 'lodash';
 import type { ReactElement, ReactNode } from 'react';
 import type { KubeObject } from '../lib/k8s/KubeObject';
+import { clusterAction } from './clusterActionSlice';
 
 export type HeaderActionType = ((...args: any[]) => ReactNode) | null | ReactElement | ReactNode;
 export type DetailsViewFunc = HeaderActionType;
@@ -82,17 +83,59 @@ export type AppBarActionsProcessor = {
   processor: AppBarActionProcessorType;
 };
 
+export interface ResourceAction {
+  id: string;
+  label: string;
+  icon?: string;
+  type?: 'primary' | 'secondary';
+  visible?: boolean | ((resource: KubeObject) => boolean);
+  action: (resource: KubeObject) => void | Promise<void>;
+}
+
+export type ResourceActionProvider = (
+  resource: KubeObject,
+  t: any
+) => ResourceAction[] | ResourceAction | null;
+
+export function dispatchResourceAction(
+  dispatch: any,
+  t: any,
+  action: ResourceAction,
+  resource: KubeObject
+) {
+  return dispatch(
+    clusterAction(
+      async () => {
+        await action.action(resource);
+      },
+      {
+        startMessage: t('translation|Executing {{ actionLabel }}…', {
+          actionLabel: action.label,
+        }),
+        successMessage: t('translation|Successfully executed {{ actionLabel }}.', {
+          actionLabel: action.label,
+        }),
+        errorMessage: t('translation|Failed to execute {{ actionLabel }}.', {
+          actionLabel: action.label,
+        }),
+      }
+    )
+  );
+}
+
 export interface HeaderActionState {
   headerActions: HeaderAction[];
   headerActionsProcessors: HeaderActionsProcessor[];
   appBarActions: AppBarAction[];
   appBarActionsProcessors: AppBarActionsProcessor[];
+  resourceActionProviders: ResourceActionProvider[];
 }
 const initialState: HeaderActionState = {
   headerActions: [],
   headerActionsProcessors: [],
   appBarActions: [],
   appBarActionsProcessors: [],
+  resourceActionProviders: [],
 };
 
 /**
@@ -164,6 +207,10 @@ export const actionButtonsSlice = createSlice({
         _normalizeProcessor<AppBarActionsProcessor, AppBarActionsProcessor['processor']>(action)
       );
     },
+
+    addResourceActionProvider(state, action: PayloadAction<ResourceActionProvider>) {
+      state.resourceActionProviders.push(action.payload);
+    },
   },
 });
 
@@ -172,6 +219,7 @@ export const {
   addDetailsViewHeaderActionsProcessor,
   setAppBarAction,
   setAppBarActionsProcessor,
+  addResourceActionProvider,
 } = actionButtonsSlice.actions;
 
 export default actionButtonsSlice.reducer;

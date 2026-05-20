@@ -14,16 +14,26 @@
  * limitations under the License.
  */
 
+import { Icon } from '@iconify/react';
+import IconButton from '@mui/material/IconButton';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import { has } from 'lodash';
 import React, { isValidElement } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
 import { KubeObject } from '../../../../lib/k8s/KubeObject';
+import { useId } from '../../../../lib/util';
 import {
   DefaultHeaderAction,
   HeaderAction,
   HeaderActionType,
 } from '../../../../redux/actionButtonsSlice';
-import { useTypedSelector } from '../../../../redux/hooks';
+import { dispatchResourceAction, ResourceAction } from '../../../../redux/actionButtonsSlice';
+import { useAppDispatch, useTypedSelector } from '../../../../redux/hooks';
+import ActionButton from '../../ActionButton';
 import ErrorBoundary from '../../ErrorBoundary';
 import SectionHeader, { HeaderStyle } from '../../SectionHeader';
 import CopyButton from '../CopyButton';
@@ -31,6 +41,104 @@ import DeleteButton from '../DeleteButton';
 import EditButton from '../EditButton';
 import { RestartButton } from '../RestartButton';
 import ScaleButton from '../ScaleButton';
+
+export function ResourceActionButton({
+  action,
+  resource,
+}: {
+  action: ResourceAction;
+  resource: KubeObject;
+}) {
+  const dispatch = useAppDispatch();
+  const [loading, setLoading] = React.useState(false);
+  const { t } = useTranslation(['translation']);
+
+  const handleExecute = React.useCallback(async () => {
+    setLoading(true);
+    try {
+      await dispatchResourceAction(dispatch, t, action, resource);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  }, [action, resource, dispatch, t]);
+
+  return (
+    <ActionButton
+      description={action.label}
+      icon={action.icon || 'mdi:play-circle'}
+      onClick={handleExecute}
+      iconButtonProps={{
+        disabled: loading,
+      }}
+    />
+  );
+}
+
+export function ResourceActionsDropdown({
+  actions,
+  resource,
+}: {
+  actions: ResourceAction[];
+  resource: KubeObject;
+}) {
+  const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
+  const dispatch = useAppDispatch();
+  const { t } = useTranslation(['translation']);
+  const menuId = useId('custom-actions-menu');
+  const buttonId = useId('custom-actions-menu-button');
+
+  const handleOpen = (event: React.MouseEvent<HTMLButtonElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  return (
+    <>
+      <IconButton
+        id={buttonId}
+        aria-label={t('translation|More actions')}
+        onClick={handleOpen}
+        aria-haspopup="menu"
+        aria-expanded={Boolean(anchorEl)}
+        aria-controls={anchorEl ? menuId : undefined}
+      >
+        <Icon icon="mdi:dots-vertical" />
+      </IconButton>
+      <Menu
+        anchorEl={anchorEl}
+        open={Boolean(anchorEl)}
+        onClose={handleClose}
+        id={menuId}
+        MenuListProps={{
+          'aria-labelledby': buttonId,
+        }}
+      >
+        {actions.map(action => {
+          const handleExecute = async () => {
+            handleClose();
+            await dispatchResourceAction(dispatch, t, action, resource);
+          };
+
+          return (
+            <MenuItem key={action.id} onClick={handleExecute}>
+              {action.icon && (
+                <ListItemIcon>
+                  <Icon icon={action.icon} />
+                </ListItemIcon>
+              )}
+              <ListItemText>{action.label}</ListItemText>
+            </MenuItem>
+          );
+        })}
+      </Menu>
+    </>
+  );
+}
 
 export interface MainInfoHeaderProps<T extends KubeObject> {
   resource: T | null;
@@ -49,9 +157,10 @@ export interface MainInfoHeaderProps<T extends KubeObject> {
 
 export function MainInfoHeader<T extends KubeObject>(props: MainInfoHeaderProps<T>) {
   const { resource, title, actions = [], headerStyle = 'main', noDefaultActions = false } = props;
-  const headerActions = useTypedSelector(state => state.actionButtons.headerActions);
+  const { t } = useTranslation(['translation']);
+  const headerActions = useTypedSelector(state => state.actionButtons?.headerActions || []);
   const headerActionsProcessors = useTypedSelector(
-    state => state.actionButtons.headerActionsProcessors
+    state => state.actionButtons?.headerActionsProcessors || []
   );
   function setupAction(headerAction: HeaderAction) {
     let Action = has(headerAction, 'action') ? (headerAction as any).action : headerAction;
@@ -126,10 +235,62 @@ export function MainInfoHeader<T extends KubeObject>(props: MainInfoHeaderProps<
     }
   }
 
+  const resourceActionProviders = useTypedSelector(
+    state => state.actionButtons?.resourceActionProviders || []
+  );
+
+  const customActions: ResourceAction[] = [];
+  if (resource) {
+    for (const provider of resourceActionProviders) {
+      try {
+        const res = provider(resource, t);
+        if (res) {
+          if (Array.isArray(res)) {
+            customActions.push(...res);
+          } else {
+            customActions.push(res);
+          }
+        }
+      } catch (err) {
+        console.error('Error invoking resourceActionProvider:', err);
+      }
+    }
+  }
+
+  const visibleCustomActions = customActions.filter(action => {
+    if (action.visible === undefined) return true;
+    if (typeof action.visible === 'function') {
+      try {
+        return action.visible(resource!);
+      } catch (err) {
+        console.error('Error checking custom action visibility:', err);
+        return false;
+      }
+    }
+    return !!action.visible;
+  });
+
+  const primaryCustomActions = visibleCustomActions.filter(action => action.type === 'primary');
+  const secondaryCustomActions = visibleCustomActions.filter(action => action.type !== 'primary');
+
+  const customActionsElements = primaryCustomActions.map(action => (
+    <ResourceActionButton key={action.id} action={action} resource={resource!} />
+  ));
+
+  if (secondaryCustomActions.length > 0) {
+    customActionsElements.push(
+      <ResourceActionsDropdown
+        key="secondary-dropdown"
+        actions={secondaryCustomActions}
+        resource={resource!}
+      />
+    );
+  }
+
   const allActions = React.Children.toArray(
     (function propsActions() {
       const pluginAddedActions = actionsProcessed.map(setupAction);
-      return React.Children.toArray(pluginAddedActions);
+      return React.Children.toArray([...pluginAddedActions, ...customActionsElements]);
     })()
   );
 

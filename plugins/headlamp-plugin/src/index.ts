@@ -70,12 +70,15 @@ import Registry, {
   registerProjectDetailsTab,
   registerProjectHeaderAction,
   registerProjectOverviewSection,
+  registerResourceActionProvider,
   registerResourceTableColumnsProcessor,
   registerRoute,
   registerRouteFilter,
   registerSidebarEntry,
   registerSidebarEntryFilter,
   registerUIPanel,
+  ResourceAction,
+  ResourceActionProvider,
   runCommand,
 } from './plugin/registry';
 export type { ApiResource } from './plugin/registry';
@@ -135,6 +138,7 @@ export {
   registerClusterStatus,
   registerProjectApiResource,
   registerProjectDeleteButton,
+  registerResourceActionProvider,
   Activity,
 };
 
@@ -147,4 +151,6 @@ export type {
   DetailsViewSectionProps,
   DefaultSidebars,
   HeadlampEvent,
+  ResourceAction,
+  ResourceActionProvider,
 };
