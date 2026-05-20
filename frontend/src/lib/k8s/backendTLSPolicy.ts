@@ -19,7 +19,7 @@ import { KubeObject, type KubeObjectInterface } from './KubeObject';
 /**
  * BackendTLSPolicyTargetRef defines the target resource (e.g., Service) for the TLS policy.
  *
- * @see {@link https://gateway-api.sigs.k8s.io/api-types/backendtlspolicy/#structure}
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#localpolicytargetreferencewithsectionname}
  */
 export interface BackendTLSPolicyTargetRef {
   group: string;
@@ -31,7 +31,7 @@ export interface BackendTLSPolicyTargetRef {
 /**
  * BackendTLSPolicyValidation defines TLS validation settings such as trusted CA and SAN.
  *
- * @see {@link https://gateway-api.sigs.k8s.io/api-types/backendtlspolicy/#structure}
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#backendtlspolicyvalidation}
  */
 export interface BackendTLSPolicyValidation {
   caCertificateRefs: {
@@ -44,6 +44,8 @@ export interface BackendTLSPolicyValidation {
 
 /**
  * BackendTLSPolicySpec defines the policy spec.
+ *
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#backendtlspolicyspec}
  */
 export interface BackendTLSPolicySpec {
   targetRefs: BackendTLSPolicyTargetRef[];
@@ -54,7 +56,7 @@ export interface BackendTLSPolicySpec {
 /**
  * BackendTLSPolicy is a Gateway API type that enforces TLS connections from the gateway to the backend.
  *
- * @see {@link https://gateway-api.sigs.k8s.io/api-types/backendtlspolicy/}
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#backendtlspolicy}
  */
 export interface KubeBackendTLSPolicy extends KubeObjectInterface {
   spec: BackendTLSPolicySpec;
