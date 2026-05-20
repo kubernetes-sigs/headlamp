@@ -151,11 +151,36 @@ var maxProxyResponseSize int64 = 100 * 1024 * 1024
 //nolint:gochecknoglobals // allow test override
 var externalProxyTimeout = 30 * time.Second
 
+type proxyURLListContextKey struct{}
+
 //nolint:gochecknoglobals // shared client preserves connection pooling for external proxy requests
 var externalProxyHTTPClient = &http.Client{
 	Transport: newExternalProxyTransport(),
-	CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
-		return http.ErrUseLastResponse
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 {
+			return errors.New("stopped after 10 redirects")
+		}
+
+		proxyURLs, ok := req.Context().Value(proxyURLListContextKey{}).([]string)
+		if !ok || len(proxyURLs) == 0 {
+			// If not an external proxy request or no allowlist provided, do not follow redirects
+			return http.ErrUseLastResponse
+		}
+
+		isURLContainedInProxyURLs := false
+		for _, proxyURL := range proxyURLs {
+			g, err := glob.Compile(proxyURL)
+			if err == nil && g.Match(req.URL.String()) {
+				isURLContainedInProxyURLs = true
+				break
+			}
+		}
+
+		if !isURLContainedInProxyURLs {
+			return errors.New("redirect target not in allowlist")
+		}
+
+		return nil
 	},
 }
 
@@ -727,7 +752,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		proxyCtx, cancel := context.WithTimeout(r.Context(), externalProxyTimeout)
+		proxyCtx := context.WithValue(r.Context(), proxyURLListContextKey{}, config.ProxyURLs)
+		proxyCtx, cancel := context.WithTimeout(proxyCtx, externalProxyTimeout)
 		defer cancel()
 
 		proxyReq, err := http.NewRequestWithContext(proxyCtx, r.Method, proxyURL, r.Body) //nolint:gosec
@@ -808,6 +834,14 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		if resp.ContentLength > maxProxyResponseSize {
 			logger.Log(logger.LevelError, nil, nil, "proxy response exceeded maximum allowed size (Content-Length)")
 			http.Error(w, "response too large", http.StatusBadGateway)
+
+			return
+		}
+
+		// Prevent redirects without Location from being returned or breaking the proxy
+		if resp.StatusCode >= 300 && resp.StatusCode <= 399 && resp.StatusCode != http.StatusNotModified {
+			logger.Log(logger.LevelError, nil, nil, fmt.Sprintf("proxy response is a redirect (status %d), which is not supported", resp.StatusCode))
+			http.Error(w, "redirects are not supported by the external proxy", http.StatusBadGateway)
 
 			return
 		}

@@ -3711,9 +3711,65 @@ func TestExternalProxyDoesNotFollowRedirects(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	assert.Equal(t, http.StatusFound, rr.Code)
+	assert.Equal(t, http.StatusBadGateway, rr.Code)
+	assert.Contains(t, rr.Body.String(), "redirect target not in allowlist")
 
 	mu.Lock()
 	assert.False(t, disallowedTargetHit, "external proxy should not follow redirect to a disallowed target")
+	mu.Unlock()
+}
+
+func TestExternalProxyFollowsAllowedRedirects(t *testing.T) {
+	var mu sync.Mutex
+
+	allowedTargetHit := false
+
+	allowedTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		allowedTargetHit = true
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	defer allowedTarget.Close()
+
+	proxyTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, allowedTarget.URL, http.StatusFound)
+	}))
+	defer proxyTarget.Close()
+
+	proxyURL, err := url.Parse(proxyTarget.URL)
+	require.NoError(t, err)
+
+	allowedURL, err := url.Parse(allowedTarget.URL)
+	require.NoError(t, err)
+
+	cache := cache.New[interface{}]()
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				ProxyURLs:       []string{proxyURL.String(), allowedURL.String()},
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache: cache,
+		},
+	})
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
+	require.NoError(t, err)
+
+	req.Header.Set("proxy-to", proxyURL.String())
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "OK", rr.Body.String())
+
+	mu.Lock()
+	assert.True(t, allowedTargetHit, "external proxy should follow redirect to an allowed target")
 	mu.Unlock()
 }
