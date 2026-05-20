@@ -168,6 +168,7 @@ var externalProxyHTTPClient = &http.Client{
 		}
 
 		isURLContainedInProxyURLs := false
+
 		for _, proxyURL := range proxyURLs {
 			g, err := glob.Compile(proxyURL)
 			if err == nil && g.Match(req.URL.String()) {
@@ -753,6 +754,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		proxyCtx := context.WithValue(r.Context(), proxyURLListContextKey{}, config.ProxyURLs)
+
 		proxyCtx, cancel := context.WithTimeout(proxyCtx, externalProxyTimeout)
 		defer cancel()
 
@@ -840,7 +842,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 		// Prevent redirects without Location from being returned or breaking the proxy
 		if resp.StatusCode >= 300 && resp.StatusCode <= 399 && resp.StatusCode != http.StatusNotModified {
-			logger.Log(logger.LevelError, nil, nil, fmt.Sprintf("proxy response is a redirect (status %d), which is not supported", resp.StatusCode))
+			logger.Log(logger.LevelError, nil, nil,
+				fmt.Sprintf("proxy response is a redirect (status %d), which is not supported", resp.StatusCode))
 			http.Error(w, "redirects are not supported by the external proxy", http.StatusBadGateway)
 
 			return
