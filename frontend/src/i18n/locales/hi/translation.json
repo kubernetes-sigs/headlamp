@@ -861,7 +861,7 @@
   "Toggle search in log viewer": "लॉग व्यूअर में खोज टॉगल करें",
   "Target Container": "लक्ष्य कंटेनर",
   "(None)": "(कोई नहीं)",
-  "Select a target container to share its process namespace, or choose \"(None)\" to run without targeting.": "प्रक्रिया नेमस्पेस साझा करने के लिए लक्ष्य कंटेनर चुनें।",
+  "Select a target container to share its process namespace, or choose \"(None)\" to run without targeting.": "प्रक्रिया नेमस्पेस साझा करने के लिए एक लक्ष्य कंटेनर चुनें, या बिना लक्ष्य किए चलाने के लिए \"(None)\" चुनें।",
   "Start Debug": "डीबग शुरू करें",
   "Debug Pod: {{ name }}": "डीबग पॉड: {{ name }}",
   "Targeting container: {{container}}": "कंटेनर को लक्ष्य कर रहे हैं: {{container}}"

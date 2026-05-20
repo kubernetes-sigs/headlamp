@@ -35,19 +35,21 @@ export default {
   decorators: [withEnv],
   parameters: {
     msw: {
-      handlers: [
-        http.get('https://api.github.com/repos/kinvolk/headlamp/releases', () =>
-          HttpResponse.json([
-            { name: 'v2.0.0', html_url: 'https://example.com/v2', body: 'big release' },
-            { name: 'headlamp-plugin-example', html_url: '#', body: '' },
-          ])
-        ),
-        http.get('https://api.github.com/repos/kinvolk/headlamp/releases/tags/v1.9.9', () =>
-          HttpResponse.json({
-            body: '## Hello\n\n### Sub-heading\n\nworld',
-          })
-        ),
-      ],
+      handlers: {
+        story: [
+          http.get('https://api.github.com/repos/kinvolk/headlamp/releases', () =>
+            HttpResponse.json([
+              { name: 'v2.0.0', html_url: 'https://example.com/v2', body: 'big release' },
+              { name: 'headlamp-plugin-example', html_url: '#', body: '' },
+            ]),
+          ),
+          http.get('https://api.github.com/repos/kinvolk/headlamp/releases/tags/v1.9.9', () =>
+            HttpResponse.json({
+              body: '## Hello\n\n### Sub-heading\n\nworld',
+            }),
+          ),
+        ],
+      },
     },
   },
 } as Meta;

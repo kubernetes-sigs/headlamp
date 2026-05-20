@@ -126,7 +126,7 @@ export default {
             http.get(url, ({ params, request }) => {
               const reqUrl = new URL(request.url);
               const fieldSelector = reqUrl.searchParams.get('fieldSelector');
-              const reqNamespace = params.namespace;
+              const reqNamespace = String(params.namespace);
 
               if (
                 reqNamespace === mockOwnerObject.metadata.namespace &&
@@ -145,13 +145,13 @@ export default {
                 fieldSelector &&
                 fieldSelector.includes(`involvedObject.kind=${mockOwnerObjectNoEvents.kind}`) &&
                 fieldSelector.includes(
-                  `involvedObject.name=${mockOwnerObjectNoEvents.metadata.name}`
+                  `involvedObject.name=${mockOwnerObjectNoEvents.metadata.name}`,
                 )
               ) {
                 return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
               }
               return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
-            })
+            }),
           ),
         ],
       },
@@ -200,7 +200,7 @@ ErrorFetching.parameters = {
           'http://localhost:4466/api/v1/namespaces/default/events',
           'http://localhost:4466/clusters/default/api/v1/namespaces/default/events',
         ].map(url =>
-          http.get(url, () => HttpResponse.json({ kind: 'EventList', items: [], metadata: {} }))
+          http.get(url, () => HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })),
         ),
         ...[
           'http://localhost:4466/api/v1/namespaces/errors/events',
@@ -212,11 +212,11 @@ ErrorFetching.parameters = {
             if (fieldSelector && fieldSelector.includes('involvedObject.name=error-secret')) {
               return HttpResponse.json(
                 { message: 'Simulated server error fetching events' },
-                { status: 500 }
+                { status: 500 },
               );
             }
             return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
-          })
+          }),
         ),
       ],
     },
