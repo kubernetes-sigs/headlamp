@@ -41,15 +41,18 @@ import (
 	watchCache "k8s.io/client-go/tools/cache"
 )
 
-// DeleteKeys deletes keys from the cache if data is present
-// in cache, this delete keys having namespace non-empty and
-// also empty namespace.
+// DeleteKeys deletes the generated cache key and, for namespaced keys, also
+// deletes the matching all-namespaces key.
 func DeleteKeys(key string, k8scache cache.Cache[string]) {
 	_ = k8scache.Delete(context.Background(), key)
 
 	keyPart := strings.Split(key, "+")
 	if len(keyPart) < 4 {
 		return // malformed key; nothing to namespace-strip
+	}
+
+	if keyPart[2] == "" {
+		return
 	}
 
 	keyPart[2] = ""
@@ -314,10 +317,8 @@ func handleKeyGenerationAndDeletion(obj interface{}, gvr schema.GroupVersionReso
 	namespace := unstructuredObj.GetNamespace()
 	key := fmt.Sprintf("%s+%s+%s+%s", gvr.Group, gvr.Resource, namespace, contextKey)
 
-	logger.Log(logger.LevelInfo, nil, nil, redactCacheKey(key)+" will be deleted from the cache")
+	message := redactCacheKey(key) + " and any namespace-stripped variant will be deleted from the cache"
+	logger.Log(logger.LevelInfo, nil, nil, message)
 
-	if err := k8scache.Delete(context.Background(), key); err != nil {
-		logger.Log(logger.LevelError, nil, err, "error while deleting key")
-		return
-	}
+	DeleteKeys(key, k8scache)
 }

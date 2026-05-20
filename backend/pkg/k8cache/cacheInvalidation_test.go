@@ -86,6 +86,21 @@ func TestDeleteKeys(t *testing.T) { //nolint:funlen
 				},
 			},
 		},
+		{
+			name: "cluster scoped key does not delete namespaced key",
+			beforemockCache: &MockCache{
+				store: map[string]string{
+					"+nodes++test-context":        "value-1",
+					"+nodes+default+test-context": "value-2",
+				},
+			},
+			key: "+nodes++test-context",
+			aftermockCache: &MockCache{
+				store: map[string]string{
+					"+nodes+default+test-context": "value-2",
+				},
+			},
+		},
 		{ //nolint:exhaustruct
 			name: "empty key does not panic",
 			beforemockCache: &MockCache{ //nolint:exhaustruct
@@ -376,6 +391,51 @@ func TestRunInformerToWatch(t *testing.T) { //nolint: funlen
 			close(stopCh)
 		})
 	}
+}
+
+func TestRunInformerToWatchDeletesAllNamespaceKey(t *testing.T) {
+	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+	pod := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Pod",
+			"metadata": map[string]interface{}{
+				"name":      "test-pod",
+				"namespace": "default",
+			},
+		},
+	}
+
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(
+		runtime.NewScheme(),
+		map[schema.GroupVersionResource]string{gvr: "PodList"},
+	)
+	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(client, 0, "", nil)
+	mockCache := &MockCache{
+		store: map[string]string{
+			"+pods+default+test-context": "pod-data",
+			"+pods++test-context":        "all-namespace-pod-data",
+		},
+	}
+
+	k8cache.RunInformerToWatch([]schema.GroupVersionResource{gvr}, factory, "test-context", mockCache)
+
+	stopCh := make(chan struct{})
+
+	factory.Start(stopCh)
+	defer close(stopCh)
+
+	factory.WaitForCacheSync(stopCh)
+
+	err := client.Tracker().Add(pod)
+	assert.NoError(t, err)
+
+	assert.Eventually(t, func() bool {
+		_, namespacedErr := mockCache.Get(context.Background(), "+pods+default+test-context")
+		_, allNamespaceErr := mockCache.Get(context.Background(), "+pods++test-context")
+
+		return namespacedErr != nil && allNamespaceErr != nil
+	}, 2*time.Second, 50*time.Millisecond, "informer event should invalidate both pod cache keys")
 }
 
 // TestRunInformerToWatch_OldResource verifies that a resource Add event triggers
