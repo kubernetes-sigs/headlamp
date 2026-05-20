@@ -667,6 +667,19 @@ func (m *Multiplexer) processClientMessage(
 		return
 	}
 
+	if msg.Type != "REQUEST" {
+		m.sendClientError(
+			lockClientConn,
+			msg.ClusterID,
+			msg.Path,
+			msg.Query,
+			msg.UserID,
+			fmt.Errorf("unsupported message type: %s", msg.Type),
+		)
+
+		return
+	}
+
 	token, err := auth.GetTokenFromCookie(r, msg.ClusterID)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"clusterID": msg.ClusterID}, err, "getting token from cookie")
