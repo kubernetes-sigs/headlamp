@@ -353,7 +353,6 @@ export const WebSocketManager = {
               status: 'Failure',
               message: errorMessage,
               metadata: {
-                resourceVersion: '0',
                 uid: `${key}:ERROR:${errorMessage}`,
               },
             },

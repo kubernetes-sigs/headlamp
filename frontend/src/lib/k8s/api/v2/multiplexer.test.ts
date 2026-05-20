@@ -661,7 +661,6 @@ describe('WebSocket Multiplexer', () => {
             status: 'Failure',
             message: 'cluster connection failed',
             metadata: {
-              resourceVersion: '0',
               uid: `${WebSocketManager.createKey(
                 clusterName,
                 path,
@@ -699,7 +698,6 @@ describe('WebSocket Multiplexer', () => {
             status: 'Failure',
             message: 'plain backend error',
             metadata: {
-              resourceVersion: '0',
               uid: `${WebSocketManager.createKey(
                 clusterName,
                 path,
