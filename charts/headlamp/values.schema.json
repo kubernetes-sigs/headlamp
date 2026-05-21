@@ -184,6 +184,14 @@
           "type": "string",
           "description": "Default image to use when creating pod debug containers"
         },
+        "unsafeUseServiceAccountToken": {
+          "type": "boolean",
+          "description": "UNSAFE: authenticate every user as the pod's service account in-cluster mode"
+        },
+        "serviceAccountTokenPath": {
+          "type": "string",
+          "description": "Path to the service account token file when unsafeUseServiceAccountToken is enabled"
+        },
         "oidc": {
           "type": "object",
           "description": "OIDC configuration",
@@ -756,6 +764,28 @@
             }
           }
         }
+      }
+    },
+    "hostAliases": {
+      "type": "array",
+      "description": "Host aliases to add to the pod's /etc/hosts file",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ip": {
+            "type": "string",
+            "description": "IP address the hostnames resolve to"
+          },
+          "hostnames": {
+            "type": "array",
+            "description": "Hostnames that resolve to the given IP",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["ip", "hostnames"],
+        "additionalProperties": false
       }
     }
   }

@@ -194,6 +194,16 @@ Settings.
 
 ![screenshot of the theme dropdown](./images/settings-theme-dropdown.png)
 
+The terminal/log surfaces (pod logs, exec, node shell) follow the active
+theme automatically. To override their colors, set the optional `terminal`
+field on `AppTheme` — `background`, `foreground`, `cursor`, and a 16-color
+`ansi` palette. Anything you leave out is auto-derived from the surrounding
+MUI palette and contrast-clamped to stay readable on the chosen background.
+See the [custom-theme example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/custom-theme)
+for a working `registerAppTheme({ ..., terminal: { ... } })` call.
+
+![pod log viewer in light theme](./images/themed-xterm/themed-xterm-light.png)
+
 ### UI Panels
 
 Register a side panel with

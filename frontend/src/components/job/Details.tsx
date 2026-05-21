@@ -14,18 +14,20 @@
  * limitations under the License.
  */
 
-import { useCallback, useState } from 'react';
+import React, { useCallback, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useParams } from 'react-router-dom';
+import { useLocation, useParams } from 'react-router-dom';
 import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import Job from '../../lib/k8s/job';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import Pod from '../../lib/k8s/pod';
 import { formatDuration } from '../../lib/util';
+import { useEventCallback } from '../../redux/headlampEventSlice';
 import {
   ConditionsSection,
   ContainersSection,
   DetailsGrid,
+  launchWorkloadLogs,
   LogsButton,
   MetadataDictGrid,
   OwnedPodsSection,
@@ -48,6 +50,24 @@ export default function JobDetails(props: { name?: string; namespace?: string; c
     },
     []
   );
+  const location = useLocation();
+  const queryParams = new URLSearchParams(location.search);
+  const autoLaunchView = queryParams.get('view');
+
+  const dispatchHeadlampEvent = useEventCallback();
+  const lastAutoLaunchedLogs = React.useRef<string | null>(null);
+  const [workloadItem, setWorkloadItem] = useState<Job | null>(null);
+
+  React.useEffect(() => {
+    if (autoLaunchView !== 'logs') {
+      lastAutoLaunchedLogs.current = null;
+      return;
+    }
+    if (workloadItem && lastAutoLaunchedLogs.current !== workloadItem.metadata.uid) {
+      lastAutoLaunchedLogs.current = workloadItem.metadata.uid;
+      launchWorkloadLogs(workloadItem, dispatchHeadlampEvent);
+    }
+  }, [workloadItem, autoLaunchView, dispatchHeadlampEvent]);
 
   return (
     <DetailsGrid
@@ -57,6 +77,7 @@ export default function JobDetails(props: { name?: string; namespace?: string; c
       cluster={cluster}
       withEvents
       onResourceUpdate={item => {
+        setWorkloadItem(item);
         setOwnedPods(prev =>
           prev.workloadUid === item?.metadata?.uid
             ? prev

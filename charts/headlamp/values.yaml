@@ -38,6 +38,14 @@ config:
   baseURL: ""
   # -- session token TTL in seconds (default is 24 hours)
   sessionTTL: 86400
+
+  # -- UNSAFE: authenticate every Headlamp user as the pod's service account when running in-cluster.
+  # This disables per-user authentication and is only safe behind an auth proxy (e.g. OIDC proxy).
+  unsafeUseServiceAccountToken: false
+  # -- path to the service account token file.
+  # Only used when unsafeUseServiceAccountToken is true.
+  # Defaults to /var/run/secrets/kubernetes.io/serviceaccount/token when empty.
+  serviceAccountTokenPath: ""
   oidc:
     # Option 1:
     # @param config.oidc.secret - OIDC secret configuration
@@ -348,6 +356,9 @@ tolerations: []
 
 # -- Affinity settings for pod assignment
 affinity: {}
+
+# -- Host aliases to add to the pod's /etc/hosts file
+hostAliases: []
 
 # -- Topology Spread Constraints for pod assignment
 topologySpreadConstraints: []

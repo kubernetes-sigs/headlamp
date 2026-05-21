@@ -182,6 +182,66 @@ var parseClusterAndTokenTests = []struct {
 	},
 }
 
+func TestBearerTokenValue(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+		want   string
+	}{
+		{
+			name:   "raw token",
+			header: "raw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "bearer token",
+			header: "Bearer raw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "case insensitive bearer token",
+			header: "bearer raw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "uppercase bearer token",
+			header: "BEARER raw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "trim whitespace",
+			header: "  Bearer   raw-token  ",
+			want:   "raw-token",
+		},
+		{
+			name:   "tab separated bearer token",
+			header: "Bearer\traw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "only bearer keyword is raw token",
+			header: "Bearer",
+			want:   "Bearer",
+		},
+		{
+			name:   "bearer scheme without credentials",
+			header: "Bearer ",
+			want:   "",
+		},
+		{
+			name:   "bearer-like raw token",
+			header: "bearer",
+			want:   "bearer",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, auth.BearerTokenValue(tt.header))
+		})
+	}
+}
+
 func TestParseClusterAndToken(t *testing.T) {
 	for _, tt := range parseClusterAndTokenTests {
 		t.Run(tt.name, func(t *testing.T) {

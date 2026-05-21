@@ -21,21 +21,79 @@ import sharedConfig from './i18nextSharedConfig.mjs';
 
 const en = {}; // To keep TS happy.
 
-export const supportedLanguages: { [langCode: string]: string } = {
-  en: 'English',
-  es: 'Español',
-  fr: 'Français',
-  pt: 'Português',
-  ru: 'Русский',
-  de: 'Deutsch',
-  it: 'Italiano',
-  'zh-TW': '繁體中文',
-  zh: '简体中文',
-  ko: '한국어',
-  ja: '日本語',
-  hi: 'हिन्दी',
-  ta: 'தமிழ்',
+export const supportedLanguages: {
+  [langCode: string]: {
+    label: string;
+    dir: 'ltr' | 'rtl';
+  };
+} = {
+  en: {
+    label: 'English',
+    dir: 'ltr',
+  },
+  es: {
+    label: 'Español',
+    dir: 'ltr',
+  },
+  fr: {
+    label: 'Français',
+    dir: 'ltr',
+  },
+  ru: {
+    label: 'Русский',
+    dir: 'ltr',
+  },
+  pt: {
+    label: 'Português',
+    dir: 'ltr',
+  },
+  de: {
+    label: 'Deutsch',
+    dir: 'ltr',
+  },
+  it: {
+    label: 'Italiano',
+    dir: 'ltr',
+  },
+  'zh-TW': {
+    label: '繁體中文',
+    dir: 'ltr',
+  },
+  zh: {
+    label: '简体中文',
+    dir: 'ltr',
+  },
+  ko: {
+    label: '한국어',
+    dir: 'ltr',
+  },
+  ja: {
+    label: '日本語',
+    dir: 'ltr',
+  },
+  hi: {
+    label: 'हिन्दी',
+    dir: 'ltr',
+  },
+  ta: {
+    label: 'தமிழ்',
+    dir: 'ltr',
+  },
+  ar: {
+    label: 'العربية',
+    dir: 'rtl',
+  },
+  ur: {
+    label: 'اردو',
+    dir: 'rtl',
+  },
+  he: {
+    label: 'עברית',
+    dir: 'rtl',
+  },
 };
+
+export const isRTL = (lang: string) => supportedLanguages[lang]?.dir === 'rtl';
 
 i18next
   // detect user language https://github.com/i18next/i18next-browser-languageDetector

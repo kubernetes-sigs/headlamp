@@ -14,9 +14,31 @@
  * limitations under the License.
  */
 
-import { ClusterChooserProps, registerClusterChooser } from '@kinvolk/headlamp-plugin/lib';
+import { ClusterChooserProps, K8s, registerClusterChooser } from '@kinvolk/headlamp-plugin/lib';
 import { Button } from '@mui/material';
 
-registerClusterChooser(({ clickHandler, cluster }: ClusterChooserProps) => {
-  return <Button onClick={clickHandler}>Our Cluster Chooser button. Cluster: {cluster}</Button>;
-});
+/** Props for the ClusterChooserButton component. */
+export interface ClusterChooserButtonProps {
+  /** Handler called when the button is clicked. */
+  clickHandler: ClusterChooserProps['clickHandler'];
+  /** Currently selected cluster name. */
+  cluster: ClusterChooserProps['cluster'];
+}
+
+/** A button that shows the current cluster and total cluster count using useClustersConf. */
+export function ClusterChooserButton({ clickHandler, cluster }: ClusterChooserButtonProps) {
+  const clusters = K8s.useClustersConf();
+  const clusterNames = clusters ? Object.keys(clusters) : [];
+
+  return (
+    <Button onClick={clickHandler}>
+      Our Cluster Chooser button. Cluster: {cluster} ({clusterNames.length} clusters)
+    </Button>
+  );
+}
+
+// Replaces the default cluster chooser in the top bar with a button that shows
+// the current cluster name and total number of configured clusters (e.g. "Cluster: minikube (3 clusters)").
+registerClusterChooser(({ clickHandler, cluster }: ClusterChooserProps) => (
+  <ClusterChooserButton clickHandler={clickHandler} cluster={cluster} />
+));

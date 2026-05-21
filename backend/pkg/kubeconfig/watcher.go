@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
-	"k8s.io/utils/strings/slices"
 )
 
 const watchInterval = 10 * time.Second

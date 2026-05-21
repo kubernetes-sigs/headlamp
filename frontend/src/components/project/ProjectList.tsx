@@ -29,6 +29,27 @@ import { NewProjectPopup } from './NewProjectPopup';
 import { getHealthIcon, getResourcesHealth, PROJECT_ID_LABEL } from './projectUtils';
 import { useProjectItems } from './useProjectResources';
 
+// The labelSelector on Namespace.useList filters at the API level, but the
+// returned list can still transiently include items without metadata.labels
+// populated (multi-cluster fan-out, react-query cache during a label
+// removal). Without the filter below an unguarded access crashed the
+// Projects page. See issue #5254.
+export function groupNamespacesIntoProjects(
+  namespaces: ReadonlyArray<{
+    metadata: { name: string; labels?: Record<string, string> };
+    cluster: string;
+  }>
+): ProjectDefinition[] {
+  const labelled = namespaces.filter(n => n.metadata.labels?.[PROJECT_ID_LABEL]);
+  return Object.entries(groupBy(labelled, n => n.metadata.labels![PROJECT_ID_LABEL])).map(
+    ([id, ns]) => ({
+      id,
+      namespaces: uniq(ns.map(it => it.metadata.name)),
+      clusters: uniq(ns.map(it => it.cluster)),
+    })
+  );
+}
+
 const useProjects = (): ProjectDefinition[] => {
   const clusterConf = useClustersConf();
   const clusters = Object.values(clusterConf ?? {});
@@ -38,19 +59,7 @@ const useProjects = (): ProjectDefinition[] => {
     labelSelector: PROJECT_ID_LABEL,
   });
 
-  const projects = useMemo(
-    () =>
-      Object.entries(groupBy(namespaces, n => n.metadata.labels![PROJECT_ID_LABEL])).map(
-        ([name, namespaces]) => ({
-          id: name,
-          namespaces: uniq(namespaces.map(it => it.metadata.name)),
-          clusters: uniq(namespaces.map(it => it.cluster)),
-        })
-      ),
-    [namespaces]
-  );
-
-  return projects;
+  return useMemo(() => groupNamespacesIntoProjects(namespaces ?? []), [namespaces]);
 };
 
 export const useProject = (name: string) => {

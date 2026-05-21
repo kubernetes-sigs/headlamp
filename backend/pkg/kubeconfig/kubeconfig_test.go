@@ -330,7 +330,9 @@ func TestContext(t *testing.T) {
 	}
 
 	kubeConfigFile, err := config.GetDefaultKubeConfigPath()
-	require.NoError(t, err)
+	if err != nil {
+		t.Skipf("Skipping test: failed to resolve default kubeconfig path: %v", err)
+	}
 
 	configStore := kubeconfig.NewContextStore()
 

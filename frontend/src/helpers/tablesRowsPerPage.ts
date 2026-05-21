@@ -15,22 +15,41 @@
  */
 
 const tablesRowsPerPageKey = 'tables_rows_per_page';
+export const minTablesRowsPerPage = 5;
+export const maxTablesRowsPerPage = 1000;
+
+export function parseTablesRowsPerPage(value: string): number | null {
+  const trimmedValue = value.trim();
+  if (!trimmedValue || !/^\d+$/.test(trimmedValue)) {
+    return null;
+  }
+
+  const rowsPerPage = Number(trimmedValue);
+  if (
+    !Number.isSafeInteger(rowsPerPage) ||
+    rowsPerPage < minTablesRowsPerPage ||
+    rowsPerPage > maxTablesRowsPerPage
+  ) {
+    return null;
+  }
+
+  return rowsPerPage;
+}
 
 /**
  * Gets the number of rows per page for tables from local storage.
  *
- * @param defaultRowsPerPage - The default number of rows per page if not set in local storage.
+ * @param defaultRowsPerPage - The default number of rows per page if local storage is empty or invalid.
  * @returns {number} - The number of rows per page.
- * If not set, returns the default value.
+ * If not set or invalid, returns the default value.
  */
-export function getTablesRowsPerPage(defaultRowsPerPage: number = 5) {
+export function getTablesRowsPerPage(defaultRowsPerPage: number = minTablesRowsPerPage) {
   const perPageStr = localStorage.getItem(tablesRowsPerPageKey);
   if (!perPageStr) {
     return defaultRowsPerPage;
   }
 
-  const parsed = parseInt(perPageStr);
-  return Number.isNaN(parsed) ? defaultRowsPerPage : parsed;
+  return parseTablesRowsPerPage(perPageStr) ?? defaultRowsPerPage;
 }
 
 /**

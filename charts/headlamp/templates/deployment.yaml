@@ -264,6 +264,12 @@ spec:
             {{- with .Values.config.podDebugImage }}
             - "-pod-debug-image={{ . }}"
             {{- end }}
+            {{- if and .Values.config.inCluster .Values.config.unsafeUseServiceAccountToken }}
+            - "-unsafe-use-service-account-token"
+            {{- end }}
+            {{- if and .Values.config.inCluster .Values.config.unsafeUseServiceAccountToken .Values.config.serviceAccountTokenPath }}
+            - "-service-account-token-path={{ .Values.config.serviceAccountTokenPath }}"
+            {{- end }}
             {{- if not $oidc.externalSecret.enabled}}
             # Check if externalSecret is disabled
             {{- if or (ne $oidc.clientID "") (ne $clientID "") }}
@@ -443,6 +449,10 @@ spec:
       {{- end }}
       {{- with .Values.tolerations }}
       tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.hostAliases }}
+      hostAliases:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       {{- with .Values.topologySpreadConstraints }}

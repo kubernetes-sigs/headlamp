@@ -61,6 +61,59 @@ export interface AppTheme {
     /** Global search shortcut hint (falls back in createMuiTheme if omitted) */
     searchHint?: string;
   };
+  /**
+   * Optional terminal (xterm.js) color overrides.
+   *
+   * The pod log viewer, pod exec terminal and node shell all render with
+   * xterm.js. By default Headlamp picks readable colors out of the surrounding
+   * MUI palette and an auto-selected ANSI palette. Plugins that swap the rest
+   * of the palette can also set specific terminal colors here without having
+   * to call any extra function.
+   *
+   * Anything left undefined is filled in by Headlamp:
+   *   - `background` falls back to the MUI muted/default surface,
+   *   - `foreground` and `cursor` fall back to the MUI primary text color,
+   *   - each missing `ansi.*` entry is taken from a built-in 16-color palette
+   *     auto-selected (and contrast-clamped) for the actual terminal
+   *     background luminance, so light-on-light or dark-on-dark output is
+   *     never invisible.
+   *
+   * Tip: plugin authors should make sure `foreground` keeps a 4.5:1 contrast
+   * ratio against `background` (WCAG 2.1 AA), so that the terminal stays
+   * readable.
+   */
+  terminal?: {
+    /** Background color of the terminal/log viewer area. */
+    background?: string;
+    /** Default foreground (text) color of the terminal. */
+    foreground?: string;
+    /** Cursor color. */
+    cursor?: string;
+    /**
+     * 16-color ANSI palette used by program output. Each entry is optional;
+     * any color that's left out is filled from a built-in palette
+     * auto-selected for the terminal background's luminance, then nudged
+     * darker/lighter as needed so it stays visible against that background.
+     */
+    ansi?: {
+      black?: string;
+      red?: string;
+      green?: string;
+      yellow?: string;
+      blue?: string;
+      magenta?: string;
+      cyan?: string;
+      white?: string;
+      brightBlack?: string;
+      brightRed?: string;
+      brightGreen?: string;
+      brightYellow?: string;
+      brightBlue?: string;
+      brightMagenta?: string;
+      brightCyan?: string;
+      brightWhite?: string;
+    };
+  };
   /** General shape radius (things like buttons, popups, etc) */
   radius?: number;
   /** Text style in buttons */

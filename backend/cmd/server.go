@@ -98,15 +98,23 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		WatchPluginsChanges:    conf.WatchPluginsChanges,
 		KubeConfigStore:        kubeConfigStore,
 		BaseURL:                conf.BaseURL,
-		ProxyURLs:              strings.Split(conf.ProxyURLs, ","),
-		TLSCertPath:            conf.TLSCertPath,
-		TLSKeyPath:             conf.TLSKeyPath,
-		SessionTTL:             conf.SessionTTL,
-		PodDebugImage:          conf.PodDebugImage,
-		OidcUseCookie:          conf.OidcUseCookie,
-		DefaultLightTheme:      conf.DefaultLightTheme,
-		DefaultDarkTheme:       conf.DefaultDarkTheme,
-		ForceTheme:             conf.ForceTheme,
+		ProxyURLs: func() []string {
+			if conf.ProxyURLs == "" {
+				return []string{}
+			}
+
+			return strings.Split(conf.ProxyURLs, ",")
+		}(),
+		TLSCertPath:                  conf.TLSCertPath,
+		TLSKeyPath:                   conf.TLSKeyPath,
+		SessionTTL:                   conf.SessionTTL,
+		PodDebugImage:                conf.PodDebugImage,
+		OidcUseCookie:                conf.OidcUseCookie,
+		DefaultLightTheme:            conf.DefaultLightTheme,
+		DefaultDarkTheme:             conf.DefaultDarkTheme,
+		ForceTheme:                   conf.ForceTheme,
+		UnsafeUseServiceAccountToken: conf.UnsafeUseServiceAccountToken,
+		ServiceAccountTokenPath:      conf.ServiceAccountTokenPath,
 	}
 }
 
@@ -128,7 +136,7 @@ func buildTelemetryConfig(conf *config.Config) config.Config {
 func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
-	multiplexer := NewMultiplexer(kubeConfigStore)
+	multiplexer := NewMultiplexer(kubeConfigStore, conf.InCluster && conf.UnsafeUseServiceAccountToken)
 
 	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),
@@ -167,8 +175,15 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	cfg.ProxyAuthEmailHeader = conf.ProxyAuthEmailHeader
 	cfg.ProxyAuthTokenHeader = conf.ProxyAuthTokenHeader
 
+	compiledProxyURLs, err := compileProxyURLPatterns(cfg.ProxyURLs)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to compile proxy URL patterns")
+		os.Exit(1)
+	}
+
 	return &HeadlampConfig{
-		HeadlampConfig: cfg,
+		HeadlampConfig:    cfg,
+		compiledProxyURLs: compiledProxyURLs,
 	}
 }
 
@@ -268,6 +283,10 @@ func handleCacheAuthorization(
 	kContext *kubeconfig.Context,
 	key string,
 ) bool {
+	if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+		clearRequestAuthorization(r)
+	}
+
 	isAllowed, authErr := k8cache.IsAllowed(kContext, r)
 	if authErr != nil {
 		k8cache.ServeFromCacheOrForwardToK8s(k8sResponseCache, isAllowed, next, key, w, r, rcw)
