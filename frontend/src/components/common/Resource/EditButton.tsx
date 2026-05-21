@@ -63,7 +63,10 @@ export default function EditButton(props: EditButtonProps) {
 
   async function updateFunc(newItem: KubeObjectInterface) {
     try {
-      await item.update(newItem);
+      const updatedItem = await item.update(newItem);
+      if (updatedItem) {
+        item.jsonData = updatedItem as KubeObjectInterface;
+      }
       Activity.close(activityId);
     } catch (err) {
       Activity.update(activityId, { minimized: false });

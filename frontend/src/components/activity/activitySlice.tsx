@@ -52,8 +52,12 @@ export const activitySlice = createSlice({
         // New activity, add it to the state
         state.activities[action.payload.id] = action.payload;
       } else {
-        // Existing activity, un-minimize it
-        state.activities[action.payload.id].minimized = false;
+        // Existing activity, replace content and un-minimize
+        state.activities[action.payload.id] = {
+          ...state.activities[action.payload.id],
+          ...action.payload,
+          minimized: false,
+        };
       }
 
       // Make it fullscreen on small windows
