@@ -285,6 +285,11 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 		return
 	}
 
+	if !k8cache.IsKubernetesResourceAPIPath(r.URL.Path) || !k8cache.IsAuthBypassURL(r.URL.Path) {
+		next.ServeHTTP(w, r)
+		return
+	}
+
 	ctx, span, contextKey, kContext, err := GetContextKeyAndKContext(w, r, c)
 	if err != nil {
 		return

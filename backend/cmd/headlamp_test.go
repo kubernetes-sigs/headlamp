@@ -2277,6 +2277,57 @@ func httpRequestWithContext(ctx context.Context, url string, method string) (*ht
 
 const istrue = true
 
+func TestCacheMiddleware_BypassesNonKubernetesAPIPaths(t *testing.T) {
+	fakeK8s := newFakeK8sServer(true)
+	defer fakeK8s.Close()
+
+	c := newHeadlampConfig(fakeK8s, t.Name())
+
+	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write([]byte("ok"))
+		assert.NoError(t, err)
+	})
+
+	router := mux.NewRouter()
+	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
+		CacheMiddleWare(c)(proxyHandler),
+	)
+
+	ts := httptest.NewServer(router)
+	defer ts.Close()
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{
+			name: "healthz",
+			path: "/clusters/test/healthz",
+		},
+		{
+			name: "non-api path",
+			path: "/clusters/test/readyz",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			resp, err := httpRequestWithContext(context.Background(), ts.URL+tc.path, http.MethodGet)
+			require.NoError(t, err)
+
+			defer func() { _ = resp.Body.Close() }()
+
+			respString, err := stringResponse(resp)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+			assert.Equal(t, "ok", respString)
+			assert.Equal(t, "", resp.Header.Get("X-HEADLAMP-CACHE"))
+		})
+	}
+}
+
 // TestCacheMiddleware_CacheHitAndCacheMiss test whether the k8s is storing into the cache
 // and returns the data if the data is present in the cache.
 func TestCacheMiddleware_CacheHitAndCacheMiss(t *testing.T) {
