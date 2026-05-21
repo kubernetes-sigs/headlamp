@@ -336,7 +336,7 @@ export default function SimpleTable(props: SimpleTableProps) {
     ) {
       setPage(0);
     }
-  }, [filteredData, page, rowsPerPage]);
+  }, [filteredData, page, rowsPerPage, setPage]);
 
   let content;
   if (displayData === null) {
