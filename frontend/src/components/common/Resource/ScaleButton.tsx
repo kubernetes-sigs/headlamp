@@ -127,24 +127,24 @@ const Input = styled(OutlinedInput)({
   width: '80px',
 });
 
+function getNumReplicas(resource: Deployment | StatefulSet | ReplicaSet) {
+  if (!('spec' in resource)) {
+    return -1;
+  }
+
+  return parseInt(resource.spec.replicas);
+}
+
 function ScaleDialog(props: ScaleDialogProps) {
   const { open, resource, onClose, onSave } = props;
-  const [numReplicas, setNumReplicas] = React.useState<number>(getNumReplicas());
+  const [numReplicas, setNumReplicas] = React.useState<number>(() => getNumReplicas(resource));
   const { t } = useTranslation(['translation']);
   const theme = useTheme();
   const desiredNumReplicasLabel = 'desired-number-replicas-label';
   const numReplicasForWarning = 100;
   const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.SCALE_RESOURCE);
 
-  function getNumReplicas() {
-    if (!('spec' in resource)) {
-      return -1;
-    }
-
-    return parseInt(resource.spec.replicas);
-  }
-
-  const currentNumReplicas = getNumReplicas();
+  const currentNumReplicas = React.useMemo(() => getNumReplicas(resource), [resource]);
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
