@@ -204,8 +204,7 @@ function TableFromResourceClass<KubeClass extends KubeObjectClass>(
       resourceKind: resourceClass.className,
       error: errors?.[0] || undefined,
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items, errors]);
+  }, [dispatchHeadlampEvent, errors, items, resourceClass.className]);
 
   return (
     <ResourceTableContent
@@ -353,10 +352,6 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
       columns.find(it => typeof it === 'string' && it === DEFAULT_SORT_COLUMN_ID)
       ? [{ id: DEFAULT_SORT_COLUMN_ID, desc: false }]
       : []
-  );
-
-  const [tableSettings] = useState<{ id: string; show: boolean }[]>(
-    !!id ? loadTableSettings(id) : []
   );
 
   // Determine if any item in the current dataset carries a8r.io/owner
@@ -541,82 +536,76 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     >;
 
     return [allColumns];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [
-    columnsWithA8rOwner,
-    hideColumns,
-    id,
-    noProcessing,
-    defaultSortingColumn,
-    tableProcessors,
-    tableSettings,
-    sorting,
-  ]);
+  }, [columnsWithA8rOwner, clusters, hideColumns, id, noProcessing, tableProcessors, t, theme]);
 
-  const defaultActions: RowAction[] = [
-    {
-      id: DefaultHeaderAction.RESTART,
-      action: ({ item }) => <RestartButton item={item} buttonStyle="menu" key="restart" />,
-    },
-    {
-      id: DefaultHeaderAction.SCALE,
-      action: ({ item }) => <ScaleButton item={item} buttonStyle="menu" key="scale" />,
-    },
-    {
-      id: DefaultHeaderAction.EDIT,
-      action: ({ item, closeMenu }) => (
-        <EditButton item={item} buttonStyle="menu" afterConfirm={closeMenu} key="edit" />
-      ),
-    },
-    {
-      id: DefaultHeaderAction.DOWNLOAD,
-      action: ({ item }) => <DownloadButton item={item} buttonStyle="menu" key="download" />,
-    },
-    {
-      id: DefaultHeaderAction.VIEW,
-      action: ({ item }) => <ViewButton item={item} buttonStyle="menu" key="view" />,
-    },
-    {
-      id: DefaultHeaderAction.DELETE,
-      action: ({ item, closeMenu }) => (
-        <DeleteButton item={item} buttonStyle="menu" afterConfirm={closeMenu} key="delete" />
-      ),
-    },
-  ];
-  let hAccs: RowAction[] = [];
-  if (actions !== undefined && actions !== null) {
-    hAccs = actions;
-  }
+  const defaultActions = useMemo<RowAction[]>(
+    () => [
+      {
+        id: DefaultHeaderAction.RESTART,
+        action: ({ item }) => <RestartButton item={item} buttonStyle="menu" key="restart" />,
+      },
+      {
+        id: DefaultHeaderAction.SCALE,
+        action: ({ item }) => <ScaleButton item={item} buttonStyle="menu" key="scale" />,
+      },
+      {
+        id: DefaultHeaderAction.EDIT,
+        action: ({ item, closeMenu }) => (
+          <EditButton item={item} buttonStyle="menu" afterConfirm={closeMenu} key="edit" />
+        ),
+      },
+      {
+        id: DefaultHeaderAction.DOWNLOAD,
+        action: ({ item }) => <DownloadButton item={item} buttonStyle="menu" key="download" />,
+      },
+      {
+        id: DefaultHeaderAction.VIEW,
+        action: ({ item }) => <ViewButton item={item} buttonStyle="menu" key="view" />,
+      },
+      {
+        id: DefaultHeaderAction.DELETE,
+        action: ({ item, closeMenu }) => (
+          <DeleteButton item={item} buttonStyle="menu" afterConfirm={closeMenu} key="delete" />
+        ),
+      },
+    ],
+    []
+  );
 
-  const a8rAction: RowAction = {
-    id: 'a8r-actions',
-    action: ({ item, closeMenu }: { item: RowItem; closeMenu: () => void }) => {
-      const annotations = item?.metadata?.annotations ?? {};
-      const metadata = getA8RMetadata(annotations).filter(m => m.isLink);
-      if (metadata.length === 0) return null;
-      return (
-        <React.Fragment key="a8r-actions">
-          {metadata.map(meta => (
-            <MenuItem
-              key={meta.key}
-              onClick={() => {
-                window.open(meta.value, '_blank', 'noopener,noreferrer');
-                closeMenu();
-              }}
-            >
-              <ListItemIcon>
-                <Icon icon={meta.icon} width="20" />
-              </ListItemIcon>
-              <ListItemText>{t(meta.labelKey)}</ListItemText>
-            </MenuItem>
-          ))}
-        </React.Fragment>
-      );
-    },
-  };
+  const a8rAction = useMemo<RowAction>(
+    () => ({
+      id: 'a8r-actions',
+      action: ({ item, closeMenu }: { item: RowItem; closeMenu: () => void }) => {
+        const annotations = item?.metadata?.annotations ?? {};
+        const metadata = getA8RMetadata(annotations).filter(m => m.isLink);
+        if (metadata.length === 0) return null;
+        return (
+          <React.Fragment key="a8r-actions">
+            {metadata.map(meta => (
+              <MenuItem
+                key={meta.key}
+                onClick={() => {
+                  window.open(meta.value, '_blank', 'noopener,noreferrer');
+                  closeMenu();
+                }}
+              >
+                <ListItemIcon>
+                  <Icon icon={meta.icon} width="20" />
+                </ListItemIcon>
+                <ListItemText>{t(meta.labelKey)}</ListItemText>
+              </MenuItem>
+            ))}
+          </React.Fragment>
+        );
+      },
+    }),
+    [t]
+  );
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const actionsProcessed: RowAction[] = [...hAccs, a8rAction, ...defaultActions];
+  const actionsProcessed = useMemo<RowAction[]>(
+    () => [...(actions ?? []), a8rAction, ...defaultActions],
+    [actions, a8rAction, defaultActions]
+  );
 
   const renderRowActionMenuItems = useMemo(() => {
     if (actionsProcessed.length === 0) {
