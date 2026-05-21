@@ -131,7 +131,7 @@
   "Are you sure you want to change the name for \"{{ clusterName }}\"?": "Êtes-vous sûr de vouloir changer le nom de \"{{ clusterName }}\" ?",
   "Apply": "Appliquer",
   "Accent color format is invalid. Use hex (#ff0000), rgb(), or rgba().": "",
-  "Choose Accent Color": "Choisir une couleur d’accentuation",
+  "Choose Accent Color": "Choisir une couleur d'accentuation",
   "Use custom color": "Utiliser une couleur personnalisée",
   "Custom color": "Couleur personnalisée",
   "Hex, rgb(), or rgba()": "",
