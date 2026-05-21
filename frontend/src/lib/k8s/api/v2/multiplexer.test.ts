@@ -666,6 +666,7 @@ describe('WebSocket Multiplexer', () => {
                 path,
                 query
               )}:ERROR:cluster connection failed`,
+              resourceVersion: '0',
             },
           },
         });
@@ -703,6 +704,7 @@ describe('WebSocket Multiplexer', () => {
                 path,
                 query
               )}:ERROR:plain backend error`,
+              resourceVersion: '0',
             },
           },
         });

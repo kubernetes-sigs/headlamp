@@ -354,6 +354,7 @@ export const WebSocketManager = {
               message: errorMessage,
               metadata: {
                 uid: `${key}:ERROR:${errorMessage}`,
+                resourceVersion: '0',
               },
             },
           };
@@ -471,7 +472,10 @@ export function useWebSocket<T>({
           subscriptionPath,
           subscriptionQuery,
           stableOnMessage,
-          onError
+          (err: Error) => {
+            console.error('WebSocket error for', subscriptionPath, err);
+            onError?.(err);
+          }
         );
         if (isCancelled) {
           unsubscribe();
