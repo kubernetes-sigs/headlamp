@@ -63,6 +63,10 @@ export function PureTokenExpiryNotification({
   // cancel the interval without waiting for a React re-render.
   const tokenExpiredRef = React.useRef(false);
   const intervalRef = React.useRef<ReturnType<typeof setInterval> | null>(null);
+  // Captures the cluster name at the exact moment expiry is detected so the
+  // auto-logout effect targets the right cluster even if the user has since
+  // navigated to a different one.
+  const expiredClusterRef = React.useRef<string | null>(null);
 
   // Restart the poller whenever the cluster changes.
   React.useEffect(() => {
@@ -85,6 +89,7 @@ export function PureTokenExpiryNotification({
 
       if (result.tokenExpired) {
         tokenExpiredRef.current = true;
+        expiredClusterRef.current = clusterName;
         setTokenExpired(true);
         if (intervalRef.current !== null) {
           clearInterval(intervalRef.current);
@@ -139,6 +144,7 @@ export function PureTokenExpiryNotification({
   React.useEffect(() => {
     if (tokenExpiry !== null && now >= tokenExpiry && !tokenExpired) {
       tokenExpiredRef.current = true;
+      expiredClusterRef.current = clusterName;
       if (intervalRef.current !== null) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -151,8 +157,9 @@ export function PureTokenExpiryNotification({
   // backend poll or from the local clock check above).
   React.useEffect(() => {
     if (!tokenExpired) return;
-    if (clusterName) {
-      logout(clusterName);
+    const target = expiredClusterRef.current ?? clusterName;
+    if (target) {
+      logout(target);
     }
   }, [tokenExpired, clusterName]);
 
