@@ -40,7 +40,7 @@ const OIDCAuth: FunctionComponent<{}> = () => {
     } else {
       // Full-page redirect flow: clear the auto-login attempt flag
       // and navigate to the cluster page.
-      sessionStorage.removeItem('oidc_auto_login_attempted');
+      sessionStorage.removeItem(`oidc_auto_login_attempted_${cluster}`);
       history.replace(createRouteURL('cluster', { cluster }));
     }
   }, [cluster, history]);

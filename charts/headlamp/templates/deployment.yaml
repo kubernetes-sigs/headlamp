@@ -124,9 +124,15 @@ spec:
           envFrom:
           - secretRef:
               name: {{ $oidc.externalSecret.name }}
-          {{- if .Values.env }}
+          {{- if or .Values.env (eq ($oidc.autoLogin | toString) "true") }}
           env:
+            {{- if .Values.env }}
             {{- toYaml .Values.env | nindent 12 }}
+            {{- end }}
+            {{- if eq ($oidc.autoLogin | toString) "true" }}
+            - name: OIDC_AUTO_LOGIN
+              value: {{ $oidc.autoLogin | quote }}
+            {{- end }}
           {{- end }}
           {{- else }}
           env:

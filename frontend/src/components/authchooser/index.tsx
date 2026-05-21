@@ -84,7 +84,8 @@ function AuthChooser({ children }: AuthChooserProps) {
 
   // Auto-redirect to OIDC when oidc-auto-login is enabled.
   React.useEffect(() => {
-    const attempted = sessionStorage.getItem('oidc_auto_login_attempted');
+    const storageKey = `oidc_auto_login_attempted_${clusterName}`;
+    const attempted = sessionStorage.getItem(storageKey);
 
     if (
       !clusters ||
@@ -96,7 +97,7 @@ function AuthChooser({ children }: AuthChooserProps) {
       return;
     }
 
-    sessionStorage.setItem('oidc_auto_login_attempted', 'true');
+    sessionStorage.setItem(storageKey, 'true');
     const oidcUrl = new URL(`${getAppUrl()}oidc`);
     oidcUrl.searchParams.set('dt', Date());
     oidcUrl.searchParams.set('cluster', clusterName);
@@ -231,6 +232,7 @@ function AuthChooser({ children }: AuthChooserProps) {
       clusterAuthType={clusterAuthType}
       handleTryAgain={runTestAuthAgain}
       handleOidcAuth={() => {
+        sessionStorage.removeItem(`oidc_auto_login_attempted_${clusterName}`);
         queryClient.invalidateQueries({ queryKey: ['clusterMe', clusterName], exact: true });
         history.replace(from);
       }}
