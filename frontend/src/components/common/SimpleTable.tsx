@@ -323,6 +323,21 @@ export default function SimpleTable(props: SimpleTableProps) {
     setAnnouncedStatus(statusMsg);
   }, [statusMsg]);
 
+  const filteredData = React.useMemo(() => {
+    if (!displayData) return null;
+    return filterFunction ? displayData.filter(filterFunction) : displayData;
+  }, [displayData, filterFunction]);
+
+  React.useEffect(() => {
+    if (
+      filteredData &&
+      (filteredData.length === 0 || filteredData.length < page * rowsPerPage) &&
+      page !== 0
+    ) {
+      setPage(0);
+    }
+  }, [filteredData, page, rowsPerPage]);
+
   let content;
   if (displayData === null) {
     if (!!errorMessage) {
@@ -331,21 +346,9 @@ export default function SimpleTable(props: SimpleTableProps) {
       content = <Loader title={t('Loading table data')} />;
     }
   } else {
-    let filteredData = displayData;
-    if (filterFunction) {
-      filteredData = displayData?.filter(filterFunction);
-    }
-
     function getPagedRows() {
       const startIndex = page * rowsPerPage;
       return filteredData!.slice(startIndex, startIndex + rowsPerPage);
-    }
-
-    if (
-      (filteredData?.length === 0 || (filteredData?.length ?? 0) < page * rowsPerPage) &&
-      page !== 0
-    ) {
-      setPage(0);
     }
 
     function sortClickHandler(isIncreasingOrder: boolean, index: number) {
