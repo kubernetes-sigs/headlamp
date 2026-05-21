@@ -525,10 +525,6 @@ export function useKubeObjectList<K extends KubeObject>({
       resourceVersion: data!.list.metadata.resourceVersion,
     }));
 
-  if (listsNotYetWatched.length > 0) {
-    setListsToWatch([...listsToWatch, ...listsNotYetWatched]);
-  }
-
   const listsToStopWatching = listsToWatch.filter(
     watching =>
       requests.find(request => {
@@ -539,8 +535,22 @@ export function useKubeObjectList<K extends KubeObject>({
       }) === undefined
   );
 
-  if (listsToStopWatching.length > 0) {
-    setListsToWatch(listsToWatch.filter(it => !listsToStopWatching.includes(it)));
+  if (listsNotYetWatched.length > 0 || listsToStopWatching.length > 0) {
+    setListsToWatch(prev => {
+      let next = prev;
+      if (listsNotYetWatched.length > 0) {
+        next = [...next, ...listsNotYetWatched];
+      }
+      if (listsToStopWatching.length > 0) {
+        next = next.filter(
+          it =>
+            !listsToStopWatching.some(
+              stop => stop.cluster === it.cluster && stop.namespace === it.namespace
+            )
+        );
+      }
+      return next;
+    });
   }
 
   useWatchKubeObjectLists({
