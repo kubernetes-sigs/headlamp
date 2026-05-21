@@ -20,6 +20,7 @@ import Card from '@mui/material/Card';
 import CardContent from '@mui/material/CardContent';
 import { useTheme } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
+import React from 'react';
 
 export interface SquareButtonProps extends ButtonBaseProps {
   /** The icon to display for this button. */
@@ -34,12 +35,12 @@ export interface SquareButtonProps extends ButtonBaseProps {
   primary?: boolean;
 }
 
-export default function SquareButton(props: SquareButtonProps) {
+const SquareButton = React.forwardRef<HTMLButtonElement, SquareButtonProps>((props, ref) => {
   const { icon, iconSize = 50, iconColor, label, primary = false, ...otherProps } = props;
   const theme = useTheme();
 
   return (
-    <ButtonBase focusRipple {...otherProps}>
+    <ButtonBase focusRipple {...otherProps} ref={ref}>
       <Card
         variant="outlined"
         sx={{
@@ -83,4 +84,6 @@ export default function SquareButton(props: SquareButtonProps) {
       </Card>
     </ButtonBase>
   );
-}
+});
+
+export default SquareButton;

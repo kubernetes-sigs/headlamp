@@ -182,6 +182,66 @@ var parseClusterAndTokenTests = []struct {
 	},
 }
 
+func TestBearerTokenValue(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+		want   string
+	}{
+		{
+			name:   "raw token",
+			header: "raw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "bearer token",
+			header: "Bearer raw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "case insensitive bearer token",
+			header: "bearer raw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "uppercase bearer token",
+			header: "BEARER raw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "trim whitespace",
+			header: "  Bearer   raw-token  ",
+			want:   "raw-token",
+		},
+		{
+			name:   "tab separated bearer token",
+			header: "Bearer\traw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "only bearer keyword is raw token",
+			header: "Bearer",
+			want:   "Bearer",
+		},
+		{
+			name:   "bearer scheme without credentials",
+			header: "Bearer ",
+			want:   "",
+		},
+		{
+			name:   "bearer-like raw token",
+			header: "bearer",
+			want:   "bearer",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, auth.BearerTokenValue(tt.header))
+		})
+	}
+}
+
 func TestParseClusterAndToken(t *testing.T) {
 	for _, tt := range parseClusterAndTokenTests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -567,7 +627,7 @@ func newTokenServerJSON(t *testing.T, status int, body any) *httptest.Server {
 	return srv
 }
 
-func newOIDCProviderServer(t *testing.T, tokenHandler http.HandlerFunc) *httptest.Server {
+func newOIDCProviderServer(t *testing.T, issuerURL string, tokenHandler http.HandlerFunc) *httptest.Server {
 	t.Helper()
 
 	mux := http.NewServeMux()
@@ -577,8 +637,13 @@ func newOIDCProviderServer(t *testing.T, tokenHandler http.HandlerFunc) *httptes
 	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
+		issuer := issuerURL
+		if issuer == "" {
+			issuer = srv.URL
+		}
+
 		cfg := map[string]any{
-			"issuer":         srv.URL,
+			"issuer":         issuer,
 			"token_endpoint": srv.URL + "/token",
 			"jwks_uri":       srv.URL + "/jwks",
 		}
@@ -751,7 +816,7 @@ func TestRefreshAndCacheNewToken_Success(t *testing.T) {
 	)
 
 	fc := &fakeCache{store: map[string]interface{}{oldKey: "REFRESH_OLD"}}
-	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, r *http.Request) {
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
 		require.NoError(t, r.ParseForm()) //nolint:gosec
 		require.Equal(t, "refresh_token", r.PostForm.Get("grant_type"))
 		require.Equal(t, "REFRESH_OLD", r.PostForm.Get("refresh_token"))
@@ -764,7 +829,7 @@ func TestRefreshAndCacheNewToken_Success(t *testing.T) {
 	})
 
 	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
-	tok, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL)
+	tok, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, "")
 	require.NoError(t, err)
 	assert.NotNil(t, tok)
 	assert.Equal(t, refreshNew, tok.RefreshToken)
@@ -779,6 +844,35 @@ func TestRefreshAndCacheNewToken_Success(t *testing.T) {
 	assert.Equal(t, 10*time.Second, fc.setWithTTLCalls[0].ttl)
 }
 
+func TestRefreshAndCacheNewToken_ValidatorIssuerOverride(t *testing.T) {
+	const (
+		oldToken     = "OLD"
+		oldKey       = "oidc-token-" + oldToken
+		issuerURL    = "https://issuer.example.com"
+		refreshToken = "REFRESH_OLD"
+	)
+
+	fc := &fakeCache{store: map[string]interface{}{oldKey: refreshToken}}
+	srv := newOIDCProviderServer(t, issuerURL, func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm()) //nolint:gosec
+		require.Equal(t, "refresh_token", r.PostForm.Get("grant_type"))
+		require.Equal(t, refreshToken, r.PostForm.Get("refresh_token"))
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
+	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, "")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "issuer did not match")
+
+	tok, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, issuerURL)
+	require.NoError(t, err)
+	assert.NotNil(t, tok)
+	assert.Equal(t, refreshNew, tok.RefreshToken)
+}
+
 func TestRefreshAndCacheNewToken_ProviderError(t *testing.T) {
 	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
@@ -786,7 +880,9 @@ func TestRefreshAndCacheNewToken_ProviderError(t *testing.T) {
 	}))
 	t.Cleanup(srv.Close)
 
-	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, &fakeCache{}, "id_token", "OLD", srv.URL)
+	_, err := auth.RefreshAndCacheNewToken(
+		context.Background(), config, &fakeCache{}, "id_token", "OLD", srv.URL, "",
+	)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "getting provider")
 }
@@ -795,14 +891,14 @@ func TestRefreshAndCacheNewToken_TokenError(t *testing.T) {
 	const oldToken = "OLD"
 
 	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
-	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, _ *http.Request) {
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, _ *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusInternalServerError)
 		_ = json.NewEncoder(w).Encode(map[string]any{"error": "server_error"})
 	})
 
 	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
-	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL)
+	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, "")
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "refreshing token")
 	assert.Len(t, fc.setCalls, 0)
@@ -817,7 +913,7 @@ func TestRefreshAndSetToken_DefaultsToIDToken(t *testing.T) {
 
 	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
 
-	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, r *http.Request) {
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		require.NoError(t, r.ParseForm())
 		require.Equal(t, "refresh_token", r.PostForm.Get("grant_type"))
@@ -868,7 +964,7 @@ func TestRefreshAndSetToken_UsesAccessToken(t *testing.T) {
 		"id_token":      "IGNORED",
 	}
 
-	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, r *http.Request) {
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
 		r.Body = http.MaxBytesReader(w, r.Body, 1<<20)
 		require.NoError(t, r.ParseForm())
 		require.Equal(t, "REFRESH_OLD", r.PostForm.Get("refresh_token"))
@@ -911,7 +1007,7 @@ func TestRefreshAndSetToken_ErrorDoesNotSetCookie(t *testing.T) {
 
 	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + oldToken: "REFRESH_OLD"}}
 
-	srv := newOIDCProviderServer(t, func(w http.ResponseWriter, _ *http.Request) {
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, _ *http.Request) {
 		http.Error(w, "token refresh failed", http.StatusInternalServerError)
 	})
 
@@ -997,6 +1093,51 @@ func TestConfigureTLSContext_CACert(t *testing.T) {
 	caCertParsed, err := x509.ParseCertificate(block.Bytes)
 	require.NoError(t, err)
 	assert.True(t, caCertParsed.IsCA, "Generated certificate should be a CA certificate")
+}
+
+// TestConfigureTLSContext_SkipTLS_PreservesDefaults verifies that cloning
+// http.DefaultTransport preserves proxy and timeout settings.
+func TestConfigureTLSContext_SkipTLS_PreservesDefaults(t *testing.T) {
+	skipTLSVerify := true
+	resultCtx := auth.ConfigureTLSContext(context.Background(), &skipTLSVerify, nil)
+
+	client, ok := resultCtx.Value(oauth2.HTTPClient).(*http.Client)
+	require.True(t, ok, "context should contain an *http.Client")
+
+	tr, ok := client.Transport.(*http.Transport)
+	require.True(t, ok, "transport should be *http.Transport")
+
+	defaultTr, ok := http.DefaultTransport.(*http.Transport)
+	require.True(t, ok, "http.DefaultTransport should be *http.Transport")
+
+	assert.NotNil(t, tr.Proxy, "transport.Proxy should be preserved from DefaultTransport")
+	assert.Equal(t, defaultTr.TLSHandshakeTimeout, tr.TLSHandshakeTimeout, "TLSHandshakeTimeout should be preserved")
+	assert.Equal(t, defaultTr.IdleConnTimeout, tr.IdleConnTimeout, "IdleConnTimeout should be preserved")
+	assert.True(t, tr.TLSClientConfig.InsecureSkipVerify, "InsecureSkipVerify should be true")
+}
+
+// TestConfigureTLSContext_CACert_PreservesDefaults verifies the caCert branch
+// also preserves default transport settings.
+func TestConfigureTLSContext_CACert_PreservesDefaults(t *testing.T) {
+	caCertBytes, err := os.ReadFile("../../cmd/headlamp_testdata/ca.crt")
+	require.NoError(t, err)
+
+	caCert := string(caCertBytes)
+	resultCtx := auth.ConfigureTLSContext(context.Background(), nil, &caCert)
+
+	client, ok := resultCtx.Value(oauth2.HTTPClient).(*http.Client)
+	require.True(t, ok, "context should contain an *http.Client")
+
+	tr, ok := client.Transport.(*http.Transport)
+	require.True(t, ok, "transport should be *http.Transport")
+
+	defaultTr, ok := http.DefaultTransport.(*http.Transport)
+	require.True(t, ok, "http.DefaultTransport should be *http.Transport")
+
+	assert.NotNil(t, tr.Proxy, "transport.Proxy should be preserved from DefaultTransport")
+	assert.Equal(t, defaultTr.TLSHandshakeTimeout, tr.TLSHandshakeTimeout, "TLSHandshakeTimeout should be preserved")
+	assert.Equal(t, defaultTr.IdleConnTimeout, tr.IdleConnTimeout, "IdleConnTimeout should be preserved")
+	assert.NotNil(t, tr.TLSClientConfig.RootCAs, "RootCAs should be set")
 }
 
 func makeTestToken(t *testing.T, claims map[string]interface{}) string {
@@ -1099,6 +1240,41 @@ func TestHandleMe_HeaderToken(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
 	assert.Equal(t, "alice", got.Username)
 	assert.Equal(t, "alice@example.com", got.Email)
+	assert.Equal(t, []string{"dev", "ops"}, got.Groups)
+}
+
+func TestHandleMe_ProxyAuth(t *testing.T) {
+	t.Parallel()
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
+	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
+
+	req.Header.Set("X-Forwarded-User", "proxy_alice")
+	req.Header.Set("X-Forwarded-Email", "proxy_alice@example.com")
+	req.Header.Set("X-Forwarded-Group", "dev, ops")
+
+	rr := httptest.NewRecorder()
+
+	handler := auth.HandleMe(auth.MeHandlerOptions{
+		ProxyAuthEnabled:        true,
+		ProxyAuthUsernameHeader: "X-Forwarded-User",
+		ProxyAuthEmailHeader:    "X-Forwarded-Email",
+		ProxyAuthGroupHeader:    "X-Forwarded-Group",
+	})
+
+	handler(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var got struct {
+		Username string   `json:"username"`
+		Email    string   `json:"email"`
+		Groups   []string `json:"groups"`
+	}
+
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &got))
+	assert.Equal(t, "proxy_alice", got.Username)
+	assert.Equal(t, "proxy_alice@example.com", got.Email)
 	assert.Equal(t, []string{"dev", "ops"}, got.Groups)
 }
 

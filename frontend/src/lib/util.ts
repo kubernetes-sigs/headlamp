@@ -173,7 +173,7 @@ export function timeAgo(date: DateParam, options: TimeAgoOptions = {}) {
   const fromDate = new Date(date);
   let now = new Date();
 
-  if (import.meta.env.UNDER_TEST === 'true') {
+  if (import.meta.env.UNDER_TEST) {
     // For testing, we consider the current moment to be 3 months from the dates we are testing.
     const days = 24 * 3600 * 1000; // in ms
     now = new Date(fromDate.getTime() + 90 * days);
@@ -208,7 +208,7 @@ export function localeDate(date: DateParam) {
   let locale: string | undefined = undefined;
 
   // Force the same conditions under test, so snapshots are the same.
-  if (import.meta.env.UNDER_TEST === 'true') {
+  if (import.meta.env.UNDER_TEST) {
     options.timeZone = 'UTC';
     options.hour12 = true;
     locale = 'en-US';
@@ -561,11 +561,8 @@ export function normalizeUnit(resourceType: string, quantity: string) {
  * If UNDER_TEST is set to true, it will return the same ID every time, so snapshots do not get invalidated.
  */
 export function useId(prefix = '') {
-  const [id] = React.useState<string | undefined>(
-    import.meta.env.UNDER_TEST === 'true'
-      ? prefix + 'id'
-      : // eslint-disable-next-line react-hooks/purity
-        prefix + Math.random().toString(16).slice(2)
+  const [id] = React.useState<string | undefined>(() =>
+    import.meta.env.UNDER_TEST ? prefix + 'id' : prefix + Math.random().toString(16).slice(2)
   );
 
   return id;

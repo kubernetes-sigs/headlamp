@@ -20,6 +20,7 @@ import DialogContent from '@mui/material/DialogContent';
 import Grid from '@mui/material/Grid';
 import InputBase from '@mui/material/InputBase';
 import Paper from '@mui/material/Paper';
+import { alpha, useTheme } from '@mui/material/styles';
 import { FitAddon } from '@xterm/addon-fit';
 import { ISearchOptions, SearchAddon } from '@xterm/addon-search';
 import { Terminal as XTerminal } from '@xterm/xterm';
@@ -29,6 +30,7 @@ import { useTranslation } from 'react-i18next';
 import { useShortcut } from '../../lib/useShortcut';
 import ActionButton from './ActionButton';
 import { Dialog, DialogProps } from './Dialog';
+import { getXtermTheme } from './xtermTheme';
 
 export interface LogViewerProps extends DialogProps {
   logs: string[];
@@ -64,6 +66,8 @@ export function LogViewer(props: LogViewerProps) {
     ...other
   } = props;
   const { t } = useTranslation();
+  const muiTheme = useTheme();
+  const xtermTheme = React.useMemo(() => getXtermTheme(muiTheme), [muiTheme]);
   const xtermRef = React.useRef<XTerminal | null>(null);
   const fitAddonRef = React.useRef<any>(null);
   const searchAddonRef = React.useRef<any>(null);
@@ -101,6 +105,7 @@ export function LogViewer(props: LogViewerProps) {
       rows: 30, // initial rows before fit
       lineHeight: 1.21,
       allowProposedApi: true,
+      theme: xtermTheme,
     });
 
     if (!!outXtermRef) {
@@ -131,6 +136,12 @@ export function LogViewer(props: LogViewerProps) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [terminalContainerRef, xtermRef.current]);
+
+  React.useEffect(() => {
+    if (xtermRef.current) {
+      xtermRef.current.options.theme = xtermTheme;
+    }
+  }, [xtermTheme]);
 
   React.useEffect(() => {
     if (!xtermRef.current) {
@@ -287,6 +298,8 @@ interface SearchPopoverProps {
 
 export function SearchPopover(props: SearchPopoverProps) {
   const { searchAddonRef, open, onClose } = props;
+  const muiTheme = useTheme();
+  const isDark = muiTheme.palette.mode === 'dark';
   const [searchResult, setSearchResult] = React.useState<
     { resultIndex: number; resultCount: number } | undefined
   >(undefined);
@@ -308,10 +321,10 @@ export function SearchPopover(props: SearchPopoverProps) {
   const randomId = _.uniqueId('search-input-');
 
   const searchAddonTextDecorationOptions: ISearchOptions['decorations'] = {
-    matchBackground: '#6d402a',
-    activeMatchBackground: '#515c6a',
-    matchOverviewRuler: '#f00',
-    activeMatchColorOverviewRuler: '#515c6a',
+    matchBackground: alpha(muiTheme.palette.warning.main, 0.5),
+    activeMatchBackground: alpha(muiTheme.palette.primary.main, 0.6),
+    matchOverviewRuler: muiTheme.palette.warning.main,
+    activeMatchColorOverviewRuler: muiTheme.palette.primary.main,
   };
 
   useEffect(() => {
@@ -342,8 +355,22 @@ export function SearchPopover(props: SearchPopoverProps) {
       // eslint-disable-next-line react-hooks/exhaustive-deps
       searchAddonRef.current?.findNext('');
     };
+    // searchAddonTextDecorationOptions is rebuilt every render, but we still
+    // want the existing match highlights / overview-ruler markers to update
+    // when the user toggles themes mid-search, so we depend on the resolved
+    // decoration colors rather than the object identity.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchText, caseSensitiveChecked, wholeWordMatchChecked, regexChecked, open]);
+  }, [
+    searchText,
+    caseSensitiveChecked,
+    wholeWordMatchChecked,
+    regexChecked,
+    open,
+    searchAddonTextDecorationOptions.matchBackground,
+    searchAddonTextDecorationOptions.activeMatchBackground,
+    searchAddonTextDecorationOptions.matchOverviewRuler,
+    searchAddonTextDecorationOptions.activeMatchColorOverviewRuler,
+  ]);
 
   const handleFindNext = () => {
     searchAddonRef.current?.findNext(searchText, {
@@ -381,12 +408,12 @@ export function SearchPopover(props: SearchPopoverProps) {
     }
   };
 
-  const baseGray = '#cccccc';
+  const searchTextColor = muiTheme.palette.text.primary;
   const grayText = {
-    color: baseGray,
+    color: searchTextColor,
   };
   const redText = {
-    color: '#f48771',
+    color: muiTheme.palette.error.main,
   };
 
   const searchResults = () => {
@@ -423,10 +450,15 @@ export function SearchPopover(props: SearchPopoverProps) {
   ) : (
     <Paper
       sx={theme => {
-        //@todo: This style should match the theme being used.
+        const popoverBg = theme.palette.background.paper;
+        const inputBg = theme.palette.action.hover;
+        const borderColor = theme.palette.divider;
+        const focusBorder = theme.palette.primary.main;
+        const checkedBg = alpha(theme.palette.primary.main, isDark ? 0.4 : 0.2);
+        const disabledColor = theme.palette.action.disabled;
         return {
           position: 'absolute',
-          background: '#252526',
+          background: popoverBg,
           top: 8,
           right: 15,
           padding: '4px 8px',
@@ -435,20 +467,20 @@ export function SearchPopover(props: SearchPopoverProps) {
           display: 'flex',
           flexDirection: 'row',
           alignItems: 'center',
-          borderLeft: `2px solid #555`,
+          borderLeft: `2px solid ${borderColor}`,
           '& .SearchTextArea': {
-            background: '#3c3c3c',
+            background: inputBg,
             display: 'flex',
             flexDirection: 'row',
             alignItems: 'center',
             padding: '1px 4px 2px 0',
             width: 240,
             '& .MuiInputBase-root': {
-              color: baseGray,
+              color: searchTextColor,
               fontSize: '0.85rem',
               border: '1px solid rgba(0,0,0,0)',
               '&.Mui-focused': {
-                border: `1px solid #007fd4`,
+                border: `1px solid ${focusBorder}`,
               },
               '&>input': {
                 padding: '2px 4px',
@@ -458,10 +490,10 @@ export function SearchPopover(props: SearchPopoverProps) {
               margin: '0 1px',
               padding: theme.spacing(0.5),
               fontSize: '1.05rem',
-              color: baseGray,
+              color: searchTextColor,
               borderRadius: 4,
               '&.checked': {
-                background: '#245779',
+                background: checkedBg,
               },
             },
           },
@@ -474,9 +506,9 @@ export function SearchPopover(props: SearchPopoverProps) {
             '& .MuiIconButton-root': {
               padding: 2,
               fontSize: '1.05rem',
-              color: baseGray,
+              color: searchTextColor,
               '&.Mui-disabled': {
-                color: '#767677',
+                color: disabledColor,
               },
             },
           },

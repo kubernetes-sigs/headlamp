@@ -36,13 +36,15 @@ import { TooltipIcon } from '../common/Tooltip';
 import LightTooltip from '../common/Tooltip/TooltipLight';
 
 function getPodStatus(pod: Pod) {
-  const phase = pod.status.phase;
+  const phase = pod.status?.phase;
   let status: StatusLabelProps['status'] = '';
 
   if (phase === 'Failed') {
     status = 'error';
   } else if (phase === 'Succeeded' || phase === 'Running') {
-    const readyCondition = pod.status.conditions.find(condition => condition.type === 'Ready');
+    const readyCondition = (pod.status?.conditions || []).find(
+      condition => condition.type === 'Ready'
+    );
     if (readyCondition?.status === 'True' || phase === 'Succeeded') {
       status = 'success';
     } else {
@@ -275,8 +277,9 @@ export function PodListRenderer(props: PodListProps) {
           // include ready condition status so the cell re-renders when icon state changes
           getValue: pod => {
             const status = pod.getDetailedStatus();
-            const readyCondition = pod.status?.conditions?.find(c => c.type === 'Ready');
-            return `${status.reason}:${readyCondition?.status ?? ''}`;
+            const readyCondition = (pod.status?.conditions || []).find(c => c.type === 'Ready');
+            const phase = pod.status?.phase || '';
+            return `${phase}:${status.reason}:${readyCondition?.status ?? ''}`;
           },
           render: makePodStatusLabel,
         },

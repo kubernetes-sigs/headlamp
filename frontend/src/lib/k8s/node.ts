@@ -87,7 +87,7 @@ class Node extends KubeObject<KubeNode> {
     return this.jsonData.spec;
   }
 
-  static useMetrics(): [KubeMetrics[] | null, ApiError | null] {
+  static useMetrics(cluster?: string): [KubeMetrics[] | null, ApiError | null] {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const [nodeMetrics, setNodeMetrics] = React.useState<KubeMetrics[] | null>(null);
     // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -102,7 +102,9 @@ class Node extends KubeObject<KubeNode> {
     }
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(metrics.bind(null, '/apis/metrics.k8s.io/v1beta1/nodes', setMetrics, setError));
+    useConnectApi(
+      metrics.bind(null, '/apis/metrics.k8s.io/v1beta1/nodes', setMetrics, setError, cluster)
+    );
 
     return [nodeMetrics, error];
   }

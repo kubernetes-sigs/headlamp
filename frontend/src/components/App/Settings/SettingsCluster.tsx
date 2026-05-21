@@ -489,7 +489,7 @@ export default function SettingsCluster() {
                       value = value.replace(' ', '');
                       setNewAllowedNamespace(value);
                     }}
-                    placeholder="namespace"
+                    placeholder={t('glossary|Namespace')}
                     error={!isValidNewAllowedNamespace}
                     value={newAllowedNamespace}
                     helperText={
@@ -521,7 +521,7 @@ export default function SettingsCluster() {
                           <InlineIcon icon="mdi:plus-circle" />
                         </IconButton>
                       ),
-                      onKeyPress: event => {
+                      onKeyDown: event => {
                         if (event.key === 'Enter') {
                           storeNewAllowedNamespace(newAllowedNamespace);
                         }

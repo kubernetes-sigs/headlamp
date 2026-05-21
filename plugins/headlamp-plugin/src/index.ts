@@ -22,6 +22,7 @@ declare module '@mui/private-theming' {
 
 import { Activity } from './components/activity/Activity';
 import * as CommonComponents from './components/common';
+import type { AppTheme } from './lib/AppTheme';
 import * as K8s from './lib/k8s';
 import * as ApiProxy from './lib/k8s/apiProxy';
 import * as Notification from './lib/notification';
@@ -136,6 +137,7 @@ export {
 
 export type {
   AppLogoProps,
+  AppTheme,
   PluginSettingsDetailsProps,
   CallbackActionOptions,
   ClusterChooserProps,

@@ -133,7 +133,7 @@ func TestStartPortForward(t *testing.T) {
 	req.Body = io.NopCloser(bytes.NewReader(jsonReq))
 	req.Header.Set("Content-Type", "application/json")
 
-	portforward.StartPortForward(kubeConfigStore, ch, resp, req)
+	portforward.StartPortForward(kubeConfigStore, ch, false, resp, req)
 
 	res := resp.Result()
 

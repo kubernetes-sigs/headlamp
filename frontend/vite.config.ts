@@ -23,10 +23,12 @@ import { viteStaticCopy } from "vite-plugin-static-copy";
 // Use environment variable for backend port, defaulting to 4466
 const backendPort = process.env.HEADLAMP_PORT || '4466';
 const backendTarget = `http://localhost:${backendPort}`;
+const underTest = process.env.UNDER_TEST === 'true' || process.env.VITEST === 'true';
 
 export default defineConfig({
   define: {
     global: 'globalThis',
+    'import.meta.env.UNDER_TEST': JSON.stringify(underTest),
   },
   envPrefix: 'REACT_APP_',
   base: process.env.PUBLIC_URL,

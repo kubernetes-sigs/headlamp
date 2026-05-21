@@ -128,6 +128,15 @@ func (c *Context) Copy() *Context {
 	}
 }
 
+// UsesInClusterServiceAccountToken reports whether this context should authenticate
+// to Kubernetes with the mounted in-cluster service account token.
+func (c *Context) UsesInClusterServiceAccountToken() bool {
+	return c != nil &&
+		c.Source == InCluster &&
+		c.AuthInfo != nil &&
+		c.AuthInfo.TokenFile != ""
+}
+
 type OidcConfig struct {
 	// OIDC client ID.
 	ClientID string
@@ -1025,6 +1034,18 @@ func splitKubeConfigPath(path string) []string {
 	return strings.Split(path, delimiter)
 }
 
+func resolveServiceAccountTokenPath(clusterConfig *rest.Config, serviceAccountTokenPath string) string {
+	if serviceAccountTokenPath != "" {
+		return serviceAccountTokenPath
+	}
+
+	if clusterConfig.BearerTokenFile != "" {
+		return clusterConfig.BearerTokenFile
+	}
+
+	return "/var/run/secrets/kubernetes.io/serviceaccount/token" // #nosec G101
+}
+
 // GetInClusterContext returns the in-cluster context.
 func GetInClusterContext(
 	contextName string,
@@ -1033,12 +1054,40 @@ func GetInClusterContext(
 	oidcScopes string,
 	oidcSkipTLSVerify bool,
 	oidcCACert string,
+	unsafeUseServiceAccountToken bool,
+	serviceAccountTokenPath string,
 ) (*Context, error) {
 	clusterConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
 	}
 
+	return newInClusterContextFromConfig(
+		clusterConfig,
+		contextName,
+		oidcIssuerURL,
+		oidcClientID,
+		oidcClientSecret,
+		oidcScopes,
+		oidcSkipTLSVerify,
+		oidcCACert,
+		unsafeUseServiceAccountToken,
+		serviceAccountTokenPath,
+	), nil
+}
+
+func newInClusterContextFromConfig(
+	clusterConfig *rest.Config,
+	contextName string,
+	oidcIssuerURL string,
+	oidcClientID string,
+	oidcClientSecret string,
+	oidcScopes string,
+	oidcSkipTLSVerify bool,
+	oidcCACert string,
+	unsafeUseServiceAccountToken bool,
+	serviceAccountTokenPath string,
+) *Context {
 	cluster := &api.Cluster{
 		Server:                   clusterConfig.Host,
 		CertificateAuthority:     clusterConfig.CAFile,
@@ -1056,6 +1105,10 @@ func GetInClusterContext(
 	contextName = MakeDNSFriendly(contextName)
 
 	inClusterAuthInfo := &api.AuthInfo{}
+
+	if unsafeUseServiceAccountToken {
+		inClusterAuthInfo.TokenFile = resolveServiceAccountTokenPath(clusterConfig, serviceAccountTokenPath)
+	}
 
 	var oidcConf *OidcConfig
 
@@ -1076,8 +1129,9 @@ func GetInClusterContext(
 		KubeContext: inClusterContext,
 		Cluster:     cluster,
 		AuthInfo:    inClusterAuthInfo,
+		Source:      InCluster,
 		OidcConf:    oidcConf,
-	}, nil
+	}
 }
 
 // Func type for context filter, if the func return true,

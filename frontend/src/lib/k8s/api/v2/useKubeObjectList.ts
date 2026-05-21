@@ -28,6 +28,7 @@ import { KubeList } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
 import { WebSocketManager } from './multiplexer';
+import { kubeRequestRetry } from './retry';
 import { BASE_WS_URL, useWebSockets } from './webSocket';
 
 /**
@@ -72,6 +73,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
   return {
     placeholderData: null,
     refetchInterval,
+    retry: kubeRequestRetry,
     queryKey: [
       'kubeObject',
       'list',
@@ -529,11 +531,12 @@ export function useKubeObjectList<K extends KubeObject>({
 
   const listsToStopWatching = listsToWatch.filter(
     watching =>
-      requests.find(request =>
-        watching.cluster === request?.cluster && request.namespaces && watching.namespace
-          ? request.namespaces?.includes(watching.namespace)
-          : true
-      ) === undefined
+      requests.find(request => {
+        if (watching.cluster !== request?.cluster) return false;
+        return !request.namespaces?.length
+          ? !watching.namespace
+          : !!watching.namespace && request.namespaces.includes(watching.namespace);
+      }) === undefined
   );
 
   if (listsToStopWatching.length > 0) {

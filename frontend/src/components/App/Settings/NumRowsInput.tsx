@@ -28,7 +28,13 @@ import TextField from '@mui/material/TextField';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
+import {
+  getTablesRowsPerPage,
+  maxTablesRowsPerPage,
+  minTablesRowsPerPage,
+  parseTablesRowsPerPage,
+  setTablesRowsPerPage,
+} from '../../../helpers/tablesRowsPerPage';
 import { defaultTableRowsPerPageOptions, setAppSettings } from '../../../redux/configSlice';
 
 export default function NumRowsInput(props: { defaultValue: number[]; nameLabelID?: string }) {
@@ -36,6 +42,7 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
   const { defaultValue, nameLabelID } = props;
   const [isSelectOpen, setIsSelectOpen] = useState(false);
   const [options, setOptions] = useState(defaultValue);
+  const [minRows, maxRows] = [minTablesRowsPerPage, maxTablesRowsPerPage];
   const focusedRef = useCallback((node: HTMLElement) => {
     if (node !== null) {
       node.focus();
@@ -58,9 +65,8 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
     return val;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  const [customValue, setCustomValue] = useState<number | undefined>(storedCustomValue);
+  const [customValue, setCustomValue] = useState(storedCustomValue.toString());
   const [errorMessage, setErrorMessage] = useState('');
-  const [minRows, maxRows] = [5, 1000];
   const dispatch = useDispatch();
 
   useEffect(() => {
@@ -103,35 +109,35 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
           error={!!errorMessage}
           placeholder={t('translation|Custom row value')}
           helperText={errorMessage || suggestionMsg}
-          inputProps={{ min: minRows, max: maxRows }}
+          inputProps={{ min: minRows, max: maxRows, step: 1 }}
           inputRef={focusedRef}
           onChange={e => {
-            const val = parseInt(e.target.value);
-            if (Number.isInteger(val)) {
-              if (val < 5 || val > maxRows) {
-                setErrorMessage(suggestionMsg);
-              } else {
-                setErrorMessage('');
-              }
-              setCustomValue(val);
-            } else {
-              setCustomValue(undefined);
+            const val = parseTablesRowsPerPage(e.target.value);
+            setCustomValue(e.target.value);
+            if (val === null) {
+              setErrorMessage(e.target.value ? suggestionMsg : '');
+              return;
             }
+
+            setErrorMessage('');
           }}
         />
         <Box display="inline-flex" alignItems="center" mx={1}>
           <Button
             variant="contained"
-            disabled={!!errorMessage}
+            disabled={!!errorMessage || parseTablesRowsPerPage(customValue) === null}
             size="small"
             onClick={() => {
-              if (customValue === undefined) {
+              const parsedCustomValue = parseTablesRowsPerPage(customValue);
+              if (parsedCustomValue === null) {
                 return;
               }
-              const newOptions = [...new Set([...defaultTableRowsPerPageOptions, customValue])];
+              const newOptions = [
+                ...new Set([...defaultTableRowsPerPageOptions, parsedCustomValue]),
+              ];
               newOptions.sort((a, b) => a - b);
               setOptions(newOptions);
-              setSelectedValue(customValue);
+              setSelectedValue(parsedCustomValue);
             }}
           >
             {t('translation|Apply')}

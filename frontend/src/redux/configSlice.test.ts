@@ -50,6 +50,32 @@ describe('configSlice', () => {
     expect(nextState.isDynamicClusterEnabled).toBe(true);
   });
 
+  it('should handle setConfig with defaultPodDebugImage', () => {
+    const clusters: ConfigState['clusters'] = {
+      'cluster-1': { name: 'cluster-1' } as Cluster,
+    };
+    const nextState = configReducer(
+      initialState,
+      setConfig({
+        clusters,
+        defaultPodDebugImage: 'registry.example.com/debug:latest',
+      })
+    );
+
+    expect(nextState.defaultPodDebugImage).toBe('registry.example.com/debug:latest');
+  });
+
+  it('should handle clearing defaultPodDebugImage', () => {
+    const state = {
+      ...initialState,
+      defaultPodDebugImage: 'registry.example.com/debug:latest',
+    };
+
+    const nextState = configReducer(state, setConfig({ clusters: {}, defaultPodDebugImage: '' }));
+
+    expect(nextState.defaultPodDebugImage).toBe('');
+  });
+
   it('should preserve isDynamicClusterEnabled when setConfig is called without it', () => {
     let state = configReducer(
       initialState,

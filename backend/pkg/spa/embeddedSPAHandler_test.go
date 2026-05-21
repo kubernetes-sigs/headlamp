@@ -52,6 +52,10 @@ func TestEmbeddedSpaHandler(t *testing.T) {
 	t.Run("file_not_found", func(t *testing.T) {
 		testFileNotFound(t, testHTML)
 	})
+
+	t.Run("file_not_found_uses_index_content_type", func(t *testing.T) {
+		testFileNotFoundUsesIndexContentType(t, testHTML)
+	})
 }
 
 func testHeadlampBaseURLWithBaseURL(t *testing.T, testHTML string) {
@@ -103,4 +107,20 @@ func testFileNotFound(t *testing.T, testHTML string) {
 	// Check that the __baseUrl__ assignment was replaced in fallback case
 	assert.Contains(t, rr.Body.String(), "__baseUrl__ = '/headlamp';")
 	assert.Contains(t, rr.Body.String(), "headlampBaseUrl = __baseUrl__;")
+}
+
+func testFileNotFoundUsesIndexContentType(t *testing.T, testHTML string) {
+	handler := spa.NewEmbeddedHandler(createTestFS(map[string]*fstest.MapFile{
+		"static/index.html": {Data: []byte(testHTML)},
+	}), "index.html", "/headlamp")
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/headlamp/not-found.css", nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Header().Get("Content-Type"), "text/html")
+	assert.Contains(t, rr.Body.String(), "__baseUrl__ = '/headlamp';")
 }

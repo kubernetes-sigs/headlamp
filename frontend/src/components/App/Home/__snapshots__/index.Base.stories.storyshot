@@ -90,6 +90,12 @@
                 </div>
               </div>
               <div
+                aria-atomic="true"
+                aria-live="polite"
+                class="MuiBox-root css-ty8jgw"
+                role="status"
+              />
+              <div
                 class="MuiBox-root css-1ipmh7v"
               >
                 <div
@@ -402,12 +408,12 @@
                             Status
                           </div>
                           <span
-                            aria-label="Sort by Status descending"
+                            aria-label="Sort by Status ascending"
                             class="MuiBadge-root css-1c32n2y-MuiBadge-root"
                             data-mui-internal-clone-element="true"
                           >
                             <span
-                              aria-label="Sort by Status descending"
+                              aria-label="Sort by Status ascending"
                               class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                               role="button"
                               tabindex="0"

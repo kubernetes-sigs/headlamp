@@ -27,10 +27,68 @@ import ShowHideLabel from './ShowHideLabel';
 
 export interface ObjectEventListProps {
   object: KubeObject;
+  events?: Event[];
+}
+
+function getObjectEventsKey(object: KubeObject | null) {
+  if (!object) {
+    return '';
+  }
+
+  return [
+    object.cluster,
+    object.kind,
+    object.metadata.namespace,
+    object.metadata.name,
+    object.metadata.uid,
+  ]
+    .filter(Boolean)
+    .join('/');
+}
+
+export function useObjectEvents(object: KubeObject | null) {
+  const [events, setEvents] = useState<Event[]>([]);
+  const objectKey = getObjectEventsKey(object);
+
+  useEffect(() => {
+    let canceled = false;
+
+    async function fetchEvents() {
+      const currentObject = object;
+      setEvents(previousEvents => (previousEvents.length === 0 ? previousEvents : []));
+
+      if (!currentObject) {
+        return;
+      }
+
+      try {
+        const events = await Event.objectEvents(currentObject);
+        if (!canceled) {
+          setEvents(events.map((e: KubeEvent) => new Event(e, currentObject.cluster)));
+        }
+      } catch (e) {
+        console.error('Failed to fetch events for object:', currentObject, e);
+        if (!canceled) {
+          setEvents([]);
+        }
+      }
+    }
+
+    fetchEvents();
+
+    return () => {
+      canceled = true;
+    };
+    // Use stable Kubernetes identity fields because callers can recreate wrappers each render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [objectKey]);
+
+  return events;
 }
 
 export default function ObjectEventList(props: ObjectEventListProps) {
-  const [events, setEvents] = useState<Event[]>([]);
+  const fetchedEvents = useObjectEvents(props.events === undefined ? props.object : null);
+  const events = props.events ?? fetchedEvents;
   const dispatchEventList = useEventCallback(HeadlampEventType.OBJECT_EVENTS);
 
   useEffect(() => {
@@ -40,20 +98,7 @@ export default function ObjectEventList(props: ObjectEventListProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events]);
 
-  async function fetchEvents() {
-    try {
-      const events = await Event.objectEvents(props.object);
-      setEvents(events.map((e: KubeEvent) => new Event(e)));
-    } catch (e) {
-      console.error('Failed to fetch events for object:', props.object, e);
-    }
-  }
   const { t } = useTranslation(['translation', 'glossary']);
-
-  useEffect(() => {
-    fetchEvents();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   return (
     <SectionBox title={t('glossary|Events')}>

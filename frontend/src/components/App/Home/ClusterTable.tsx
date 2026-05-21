@@ -44,12 +44,14 @@ import Table from '../../common/Table';
 import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import ClusterBadge from '../../Sidebar/ClusterBadge';
 import ClusterContextMenu from './ClusterContextMenu';
+import { canSelectCluster, getClusterStatus, getClusterStatusLabel } from './clusterStatus';
 import { MULTI_HOME_ENABLED } from './config';
 import { getCustomClusterNames } from './customClusterNames';
 
 /**
  * ClusterStatus component displays the status of a cluster.
- * It shows an icon and a message indicating whether the cluster is active, unknown, or has an error.
+ * It shows an icon and a message indicating whether the cluster is active, loading, unavailable,
+ * requires authentication, or has insufficient permissions.
  *
  * @param {Object} props - The component props.
  * @param {ApiError|null} [props.error] - The error object if there is an error with the cluster.
@@ -67,20 +69,24 @@ function ClusterStatus({ error, cluster }: { error?: ApiError | null; cluster: C
     }
     return null;
   }, [customStatuses, cluster, error]);
+  const status = getClusterStatus(error);
 
   if (renderedCustomStatus !== null) {
     return renderedCustomStatus;
   }
 
-  const stateUnknown = error === undefined;
-  const hasReachError = error && error.status !== 401 && error.status !== 403;
+  const isLoading = status === 'loading';
+  const isActive = status === 'active';
+  const hasError =
+    status === 'auth-error' || status === 'permission-error' || status === 'unavailable';
+  const statusText = getClusterStatusLabel(t, error);
 
   return (
     <Box width="fit-content">
       <Box display="flex" alignItems="center" justifyContent="center">
-        {hasReachError ? (
+        {hasError ? (
           <Icon icon="mdi:cloud-off" width={16} color={theme.palette.home.status.error} />
-        ) : stateUnknown ? (
+        ) : isLoading ? (
           <Icon icon="mdi:cloud-question" width={16} color={theme.palette.home.status.unknown} />
         ) : (
           <Icon
@@ -93,14 +99,14 @@ function ClusterStatus({ error, cluster }: { error?: ApiError | null; cluster: C
           variant="body2"
           style={{
             marginLeft: theme.spacing(1),
-            color: hasReachError
+            color: hasError
               ? theme.palette.home.status.error
-              : !stateUnknown
+              : isActive
               ? theme.palette.home.status.success
               : undefined,
           }}
         >
-          {hasReachError ? error.message : stateUnknown ? '⋯' : t('translation|Active')}
+          {statusText}
         </Typography>
       </Box>
     </Box>
@@ -200,6 +206,7 @@ export default function ClusterTable({
     }
     return 'Unknown';
   }
+
   const viewClusters = t('View Clusters');
 
   const loading = clusters === null;
@@ -279,8 +286,7 @@ export default function ClusterTable({
         {
           id: 'status',
           header: t('Status'),
-          accessorFn: cluster =>
-            errors[cluster?.name] === null ? 'Active' : errors[cluster?.name]?.message,
+          accessorFn: cluster => getClusterStatusLabel(t, errors[cluster?.name]),
           Cell: ({ row: { original } }) => (
             <ClusterStatus error={errors[original.name]} cluster={original} />
           ),
@@ -302,8 +308,7 @@ export default function ClusterTable({
           muiTableBodyCellProps: {
             align: 'right',
           },
-          accessorFn: cluster =>
-            errors[cluster?.name] === null ? 'Active' : errors[cluster?.name]?.message,
+          accessorFn: cluster => getClusterStatusLabel(t, errors[cluster?.name]),
           Cell: ({ row: { original: cluster } }) => {
             return <ClusterContextMenu cluster={cluster} />;
           },
@@ -316,7 +321,7 @@ export default function ClusterTable({
         MULTI_HOME_ENABLED
           ? row => {
               // Only allow selection if the cluster is working
-              return !errors[row.original.name];
+              return canSelectCluster(errors[row.original.name]);
             }
           : false
       }

@@ -127,6 +127,23 @@ const mockClass = class {
   constructor(public jsonData: any) {}
 } as any;
 
+const mockNodeClass = class {
+  static apiVersion = 'v1';
+  static apiName = 'nodes';
+
+  static apiEndpoint = {
+    apiInfo: [
+      {
+        group: '',
+        resource: 'nodes',
+        version: 'v1',
+      },
+    ],
+  };
+
+  constructor(public jsonData: any) {}
+} as any;
+
 describe('useWatchKubeObjectLists', () => {
   beforeEach(() => {
     vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
@@ -328,6 +345,43 @@ describe('useKubeObjectList', () => {
     expect(spy.mock.calls[1][0].connections.length).toBe(2); // new connections with 'a' and 'b' namespaces
     expect(spy.mock.calls[2][0].connections.length).toBe(2); // rerender with new props
     expect(spy.mock.calls[3][0].connections.length).toBe(1); // updated connections after we removed namespace 'b'
+  });
+
+  it('should clean up cluster-scoped resources when cluster is removed', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+
+    queryClient.setQueryData(['kubeObject', 'list', 'v1', 'nodes', 'cluster-1', '', {}], {
+      list: { items: [], metadata: { resourceVersion: '0' } },
+      cluster: 'cluster-1',
+    });
+    queryClient.setQueryData(['kubeObject', 'list', 'v1', 'nodes', 'cluster-2', '', {}], {
+      list: { items: [], metadata: { resourceVersion: '0' } },
+      cluster: 'cluster-2',
+    });
+
+    const result = renderHook(
+      (props: { requests: Array<{ cluster: string; namespaces?: string[] }> }) =>
+        useKubeObjectList({
+          kubeObjectClass: mockNodeClass,
+          requests: props.requests,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+        initialProps: {
+          requests: [{ cluster: 'cluster-1' }, { cluster: 'cluster-2' }],
+        },
+      }
+    );
+
+    expect(spy.mock.calls[1][0].connections.length).toBe(2);
+
+    result.rerender({ requests: [{ cluster: 'cluster-1' }] });
+
+    expect(spy.mock.calls[3][0].connections.length).toBe(1);
+    expect(spy.mock.calls[3][0].connections[0].cluster).toBe('cluster-1');
   });
 });
 

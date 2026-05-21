@@ -255,6 +255,30 @@ func TestGetAuthToken(t *testing.T) {
 			expectError: true,
 			errorMsg:    "unauthorized",
 		},
+		{
+			name:        "Authorization header with lowercase bearer prefix",
+			clusterName: "test-cluster",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
+				req.Header.Set("Authorization", "bearer lowercase-token")
+
+				return req
+			},
+			expectedToken: "lowercase-token",
+			expectError:   false,
+		},
+		{
+			name:        "Authorization header with extra whitespace",
+			clusterName: "test-cluster",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
+				req.Header.Set("Authorization", "  Bearer   spaced-token  ")
+
+				return req
+			},
+			expectedToken: "spaced-token",
+			expectError:   false,
+		},
 		{ //nolint:gosec
 			name:        "valid token with Bearer prefix",
 			clusterName: "test-cluster",

@@ -42,6 +42,7 @@ const Container = styled('div')<{
   height: isExpanded ? 'auto' : '100%',
   minHeight: '100%',
   boxSizing: 'border-box',
+  overflow: 'visible',
 
   position: 'absolute',
   background: theme.palette.background.paper,
@@ -181,7 +182,7 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
     }
 
     const id = setTimeout(() => setIsExpanded(true), EXPAND_DELAY);
-    return () => clearInterval(id);
+    return () => clearTimeout(id);
   }, [isHovered]);
 
   const icon = kubeObject ? (
@@ -228,6 +229,8 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
     <Container
       tabIndex={0}
       role="button"
+      className={isExpanded ? 'kube-object-node--expanded' : undefined}
+      style={{ zIndex: isExpanded ? 10000 : undefined }}
       isFaded={false}
       childrenCount={node.nodes?.length ?? 0}
       isSelected={isSelected}

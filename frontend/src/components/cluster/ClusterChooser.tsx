@@ -45,7 +45,7 @@ const ClusterChooser = React.forwardRef(function ClusterChooser(
     ? selected.length <= MAX_INLINE_CLUSTERS
       ? selected.join(', ')
       : t('{{count}} clusters', { count: selected.length })
-    : cluster || t('Cluster');
+    : selected[0] ?? cluster ?? t('Cluster');
 
   return (
     <Button

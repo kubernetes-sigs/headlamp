@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from 'react';
+import { useMemo } from 'react';
 import { generateGlobalVarDeclarations } from './inferTypes';
 
 /**
@@ -25,13 +25,10 @@ import { generateGlobalVarDeclarations } from './inferTypes';
  * @returns A string representation of the generated TypeScript type definition
  */
 export const useTypeDefinition = (items: any[], maxKeysPerObject: number) => {
-  const [typeDefinition, setTypeDefinition] = useState('');
-
-  useEffect(() => {
-    const typeDef = generateGlobalVarDeclarations(items, maxKeysPerObject);
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setTypeDefinition(typeDef);
-  }, [items, maxKeysPerObject]);
+  const typeDefinition = useMemo(
+    () => generateGlobalVarDeclarations(items, maxKeysPerObject),
+    [items, maxKeysPerObject]
+  );
 
   return typeDefinition;
 };

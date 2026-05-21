@@ -53,6 +53,19 @@ $ helm install my-headlamp headlamp/headlamp \
   --set ingress.hosts[0].paths[0].path=/
 ```
 
+### Upgrade note about image tags
+
+If `image.tag` is set explicitly (for example in a values file or via `--set image.tag=...`), Helm upgrades will keep that value.
+This means the release can show a newer chart/app version while still running an older container image.
+
+To ensure the running image matches the chart version during upgrade, set the tag explicitly to the chart's appVersion-derived format.
+```console
+$ helm upgrade my-headlamp headlamp/headlamp \
+  --namespace kube-system \
+  --reuse-values \
+  --set image.tag=v<appVersion>
+```
+
 ## Configuration
 
 ### Core Parameters
@@ -72,11 +85,19 @@ $ helm install my-headlamp headlamp/headlamp \
 | config.inCluster   | bool   | `true`                | Run Headlamp in-cluster                                                   |
 | config.baseURL     | string | `""`                  | Base URL path for Headlamp UI                                             |
 | config.sessionTTL  | int    | `86400`               | The time in seconds for the internal session to remain valid (Default: 86400/24h, Min: 1 , Max: 31536000/1yr) |
+| config.unsafeUseServiceAccountToken | bool | `false` | UNSAFE: authenticate every user as the pod's service account when running in-cluster. Only safe behind an auth proxy |
+| config.serviceAccountTokenPath | string | `""` | Path to the service account token file. Used only when `unsafeUseServiceAccountToken` is true |
 | config.pluginsDir  | string | `"/headlamp/plugins"` | Directory to load Headlamp plugins from                                   |
 | config.enableHelm  | bool   | `false`               | Enable Helm operations like install, upgrade and uninstall of Helm charts |
+| config.podDebugImage | string | `""`                | Default image to use when creating pod debug containers                    |
 | config.extraArgs   | array  | `[]`                  | Additional arguments for Headlamp server                                  |
 | config.tlsCertPath | string | `""`                  | Certificate for serving TLS                                               |
 | config.tlsKeyPath  | string | `""`                  | Key for serving TLS                                                       |
+
+When `config.unsafeUseServiceAccountToken` is enabled, the token file must be
+mounted and readable in the Headlamp container. The default path is provided by
+`automountServiceAccountToken`; custom paths require a matching projected
+volume or volume mount.
 
 ### OIDC Configuration
 
@@ -312,6 +333,42 @@ httpRoute:
       backendRefs:
         - name: my-headlamp
           port: 80
+```
+
+### Probe Configuration
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| probes.scheme | string | `"HTTP"` | Scheme for liveness/readiness probes (HTTP or HTTPS). Set to HTTPS when TLS is enabled at the backend. |
+| probes.livenessProbe.initialDelaySeconds | int | `0` | Initial delay before liveness probe starts |
+| probes.livenessProbe.periodSeconds | int | `10` | Period between liveness checks |
+| probes.livenessProbe.timeoutSeconds | int | `1` | Timeout for liveness probe |
+| probes.livenessProbe.successThreshold | int | `1` | Must be 1 for liveness probes (Kubernetes requirement) |
+| probes.livenessProbe.failureThreshold | int | `3` | Minimum consecutive failures |
+| probes.readinessProbe.initialDelaySeconds | int | `0` | Initial delay before readiness probe starts |
+| probes.readinessProbe.periodSeconds | int | `10` | Period between readiness checks |
+| probes.readinessProbe.timeoutSeconds | int | `1` | Timeout for readiness probe |
+| probes.readinessProbe.successThreshold | int | `1` | Minimum consecutive successes |
+| probes.readinessProbe.failureThreshold | int | `3` | Minimum consecutive failures |
+
+When using TLS termination at the backend server, you must set `probes.scheme` to `HTTPS`:
+
+```yaml
+config:
+  tlsCertPath: "/headlamp-cert/tls.crt"
+  tlsKeyPath: "/headlamp-cert/tls.key"
+
+probes:
+  scheme: HTTPS  # Required when TLS is enabled at backend
+
+volumes:
+  - name: headlamp-cert
+    secret:
+      secretName: headlamp-tls
+
+volumeMounts:
+  - name: headlamp-cert
+    mountPath: /headlamp-cert
 ```
 
 ### Resource Management

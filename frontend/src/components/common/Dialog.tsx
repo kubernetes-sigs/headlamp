@@ -132,31 +132,6 @@ export function Dialog(props: DialogProps) {
     });
   }
 
-  function FullScreenButton() {
-    if (!withFullScreen) {
-      return null;
-    }
-
-    return (
-      <ActionButton
-        description={t('Toggle fullscreen')}
-        onClick={handleFullScreen}
-        icon={fullScreen ? 'mdi:fullscreen-exit' : 'mdi:fullscreen'}
-      />
-    );
-  }
-
-  function CloseButton() {
-    return (
-      <ActionButton
-        description={t('Close')}
-        onClick={() => {
-          props.onClose && props.onClose({}, 'escapeKeyDown');
-        }}
-        icon={'mdi:close'}
-      />
-    );
-  }
   const generatedId = React.useId();
   const titleId = titleProps?.id || generatedId;
   const dialogAriaProps = title ? { 'aria-labelledby': titleId } : {};
@@ -171,8 +146,30 @@ export function Dialog(props: DialogProps) {
       {...other}
     >
       {(!!title || withFullScreen) && (
-        // eslint-disable-next-line react-hooks/static-components
-        <DialogTitle {...titleProps} id={titleId} buttons={[<FullScreenButton />, <CloseButton />]}>
+        <DialogTitle
+          {...titleProps}
+          id={titleId}
+          buttons={
+            [
+              withFullScreen ? (
+                <ActionButton
+                  key="fullscreen"
+                  description={t('Toggle fullscreen')}
+                  onClick={handleFullScreen}
+                  icon={fullScreen ? 'mdi:fullscreen-exit' : 'mdi:fullscreen'}
+                />
+              ) : null,
+              <ActionButton
+                key="close"
+                description={t('Close')}
+                onClick={() => {
+                  props.onClose && props.onClose({}, 'escapeKeyDown');
+                }}
+                icon={'mdi:close'}
+              />,
+            ].filter(Boolean) as React.ReactNode[]
+          }
+        >
           {title}
         </DialogTitle>
       )}

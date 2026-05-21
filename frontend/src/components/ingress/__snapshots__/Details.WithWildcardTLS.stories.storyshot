@@ -214,11 +214,11 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
                   >
                     <span
-                      aria-label="wildcard-cert 🞂 *.one.domain.tld, *.two.domain.tld"
+                      aria-label="wildcard-cert › *.one.domain.tld, *.two.domain.tld"
                       class=""
                       data-mui-internal-clone-element="true"
                     >
-                      wildcard-cert 🞂 *.one.domain.tld, *.two.domain.tld
+                      wildcard-cert › *.one.domain.tld, *.two.domain.tld
                     </span>
                   </dd>
                   <dt
@@ -274,6 +274,14 @@
             <div
               class="MuiBox-root css-1txv3mw"
             >
+              <div
+                aria-atomic="true"
+                aria-live="polite"
+                class="MuiBox-root css-ty8jgw"
+                role="status"
+              >
+                No data to be shown.
+              </div>
               <div
                 class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
               >

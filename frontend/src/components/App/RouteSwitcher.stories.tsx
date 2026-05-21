@@ -35,8 +35,7 @@ const Template: StoryFn<{ route: Route }> = args => {
 
   React.useEffect(() => {
     store.dispatch(setRoute(route));
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [route]);
 
   return (
     <TestContext store={store} urlPrefix={route.path}>

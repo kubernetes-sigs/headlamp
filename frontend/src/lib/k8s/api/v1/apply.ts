@@ -20,6 +20,11 @@ import type { KubeObjectInterface, KubeObjectInterfaceCreate } from '../../KubeO
 import type { ApiError } from '../v2/ApiError';
 import { getClusterDefaultNamespace } from './clusterApi';
 import { resourceDefToApiFactory } from './factories';
+import type { QueryParameters } from './queryParameters';
+
+export interface ApplyOptions {
+  dryRun?: boolean;
+}
 
 /**
  * Applies the provided body to the Kubernetes API.
@@ -37,11 +42,13 @@ import { resourceDefToApiFactory } from './factories';
  */
 export async function apply<T extends KubeObjectInterfaceCreate>(
   body: T,
-  clusterName?: string
+  clusterName?: string,
+  options?: ApplyOptions
 ): Promise<T>;
 export async function apply<T extends KubeObjectInterface>(
   body: T,
-  clusterName?: string
+  clusterName?: string,
+  options: ApplyOptions = {}
 ): Promise<T> {
   const bodyToApply = _.cloneDeep(body);
 
@@ -70,10 +77,11 @@ export async function apply<T extends KubeObjectInterface>(
   }
 
   const resourceVersion = bodyToApply.metadata.resourceVersion;
+  const queryParams: QueryParameters = options.dryRun ? { dryRun: 'All' } : {};
 
   try {
     delete bodyToApply.metadata.resourceVersion;
-    return await apiEndpoint.post(bodyToApply, {}, cluster!);
+    return await apiEndpoint.post(bodyToApply, queryParams, cluster!);
   } catch (err) {
     // We had a conflict or cannot create. Try a PUT in case the resource already exists.
     const errorCode = (err as ApiError).status;
@@ -82,6 +90,6 @@ export async function apply<T extends KubeObjectInterface>(
     // Preserve the resourceVersion if its an update request
     bodyToApply.metadata.resourceVersion = resourceVersion;
     // We had a conflict. Try a PUT
-    return apiEndpoint.put(bodyToApply, {}, cluster!) as Promise<T>;
+    return apiEndpoint.put(bodyToApply, queryParams, cluster!) as Promise<T>;
   }
 }

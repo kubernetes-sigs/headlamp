@@ -109,7 +109,9 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
   const [recentClusters, clustersToShow] = React.useMemo(() => {
     let allClusters = Object.values(clusters || {});
     if (filter !== '') {
-      allClusters = allClusters.filter(cluster => cluster.name.includes(filter));
+      allClusters = allClusters.filter(cluster =>
+        cluster.name.toLowerCase().includes(filter.toLowerCase())
+      );
     }
 
     const recentClustersNames = !!filter ? [] : getRecentClusters();
@@ -196,16 +198,26 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     switch (e.key) {
       case 'ArrowUp': {
-        setActiveDescendantIndex(prev => {
-          const total = recentClusters.length + clustersToShow.length;
-          return (((prev - 1) % total) + total) % total;
-        });
+setActiveDescendantIndex(idx => {
+  const total = recentClusters.length + clustersToShow.length;
+
+  if (total === 0) {
+    return -1;
+  }
+
+  return ((idx - 1) % total + total) % total;
+});
         break;
       }
       case 'ArrowDown': {
-        setActiveDescendantIndex(
-          idx => (idx + 1) % (recentClusters.length + clustersToShow.length)
-        );
+        setActiveDescendantIndex(idx => {
+          const total = recentClusters.length + clustersToShow.length;
+          if (total === 0) {
+            return -1;
+          }
+
+          return (idx + 1) % total;
+        });
         break;
       }
       case 'Enter': {

@@ -26,6 +26,7 @@ import {
   loadClusterSettings,
   storeClusterSettings,
 } from '../../../helpers/clusterSettings';
+import { useTypedSelector } from '../../../redux/hooks';
 import { HoverInfoLabel } from '../../common/Label';
 import { NameValueTable } from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
@@ -55,6 +56,8 @@ export default function PodDebugSettings(props: SettingsProps) {
   const [clusterSettings, setClusterSettings] = useState<ClusterSettings | null>(null);
   const [userImage, setUserImage] = useState('');
   const [userIsEnabled, setUserIsEnabled] = useState<boolean | null>(null);
+  const defaultPodDebugImage =
+    useTypedSelector(state => state.config?.defaultPodDebugImage) || DEFAULT_POD_DEBUG_IMAGE;
 
   const podDebugLabelID = 'pod-debug-enabled-label';
 
@@ -84,7 +87,7 @@ export default function PodDebugSettings(props: SettingsProps) {
   const storeNewImage = useCallback(
     (image: string) => {
       let actualImage = image;
-      if (image === DEFAULT_POD_DEBUG_IMAGE) {
+      if (image === defaultPodDebugImage) {
         actualImage = '';
         setUserImage(actualImage);
       }
@@ -99,7 +102,7 @@ export default function PodDebugSettings(props: SettingsProps) {
         return newSettings;
       });
     },
-    [setClusterSettings, setUserImage]
+    [defaultPodDebugImage, setClusterSettings, setUserImage]
   );
 
   function storeNewEnabled(enabled: boolean) {
@@ -167,7 +170,7 @@ export default function PodDebugSettings(props: SettingsProps) {
                   setUserImage(value);
                 }}
                 value={userImage}
-                placeholder={DEFAULT_POD_DEBUG_IMAGE}
+                placeholder={defaultPodDebugImage}
                 helperText={t(
                   'translation|The default image is used for creating ephemeral debug containers.'
                 )}

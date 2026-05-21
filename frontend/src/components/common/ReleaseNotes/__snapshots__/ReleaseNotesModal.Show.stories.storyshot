@@ -68,7 +68,7 @@
           class="MuiDialogContent-root MuiDialogContent-dividers css-1t4vnk2-MuiDialogContent-root"
         >
           <div
-            class="MuiBox-root css-fm9d3m"
+            class="MuiBox-root css-wicc6q"
           >
             <h1>
               Release Notes
@@ -88,6 +88,93 @@
             <p>
               world
             </p>
+            
+
+            <h2>
+              Changes
+            </h2>
+            
+
+            <table>
+              <thead>
+                <tr>
+                  <th>
+                    Feature
+                  </th>
+                  <th>
+                    Status
+                  </th>
+                  <th>
+                    Notes
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>
+                    Dark mode
+                  </td>
+                  <td>
+                    ✅ Done
+                  </td>
+                  <td>
+                    Available in settings
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    Tables
+                  </td>
+                  <td>
+                    ✅ Done
+                  </td>
+                  <td>
+                    Now rendered properly
+                  </td>
+                </tr>
+                <tr>
+                  <td>
+                    Images
+                  </td>
+                  <td>
+                    ✅ Done
+                  </td>
+                  <td>
+                    Bounded to container
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            
+
+            <h2>
+              Code Example
+            </h2>
+            
+
+            <pre>
+              <code
+                class="language-yaml"
+              >
+                apiVersion: v1
+kind: Pod
+
+              </code>
+            </pre>
+            
+
+            <blockquote>
+              
+
+              <p>
+                <strong>
+                  Note:
+                </strong>
+                 This is a blockquote with important information.
+              </p>
+              
+
+            </blockquote>
           </div>
         </div>
       </div>

@@ -111,14 +111,14 @@ const QueryParamRedirect = () => {
 
   return null;
 };
-export default function AppContainer() {
-  const Router = ({ children }: React.PropsWithChildren<{}>) =>
-    isElectron() ? (
-      <HashRouter>{children}</HashRouter>
-    ) : (
-      <BrowserRouter basename={getBaseUrl()}>{children}</BrowserRouter>
-    );
+const Router = ({ children }: React.PropsWithChildren<{}>) =>
+  isElectron() ? (
+    <HashRouter>{children}</HashRouter>
+  ) : (
+    <BrowserRouter basename={getBaseUrl()}>{children}</BrowserRouter>
+  );
 
+export default function AppContainer() {
   return (
     <SnackbarProvider
       anchorOrigin={{
@@ -140,7 +140,6 @@ export default function AppContainer() {
           },
         }}
       />
-      {/* eslint-disable-next-line react-hooks/static-components */}
       <Router>
         <PreviousRouteProvider>
           <MonacoEditorLoaderInitializer>

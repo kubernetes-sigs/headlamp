@@ -17,7 +17,9 @@
 import 'vitest-canvas-mock';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
+import { labelSelectorToQuery } from '../../../lib/k8s';
 import Deployment from '../../../lib/k8s/deployment';
+import Job from '../../../lib/k8s/job';
 import Pod from '../../../lib/k8s/pod';
 import StatefulSet from '../../../lib/k8s/statefulSet';
 import { TestContext } from '../../../test';
@@ -116,6 +118,13 @@ vi.mock('../../../lib/k8s/statefulSet', () => {
   return { default: StatefulSet, __esModule: true };
 });
 
+vi.mock('../../../lib/k8s/job', () => {
+  class Job extends MockKubeObject {
+    static kind = 'Job';
+  }
+  return { default: Job, __esModule: true };
+});
+
 vi.mock('../../../lib/k8s', () => ({ labelSelectorToQuery: vi.fn(() => 'app=test') }));
 vi.mock('../../../lib/k8s/api/v2/fetch', () => ({
   clusterFetch: (...args: any[]) => mockClusterFetch(...args),
@@ -186,6 +195,20 @@ const statefulSetData = {
   status: {},
 };
 
+const jobData = {
+  kind: 'Job',
+  metadata: { name: 'test-job', namespace: 'default', uid: 'job-123' },
+  spec: {
+    selector: { matchLabels: { 'batch.kubernetes.io/controller-uid': 'job-123' } },
+    template: {
+      spec: {
+        containers: [{ name: 'worker', image: 'busybox', imagePullPolicy: 'Always' }],
+      },
+    },
+  },
+  status: {},
+};
+
 const mockPodData = {
   kind: 'Pod',
   metadata: { name: 'test-pod-1', namespace: 'default', uid: 'pod-123' },
@@ -222,6 +245,78 @@ describe('LogsButton', () => {
       </TestContext>
     );
     expect(screen.getByLabelText('translation|Show logs')).toBeInTheDocument();
+  });
+
+  it('uses the Job spec.selector when launching logs for a Job', async () => {
+    mockClusterFetch.mockResolvedValue({ json: async () => ({ items: [mockPodData] }) });
+
+    render(
+      <TestContext>
+        <LogsButton item={new Job(jobData as any)} />
+      </TestContext>
+    );
+
+    const button = screen.getByLabelText('translation|Show logs');
+    expect(button).toBeInTheDocument();
+    fireEvent.click(button);
+
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    await waitFor(() => {
+      expect(
+        mockClusterFetch.mock.calls.some(
+          (args: any[]) =>
+            typeof args[0] === 'string' &&
+            args[0].includes(`labelSelector=${encodeURIComponent('app=test')}`)
+        )
+      ).toBe(true);
+    });
+
+    expect(vi.mocked(labelSelectorToQuery)).toHaveBeenCalledWith(jobData.spec.selector);
+  });
+
+  it('falls back to batch.kubernetes.io/job-name label when Job has no spec.selector', async () => {
+    const jobWithoutSelector = {
+      kind: 'Job',
+      metadata: { name: 'test-job', namespace: 'default', uid: 'job-456' },
+      spec: {
+        template: {
+          spec: {
+            containers: [{ name: 'worker', image: 'busybox', imagePullPolicy: 'Always' }],
+          },
+        },
+      },
+      status: {},
+    };
+
+    mockClusterFetch.mockResolvedValue({ json: async () => ({ items: [mockPodData] }) });
+
+    render(
+      <TestContext>
+        <LogsButton item={new Job(jobWithoutSelector as any)} />
+      </TestContext>
+    );
+
+    const button = screen.getByLabelText('translation|Show logs');
+    fireEvent.click(button);
+
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    await waitFor(() => {
+      expect(
+        mockClusterFetch.mock.calls.some(
+          (args: any[]) =>
+            typeof args[0] === 'string' &&
+            args[0].includes(
+              `labelSelector=${encodeURIComponent('batch.kubernetes.io/job-name=test-job')}`
+            )
+        )
+      ).toBe(true);
+    });
+
+    expect(vi.mocked(labelSelectorToQuery)).not.toHaveBeenCalled();
   });
 
   it('launches activity with correct metadata on click', () => {

@@ -120,6 +120,32 @@ func TestAddRepository(t *testing.T) {
 		helmHandler.AddRepo(rr, addRepoRequest)
 		assert.Equal(t, http.StatusBadRequest, rr.Code)
 	})
+
+	t.Run("missing_add_repo_name", func(t *testing.T) {
+		addRepoRequest, err := http.NewRequestWithContext(context.Background(),
+			"POST", "/clusters/minikube/helm/repositories/charts",
+			bytes.NewBufferString(`{"url":"https://kubernetes-sigs.github.io/headlamp/"}`))
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		helmHandler.AddRepo(rr, addRepoRequest)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "name is required")
+	})
+
+	t.Run("missing_add_repo_url", func(t *testing.T) {
+		addRepoRequest, err := http.NewRequestWithContext(context.Background(),
+			"POST", "/clusters/minikube/helm/repositories/charts",
+			bytes.NewBufferString(`{"name":"headlamp_test_repo"}`))
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		helmHandler.AddRepo(rr, addRepoRequest)
+
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		assert.Contains(t, rr.Body.String(), "url is required")
+	})
 }
 
 // TestRemoveRepository.
@@ -204,16 +230,39 @@ func TestUpdateRepo(t *testing.T) {
 	})
 
 	t.Run("invalid_update_repo_request", func(t *testing.T) {
-		updateRepoRequest, err := http.NewRequestWithContext(context.Background(), "PUT",
-			"/clusters/minikube/helm/repositories", bytes.NewBufferString("some invalid request string"))
-		require.NoError(t, err)
-
-		// response recorder
-		rr := httptest.NewRecorder()
-
-		helmHandler.UpdateRepository(rr, updateRepoRequest)
-		assert.Equal(t, http.StatusBadRequest, rr.Code)
+		testInvalidUpdateRepoRequest(t, helmHandler, "some invalid request string", "")
 	})
+
+	t.Run("missing_update_repo_name", func(t *testing.T) {
+		testInvalidUpdateRepoRequest(t, helmHandler,
+			`{"url":"https://kubernetes-sigs-update-url.github.io/headlamp/"}`, "name is required")
+	})
+
+	t.Run("missing_update_repo_url", func(t *testing.T) {
+		testInvalidUpdateRepoRequest(t, helmHandler, `{"name":"headlamp_test_repo"}`, "url is required")
+	})
+}
+
+func testInvalidUpdateRepoRequest(
+	t *testing.T,
+	helmHandler *helm.Handler,
+	requestBody string,
+	expectedError string,
+) {
+	t.Helper()
+
+	updateRepoRequest, err := http.NewRequestWithContext(context.Background(), "PUT",
+		"/clusters/minikube/helm/repositories", bytes.NewBufferString(requestBody))
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	helmHandler.UpdateRepository(rr, updateRepoRequest)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+	if expectedError != "" {
+		assert.Contains(t, rr.Body.String(), expectedError)
+	}
 }
 
 // TestListRepositories.
