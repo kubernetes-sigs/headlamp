@@ -592,6 +592,7 @@
   "registerMapSource": [Function],
   "registerOverviewChartsProcessor": [Function],
   "registerPluginSettings": [Function],
+  "registerProjectApiResource": [Function],
   "registerProjectDeleteButton": [Function],
   "registerProjectDetailsTab": [Function],
   "registerProjectHeaderAction": [Function],
