@@ -8,6 +8,12 @@ import "net/http"
 // BuildUserAgent is exported for testing.
 var BuildUserAgent = buildUserAgent
 
+// ParseAPIProxyConfig is exported for testing.
+var ParseAPIProxyConfig = parseAPIProxyConfig
+
+// BuildAPIProxyTLSConfig is exported for testing.
+var BuildAPIProxyTLSConfig = buildAPIProxyTLSConfig
+
 // UserAgentRoundTripper is exported for testing.
 type UserAgentRoundTripper struct {
 	Base      roundTripperInterface
