@@ -200,7 +200,7 @@ function TableFromResourceClass<KubeClass extends KubeObjectClass>(
 
   useEffect(() => {
     dispatchHeadlampEvent({
-      resources: items!,
+      resources: items ?? [],
       resourceKind: resourceClass.className,
       error: errors?.[0] || undefined,
     });
