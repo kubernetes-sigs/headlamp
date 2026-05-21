@@ -844,7 +844,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		if resp.StatusCode >= 300 && resp.StatusCode <= 399 && resp.StatusCode != http.StatusNotModified {
 			logger.Log(logger.LevelError, nil, nil,
 				fmt.Sprintf("proxy response returned an unexpected or unfollowed redirect (status %d)", resp.StatusCode))
-			http.Error(w, "external proxy request failed due to an unexpected or unfollowed redirect response", http.StatusBadGateway)
+			http.Error(w, "external proxy request failed: unexpected redirect", http.StatusBadGateway)
 
 			return
 		}
