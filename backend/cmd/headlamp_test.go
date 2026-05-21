@@ -788,7 +788,7 @@ func TestExternalProxyTimeout(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusBadGateway, rr.Code)
-	assert.Contains(t, rr.Body.String(), "context deadline exceeded")
+	assert.Contains(t, rr.Body.String(), "external proxy request failed")
 }
 
 func TestDrainAndCordonNode(t *testing.T) { //nolint:funlen
@@ -3712,7 +3712,7 @@ func TestExternalProxyDoesNotFollowRedirects(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusBadGateway, rr.Code)
-	assert.Contains(t, rr.Body.String(), "redirect target not in allowlist")
+	assert.Contains(t, rr.Body.String(), "external proxy request failed")
 
 	mu.Lock()
 	assert.False(t, disallowedTargetHit, "external proxy should not follow redirect to a disallowed target")

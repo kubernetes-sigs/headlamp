@@ -791,7 +791,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		resp, err := externalProxyHTTPClient.Do(proxyReq) //nolint:gosec
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "making request")
-			http.Error(w, err.Error(), http.StatusBadGateway)
+			http.Error(w, "external proxy request failed", http.StatusBadGateway)
 
 			return
 		}
@@ -840,11 +840,11 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		// Prevent redirects without Location from being returned or breaking the proxy
+		// Prevent unexpected or unfollowed redirects from being returned or breaking the proxy.
 		if resp.StatusCode >= 300 && resp.StatusCode <= 399 && resp.StatusCode != http.StatusNotModified {
 			logger.Log(logger.LevelError, nil, nil,
-				fmt.Sprintf("proxy response is a redirect (status %d), which is not supported", resp.StatusCode))
-			http.Error(w, "redirects are not supported by the external proxy", http.StatusBadGateway)
+				fmt.Sprintf("proxy response returned an unexpected or unfollowed redirect (status %d)", resp.StatusCode))
+			http.Error(w, "external proxy request failed due to an unexpected or unfollowed redirect response", http.StatusBadGateway)
 
 			return
 		}
