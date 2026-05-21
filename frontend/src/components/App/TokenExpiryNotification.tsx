@@ -151,7 +151,7 @@ export function PureTokenExpiryNotification({
       }
       setTokenExpired(true);
     }
-  }, [now, tokenExpiry, tokenExpired]);
+  }, [now, tokenExpiry, tokenExpired, clusterName]);
 
   // Auto-logout as soon as we know the token is expired (either from the
   // backend poll or from the local clock check above).
