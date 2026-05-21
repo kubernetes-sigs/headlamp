@@ -98,6 +98,26 @@ WithExtraRows.args = {
   ],
 };
 
+export const WithOwnerReferenceMismatchedApiVersion = Template.bind({});
+WithOwnerReferenceMismatchedApiVersion.args = {
+  resource: {
+    ...mockResource,
+    metadata: {
+      ...mockResource.metadata,
+      ownerReferences: [
+        {
+          apiVersion: 'batch.volcano.sh/v1alpha1',
+          kind: 'Job',
+          name: 'volcano-job',
+          uid: '456',
+          controller: true,
+          blockOwnerDeletion: true,
+        },
+      ],
+    },
+  },
+};
+
 export const WithManyLabels = Template.bind({});
 WithManyLabels.args = {
   resource: {
