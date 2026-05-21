@@ -1095,6 +1095,15 @@ func TestConfigureTLSContext_CACert(t *testing.T) {
 	assert.True(t, caCertParsed.IsCA, "Generated certificate should be a CA certificate")
 }
 
+// TestConfigureTLSContext_EmptyCACert verifies that a non-nil pointer
+// to an empty string is treated the same as nil (no custom CA configured).
+func TestConfigureTLSContext_EmptyCACert(t *testing.T) {
+	baseCtx := context.Background()
+	emptyCert := ""
+	resultCtx := auth.ConfigureTLSContext(baseCtx, nil, &emptyCert)
+	assert.Equal(t, baseCtx, resultCtx, "Context should not be modified when caCert is empty")
+}
+
 // TestConfigureTLSContext_SkipTLS_PreservesDefaults verifies that cloning
 // http.DefaultTransport preserves proxy and timeout settings.
 func TestConfigureTLSContext_SkipTLS_PreservesDefaults(t *testing.T) {
