@@ -203,21 +203,29 @@ export function formatDuration(duration: number, options: TimeAgoOptions = {}) {
   return humanDuration(duration);
 }
 
-export function localeDate(date: DateParam) {
+function formatLocaleDate(date: DateParam, timezone: string | undefined) {
   const options: Intl.DateTimeFormatOptions = { timeZoneName: 'short' };
-  let locale: string | undefined = undefined;
+  options.timeZone = timezone;
 
-  // Force the same conditions under test, so snapshots are the same.
-  if (import.meta.env.UNDER_TEST) {
-    options.timeZone = 'UTC';
-    options.hour12 = true;
-    locale = 'en-US';
-    return new Date(date).toISOString();
-  } else {
-    options.timeZone = store.getState().config.settings.timezone;
+  const d = new Date(date);
+  try {
+    return d.toLocaleString(undefined, options);
+  } catch (e) {
+    if (!(e instanceof RangeError)) {
+      throw e;
+    }
+    // Fall back without timeZone if the configured one is invalid (e.g. ':/etc/localtime')
+    const fallbackOptions = { ...options };
+    delete fallbackOptions.timeZone;
+    return d.toLocaleString(undefined, fallbackOptions);
   }
+}
 
-  return new Date(date).toLocaleString(locale, options);
+export function localeDate(date: DateParam) {
+  if (import.meta.env.UNDER_TEST) {
+    return new Date(date).toISOString();
+  }
+  return formatLocaleDate(date, store.getState().config.settings.timezone);
 }
 
 export function getPercentStr(value: number, total: number) {
