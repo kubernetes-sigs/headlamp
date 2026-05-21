@@ -26,19 +26,19 @@ describe('MultiPluginManagement', () => {
   let installer;
   const PLUGIN_DATA = [
     {
+      name: 'headlamp_opencost',
+      source: 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_opencost',
+      version: '0.1.3',
+    },
+    {
+      name: 'headlamp_kompose',
+      source: 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_kompose',
+      version: '0.1.1-beta',
+    },
+    {
       name: 'headlamp_flux',
       source: 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux',
-      version: '0.4.0',
-    },
-    {
-      name: 'headlamp_minikube',
-      source: 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_minikube',
-      version: '0.3.0',
-    },
-    {
-      name: 'headlamp_cert-manager',
-      source: 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_cert-manager',
-      version: '0.1.0',
+      version: '0.6.0',
     },
   ];
   beforeEach(async () => {
@@ -143,7 +143,7 @@ plugins:
       const config = `
 plugins:
   - name: invalid-plugin
-    source: https://artifacthub.io/packages/headlamp/headlamp-plugins/invalid-plugin
+    source: https://artifacthub.io/packages/headlamp/this-repo-does-not-exist/invalid-plugin
   - name: ${PLUGIN_DATA[0].name}
     source: ${PLUGIN_DATA[0].source}
     dependencies:
