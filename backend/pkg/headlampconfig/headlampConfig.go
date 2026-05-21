@@ -1,6 +1,7 @@
 package headlampconfig
 
 import (
+	"context"
 	"net/http"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -41,37 +42,40 @@ type HeadlampConfig struct {
 	ProxyAuthGroupHeader      string
 	ProxyAuthEmailHeader      string
 	ProxyAuthTokenHeader      string
+	ServerCtx                 context.Context
 }
 
 type HeadlampCFG struct {
-	UseInCluster           bool
-	InClusterContextName   string
-	ListenAddr             string
-	CacheEnabled           bool
-	DevMode                bool
-	Insecure               bool
-	EnableHelm             bool
-	EnableDynamicClusters  bool
-	AllowKubeconfigChanges bool
-	WatchPluginsChanges    bool
-	Port                   uint
-	KubeConfigPath         string
-	SkippedKubeContexts    string
-	StaticDir              string
-	PluginDir              string
-	UserPluginDir          string
-	StaticPluginDir        string
-	KubeConfigStore        kubeconfig.ContextStore
-	Telemetry              *telemetry.Telemetry
-	Metrics                *telemetry.Metrics
-	BaseURL                string
-	ProxyURLs              []string
-	TLSCertPath            string
-	TLSKeyPath             string
-	SessionTTL             int
-	PodDebugImage          string
-	OidcUseCookie          bool
-	DefaultLightTheme      string
-	DefaultDarkTheme       string
-	ForceTheme             string
+	UseInCluster                 bool
+	InClusterContextName         string
+	ListenAddr                   string
+	CacheEnabled                 bool
+	DevMode                      bool
+	Insecure                     bool
+	EnableHelm                   bool
+	EnableDynamicClusters        bool
+	AllowKubeconfigChanges       bool
+	WatchPluginsChanges          bool
+	Port                         uint
+	KubeConfigPath               string
+	SkippedKubeContexts          string
+	StaticDir                    string
+	PluginDir                    string
+	UserPluginDir                string
+	StaticPluginDir              string
+	KubeConfigStore              kubeconfig.ContextStore
+	Telemetry                    *telemetry.Telemetry
+	Metrics                      *telemetry.Metrics
+	BaseURL                      string
+	ProxyURLs                    []string
+	TLSCertPath                  string
+	TLSKeyPath                   string
+	SessionTTL                   int
+	PodDebugImage                string
+	OidcUseCookie                bool
+	DefaultLightTheme            string
+	DefaultDarkTheme             string
+	ForceTheme                   string
+	UnsafeUseServiceAccountToken bool
+	ServiceAccountTokenPath      string
 }

@@ -35,6 +35,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -44,6 +45,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -58,7 +60,8 @@ import (
 )
 
 const (
-	minikubeName = "minikube"
+	minikubeName            = "minikube"
+	testServiceAccountToken = "service-account-token"
 )
 
 func makeJSONReq(method, url string, jsonObj interface{}) (*http.Request, error) {
@@ -74,6 +77,47 @@ func makeJSONReq(method, url string, jsonObj interface{}) (*http.Request, error)
 	}
 
 	return http.NewRequestWithContext(context.Background(), method, url, bytes.NewBuffer(jsonBytes))
+}
+
+func writeTestTokenFile(t *testing.T) string {
+	t.Helper()
+
+	tokenFile := filepath.Join(t.TempDir(), "token")
+	require.NoError(t, os.WriteFile(tokenFile, []byte(testServiceAccountToken), 0o600))
+
+	return tokenFile
+}
+
+func TestCreateHeadlampHandlerSkipsInClusterContextWhenConfigUnavailable(t *testing.T) {
+	t.Setenv("KUBERNETES_SERVICE_HOST", "")
+	t.Setenv("KUBERNETES_SERVICE_PORT", "")
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("APPDATA", t.TempDir())
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    true,
+				KubeConfigPath:  filepath.Join(t.TempDir(), "missing-kubeconfig"),
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	var handler http.Handler
+
+	require.NotPanics(t, func() {
+		handler = createHeadlampHandler(context.Background(), cfg)
+	})
+	require.NotNil(t, handler)
+
+	_, err := kubeConfigStore.GetContext(kubeconfig.DefaultInClusterContextName)
+	require.Error(t, err)
 }
 
 func getResponse(handler http.Handler, method, url string, body interface{}) (*httptest.ResponseRecorder, error) {
@@ -106,19 +150,6 @@ func getResponseFromRestrictedEndpoint(handler http.Handler, method, url string,
 	handler.ServeHTTP(rr, req)
 
 	return rr, nil
-}
-
-// getDefaultKubeConfigPathForTest is a test helper that wraps config.GetDefaultKubeConfigPath
-// and fails the test immediately if retrieving the default path returns an error.
-func getDefaultKubeConfigPathForTest(t *testing.T) string {
-	t.Helper()
-
-	path, err := config.GetDefaultKubeConfigPath()
-	if err != nil {
-		t.Fatalf("failed to get default kubeconfig path: %v", err)
-	}
-
-	return path
 }
 
 func TestGetConfigIncludesDefaultPodDebugImage(t *testing.T) {
@@ -500,6 +531,29 @@ func TestExternalProxy(t *testing.T) {
 	}
 }
 
+func TestCompileProxyURLPatternsInvalidPattern(t *testing.T) {
+	_, err := compileProxyURLPatterns([]string{"["})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "compiling proxy URL pattern")
+}
+
+func TestProxyURLAllowedCompilesConfiguredProxyURLs(t *testing.T) {
+	config := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				ProxyURLs: []string{"https://example.com/*"},
+			},
+		},
+	}
+
+	allowed, err := config.proxyURLAllowed("https://example.com/api")
+
+	require.NoError(t, err)
+	assert.True(t, allowed)
+	assert.NotEmpty(t, config.compiledProxyURLs)
+}
+
 func TestExternalProxyForwarding(t *testing.T) {
 	// Create a new server for testing that returns a specific status and content type
 	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -593,13 +647,15 @@ func TestDrainAndCordonNode(t *testing.T) { //nolint:funlen
 
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
+	kubeConfigPath := filepath.Join("headlamp_testdata", "kubeconfig")
+
 	tests := []test{
 		{
 			handler: createHeadlampHandler(context.Background(), &HeadlampConfig{
 				HeadlampConfig: &headlampconfig.HeadlampConfig{
 					HeadlampCFG: &headlampconfig.HeadlampCFG{
 						UseInCluster:    false,
-						KubeConfigPath:  getDefaultKubeConfigPathForTest(t),
+						KubeConfigPath:  kubeConfigPath,
 						KubeConfigStore: kubeConfigStore,
 					},
 					Cache:            cache,
@@ -629,8 +685,8 @@ func TestDrainAndCordonNode(t *testing.T) { //nolint:funlen
 				status, http.StatusOK)
 		}
 
-		cacheKey := uuid.NewSHA1(uuid.Nil, []byte(drainNodePayload.NodeName+drainNodePayload.Cluster)).String()
-		cacheItemTTL := DrainNodeCacheTTL * time.Minute
+		cacheKey := uuid.NewSHA1(uuid.Nil, []byte(drainNodePayload.NodeName+"\x00"+drainNodePayload.Cluster)).String()
+		cacheItemTTL := DrainNodeCacheTTL * time.Second
 		ctx := context.Background()
 
 		err = cache.SetWithTTL(ctx, cacheKey, "success", cacheItemTTL)
@@ -710,10 +766,10 @@ func TestDrainNodePodDeletionFailure(t *testing.T) { //nolint:funlen
 		},
 	}
 
-	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"test-cluster")).String()
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 	ctx := context.Background()
 
-	c.drainNode(fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
 
 	require.Eventually(t, func() bool {
 		cacheItem, err := testCache.Get(ctx, cacheKey)
@@ -773,10 +829,10 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 		},
 	}
 
-	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"test-cluster")).String()
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
 	ctx := context.Background()
 
-	c.drainNode(fakeClient, "test-node", "test-cluster")
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
 
 	require.Eventually(t, func() bool {
 		cacheItem, err := testCache.Get(ctx, cacheKey)
@@ -796,6 +852,135 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 	require.True(t, ok)
 
 	assert.Equal(t, "success", status)
+}
+
+func TestHandleNodeDrainUsesRequestedClusterCookieForCustomNamedContext(t *testing.T) { //nolint:funlen
+	const (
+		originalCluster = "original-cluster"
+		customCluster   = "custom-cluster"
+		nodeName        = "node-a"
+		testToken       = "custom-cluster-token"
+	)
+
+	authHeaders := make(chan string, 3)
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case authHeaders <- r.Header.Get("Authorization"):
+		default:
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/nodes/"+nodeName:
+			_ = json.NewEncoder(w).Encode(&corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: nodeName},
+			})
+		case r.Method == http.MethodPut && r.URL.Path == "/api/v1/nodes/"+nodeName:
+			_ = json.NewEncoder(w).Encode(&corev1.Node{
+				ObjectMeta: metav1.ObjectMeta{Name: nodeName},
+			})
+		case r.Method == http.MethodGet && r.URL.Path == "/api/v1/pods":
+			_ = json.NewEncoder(w).Encode(&corev1.PodList{})
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: originalCluster,
+		KubeContext: &api.Context{
+			Cluster:  originalCluster,
+			AuthInfo: originalCluster,
+			Extensions: map[string]k8sruntime.Object{
+				"headlamp_info": &kubeconfig.CustomObject{CustomName: customCluster},
+			},
+		},
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{},
+		Source:   kubeconfig.InCluster,
+	})
+	require.NoError(t, err)
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    true,
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	req, err := makeJSONReq(http.MethodPost, "/drain-node", struct {
+		Cluster  string `json:"cluster"`
+		NodeName string `json:"nodeName"`
+	}{
+		Cluster:  customCluster,
+		NodeName: nodeName,
+	})
+	require.NoError(t, err)
+	req.AddCookie(&http.Cookie{
+		Name:  "headlamp-auth-" + customCluster + ".0",
+		Value: testToken,
+	})
+
+	rr := httptest.NewRecorder()
+	cfg.handleNodeDrain(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	select {
+	case got := <-authHeaders:
+		assert.Equal(t, "Bearer "+testToken, got)
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for drain request to reach Kubernetes API")
+	}
+}
+
+func TestDrainNodeCancelledContextDoesNotWriteCache(t *testing.T) {
+	pod1 := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pod-1",
+			Namespace: "default",
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "test-node",
+		},
+	}
+
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+		},
+	}
+
+	fakeClient := fake.NewClientset(node, pod1)
+
+	testCache := cache.New[interface{}]()
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			Cache: testCache,
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
+
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+
+	assert.Never(t, func() bool {
+		_, err := testCache.Get(context.Background(), cacheKey)
+		return err == nil
+	}, 100*time.Millisecond, 10*time.Millisecond, "cache should not be written when context is already cancelled")
 }
 
 func TestDeletePlugin(t *testing.T) {
@@ -829,16 +1014,20 @@ func TestDeletePlugin(t *testing.T) {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
 
+	kubeConfigPath := filepath.Join("headlamp_testdata", "kubeconfig")
+
 	c := HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:    false,
-				KubeConfigPath:  getDefaultKubeConfigPathForTest(t),
+				KubeConfigPath:  kubeConfigPath,
 				PluginDir:       devPluginDir,
 				UserPluginDir:   userPluginDir,
 				KubeConfigStore: kubeConfigStore,
 			},
-			Cache: cache,
+			Cache:            cache,
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
 		},
 	}
 
@@ -884,11 +1073,13 @@ func TestHandleClusterAPI_XForwardedHost(t *testing.T) {
 
 	cache := cache.New[interface{}]()
 
+	kubeConfigPath := filepath.Join("headlamp_testdata", "kubeconfig")
+
 	c := HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:    false,
-				KubeConfigPath:  getDefaultKubeConfigPathForTest(t),
+				KubeConfigPath:  kubeConfigPath,
 				KubeConfigStore: kubeConfigStore,
 			},
 			Cache:            cache,
@@ -1405,6 +1596,87 @@ func TestGetOidcCallbackURL(t *testing.T) {
 			}
 		})
 	}
+}
+
+// Regression test for #4839: /oidc-callback's missing-state log must not
+// carry the outer-scope kubeconfig-load err from createHeadlampHandler.
+//
+//nolint:funlen
+func TestOidcCallbackEmptyStateDoesNotLogStaleError(t *testing.T) {
+	type logCall struct {
+		level uint
+		msg   string
+		err   interface{}
+	}
+
+	var (
+		logMu    sync.Mutex
+		logCalls []logCall
+	)
+
+	originalLogFunc := logger.SetLogFunc(func(level uint, _ map[string]string, err interface{}, msg string) {
+		logMu.Lock()
+		defer logMu.Unlock()
+
+		logCalls = append(logCalls, logCall{level: level, msg: msg, err: err})
+	})
+	defer logger.SetLogFunc(originalLogFunc)
+
+	scratch := t.TempDir()
+
+	// createHeadlampHandler overwrites config.StaticPluginDir from this env
+	// var, so set it deterministically rather than relying on the caller.
+	t.Setenv("HEADLAMP_STATIC_PLUGINS_DIR", scratch)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster: false,
+				// Guaranteed-missing kubeconfig so the startup load fails and
+				// seeds the outer-scope err the callback closure would leak.
+				KubeConfigPath:  filepath.Join(scratch, "missing-kubeconfig"),
+				KubeConfigStore: kubeconfig.NewContextStore(),
+				PluginDir:       scratch,
+				UserPluginDir:   scratch,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handler := createHeadlampHandler(ctx, cfg)
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "/oidc-callback", nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code,
+		"empty state should still produce a 400 response")
+
+	logMu.Lock()
+
+	captured := append([]logCall(nil), logCalls...)
+
+	logMu.Unlock()
+
+	var stateLog *logCall
+
+	for i := range captured {
+		if captured[i].msg == "invalid request state is empty" {
+			stateLog = &captured[i]
+			break
+		}
+	}
+
+	require.NotNil(t, stateLog, "expected a log entry for the missing-state branch")
+	assert.Nil(t, stateLog.err,
+		"missing-state log must not carry a stale error from the outer createHeadlampHandler scope")
 }
 
 func TestOIDCTokenRefreshMiddleware(t *testing.T) {
@@ -2059,7 +2331,7 @@ func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 
 		kubeConfigPath, err = config.GetDefaultKubeConfigPath()
 		if err != nil {
-			t.Fatalf("failed to get default kubeconfig path: %v", err)
+			t.Skipf("unable to determine default kubeconfig path, skipping real K8s integration test: %v", err)
 		}
 	}
 
@@ -2419,6 +2691,105 @@ func TestHandleClusterServiceProxy(t *testing.T) {
 	}
 }
 
+//nolint:funlen
+func TestHandleClusterServiceProxyUsesServiceAccountToken(t *testing.T) {
+	const (
+		cluster = "main"
+		ns      = "default"
+		svc     = "my-service"
+	)
+
+	tokenFile := writeTestTokenFile(t)
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:                 true,
+				UnsafeUseServiceAccountToken: true,
+				KubeConfigStore:              kubeconfig.NewContextStore(),
+			},
+			TelemetryHandler: &telemetry.RequestHandler{},
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+		},
+	}
+
+	backend := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/healthz", r.URL.Path)
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	t.Cleanup(backend.Close)
+
+	bu, err := url.Parse(backend.URL)
+	require.NoError(t, err)
+	host, portStr, err := net.SplitHostPort(strings.TrimPrefix(bu.Host, "["))
+	require.NoError(t, err)
+	portNum, err := strconv.Atoi(strings.TrimSuffix(portStr, "]"))
+	require.NoError(t, err)
+
+	var receivedAuth string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+
+		if r.Method == http.MethodGet && r.URL.Path == "/api/v1/namespaces/default/services/my-service" {
+			svc := &corev1.Service{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      "my-service",
+					Namespace: "default",
+				},
+				Spec: corev1.ServiceSpec{
+					ExternalName: host,
+					Ports: []corev1.ServicePort{
+						{
+							Name: "http",
+							Port: int32(portNum), //nolint:gosec
+						},
+					},
+				},
+			}
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_ = json.NewEncoder(w).Encode(svc)
+
+			return
+		}
+
+		http.NotFound(w, r)
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	err = cfg.KubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		KubeContext: &api.Context{
+			Cluster:  cluster,
+			AuthInfo: cluster,
+		},
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	})
+	require.NoError(t, err)
+
+	router := mux.NewRouter()
+	handleClusterServiceProxy(cfg, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/clusters/"+cluster+"/serviceproxy/"+ns+"/"+svc+"?request=/healthz", nil)
+	req.Header.Set("Authorization", "Bearer proxy-token")
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "OK", rr.Body.String())
+	assert.Equal(t, "Bearer "+testServiceAccountToken, receivedAuth)
+}
+
 // TestOidcUseCookieLogic verifies that the mechanism for promoting an OIDC token
 // from a cookie to the Authorization header works as expected.
 func TestOidcUseCookieLogic(t *testing.T) {
@@ -2518,6 +2889,235 @@ func TestHelmRouteReleaseHandlerTokenExtraction(t *testing.T) {
 
 	assert.Equal(t, testToken, capturedBearerToken,
 		"clientConfig bearer token should be set from cookie in non-OIDC in-cluster deployment")
+}
+
+//nolint:funlen
+func TestHelmRouteReleaseHandlerUsesServiceAccountToken(t *testing.T) {
+	clusterName := "main"
+	tokenFile := writeTestTokenFile(t)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: clusterName,
+		Cluster: &api.Cluster{
+			Server: "https://test-cluster.example.com",
+		},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	})
+	require.NoError(t, err)
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:                 true,
+				UnsafeUseServiceAccountToken: true,
+				KubeConfigStore:              kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	var (
+		capturedAuthHeader      string
+		capturedBearerToken     string
+		capturedBearerTokenFile string
+	)
+
+	handler := func(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
+		capturedAuthHeader = r.Header.Get("Authorization")
+
+		restConfig, restErr := clientConfig.ClientConfig()
+		if restErr == nil && restConfig != nil {
+			capturedBearerToken = restConfig.BearerToken
+			capturedBearerTokenFile = restConfig.BearerTokenFile
+		}
+
+		w.WriteHeader(http.StatusOK)
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/helm/release/test", nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer proxy-token")
+	req.AddCookie(&http.Cookie{
+		Name:  "headlamp-auth-" + clusterName + ".0",
+		Value: "cookie-token",
+	})
+
+	w := httptest.NewRecorder()
+
+	ctx, span := otel.GetTracerProvider().Tracer("test-tracer").Start(context.Background(), "test-span")
+	defer span.End()
+
+	c.helmRouteReleaseHandler(ctx, span, req, w, clusterName, "/helm/release/test", "test", handler)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, capturedAuthHeader)
+	assert.Equal(t, testServiceAccountToken, capturedBearerToken)
+	assert.Equal(t, tokenFile, capturedBearerTokenFile)
+}
+
+func TestHelmRouteRepositoryHandlerUsesServiceAccountToken(t *testing.T) {
+	clusterName := "main"
+	tokenFile := writeTestTokenFile(t)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:     clusterName,
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	})
+	require.NoError(t, err)
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:                 true,
+				UnsafeUseServiceAccountToken: true,
+				KubeConfigStore:              kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/helm/repositories", nil)
+	require.NoError(t, err)
+	req.Header.Set("Authorization", "Bearer proxy-token")
+
+	w := httptest.NewRecorder()
+
+	ctx, span := otel.GetTracerProvider().Tracer("test-tracer").Start(context.Background(), "test-span")
+	defer span.End()
+
+	var capturedAuthHeader string
+
+	handler := func(w http.ResponseWriter, r *http.Request) {
+		capturedAuthHeader = r.Header.Get("Authorization")
+
+		w.WriteHeader(http.StatusOK)
+	}
+
+	c.helmRouteRepositoryHandler(ctx, span, req, w, clusterName, "/helm/repositories", "test", handler)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Empty(t, capturedAuthHeader)
+}
+
+func TestClusterRequestHandlerUsesServiceAccountToken(t *testing.T) {
+	const cluster, proxyAuthTokenHeader = "main", "Impersonate-User"
+
+	tokenFile := writeTestTokenFile(t)
+
+	var receivedAuth, receivedCookie, receivedProxyAuthToken string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		receivedCookie = r.Header.Get("Cookie")
+		receivedProxyAuthToken = r.Header.Get(proxyAuthTokenHeader)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{TokenFile: tokenFile},
+		Source:   kubeconfig.InCluster,
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:                 true,
+				UnsafeUseServiceAccountToken: true,
+				KubeConfigStore:              kubeConfigStore,
+			},
+			ProxyAuthTokenHeader: proxyAuthTokenHeader,
+			Cache:                cache.New[interface{}](),
+			TelemetryConfig:      GetDefaultTestTelemetryConfig(),
+			TelemetryHandler:     &telemetry.RequestHandler{},
+		},
+	}
+
+	router := mux.NewRouter()
+	handleClusterAPI(c, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/main/api/v1/pods", nil)
+	req.Header.Set("Authorization", "Bearer proxy-token")
+	req.Header.Set(proxyAuthTokenHeader, "kind-header-leak")
+	req.AddCookie(&http.Cookie{
+		Name:  "headlamp-auth-main.0",
+		Value: "cookie-token",
+	})
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "Bearer "+testServiceAccountToken, receivedAuth)
+	assert.Empty(t, receivedCookie)
+	assert.Empty(t, receivedProxyAuthToken)
+}
+
+func TestClusterRequestHandlerStripsProxyAuthTokenHeader(t *testing.T) {
+	const cluster, proxyAuthTokenHeader = "main", "Impersonate-User"
+
+	var receivedAuth, receivedProxyAuthToken string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		receivedProxyAuthToken = r.Header.Get(proxyAuthTokenHeader)
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{},
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeConfigStore,
+			},
+			ProxyAuthEnabled:     true,
+			ProxyAuthTokenHeader: proxyAuthTokenHeader,
+			Cache:                cache.New[interface{}](),
+			TelemetryConfig:      GetDefaultTestTelemetryConfig(),
+			TelemetryHandler:     &telemetry.RequestHandler{},
+		},
+	}
+
+	router := mux.NewRouter()
+	handleClusterAPI(c, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/main/api/v1/pods", nil)
+	req.Header.Set(proxyAuthTokenHeader, "proxy-token")
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "Bearer proxy-token", receivedAuth)
+	assert.Empty(t, receivedProxyAuthToken)
 }
 
 func TestAllowedHosts(t *testing.T) {

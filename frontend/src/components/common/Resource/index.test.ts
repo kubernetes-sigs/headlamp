@@ -39,6 +39,7 @@ const checkExports = [
   'DeleteMultipleButton',
   'DetailsDrawer',
   'DocsViewer',
+  'DryRunPreviewDialog',
   'EditButton',
   'EditorDialog',
   'EnvVarGrid',

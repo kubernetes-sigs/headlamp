@@ -47,6 +47,9 @@ class Event extends KubeObject<KubeEvent> {
 
   static isNamespaced = true;
 
+  static useListForClusters = useEventListForClusters;
+  static useWarningList = useEventWarningList;
+
   // Max number of events to fetch from the API
   private static maxEventsLimit = 2000;
 

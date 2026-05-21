@@ -15,22 +15,26 @@
  */
 
 import {
+  arSA,
   deDE,
   enUS,
   esES,
   frFR,
+  heIL,
   hiIN,
   itIT,
   jaJP,
   koKR,
   ptPT,
   ruRU,
+  urPK,
   zhCN,
   zhTW,
 } from '@mui/material/locale';
 import { createTheme, StyledEngineProvider, Theme, ThemeProvider } from '@mui/material/styles';
 import React, { ReactNode, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { supportedLanguages } from './config';
 
 /**
  * Returns the Material-UI locale object for a given language code.
@@ -39,6 +43,8 @@ import { useTranslation } from 'react-i18next';
  * @returns A Material-UI locale object, defaults to enUS if locale is unsupported.
  */
 function getLocale(locale: string): typeof enUS {
+  const normalizedLocale = locale.toLowerCase();
+
   const LOCALES = {
     en: enUS,
     pt: ptPT,
@@ -53,7 +59,11 @@ function getLocale(locale: string): typeof enUS {
     'zh-tw': zhTW,
     ja: jaJP,
     zh: zhCN,
+    ar: arSA,
+    ur: urPK,
+    he: heIL,
   };
+
   type LocalesType =
     | 'en'
     | 'pt'
@@ -67,20 +77,25 @@ function getLocale(locale: string): typeof enUS {
     | 'zh-tw'
     | 'ja'
     | 'ko'
-    | 'zh';
-  return locale in LOCALES ? LOCALES[locale as LocalesType] : LOCALES['en'];
+    | 'zh'
+    | 'ar'
+    | 'ur'
+    | 'he';
+
+  return normalizedLocale in LOCALES ? LOCALES[normalizedLocale as LocalesType] : LOCALES['en'];
 }
 
 interface ThemeProviderNexti18nProps {
   /** The Material-UI theme to apply. */
   theme: Theme;
+
   /** The child components to render within the theme provider. */
   children: ReactNode;
 }
 
 /**
  * A ThemeProvider that integrates with react-i18next for language selection,
- * applying Material-UI localization based on the selected language.
+ * applying Material-UI localization and RTL/LTR direction support.
  *
  * @param props - The properties to configure the ThemeProviderNexti18n component.
  * @returns A themed container with localized child components.
@@ -89,6 +104,7 @@ const ThemeProviderNexti18n: React.FunctionComponent<ThemeProviderNexti18nProps>
   const { i18n, ready: isI18nReady } = useTranslation(['translation', 'glossary'], {
     useSuspense: false,
   });
+
   const [lang, setLang] = useState(i18n.language);
 
   /**
@@ -98,8 +114,12 @@ const ThemeProviderNexti18n: React.FunctionComponent<ThemeProviderNexti18nProps>
    */
   function changeLang(lng: string) {
     if (lng) {
+      const dir = supportedLanguages[lng]?.dir || 'ltr';
+
       document.documentElement.lang = lng;
-      document.body.dir = i18n.dir();
+      document.documentElement.dir = dir;
+      document.body.dir = dir;
+
       setLang(lng);
     }
   }
@@ -109,17 +129,27 @@ const ThemeProviderNexti18n: React.FunctionComponent<ThemeProviderNexti18nProps>
    */
   useEffect(() => {
     i18n.on('languageChanged', changeLang);
+
     if (i18n.language) {
-      // Set the lang when the page loads too.
+      // Set the language when the page loads.
       changeLang(i18n.language);
     }
+
     return () => {
       i18n.off('languageChanged', changeLang);
     };
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const theme = createTheme(props.theme, getLocale(lang));
+  const theme = createTheme(
+    {
+      ...props.theme,
+      // Use the local config metadata for the theme direction too
+      direction: supportedLanguages[lang]?.dir || 'ltr',
+    },
+    getLocale(lang)
+  );
 
   return (
     <StyledEngineProvider injectFirst>

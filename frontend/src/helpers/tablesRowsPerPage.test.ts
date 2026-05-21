@@ -14,40 +14,67 @@
  * limitations under the License.
  */
 
-import { getTablesRowsPerPage, setTablesRowsPerPage } from './tablesRowsPerPage';
+import { getTablesRowsPerPage, parseTablesRowsPerPage } from './tablesRowsPerPage';
+
+describe('parseTablesRowsPerPage', () => {
+  test('accepts whole numbers', () => {
+    expect(parseTablesRowsPerPage('10')).toBe(10);
+  });
+
+  test('accepts values at the row count bounds', () => {
+    expect(parseTablesRowsPerPage('5')).toBe(5);
+    expect(parseTablesRowsPerPage('1000')).toBe(1000);
+  });
+
+  test('rejects decimal values', () => {
+    expect(parseTablesRowsPerPage('10.5')).toBeNull();
+  });
+
+  test('rejects non-numeric values', () => {
+    expect(parseTablesRowsPerPage('abc')).toBeNull();
+  });
+
+  test('rejects partially numeric values', () => {
+    expect(parseTablesRowsPerPage('12abc')).toBeNull();
+  });
+
+  test('rejects values below the minimum', () => {
+    expect(parseTablesRowsPerPage('0')).toBeNull();
+    expect(parseTablesRowsPerPage('4')).toBeNull();
+  });
+
+  test('rejects values above the maximum', () => {
+    expect(parseTablesRowsPerPage('1001')).toBeNull();
+  });
+
+  test('rejects unsafe integers', () => {
+    expect(parseTablesRowsPerPage('9007199254740992')).toBeNull();
+  });
+});
 
 describe('getTablesRowsPerPage', () => {
-  beforeEach(() => {
+  afterEach(() => {
     localStorage.clear();
   });
 
-  it('returns the default when localStorage is empty', () => {
-    expect(getTablesRowsPerPage(15)).toBe(15);
+  test('returns the default value when stored value is decimal', () => {
+    localStorage.setItem('tables_rows_per_page', '10.5');
+
+    expect(getTablesRowsPerPage(5)).toBe(5);
   });
 
-  it('returns the stored value when localStorage holds a valid number', () => {
-    setTablesRowsPerPage(25);
-    expect(getTablesRowsPerPage(15)).toBe(25);
+  test('returns the stored value when it is valid', () => {
+    localStorage.setItem('tables_rows_per_page', '10');
+
+    expect(getTablesRowsPerPage(5)).toBe(10);
   });
 
-  it('returns the default when localStorage contains a non-numeric string', () => {
-    localStorage.setItem('tables_rows_per_page', 'not-a-number');
-    expect(getTablesRowsPerPage(15)).toBe(15);
-  });
+  test.each(['abc', '12abc', '', ' ', '0', '4', '1001', '9007199254740992'])(
+    'returns the default value when stored value is invalid: %s',
+    value => {
+      localStorage.setItem('tables_rows_per_page', value);
 
-  it('returns the default when localStorage contains an empty string', () => {
-    localStorage.setItem('tables_rows_per_page', '');
-    expect(getTablesRowsPerPage(15)).toBe(15);
-  });
-
-  it('returns the parsed integer when localStorage contains a partial numeric string like "12abc"', () => {
-    localStorage.setItem('tables_rows_per_page', '12abc');
-    // parseInt('12abc') === 12, which is a valid integer
-    const result = getTablesRowsPerPage(15);
-    expect(result).toBe(12);
-
-    const options = [15, 25, 50];
-    // 12 is a valid integer but NOT in options — callers must clamp to options
-    expect(options.includes(result)).toBe(false);
-  });
+      expect(getTablesRowsPerPage(5)).toBe(5);
+    }
+  );
 });

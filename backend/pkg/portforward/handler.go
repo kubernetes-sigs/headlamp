@@ -135,6 +135,7 @@ func getFreePort() (int, error) {
 //
 //nolint:funlen
 func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache[interface{}],
+	unsafeUseServiceAccountToken bool,
 	w http.ResponseWriter, r *http.Request,
 ) {
 	var p portForwardRequest
@@ -169,10 +170,9 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		p.Port = strconv.Itoa(freePort)
 	}
 
-	token, _ := auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
-
 	userID := r.Header.Get("X-HEADLAMP-USER-ID")
-	clusterName := mux.Vars(r)["clusterName"]
+	requestClusterName := mux.Vars(r)["clusterName"]
+	clusterName := requestClusterName
 
 	if userID != "" {
 		clusterName += userID
@@ -185,6 +185,11 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
+	}
+
+	token := ""
+	if !unsafeUseServiceAccountToken || !kContext.UsesInClusterServiceAccountToken() {
+		token, _ = auth.GetTokenFromCookie(r, requestClusterName)
 	}
 
 	err = startPortForward(kContext, cache, p, token, clusterName)
