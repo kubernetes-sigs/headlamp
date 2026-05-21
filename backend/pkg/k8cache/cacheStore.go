@@ -40,6 +40,27 @@ const (
 	apisPathSegment = "apis"
 )
 
+func kubernetesAPIPathIndex(parts []string) int {
+	if len(parts) > 1 && (parts[1] == apiPathSegment || parts[1] == apisPathSegment) {
+		return 1
+	}
+
+	if len(parts) > 3 && parts[1] == "clusters" && (parts[3] == apiPathSegment || parts[3] == apisPathSegment) {
+		return 3
+	}
+
+	return -1
+}
+
+// IsKubernetesResourceAPIPath returns true when path points to a Kubernetes
+// resource API endpoint that can be keyed by the cache layer.
+func IsKubernetesResourceAPIPath(path string) bool {
+	path = strings.TrimRight(path, "/")
+	parts := strings.Split(path, "/")
+
+	return kubernetesAPIPathIndex(parts) != -1
+}
+
 // CachedResponseData stores information such as StatusCode, Headers, and Body.
 // It helps cache responses efficiently and serve them from the cache.
 type CachedResponseData struct {
@@ -79,26 +100,29 @@ func GetResponseBody(bodyBytes []byte, encoding string) (string, error) {
 func GetAPIGroup(path string) (apiGroup, version string, err error) {
 	path = strings.TrimRight(path, "/")
 	parts := strings.Split(path, "/")
+	apiIdx := kubernetesAPIPathIndex(parts)
 
-	switch {
-	case len(parts) >= 4 && parts[3] == apiPathSegment:
+	if apiIdx == -1 {
+		return "", "", fmt.Errorf("invalid url format")
+	}
+
+	switch parts[apiIdx] {
+	case apiPathSegment:
 		// Core API group
 		apiGroup = ""
 
-		if len(parts) >= 5 {
-			version = parts[4]
+		if len(parts) > apiIdx+1 {
+			version = parts[apiIdx+1]
 		}
-	case len(parts) >= 4 && parts[3] == apisPathSegment:
+	case apisPathSegment:
 		// Named API group
-		if len(parts) >= 5 {
-			apiGroup = parts[4]
+		if len(parts) > apiIdx+1 {
+			apiGroup = parts[apiIdx+1]
 		}
 
-		if len(parts) >= 6 {
-			version = parts[5]
+		if len(parts) > apiIdx+2 {
+			version = parts[apiIdx+2]
 		}
-	default:
-		return "", "", fmt.Errorf("invalid url format")
 	}
 
 	return
@@ -118,16 +142,8 @@ func ExtractNamespace(rawURL string) (string, string) {
 	urls := strings.Split(rawURL, "/")
 
 	n := len(urls)
-	apiIdx := -1
 
-	// Kubernetes API paths either start directly at /api (index 1)
-	// or are proxied via /clusters/{name}/api (index 3)
-	if n > 1 && (urls[1] == apiPathSegment || urls[1] == apisPathSegment) {
-		apiIdx = 1
-	} else if n > 3 && urls[1] == "clusters" && (urls[3] == apiPathSegment || urls[3] == apisPathSegment) {
-		apiIdx = 3
-	}
-
+	apiIdx := kubernetesAPIPathIndex(urls)
 	if apiIdx == -1 {
 		return "", ""
 	}
