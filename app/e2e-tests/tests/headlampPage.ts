@@ -15,10 +15,34 @@
  */
 
 /// <reference types="node" />
+import { AxeBuilder } from '@axe-core/playwright';
 import { expect, Page } from '@playwright/test';
 
 export class HeadlampPage {
   constructor(private page: Page) {}
+
+  async a11y() {
+    const axeBuilder = new AxeBuilder({ page: this.page });
+    const accessibilityResults = await axeBuilder.analyze();
+
+    // Filter for critical and serious violations only for improved test stability
+    const violations = accessibilityResults.violations.filter(
+      v => v.impact === 'critical' || v.impact === 'serious'
+    );
+
+    const violationSummary = violations
+      .map(
+        v =>
+          `[${v.id}] (${v.impact}): ${v.help}\n` +
+          `  - Targets: ${v.nodes.map(n => n.target.join(', ')).join('\n  - ')}`
+      )
+      .join('\n\n');
+
+    expect(
+      violations,
+      `Found ${violations.length} critical/serious accessibility violations:\n\n${violationSummary}`
+    ).toEqual([]);
+  }
 
   async authenticate() {
     // If we are running in cluster, we need to authenticate
@@ -110,7 +134,7 @@ export class HeadlampPage {
 
   async logout() {
     // Click on the account button to open the user menu
-    await this.page.click('button[aria-label="Account of current user"]');
+    await this.page.click('button[aria-controls="primary-user-menu"]');
 
     // Wait for the logout option to be visible and click on it
     await this.page.waitForSelector('a.MuiMenuItem-root:has-text("Log out")');

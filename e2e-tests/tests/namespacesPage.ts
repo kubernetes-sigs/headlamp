@@ -13,16 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { AxeBuilder } from '@axe-core/playwright';
+
 import { expect, Page } from '@playwright/test';
+import { runA11yScan } from './a11yHelper';
 
 export class NamespacesPage {
   constructor(private page: Page) {}
 
   async a11y() {
-    const axeBuilder = new AxeBuilder({ page: this.page });
-    const accessibilityResults = await axeBuilder.analyze();
-    expect(accessibilityResults.violations).toStrictEqual([]);
+    await runA11yScan(this.page);
   }
 
   async navigateToNamespaces() {

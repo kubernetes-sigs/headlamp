@@ -66,6 +66,8 @@ test.describe('create a namespace with the minimal editor', async () => {
 
     await headlampPage.authenticate();
 
+    await headlampPage.a11y();
+
     await namespacesPage.navigateToNamespaces();
     await namespacesPage.createNamespace(name);
     await namespacesPage.deleteNamespace(name);
