@@ -300,7 +300,7 @@ func TestWebsocketConnContextKey(t *testing.T) {
 			name:           "With authorization protocol",
 			protocols:      "base64url.headlamp.authorization.k8s.io.user123, v4.channel.k8s.io",
 			clusterName:    "test-cluster",
-			expectedKey:    "test-cluster\x00user123",
+			expectedKey:    "12:test-cluster|7:user123",
 			expectedHeader: "v4.channel.k8s.io",
 		},
 		{
