@@ -38,6 +38,11 @@ export function parseRam(value: string) {
 function parseUnitsOfBytes(value: string): number {
   if (!value) return 0;
 
+  // "m" suffix means milli-bytes (1/1000 of a byte), e.g. "11973899059200m" from kubectl
+  if (/^\d+m$/.test(value)) {
+    return parseInt(value, 10) / 1000;
+  }
+
   const groups = value.match(/(\d+(?:\.\d+)?)([BKMGTPEe])?(i)?(\d+)?/) || [];
   const number = parseFloat(groups[1]);
 
