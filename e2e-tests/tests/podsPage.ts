@@ -14,16 +14,14 @@
  * limitations under the License.
  */
 
-import { AxeBuilder } from '@axe-core/playwright';
 import { expect, Page } from '@playwright/test';
+import { runA11yScan } from './a11yHelper';
 
 export class podsPage {
   constructor(private page: Page) {}
 
   async a11y() {
-    const axeBuilder = new AxeBuilder({ page: this.page });
-    const accessibilityResults = await axeBuilder.analyze();
-    expect(accessibilityResults.violations).toStrictEqual([]);
+    await runA11yScan(this.page);
   }
 
   async navigateToPods() {
