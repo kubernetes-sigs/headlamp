@@ -180,6 +180,15 @@ export default function SimpleTable(props: SimpleTableProps) {
     defaultValue: defaultRowsPerPage,
     prefix,
   });
+
+  React.useEffect(() => {
+    const key = shouldReflectInURL ? (prefix ? `${prefix}.perPage` : 'perPage') : '';
+    const hasURLParam = key !== '' && new URLSearchParams(window.location.search).has(key);
+
+    if (!hasURLParam) {
+      setRowsPerPage(defaultRowsPerPage);
+    }
+  }, [defaultRowsPerPage, shouldReflectInURL, prefix, setRowsPerPage]);
   const gridTemplateColumns = React.useMemo(() => {
     const columnsTemplates = columns.map(column => column.gridTemplate || 1);
     const templates: string[] = [];
