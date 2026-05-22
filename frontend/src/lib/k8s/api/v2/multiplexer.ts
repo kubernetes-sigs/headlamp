@@ -463,19 +463,21 @@ export function useWebSocket<T>({
     let subscriptionQuery = '';
 
     const connectWebSocket = async () => {
+      let stableOnError: ((err: Error) => void) | undefined;
       try {
         const parsedUrl = new URL(url, getBaseWsUrl());
         subscriptionPath = parsedUrl.pathname;
         subscriptionQuery = parsedUrl.search.slice(1);
+        stableOnError = (err: Error) => {
+          console.error('WebSocket error for', subscriptionPath, err);
+          onError?.(err);
+        };
         const unsubscribe = await WebSocketManager.subscribe(
           cluster,
           subscriptionPath,
           subscriptionQuery,
           stableOnMessage,
-          (err: Error) => {
-            console.error('WebSocket error for', subscriptionPath, err);
-            onError?.(err);
-          }
+          stableOnError
         );
         if (isCancelled) {
           unsubscribe();
@@ -491,7 +493,7 @@ export function useWebSocket<T>({
             subscriptionPath,
             subscriptionQuery,
             stableOnMessage,
-            onError
+            stableOnError
           );
         }
         if (isCancelled) {
