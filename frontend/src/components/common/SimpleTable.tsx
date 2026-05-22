@@ -171,8 +171,9 @@ export default function SimpleTable(props: SimpleTableProps) {
   const shouldReflectInURL = reflectInURL !== undefined && reflectInURL !== false;
   const prefix = reflectInURL === true ? '' : reflectInURL || '';
   const [page, setPage] = usePageURLState(shouldReflectInURL ? 'p' : '', prefix, initialPage);
-  const [currentData, setCurrentData] = React.useState(data);
-  const [displayData, setDisplayData] = React.useState(data);
+  const normalizedData = data ?? null;
+  const [currentData, setCurrentData] = React.useState(normalizedData);
+  const [displayData, setDisplayData] = React.useState(normalizedData);
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const rowsPerPageOptions = props.rowsPerPage || storeRowsPerPageOptions;
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -231,19 +232,19 @@ export default function SimpleTable(props: SimpleTableProps) {
 
   React.useEffect(
     () => {
-      if (currentData === data) {
+      if (currentData === normalizedData) {
         return;
       }
 
       // If the currentData is not up to date and we are in the first page, then update
       // it directly. Otherwise it will require user's intervention.
       if (!currentData || currentData.length === 0 || page === 0) {
-        setCurrentData(data);
-        setDisplayData(getSortData() || data);
+        setCurrentData(normalizedData);
+        setDisplayData(getSortData() || normalizedData);
       }
     },
     // eslint-disable-next-line
-    [data, currentData]
+    [normalizedData, currentData]
   );
 
   function defaultSortingFunction(column: SimpleTableDatumColumn | SimpleTableGetterColumn) {
@@ -329,11 +330,7 @@ export default function SimpleTable(props: SimpleTableProps) {
   }, [displayData, filterFunction]);
 
   React.useEffect(() => {
-    if (
-      filteredData &&
-      (filteredData.length === 0 || filteredData.length < page * rowsPerPage) &&
-      page !== 0
-    ) {
+    if (filteredData && filteredData.length <= page * rowsPerPage && page !== 0) {
       setPage(0);
     }
   }, [filteredData, page, rowsPerPage, setPage]);
@@ -377,13 +374,13 @@ export default function SimpleTable(props: SimpleTableProps) {
           {
             // Show a refresh button if the data is not up to date, so we allow the user to keep
             // reading the current data without "losing" it or being sent to the first page
-            currentData !== data && page !== 0 && (
+            currentData !== normalizedData && page !== 0 && (
               <Box textAlign="center" p={2}>
                 <Button
                   variant="contained"
                   startIcon={<Icon icon="mdi:refresh" />}
                   onClick={() => {
-                    setCurrentData(data);
+                    setCurrentData(normalizedData);
                     setPage(0);
                   }}
                 >
