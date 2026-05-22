@@ -153,32 +153,50 @@ var externalProxyTimeout = 30 * time.Second
 
 type proxyURLListContextKey struct{}
 
+type proxyURLAllowlistEntry struct {
+	pattern string
+	matcher glob.Glob
+}
+
+func compileProxyURLAllowlist(proxyURLs []string) []proxyURLAllowlistEntry {
+	allowlist := make([]proxyURLAllowlistEntry, 0, len(proxyURLs))
+
+	for _, proxyURL := range proxyURLs {
+		allowlist = append(allowlist, proxyURLAllowlistEntry{
+			pattern: proxyURL,
+			matcher: glob.MustCompile(proxyURL),
+		})
+	}
+
+	return allowlist
+}
+
+func matchProxyURLAllowlist(proxyURL string, allowlist []proxyURLAllowlistEntry) (string, bool) {
+	for _, entry := range allowlist {
+		if entry.matcher.Match(proxyURL) {
+			return entry.pattern, true
+		}
+	}
+
+	return "", false
+}
+
 //nolint:gochecknoglobals // shared client preserves connection pooling for external proxy requests
 var externalProxyHTTPClient = &http.Client{
 	Transport: newExternalProxyTransport(),
 	CheckRedirect: func(req *http.Request, via []*http.Request) error {
 		if len(via) >= 10 {
-			return errors.New("stopped after 10 redirects")
+			return fmt.Errorf("stopped after 10 redirects while requesting %q", req.URL.Redacted())
 		}
 
-		proxyURLs, ok := req.Context().Value(proxyURLListContextKey{}).([]string)
-		if !ok || len(proxyURLs) == 0 {
+		proxyURLAllowlist, ok := req.Context().Value(proxyURLListContextKey{}).([]proxyURLAllowlistEntry)
+		if !ok || len(proxyURLAllowlist) == 0 {
 			// If not an external proxy request or no allowlist provided, do not follow redirects
 			return http.ErrUseLastResponse
 		}
 
-		isURLContainedInProxyURLs := false
-
-		for _, proxyURL := range proxyURLs {
-			g, err := glob.Compile(proxyURL)
-			if err == nil && g.Match(req.URL.String()) {
-				isURLContainedInProxyURLs = true
-				break
-			}
-		}
-
-		if !isURLContainedInProxyURLs {
-			return errors.New("redirect target not in allowlist")
+		if _, ok := matchProxyURLAllowlist(req.URL.String(), proxyURLAllowlist); !ok {
+			return fmt.Errorf("redirect target %q not in allowlist", req.URL.Redacted())
 		}
 
 		return nil
@@ -585,6 +603,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	logger.Log(logger.LevelInfo, nil, nil, "Dynamic clusters support: "+fmt.Sprint(config.EnableDynamicClusters))
 	logger.Log(logger.LevelInfo, nil, nil, "Helm support: "+fmt.Sprint(config.EnableHelm))
 	logger.Log(logger.LevelInfo, nil, nil, "Proxy URLs: "+fmt.Sprint(config.ProxyURLs))
+	proxyURLAllowlist := compileProxyURLAllowlist(config.ProxyURLs)
 	logger.Log(logger.LevelInfo, nil, nil, "TLS certificate path: "+config.TLSCertPath)
 	logger.Log(logger.LevelInfo, nil, nil, "TLS key path: "+config.TLSKeyPath)
 	logger.Log(logger.LevelInfo, nil, nil, "me Username Paths: "+config.MeUsernamePaths)
@@ -729,7 +748,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		url, err := url.Parse(proxyURL)
+		targetURL, err := url.Parse(proxyURL)
 		if err != nil {
 			logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL},
 				err, "The provided proxy URL is invalid")
@@ -738,22 +757,15 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		isURLContainedInProxyURLs, err := config.proxyURLAllowed(url.String())
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL}, err, "compiling proxy URL patterns")
-			http.Error(w, "failed to compile proxy URL patterns", http.StatusInternalServerError)
-
-			return
-		}
-
-		if !isURLContainedInProxyURLs {
-			logger.Log(logger.LevelError, nil, err, "no allowed proxy url match, request denied")
+		if _, ok := matchProxyURLAllowlist(targetURL.String(), proxyURLAllowlist); !ok {
+			logger.Log(logger.LevelError, map[string]string{"proxyURL": targetURL.Redacted()},
+				err, "no allowed proxy url match, request denied")
 			http.Error(w, "no allowed proxy url match, request denied ", http.StatusBadRequest)
 
 			return
 		}
 
-		proxyCtx := context.WithValue(r.Context(), proxyURLListContextKey{}, config.ProxyURLs)
+		proxyCtx := context.WithValue(r.Context(), proxyURLListContextKey{}, proxyURLAllowlist)
 
 		proxyCtx, cancel := context.WithTimeout(proxyCtx, externalProxyTimeout)
 		defer cancel()

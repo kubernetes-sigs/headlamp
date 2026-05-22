@@ -3719,6 +3719,38 @@ func TestExternalProxyDoesNotFollowRedirects(t *testing.T) {
 	mu.Unlock()
 }
 
+func TestExternalProxyInvalidProxyURLGlobPanics(t *testing.T) {
+	cache := cache.New[interface{}]()
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	require.Panics(t, func() {
+		createHeadlampHandler(context.Background(), &HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					UseInCluster:    false,
+					ProxyURLs:       []string{"["},
+					KubeConfigStore: kubeConfigStore,
+				},
+				Cache: cache,
+			},
+		})
+	})
+}
+
+func TestExternalProxyRedirectErrorIncludesTargetURL(t *testing.T) {
+	redirectTarget := "https://redirect.example.com/disallowed"
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, redirectTarget, nil)
+	require.NoError(t, err)
+
+	proxyURLAllowlist := compileProxyURLAllowlist([]string{"https://allowed.example.com/*"})
+	req = req.WithContext(context.WithValue(req.Context(), proxyURLListContextKey{}, proxyURLAllowlist))
+
+	err = externalProxyHTTPClient.CheckRedirect(req, []*http.Request{{}})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), redirectTarget)
+}
+
 func TestExternalProxyFollowsAllowedRedirects(t *testing.T) {
 	var mu sync.Mutex
 
