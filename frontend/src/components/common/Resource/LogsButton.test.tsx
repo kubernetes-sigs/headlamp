@@ -216,6 +216,34 @@ const mockPodData = {
   status: { phase: 'Running', containerStatuses: [{ name: 'nginx', restartCount: 0 }] },
 };
 
+const mockPodDataWithInitContainers = {
+  kind: 'Pod',
+  metadata: { name: 'test-pod-init', namespace: 'default', uid: 'pod-init-123' },
+  spec: {
+    initContainers: [{ name: 'setup', image: 'busybox', imagePullPolicy: 'Always' }],
+    containers: [{ name: 'nginx', image: 'nginx', imagePullPolicy: 'Always' }],
+  },
+  status: {
+    phase: 'Running',
+    initContainerStatuses: [{ name: 'setup', restartCount: 0 }],
+    containerStatuses: [{ name: 'nginx', restartCount: 0 }],
+  },
+};
+
+const mockPodDataWithRestartedInitContainer = {
+  kind: 'Pod',
+  metadata: { name: 'test-pod-init-restart', namespace: 'default', uid: 'pod-init-456' },
+  spec: {
+    initContainers: [{ name: 'setup', image: 'busybox', imagePullPolicy: 'Always' }],
+    containers: [{ name: 'nginx', image: 'nginx', imagePullPolicy: 'Always' }],
+  },
+  status: {
+    phase: 'Running',
+    initContainerStatuses: [{ name: 'setup', restartCount: 2 }],
+    containerStatuses: [{ name: 'nginx', restartCount: 0 }],
+  },
+};
+
 describe('LogsButton', () => {
   let originalGetLogs: any;
 
@@ -601,5 +629,95 @@ describe('LogsButton', () => {
 
     // Verify stream was not restarted
     expect(getLogsCallCount).toBe(1);
+  });
+
+  it('shows init containers in the container dropdown with (Init) label', async () => {
+    mockClusterFetch.mockResolvedValue({
+      json: async () => ({ items: [mockPodDataWithInitContainers] }),
+    });
+
+    Pod.prototype.getLogs = vi.fn(() => () => {}) as any;
+
+    render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mock-log-viewer')).toBeInTheDocument();
+    });
+
+    // Open the container dropdown (index 1: pod=0, container=1)
+    const selects = document.querySelectorAll('.MuiSelect-select');
+    const containerSelect = selects[1];
+    fireEvent.mouseDown(containerSelect);
+
+    await waitFor(() => {
+      const menuItems = document.querySelectorAll('.MuiMenuItem-root');
+      const itemTexts = Array.from(menuItems).map(el => el.textContent);
+      expect(itemTexts).toContain('setup (translation|Init)');
+      expect(itemTexts.some(t => t === 'nginx' || t === 'nginx (translation|Restarted)')).toBe(
+        true
+      );
+    });
+  });
+
+  it('defaults to the first regular container even when init containers exist', async () => {
+    mockClusterFetch.mockResolvedValue({
+      json: async () => ({ items: [mockPodDataWithInitContainers] }),
+    });
+
+    Pod.prototype.getLogs = vi.fn(() => () => {}) as any;
+
+    render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    await waitFor(() => {
+      const selects = document.querySelectorAll('.MuiSelect-select');
+      const containerSelect = selects[1];
+      expect(containerSelect.textContent).toBe('nginx');
+    });
+  });
+
+  it('shows (Restarted) for init containers that have restarted', async () => {
+    mockClusterFetch.mockResolvedValue({
+      json: async () => ({ items: [mockPodDataWithRestartedInitContainer] }),
+    });
+
+    Pod.prototype.getLogs = vi.fn(() => () => {}) as any;
+
+    render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    await waitFor(() => {
+      expect(screen.getByTestId('mock-log-viewer')).toBeInTheDocument();
+    });
+
+    // Open the container dropdown
+    const selects = document.querySelectorAll('.MuiSelect-select');
+    const containerSelect = selects[1];
+    fireEvent.mouseDown(containerSelect);
+
+    await waitFor(() => {
+      const menuItems = document.querySelectorAll('.MuiMenuItem-root');
+      const itemTexts = Array.from(menuItems).map(el => el.textContent);
+      expect(itemTexts).toContain('setup (translation|Init) (translation|Restarted)');
+    });
   });
 });
