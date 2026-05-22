@@ -94,6 +94,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		UserPluginDir:          conf.UserPluginsDir,
 		EnableHelm:             conf.EnableHelm,
 		EnableDynamicClusters:  conf.EnableDynamicClusters,
+		EnableClusterInventory: conf.EnableClusterInventory,
 		AllowKubeconfigChanges: conf.AllowKubeconfigChanges,
 		WatchPluginsChanges:    conf.WatchPluginsChanges,
 		KubeConfigStore:        kubeConfigStore,
@@ -105,16 +106,20 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 
 			return strings.Split(conf.ProxyURLs, ",")
 		}(),
-		TLSCertPath:                  conf.TLSCertPath,
-		TLSKeyPath:                   conf.TLSKeyPath,
-		SessionTTL:                   conf.SessionTTL,
-		PodDebugImage:                conf.PodDebugImage,
-		OidcUseCookie:                conf.OidcUseCookie,
-		DefaultLightTheme:            conf.DefaultLightTheme,
-		DefaultDarkTheme:             conf.DefaultDarkTheme,
-		ForceTheme:                   conf.ForceTheme,
-		UnsafeUseServiceAccountToken: conf.UnsafeUseServiceAccountToken,
-		ServiceAccountTokenPath:      conf.ServiceAccountTokenPath,
+		ClusterInventoryProviderFile:          conf.ClusterInventoryProviderFile,
+		ClusterInventoryLabelSelector:         conf.ClusterInventoryLabelSelector,
+		ClusterInventoryRootReconcileInterval: conf.ClusterInventoryRootReconcileInterval,
+		ClusterInventoryNoCRDCacheTTL:         conf.ClusterInventoryNoCRDCacheTTL,
+		TLSCertPath:                           conf.TLSCertPath,
+		TLSKeyPath:                            conf.TLSKeyPath,
+		SessionTTL:                            conf.SessionTTL,
+		PodDebugImage:                         conf.PodDebugImage,
+		OidcUseCookie:                         conf.OidcUseCookie,
+		DefaultLightTheme:                     conf.DefaultLightTheme,
+		DefaultDarkTheme:                      conf.DefaultDarkTheme,
+		ForceTheme:                            conf.ForceTheme,
+		UnsafeUseServiceAccountToken:          conf.UnsafeUseServiceAccountToken,
+		ServiceAccountTokenPath:               conf.ServiceAccountTokenPath,
 	}
 }
 

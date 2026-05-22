@@ -262,6 +262,64 @@
           "type": "string",
           "description": "Path of private key file for TLS"
         },
+        "clusterInventory": {
+          "type": "object",
+          "description": "Experimental/alpha Cluster Inventory configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable experimental/alpha Cluster Inventory discovery",
+              "default": false
+            },
+            "accessProvidersConfig": {
+              "type": "object",
+              "description": "Experimental/alpha Cluster Inventory access providers config",
+              "default": {}
+            },
+            "plugins": {
+              "type": "array",
+              "description": "Kubernetes image volumes that provide experimental/alpha Cluster Inventory access provider binaries",
+              "items": {
+                "type": "object",
+                "required": ["name", "image", "mountPath"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 63,
+                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                    "description": "DNS label name of the plugin image volume"
+                  },
+                  "image": {
+                    "type": "string",
+                    "description": "Image reference for the plugin image volume"
+                  },
+                  "mountPath": {
+                    "type": "string",
+                    "pattern": "^/",
+                    "description": "Absolute read-only mount path for the plugin image volume"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "default": []
+            },
+            "labelSelector": {
+              "type": "string",
+              "description": "Kubernetes label selector used to filter experimental/alpha ClusterProfile resources",
+              "default": "!headlamp.dev/ignore"
+            },
+            "rootReconcileInterval": {
+              "type": "string",
+              "description": "Override the experimental/alpha Cluster Inventory root reconcile interval. Empty uses the Headlamp default",
+              "default": ""
+            },
+            "noCRDCacheTTL": {
+              "type": "string",
+              "description": "Override the experimental/alpha Cluster Inventory no-CRD cache TTL. Empty uses the Headlamp default",
+              "default": ""
+            }
+          }
+        },
         "extraArgs": {
           "type": "array",
           "description": "Extra arguments to pass to the application",

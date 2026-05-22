@@ -49,15 +49,15 @@ import (
 	"github.com/gorilla/mux"
 	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
-
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/portforward"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -70,6 +70,7 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
@@ -462,6 +463,40 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 	}).Methods("GET")
 }
 
+func startClusterInventory(ctx context.Context, config *HeadlampConfig) error {
+	if !config.EnableClusterInventory {
+		return nil
+	}
+
+	var hubConfig *rest.Config
+
+	if config.UseInCluster {
+		inClusterConfig, err := rest.InClusterConfig()
+		if err != nil {
+			return fmt.Errorf("get in-cluster config for cluster inventory: %w", err)
+		}
+
+		hubConfig = inClusterConfig
+	}
+
+	runner, err := clusterinventory.NewRunner(clusterinventory.Options{
+		Store:                 config.KubeConfigStore,
+		ProviderFile:          config.ClusterInventoryProviderFile,
+		LabelSelector:         config.ClusterInventoryLabelSelector,
+		RootReconcileInterval: config.ClusterInventoryRootReconcileInterval,
+		NoCRDCacheTTL:         config.ClusterInventoryNoCRDCacheTTL,
+		HubConfig:             hubConfig,
+		DiscoverFromStore:     !config.UseInCluster,
+	})
+	if err != nil {
+		return err
+	}
+
+	go runner.Run(ctx)
+
+	return nil
+}
+
 func setupInClusterContext(config *HeadlampConfig) {
 	if config.UnsafeUseServiceAccountToken {
 		logger.Log(
@@ -737,6 +772,18 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			reader = resp.Body
 		}
 
+		// Read the first chunk before committing the response so early upstream
+		// failures can still return a 502 instead of an empty success response.
+		firstChunk := make([]byte, 32*1024)
+
+		n, readErr := reader.Read(firstChunk)
+		if readErr != nil && !errors.Is(readErr, io.EOF) && n == 0 {
+			logger.Log(logger.LevelError, nil, readErr, "reading response")
+			http.Error(w, readErr.Error(), http.StatusBadGateway)
+
+			return
+		}
+
 		if contentType := resp.Header.Get("Content-Type"); contentType != "" {
 			w.Header().Set("Content-Type", contentType)
 		}
@@ -751,10 +798,12 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 		w.WriteHeader(resp.StatusCode)
 
-		// Stream the response with a limit to prevent memory exhaustion and decompression bombs.
-		// Note: If Content-Length is unknown and the limit is reached, the response will be truncated.
-		_, err = io.Copy(w, io.LimitReader(reader, maxProxyResponseSize))
-		if err != nil {
+		// Stream the body, putting the already-read first chunk back in front of
+		// the reader so a single size limit covers the whole response. The limit
+		// prevents memory exhaustion and decompression bombs; if the length is
+		// unknown and the limit is reached, the response is truncated.
+		body := io.MultiReader(bytes.NewReader(firstChunk[:n]), reader)
+		if _, err := io.Copy(w, io.LimitReader(body, maxProxyResponseSize)); err != nil {
 			logger.Log(logger.LevelError, nil, err, "streaming response")
 
 			return
@@ -1405,6 +1454,25 @@ func hostValidationMiddleware(listenAddr string, port uint) func(http.Handler) h
 	}
 }
 
+func serverHandler(ctx context.Context, config *HeadlampConfig) (http.Handler, error) {
+	handler := createHeadlampHandler(ctx, config)
+
+	if err := startClusterInventory(ctx, config); err != nil {
+		return nil, err
+	}
+
+	handler = config.OIDCTokenRefreshMiddleware(handler)
+
+	// Only validate the Host header when listening on a loopback address.
+	// When bound to a non-loopback address (e.g. behind a reverse proxy),
+	// arbitrary Host headers are expected and must be allowed through.
+	if isLoopbackAddr(config.ListenAddr) {
+		handler = hostValidationMiddleware(config.ListenAddr, config.Port)(handler)
+	}
+
+	return handler, nil
+}
+
 //nolint:funlen
 func StartHeadlampServer(config *HeadlampConfig) {
 	tel, err := initTelemetry(config)
@@ -1438,14 +1506,10 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	handler := createHeadlampHandler(ctx, config)
-	handler = config.OIDCTokenRefreshMiddleware(handler)
-
-	// Only validate the Host header when listening on a loopback address.
-	// When bound to a non-loopback address (e.g. behind a reverse proxy),
-	// arbitrary Host headers are expected and must be allowed through.
-	if isLoopbackAddr(config.ListenAddr) {
-		handler = hostValidationMiddleware(config.ListenAddr, config.Port)(handler)
+	handler, err := serverHandler(ctx, config)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "starting cluster inventory discovery")
+		return
 	}
 
 	listenHost := strings.TrimPrefix(strings.TrimSuffix(config.ListenAddr, "]"), "[")
@@ -2041,20 +2105,26 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 
 		clusterID := context.ClusterID
 
+		metadata := map[string]interface{}{
+			"source":     source,
+			"namespace":  context.KubeContext.Namespace,
+			"extensions": context.KubeContext.Extensions,
+			"origin": map[string]interface{}{
+				"kubeconfig": kubeconfigPath,
+			},
+			"originalName": context.Name,
+			"clusterID":    clusterID,
+		}
+
+		if context.Source == kubeconfig.ClusterInventory && context.ClusterInventory != nil {
+			metadata["clusterInventory"] = context.ClusterInventory
+		}
+
 		clusters = append(clusters, Cluster{
 			Name:     context.Name,
 			Server:   context.Cluster.Server,
 			AuthType: context.AuthType(),
-			Metadata: map[string]interface{}{
-				"source":     source,
-				"namespace":  context.KubeContext.Namespace,
-				"extensions": context.KubeContext.Extensions,
-				"origin": map[string]interface{}{
-					"kubeconfig": kubeconfigPath,
-				},
-				"originalName": context.Name,
-				"clusterID":    clusterID,
-			},
+			Metadata: metadata,
 		})
 	}
 

@@ -129,6 +129,30 @@ config:
   podDebugImage: ""
   # tlsCertPath: "/headlamp-cert/headlamp-ca.crt"
   # tlsKeyPath: "/headlamp-cert/headlamp-tls.key"
+  clusterInventory:
+    # -- Enable experimental/alpha Cluster Inventory discovery.
+    enabled: false
+    # -- Experimental/alpha Cluster Inventory access providers config. Required when enabled.
+    accessProvidersConfig: {}
+    # accessProvidersConfig:
+    #   providers:
+    #     - name: secretreader
+    #       execConfig:
+    #         apiVersion: client.authentication.k8s.io/v1
+    #         command: /access-plugins/secretreader/secretreader-plugin
+    #         provideClusterInfo: true
+    # plugins[] uses the Kubernetes "image" volume type to mount experimental/alpha access provider binaries.
+    plugins: []
+    # plugins:
+    #   - name: secretreader
+    #     image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.1
+    #     mountPath: /access-plugins/secretreader
+    # -- Kubernetes label selector used to filter experimental/alpha ClusterProfile resources.
+    labelSelector: "!headlamp.dev/ignore"
+    # -- Override the experimental/alpha Cluster Inventory root reconcile interval. Empty uses the Headlamp default.
+    rootReconcileInterval: ""
+    # -- Override the experimental/alpha Cluster Inventory no-CRD cache TTL. Empty uses the Headlamp default.
+    noCRDCacheTTL: ""
   # Extra arguments that can be given to the container. See charts/headlamp/README.md for more information.
   extraArgs: []
 

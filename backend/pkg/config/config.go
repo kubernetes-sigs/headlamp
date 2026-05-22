@@ -10,12 +10,16 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/providers/basicflag"
 	"github.com/knadh/koanf/providers/env"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
+	"k8s.io/apimachinery/pkg/labels"
+	"sigs.k8s.io/cluster-inventory-api/pkg/access"
 )
 
 const (
@@ -41,23 +45,30 @@ type Config struct {
 	// NoBrowser disables automatically opening the default browser when running
 	// a locally embedded Headlamp binary (non in-cluster with spa.UseEmbeddedFiles == true).
 	// It has no effect in in-cluster mode or when running without embedded frontend.
-	NoBrowser                    bool   `koanf:"no-browser"`
-	CacheEnabled                 bool   `koanf:"cache-enabled"`
-	EnableHelm                   bool   `koanf:"enable-helm"`
-	EnableDynamicClusters        bool   `koanf:"enable-dynamic-clusters"`
-	AllowKubeconfigChanges       bool   `koanf:"allow-kubeconfig-changes"`
-	ListenAddr                   string `koanf:"listen-addr"`
-	WatchPluginsChanges          bool   `koanf:"watch-plugins-changes"`
-	Port                         uint   `koanf:"port"`
-	KubeConfigPath               string `koanf:"kubeconfig"`
-	SkippedKubeContexts          string `koanf:"skipped-kube-contexts"`
-	StaticDir                    string `koanf:"html-static-dir"`
-	PluginsDir                   string `koanf:"plugins-dir"`
-	UserPluginsDir               string `koanf:"user-plugins-dir"`
-	BaseURL                      string `koanf:"base-url"`
-	SessionTTL                   int    `koanf:"session-ttl"`
-	PodDebugImage                string `koanf:"pod-debug-image"`
-	ProxyURLs                    string `koanf:"proxy-urls"`
+	NoBrowser              bool   `koanf:"no-browser"`
+	CacheEnabled           bool   `koanf:"cache-enabled"`
+	EnableHelm             bool   `koanf:"enable-helm"`
+	EnableDynamicClusters  bool   `koanf:"enable-dynamic-clusters"`
+	EnableClusterInventory bool   `koanf:"enable-cluster-inventory"`
+	AllowKubeconfigChanges bool   `koanf:"allow-kubeconfig-changes"`
+	ListenAddr             string `koanf:"listen-addr"`
+	WatchPluginsChanges    bool   `koanf:"watch-plugins-changes"`
+	Port                   uint   `koanf:"port"`
+	KubeConfigPath         string `koanf:"kubeconfig"`
+	SkippedKubeContexts    string `koanf:"skipped-kube-contexts"`
+	StaticDir              string `koanf:"html-static-dir"`
+	PluginsDir             string `koanf:"plugins-dir"`
+	UserPluginsDir         string `koanf:"user-plugins-dir"`
+	BaseURL                string `koanf:"base-url"`
+	SessionTTL             int    `koanf:"session-ttl"`
+	PodDebugImage          string `koanf:"pod-debug-image"`
+	ProxyURLs              string `koanf:"proxy-urls"`
+
+	ClusterInventoryProviderFile          string        `koanf:"cluster-inventory-provider-file"`
+	ClusterInventoryLabelSelector         string        `koanf:"cluster-inventory-label-selector"`
+	ClusterInventoryRootReconcileInterval time.Duration `koanf:"cluster-inventory-root-reconcile-interval"`
+	ClusterInventoryNoCRDCacheTTL         time.Duration `koanf:"cluster-inventory-no-crd-cache-ttl"`
+
 	OidcClientID                 string `koanf:"oidc-client-id"`
 	OidcValidatorClientID        string `koanf:"oidc-validator-client-id"`
 	OidcClientSecret             string `koanf:"oidc-client-secret"`
@@ -163,6 +174,10 @@ func (c *Config) Validate() error {
 		}
 	}
 
+	if err := c.validateClusterInventory(); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -180,6 +195,40 @@ func (c *Config) validateOIDCCAFile() error {
 	if !caCertPool.AppendCertsFromPEM(caFileContents) {
 		return errors.New("invalid oidc-ca-file")
 	}
+
+	return nil
+}
+
+func (c *Config) validateClusterInventory() error {
+	if !c.EnableClusterInventory {
+		return nil
+	}
+
+	if c.ClusterInventoryProviderFile == "" {
+		return errors.New("cluster-inventory-provider-file is required when cluster inventory is enabled")
+	}
+
+	info, err := os.Stat(c.ClusterInventoryProviderFile)
+	if err != nil {
+		return fmt.Errorf("error reading cluster-inventory-provider-file: %w", err)
+	}
+
+	if !info.Mode().IsRegular() {
+		return errors.New("cluster-inventory-provider-file must be a regular file")
+	}
+
+	if _, err := access.NewFromFile(c.ClusterInventoryProviderFile); err != nil {
+		return fmt.Errorf("invalid cluster-inventory-provider-file: %w", err)
+	}
+
+	labelSelector := strings.TrimSpace(c.ClusterInventoryLabelSelector)
+	if labelSelector != "" {
+		if _, err := labels.Parse(labelSelector); err != nil {
+			return fmt.Errorf("invalid cluster-inventory-label-selector: %w", err)
+		}
+	}
+
+	c.ClusterInventoryLabelSelector = labelSelector
 
 	return nil
 }
@@ -514,6 +563,16 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
 	f.Bool("enable-helm", false, "Enable Helm operations")
+	f.Bool("enable-cluster-inventory", false,
+		"Enable experimental/alpha automatic discovery of clusters from ClusterProfile resources")
+	f.String("cluster-inventory-provider-file", "",
+		"Path to the JSON configuration file for experimental/alpha Cluster Inventory access providers")
+	f.String("cluster-inventory-label-selector", "",
+		"Label selector used to filter ClusterProfile resources for experimental/alpha Cluster Inventory")
+	f.Duration("cluster-inventory-root-reconcile-interval", clusterinventory.DefaultRootReconcileInterval,
+		"Interval for reconciling experimental/alpha Cluster Inventory roots")
+	f.Duration("cluster-inventory-no-crd-cache-ttl", clusterinventory.DefaultNoCRDCacheTTL,
+		"How long to cache that an API server has no experimental/alpha ClusterProfile CRD")
 	f.String("default-light-theme", "", "Default theme to use when user prefers light mode")
 	f.String("default-dark-theme", "", "Default theme to use when user prefers dark mode")
 	f.String("force-theme", "", "Force a specific theme, overriding user preferences")

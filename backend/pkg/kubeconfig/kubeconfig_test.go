@@ -85,6 +85,26 @@ func TestLoadAndStoreKubeConfigs(t *testing.T) {
 	})
 }
 
+func TestContextSourceStr(t *testing.T) {
+	tests := []struct {
+		name   string
+		source int
+		want   string
+	}{
+		{"kubeconfig", kubeconfig.KubeConfig, "kubeconfig"},
+		{"dynamic cluster", kubeconfig.DynamicCluster, "dynamic_cluster"},
+		{"in cluster", kubeconfig.InCluster, "incluster"},
+		{"cluster inventory", kubeconfig.ClusterInventory, "cluster_inventory"},
+		{"unknown", 0, "unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, (&kubeconfig.Context{Source: tt.source}).SourceStr())
+		})
+	}
+}
+
 func TestLoadContextsFromKubeConfigFile(t *testing.T) {
 	t.Run("valid_file", func(t *testing.T) {
 		kubeConfigFile := kubeConfigFilePath

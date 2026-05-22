@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
+	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/exec"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"k8s.io/client-go/kubernetes"
@@ -56,6 +57,7 @@ const (
 	KubeConfig = 1 << iota
 	DynamicCluster
 	InCluster
+	ClusterInventory
 )
 
 // Context contains all information related to a kubernetes context.
@@ -73,6 +75,8 @@ type Context struct {
 	KubeConfigPath string `json:"kubeConfigPath"`
 	// ClusterID is the unique identifier for the cluster, consisting of the filepath and context name.
 	ClusterID string `json:"clusterID"`
+	// ClusterInventory stores metadata copied from a Cluster Inventory ClusterProfile.
+	ClusterInventory *inventorymetadata.Metadata `json:"clusterInventory,omitempty"`
 }
 
 // Copy creates a deep copy of the Context, excluding the proxy field which is created on demand.
@@ -115,16 +119,17 @@ func (c *Context) Copy() *Context {
 	}
 
 	return &Context{
-		Name:           c.Name,
-		KubeContext:    kubeContext,
-		Cluster:        cluster,
-		AuthInfo:       authInfo,
-		Source:         c.Source,
-		OidcConf:       oidcConf,
-		Internal:       c.Internal,
-		Error:          c.Error,
-		KubeConfigPath: c.KubeConfigPath,
-		ClusterID:      c.ClusterID,
+		Name:             c.Name,
+		KubeContext:      kubeContext,
+		Cluster:          cluster,
+		AuthInfo:         authInfo,
+		Source:           c.Source,
+		OidcConf:         oidcConf,
+		Internal:         c.Internal,
+		Error:            c.Error,
+		KubeConfigPath:   c.KubeConfigPath,
+		ClusterID:        c.ClusterID,
+		ClusterInventory: c.ClusterInventory.DeepCopy(),
 	}
 }
 
@@ -415,6 +420,8 @@ func (c *Context) SourceStr() string {
 		return "dynamic_cluster"
 	case InCluster:
 		return "incluster"
+	case ClusterInventory:
+		return "cluster_inventory"
 	default:
 		return "unknown"
 	}

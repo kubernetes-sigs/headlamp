@@ -6,11 +6,41 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	clusterInventoryEnv := []string{
+		"HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY",
+		"HEADLAMP_CONFIG_CLUSTER_INVENTORY_PROVIDER_FILE",
+		"HEADLAMP_CONFIG_CLUSTER_INVENTORY_LABEL_SELECTOR",
+		"HEADLAMP_CONFIG_CLUSTER_INVENTORY_ROOT_RECONCILE_INTERVAL",
+		"HEADLAMP_CONFIG_CLUSTER_INVENTORY_NO_CRD_CACHE_TTL",
+	}
+
+	previous := map[string]string{}
+	for _, key := range clusterInventoryEnv {
+		previous[key] = os.Getenv(key)
+		_ = os.Unsetenv(key)
+	}
+
+	code := m.Run()
+
+	for _, key := range clusterInventoryEnv {
+		if previous[key] == "" {
+			_ = os.Unsetenv(key)
+		} else {
+			_ = os.Setenv(key, previous[key])
+		}
+	}
+
+	os.Exit(code)
+}
 
 // getTestDataPath returns the absolute path to the test data directory.
 func getTestDataPath() string {
@@ -27,6 +57,15 @@ func getTestDataPath() string {
 
 	// Otherwise, assume we're in the workspace root
 	return filepath.Join(cwd, "pkg", "config", "test_data")
+}
+
+func writeClusterInventoryProviderFile(t *testing.T) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "providers.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"providers":[]}`), 0o600))
+
+	return path
 }
 
 func TestParseBasic(t *testing.T) {
@@ -405,6 +444,121 @@ func TestProxyAuthFlags(t *testing.T) {
 			tt.verify(t, conf)
 		})
 	}
+}
+
+func TestParseClusterInventoryFlags(t *testing.T) {
+	providerFile := writeClusterInventoryProviderFile(t)
+
+	conf, err := config.Parse([]string{
+		"go run ./cmd",
+		"--enable-cluster-inventory",
+		"--cluster-inventory-provider-file=" + providerFile,
+		"--cluster-inventory-label-selector=environment=prod,!headlamp.dev/ignore",
+		"--cluster-inventory-root-reconcile-interval=15s",
+		"--cluster-inventory-no-crd-cache-ttl=1m",
+	})
+	require.NoError(t, err)
+
+	assert.True(t, conf.EnableClusterInventory)
+	assert.Equal(t, providerFile, conf.ClusterInventoryProviderFile)
+	assert.Equal(t, "environment=prod,!headlamp.dev/ignore", conf.ClusterInventoryLabelSelector)
+	assert.Equal(t, 15*time.Second, conf.ClusterInventoryRootReconcileInterval)
+	assert.Equal(t, time.Minute, conf.ClusterInventoryNoCRDCacheTTL)
+}
+
+func TestParseClusterInventoryEnv(t *testing.T) {
+	providerFile := writeClusterInventoryProviderFile(t)
+	t.Setenv("HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY", "true")
+	t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_PROVIDER_FILE", providerFile)
+	t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_LABEL_SELECTOR", "!headlamp.dev/ignore")
+
+	conf, err := config.Parse([]string{"go run ./cmd"})
+	require.NoError(t, err)
+
+	assert.True(t, conf.EnableClusterInventory)
+	assert.Equal(t, providerFile, conf.ClusterInventoryProviderFile)
+	assert.Equal(t, "!headlamp.dev/ignore", conf.ClusterInventoryLabelSelector)
+}
+
+func TestParseClusterInventoryDefaultIntervals(t *testing.T) {
+	providerFile := writeClusterInventoryProviderFile(t)
+
+	conf, err := config.Parse([]string{
+		"go run ./cmd",
+		"--enable-cluster-inventory",
+		"--cluster-inventory-provider-file=" + providerFile,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, clusterinventory.DefaultRootReconcileInterval, conf.ClusterInventoryRootReconcileInterval)
+	assert.Equal(t, clusterinventory.DefaultNoCRDCacheTTL, conf.ClusterInventoryNoCRDCacheTTL)
+	assert.Empty(t, conf.ClusterInventoryLabelSelector)
+}
+
+func TestClusterInventoryValidation(t *testing.T) {
+	t.Run("disabled allows empty provider file", func(t *testing.T) {
+		conf, err := config.Parse([]string{"go run ./cmd"})
+		require.NoError(t, err)
+		require.NotNil(t, conf)
+		assert.False(t, conf.EnableClusterInventory)
+	})
+
+	t.Run("enabled requires provider file", func(t *testing.T) {
+		conf, err := config.Parse([]string{"go run ./cmd", "--enable-cluster-inventory"})
+		require.Error(t, err)
+		require.Nil(t, conf)
+		assert.Contains(t, err.Error(), "cluster-inventory-provider-file is required")
+	})
+
+	t.Run("enabled rejects missing provider file", func(t *testing.T) {
+		conf, err := config.Parse([]string{
+			"go run ./cmd",
+			"--enable-cluster-inventory",
+			"--cluster-inventory-provider-file=/does/not/exist",
+		})
+		require.Error(t, err)
+		require.Nil(t, conf)
+		assert.Contains(t, err.Error(), "error reading cluster-inventory-provider-file")
+	})
+
+	t.Run("enabled rejects directory provider file", func(t *testing.T) {
+		conf, err := config.Parse([]string{
+			"go run ./cmd",
+			"--enable-cluster-inventory",
+			"--cluster-inventory-provider-file=" + t.TempDir(),
+		})
+		require.Error(t, err)
+		require.Nil(t, conf)
+		assert.Contains(t, err.Error(), "cluster-inventory-provider-file must be a regular file")
+	})
+
+	t.Run("enabled rejects invalid provider file", func(t *testing.T) {
+		providerFile := filepath.Join(t.TempDir(), "providers.json")
+		require.NoError(t, os.WriteFile(providerFile, []byte(`{`), 0o600))
+
+		conf, err := config.Parse([]string{
+			"go run ./cmd",
+			"--enable-cluster-inventory",
+			"--cluster-inventory-provider-file=" + providerFile,
+		})
+		require.Error(t, err)
+		require.Nil(t, conf)
+		assert.Contains(t, err.Error(), "invalid cluster-inventory-provider-file")
+	})
+}
+
+func TestClusterInventoryRejectsInvalidLabelSelector(t *testing.T) {
+	providerFile := writeClusterInventoryProviderFile(t)
+
+	conf, err := config.Parse([]string{
+		"go run ./cmd",
+		"--enable-cluster-inventory",
+		"--cluster-inventory-provider-file=" + providerFile,
+		"--cluster-inventory-label-selector=headlamp.dev/ignore in (",
+	})
+	require.Error(t, err)
+	require.Nil(t, conf)
+	assert.Contains(t, err.Error(), "invalid cluster-inventory-label-selector")
 }
 
 func TestOIDCTLSValidation(t *testing.T) {

@@ -42,6 +42,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -393,6 +394,86 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 	}
 }
 
+func TestGetClustersClusterInventorySource(t *testing.T) {
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(clusterInventoryConfigContext()))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore},
+		},
+	}
+
+	clusters := c.getClusters()
+	require.Len(t, clusters, 1)
+	assert.Equal(t, "cluster_inventory", clusters[0].Metadata["source"])
+	assert.Equal(t, "cluster-inventory/in-cluster/default/spoke-a", clusters[0].Metadata["clusterID"])
+	inventory, ok := clusters[0].Metadata["clusterInventory"].(*inventorymetadata.Metadata)
+	require.True(t, ok)
+	assert.Equal(t, "default", inventory.Profile.Namespace)
+	assert.Equal(t, "spoke-a", inventory.Profile.Name)
+	require.Len(t, inventory.Conditions, 1)
+	assert.Equal(t, "ControlPlaneHealthy", inventory.Conditions[0].Type)
+	assert.Equal(t, metav1.ConditionFalse, inventory.Conditions[0].Status)
+	require.NotNil(t, inventory.Version)
+	assert.Equal(t, "v1.35.0", inventory.Version.Kubernetes)
+	assert.Equal(t, []inventorymetadata.Property{{Name: "region", Value: "us-west1"}}, inventory.Properties)
+
+	recorder := httptest.NewRecorder()
+	c.getConfig(recorder, httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil))
+
+	var config clientConfig
+	require.NoError(t, json.Unmarshal(recorder.Body.Bytes(), &config))
+	require.Len(t, config.Clusters, 1)
+	configInventory, ok := config.Clusters[0].Metadata["clusterInventory"].(map[string]interface{})
+	require.True(t, ok)
+	configProfile, ok := configInventory["profile"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "default", configProfile["namespace"])
+	assert.Equal(t, "spoke-a", configProfile["name"])
+
+	configConditions, ok := configInventory["conditions"].([]interface{})
+	require.True(t, ok)
+	require.Len(t, configConditions, 1)
+	configCondition, ok := configConditions[0].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, "ControlPlaneHealthy", configCondition["type"])
+	assert.Equal(t, "False", configCondition["status"])
+}
+
+// clusterInventoryConfigContext returns a minimal discovered context with Cluster Inventory metadata.
+func clusterInventoryConfigContext() *kubeconfig.Context {
+	return &kubeconfig.Context{
+		Name:        "cluster-inventory-in-cluster--default--spoke-a--dbdb0aa95e5d",
+		KubeContext: &api.Context{Cluster: "spoke-a", AuthInfo: "spoke-a", Namespace: "default"},
+		Cluster:     &api.Cluster{Server: "https://spoke-a.example.com"},
+		AuthInfo:    &api.AuthInfo{},
+		Source:      kubeconfig.ClusterInventory,
+		ClusterID:   "cluster-inventory/in-cluster/default/spoke-a",
+		ClusterInventory: &inventorymetadata.Metadata{
+			Profile: inventorymetadata.Profile{
+				Namespace: "default",
+				Name:      "spoke-a",
+				Key:       "in-cluster/default/spoke-a",
+			},
+			Conditions: []metav1.Condition{
+				{
+					Type:               "ControlPlaneHealthy",
+					Status:             metav1.ConditionFalse,
+					Reason:             "HealthCheckFailed",
+					Message:            "control plane endpoint is not ready",
+					LastTransitionTime: metav1.NewTime(time.Date(2026, 5, 10, 0, 0, 0, 0, time.UTC)),
+					ObservedGeneration: 3,
+				},
+			},
+			Version: &inventorymetadata.Version{Kubernetes: "v1.35.0"},
+			Properties: []inventorymetadata.Property{
+				{Name: "region", Value: "us-west1"},
+			},
+		},
+	}
+}
+
 func TestInvalidKubeConfig(t *testing.T) {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
@@ -554,8 +635,53 @@ func TestProxyURLAllowedCompilesConfiguredProxyURLs(t *testing.T) {
 	assert.NotEmpty(t, config.compiledProxyURLs)
 }
 
+func newLargeBodyUpstream(t *testing.T, size int) *httptest.Server {
+	t.Helper()
+
+	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		chunk := bytes.Repeat([]byte("a"), 64*1024)
+
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.WriteHeader(http.StatusOK)
+
+		written := 0
+		for written < size {
+			toWrite := chunk
+			if remaining := size - written; remaining < len(chunk) {
+				toWrite = chunk[:remaining]
+			}
+
+			n, err := w.Write(toWrite)
+			if err != nil {
+				return
+			}
+
+			written += n
+		}
+	}))
+}
+
+func newExternalProxyHandler(t *testing.T, upstream string) http.Handler {
+	t.Helper()
+
+	upstreamURL, err := url.Parse(upstream)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	return createHeadlampHandler(context.Background(), &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				ProxyURLs:       []string{upstreamURL.String()},
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache: cache.New[interface{}](),
+		},
+	})
+}
+
 func TestExternalProxyForwarding(t *testing.T) {
-	// Create a new server for testing that returns a specific status and content type
 	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusNotFound)
@@ -564,31 +690,14 @@ func TestExternalProxyForwarding(t *testing.T) {
 	}))
 	defer proxyServer.Close()
 
-	proxyURL, err := url.Parse(proxyServer.URL)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	cache := cache.New[interface{}]()
-	kubeConfigStore := kubeconfig.NewContextStore()
-
-	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				UseInCluster:    false,
-				ProxyURLs:       []string{proxyURL.String()},
-				KubeConfigStore: kubeConfigStore,
-			},
-			Cache: cache,
-		},
-	})
+	handler := newExternalProxyHandler(t, proxyServer.URL)
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	req.Header.Set("proxy-to", proxyURL.String())
+	req.Header.Set("proxy-to", proxyServer.URL)
 
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -596,6 +705,48 @@ func TestExternalProxyForwarding(t *testing.T) {
 	assert.Equal(t, http.StatusNotFound, rr.Code)
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
 	assert.Equal(t, `{"error": "not found"}`, rr.Body.String())
+}
+
+func TestExternalProxyStreamsLargeBody(t *testing.T) {
+	// 32 MiB is far larger than any internal copy buffer, so a buffering
+	// regression is still caught, while staying small enough not to slow down
+	// or flake CI on resource-constrained runners.
+	const size = 32 * 1024 * 1024
+
+	upstream := newLargeBodyUpstream(t, size)
+	defer upstream.Close()
+
+	handler := newExternalProxyHandler(t, upstream.URL)
+
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", srv.URL+"/externalproxy", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req.Header.Set("proxy-to", upstream.URL)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("status code = %d, want %d", resp.StatusCode, http.StatusOK)
+	}
+
+	read, err := io.Copy(io.Discard, resp.Body)
+	if err != nil {
+		t.Fatalf("read body: %v", err)
+	}
+
+	if read != size {
+		t.Errorf("streamed %d bytes, want %d", read, size)
+	}
 }
 
 func TestExternalProxyTimeout(t *testing.T) {

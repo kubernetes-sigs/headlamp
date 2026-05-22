@@ -66,6 +66,41 @@ $ helm upgrade my-headlamp headlamp/headlamp \
   --set image.tag=v<appVersion>
 ```
 
+### Installation with Cluster Inventory
+
+> **Warning**
+> Cluster Inventory support in Headlamp is alpha/experimental and disabled by
+> default. The upstream Cluster Inventory API is currently `v1alpha1` and this
+> integration uses the `v0.1.x` API, so fields and behavior may change.
+
+```console
+$ helm install my-headlamp headlamp/headlamp \
+  --namespace kube-system \
+  --values cluster-inventory-values.yaml
+```
+
+`cluster-inventory-values.yaml`:
+
+```yaml
+config:
+  clusterInventory:
+    enabled: true
+    accessProvidersConfig:
+      providers:
+        - name: secretreader
+          execConfig:
+            apiVersion: client.authentication.k8s.io/v1
+            command: /access-plugins/secretreader/secretreader-plugin
+            provideClusterInfo: true
+    plugins:
+      - name: secretreader
+        image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.1
+        mountPath: /access-plugins/secretreader
+```
+
+`plugins[]` mounts Cluster Inventory access provider binaries as Kubernetes
+`image` volumes; it is not for Headlamp UI plugins.
+
 ## Configuration
 
 ### Core Parameters
@@ -90,6 +125,12 @@ $ helm upgrade my-headlamp headlamp/headlamp \
 | config.pluginsDir  | string | `"/headlamp/plugins"` | Directory to load Headlamp plugins from                                   |
 | config.enableHelm  | bool   | `false`               | Enable Helm operations like install, upgrade and uninstall of Helm charts |
 | config.podDebugImage | string | `""`                | Default image to use when creating pod debug containers                    |
+| config.clusterInventory.enabled | bool | `false` | Enable experimental/alpha Cluster Inventory discovery |
+| config.clusterInventory.accessProvidersConfig | object | `{}` | Experimental/alpha Cluster Inventory access providers config. Required when Cluster Inventory is enabled |
+| config.clusterInventory.plugins | list | `[]` | Kubernetes image volumes that provide experimental/alpha Cluster Inventory access provider binaries |
+| config.clusterInventory.labelSelector | string | `"!headlamp.dev/ignore"` | Kubernetes label selector used to filter experimental/alpha ClusterProfile resources |
+| config.clusterInventory.rootReconcileInterval | string | `""` | Override the experimental/alpha Cluster Inventory root reconcile interval. Empty uses the Headlamp default |
+| config.clusterInventory.noCRDCacheTTL | string | `""` | Override the experimental/alpha Cluster Inventory no-CRD cache TTL. Empty uses the Headlamp default |
 | config.extraArgs   | array  | `[]`                  | Additional arguments for Headlamp server                                  |
 | config.tlsCertPath | string | `""`                  | Certificate for serving TLS                                               |
 | config.tlsKeyPath  | string | `""`                  | Key for serving TLS                                                       |
@@ -147,6 +188,40 @@ config:
       enabled: true
       name: your-oidc-secret
 ```
+
+### Cluster Inventory Configuration
+
+> **Warning**
+> Cluster Inventory support in Headlamp is alpha/experimental and disabled by
+> default. The upstream Cluster Inventory API is currently `v1alpha1` and this
+> integration uses the `v0.1.x` API, so fields and behavior may change.
+
+When `config.clusterInventory.enabled` is true, the chart creates a provider
+ConfigMap, makes it available read-only at `/etc/cluster-inventory/config.json`,
+and adds the Headlamp Cluster Inventory flags automatically.
+
+```yaml
+config:
+  clusterInventory:
+    enabled: true
+    accessProvidersConfig:
+      providers:
+        - name: secretreader
+          execConfig:
+            apiVersion: client.authentication.k8s.io/v1
+            command: /access-plugins/secretreader/secretreader-plugin
+            provideClusterInfo: true
+    plugins:
+      - name: secretreader
+        image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.1
+        mountPath: /access-plugins/secretreader
+```
+
+`plugins[]` is for Cluster Inventory access provider binaries, not Headlamp UI
+plugins. Each entry renders as a Kubernetes `image` volume and is mounted
+read-only into the Headlamp container. If an access provider `execConfig.command`
+is configured, the command's parent directory must match one of the
+absolute `plugins[].mountPath` values.
 
 ### Deployment Configuration
 

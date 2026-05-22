@@ -2,6 +2,7 @@ package serviceproxy //nolint
 
 import (
 	"bytes"
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -116,13 +117,15 @@ func TestGet(t *testing.T) {
 				conn.URI = ts.URL
 			}
 
-			body, err := conn.Get(tt.requestURI)
+			var buf bytes.Buffer
+
+			err := conn.Get(context.Background(), tt.requestURI, &buf)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Get() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			if !tt.wantErr && !bytes.Equal(body, tt.wantBody) {
-				t.Errorf("Get() body = %s, want %s", body, tt.wantBody)
+			if !tt.wantErr && !bytes.Equal(buf.Bytes(), tt.wantBody) {
+				t.Errorf("Get() body = %s, want %s", buf.Bytes(), tt.wantBody)
 			}
 		})
 	}
@@ -136,7 +139,9 @@ func TestGetNonOKStatusCode(t *testing.T) {
 
 	conn := &Connection{URI: ts.URL}
 
-	_, err := conn.Get("/test")
+	var buf bytes.Buffer
+
+	err := conn.Get(context.Background(), "/test", &buf)
 	if err == nil {
 		t.Errorf("Get() error = nil, want error")
 	}
