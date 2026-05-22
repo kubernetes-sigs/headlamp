@@ -347,6 +347,62 @@ describe('useKubeObjectList', () => {
     expect(spy.mock.calls[3][0].connections.length).toBe(1); // updated connections after we removed namespace 'b'
   });
 
+  it('should handle simultaneous add and remove of namespaces without state loss', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+
+    queryClient.setQueryData(['kubeObject', 'list', 'v1', 'pods', 'default', 'a', {}], {
+      list: { items: [], metadata: { resourceVersion: '0' } },
+      cluster: 'default',
+      namespace: 'a',
+    });
+    queryClient.setQueryData(['kubeObject', 'list', 'v1', 'pods', 'default', 'b', {}], {
+      list: { items: [], metadata: { resourceVersion: '0' } },
+      cluster: 'default',
+      namespace: 'b',
+    });
+
+    const result = renderHook(
+      (props: { requests: Array<{ cluster: string; namespaces: string[] }> }) =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: props.requests,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+        initialProps: {
+          requests: [{ cluster: 'default', namespaces: ['a', 'b'] }],
+        },
+      }
+    );
+
+    expect(spy.mock.calls[0][0].connections.length).toBe(0); // initial render
+    expect(spy.mock.calls[1][0].connections.length).toBe(2); // watching 'a' and 'b'
+
+    // Prepopulate cache for namespace 'c' so the hook can discover it
+    queryClient.setQueryData(['kubeObject', 'list', 'v1', 'pods', 'default', 'c', {}], {
+      list: { items: [], metadata: { resourceVersion: '0' } },
+      cluster: 'default',
+      namespace: 'c',
+    });
+
+    // Rerender: remove 'a', keep 'b', add 'c' — both add and remove in same render
+    result.rerender({
+      requests: [{ cluster: 'default', namespaces: ['b', 'c'] }],
+    });
+
+    // After the consolidated update, we should end up with exactly 2 connections: 'b' and 'c'
+    const lastCall = spy.mock.calls[spy.mock.calls.length - 1][0];
+    expect(lastCall.connections.length).toBe(2);
+    const watchedNamespaces = lastCall.connections.map((c: { url: string }) => {
+      const match = c.url.match(/namespaces\/([^/]+)\//);
+      return match ? match[1] : null;
+    });
+    expect(watchedNamespaces.sort()).toEqual(['b', 'c']);
+  });
+
   it('should clean up cluster-scoped resources when cluster is removed', async () => {
     const spy = vi.spyOn(websocket, 'useWebSockets');
     const queryClient = new QueryClient();
