@@ -47,11 +47,15 @@ var (
 
 // add repository.
 type AddUpdateRepoRequest struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
-	// TODO: Figure out how to support auth
-	// like username, password, certfile etc
-	// https://github.com/helm/helm/blob/39ca699ca790e02ba36753dec6ba4177cc68d417/cmd/helm/repo_add.go#L169
+	Name                  string  `json:"name"`
+	URL                   string  `json:"url"`
+	Username              *string `json:"username,omitempty"`
+	Password              *string `json:"password,omitempty"`
+	CertFile              *string `json:"certFile,omitempty"`
+	KeyFile               *string `json:"keyFile,omitempty"`
+	CAFile                *string `json:"caFile,omitempty"`
+	InsecureSkipTLSVerify *bool   `json:"insecureSkipTLSVerify,omitempty"`
+	PassCredentialsAll    *bool   `json:"passCredentialsAll,omitempty"`
 }
 
 func (r AddUpdateRepoRequest) Validate() error {
@@ -112,7 +116,7 @@ func ensureRepositoryFileLocked(locked bool, err error) error {
 const timeoutForLock = 30 * time.Second
 
 // Adds a repository with name, url to the helm config. Returns error if there is one.
-func addRepository(name string, url string, settings *cli.EnvSettings) error {
+func addRepository(req *AddUpdateRepoRequest, settings *cli.EnvSettings) error {
 	err := createFileIfNotThere(settings.RepositoryConfig)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "creating empty RepositoryConfig file")
@@ -144,8 +148,30 @@ func addRepository(name string, url string, settings *cli.EnvSettings) error {
 
 	// add repo
 	newRepo := &repo.Entry{
-		Name: name,
-		URL:  url,
+		Name: req.Name,
+		URL:  req.URL,
+	}
+
+	if req.Username != nil {
+		newRepo.Username = *req.Username
+	}
+	if req.Password != nil {
+		newRepo.Password = *req.Password
+	}
+	if req.CertFile != nil {
+		newRepo.CertFile = *req.CertFile
+	}
+	if req.KeyFile != nil {
+		newRepo.KeyFile = *req.KeyFile
+	}
+	if req.CAFile != nil {
+		newRepo.CAFile = *req.CAFile
+	}
+	if req.InsecureSkipTLSVerify != nil {
+		newRepo.InsecureSkipTLSverify = *req.InsecureSkipTLSVerify
+	}
+	if req.PassCredentialsAll != nil {
+		newRepo.PassCredentialsAll = *req.PassCredentialsAll
 	}
 
 	repo, err := repo.NewChartRepository(newRepo, getter.All(settings))
@@ -193,7 +219,7 @@ func (h *Handler) AddRepo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = addRepository(request.Name, request.URL, h.EnvSettings)
+	err = addRepository(&request, h.EnvSettings)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -358,7 +384,7 @@ func (h *Handler) RemoveRepo(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func UpdateRepository(name, url string, settings *cli.EnvSettings) error {
+func UpdateRepository(req *AddUpdateRepoRequest, settings *cli.EnvSettings) error {
 	err := createFileIfNotThere(settings.RepositoryConfig)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "creating empty RepositoryConfig file")
@@ -387,11 +413,53 @@ func UpdateRepository(name, url string, settings *cli.EnvSettings) error {
 		return err
 	}
 
+	var existingEntry *repo.Entry
+	for _, e := range repoFile.Repositories {
+		if e.Name == req.Name {
+			existingEntry = e
+			break
+		}
+	}
+
+	newEntry := &repo.Entry{Name: req.Name}
+	if existingEntry != nil {
+		newEntry.URL = existingEntry.URL
+		newEntry.Username = existingEntry.Username
+		newEntry.Password = existingEntry.Password
+		newEntry.CertFile = existingEntry.CertFile
+		newEntry.KeyFile = existingEntry.KeyFile
+		newEntry.CAFile = existingEntry.CAFile
+		newEntry.InsecureSkipTLSverify = existingEntry.InsecureSkipTLSverify
+		newEntry.PassCredentialsAll = existingEntry.PassCredentialsAll
+	}
+
+	if req.URL != "" {
+		newEntry.URL = req.URL
+	}
+	if req.Username != nil {
+		newEntry.Username = *req.Username
+	}
+	if req.Password != nil {
+		newEntry.Password = *req.Password
+	}
+	if req.CertFile != nil {
+		newEntry.CertFile = *req.CertFile
+	}
+	if req.KeyFile != nil {
+		newEntry.KeyFile = *req.KeyFile
+	}
+	if req.CAFile != nil {
+		newEntry.CAFile = *req.CAFile
+	}
+	if req.InsecureSkipTLSVerify != nil {
+		newEntry.InsecureSkipTLSverify = *req.InsecureSkipTLSVerify
+	}
+	if req.PassCredentialsAll != nil {
+		newEntry.PassCredentialsAll = *req.PassCredentialsAll
+	}
+
 	// update repo
-	repoFile.Update(&repo.Entry{
-		Name: name,
-		URL:  url,
-	})
+	repoFile.Update(newEntry)
 
 	err = repoFile.WriteFile(settings.RepositoryConfig, defaultNewConfigFileMode)
 	if err != nil {
@@ -423,7 +491,7 @@ func (h *Handler) UpdateRepository(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = UpdateRepository(request.Name, request.URL, h.EnvSettings)
+	err = UpdateRepository(&request, h.EnvSettings)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

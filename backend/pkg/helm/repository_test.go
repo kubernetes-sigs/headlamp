@@ -146,6 +146,46 @@ func TestAddRepository(t *testing.T) {
 		assert.Equal(t, http.StatusBadRequest, rr.Code)
 		assert.Contains(t, rr.Body.String(), "url is required")
 	})
+
+	t.Run("add_repo_with_auth", func(t *testing.T) {
+		username := "testuser"
+		password := "testpass"
+		skipTLS := true
+		addRepo := helm.AddUpdateRepoRequest{
+			Name:                  "auth_test_repo",
+			URL:                   "https://kubernetes-sigs.github.io/headlamp/",
+			Username:              &username,
+			Password:              &password,
+			InsecureSkipTLSVerify: &skipTLS,
+		}
+
+		addRepoRequestJSON, err := json.Marshal(addRepo)
+		require.NoError(t, err)
+
+		addRepoRequest, err := http.NewRequestWithContext(context.Background(), "POST",
+			"/clusters/minikube/helm/repositories/charts", bytes.NewBuffer(addRepoRequestJSON))
+		require.NoError(t, err)
+
+		rr := httptest.NewRecorder()
+		helmHandler.AddRepo(rr, addRepoRequest)
+		assert.Equal(t, http.StatusOK, rr.Code)
+
+		assert.True(t, checkRepoExists(t, helmHandler, "auth_test_repo"))
+
+		repoFile, err := repo.LoadFile(helmHandler.EnvSettings.RepositoryConfig)
+		require.NoError(t, err)
+		var found *repo.Entry
+		for _, e := range repoFile.Repositories {
+			if e.Name == "auth_test_repo" {
+				found = e
+				break
+			}
+		}
+		require.NotNil(t, found)
+		assert.Equal(t, "testuser", found.Username)
+		assert.Equal(t, "testpass", found.Password)
+		assert.True(t, found.InsecureSkipTLSverify)
+	})
 }
 
 // TestRemoveRepository.
