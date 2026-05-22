@@ -274,5 +274,19 @@
   "Reinvocation Policy": "Reinvocation Policy",
   "API Versions": "API Versions",
   "RollingUpdate. Max unavailable: {{ maxUnavailable }}, max surge: {{ maxSurge }}": "RollingUpdate. Max unavailable: {{ maxUnavailable }}, max surge: {{ maxSurge }}",
-  "Strategy Type": "Strategy Type"
+  "Strategy Type": "Strategy Type",
+  "Validations": "",
+  "Policy Name": "",
+  "Validation Actions": "",
+  "Match Constraints": "",
+  "Match Conditions": "",
+  "Expression": "",
+  "Audit Annotations": "",
+  "Variables": "",
+  "Param Ref": "",
+  "Match Resources": "",
+  "Parameter Not Found Action": "",
+  "Value Expression": "",
+  "Validating Admission Policies": "",
+  "Validating Admission Policy Bindings": ""
 }

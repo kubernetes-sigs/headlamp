@@ -274,5 +274,19 @@
   "Reinvocation Policy": "سياسة إعادة الاستدعاء",
   "API Versions": "إصدارات API",
   "RollingUpdate. Max unavailable: {{ maxUnavailable }}, max surge: {{ maxSurge }}": "RollingUpdate. الحد الأقصى غير المتاح: {{ maxUnavailable }}, الحد الأقصى للزيادة: {{ maxSurge }}",
-  "Strategy Type": "نوع الاستراتيجية"
+  "Strategy Type": "نوع الاستراتيجية",
+  "Validations": "",
+  "Policy Name": "",
+  "Validation Actions": "",
+  "Match Constraints": "",
+  "Match Conditions": "",
+  "Expression": "",
+  "Audit Annotations": "",
+  "Variables": "",
+  "Param Ref": "",
+  "Match Resources": "",
+  "Parameter Not Found Action": "",
+  "Value Expression": "",
+  "Validating Admission Policies": "",
+  "Validating Admission Policy Bindings": ""
 }

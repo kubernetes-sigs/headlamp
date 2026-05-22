@@ -274,5 +274,19 @@
   "Reinvocation Policy": "دوبارہ کال پالیسی",
   "API Versions": "API ورژنز",
   "RollingUpdate. Max unavailable: {{ maxUnavailable }}, max surge: {{ maxSurge }}": "رولنگ اپڈیٹ۔ زیادہ سے زیادہ غیر دستیاب: {{ maxUnavailable }}, زیادہ سے زیادہ سرج: {{ maxSurge }}",
-  "Strategy Type": "اسٹریٹجی ٹائپ"
+  "Strategy Type": "اسٹریٹجی ٹائپ",
+  "Validations": "",
+  "Policy Name": "",
+  "Validation Actions": "",
+  "Match Constraints": "",
+  "Match Conditions": "",
+  "Expression": "",
+  "Audit Annotations": "",
+  "Variables": "",
+  "Param Ref": "",
+  "Match Resources": "",
+  "Parameter Not Found Action": "",
+  "Value Expression": "",
+  "Validating Admission Policies": "",
+  "Validating Admission Policy Bindings": ""
 }

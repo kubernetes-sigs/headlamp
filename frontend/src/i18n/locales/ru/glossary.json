@@ -274,5 +274,19 @@
   "Reinvocation Policy": "Политика повторного вызова",
   "API Versions": "Версии API",
   "RollingUpdate. Max unavailable: {{ maxUnavailable }}, max surge: {{ maxSurge }}": "RollingUpdate. Макс. недоступно: {{ maxUnavailable }}, макс. превышение: {{ maxSurge }}",
-  "Strategy Type": "Тип стратегии"
+  "Strategy Type": "Тип стратегии",
+  "Validations": "",
+  "Policy Name": "",
+  "Validation Actions": "",
+  "Match Constraints": "",
+  "Match Conditions": "",
+  "Expression": "",
+  "Audit Annotations": "",
+  "Variables": "",
+  "Param Ref": "",
+  "Match Resources": "",
+  "Parameter Not Found Action": "",
+  "Value Expression": "",
+  "Validating Admission Policies": "",
+  "Validating Admission Policy Bindings": ""
 }
