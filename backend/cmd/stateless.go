@@ -29,14 +29,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-const statelessContextKeySep = "\x00"
-
+// statelessContextKey generates a structured context key using length-prefixed
+// components to avoid collisions across cluster and user pairs.
+// Format: "<len(clusterName)>:<clusterName>|<len(userID)>:<userID>".
+// If userID is empty, it returns the clusterName.
 func statelessContextKey(clusterName, userID string) string {
 	if userID == "" {
 		return clusterName
 	}
 
-	return clusterName + statelessContextKeySep + userID
+	return fmt.Sprintf("%d:%s|%d:%s", len(clusterName), clusterName, len(userID), userID)
 }
 
 // MarshalCustomObject marshals the runtime.Unknown object into a CustomObject.
@@ -89,6 +91,7 @@ func (c *HeadlampConfig) setKeyInCache(key string, context kubeconfig.Context) e
 
 	return nil
 }
+
 
 // Handles stateless cluster requests if kubeconfig is set and dynamic clusters are enabled.
 // It returns context key which is used to store the context in the cache.
