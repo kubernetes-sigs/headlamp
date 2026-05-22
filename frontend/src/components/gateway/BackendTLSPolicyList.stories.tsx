@@ -45,13 +45,7 @@ export default {
           ),
           http.get(
             `${API_BASE}/apis/gateway.networking.k8s.io/v1alpha3/backendtlspolicies`,
-            () =>
-              HttpResponse.json({
-                kind: 'BackendTLSPolicyList',
-                apiVersion: 'gateway.networking.k8s.io/v1alpha3',
-                metadata: {},
-                items: [],
-              })
+            () => HttpResponse.error()
           ),
         ],
       },
