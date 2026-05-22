@@ -14,6 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
+// Package clusterinventory discovers ClusterProfile resources and adds them to
+// Headlamp's context store as Cluster Inventory contexts.
 package clusterinventory
 
 import (
@@ -65,13 +67,22 @@ const (
 
 // Options controls Cluster Inventory discovery.
 type Options struct {
-	Store                 kubeconfig.ContextStore
-	ProviderFile          string
-	LabelSelector         string
+	// Store is the Headlamp context store that receives discovered contexts.
+	Store kubeconfig.ContextStore
+	// ProviderFile is the Cluster Inventory access provider configuration file.
+	ProviderFile string
+	// LabelSelector filters ClusterProfile resources before they are synced.
+	LabelSelector string
+	// RootReconcileInterval controls how often root clusters are reconciled.
+	// Values less than or equal to zero use DefaultRootReconcileInterval.
 	RootReconcileInterval time.Duration
-	NoCRDCacheTTL         time.Duration
-	HubConfig             *rest.Config
-	DiscoverFromStore     bool
+	// NoCRDCacheTTL controls how long API servers without the ClusterProfile CRD are skipped.
+	// Values less than or equal to zero use DefaultNoCRDCacheTTL.
+	NoCRDCacheTTL time.Duration
+	// HubConfig enables discovery from the in-cluster root when set.
+	HubConfig *rest.Config
+	// DiscoverFromStore enables discovery from non-internal contexts already in Store.
+	DiscoverFromStore bool
 }
 
 // Runner watches ClusterProfile resources and syncs them into Headlamp's context store.
@@ -94,6 +105,7 @@ type Runner struct {
 	noCRD             map[string]time.Time
 }
 
+// rootState tracks the active informer and identity for one discovery root.
 type rootState struct {
 	rootID      string
 	serverURL   string
@@ -103,11 +115,13 @@ type rootState struct {
 	informer    cache.SharedIndexInformer
 }
 
+// rootInformer bundles a root state with its informer factory before activation.
 type rootInformer struct {
 	state   *rootState
 	factory externalversions.SharedInformerFactory
 }
 
+// profileState tracks the Headlamp context created from one ClusterProfile.
 type profileState struct {
 	contextName string
 }
@@ -180,6 +194,7 @@ func (r *Runner) Run(ctx context.Context) {
 	}
 }
 
+// reconcileRoots computes the desired discovery roots and reconciles informers for them.
 func (r *Runner) reconcileRoots(ctx context.Context) {
 	if err := ctx.Err(); err != nil {
 		return
@@ -212,6 +227,7 @@ func (r *Runner) reconcileRoots(ctx context.Context) {
 	}
 }
 
+// collectStoreSeedRoots adds existing non-internal Headlamp contexts as discovery roots.
 func (r *Runner) collectStoreSeedRoots(
 	desiredRoots map[string]*rest.Config,
 	presentRoots map[string]struct{},
@@ -253,6 +269,7 @@ func (r *Runner) collectStoreSeedRoots(
 	return true
 }
 
+// reconcileRoot ensures one discovery root has a matching active ClusterProfile informer.
 func (r *Runner) reconcileRoot(ctx context.Context, rootID string, config *rest.Config) {
 	if config == nil {
 		return
@@ -293,6 +310,7 @@ func (r *Runner) reconcileRoot(ctx context.Context, rootID string, config *rest.
 	go r.runRootInformer(rootInformer.state, rootInformer.factory)
 }
 
+// rootMatches reports whether the active root already matches the given connection identity.
 func (r *Runner) rootMatches(rootID, serverURL, fingerprint string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -302,6 +320,7 @@ func (r *Runner) rootMatches(rootID, serverURL, fingerprint string) bool {
 	return current != nil && current.serverURL == serverURL && current.fingerprint == fingerprint
 }
 
+// newRootInformer creates an unstarted ClusterProfile informer for a discovery root.
 func (r *Runner) newRootInformer(
 	ctx context.Context,
 	rootID string,
@@ -361,10 +380,12 @@ func (r *Runner) newRootInformer(
 	return &rootInformer{state: state, factory: factory}, true
 }
 
+// newClusterProfileInformerFactory creates an informer factory for ClusterProfiles.
 func (r *Runner) newClusterProfileInformerFactory(client ciaclient.Interface) externalversions.SharedInformerFactory {
 	return externalversions.NewSharedInformerFactoryWithOptions(client, 0, r.clusterProfileInformerOptions()...)
 }
 
+// clusterProfileInformerOptions returns informer options derived from the label selector.
 func (r *Runner) clusterProfileInformerOptions() []externalversions.SharedInformerOption {
 	if r.labelSelector == nil {
 		return nil
@@ -379,6 +400,7 @@ func (r *Runner) clusterProfileInformerOptions() []externalversions.SharedInform
 	}
 }
 
+// activateRoot records a root as active and returns any previous active root.
 func (r *Runner) activateRoot(state *rootState) (*rootState, bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -393,6 +415,7 @@ func (r *Runner) activateRoot(state *rootState) (*rootState, bool) {
 	return previous, false
 }
 
+// runRootInformer starts a root informer and prunes profiles missing after the initial sync.
 func (r *Runner) runRootInformer(state *rootState, factory externalversions.SharedInformerFactory) {
 	defer factory.Shutdown()
 
@@ -407,6 +430,7 @@ func (r *Runner) runRootInformer(state *rootState, factory externalversions.Shar
 	<-state.ctx.Done()
 }
 
+// handleClusterProfileUpsert syncs an added or updated ClusterProfile into the context store.
 func (r *Runner) handleClusterProfileUpsert(state *rootState, obj interface{}) {
 	cp, ok := clusterProfileFromObject(obj)
 	if !ok {
@@ -430,6 +454,7 @@ func (r *Runner) handleClusterProfileUpsert(state *rootState, obj interface{}) {
 	r.syncClusterProfile(state.ctx, state, profileKey, cp)
 }
 
+// handleClusterProfileDelete removes context state for a deleted ClusterProfile.
 func (r *Runner) handleClusterProfileDelete(state *rootState, obj interface{}) {
 	cp, ok := clusterProfileFromObject(obj)
 	if !ok {
@@ -443,6 +468,7 @@ func (r *Runner) handleClusterProfileDelete(state *rootState, obj interface{}) {
 	r.pruneClusterProfile(state, profileKey)
 }
 
+// handleRootWatchError reacts to ClusterProfile watch errors for a discovery root.
 func (r *Runner) handleRootWatchError(state *rootState, err error) {
 	if isNoCRDError(err) {
 		r.markRootNoCRD(state)
@@ -456,6 +482,7 @@ func (r *Runner) handleRootWatchError(state *rootState, err error) {
 		"cluster-inventory: ClusterProfile watch error")
 }
 
+// syncClusterProfile converts a ClusterProfile to a Headlamp context and stores it.
 func (r *Runner) syncClusterProfile(
 	ctx context.Context,
 	state *rootState,
@@ -489,6 +516,7 @@ func (r *Runner) syncClusterProfile(
 	r.recordSyncedProfile(state, profileKey, headlampContext.Name)
 }
 
+// contextFromClusterProfile builds a Headlamp context from a ClusterProfile access provider.
 func (r *Runner) contextFromClusterProfile(
 	profileKey string,
 	cp *apisv1alpha1.ClusterProfile,
@@ -530,6 +558,7 @@ func (r *Runner) contextFromClusterProfile(
 	return headlampContext, true
 }
 
+// clusterInventoryMetadataFromProfile copies non-sensitive ClusterProfile status metadata.
 func clusterInventoryMetadataFromProfile(
 	profileKey string,
 	cp *apisv1alpha1.ClusterProfile,
@@ -563,6 +592,7 @@ func clusterInventoryMetadataFromProfile(
 	return metadata
 }
 
+// recordSyncedProfile stores the context name for a successfully synced ClusterProfile.
 func (r *Runner) recordSyncedProfile(state *rootState, profileKey string, contextName string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -574,6 +604,7 @@ func (r *Runner) recordSyncedProfile(state *rootState, profileKey string, contex
 	r.profiles[profileKey] = profileState{contextName: contextName}
 }
 
+// completeRootSyncFromCache prunes profiles no longer present after a root cache sync.
 func (r *Runner) completeRootSyncFromCache(state *rootState) {
 	seen := map[string]struct{}{}
 
@@ -615,6 +646,7 @@ func (r *Runner) completeRootSyncFromCache(state *rootState) {
 	r.removeContexts(contextNames)
 }
 
+// recordRootProfile records that a current root has seen a ClusterProfile.
 func (r *Runner) recordRootProfile(state *rootState, profileKey string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -632,10 +664,12 @@ func (r *Runner) recordRootProfile(state *rootState, profileKey string) bool {
 	return true
 }
 
+// clusterProfileMatchesSelector reports whether a ClusterProfile passes the configured selector.
 func (r *Runner) clusterProfileMatchesSelector(cp *apisv1alpha1.ClusterProfile) bool {
 	return r.labelSelector == nil || r.labelSelector.Matches(labels.Set(cp.Labels))
 }
 
+// pruneClusterProfile removes tracking and context state for one ClusterProfile.
 func (r *Runner) pruneClusterProfile(state *rootState, profileKey string) {
 	r.mu.Lock()
 
@@ -651,6 +685,7 @@ func (r *Runner) pruneClusterProfile(state *rootState, profileKey string) {
 	r.removeContexts(contextNames)
 }
 
+// stopMissingRoots stops roots that are no longer present in the desired root set.
 func (r *Runner) stopMissingRoots(presentRoots map[string]struct{}, storeRootsLoaded bool) {
 	r.mu.Lock()
 
@@ -682,6 +717,7 @@ func (r *Runner) stopMissingRoots(presentRoots map[string]struct{}, storeRootsLo
 	}
 }
 
+// stopRoot stops one active root and optionally prunes its discovered contexts.
 func (r *Runner) stopRoot(rootID string, prune bool) {
 	var (
 		cancel       context.CancelFunc
@@ -707,6 +743,7 @@ func (r *Runner) stopRoot(rootID string, prune bool) {
 	}
 }
 
+// stopAllRoots cancels all active root informers without pruning their contexts.
 func (r *Runner) stopAllRoots() {
 	r.mu.Lock()
 
@@ -724,6 +761,7 @@ func (r *Runner) stopAllRoots() {
 	}
 }
 
+// pruneRootLocked removes all profile tracking for a root and returns contexts to remove.
 func (r *Runner) pruneRootLocked(rootID string) []string {
 	contextNames := make([]string, 0, len(r.profileKeysByRoot[rootID]))
 
@@ -736,6 +774,7 @@ func (r *Runner) pruneRootLocked(rootID string) []string {
 	return contextNames
 }
 
+// pruneProfileLocked removes one profile from tracking and returns its context to remove.
 func (r *Runner) pruneProfileLocked(profileKey string) []string {
 	state, ok := r.profiles[profileKey]
 	if !ok {
@@ -747,6 +786,7 @@ func (r *Runner) pruneProfileLocked(profileKey string) []string {
 	return []string{state.contextName}
 }
 
+// removeContexts removes contexts from the store and logs failures.
 func (r *Runner) removeContexts(contextNames []string) {
 	for _, contextName := range contextNames {
 		if err := r.store.RemoveContext(contextName); err != nil {
@@ -756,6 +796,7 @@ func (r *Runner) removeContexts(contextNames []string) {
 	}
 }
 
+// hasNoCRD reports whether a server is still cached as missing the ClusterProfile CRD.
 func (r *Runner) hasNoCRD(serverURL string) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -773,6 +814,7 @@ func (r *Runner) hasNoCRD(serverURL string) bool {
 	return true
 }
 
+// markNoCRD caches a server as missing the ClusterProfile CRD.
 func (r *Runner) markNoCRD(serverURL string) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -780,6 +822,7 @@ func (r *Runner) markNoCRD(serverURL string) {
 	r.noCRD[serverURL] = r.now().Add(r.noCRDCacheTTL)
 }
 
+// markRootNoCRD stops a root and caches its server as missing the ClusterProfile CRD.
 func (r *Runner) markRootNoCRD(state *rootState) {
 	var (
 		cancel       context.CancelFunc
@@ -802,6 +845,7 @@ func (r *Runner) markRootNoCRD(state *rootState) {
 	}
 }
 
+// isCurrentRoot reports whether state is still the active root state.
 func (r *Runner) isCurrentRoot(state *rootState) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -809,10 +853,12 @@ func (r *Runner) isCurrentRoot(state *rootState) bool {
 	return r.roots[state.rootID] == state
 }
 
+// makeProfileKey combines a root ID and ClusterProfile path into a stable profile key.
 func makeProfileKey(rootID, profilePath string) string {
 	return rootID + "/" + profilePath
 }
 
+// normalizeLabelSelector parses a user-provided label selector.
 func normalizeLabelSelector(selector string) (labels.Selector, error) {
 	selector = strings.TrimSpace(selector)
 	if selector == "" {
@@ -827,6 +873,7 @@ func normalizeLabelSelector(selector string) (labels.Selector, error) {
 	return parsed, nil
 }
 
+// contextNameFromProfileKey builds a stable Headlamp context name for a profile key.
 func contextNameFromProfileKey(profileKey string) string {
 	return clusterInventoryContextPrefix +
 		kubeconfig.MakeDNSFriendly(profileKey) +
@@ -834,12 +881,14 @@ func contextNameFromProfileKey(profileKey string) string {
 		profileKeyHashSuffix(profileKey)
 }
 
+// profileKeyHashSuffix returns the hash suffix used to avoid context name collisions.
 func profileKeyHashSuffix(profileKey string) string {
 	sum := sha256.Sum256([]byte(profileKey))
 
 	return hex.EncodeToString(sum[:6])
 }
 
+// normalizeServerURL normalizes a REST config host for root identity and CRD caching.
 func normalizeServerURL(host string) string {
 	parsed, err := url.Parse(host)
 	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
@@ -853,6 +902,7 @@ func normalizeServerURL(host string) string {
 	return strings.TrimRight(parsed.String(), "/")
 }
 
+// restConfigFingerprint hashes the REST config fields that affect root identity.
 func restConfigFingerprint(config *rest.Config) string {
 	fingerprintHash := sha256.New()
 
@@ -864,6 +914,7 @@ func restConfigFingerprint(config *rest.Config) string {
 	return hex.EncodeToString(fingerprintHash.Sum(nil))
 }
 
+// writeRestConfigFingerprint writes the core REST config fields into the fingerprint hash.
 func writeRestConfigFingerprint(fingerprintHash hash.Hash, config *rest.Config) {
 	writeHashString(fingerprintHash, config.Host)
 	writeHashString(fingerprintHash, config.APIPath)
@@ -873,6 +924,7 @@ func writeRestConfigFingerprint(fingerprintHash hash.Hash, config *rest.Config) 
 	writeHashString(fingerprintHash, config.BearerTokenFile)
 }
 
+// writeTLSConfigFingerprint writes TLS-related REST config fields into the fingerprint hash.
 func writeTLSConfigFingerprint(fingerprintHash hash.Hash, config *rest.Config) {
 	writeHashString(fingerprintHash, config.ServerName)
 	writeHashString(fingerprintHash, config.CAFile)
@@ -884,6 +936,7 @@ func writeTLSConfigFingerprint(fingerprintHash hash.Hash, config *rest.Config) {
 	writeHashBytes(fingerprintHash, config.KeyData)
 }
 
+// writeImpersonateFingerprint writes impersonation settings into the fingerprint hash.
 func writeImpersonateFingerprint(fingerprintHash hash.Hash, config *rest.Config) {
 	writeHashString(fingerprintHash, config.Impersonate.UserName)
 
@@ -907,6 +960,7 @@ func writeImpersonateFingerprint(fingerprintHash hash.Hash, config *rest.Config)
 	}
 }
 
+// writeExecFingerprint writes exec credential configuration into the fingerprint hash.
 func writeExecFingerprint(fingerprintHash hash.Hash, execProvider *api.ExecConfig) {
 	if execProvider == nil {
 		return
@@ -929,6 +983,7 @@ func writeExecFingerprint(fingerprintHash hash.Hash, execProvider *api.ExecConfi
 	writeExecConfigFingerprint(fingerprintHash, execProvider.Config)
 }
 
+// writeExecConfigFingerprint writes exec plugin extension config into the fingerprint hash.
 func writeExecConfigFingerprint(fingerprintHash hash.Hash, config k8sruntime.Object) {
 	if config == nil {
 		return
@@ -946,16 +1001,19 @@ func writeExecConfigFingerprint(fingerprintHash hash.Hash, config k8sruntime.Obj
 	writeHashBytes(fingerprintHash, configJSON)
 }
 
+// writeHashString writes a string value with a separator into a fingerprint hash.
 func writeHashString(fingerprintHash hash.Hash, value string) {
 	_, _ = fingerprintHash.Write([]byte(value))
 	_, _ = fingerprintHash.Write([]byte{0})
 }
 
+// writeHashBytes writes bytes with a separator into a fingerprint hash.
 func writeHashBytes(fingerprintHash hash.Hash, value []byte) {
 	_, _ = fingerprintHash.Write(value)
 	_, _ = fingerprintHash.Write([]byte{0})
 }
 
+// clusterProfileFromObject extracts a ClusterProfile from informer event objects.
 func clusterProfileFromObject(obj interface{}) (*apisv1alpha1.ClusterProfile, bool) {
 	switch typed := obj.(type) {
 	case *apisv1alpha1.ClusterProfile:
@@ -969,6 +1027,7 @@ func clusterProfileFromObject(obj interface{}) (*apisv1alpha1.ClusterProfile, bo
 	}
 }
 
+// accessOnlyClusterProfile returns a copy containing only access-provider status.
 func accessOnlyClusterProfile(cp *apisv1alpha1.ClusterProfile) *apisv1alpha1.ClusterProfile {
 	return &apisv1alpha1.ClusterProfile{
 		TypeMeta:   cp.TypeMeta,
@@ -980,6 +1039,7 @@ func accessOnlyClusterProfile(cp *apisv1alpha1.ClusterProfile) *apisv1alpha1.Clu
 	}
 }
 
+// copyAccessConfig returns a shallow access config copy with independent exec slices.
 func copyAccessConfig(in *access.Config) *access.Config {
 	out := &access.Config{Providers: make([]access.Provider, len(in.Providers))}
 	for i, provider := range in.Providers {
@@ -997,6 +1057,7 @@ func copyAccessConfig(in *access.Config) *access.Config {
 	return out
 }
 
+// isNoCRDError reports whether an error means the ClusterProfile CRD is unavailable.
 func isNoCRDError(err error) bool {
 	if err == nil {
 		return false
@@ -1016,6 +1077,7 @@ func isNoCRDError(err error) bool {
 		strings.Contains(message, apisv1alpha1.ClusterProfileKind)
 }
 
+// isClusterProfileNotFound reports whether a not-found error refers to ClusterProfiles.
 func isClusterProfileNotFound(err error) bool {
 	statusErr := &apierrors.StatusError{}
 	if errors.As(err, &statusErr) && statusDetailsMatchClusterProfiles(statusErr.ErrStatus.Details) {
@@ -1028,6 +1090,7 @@ func isClusterProfileNotFound(err error) bool {
 		(strings.Contains(message, "ClusterProfile") && strings.Contains(message, apisv1alpha1.Group))
 }
 
+// statusDetailsMatchClusterProfiles reports whether status details identify ClusterProfiles.
 func statusDetailsMatchClusterProfiles(details *metav1.StatusDetails) bool {
 	if details == nil || details.Group != apisv1alpha1.Group {
 		return false
@@ -1036,6 +1099,7 @@ func statusDetailsMatchClusterProfiles(details *metav1.StatusDetails) bool {
 	return details.Kind == apisv1alpha1.ClusterProfileKind || details.Name == "clusterprofiles"
 }
 
+// proxyURLFromRestConfig resolves the kubeconfig proxy URL for a REST config host.
 func proxyURLFromRestConfig(restConfig *rest.Config) (string, error) {
 	if restConfig.Proxy == nil {
 		return "", nil
