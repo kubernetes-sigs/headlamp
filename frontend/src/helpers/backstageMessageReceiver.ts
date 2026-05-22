@@ -110,12 +110,13 @@ interface BackstageMessage {
 const BACKSTAGE_ACK_TIMEOUT_MS = 1000;
 
 /**
+ * Sets up the Backstage message receiver for the given cluster.
  * setupBackstageMessageReceiver sets up a listener for messages from the backstage app
  * and sets the backend token if it is received
  *
- * @returns void
+ * @returns A cleanup function that removes the registered message event listener.
  */
-export function setupBackstageMessageReceiver() {
+export function setupBackstageMessageReceiver(): () => void {
   if (isBackstage()) {
     const handleMessage = async (event: MessageEvent) => {
       try {
