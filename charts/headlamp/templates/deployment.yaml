@@ -109,18 +109,28 @@ spec:
             {{- end }}
           image: "{{ .Values.image.registry}}/{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{ if or $oidc .Values.env }}
+          {{ if or $oidc .Values.env (include "headlamp.hasKubeconfigSecrets" .) }}
           {{- if $oidc.externalSecret.enabled }}
           # Check if externalSecret is enabled
           envFrom:
           - secretRef:
               name: {{ $oidc.externalSecret.name }}
-          {{- if .Values.env }}
+          {{- if or .Values.env (include "headlamp.hasKubeconfigSecrets" .) }}
           env:
+            {{- if include "headlamp.hasKubeconfigSecrets" . }}
+            - name: KUBECONFIG
+              value: {{ include "headlamp.kubeconfigPath" . | quote }}
+            {{- end }}
+            {{- if .Values.env }}
             {{- toYaml .Values.env | nindent 12 }}
+            {{- end }}
           {{- end }}
           {{- else }}
           env:
+            {{- if include "headlamp.hasKubeconfigSecrets" . }}
+            - name: KUBECONFIG
+              value: {{ include "headlamp.kubeconfigPath" . | quote }}
+            {{- end }}
             {{- if $oidc.secret.create }}
             {{- if $oidc.clientID }}
             - name: OIDC_CLIENT_ID
@@ -252,8 +262,8 @@ spec:
             {{- if .Values.config.watchPlugins }}
             - "-watch-plugins-changes"
             {{- end }}
-            {{- if .Values.config.oidc.useCookie }}  
-            - "-oidc-use-cookie"                     
+            {{- if .Values.config.oidc.useCookie }}
+            - "-oidc-use-cookie"
             {{- end }}
             {{- with .Values.config.pluginsDir}}
             - "-plugins-dir={{ . }}"
@@ -378,11 +388,18 @@ spec:
             failureThreshold: {{ .Values.probes.readinessProbe.failureThreshold | default 3 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if or .Values.pluginsManager.enabled .Values.volumeMounts $tmpCtx.addMount }}
+          {{- if or .Values.pluginsManager.enabled .Values.volumeMounts $tmpCtx.addMount (include "headlamp.hasKubeconfigSecrets" .) }}
           volumeMounts:
             {{- if .Values.pluginsManager.enabled }}
             - name: plugins-dir
               mountPath: {{ .Values.config.pluginsDir }}
+            {{- end }}
+            {{- if include "headlamp.hasKubeconfigSecrets" . }}
+            {{- range $index, $secret := .Values.config.kubeconfigSecrets }}
+            - name: kubeconfig-{{ $index }}
+              mountPath: /kubeconfigs/{{ $secret.secretName }}
+              readOnly: true
+            {{- end }}
             {{- end }}
             {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
@@ -469,7 +486,7 @@ spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . | quote }}
       {{- end }}
-      {{- if or .Values.pluginsManager.enabled .Values.volumes $tmpCtx.addVolume $pluginsTmpCtx.addVolume }}
+      {{- if or .Values.pluginsManager.enabled .Values.volumes $tmpCtx.addVolume $pluginsTmpCtx.addVolume (include "headlamp.hasKubeconfigSecrets" .) }}
       volumes:
         {{- if .Values.pluginsManager.enabled }}
         - name: plugins-dir
@@ -485,6 +502,16 @@ spec:
         {{- if $tmpCtx.addVolume }}
         - name: headlamp-tmp
           emptyDir: {}
+        {{- end }}
+        {{- if include "headlamp.hasKubeconfigSecrets" . }}
+        {{- range $index, $secret := .Values.config.kubeconfigSecrets }}
+        - name: kubeconfig-{{ $index }}
+          secret:
+            secretName: {{ required "config.kubeconfigSecrets[].secretName is required" $secret.secretName }}
+            items:
+            - key: {{ default "config" $secret.key }}
+              path: {{ default "config" $secret.key }}
+        {{- end }}
         {{- end }}
         {{- with .Values.volumes}}
         {{- toYaml . | nindent 8 }}
