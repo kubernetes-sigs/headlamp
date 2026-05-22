@@ -1,6 +1,8 @@
 package kubeconfig
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -10,6 +12,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -97,6 +100,17 @@ func (c *Context) Copy() *Context {
 			caCert := *c.OidcConf.CACert
 			oidcConf.CACert = &caCert
 		}
+
+		oidcConf.APIProxy = c.OidcConf.APIProxy
+		if c.OidcConf.APIProxyCACert != nil {
+			ca := *c.OidcConf.APIProxyCACert
+			oidcConf.APIProxyCACert = &ca
+		}
+
+		if c.OidcConf.APIProxySkipTLSVerify != nil {
+			skip := *c.OidcConf.APIProxySkipTLSVerify
+			oidcConf.APIProxySkipTLSVerify = &skip
+		}
 	}
 
 	var kubeContext *api.Context
@@ -150,6 +164,15 @@ type OidcConfig struct {
 	SkipTLSVerify *bool
 	// OIDC CA certificate.
 	CACert *string
+	// APIProxy is an optional external Kubernetes API proxy URL.
+	// When set, the cluster reverse proxy targets this URL instead of the
+	// kube-apiserver. The OIDC bearer token is forwarded as-is.
+	APIProxy string
+	// APIProxyCACert is the PEM-encoded CA bundle used to verify the api-proxy
+	// TLS certificate. Optional.
+	APIProxyCACert *string
+	// APIProxySkipTLSVerify disables TLS verification for the api-proxy.
+	APIProxySkipTLSVerify *bool
 }
 
 // CustomObject represents the custom object that holds the HeadlampInfo regarding custom name.
@@ -369,13 +392,52 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 		caCert = &caCertString
 	}
 
+	apiProxy, apiProxyCA, apiProxySkip, err := parseAPIProxyConfig(c.AuthInfo.AuthProvider.Config)
+	if err != nil {
+		return nil, err
+	}
+
 	return &OidcConfig{
-		ClientID:     c.AuthInfo.AuthProvider.Config["client-id"],
-		ClientSecret: c.AuthInfo.AuthProvider.Config["client-secret"],
-		Scopes:       strings.Split(c.AuthInfo.AuthProvider.Config["scope"], ","),
-		IdpIssuerURL: c.AuthInfo.AuthProvider.Config["idp-issuer-url"],
-		CACert:       caCert,
+		ClientID:              c.AuthInfo.AuthProvider.Config["client-id"],
+		ClientSecret:          c.AuthInfo.AuthProvider.Config["client-secret"],
+		Scopes:                strings.Split(c.AuthInfo.AuthProvider.Config["scope"], ","),
+		IdpIssuerURL:          c.AuthInfo.AuthProvider.Config["idp-issuer-url"],
+		CACert:                caCert,
+		APIProxy:              apiProxy,
+		APIProxyCACert:        apiProxyCA,
+		APIProxySkipTLSVerify: apiProxySkip,
 	}, nil
+}
+
+// parseAPIProxyConfig extracts the optional api-proxy fields from an
+// auth-provider config map:
+//
+//	api-proxy                 : URL of the external Kubernetes API proxy
+//	api-proxy-ca-data         : base64-encoded PEM CA bundle for the proxy
+//	api-proxy-skip-tls-verify : "true"/"false" — disable TLS verification
+func parseAPIProxyConfig(cfg map[string]string) (string, *string, *bool, error) {
+	apiProxy := cfg["api-proxy"]
+
+	var apiProxyCA *string
+
+	if data, ok := cfg["api-proxy-ca-data"]; ok && data != "" {
+		decoded, err := base64.StdEncoding.DecodeString(data)
+		if err != nil {
+			return "", nil, nil, fmt.Errorf("error decoding base64 api-proxy-ca-data: %w", err)
+		}
+
+		s := string(decoded)
+		apiProxyCA = &s
+	}
+
+	var apiProxySkip *bool
+
+	if v, ok := cfg["api-proxy-skip-tls-verify"]; ok {
+		b := strings.EqualFold(v, "true")
+		apiProxySkip = &b
+	}
+
+	return apiProxy, apiProxyCA, apiProxySkip, nil
 }
 
 // ProxyRequest proxies the given request to the cluster.
@@ -420,31 +482,94 @@ func (c *Context) SourceStr() string {
 	}
 }
 
-// SetupProxy sets up a reverse proxy for the context.
-func (c *Context) SetupProxy() error {
-	URL, err := url.Parse(c.Cluster.Server)
-	if err != nil {
-		return err
+// buildAPIProxyTLSConfig builds a TLS config for the api-proxy transport.
+func buildAPIProxyTLSConfig(oidcConf *OidcConfig, contextName string) *tls.Config {
+	tlsCfg := &tls.Config{MinVersion: tls.VersionTLS12}
+
+	if oidcConf.APIProxySkipTLSVerify != nil && *oidcConf.APIProxySkipTLSVerify {
+		tlsCfg.InsecureSkipVerify = true //nolint:gosec,nolintlint
 	}
 
-	proxy := httputil.NewSingleHostReverseProxy(URL)
+	if oidcConf.APIProxyCACert != nil && *oidcConf.APIProxyCACert != "" {
+		pool := x509.NewCertPool()
+		if pool.AppendCertsFromPEM([]byte(*oidcConf.APIProxyCACert)) {
+			tlsCfg.RootCAs = pool
+		} else {
+			logger.Log(logger.LevelError, map[string]string{"context": contextName},
+				nil, "failed to parse api-proxy CA cert; falling back to system roots")
+		}
+	}
+
+	return tlsCfg
+}
+
+// setupProxyTransport configures the reverse proxy transport. When the OIDC
+// config defines an api-proxy URL the transport targets that gateway with its
+// own TLS settings; otherwise the normal kube-apiserver REST transport is used.
+func (c *Context) setupProxyTransport(proxy *httputil.ReverseProxy) {
+	if c.OidcConf != nil && strings.TrimSpace(c.OidcConf.APIProxy) != "" {
+		// Build a transport that targets the api-proxy with its own TLS settings,
+		// independent of the kube-apiserver client cert / CA. The OIDC token in
+		// the Authorization header is what authenticates the user to the proxy.
+		tlsCfg := buildAPIProxyTLSConfig(c.OidcConf, c.Name)
+		proxy.Transport = &userAgentRoundTripper{
+			base: &http.Transport{
+				TLSClientConfig: tlsCfg,
+				Proxy:           http.ProxyFromEnvironment,
+				// HTTP/2 is intentionally disabled for the api-proxy transport.
+				// External proxies frequently send GOAWAY frames to rebalance
+				// connections; once the request body has been written, the Go
+				// HTTP/2 client cannot retry and surfaces:
+				//   "http2: Transport received Server's graceful shutdown GOAWAY"
+				// HTTP/1.1 retries this transparently. To force HTTP/1.1 we
+				// must both leave ForceAttemptHTTP2=false AND provide a non-nil
+				// TLSNextProto map (otherwise net/http auto-upgrades to h2).
+				ForceAttemptHTTP2:     false,
+				TLSNextProto:          map[string]func(string, *tls.Conn) http.RoundTripper{},
+				MaxIdleConns:          100,
+				IdleConnTimeout:       90 * time.Second,
+				TLSHandshakeTimeout:   10 * time.Second,
+				ExpectContinueTimeout: 1 * time.Second,
+			},
+			userAgent: buildUserAgent(),
+		}
+
+		return
+	}
 
 	restConf, err := c.RESTConfig()
 	if err == nil {
 		roundTripper, err := makeTransportFor(restConf)
 		if err == nil {
-			// Wrap the round tripper to add Headlamp User-Agent
 			proxy.Transport = &userAgentRoundTripper{
 				base:      roundTripper,
 				userAgent: buildUserAgent(),
 			}
 		}
 	}
+}
 
+// SetupProxy sets up a reverse proxy for the context.
+//
+// When the OIDC configuration specifies an APIProxy URL (an external
+// Kubernetes API gateway), the reverse proxy targets that URL instead of the
+// kube-apiserver from the cluster definition. The OIDC bearer token is
+// forwarded as-is in the Authorization header by the request handler.
+func (c *Context) SetupProxy() error {
+	target := c.Cluster.Server
+
+	if c.OidcConf != nil && strings.TrimSpace(c.OidcConf.APIProxy) != "" {
+		target = c.OidcConf.APIProxy
+	}
+
+	URL, err := url.Parse(target)
+	if err != nil {
+		return err
+	}
+
+	proxy := httputil.NewSingleHostReverseProxy(URL)
+	c.setupProxyTransport(proxy)
 	c.proxy = proxy
-
-	logger.Log(logger.LevelInfo, map[string]string{"context": c.Name, "clusterURL": c.Cluster.Server},
-		nil, "Proxy setup")
 
 	return nil
 }
@@ -1054,6 +1179,9 @@ func GetInClusterContext(
 	oidcScopes string,
 	oidcSkipTLSVerify bool,
 	oidcCACert string,
+	oidcAPIProxy string,
+	oidcAPIProxyCACert string,
+	oidcAPIProxySkipTLSVerify bool,
 	unsafeUseServiceAccountToken bool,
 	serviceAccountTokenPath string,
 ) (*Context, error) {
@@ -1071,6 +1199,9 @@ func GetInClusterContext(
 		oidcScopes,
 		oidcSkipTLSVerify,
 		oidcCACert,
+		oidcAPIProxy,
+		oidcAPIProxyCACert,
+		oidcAPIProxySkipTLSVerify,
 		unsafeUseServiceAccountToken,
 		serviceAccountTokenPath,
 	), nil
@@ -1085,6 +1216,9 @@ func newInClusterContextFromConfig(
 	oidcScopes string,
 	oidcSkipTLSVerify bool,
 	oidcCACert string,
+	oidcAPIProxy string,
+	oidcAPIProxyCACert string,
+	oidcAPIProxySkipTLSVerify bool,
 	unsafeUseServiceAccountToken bool,
 	serviceAccountTokenPath string,
 ) *Context {
@@ -1115,12 +1249,15 @@ func newInClusterContextFromConfig(
 	if oidcClientID != "" && oidcIssuerURL != "" && oidcScopes != "" {
 		// client secret is optional for in-cluster OIDC configuration
 		oidcConf = &OidcConfig{
-			ClientID:      oidcClientID,
-			ClientSecret:  oidcClientSecret,
-			IdpIssuerURL:  oidcIssuerURL,
-			Scopes:        strings.Split(oidcScopes, ","),
-			SkipTLSVerify: &oidcSkipTLSVerify,
-			CACert:        &oidcCACert,
+			ClientID:              oidcClientID,
+			ClientSecret:          oidcClientSecret,
+			IdpIssuerURL:          oidcIssuerURL,
+			Scopes:                strings.Split(oidcScopes, ","),
+			SkipTLSVerify:         &oidcSkipTLSVerify,
+			CACert:                &oidcCACert,
+			APIProxy:              oidcAPIProxy,
+			APIProxyCACert:        &oidcAPIProxyCACert,
+			APIProxySkipTLSVerify: &oidcAPIProxySkipTLSVerify,
 		}
 	}
 

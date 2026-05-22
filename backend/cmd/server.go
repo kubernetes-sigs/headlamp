@@ -133,6 +133,28 @@ func buildTelemetryConfig(conf *config.Config) config.Config {
 	}
 }
 
+func setOIDCCACerts(conf *config.Config, cfg *headlampconfig.HeadlampConfig) {
+	if conf.OidcCAFile != "" {
+		caFileContents, err := os.ReadFile(conf.OidcCAFile) //nolint:gosec
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "reading oidc ca file")
+			os.Exit(1)
+		}
+
+		cfg.OidcCACert = string(caFileContents)
+	}
+
+	if conf.OidcAPIProxyCAFile != "" {
+		caFileContents, err := os.ReadFile(conf.OidcAPIProxyCAFile) //nolint:gosec
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "reading oidc api-proxy ca file")
+			os.Exit(1)
+		}
+
+		cfg.OidcAPIProxyCACert = string(caFileContents)
+	}
+}
+
 func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
@@ -150,6 +172,8 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
 		OidcUseAccessToken:        conf.OidcUseAccessToken,
 		OidcUsePKCE:               conf.OidcUsePKCE,
+		OidcAPIProxy:              conf.OidcAPIProxy,
+		OidcAPIProxySkipTLSVerify: conf.OidcAPIProxySkipTLSVerify,
 		MeUsernamePaths:           conf.MeUsernamePath,
 		MeEmailPaths:              conf.MeEmailPath,
 		MeGroupsPaths:             conf.MeGroupsPath,
@@ -159,21 +183,13 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		TelemetryConfig:           buildTelemetryConfig(conf),
 	}
 
-	if conf.OidcCAFile != "" {
-		caFileContents, err := os.ReadFile(conf.OidcCAFile) //nolint:gosec
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "reading oidc ca file")
-			os.Exit(1)
-		}
-
-		cfg.OidcCACert = string(caFileContents)
-	}
-
 	cfg.ProxyAuthEnabled = conf.ProxyAuthEnabled
 	cfg.ProxyAuthUsernameHeader = conf.ProxyAuthUsernameHeader
 	cfg.ProxyAuthGroupHeader = conf.ProxyAuthGroupHeader
 	cfg.ProxyAuthEmailHeader = conf.ProxyAuthEmailHeader
 	cfg.ProxyAuthTokenHeader = conf.ProxyAuthTokenHeader
+
+	setOIDCCACerts(conf, cfg)
 
 	compiledProxyURLs, err := compileProxyURLPatterns(cfg.ProxyURLs)
 	if err != nil {
