@@ -47,13 +47,7 @@ export default {
           ),
           http.get(
             'http://localhost:4466/apis/gateway.networking.k8s.io/v1alpha3/backendtlspolicies',
-            () =>
-              HttpResponse.json({
-                kind: 'BackendTLSPolicyList',
-                apiVersion: 'gateway.networking.k8s.io/v1alpha3',
-                metadata: {},
-                items: [],
-              })
+            () => HttpResponse.error()
           ),
         ],
       },
