@@ -13,7 +13,7 @@
     "node": ">=22.0.0"
   },
   "scripts": {
-    "install:all": "npm run frontend:install && npm run backend:build && npm run app:install && npm run tools:install",
+    "install:all": "npm install && npm run frontend:install && npm run backend:build && npm run app:install && npm run tools:install",
     "install:frontend": "npm run frontend:install",
     "install:backend": "npm run backend:build",
     "install:app": "npm run app:install",

@@ -28,6 +28,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -299,8 +300,7 @@ func IsAllowed(
 	k *kubeconfig.Context,
 	r *http.Request,
 ) (bool, error) {
-	token := strings.TrimPrefix(r.Header.Get("Authorization"), "Bearer ")
-	token = strings.TrimSpace(token)
+	token := auth.BearerTokenValue(r.Header.Get("Authorization"))
 
 	clientset, err := GetClientSet(k, token)
 	if err != nil {

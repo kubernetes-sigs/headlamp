@@ -18,7 +18,6 @@ import FormControl, { FormControlProps } from '@mui/material/FormControl';
 import FormLabel from '@mui/material/FormLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select, { SelectChangeEvent } from '@mui/material/Select';
-import { useTheme } from '@mui/material/styles';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { supportedLanguages } from '../config';
@@ -38,7 +37,6 @@ export interface LocaleSelectProps {
 export default function LocaleSelect(props: LocaleSelectProps) {
   const { formControlProps, showFullNames } = props;
   const { t, i18n } = useTranslation();
-  const theme = useTheme();
   /**
    * Returns a memoized mapping of language codes to their full names if showFullNames is true.
    *
@@ -62,7 +60,6 @@ export default function LocaleSelect(props: LocaleSelectProps) {
     const lng = event.target.value as string;
 
     i18n.changeLanguage(lng);
-    theme.direction = i18n.dir();
   };
 
   /**
@@ -81,7 +78,7 @@ export default function LocaleSelect(props: LocaleSelectProps) {
         return;
       }
 
-      fullNames[lng] = supportedLanguages[lng] || lng;
+      fullNames[lng] = supportedLanguages[lng]?.label || lng;
     });
 
     return fullNames;

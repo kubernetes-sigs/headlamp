@@ -23,6 +23,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -92,6 +93,9 @@ type Connection struct {
 	writeMu sync.Mutex
 	// closed is a flag to indicate if the connection is closed.
 	closed bool
+	// usesServiceAccountToken is true when Token was loaded from the
+	// in-cluster service account token file.
+	usesServiceAccountToken bool
 	// Authentication token.
 	Token *string
 }
@@ -124,6 +128,18 @@ type Multiplexer struct {
 	upgrader websocket.Upgrader
 	// kubeConfigStore is the kubeconfig store.
 	kubeConfigStore kubeconfig.ContextStore
+	// unsafeUseServiceAccountToken forces in-cluster contexts to use their token file.
+	unsafeUseServiceAccountToken bool
+	// saTokenCache caches service account tokens keyed by file path; refreshed when mtime changes.
+	saTokenCache map[string]saTokenCacheEntry
+	// saTokenMu guards saTokenCache.
+	saTokenMu sync.RWMutex
+}
+
+// saTokenCacheEntry caches a service account token alongside the source file's mtime.
+type saTokenCacheEntry struct {
+	token   string
+	modTime time.Time
 }
 
 // WSConnLock provides a thread-safe wrapper around a WebSocket connection.
@@ -189,16 +205,51 @@ func (conn *WSConnLock) Close() error {
 }
 
 // NewMultiplexer creates a new Multiplexer instance.
-func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore) *Multiplexer {
+func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAccountToken bool) *Multiplexer {
 	return &Multiplexer{
-		connections:     make(map[string]*Connection),
-		kubeConfigStore: kubeConfigStore,
+		connections:                  make(map[string]*Connection),
+		kubeConfigStore:              kubeConfigStore,
+		unsafeUseServiceAccountToken: unsafeUseServiceAccountToken,
+		saTokenCache:                 make(map[string]saTokenCacheEntry),
 		upgrader: websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
 				return true
 			},
 		},
 	}
+}
+
+// readServiceAccountToken reads the service account token from path, caching the value
+// per path and refreshing it when the file's mtime changes (e.g. kubelet token rotation).
+func (m *Multiplexer) readServiceAccountToken(path string) (string, error) {
+	stat, err := os.Stat(path) //nolint:gosec
+	if err != nil {
+		return "", fmt.Errorf("stat service account token file: %w", err)
+	}
+
+	m.saTokenMu.RLock()
+	entry, ok := m.saTokenCache[path]
+	m.saTokenMu.RUnlock()
+
+	if ok && entry.modTime.Equal(stat.ModTime()) {
+		return entry.token, nil
+	}
+
+	tokenBytes, err := os.ReadFile(path) //nolint:gosec
+	if err != nil {
+		return "", fmt.Errorf("reading service account token file: %w", err)
+	}
+
+	token := strings.TrimSpace(string(tokenBytes))
+	if token == "" {
+		return "", fmt.Errorf("service account token file is empty")
+	}
+
+	m.saTokenMu.Lock()
+	m.saTokenCache[path] = saTokenCacheEntry{token: token, modTime: stat.ModTime()}
+	m.saTokenMu.Unlock()
+
+	return token, nil
 }
 
 // updateStatus updates the status of a connection and notifies the client.
@@ -270,13 +321,26 @@ func (m *Multiplexer) establishClusterConnection(
 	clientConn *WSConnLock,
 	token *string,
 ) (*Connection, error) {
-	config, err := m.getClusterConfigWithFallback(clusterID, userID)
+	clusterContext, err := m.getClusterContextWithFallback(clusterID, userID)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"clusterID": clusterID}, err, "getting cluster config")
 		return nil, err
 	}
 
-	connection := m.createConnection(clusterID, userID, path, query, clientConn, token)
+	config, err := clusterContext.RESTConfig()
+	if err != nil {
+		return nil, fmt.Errorf("getting REST config: %v", err)
+	}
+
+	authToken, err := m.clusterConnectionToken(clusterContext, token)
+	if err != nil {
+		return nil, err
+	}
+
+	connection := m.createConnection(clusterID, userID, path, query, clientConn, authToken)
+	if m.unsafeUseServiceAccountToken && clusterContext.UsesInClusterServiceAccountToken() {
+		connection.usesServiceAccountToken = true
+	}
 
 	wsURL := createWebSocketURL(config.Host, path, query)
 
@@ -287,7 +351,7 @@ func (m *Multiplexer) establishClusterConnection(
 		return nil, fmt.Errorf("failed to get TLS config: %v", err)
 	}
 
-	conn, err := m.dialWebSocket(wsURL, tlsConfig, config.Host, token)
+	conn, err := m.dialWebSocket(wsURL, tlsConfig, config.Host, authToken)
 	if err != nil {
 		connection.updateStatus(StateError, err)
 
@@ -310,19 +374,49 @@ func (m *Multiplexer) establishClusterConnection(
 // getClusterConfigWithFallback attempts to get the cluster config,
 // falling back to a combined key for stateless clusters.
 func (m *Multiplexer) getClusterConfigWithFallback(clusterID, userID string) (*rest.Config, error) {
+	clusterContext, err := m.getClusterContextWithFallback(clusterID, userID)
+	if err != nil {
+		return nil, err
+	}
+
+	config, err := clusterContext.RESTConfig()
+	if err != nil {
+		return nil, fmt.Errorf("getting REST config: %v", err)
+	}
+
+	return config, nil
+}
+
+func (m *Multiplexer) getClusterContextWithFallback(clusterID, userID string) (*kubeconfig.Context, error) {
 	// Try to get config for stateful cluster first.
-	config, err := m.getClusterConfig(clusterID)
+	clusterContext, err := m.getClusterContext(clusterID)
 	if err != nil {
 		// If not found, try with the combined key for stateless clusters.
 		combinedKey := fmt.Sprintf("%s%s", clusterID, userID)
 
-		config, err = m.getClusterConfig(combinedKey)
+		clusterContext, err = m.getClusterContext(combinedKey)
 		if err != nil {
 			return nil, fmt.Errorf("getting cluster config: %v", err)
 		}
 	}
 
-	return config, nil
+	return clusterContext, nil
+}
+
+func (m *Multiplexer) clusterConnectionToken(
+	clusterContext *kubeconfig.Context,
+	requestToken *string,
+) (*string, error) {
+	if !m.unsafeUseServiceAccountToken || !clusterContext.UsesInClusterServiceAccountToken() {
+		return requestToken, nil
+	}
+
+	token, err := m.readServiceAccountToken(clusterContext.AuthInfo.TokenFile)
+	if err != nil {
+		return nil, err
+	}
+
+	return &token, nil
 }
 
 // createConnection creates a new Connection instance.
@@ -549,17 +643,30 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock,
 		}
 
 		go m.handleClusterMessages(conn, clientConn)
-	} else if token != nil {
-		// Check if the token is different before updating
-		conn.mu.Lock()
-		if conn.Token == nil || *conn.Token != *token {
-			// Update the token only if it's new
-			conn.Token = token
-		}
-		conn.mu.Unlock()
+	} else if err := m.refreshConnectionToken(conn, token); err != nil {
+		return nil, err
 	}
 
 	return conn, nil
+}
+
+func (m *Multiplexer) refreshConnectionToken(conn *Connection, requestToken *string) error {
+	if requestToken == nil {
+		return nil
+	}
+
+	if conn.usesServiceAccountToken {
+		return nil
+	}
+
+	conn.mu.Lock()
+	defer conn.mu.Unlock()
+
+	if conn.Token == nil || *conn.Token != *requestToken {
+		conn.Token = requestToken
+	}
+
+	return nil
 }
 
 // handleConnectionError handles errors that occur when establishing a connection.
@@ -821,18 +928,13 @@ func (m *Multiplexer) cleanupConnections() {
 }
 
 // getClusterConfig retrieves the REST config for a given cluster.
-func (m *Multiplexer) getClusterConfig(clusterID string) (*rest.Config, error) {
+func (m *Multiplexer) getClusterContext(clusterID string) (*kubeconfig.Context, error) {
 	ctxtProxy, err := m.kubeConfigStore.GetContext(clusterID)
 	if err != nil {
 		return nil, fmt.Errorf("getting context: %v", err)
 	}
 
-	clientConfig, err := ctxtProxy.RESTConfig()
-	if err != nil {
-		return nil, fmt.Errorf("getting REST config: %v", err)
-	}
-
-	return clientConfig, nil
+	return ctxtProxy, nil
 }
 
 // CloseConnection closes a specific connection based on its identifier.

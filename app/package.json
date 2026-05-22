@@ -101,7 +101,6 @@
     },
     "mac": {
       "appId": "com.microsoft.Headlamp",
-      "identity": "-",
       "target": [
         {
           "target": "dmg",
@@ -112,8 +111,7 @@
         }
       ],
       "gatekeeperAssess": false,
-      "notarize": false,
-      "hardenedRuntime": false,
+      "hardenedRuntime": true,
       "entitlements": "mac/entitlements.mac.plist",
       "entitlementsInherit": "mac/entitlements.mac.plist",
       "extraResources": [

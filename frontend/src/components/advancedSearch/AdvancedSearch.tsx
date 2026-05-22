@@ -28,7 +28,10 @@ import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { ApiResourcesView } from './ApiResourcePicker';
 import { EmptyResults } from './EmptyResults';
 import { ResourceSearch } from './ResourceSearch';
+import type { SavedAdvancedSearch } from './savedAdvancedSearches';
+import { SavedSearches } from './SavedSearches';
 import { SearchSettings } from './SearchSettings';
+import { getSelectedResourcesValue } from './selectedResources';
 
 const emptyList: [] = [];
 
@@ -82,18 +85,44 @@ export function AdvancedSearch() {
     if (!selectedResources) return;
 
     setSelectedResourcesState(() =>
-      selectedResources.size === resources?.length
-        ? 'all'
-        : selectedResources.size === 0
-        ? ''
-        : [...selectedResources].join('+')
+      getSelectedResourcesValue(selectedResources, resources?.length)
     );
+    // setSelectedResourcesState is not stable between renders.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedResources, resources]);
 
   const resourcesList = useMemo(
     () => resources?.filter(resource => selectedResources?.has(apiResourceId(resource))),
     [resources, selectedResources]
+  );
+
+  const selectedResourcesValue = useMemo(() => {
+    if (!selectedResources) {
+      return selectedResourcesState || '';
+    }
+
+    return getSelectedResourcesValue(selectedResources, resources?.length);
+  }, [resources, selectedResources, selectedResourcesState]);
+
+  const restoreSavedSearch = useCallback(
+    (search: SavedAdvancedSearch) => {
+      const availableResourceIds = new Set(resources?.map(resource => apiResourceId(resource)));
+
+      if (search.resources === 'all') {
+        setSelectedResources(availableResourceIds);
+      } else if (!search.resources) {
+        setSelectedResources(new Set());
+      } else {
+        setSelectedResources(
+          new Set(
+            search.resources.split('+').filter(resourceId => availableResourceIds.has(resourceId))
+          )
+        );
+      }
+
+      setRawQuery(search.query);
+    },
+    [resources, setRawQuery]
   );
 
   if (isLoading) {
@@ -126,6 +155,12 @@ export function AdvancedSearch() {
           resources={resources ?? emptyList}
           selectedResources={selectedResources}
           setSelectedResources={setSelectedResources}
+        />
+
+        <SavedSearches
+          rawQuery={rawQuery ?? ''}
+          resourcesValue={selectedResourcesValue}
+          onSearchSelected={restoreSavedSearch}
         />
 
         <SearchSettings

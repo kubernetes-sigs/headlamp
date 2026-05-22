@@ -9,6 +9,13 @@ The desktop app is written in TypeScript and uses Babel to transpile the Electro
 
 ## Building and running
 
+First, install the required dependencies by running:
+
+```bash
+npm run frontend:install
+npm run app:install
+```
+
 The desktop app can be quickly built using:
 
 ```bash

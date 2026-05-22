@@ -653,18 +653,14 @@
                       class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
                     >
                       <div
-                        class="MuiBox-root css-1gtanqs"
+                        class="MuiBox-root css-1rnoxx5"
                       >
-                        <div
-                          class="MuiBox-root css-gmuwbf"
+                        <p
+                          class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                          style="margin-left: 8px; color: rgb(16, 124, 16);"
                         >
-                          <p
-                            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
-                            style="margin-left: 8px; color: rgb(16, 124, 16);"
-                          >
-                            Active
-                          </p>
-                        </div>
+                          Active
+                        </p>
                       </div>
                     </td>
                     <td
@@ -767,18 +763,14 @@
                       class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
                     >
                       <div
-                        class="MuiBox-root css-1gtanqs"
+                        class="MuiBox-root css-1rnoxx5"
                       >
-                        <div
-                          class="MuiBox-root css-gmuwbf"
+                        <p
+                          class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                          style="margin-left: 8px; color: rgb(16, 124, 16);"
                         >
-                          <p
-                            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
-                            style="margin-left: 8px; color: rgb(16, 124, 16);"
-                          >
-                            Active
-                          </p>
-                        </div>
+                          Active
+                        </p>
                       </div>
                     </td>
                     <td
@@ -881,18 +873,14 @@
                       class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
                     >
                       <div
-                        class="MuiBox-root css-1gtanqs"
+                        class="MuiBox-root css-1rnoxx5"
                       >
-                        <div
-                          class="MuiBox-root css-gmuwbf"
+                        <p
+                          class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+                          style="margin-left: 8px; color: rgb(16, 124, 16);"
                         >
-                          <p
-                            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
-                            style="margin-left: 8px; color: rgb(16, 124, 16);"
-                          >
-                            Active
-                          </p>
-                        </div>
+                          Active
+                        </p>
                       </div>
                     </td>
                     <td
