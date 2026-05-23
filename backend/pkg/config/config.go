@@ -78,6 +78,7 @@ type Config struct {
 	OidcScopes                   string `koanf:"oidc-scopes"`
 	OidcUseAccessToken           bool   `koanf:"oidc-use-access-token"`
 	OidcUseCookie                bool   `koanf:"oidc-use-cookie"`
+	OidcUseTokenBroadcast        bool   `koanf:"oidc-use-token-broadcast"`
 	OidcSkipTLSVerify            bool   `koanf:"oidc-skip-tls-verify"`
 	OidcCAFile                   string `koanf:"oidc-ca-file"`
 	MeUsernamePath               string `koanf:"me-username-path"`
@@ -596,6 +597,12 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.String("oidc-ca-file", "", "CA file for OIDC")
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
 	f.Bool("oidc-use-cookie", false, "Enable OIDC cookie usage even when not running in-cluster")
+	f.Bool("oidc-use-token-broadcast", false,
+		"After a successful OIDC login on one cluster, also set the auth cookie for every other "+
+			"kubeconfig context whose OIDC auth-provider has the same idp-issuer-url AND client-id. "+
+			"This precondition is required because the issued token's audience (aud) claim defaults "+
+			"to the client-id; broadcasting only when both match keeps the token valid against the "+
+			"target cluster's apiserver. Disabled by default.")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")

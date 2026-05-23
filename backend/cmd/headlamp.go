@@ -1068,6 +1068,10 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		// Set auth cookie
 		auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
 
+		if config.OidcUseTokenBroadcast {
+			config.broadcastOIDCToken(w, r, oauthConfig.Cluster, rawUserToken)
+		}
+
 		redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
@@ -1118,6 +1122,63 @@ func setTokenFromCookie(r *http.Request, clusterName string) {
 	// Set bearer token from cookie if it exists
 	if err == nil && tokenFromCookie != "" {
 		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokenFromCookie))
+	}
+}
+
+// broadcastOIDCToken sets the auth cookie for every kubeconfig context whose
+// OIDC auth-provider has the same idp-issuer-url AND client-id as sourceCluster.
+//
+// Precondition: the kube-apiserver of each target cluster must trust the same
+// OIDC application (issuer + client-id) as sourceCluster. The token's audience
+// (aud) claim defaults to the client-id; broadcasting only when both issuer and
+// client-id match keeps the token valid against the target cluster's apiserver
+// without re-validating per cluster. Audience mismatches caused by
+// --oidc-extra-audience on a target apiserver are not detected here and must be
+// validated by deployment configuration.
+//
+// Gated by the --oidc-use-token-broadcast flag (disabled by default).
+func (c *HeadlampConfig) broadcastOIDCToken(w http.ResponseWriter, r *http.Request, sourceCluster, token string) {
+	kContexts, err := c.KubeConfigStore.GetContexts()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to get contexts for broadcasting OIDC token")
+		return
+	}
+
+	sourceContext, err := c.KubeConfigStore.GetContext(sourceCluster)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"cluster": sourceCluster}, err,
+			"failed to get source context for broadcasting OIDC token")
+		return
+	}
+
+	sourceOIDCConfig, err := sourceContext.OidcConfig()
+	if err != nil || sourceOIDCConfig == nil {
+		return
+	}
+
+	for _, kCtx := range kContexts {
+		if kCtx.Name == sourceCluster {
+			continue
+		}
+
+		if kCtx.AuthType() != "oidc" {
+			continue
+		}
+
+		oidcConfig, err := kCtx.OidcConfig()
+		if err != nil || oidcConfig == nil {
+			continue
+		}
+
+		if oidcConfig.IdpIssuerURL != sourceOIDCConfig.IdpIssuerURL ||
+			oidcConfig.ClientID != sourceOIDCConfig.ClientID {
+			continue
+		}
+
+		auth.SetTokenCookie(w, r, kCtx.Name, token, c.BaseURL, c.SessionTTL)
+		logger.Log(logger.LevelInfo,
+			map[string]string{"sourceCluster": sourceCluster, "targetCluster": kCtx.Name},
+			nil, "broadcasted OIDC token to cluster")
 	}
 }
 
