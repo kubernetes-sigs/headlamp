@@ -39,8 +39,9 @@ function parseUnitsOfBytes(value: string): number {
   if (!value) return 0;
 
   // "m" suffix means milli-bytes (1/1000 of a byte), e.g. "11973899059200m" from kubectl
-  if (/^\d+m$/.test(value)) {
-    return parseInt(value, 10) / 1000;
+  // Support integer and decimal milli-byte values like "1000m" or "1.5m"
+  if (/^\d+(?:\.\d+)?m$/.test(value)) {
+    return parseFloat(value.slice(0, -1)) / 1000;
   }
 
   const groups = value.match(/(\d+(?:\.\d+)?)([BKMGTPEe])?(i)?(\d+)?/) || [];

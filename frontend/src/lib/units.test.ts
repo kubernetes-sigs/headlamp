@@ -39,6 +39,7 @@ describe('parseRam', () => {
     expect(parseRam('1000m')).toBe(1);
     expect(parseRam('11973899059200m')).toBe(11973899059.2);
     expect(parseRam('14712779571200m')).toBe(14712779571.2);
+    expect(parseRam('1.5m')).toBeCloseTo(0.0015, 10);
   });
 
   it('should parse exponential notation', () => {
