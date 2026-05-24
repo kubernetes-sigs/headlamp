@@ -262,6 +262,7 @@
   "No clusters found!": "クラスターが見つかりません！",
   "No contexts found!": "コンテキストが見つかりません！",
   "Invalid kubeconfig file: {{ errorMessage }}": "無効な kubeconfig ファイル: {{ errorMessage }}",
+  "Kubernetes events have a lifetime of 1 hour by default. This duration may vary depending on your cluster's configuration.": "",
   "Only warnings ({{ numWarnings }})": "警告のみ ({{ numWarnings }})",
   "Reason": "理由",
   "Count": "",

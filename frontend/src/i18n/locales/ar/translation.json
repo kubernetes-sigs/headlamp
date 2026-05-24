@@ -267,6 +267,7 @@
   "No clusters found!": "لم يتم العثور على أي كتل!",
   "No contexts found!": "لم يتم العثور على أي سياقات!",
   "Invalid kubeconfig file: {{ errorMessage }}": "ملف kubeconfig غير صالح: {{ errorMessage }}",
+  "Kubernetes events have a lifetime of 1 hour by default. This duration may vary depending on your cluster's configuration.": "",
   "Only warnings ({{ numWarnings }})": "تحذيرات فقط ({{ numWarnings }})",
   "Reason": "السبب",
   "Count": "العدد",
