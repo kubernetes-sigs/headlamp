@@ -31,7 +31,7 @@ import * as Utils from './lib/util';
 import { Headlamp, Plugin } from './plugin/lib';
 import { getSupportedLocales, isLocaleSupported, useTranslation } from './plugin/pluginI18n';
 import { PluginSettingsDetailsProps } from './plugin/pluginsSlice';
-import type { CallbackActionOptions, HeadlampEvent } from './plugin/registry';
+import type { CallbackActionOptions, HeadlampEvent, PluginExtension } from './plugin/registry';
 import Registry, {
   AppLogoProps,
   clusterAction,
@@ -44,6 +44,7 @@ import Registry, {
   DetailsViewDefaultHeaderActions,
   DetailsViewSectionProps,
   getHeadlampAPIHeaders,
+  getPluginExtensions,
   PluginManager,
   registerAddClusterProvider,
   registerAppBarAction,
@@ -64,6 +65,7 @@ import Registry, {
   registerKubeObjectGlance,
   registerMapSource,
   registerOverviewChartsProcessor,
+  registerPluginExtension,
   registerPluginSettings,
   registerProjectDeleteButton,
   registerProjectDetailsTab,
@@ -76,6 +78,7 @@ import Registry, {
   registerSidebarEntryFilter,
   registerUIPanel,
   runCommand,
+  usePluginExtensions,
 } from './plugin/registry';
 
 // We export k8s (lowercase) since someone may use it as we do in the Headlamp source code.
@@ -95,6 +98,7 @@ export {
   DefaultHeadlampEvents,
   DetailsViewDefaultHeaderActions,
   getHeadlampAPIHeaders,
+  getPluginExtensions,
   registerAppLogo,
   registerAppBarAction,
   registerClusterChooser,
@@ -109,6 +113,7 @@ export {
   registerGetTokenFunction,
   registerResourceTableColumnsProcessor,
   registerOverviewChartsProcessor,
+  registerPluginExtension,
   registerPluginSettings,
   clusterAction,
   runCommand,
@@ -132,6 +137,7 @@ export {
   registerProjectHeaderAction,
   registerClusterStatus,
   registerProjectDeleteButton,
+  usePluginExtensions,
   Activity,
 };
 
@@ -144,4 +150,5 @@ export type {
   DetailsViewSectionProps,
   DefaultSidebars,
   HeadlampEvent,
+  PluginExtension,
 };
