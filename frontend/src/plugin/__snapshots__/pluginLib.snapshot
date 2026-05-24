@@ -663,6 +663,7 @@
   "clusterAction": [Function],
   "default": [Function],
   "getHeadlampAPIHeaders": [Function],
+  "getPluginExtensions": [Function],
   "registerAddClusterProvider": [Function],
   "registerAppBarAction": [Function],
   "registerAppLogo": [Function],
@@ -683,6 +684,7 @@
   "registerKubeObjectGlance": [Function],
   "registerMapSource": [Function],
   "registerOverviewChartsProcessor": [Function],
+  "registerPluginExtension": [Function],
   "registerPluginSettings": [Function],
   "registerProjectApiResource": [Function],
   "registerProjectDeleteButton": [Function],
@@ -721,5 +723,6 @@
     "storeStatelessClusterKubeconfig": [Function],
     "toStatelessConfigState": [Function],
   },
+  "usePluginExtensions": [Function],
   "useTranslation": [Function],
 }
