@@ -20,6 +20,7 @@ import Event, { KubeEvent } from '../../lib/k8s/event';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { localeDate, timeAgo } from '../../lib/util';
 import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
+import EventsLifetimeInfo from '../common/EventsLifetimeInfo';
 import { HoverInfoLabel } from '../common/Label';
 import SectionBox from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
@@ -101,7 +102,14 @@ export default function ObjectEventList(props: ObjectEventListProps) {
   const { t } = useTranslation(['translation', 'glossary']);
 
   return (
-    <SectionBox title={t('glossary|Events')}>
+    <SectionBox
+      title={t('glossary|Events')}
+      headerProps={{
+        noPadding: false,
+        headerStyle: 'subsection',
+        titleSideActions: [<EventsLifetimeInfo key="event-lifetime-info" />],
+      }}
+    >
       <SimpleTable
         columns={[
           {

@@ -444,7 +444,15 @@
                   </h2>
                   <div
                     class="MuiBox-root css-ldp2l3"
-                  />
+                  >
+                    <span
+                      aria-label="Kubernetes events have a lifetime of 1 hour by default. This duration may vary depending on your cluster's configuration."
+                      class="MuiBox-root css-14rnpui"
+                      data-mui-internal-clone-element="true"
+                      role="img"
+                      tabindex="0"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
