@@ -38,7 +38,7 @@ export const headlampClassicLightTheme: AppTheme = {
 };
 
 export const darkTheme: AppTheme = {
-  name: 'dark',
+  name: 'Dark',
   base: 'dark',
   primary: '#ffffff',
   secondary: '#1b1a19',
@@ -66,7 +66,7 @@ export const darkTheme: AppTheme = {
 };
 
 export const lightTheme: AppTheme = {
-  name: 'light',
+  name: 'Light',
   primary: '#414141',
   secondary: '#eff2f5',
   text: {

@@ -26,7 +26,6 @@ import Typography from '@mui/material/Typography';
 import useAutocomplete from '@mui/material/useAutocomplete';
 import { UseAutocompleteReturnValue } from '@mui/material/useAutocomplete';
 import Fuse, { Expression, FuseResultMatch } from 'fuse.js';
-import { capitalize } from 'lodash';
 import { lazy, Suspense, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -326,7 +325,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
       id: 'switch-theme-' + theme.name,
       subLabel: 'Theme',
       icon: <ThemePreview theme={theme} size={32} />,
-      label: capitalize(theme.name),
+      label: theme.name,
       onClick: () => dispatch(setTheme(theme.name)),
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
