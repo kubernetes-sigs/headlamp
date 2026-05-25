@@ -55,6 +55,9 @@ interface KeyValueRow {
 }
 
 const MAX_CONCURRENT_PATCHES = 5;
+// Cap how many failed resource names get inlined into a toast error so it stays readable.
+// Full list is always logged to the console for debugging.
+const MAX_NAMES_IN_ERROR_MESSAGE = 5;
 // Above this selection size, auth checks are deferred until dialog open to avoid
 // generating hundreds of SelfSubjectAccessReview requests on every selection change.
 const MAX_EAGER_AUTH_ITEMS = 20;
@@ -578,7 +581,14 @@ export default function EditMetadataMultipleButton(props: EditMetadataMultipleBu
       }));
       const successCount = results.length - rejectedErrors.length;
       const firstError = rejectedErrors[0].error;
-      const failedNames = rejectedErrors.map(({ itemName }) => itemName).join(', ');
+      const allFailedNames = rejectedErrors.map(({ itemName }) => itemName);
+      const failedNames =
+        allFailedNames.length > MAX_NAMES_IN_ERROR_MESSAGE
+          ? `${allFailedNames.slice(0, MAX_NAMES_IN_ERROR_MESSAGE).join(', ')}, ${t(
+              'translation|and {{count}} more',
+              { count: allFailedNames.length - MAX_NAMES_IN_ERROR_MESSAGE }
+            )}`
+          : allFailedNames.join(', ');
       console.error('Failed to update metadata for one or more resources', rejectedErrors);
       // Partial success: some items patched, some failed. Items that succeeded are not rolled back.
       if (successCount > 0) {

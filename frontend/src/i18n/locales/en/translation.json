@@ -372,6 +372,8 @@
   "Mark \"{{metaKey}}\" for removal": "Mark \"{{metaKey}}\" for removal",
   "unknown resource": "unknown resource",
   "Unknown error": "Unknown error",
+  "and {{count}} more_one": "and {{count}} more",
+  "and {{count}} more_other": "and {{count}} more",
   "Updated metadata for {{successCount}} of {{totalCount}} items. Failed: {{failedNames}}. Error: {{firstError}}": "Updated metadata for {{successCount}} of {{totalCount}} items. Failed: {{failedNames}}. Error: {{firstError}}",
   "Failed to update metadata for {{failedCount}} of {{totalCount}} items: {{failedNames}}. Error: {{firstError}}": "Failed to update metadata for {{failedCount}} of {{totalCount}} items: {{failedNames}}. Error: {{firstError}}",
   "Updating metadata for {{count}} items…_one": "Updating metadata for {{count}} item…",
