@@ -50,7 +50,6 @@ import { METRIC_REFETCH_INTERVAL_MS, PodMetrics } from '../../../lib/k8s/PodMetr
 import Secret from '../../../lib/k8s/secret';
 import { RouteURLProps } from '../../../lib/router';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
-import { getThemeName } from '../../../lib/themes';
 import { divideK8sResources } from '../../../lib/units';
 import { localeDate, useId } from '../../../lib/util';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
@@ -452,8 +451,7 @@ export interface DataFieldProps extends BaseTextFieldProps {
 export function DataField(props: DataFieldProps) {
   const { disableLabel, label, value, onSave, onChange } = props;
   // Make sure we reload after a theme change
-  useTheme();
-  const themeName = getThemeName();
+  const theme = useTheme();
 
   const [data, setData] = React.useState(value as string);
 
@@ -492,7 +490,7 @@ export function DataField(props: DataFieldProps) {
       onChange={handleChange}
       onMount={handleEditorDidMount}
       options={{ lineNumbers: 'off', automaticLayout: true }}
-      theme={themeName === 'dark' ? 'vs-dark' : 'light'}
+      theme={theme.palette.mode === 'dark' ? 'vs-dark' : 'light'}
     />
   );
 
