@@ -2474,7 +2474,9 @@ func (c *HeadlampConfig) deleteCluster(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	c.handleDeleteCluster(w, r, ctx, span, name)
+	if !c.handleDeleteCluster(w, r, ctx, span, name) {
+		return
+	}
 
 	c.getConfig(w, r)
 }
@@ -2486,15 +2488,16 @@ func (c *HeadlampConfig) handleDeleteCluster(
 	ctx context.Context,
 	span trace.Span,
 	name string,
-) {
+) bool {
 	removeKubeConfig := r.URL.Query().Get("removeKubeConfig") == "true"
 	if removeKubeConfig {
-		c.handleRemoveKubeConfig(w, r, ctx, span, name)
-		return
+		return c.handleRemoveKubeConfig(w, r, ctx, span, name)
 	}
 
 	logger.Log(logger.LevelInfo, map[string]string{"cluster": name, "proxy": name},
 		nil, "removed cluster successfully")
+
+	return true
 }
 
 // handleRemoveKubeConfig removes the cluster from the kubeconfig file.
@@ -2504,7 +2507,7 @@ func (c *HeadlampConfig) handleRemoveKubeConfig(
 	ctx context.Context,
 	span trace.Span,
 	name string,
-) {
+) bool {
 	configPath := r.URL.Query().Get("configPath")
 	originalName := r.URL.Query().Get("originalName")
 	clusterID := r.URL.Query().Get("clusterID")
@@ -2519,7 +2522,10 @@ func (c *HeadlampConfig) handleRemoveKubeConfig(
 
 	if err := kubeconfig.RemoveContextFromFile(configName, configPath); err != nil {
 		c.handleError(w, ctx, span, err, "failed to remove cluster from kubeconfig", http.StatusInternalServerError)
+		return false
 	}
+
+	return true
 }
 
 // Get path of kubeconfig we load headlamp with from source.

@@ -342,6 +342,8 @@ func TestDynamicClusters(t *testing.T) {
 }
 
 func TestDynamicClustersKubeConfig(t *testing.T) {
+	useTempHeadlampConfigHome(t)
+
 	kubeConfigByte, err := os.ReadFile("./headlamp_testdata/kubeconfig")
 	require.NoError(t, err)
 
@@ -392,6 +394,49 @@ func TestDynamicClustersKubeConfig(t *testing.T) {
 		assert.Equal(t, minikubeName, minikubeCluster.Name)
 		assert.Equal(t, "default", minikubeCluster.Metadata["namespace"])
 	}
+}
+
+func TestDeleteClusterRemoveKubeConfigStopsOnFileError(t *testing.T) {
+	useTempHeadlampConfigHome(t)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name:        "test-cluster",
+		KubeContext: &api.Context{Cluster: "test-cluster", AuthInfo: "test-user"},
+		Cluster:     &api.Cluster{Server: "https://test-cluster.example.com"},
+		AuthInfo:    &api.AuthInfo{},
+		Source:      kubeconfig.DynamicCluster,
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:          false,
+				EnableDynamicClusters: true,
+				KubeConfigStore:       kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+	handler := createHeadlampHandler(context.Background(), c)
+
+	query := url.Values{}
+	query.Set("removeKubeConfig", "true")
+	query.Set("configPath", filepath.Join(t.TempDir(), "missing-kubeconfig"))
+
+	resp, err := getResponseFromRestrictedEndpoint(
+		handler,
+		http.MethodDelete,
+		"/cluster/test-cluster?"+query.Encode(),
+		nil,
+	)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusInternalServerError, resp.Code)
+	assert.Contains(t, resp.Body.String(), "failed to load kubeconfig file")
+	assert.NotContains(t, resp.Body.String(), "\"clusters\"")
 }
 
 func TestGetClustersClusterInventorySource(t *testing.T) {
@@ -2596,6 +2641,24 @@ func setEnvForTest(t *testing.T, key, value string) func() {
 			_ = os.Unsetenv(key)
 		}
 	}
+}
+
+func useTempHeadlampConfigHome(t *testing.T) {
+	t.Helper()
+
+	tempConfigHome := filepath.Join(t.TempDir(), "config-home")
+	if runtime.GOOS == "darwin" {
+		require.NoError(t, os.MkdirAll(
+			filepath.Join(tempConfigHome, "Library", "Application Support", "Headlamp", "kubeconfigs"),
+			0o750,
+		))
+		t.Cleanup(setEnvForTest(t, "HOME", tempConfigHome))
+
+		return
+	}
+
+	require.NoError(t, os.MkdirAll(filepath.Join(tempConfigHome, "Headlamp", "kubeconfigs"), 0o750))
+	t.Cleanup(setEnvForTest(t, "XDG_CONFIG_HOME", tempConfigHome))
 }
 
 // TestCacheMiddleware_CacheHitAndCacheMiss_RealK8s tests cache hit/miss with a
