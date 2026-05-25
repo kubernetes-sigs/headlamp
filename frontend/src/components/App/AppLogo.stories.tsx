@@ -49,7 +49,7 @@ export default {
 } as Meta<typeof AppLogo>;
 
 const Template: StoryFn<AppLogoProps> = args => {
-  const themeName = args.themeName === 'Dark' ? 'Dark' : 'Light';
+  const themeName = args.themeName === 'dark' ? 'Dark' : 'Light';
   const store = configureStore({
     reducer: (state = getMockState(themeName)) => state,
     preloadedState: getMockState(themeName),
