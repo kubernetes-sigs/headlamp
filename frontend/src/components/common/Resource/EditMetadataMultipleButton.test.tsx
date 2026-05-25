@@ -225,7 +225,7 @@ describe('EditMetadataMultipleButton', () => {
       const envChip = screen.getByText(/env \(2\/2\)/).closest('.MuiChip-root');
       fireEvent.click(envChip!);
 
-      fireEvent.click(screen.getByRole('button', { name: 'confirm-button' }));
+      fireEvent.click(screen.getByTestId('confirm-button'));
 
       const applyFunc = mockClusterAction.mock.calls[0][0];
       await applyFunc();
@@ -253,7 +253,7 @@ describe('EditMetadataMultipleButton', () => {
       fireEvent.change(screen.getByLabelText('label-key-0'), { target: { value: 'env' } });
       fireEvent.change(screen.getByLabelText('label-value-0'), { target: { value: 'staging' } });
 
-      fireEvent.click(screen.getByRole('button', { name: 'confirm-button' }));
+      fireEvent.click(screen.getByTestId('confirm-button'));
 
       const applyFunc = mockClusterAction.mock.calls[0][0];
       await applyFunc();
@@ -279,7 +279,7 @@ describe('EditMetadataMultipleButton', () => {
       fireEvent.change(screen.getByLabelText('annotation-key-0'), { target: { value: 'author' } });
       fireEvent.change(screen.getByLabelText('annotation-value-0'), { target: { value: 'bot' } });
 
-      fireEvent.click(screen.getByRole('button', { name: 'confirm-button' }));
+      fireEvent.click(screen.getByTestId('confirm-button'));
 
       const applyFunc = mockClusterAction.mock.calls[0][0];
       await applyFunc();
@@ -324,7 +324,7 @@ describe('EditMetadataMultipleButton', () => {
 
       fireEvent.click(screen.getByText(/env \(2\/2\)/).closest('.MuiChip-root')!);
 
-      fireEvent.click(screen.getByRole('button', { name: 'confirm-button' }));
+      fireEvent.click(screen.getByTestId('confirm-button'));
       const applyFunc = mockClusterAction.mock.calls[0][0];
       await applyFunc();
 
@@ -342,7 +342,7 @@ describe('EditMetadataMultipleButton', () => {
       await waitFor(() => expect(screen.queryByText(/Add \/ update labels/)).toBeInTheDocument());
 
       fireEvent.change(screen.getByLabelText('label-key-0'), { target: { value: 'temporary' } });
-      fireEvent.click(screen.getByRole('button', { name: 'cancel-button' }));
+      fireEvent.click(screen.getByTestId('cancel-button'));
 
       fireEvent.click(await screen.findByLabelText('Edit metadata'));
       await waitFor(() => expect(screen.queryByText(/Add \/ update labels/)).toBeInTheDocument());
@@ -363,7 +363,7 @@ describe('EditMetadataMultipleButton', () => {
         target: { value: 'spaced-value' },
       });
 
-      fireEvent.click(screen.getByRole('button', { name: 'confirm-button' }));
+      fireEvent.click(screen.getByTestId('confirm-button'));
       const applyFunc = mockClusterAction.mock.calls[0][0];
       await applyFunc();
 
@@ -386,7 +386,7 @@ describe('EditMetadataMultipleButton', () => {
       // Kubernetes label values may be empty strings (spec-compliant); submitting a
       // key with no value is intentional and should patch with value "".
       fireEvent.change(screen.getByLabelText('label-key-0'), { target: { value: 'new' } });
-      fireEvent.click(screen.getByRole('button', { name: 'confirm-button' }));
+      fireEvent.click(screen.getByTestId('confirm-button'));
       const applyFunc = mockClusterAction.mock.calls[0][0];
       await applyFunc();
 
@@ -406,7 +406,7 @@ describe('EditMetadataMultipleButton', () => {
       await waitFor(() => expect(screen.queryByText(/Add \/ update labels/)).toBeInTheDocument());
 
       fireEvent.change(screen.getByLabelText('label-key-0'), { target: { value: 'fail' } });
-      fireEvent.click(screen.getByRole('button', { name: 'confirm-button' }));
+      fireEvent.click(screen.getByTestId('confirm-button'));
 
       const applyFunc = mockClusterAction.mock.calls[0][0];
       await expect(applyFunc()).rejects.toThrow(/Failed to update metadata for 2 of 2 item/);
@@ -484,13 +484,13 @@ describe('EditMetadataMultipleButton', () => {
       fireEvent.click(await screen.findByLabelText('Edit metadata'));
 
       expect(await screen.findByRole('progressbar')).toBeInTheDocument();
-      expect(screen.queryByRole('button', { name: 'confirm-button' })).not.toBeInTheDocument();
+      expect(screen.queryByTestId('confirm-button')).not.toBeInTheDocument();
 
       resolveAuthorization?.({ status: { allowed: true, reason: '' } });
 
       await waitFor(() => {
         expect(screen.queryByRole('progressbar')).not.toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'confirm-button' })).toBeInTheDocument();
+        expect(screen.getByTestId('confirm-button')).toBeInTheDocument();
       });
     });
 
@@ -504,7 +504,7 @@ describe('EditMetadataMultipleButton', () => {
 
       await waitFor(() => {
         expect(screen.getByText(/Key name must start\/end with alphanumeric/)).toBeInTheDocument();
-        expect(screen.getByRole('button', { name: 'confirm-button' })).toBeDisabled();
+        expect(screen.getByTestId('confirm-button')).toBeDisabled();
       });
     });
 
@@ -520,7 +520,7 @@ describe('EditMetadataMultipleButton', () => {
 
       await waitFor(() => {
         expect(screen.getAllByText(/Duplicate key/).length).toBeGreaterThan(0);
-        expect(screen.getByRole('button', { name: 'confirm-button' })).toBeDisabled();
+        expect(screen.getByTestId('confirm-button')).toBeDisabled();
       });
     });
 
@@ -536,7 +536,7 @@ describe('EditMetadataMultipleButton', () => {
 
       fireEvent.click(screen.getAllByLabelText('Remove row')[1]);
 
-      fireEvent.click(screen.getByRole('button', { name: 'confirm-button' }));
+      fireEvent.click(screen.getByTestId('confirm-button'));
       const applyFunc = mockClusterAction.mock.calls[0][0];
       await applyFunc();
 

@@ -847,7 +847,7 @@ export default function EditMetadataMultipleButton(props: EditMetadataMultipleBu
           </DialogContent>
           <DialogActions>
             <Button
-              aria-label="cancel-button"
+              data-testid="cancel-button"
               onClick={handleClose}
               color="secondary"
               variant="contained"
@@ -856,7 +856,7 @@ export default function EditMetadataMultipleButton(props: EditMetadataMultipleBu
             </Button>
             {!authChecksPending && !noPermittedItemsInDialog && (
               <Button
-                aria-label="confirm-button"
+                data-testid="confirm-button"
                 onClick={handleApply}
                 variant="contained"
                 color="primary"
