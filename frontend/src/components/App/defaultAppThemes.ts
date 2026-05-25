@@ -16,7 +16,7 @@
 
 import { AppTheme } from '../../lib/AppTheme';
 
-const headlampClassicLightTheme: AppTheme = {
+export const headlampClassicLightTheme: AppTheme = {
   name: 'Headlamp Classic',
   primary: '#222',
   secondary: '#eaeaea',
