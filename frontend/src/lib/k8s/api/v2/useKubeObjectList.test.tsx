@@ -412,6 +412,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       'cluster-a',
       expect.stringContaining('/api/v1/namespaces/namespace-a/pods'),
       'watch=1&resourceVersion=1',
+      expect.any(Function),
       expect.any(Function)
     );
   });
@@ -442,6 +443,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       'cluster-a',
       expect.stringContaining('/api/v1/namespaces/namespace-a/pods'),
       'watch=1&resourceVersion=1',
+      expect.any(Function),
       expect.any(Function)
     );
     expect(mockSubscribe).toHaveBeenNthCalledWith(
@@ -449,6 +451,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       'cluster-b',
       expect.stringContaining('/api/v1/namespaces/namespace-b/pods'),
       'watch=1&resourceVersion=2',
+      expect.any(Function),
       expect.any(Function)
     );
   });
@@ -474,6 +477,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       'cluster-a',
       expect.stringContaining('/api/v1/pods'),
       'watch=1&resourceVersion=1',
+      expect.any(Function),
       expect.any(Function)
     );
   });
