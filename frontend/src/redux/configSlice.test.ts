@@ -138,6 +138,31 @@ describe('configSlice', () => {
     });
   });
 
+  it('should handle setConfig with oidcAutoLogin', () => {
+    const nextState = configReducer(initialState, setConfig({ clusters: {}, oidcAutoLogin: true }));
+    expect(nextState.oidcAutoLogin).toBe(true);
+  });
+
+  it('should preserve oidcAutoLogin when setConfig is called without it', () => {
+    let state = configReducer(initialState, setConfig({ clusters: {}, oidcAutoLogin: true }));
+
+    expect(state.oidcAutoLogin).toBe(true);
+
+    state = configReducer(state, setConfig({ clusters: {} }));
+
+    expect(state.oidcAutoLogin).toBe(true);
+  });
+
+  it('should allow clearing oidcAutoLogin', () => {
+    let state = configReducer(initialState, setConfig({ clusters: {}, oidcAutoLogin: true }));
+
+    expect(state.oidcAutoLogin).toBe(true);
+
+    state = configReducer(state, setConfig({ clusters: {}, oidcAutoLogin: false }));
+
+    expect(state.oidcAutoLogin).toBe(false);
+  });
+
   it('should not modify the original state', () => {
     const originalState = JSON.parse(JSON.stringify(initialState));
     const clusters: ConfigState['clusters'] = {

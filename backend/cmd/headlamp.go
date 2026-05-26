@@ -168,7 +168,7 @@ type clientConfig struct {
 	DefaultLightTheme       string    `json:"defaultLightTheme,omitempty"`
 	DefaultDarkTheme        string    `json:"defaultDarkTheme,omitempty"`
 	ForceTheme              string    `json:"forceTheme,omitempty"`
-	OidcAutoLogin           bool      `json:"oidcAutoLogin,omitempty"`
+	OidcAutoLogin           bool      `json:"oidcAutoLogin"`
 }
 
 type OauthConfig struct {
