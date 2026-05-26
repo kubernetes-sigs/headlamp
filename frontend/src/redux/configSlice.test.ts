@@ -76,6 +76,14 @@ describe('configSlice', () => {
     expect(nextState.defaultPodDebugImage).toBe('');
   });
 
+  it('should handle setConfig with externalLinks', () => {
+    const state = initialState;
+    const links = [{ label: 'Grafana', url: 'https://grafana.com', icon: 'mdi:chart-line' }];
+    const nextState = configReducer(state, setConfig({ clusters: {}, externalLinks: links }));
+
+    expect(nextState.externalLinks).toEqual(links);
+  });
+
   it('should preserve isDynamicClusterEnabled when setConfig is called without it', () => {
     let state = configReducer(
       initialState,

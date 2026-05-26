@@ -52,9 +52,15 @@ const sortSidebarItems = (items: SidebarItemProps[]): SidebarItemProps[] => {
   }));
 };
 
+const safeLinkUrl = (url: string): string | null => {
+  const lower = url.toLowerCase();
+  return lower.startsWith('http://') || lower.startsWith('https://') ? url.toLowerCase() : null;
+};
+
 export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER) => {
   const clusters = useTypedSelector(state => state.config.clusters) ?? {};
   const settings = useTypedSelector(state => state.config.settings);
+  const externalLinks = useTypedSelector(state => state.config.externalLinks) || [];
   const customSidebarEntries = useTypedSelector(state => state.sidebar.entries);
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
   const shouldShowHomeItem = isElectron() || Object.keys(clusters).length !== 1;
@@ -452,6 +458,22 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
       });
     }
 
+    if (externalLinks.length > 0) {
+      inClusterItems.push({
+        name: 'externalLinks',
+        label: t('translation|External Links'),
+        icon: 'mdi:link-variant',
+        subList: externalLinks
+          .filter(link => safeLinkUrl(link.url))
+          .map((link, i) => ({
+            name: `external-link-${i}`,
+            label: link.label,
+            url: safeLinkUrl(link.url)!,
+            icon: link.icon || 'mdi:link',
+          })),
+      });
+    }
+
     // List of sidebars, they act as roots for the sidebar tree
     const sidebarsList: SidebarItemProps[] = [
       { name: DefaultSidebars.HOME, subList: homeItems, label: '' },
@@ -523,6 +545,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     selectedClusters.join(','),
     allClustersConf,
     crdsSidebarEntries,
+    externalLinks,
     t,
   ]);
 

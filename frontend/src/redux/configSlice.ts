@@ -18,6 +18,12 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 import { createSlice } from '@reduxjs/toolkit';
 import type { Cluster } from '../lib/k8s/cluster';
 
+export interface ExternalLink {
+  label: string;
+  url: string;
+  icon?: string;
+}
+
 export interface ConfigState {
   /**
    * Clusters is a map of cluster names to cluster objects.
@@ -64,6 +70,10 @@ export interface ConfigState {
   defaultLightTheme?: string;
   defaultDarkTheme?: string;
   forceTheme?: string;
+  /**
+   * List of custom external links to display in the sidebar.
+   */
+  externalLinks: ExternalLink[];
   /**
    * Settings is a map of settings names to settings values.
    */
@@ -157,6 +167,7 @@ export const initialState: ConfigState = {
   isDynamicClusterEnabled: false,
   allowKubeconfigChanges: false,
   defaultPodDebugImage: '',
+  externalLinks: [],
   settings: {
     tableRowsPerPageOptions:
       storedSettings.tableRowsPerPageOptions ?? defaultTableRowsPerPageOptions,
@@ -185,6 +196,7 @@ const configSlice = createSlice({
         defaultLightTheme?: string;
         defaultDarkTheme?: string;
         forceTheme?: string;
+        externalLinks?: ExternalLink[];
       }>
     ) {
       state.clusters = action.payload.clusters;
@@ -200,6 +212,9 @@ const configSlice = createSlice({
       state.defaultLightTheme = action.payload.defaultLightTheme;
       state.defaultDarkTheme = action.payload.defaultDarkTheme;
       state.forceTheme = action.payload.forceTheme;
+      if (action.payload.externalLinks !== undefined) {
+        state.externalLinks = action.payload.externalLinks;
+      }
     },
     /**
      * Save the config. To both the store, and localStorage.
