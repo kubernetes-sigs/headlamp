@@ -436,3 +436,15 @@ func TestMarshalCustomObject_InvalidJSON(t *testing.T) {
 	_, err := MarshalCustomObject(mockInfo, "test-context")
 	assert.Error(t, err)
 }
+
+func TestHandleStatelessReqUsesStructuredKey(t *testing.T) {
+	key1 := statelessContextKey("ab", "c")
+	key2 := statelessContextKey("a", "bc")
+
+	// Verify no collision
+	assert.NotEqual(t, key1, key2)
+
+	// Verify format
+	assert.Equal(t, "2:ab|1:c", key1)
+	assert.Equal(t, "1:a|2:bc", key2)
+}
