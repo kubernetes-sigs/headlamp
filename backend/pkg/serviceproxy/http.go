@@ -25,7 +25,7 @@ func HTTPGetStream(ctx context.Context, uri string, w io.Writer) error {
 
 	resp, err := cli.Do(req) //nolint:gosec
 	if err != nil {
-		return fmt.Errorf("failed HTTP GET: %v", err)
+		return fmt.Errorf("failed HTTP GET: %w", err)
 	}
 
 	defer func() { _ = resp.Body.Close() }()

@@ -24,6 +24,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cli/browser"
@@ -138,9 +139,65 @@ func buildTelemetryConfig(conf *config.Config) config.Config {
 	}
 }
 
+// setupKubeConfigStoreWatcher sets up a listener on the kubeConfigStore to sync watchers
+// when kubeconfig contexts change.
+func setupKubeConfigStoreWatcher(kubeConfigStore kubeconfig.ContextStore) {
+	var (
+		syncTimer  *time.Timer
+		syncMu     sync.Mutex
+		generation int64
+	)
+
+	kubeConfigStore.AddListener(func() {
+		syncMu.Lock()
+		defer syncMu.Unlock()
+
+		generation++
+		currentGen := generation
+
+		if syncTimer != nil {
+			syncTimer.Stop()
+		}
+
+		syncTimer = time.AfterFunc(500*time.Millisecond, func() {
+			syncMu.Lock()
+			if currentGen != generation {
+				syncMu.Unlock()
+				return
+			}
+			syncMu.Unlock()
+
+			active, err := kubeConfigStore.GetContextKeys()
+			if err != nil {
+				logger.Log(logger.LevelWarn, nil, err, "failed to get kubeconfig context keys; skipping watcher sync")
+				return
+			}
+
+			k8cache.SyncWatchers(active)
+		})
+	})
+}
+
+// loadOidcCACert reads the OIDC CA certificate from file if configured.
+func loadOidcCACert(oidcCAFile string) string {
+	if oidcCAFile == "" {
+		return ""
+	}
+
+	caFileContents, err := os.ReadFile(oidcCAFile) //nolint:gosec
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "reading oidc ca file")
+		os.Exit(1)
+	}
+
+	return string(caFileContents)
+}
+
 func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
+	setupKubeConfigStoreWatcher(kubeConfigStore)
+
 	multiplexer := NewMultiplexer(kubeConfigStore, conf.InCluster && conf.UnsafeUseServiceAccountToken)
 
 	cfg := &headlampconfig.HeadlampConfig{
@@ -162,16 +219,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		Cache:                     cache,
 		Multiplexer:               multiplexer,
 		TelemetryConfig:           buildTelemetryConfig(conf),
-	}
-
-	if conf.OidcCAFile != "" {
-		caFileContents, err := os.ReadFile(conf.OidcCAFile) //nolint:gosec
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "reading oidc ca file")
-			os.Exit(1)
-		}
-
-		cfg.OidcCACert = string(caFileContents)
+		OidcCACert:                loadOidcCACert(conf.OidcCAFile),
 	}
 
 	cfg.ProxyAuthEnabled = conf.ProxyAuthEnabled

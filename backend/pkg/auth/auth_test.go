@@ -453,6 +453,14 @@ func (cacheStub) UpdateTTL(ctx context.Context, k string, ttl time.Duration) err
 	return nil
 }
 
+func (cacheStub) SetOnEvicted(callback func(key string, value interface{})) {
+	// No-op for stub
+}
+
+func (cacheStub) Close() error {
+	return nil
+}
+
 type fakeCache struct {
 	cacheStub
 	store    map[string]interface{}
@@ -1093,6 +1101,15 @@ func TestConfigureTLSContext_CACert(t *testing.T) {
 	caCertParsed, err := x509.ParseCertificate(block.Bytes)
 	require.NoError(t, err)
 	assert.True(t, caCertParsed.IsCA, "Generated certificate should be a CA certificate")
+}
+
+// TestConfigureTLSContext_EmptyCACert verifies that a non-nil pointer
+// to an empty string is treated the same as nil (no custom CA configured).
+func TestConfigureTLSContext_EmptyCACert(t *testing.T) {
+	baseCtx := context.Background()
+	emptyCert := ""
+	resultCtx := auth.ConfigureTLSContext(baseCtx, nil, &emptyCert)
+	assert.Equal(t, baseCtx, resultCtx, "Context should not be modified when caCert is empty")
 }
 
 // TestConfigureTLSContext_SkipTLS_PreservesDefaults verifies that cloning

@@ -42,8 +42,8 @@ import { supportedLanguages } from './config';
  * @param locale - The language code to retrieve the locale for.
  * @returns A Material-UI locale object, defaults to enUS if locale is unsupported.
  */
-function getLocale(locale: string): typeof enUS {
-  const normalizedLocale = locale.toLowerCase();
+function getLocale(locale: string | undefined): typeof enUS {
+  const normalizedLocale = locale?.toLowerCase() ?? 'en';
 
   const LOCALES = {
     en: enUS,

@@ -3,6 +3,8 @@ version: 1
 default_agent: "@dev-agent"
 
 > **Consulted files (agent must populate before committing):**
+> - `/backend/pkg/k8cache/cacheInvalidation.go`
+> - `/backend/pkg/kubeconfig/contextStore.go`
 >
 > **README.md files:**
 > - `/README.md` - Main project README
