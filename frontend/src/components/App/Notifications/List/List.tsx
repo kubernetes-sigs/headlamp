@@ -22,7 +22,7 @@ import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
 import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
-import { useMemo, useState } from 'react';
+import { type MouseEvent, type SyntheticEvent, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
@@ -56,7 +56,7 @@ export default function NotificationList() {
     return !!notifications.find(notification => !notification.deleted && !notification.seen);
   }, [notifications]);
 
-  function notificationSeenUnseenHandler(event: any, notification?: NotificationIface) {
+  function notificationSeenUnseenHandler(_event: SyntheticEvent, notification?: NotificationIface) {
     if (!notification) {
       return;
     }
@@ -88,9 +88,9 @@ export default function NotificationList() {
   }
 
   function NotificationActionMenu() {
-    const [anchorEl, setAnchorEl] = useState(null);
+    const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
 
-    function handleClick(event: any) {
+    function handleClick(event: MouseEvent<HTMLElement>) {
       setAnchorEl(event.currentTarget);
     }
 

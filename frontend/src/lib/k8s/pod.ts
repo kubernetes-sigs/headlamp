@@ -27,6 +27,14 @@ export interface KubeVolume {
   [volumeName: string]: any;
 }
 
+export interface KubeToleration {
+  key?: string;
+  operator?: string;
+  value?: string;
+  effect?: string;
+  tolerationSeconds?: number;
+}
+
 export interface KubePodSpec {
   containers: KubeContainer[];
   nodeName: string;
@@ -45,7 +53,7 @@ export interface KubePodSpec {
   priorityClassName?: string;
   runtimeClassName?: string;
   terminationGracePeriodSeconds?: number;
-  tolerations?: any[];
+  tolerations?: KubeToleration[];
   restartPolicy?: string;
 }
 
