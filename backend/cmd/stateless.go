@@ -80,8 +80,9 @@ func (c *HeadlampConfig) setKeyInCache(key string, context kubeconfig.Context) e
 	return nil
 }
 
-// statelessContextKey generates a structured context key using a null byte separator
-// to avoid collisions across cluster and user pairs.
+// statelessContextKey generates a structured context key using length-prefixed
+// components to avoid collisions across cluster and user pairs.
+// Format: "<len(clusterName)>:<clusterName>|<len(userID)>:<userID>".
 func statelessContextKey(clusterName, userID string) string {
 	return fmt.Sprintf("%d:%s|%d:%s", len(clusterName), clusterName, len(userID), userID)
 }

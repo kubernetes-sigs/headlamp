@@ -300,7 +300,7 @@ func TestWebsocketConnContextKey(t *testing.T) {
 			name:           "With authorization protocol",
 			protocols:      "base64url.headlamp.authorization.k8s.io.user123, v4.channel.k8s.io",
 			clusterName:    "test-cluster",
-			expectedKey:    "12:test-cluster|7:user123",
+			expectedKey:    statelessContextKey("test-cluster", "user123"),
 			expectedHeader: "v4.channel.k8s.io",
 		},
 		{
@@ -340,4 +340,16 @@ func TestStatelessContextKeyCollision(t *testing.T) {
 	wsKey2 := websocketConnContextKey(req2, "a")
 
 	assert.NotEqual(t, wsKey1, wsKey2, "websocketConnContextKey should avoid collisions")
+}
+
+func TestHandleStatelessReqUsesStructuredKey(t *testing.T) {
+	key1 := statelessContextKey("ab", "c")
+	key2 := statelessContextKey("a", "bc")
+
+	// Verify no collision
+	assert.NotEqual(t, key1, key2)
+
+	// Verify format
+	assert.Equal(t, "2:ab|1:c", key1)
+	assert.Equal(t, "1:a|2:bc", key2)
 }
