@@ -488,3 +488,4 @@ export * as serviceAccount from './serviceAccount';
 export * as statefulSet from './statefulSet';
 export * as storageClass from './storageClass';
 export * as volumeAttributesClass from './volumeAttributesClass';
+export { ApiError } from './api/v2/ApiError';

@@ -34,6 +34,7 @@ const externalModules = {
   '@kinvolk/headlamp-plugin/lib/Router': 'pluginLib.Router',
   '@kinvolk/headlamp-plugin/lib/Utils': 'pluginLib.Utils',
   '@kinvolk/headlamp-plugin/lib/Notification': 'pluginLib.Notification',
+  '@kinvolk/headlamp-plugin/lib/k8s/api/v2/ApiError': 'pluginLib.K8s',
   // We also point k8s (lowercase) to it, since users may use it instead as it's closer to
   // how it's used in Headlamp's source code.
   '@kinvolk/headlamp-plugin/lib/k8s': 'pluginLib.K8s',

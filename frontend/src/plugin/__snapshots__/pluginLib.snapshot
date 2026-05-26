@@ -346,6 +346,7 @@
   "Headlamp": [Function],
   "Iconify": "Present",
   "K8s": {
+    "ApiError": [Function],
     "ResourceClasses": {
       "ClusterRole": [Function],
       "ClusterRoleBinding": [Function],
