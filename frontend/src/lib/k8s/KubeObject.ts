@@ -181,14 +181,16 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     return this.jsonData.kind;
   }
 
-  getDetailsLink() {
+  getDetailsLink(): string | null {
+    const name = this.getName();
+    if (!name) {
+      return null;
+    }
     const selectedClusters = getSelectedClusters();
-
     const cluster = formatClusterPathParam(selectedClusters, this.cluster);
-
     const params = {
       namespace: this.getNamespace(),
-      name: this.getName(),
+      name,
       cluster,
     };
     const link = createRouteURL(this.detailsRoute, params);

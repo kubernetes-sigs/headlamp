@@ -102,7 +102,7 @@ export function RollbackButton(props: RollbackButtonProps) {
 
   function handleConfirm(toRevision?: number) {
     const itemName = rollbackResource.metadata.name;
-
+    const detailsLink = rollbackResource.getDetailsLink();
     dispatch(
       clusterAction(() => performRollback(toRevision), {
         startMessage: t('Rolling back {{ itemName }} to previous version…', { itemName }),
@@ -110,8 +110,8 @@ export function RollbackButton(props: RollbackButtonProps) {
         successMessage: t('Rolled back {{ itemName }} to previous version.', { itemName }),
         errorMessage: t('Failed to rollback {{ itemName }}.', { itemName }),
         cancelUrl: location.pathname,
-        startUrl: rollbackResource.getDetailsLink(),
-        errorUrl: rollbackResource.getDetailsLink(),
+        startUrl: detailsLink ?? undefined,
+        errorUrl: detailsLink ?? undefined,
       })
     );
 

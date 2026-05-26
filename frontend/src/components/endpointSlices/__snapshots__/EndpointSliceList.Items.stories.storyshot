@@ -711,9 +711,8 @@
               <td
                 class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
               >
-                <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                  href="/"
+                <span
+                  class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
                 />
               </td>
               <td

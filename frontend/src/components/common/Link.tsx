@@ -15,6 +15,7 @@
  */
 
 import MuiLink from '@mui/material/Link';
+import Typography from '@mui/material/Typography';
 import { useQueryClient } from '@tanstack/react-query';
 import React from 'react';
 import { Link as RouterLink } from 'react-router-dom';
@@ -66,6 +67,16 @@ function KubeObjectLink(props: {
   const { namespace, name } = kubeObject.metadata;
   const { endpoint } = useEndpoints(kubeObject._class().apiEndpoint.apiInfo, kubeObject.cluster);
 
+  const detailsLink = kubeObject.getDetailsLink();
+
+  if (!detailsLink) {
+    return (
+      <Typography component="span" {...otherProps}>
+        {props.children || kubeObject!.getName()}
+      </Typography>
+    );
+  }
+
   return (
     <MuiLink
       onClick={e => {
@@ -75,10 +86,7 @@ function KubeObjectLink(props: {
           namespace,
           name,
         });
-        // prepopulate the query cache with existing object
         client.setQueryData(key, kubeObject);
-        // and invalidate it (mark as stale)
-        // so that the latest version will be downloaded in the background
         client.invalidateQueries({ queryKey: key });
 
         if (onClick) {
@@ -87,7 +95,7 @@ function KubeObjectLink(props: {
         }
       }}
       component={RouterLink}
-      to={kubeObject.getDetailsLink()}
+      to={detailsLink}
       {...otherProps}
     >
       {props.children || kubeObject!.getName()}
