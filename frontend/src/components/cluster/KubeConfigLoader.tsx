@@ -325,8 +325,10 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
       useCover
       aria-labelledby="kubeconfig-loader-heading"
     >
-      <DialogTitle id="kubeconfig-loader-heading">
-        {step === Step.SelectClusters ? t('Select clusters to add') : t('Load from KubeConfig')}
+      <DialogTitle>
+        <span id="kubeconfig-loader-heading">
+          {step === Step.SelectClusters ? t('Select clusters to add') : t('Load from KubeConfig')}
+        </span>
       </DialogTitle>
       {error && error !== '' ? (
         <Box
