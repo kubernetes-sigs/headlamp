@@ -132,9 +132,11 @@ describe('themes.ts', () => {
 
     it('should return light when system prefers light', () => {
       Object.defineProperty(window, 'matchMedia', {
-        value: vi
-          .fn()
-          .mockReturnValue({ matches: false, addListener: vi.fn(), removeListener: vi.fn() }),
+        value: vi.fn().mockReturnValue({
+          matches: false,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }),
         writable: true,
         configurable: true,
       });
@@ -144,9 +146,11 @@ describe('themes.ts', () => {
 
     it('should return dark when system prefers dark', () => {
       Object.defineProperty(window, 'matchMedia', {
-        value: vi
-          .fn()
-          .mockReturnValue({ matches: true, addListener: vi.fn(), removeListener: vi.fn() }),
+        value: vi.fn().mockReturnValue({
+          matches: true,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }),
         writable: true,
         configurable: true,
       });
@@ -155,17 +159,24 @@ describe('themes.ts', () => {
     });
 
     it('should register and clean up the media query listener', () => {
-      const addListener = vi.fn();
-      const removeListener = vi.fn();
+      const addEventListener = vi.fn();
+      const removeEventListener = vi.fn();
       Object.defineProperty(window, 'matchMedia', {
-        value: vi.fn().mockReturnValue({ matches: false, addListener, removeListener }),
+        value: vi.fn().mockReturnValue({ matches: false, addEventListener, removeEventListener }),
         writable: true,
         configurable: true,
       });
       const { unmount } = renderHook(() => usePrefersColorScheme());
-      expect(addListener).toHaveBeenCalledTimes(1);
+
+      expect(addEventListener).toHaveBeenCalledTimes(1);
+      expect(addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
+
+      const handler = addEventListener.mock.calls[0][1];
+
       unmount();
-      expect(removeListener).toHaveBeenCalledTimes(1);
+
+      expect(removeEventListener).toHaveBeenCalledTimes(1);
+      expect(removeEventListener).toHaveBeenCalledWith('change', handler);
     });
   });
 
