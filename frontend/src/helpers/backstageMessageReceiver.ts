@@ -110,9 +110,9 @@ interface BackstageMessage {
 const BACKSTAGE_ACK_TIMEOUT_MS = 1000;
 
 /**
- * Sets up the Backstage message receiver for the given cluster.
- * setupBackstageMessageReceiver sets up a listener for messages from the backstage app
- * and sets the backend token if it is received
+ * Sets up a listener for messages from the Backstage app.
+ * Handles Backstage auth token messages by storing the Backstage token,
+ * and kubeconfig messages by storing the kubeconfig for stateless use.
  *
  * @returns A cleanup function that removes the registered message event listener.
  */
