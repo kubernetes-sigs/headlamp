@@ -28,28 +28,24 @@ vi.mock('../globalSearch/useLocalStorageState', () => ({
 }));
 
 vi.mock('@xterm/xterm', () => ({
-  Terminal: vi.fn(
-    class {
-      open = vi.fn();
-      clear = vi.fn();
-      write = vi.fn();
-      focus = vi.fn();
-      onData = vi.fn();
-      onResize = vi.fn();
-      attachCustomKeyEventHandler = vi.fn();
-      dispose = vi.fn();
-      loadAddon = vi.fn();
-    }
-  ),
+  Terminal: vi.fn().mockImplementation(() => ({
+    open: vi.fn(),
+    clear: vi.fn(),
+    write: vi.fn(),
+    focus: vi.fn(),
+    onData: vi.fn(),
+    onResize: vi.fn(),
+    attachCustomKeyEventHandler: vi.fn(),
+    dispose: vi.fn(),
+    loadAddon: vi.fn(),
+  })),
 }));
 
 vi.mock('@xterm/addon-fit', () => ({
-  FitAddon: vi.fn(
-    class {
-      fit = vi.fn();
-      activate = vi.fn();
-    }
-  ),
+  FitAddon: vi.fn().mockImplementation(() => ({
+    fit: vi.fn(),
+    activate: vi.fn(),
+  })),
 }));
 
 function makeMockPod(getLogs: (...args: any[]) => any) {

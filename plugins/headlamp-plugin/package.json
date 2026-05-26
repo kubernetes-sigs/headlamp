@@ -55,8 +55,8 @@
     "@types/react-window": "^1.8.8",
     "@types/semver": "^7.3.8",
     "@typescript-eslint/eslint-plugin": "^8.3.0",
-    "@vitejs/plugin-react": "^6.0.2",
-    "@vitest/coverage-istanbul": "^4.1.2",
+    "@vitejs/plugin-react": "^4.3.4",
+    "@vitest/coverage-istanbul": "^3.0.5",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-search": "^0.15.0",
     "@xterm/xterm": "^5.5.0",
@@ -114,12 +114,12 @@
     "ts-loader": "^9.5.2",
     "typescript": "5.6.2",
     "validate-npm-package-name": "^3.0.0",
-    "vite": "^8.0.14",
+    "vite": "^6.4.1",
     "vite-plugin-css-injected-by-js": "^3.5.1",
-    "vite-plugin-node-polyfills": "^0.26.0",
-    "vite-plugin-static-copy": "^4.0.0",
+    "vite-plugin-node-polyfills": "^0.23.0",
+    "vite-plugin-static-copy": "^3.1.2",
     "vite-plugin-svgr": "^4.3.0",
-    "vitest": "^4.1.2",
+    "vitest": "^3.0.5",
     "yaml": "^2.7.0",
     "yargs": "^17.7.2"
   },
@@ -128,8 +128,7 @@
     "nth-check": "2.0.1",
     "domain-browser": "npm:dry-uninstall",
     "typescript": "5.6.2",
-    "rollup": "^4.59.0",
-    "vite": "^8.0.14"
+    "rollup": "^4.59.0"
   },
   "files": [
     "bin",

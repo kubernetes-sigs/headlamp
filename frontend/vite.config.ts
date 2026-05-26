@@ -17,9 +17,10 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
-import { viteStaticCopy } from 'vite-plugin-static-copy';
 import svgr from 'vite-plugin-svgr';
+import { viteStaticCopy } from "vite-plugin-static-copy";
 
+// Use environment variable for backend port, defaulting to 4466
 const backendPort = process.env.HEADLAMP_PORT || '4466';
 const backendTarget = `http://localhost:${backendPort}`;
 const underTest = process.env.UNDER_TEST === 'true' || process.env.VITEST === 'true';
@@ -34,28 +35,62 @@ export default defineConfig({
   server: {
     port: 3000,
     proxy: {
-      ...Object.fromEntries(
-        // Backend endpoints to proxy
-        [
-          'api',
-          'clusters',
-          'plugins',
-          'config',
-          'auth',
-          'oidc',
-          'oidc-callback',
-          'externalProxy',
-          'drain-node',
-          'drain-node-status',
-          'parseKubeConfig',
-          'cluster',
-          'metrics',
-        ].map(name => ['/' + name, { target: backendTarget, changeOrigin: true }])
-      ),
+      '/api': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/clusters': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/plugins': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/config': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/auth': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/oidc': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/oidc-callback': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
       '/wsMultiplexer': {
         target: backendTarget,
         changeOrigin: true,
         ws: true,
+      },
+      '/externalproxy': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/drain-node': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/drain-node-status': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/parseKubeConfig': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/cluster': {
+        target: backendTarget,
+        changeOrigin: true,
+      },
+      '/metrics': {
+        target: backendTarget,
+        changeOrigin: true,
       },
     },
     cors: true,
@@ -66,16 +101,7 @@ export default defineConfig({
         prettier: false,
         svgo: false,
         svgoConfig: {
-          plugins: [
-            {
-              name: 'preset-default',
-              params: {
-                overrides: {
-                  removeViewBox: false,
-                },
-              },
-            },
-          ],
+          plugins: [{ removeViewBox: false }],
         },
         titleProp: true,
         ref: true,
@@ -83,7 +109,7 @@ export default defineConfig({
     }),
     react(),
     nodePolyfills({
-      include: ['process', 'buffer', 'stream', 'path'],
+      include: ['process', 'buffer', 'stream'],
     }),
     // Make sure we copy the minified monaco-editor source into the static folder
     // since it's loaded dynamically and not bundled via ESM. We do it this way
@@ -91,14 +117,42 @@ export default defineConfig({
     viteStaticCopy({
       targets: [
         {
-          src: 'node_modules/monaco-editor/min/vs/',
-          dest: 'assets/', // copies to assets/vs
-          rename: { stripBase: 3 },
+          src: "node_modules/monaco-editor/min/vs",
+          dest: "assets", // copies to assets/vs
         },
       ],
     }),
   ],
   build: {
     outDir: 'build',
+    commonjsOptions: {
+      transformMixedEsModules: true,
+    },
+    rollupOptions: {
+      // Exclude @axe-core from production bundle
+      external: ['@axe-core/react'],
+      output: {
+        manualChunks(id: string) {
+          // Build smaller chunks for @mui, lodash, xterm, recharts
+          if (id.includes('node_modules')) {
+            if (id.includes('lodash')) {
+              return 'vendor-lodash';
+            }
+
+            if (id.includes('@mui/material')) {
+              return 'vendor-mui';
+            }
+
+            if (id.includes('xterm')) {
+              return 'vendor-xterm';
+            }
+
+            if (id.includes('recharts')) {
+              return 'vendor-recharts';
+            }
+          }
+        },
+      },
+    },
   },
 });

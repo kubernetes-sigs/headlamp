@@ -109,7 +109,7 @@ i18next
       namespace: Namespace,
       callback: (errorValue: unknown, translations: null | (typeof en)[Namespace]) => void
     ) {
-      import(`./locales/${language.toLowerCase()}/${namespace}.json`)
+      import(`./locales/${language.toLowerCase()}/${namespace}.json?import=default`)
         .then(resources => {
           callback(null, resources.default);
         })
