@@ -31,6 +31,7 @@
   "Ephemeral Containers": "临时容器",
   "Owner": "",
   "Container": "容器",
+  "Pod": "",
   "Config Maps": "Config Maps",
   "Definition": "定义",
   "CRD: {{ crdName }}": "自定义资源: {{ crdName }}",

@@ -31,6 +31,7 @@
   "Ephemeral Containers": "Ephemeral Containers",
   "Owner": "Owner",
   "Container": "Container",
+  "Pod": "",
   "Config Maps": "Config Maps",
   "Definition": "Definition",
   "CRD: {{ crdName }}": "CRD: {{ crdName }}",

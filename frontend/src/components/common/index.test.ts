@@ -65,6 +65,7 @@ const checkExports = [
   'TimezoneSelect',
   'Tooltip',
   'ObjectEventList',
+  'UsedBy',
 ];
 
 const internalExports = ['useObjectEvents'];
