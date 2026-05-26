@@ -26,12 +26,16 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
+import { useClusterDefinedSettings } from '../../helpers/fetchClusterSettings';
+import { parseAdminSettings } from '../../helpers/parseAdminSettings';
+import { useSetting } from '../../helpers/useAdminSettings';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
 import { useCluster, useClustersConf } from '../../lib/k8s';
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { Cluster } from '../../lib/k8s/cluster';
 import { getSavedNamespaces } from '../../lib/storage';
+import { setAdminSettings } from '../../redux/adminSettingsSlice';
 import { setConfig } from '../../redux/configSlice';
 import { ConfigState } from '../../redux/configSlice';
 import { setNamespaceFilter } from '../../redux/filterSlice';
@@ -47,7 +51,7 @@ import DetailsDrawer from '../common/Resource/DetailsDrawer';
 import Sidebar, { NavigationTabs } from '../Sidebar';
 import RouteSwitcher from './RouteSwitcher';
 import ShortcutsSettings from './Settings/ShortcutsSettings';
-import { applyBackendThemeConfig } from './themeSlice';
+import { applyAdminTheme, applyBackendThemeConfig } from './themeSlice';
 import TopBar from './TopBar';
 import VersionDialog from './VersionDialog';
 
@@ -171,6 +175,10 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
       }
     }
 
+    if (config?.adminSettings) {
+      dispatch(setAdminSettings(parseAdminSettings(config.adminSettings)));
+    }
+
     // Apply backend theme configuration if provided
     if (config?.defaultLightTheme || config?.defaultDarkTheme || config?.forceTheme) {
       dispatch(
@@ -203,6 +211,27 @@ export default function Layout({}: LayoutProps) {
   const isFullWidth = useTypedSelector(state => state.ui.isFullWidth);
   const { t } = useTranslation();
   const allClusters = useClustersConf();
+
+  useClusterDefinedSettings();
+
+  // Bridge admin-restricted theme to the active theme state. CLI forceTheme has
+  // precedence and is applied via applyBackendThemeConfig; this only kicks in when
+  // forceTheme is unset. When the admin lifts the restriction, restore the user's
+  // stored preference instead of leaving them stuck on the admin theme.
+  const adminTheme = useSetting<string>('theme');
+  const forceTheme = useTypedSelector(state => state.config.forceTheme);
+  useEffect(() => {
+    if (forceTheme) {
+      return;
+    }
+    const restricted = adminTheme.disabled || adminTheme.hidden;
+    const target = restricted
+      ? adminTheme.value
+      : (localStorage.headlampThemePreference as string | undefined);
+    if (target) {
+      dispatch(applyAdminTheme(target));
+    }
+  }, [adminTheme.value, adminTheme.disabled, adminTheme.hidden, forceTheme, dispatch]);
 
   /** This fetches the cluster config from the backend and updates the redux store on an interval.
    * When stateless clusters are enabled, it also fetches the stateless cluster config from the
