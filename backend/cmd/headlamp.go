@@ -80,11 +80,11 @@ import (
 type HeadlampConfig struct {
 	*headlampconfig.HeadlampConfig
 	proxyURLMu        sync.Mutex
-	compiledProxyURLs []glob.Glob
+	compiledProxyURLs []proxyURLAllowlistEntry
 }
 
-func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
-	compiledProxyURLs := make([]glob.Glob, 0, len(patterns))
+func compileProxyURLPatterns(patterns []string) ([]proxyURLAllowlistEntry, error) {
+	compiledProxyURLs := make([]proxyURLAllowlistEntry, 0, len(patterns))
 
 	for _, pattern := range patterns {
 		g, err := glob.Compile(pattern)
@@ -92,7 +92,10 @@ func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
 			return nil, fmt.Errorf("compiling proxy URL pattern %q: %w", pattern, err)
 		}
 
-		compiledProxyURLs = append(compiledProxyURLs, g)
+		compiledProxyURLs = append(compiledProxyURLs, proxyURLAllowlistEntry{
+			pattern: pattern,
+			matcher: g,
+		})
 	}
 
 	return compiledProxyURLs, nil
@@ -115,13 +118,9 @@ func (c *HeadlampConfig) proxyURLAllowed(proxyURL string) (bool, error) {
 	compiledProxyURLs := c.compiledProxyURLs
 	c.proxyURLMu.Unlock()
 
-	for _, g := range compiledProxyURLs {
-		if g.Match(proxyURL) {
-			return true, nil
-		}
-	}
+	_, allowed := matchProxyURLAllowlist(proxyURL, compiledProxyURLs)
 
-	return false, nil
+	return allowed, nil
 }
 
 const DrainNodeCacheTTL = 20 // seconds
@@ -603,7 +602,21 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	logger.Log(logger.LevelInfo, nil, nil, "Dynamic clusters support: "+fmt.Sprint(config.EnableDynamicClusters))
 	logger.Log(logger.LevelInfo, nil, nil, "Helm support: "+fmt.Sprint(config.EnableHelm))
 	logger.Log(logger.LevelInfo, nil, nil, "Proxy URLs: "+fmt.Sprint(config.ProxyURLs))
-	proxyURLAllowlist := compileProxyURLAllowlist(config.ProxyURLs)
+	config.proxyURLMu.Lock()
+	proxyURLAllowlist := config.compiledProxyURLs
+	if proxyURLAllowlist == nil {
+		var err error
+
+		proxyURLAllowlist, err = compileProxyURLPatterns(config.ProxyURLs)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, nil,
+				"Invalid ProxyURLs configuration; disabling /externalproxy: "+err.Error())
+			proxyURLAllowlist = []proxyURLAllowlistEntry{}
+		}
+
+		config.compiledProxyURLs = proxyURLAllowlist
+	}
+	config.proxyURLMu.Unlock()
 	logger.Log(logger.LevelInfo, nil, nil, "TLS certificate path: "+config.TLSCertPath)
 	logger.Log(logger.LevelInfo, nil, nil, "TLS key path: "+config.TLSKeyPath)
 	logger.Log(logger.LevelInfo, nil, nil, "me Username Paths: "+config.MeUsernamePaths)
@@ -758,9 +771,10 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		if _, ok := matchProxyURLAllowlist(targetURL.String(), proxyURLAllowlist); !ok {
+			denyErr := errors.New("no allowed proxy url match, request denied")
 			logger.Log(logger.LevelError, map[string]string{"proxyURL": targetURL.Redacted()},
-				err, "no allowed proxy url match, request denied")
-			http.Error(w, "no allowed proxy url match, request denied ", http.StatusBadRequest)
+				denyErr, "no allowed proxy url match, request denied")
+			http.Error(w, "no allowed proxy url match, request denied", http.StatusBadRequest)
 
 			return
 		}

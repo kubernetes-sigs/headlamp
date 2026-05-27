@@ -3719,11 +3719,11 @@ func TestExternalProxyDoesNotFollowRedirects(t *testing.T) {
 	mu.Unlock()
 }
 
-func TestExternalProxyInvalidProxyURLGlobPanics(t *testing.T) {
+func TestExternalProxyInvalidProxyURLGlobDoesNotPanic(t *testing.T) {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
 
-	require.Panics(t, func() {
+	require.NotPanics(t, func() {
 		createHeadlampHandler(context.Background(), &HeadlampConfig{
 			HeadlampConfig: &headlampconfig.HeadlampConfig{
 				HeadlampCFG: &headlampconfig.HeadlampCFG{
