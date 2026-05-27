@@ -32,6 +32,7 @@ import { SxProps } from '@mui/system';
 import { visuallyHidden } from '@mui/utils';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { useLocation } from 'react-router-dom';
 import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../helpers/tablesRowsPerPage';
 import { useURLState } from '../../lib/util';
 import { useSettings } from '../App/Settings/hook';
@@ -180,15 +181,16 @@ export default function SimpleTable(props: SimpleTableProps) {
     defaultValue: defaultRowsPerPage,
     prefix,
   });
+  const location = useLocation();
 
   React.useEffect(() => {
     const key = shouldReflectInURL ? (prefix ? `${prefix}.perPage` : 'perPage') : '';
-    const hasURLParam = key !== '' && new URLSearchParams(window.location.search).has(key);
+    const hasURLParam = key !== '' && new URLSearchParams(location.search).has(key);
 
     if (!hasURLParam) {
       setRowsPerPage(defaultRowsPerPage);
     }
-  }, [defaultRowsPerPage, shouldReflectInURL, prefix, setRowsPerPage]);
+  }, [defaultRowsPerPage, shouldReflectInURL, prefix, setRowsPerPage, location.search]);
   const gridTemplateColumns = React.useMemo(() => {
     const columnsTemplates = columns.map(column => column.gridTemplate || 1);
     const templates: string[] = [];
