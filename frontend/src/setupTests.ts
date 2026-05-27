@@ -79,3 +79,39 @@ beforeEach(() => {
   // Jest will wait for this promise to resolve before running tests.
   localStorage.clear();
 });
+
+// Workaround for Vitest/JSDOM AbortSignal prototype mismatch with Node's native fetch
+const originalFetch = globalThis.fetch;
+if (originalFetch) {
+  globalThis.fetch = async function (input, init) {
+    try {
+      return await originalFetch.call(this, input, init);
+    } catch (e: any) {
+      if (init && init.signal && e.name === 'TypeError' && e.message.includes('AbortSignal')) {
+        const rest = { ...init };
+        delete rest.signal;
+        return originalFetch.call(this, input, rest);
+      }
+      throw e;
+    }
+  };
+}
+
+const OriginalRequest = globalThis.Request;
+if (OriginalRequest) {
+  globalThis.Request = new Proxy(OriginalRequest, {
+    construct(target, args) {
+      try {
+        return Reflect.construct(target, args);
+      } catch (e: any) {
+        const [input, init] = args;
+        if (init && init.signal && e.name === 'TypeError' && e.message.includes('AbortSignal')) {
+          const rest = { ...init };
+          delete rest.signal;
+          return Reflect.construct(target, [input, rest]);
+        }
+        throw e;
+      }
+    },
+  });
+}

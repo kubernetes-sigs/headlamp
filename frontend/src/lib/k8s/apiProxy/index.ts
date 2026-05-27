@@ -49,9 +49,12 @@ export {
   remove,
   request,
   type ClusterRequest,
-  type ClusterRequestParams,
-  type RequestParams,
+  type ClusterRequestOptions,
+  type RequestOptions,
 } from '../api/v1/clusterRequests';
+
+// Deprecated type exports kept for backwards compatibility with existing plugins
+export type { ClusterRequestParams, RequestParams } from '../api/v1/clusterRequests';
 
 // Streaming API functions
 export {
@@ -60,10 +63,13 @@ export {
   streamResults,
   streamResultsForCluster,
   type StreamArgs,
-  type StreamResultsParams,
+  type StreamResultsOptions,
   type StreamResultsCb,
   type StreamErrCb,
 } from '../api/v1/streamingApi';
+
+// Deprecated type export kept for backwards compatibility with existing plugins
+export type { StreamResultsParams } from '../api/v1/streamingApi';
 
 // API factory functions
 export {

@@ -584,6 +584,36 @@ describe('apiProxy', () => {
             })
             .catch(err => done(err));
         }));
+
+      it('Uses the fallback WS URL when cluster is not provided', () =>
+        new Promise<void>(done => {
+          expect.assertions(1);
+
+          vi.spyOn(cluster, 'getCluster').mockReturnValue('');
+
+          nock(baseApiUrl).get(streamResultsUrl).query(true).reply(200, mockConfigMapList);
+
+          // combinePath handles slashes, e.g. "ws://localhost/" + "/apis/..."
+          // wsUrl usually ends with a trailing slash in this test environment.
+          const fallbackUrl =
+            wsUrl.endsWith('/') && streamResultsUrl.startsWith('/')
+              ? `${wsUrl}${streamResultsUrl.substring(1)}?watch=1&resourceVersion=1234`
+              : `${wsUrl}${streamResultsUrl}?watch=1&resourceVersion=1234`;
+
+          const fallbackServer = new WS(fallbackUrl);
+
+          apiProxy.streamResultsForCluster(
+            streamResultsUrl,
+            { cb, errCb, cluster: '' },
+            { watch: '1' }
+          );
+
+          fallbackServer.on('connection', async socket => {
+            expect(socket.url).toBe(fallbackUrl);
+            fallbackServer.close();
+            done();
+          });
+        }));
     });
   });
 

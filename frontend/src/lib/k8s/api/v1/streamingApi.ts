@@ -130,20 +130,25 @@ export function streamResults<T extends KubeObjectInterface>(
 
 // @todo: this interface needs documenting.
 
-export interface StreamResultsParams {
+export interface StreamResultsOptions {
   cb: StreamResultsCb;
   errCb: StreamErrCb;
   cluster?: string;
 }
 
+/**
+ * @deprecated Use `StreamResultsOptions` instead.
+ */
+export type StreamResultsParams = StreamResultsOptions;
+
 // @todo: needs documenting
 
 export function streamResultsForCluster(
   url: string,
-  params: StreamResultsParams,
+  options: StreamResultsOptions,
   queryParams?: QueryParameters
 ): Promise<() => void> {
-  const { cb, errCb, cluster = '' } = params;
+  const { cb, errCb, cluster = '' } = options;
   const clusterName = cluster || getCluster() || '';
 
   const results: Record<string, any> = {};
@@ -245,8 +250,8 @@ export function streamResultsForCluster(
   function push() {
     const values = Object.values(results);
     // Limit the number of resources to maxResources. We do this because when we're streaming, the
-    // API server will send us all the resources that match the query, without limitting, even if the
-    // API params wanted to limit it. So we do the limitting here.
+    // API server will send us all the resources that match the query, without limiting, even if the
+    // request query parameters asked to limit it. So we do the limiting here.
     if (maxResources > 0 && values.length > maxResources) {
       values.sort((a, b) => {
         const aTime = new Date(a.lastTimestamp || a.metadata.creationTimestamp!).getTime();
@@ -375,7 +380,7 @@ export async function connectStream<T>(
   additionalProtocols: string[] = [],
   cluster = ''
 ) {
-  return connectStreamWithParams(path, cb, onFail, {
+  return connectStreamWithOptions(path, cb, onFail, {
     isJson,
     cluster: cluster || getCluster() || '',
     additionalProtocols,
@@ -384,39 +389,40 @@ export async function connectStream<T>(
 
 // @todo: needs documenting.
 
-interface StreamParams {
+export interface StreamOptions {
   cluster?: string;
   isJson?: boolean;
   additionalProtocols?: string[];
 }
 
 /**
- * connectStreamWithParams is a wrapper around connectStream that allows for more
- * flexibility in the parameters that can be passed to the WebSocket connection.
+ * Connects to a WebSocket stream using an options object for additional
+ * flexibility. This is the underlying implementation used by `connectStream`.
  *
  * This is an async function because it may need to fetch the kubeconfig for the
- * cluster if the cluster is specified in the params. If kubeconfig is found, it
+ * cluster if the cluster is specified in the options. If kubeconfig is found, it
  * sends the X-HEADLAMP-USER-ID header with the user ID from the localStorage.
- * It is sent as a base64url encoded string in protocal format:
+ * It is sent as a base64url encoded string in protocol format:
  * `base64url.headlamp.authorization.k8s.io.${userID}`.
  *
  * @param path - The path of the WebSocket stream to connect to.
  * @param cb - The function to call with each message received from the stream.
  * @param onFail - The function to call if the stream is closed unexpectedly.
- * @param params - Stream parameters to configure the connection.
+ * @param options - Stream options to configure the connection.
  *
  * @returns A promise that resolves to an object with a `close` function and a `socket` property.
  */
-export async function connectStreamWithParams<T>(
+export async function connectStreamWithOptions<T>(
   path: string,
   cb: StreamResultsCb<T>,
   onFail: () => void,
-  params?: StreamParams
+  options?: StreamOptions
 ): Promise<{
   close: () => void;
   socket: WebSocket | null;
 }> {
-  const { isJson = false, additionalProtocols = [], cluster = '' } = params || {};
+  const { isJson = false, additionalProtocols = [] } = options || {};
+  const cluster = options?.cluster || '';
   let isClosing = false;
 
   const userID = getUserIdFromLocalStorage();
@@ -440,6 +446,8 @@ export async function connectStreamWithParams<T>(
       // If we can't find the kubeconfig, we'll just use the base URL.
       url = combinePath(getBaseWsUrl(), fullPath);
     }
+  } else {
+    url = combinePath(getBaseWsUrl(), fullPath);
   }
 
   let socket: WebSocket | null = null;
@@ -496,3 +504,13 @@ export async function connectStreamWithParams<T>(
     console.error('Error in api stream', { err, path });
   }
 }
+
+/**
+ * @deprecated Use `connectStreamWithOptions` instead.
+ */
+export const connectStreamWithParams = connectStreamWithOptions;
+
+/**
+ * @deprecated Use `StreamOptions` instead.
+ */
+export type StreamParams = StreamOptions;
