@@ -3742,7 +3742,9 @@ func TestExternalProxyRedirectErrorIncludesTargetURL(t *testing.T) {
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, redirectTarget, nil)
 	require.NoError(t, err)
 
-	proxyURLAllowlist := compileProxyURLAllowlist([]string{"https://allowed.example.com/*"})
+	proxyURLAllowlist, err := compileProxyURLPatterns([]string{"https://allowed.example.com/*"})
+	require.NoError(t, err)
+
 	req = req.WithContext(context.WithValue(req.Context(), proxyURLListContextKey{}, proxyURLAllowlist))
 
 	err = externalProxyHTTPClient.CheckRedirect(req, []*http.Request{{}})
