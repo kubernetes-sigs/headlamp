@@ -24,6 +24,8 @@
   "Command": "கட்டளை",
   "Environment": "சூழல்",
   "Liveness Probes": "லைவ்னெஸ் ப்ரோப்ஸ்",
+  "Readiness Probes": "",
+  "Startup Probes": "",
   "Ports": "போர்ட்ஸ்",
   "Volume Mounts": "வால்யூம் மவுண்ட்ஸ்",
   "Containers": "கன்டெய்னர்கள்",

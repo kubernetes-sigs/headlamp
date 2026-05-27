@@ -24,6 +24,8 @@
   "Command": "명령어",
   "Environment": "환경 변수",
   "Liveness Probes": "Liveness 프로브",
+  "Readiness Probes": "",
+  "Startup Probes": "",
   "Ports": "포트",
   "Volume Mounts": "볼륨 마운트",
   "Containers": "컨테이너",

@@ -24,6 +24,8 @@
   "Command": "Comando",
   "Environment": "Ambiente",
   "Liveness Probes": "Sonde di Liveness",
+  "Readiness Probes": "",
+  "Startup Probes": "",
   "Ports": "Porte",
   "Volume Mounts": "Mount Volumi",
   "Containers": "Container",
