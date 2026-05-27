@@ -288,8 +288,7 @@ export default function SimpleTable(props: SimpleTableProps) {
       (typeof sortFunction === 'boolean' && sortFunction) ||
       (typeof sortFunction === 'function' && sortFunction.length === 1)
     ) {
-      setDisplayData(data.slice().sort(defaultSortingFunction(columnAskingForSort)));
-      return;
+      return data.slice().sort(defaultSortingFunction(columnAskingForSort));
     }
 
     if (typeof sortFunction === 'function') {
