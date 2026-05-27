@@ -514,15 +514,14 @@ export function useKubeObjectList<K extends KubeObject>({
     { cluster: string; namespace?: string; resourceVersion: string }[]
   >([]);
 
+  const currentlyWatchedKeys = useMemo(
+    () => new Set(listsToWatch.map(w => `${w.cluster}:${w.namespace || ''}`)),
+    [listsToWatch]
+  );
+
   const listsNotYetWatched = query.data
     .filter(Boolean)
-    .filter(
-      data =>
-        listsToWatch.find(
-          // resourceVersion is intentionally omitted to avoid recreating WS connection when list is updated
-          watching => watching.cluster === data?.cluster && watching.namespace === data.namespace
-        ) === undefined
-    )
+    .filter(data => !currentlyWatchedKeys.has(`${data!.cluster}:${data!.namespace || ''}`))
     .map(data => ({
       cluster: data!.cluster,
       namespace: data!.namespace,
