@@ -537,19 +537,52 @@ export function useKubeObjectList<K extends KubeObject>({
 
   if (listsNotYetWatched.length > 0 || listsToStopWatching.length > 0) {
     setListsToWatch(prev => {
-      let next = prev;
-      if (listsNotYetWatched.length > 0) {
-        next = [...next, ...listsNotYetWatched];
+      const additions = query.data
+        .filter(Boolean)
+        .filter(
+          data =>
+            prev.find(
+              watching =>
+                watching.cluster === data?.cluster && watching.namespace === data.namespace
+            ) === undefined
+        )
+        .map(data => ({
+          cluster: data!.cluster,
+          namespace: data!.namespace,
+          resourceVersion: data!.list.metadata.resourceVersion,
+        }));
+
+      const removals = prev.filter(
+        watching =>
+          requests.find(request => {
+            if (watching.cluster !== request?.cluster) return false;
+            return !request.namespaces?.length
+              ? !watching.namespace
+              : !!watching.namespace && request.namespaces.includes(watching.namespace);
+          }) === undefined
+      );
+
+      if (additions.length === 0 && removals.length === 0) {
+        return prev;
       }
-      if (listsToStopWatching.length > 0) {
+
+      let next = prev;
+      if (additions.length > 0) {
+        next = [...next, ...additions];
+      }
+      if (removals.length > 0) {
         next = next.filter(
           it =>
-            !listsToStopWatching.some(
-              stop => stop.cluster === it.cluster && stop.namespace === it.namespace
-            )
+            !removals.some(stop => stop.cluster === it.cluster && stop.namespace === it.namespace)
         );
       }
-      return next;
+
+      // Deduplicate by cluster and namespace
+      return next.filter(
+        (watching, index, self) =>
+          index ===
+          self.findIndex(w => w.cluster === watching.cluster && w.namespace === watching.namespace)
+      );
     });
   }
 
