@@ -537,52 +537,38 @@ export function useKubeObjectList<K extends KubeObject>({
 
   if (listsNotYetWatched.length > 0 || listsToStopWatching.length > 0) {
     setListsToWatch(prev => {
-      const additions = query.data
-        .filter(Boolean)
-        .filter(
-          data =>
-            prev.find(
-              watching =>
-                watching.cluster === data?.cluster && watching.namespace === data.namespace
-            ) === undefined
-        )
-        .map(data => ({
-          cluster: data!.cluster,
-          namespace: data!.namespace,
-          resourceVersion: data!.list.metadata.resourceVersion,
-        }));
+      // Use a Map keyed by cluster:namespace for O(1) inserts, deletes, and
+      // deduplication — replacing the previous O(n²) findIndex pass.
+      const getWatchKey = (cluster: string, namespace?: string) => `${cluster}:${namespace ?? ''}`;
 
-      const removals = prev.filter(
-        watching =>
-          requests.find(request => {
-            if (watching.cluster !== request?.cluster) return false;
-            return !request.namespaces?.length
-              ? !watching.namespace
-              : !!watching.namespace && request.namespaces.includes(watching.namespace);
-          }) === undefined
+      const nextByKey = new Map(
+        prev.map(watching => [getWatchKey(watching.cluster, watching.namespace), watching])
       );
 
-      if (additions.length === 0 && removals.length === 0) {
+      listsToStopWatching.forEach(watching => {
+        nextByKey.delete(getWatchKey(watching.cluster, watching.namespace));
+      });
+
+      listsNotYetWatched.forEach(data => {
+        const key = getWatchKey(data.cluster, data.namespace);
+        if (!nextByKey.has(key)) {
+          nextByKey.set(key, {
+            cluster: data.cluster,
+            namespace: data.namespace,
+            resourceVersion: data.resourceVersion,
+          });
+        }
+      });
+
+      // Return prev unchanged if nothing actually changed.
+      if (
+        nextByKey.size === prev.length &&
+        [...nextByKey.values()].every((w, i) => w === prev[i])
+      ) {
         return prev;
       }
 
-      let next = prev;
-      if (additions.length > 0) {
-        next = [...next, ...additions];
-      }
-      if (removals.length > 0) {
-        next = next.filter(
-          it =>
-            !removals.some(stop => stop.cluster === it.cluster && stop.namespace === it.namespace)
-        );
-      }
-
-      // Deduplicate by cluster and namespace
-      return next.filter(
-        (watching, index, self) =>
-          index ===
-          self.findIndex(w => w.cluster === watching.cluster && w.namespace === watching.namespace)
-      );
+      return [...nextByKey.values()];
     });
   }
 
