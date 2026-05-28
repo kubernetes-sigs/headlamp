@@ -119,7 +119,7 @@ export default function ObjectEventList(props: ObjectEventListProps) {
           {
             label: t('From'),
             getter: item => {
-              return item.source.component;
+              return item.source?.component;
             },
           },
           {

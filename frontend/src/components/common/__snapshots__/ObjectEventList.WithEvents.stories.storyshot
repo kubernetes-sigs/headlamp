@@ -179,6 +179,48 @@
                   </p>
                 </td>
               </tr>
+              <tr
+                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+              >
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  Normal
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  Started
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                />
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  <div
+                    class="MuiBox-root css-k008qs"
+                  >
+                    <span
+                      id="event-uid-3"
+                      style="word-break: break-all; white-space: normal;"
+                    >
+                      Started container nginx
+                    </span>
+                  </div>
+                </td>
+                <td
+                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                >
+                  <p
+                    aria-label="2024-02-14T23:59:00.000Z"
+                    class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                    data-mui-internal-clone-element="true"
+                  >
+                    90d
+                  </p>
+                </td>
+              </tr>
             </tbody>
           </table>
         </div>

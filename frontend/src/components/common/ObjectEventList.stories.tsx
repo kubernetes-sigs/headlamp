@@ -100,6 +100,31 @@ const mockEvents: KubeEvent[] = [
     count: 1,
     type: 'Normal',
   },
+  {
+    kind: 'Event',
+    apiVersion: 'v1',
+    metadata: {
+      name: 'event3.789',
+      namespace: 'default',
+      uid: 'event-uid-3',
+      creationTimestamp: new Date(getTestDate().getTime() - 60 * 1000).toISOString(),
+    },
+    involvedObject: {
+      kind: 'Pod',
+      namespace: 'default',
+      name: 'test-pod-for-events',
+      uid: 'owner-pod-uid-123',
+      apiVersion: 'v1',
+      resourceVersion: '1',
+      fieldPath: '',
+    },
+    reason: 'Started',
+    message: 'Started container nginx',
+    firstTimestamp: new Date(getTestDate().getTime() - 60 * 1000).toISOString(),
+    lastTimestamp: new Date(getTestDate().getTime() - 60 * 1000).toISOString(),
+    count: 1,
+    type: 'Normal',
+  },
 ];
 
 export default {
