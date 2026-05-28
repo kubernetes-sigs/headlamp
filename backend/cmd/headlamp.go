@@ -193,6 +193,23 @@ type OauthConfig struct {
 	createdAt    time.Time
 }
 
+// evictExpiredOidcStates removes entries from m whose createdAt timestamp is
+// older than ttl. It is called by the background cleanup goroutine in
+// createHeadlampHandler and is also used directly in tests so that both paths
+// exercise the same production logic.
+func evictExpiredOidcStates(m map[string]*OauthConfig, mu *sync.Mutex, ttl time.Duration) {
+	cutoff := time.Now().Add(-ttl)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	for state, entry := range m {
+		if entry.createdAt.Before(cutoff) {
+			delete(m, state)
+		}
+	}
+}
+
 // returns True if a file exists.
 func fileExists(filename string) bool {
 	info, err := os.Stat(filename)
@@ -855,17 +872,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			case <-ctx.Done():
 				return
 			case <-ticker.C:
-				cutoff := time.Now().Add(-OidcStateTTL)
-
-				oauthMu.Lock()
-
-				for state, entry := range oauthRequestMap {
-					if entry.createdAt.Before(cutoff) {
-						delete(oauthRequestMap, state)
-					}
-				}
-
-				oauthMu.Unlock()
+				evictExpiredOidcStates(oauthRequestMap, &oauthMu, OidcStateTTL)
 			}
 		}
 	}()

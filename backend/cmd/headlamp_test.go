@@ -1884,6 +1884,8 @@ func TestOidcCallbackEmptyStateDoesNotLogStaleError(t *testing.T) {
 // TestOidcStateMapEviction verifies that abandoned OIDC state entries (where
 // the user never completes the callback) are evicted from oauthRequestMap once
 // they exceed OidcStateTTL, preventing unbounded memory growth.
+// It calls evictExpiredOidcStates directly so it exercises the same production
+// code path used by the background goroutine in createHeadlampHandler.
 func TestOidcStateMapEviction(t *testing.T) {
 	oauthRequestMap := make(map[string]*OauthConfig)
 
@@ -1903,18 +1905,8 @@ func TestOidcStateMapEviction(t *testing.T) {
 		createdAt: time.Now(),
 	}
 
-	// Run one eviction pass (mirrors the goroutine logic in createHeadlampHandler).
-	cutoff := time.Now().Add(-OidcStateTTL)
-
-	oauthMu.Lock()
-
-	for state, entry := range oauthRequestMap {
-		if entry.createdAt.Before(cutoff) {
-			delete(oauthRequestMap, state)
-		}
-	}
-
-	oauthMu.Unlock()
+	// Call the production helper — same function used by the goroutine.
+	evictExpiredOidcStates(oauthRequestMap, &oauthMu, OidcStateTTL)
 
 	oauthMu.Lock()
 	_, stalePresent := oauthRequestMap[staleState]
