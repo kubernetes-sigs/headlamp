@@ -28,7 +28,6 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"go.opentelemetry.io/otel/attribute"
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -93,8 +92,6 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 					attribute.String("status", status))
 			}()
 
-			config.incrementRequestCounter(ctx)
-
 			if config.shouldSkipOIDCRefresh(w, r, span, &status, next) {
 				return
 			}
@@ -153,18 +150,6 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 
 			next.ServeHTTP(w, r)
 		})
-	}
-}
-
-// incrementRequestCounter increments the OIDC middleware request counter metric
-// if metrics are configured.
-func (c *OIDCTokenRefreshConfig) incrementRequestCounter(ctx context.Context) {
-	if c.Metrics != nil {
-		c.Metrics.RequestCounter.Add(ctx, 1,
-			metric.WithAttributes(
-				attribute.String("api.route", oidcMiddlewareRoute),
-				attribute.String("status", "start"),
-			))
 	}
 }
 
