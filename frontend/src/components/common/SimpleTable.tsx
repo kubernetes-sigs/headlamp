@@ -184,8 +184,17 @@ export default function SimpleTable(props: SimpleTableProps) {
   const location = useLocation();
 
   React.useEffect(() => {
-    const key = shouldReflectInURL ? (prefix ? `${prefix}.perPage` : 'perPage') : '';
-    const hasURLParam = key !== '' && new URLSearchParams(location.search).has(key);
+    if (!shouldReflectInURL) {
+      setRowsPerPage(defaultRowsPerPage);
+    }
+  }, [defaultRowsPerPage, shouldReflectInURL, setRowsPerPage]);
+
+  React.useEffect(() => {
+    if (!shouldReflectInURL) {
+      return;
+    }
+    const key = prefix ? `${prefix}.perPage` : 'perPage';
+    const hasURLParam = new URLSearchParams(location.search).has(key);
 
     if (!hasURLParam) {
       setRowsPerPage(defaultRowsPerPage);
