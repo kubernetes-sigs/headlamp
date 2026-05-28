@@ -36,6 +36,33 @@ jobs:
       - name: Create artifacts directory
         run: mkdir -p ./artifacts
 
+      - name: Validate workflow run SHAs
+        if: ${{ inputs.run_ids != '' }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          EXPECTED_SHA=$(git rev-list -n 1 "refs/tags/${{ inputs.release_name }}")
+
+          echo "Expected release SHA: $EXPECTED_SHA"
+
+          IFS=',' read -ra RUN_IDS <<< "${{ inputs.run_ids }}"
+
+          for run_id in "${RUN_IDS[@]}"; do
+            run_id=$(echo $run_id | xargs)
+
+            if [ -n "$run_id" ]; then
+              RUN_SHA=$(gh run view "$run_id" --json headSha -q .headSha)
+
+              echo "Run ID: $run_id"
+              echo "Run SHA: $RUN_SHA"
+
+              if [ "$EXPECTED_SHA" != "$RUN_SHA" ]; then
+                echo "Workflow run SHA does not match release tag SHA!"
+                exit 1
+              fi
+            fi
+          done      
+
       - name: Download artifacts from workflow runs
         if: ${{ inputs.run_ids != '' }}
         run: |
