@@ -63,7 +63,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -1188,16 +1187,6 @@ func applyRequestTokenToContext(r *http.Request, clusterName string, context *ku
 	context.AuthInfo.Token = bearerToken
 }
 
-func (c *HeadlampConfig) incrementRequestCounter(ctx context.Context) {
-	if c.Metrics != nil {
-		c.Metrics.RequestCounter.Add(ctx, 1,
-			metric.WithAttributes(
-				attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
-				attribute.String("status", "start"),
-			))
-	}
-}
-
 func (c *HeadlampConfig) shouldSkipOIDCRefresh(w http.ResponseWriter, r *http.Request, span trace.Span,
 	ctx context.Context, start time.Time, next http.Handler,
 ) bool {
@@ -1281,8 +1270,6 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 
 			defer span.End()
 		}
-
-		c.incrementRequestCounter(ctx)
 
 		// skip if not cluster request
 		if c.shouldSkipOIDCRefresh(w, r, span, ctx, start, next) {
