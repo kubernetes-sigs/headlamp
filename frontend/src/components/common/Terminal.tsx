@@ -74,12 +74,33 @@ export default function Terminal(props: TerminalProps) {
     available: getAvailableShells(),
     currentIdx: 0,
   });
+
+  const prevUidRef = React.useRef(item.metadata?.uid);
+  React.useEffect(() => {
+    if (prevUidRef.current !== item.metadata?.uid) {
+      prevUidRef.current = item.metadata?.uid;
+      setContainer(resolveContainerName(item, initialContainer));
+      if (!isAttach) {
+        setShells({
+          available: getAvailableShells(),
+          currentIdx: 0,
+        });
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.metadata?.uid]);
+
   const { t } = useTranslation(['translation', 'glossary']);
   const muiTheme = useTheme();
   const xtermTheme = React.useMemo(() => getXtermTheme(muiTheme), [muiTheme]);
 
   // @todo: Give the real exec type when we have it.
-  function setupTerminal(containerRef: HTMLElement, xterm: XTerminal, fitAddon: FitAddon) {
+  function setupTerminal(
+    containerRef: HTMLElement,
+    xterm: XTerminal,
+    fitAddon: FitAddon,
+    exec: execReturn
+  ) {
     if (!containerRef) {
       return;
     }
@@ -103,11 +124,11 @@ export default function Terminal(props: TerminalProps) {
         dataToSend = '|';
       }
 
-      send(0, dataToSend);
+      send(0, dataToSend, exec);
     });
 
     xterm.onResize(size => {
-      send(4, `{"Width":${size.cols},"Height":${size.rows}}`);
+      send(4, `{"Width":${size.cols},"Height":${size.rows}}`, exec);
     });
 
     // Allow copy/paste in terminal
@@ -147,15 +168,16 @@ export default function Terminal(props: TerminalProps) {
     fitAddon.fit();
   }
 
-  function send(channel: number, data: string) {
-    if (!execOrAttachRef.current) {
+  function send(channel: number, data: string, execOverride?: execReturn) {
+    const currentExec = execOverride || execOrAttachRef.current;
+    if (!currentExec) {
       return;
     }
-    const socket = execOrAttachRef.current.getSocket();
+    const socket = currentExec.getSocket();
 
     // We should only send data if the socket is ready.
     if (!socket || socket.readyState !== 1) {
-      console.debug('Could not send data to exec: Socket not ready...', socket);
+      console.debug('Could not send data to exec: socket not ready.', socket);
       return;
     }
 
@@ -165,8 +187,8 @@ export default function Terminal(props: TerminalProps) {
     socket.send(buffer);
   }
 
-  function onData(xtermc: XTerminalConnected, bytes: ArrayBuffer) {
-    if (!execOrAttachRef.current) return;
+  function onData(xtermc: XTerminalConnected, bytes: ArrayBuffer, exec: execReturn) {
+    if (!exec) return;
     const xterm = xtermc.xterm;
     // Only show data from stdout, stderr and server error channel.
     const channel: Channel = new Int8Array(bytes.slice(0, 1))[0];
@@ -185,7 +207,7 @@ export default function Terminal(props: TerminalProps) {
     if (!xtermc.connected) {
       xterm.clear();
       (async function () {
-        send(4, `{"Width":${xterm.cols},"Height":${xterm.rows}}`);
+        send(4, `{"Width":${xterm.cols},"Height":${xterm.rows}}`, exec);
       })();
       // On server error, don't set it as connected
       if (channel !== Channel.ServerError) {
@@ -200,9 +222,7 @@ export default function Terminal(props: TerminalProps) {
         onClose();
       }
 
-      if (execOrAttachRef.current) {
-        execOrAttachRef.current?.cancel();
-      }
+      exec.cancel();
 
       return;
     }
@@ -293,7 +313,7 @@ export default function Terminal(props: TerminalProps) {
       }
 
       const isWindows = ['Windows', 'Win16', 'Win32', 'WinCE'].indexOf(navigator?.platform) >= 0;
-      xtermRef.current = {
+      const xtermc = {
         xterm: new XTerminal({
           cursorBlink: true,
           cursorStyle: 'underline',
@@ -306,33 +326,50 @@ export default function Terminal(props: TerminalProps) {
         connected: false,
         reconnectOnEnter: false,
       };
+      xtermRef.current = xtermc;
 
       fitAddonRef.current = new FitAddon();
       xtermRef.current.xterm.loadAddon(fitAddonRef.current);
 
+      let cancelled = false;
+
       (async function () {
+        let exec: execReturn;
         if (isAttach) {
-          xtermRef?.current?.xterm.writeln(
+          xtermc.xterm.writeln(
             t('Trying to attach to the container {{ container }}…', { container }) + '\n'
           );
 
-          execOrAttachRef.current = await item.attach(
-            container,
-            items => onData(xtermRef.current!, items),
-            { failCb: () => shellConnectFailed(xtermRef.current!) }
-          );
+          exec = await item.attach(container, items => onData(xtermc, items, exec), {
+            failCb: () => {
+              if (!cancelled) {
+                shellConnectFailed(xtermc);
+              }
+            },
+          });
         } else {
           const command = getCurrentShellCommand();
 
-          xtermRef?.current?.xterm.writeln(t('Trying to run "{{command}}"…', { command }) + '\n');
+          xtermc.xterm.writeln(t('Trying to run "{{command}}"…', { command }) + '\n');
 
-          execOrAttachRef.current = await item.exec(
-            container,
-            items => onData(xtermRef.current!, items),
-            { command: [command], failCb: () => shellConnectFailed(xtermRef.current!) }
-          );
+          exec = await item.exec(container, items => onData(xtermc, items, exec), {
+            command: [command],
+            failCb: () => {
+              if (!cancelled) {
+                shellConnectFailed(xtermc);
+              }
+            },
+          });
         }
-        setupTerminal(terminalContainerRef, xtermRef.current!.xterm, fitAddonRef.current!);
+
+        if (cancelled) {
+          exec.cancel();
+          return;
+        }
+
+        execOrAttachRef.current = exec;
+
+        setupTerminal(terminalContainerRef, xtermRef.current!.xterm, fitAddonRef.current!, exec);
       })();
 
       const handler = () => {
@@ -342,6 +379,7 @@ export default function Terminal(props: TerminalProps) {
       window.addEventListener('resize', handler);
 
       return function cleanup() {
+        cancelled = true;
         xtermRef.current?.xterm.dispose();
         execOrAttachRef.current?.cancel();
         execOrAttachRef.current = null;
@@ -349,28 +387,8 @@ export default function Terminal(props: TerminalProps) {
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [container, terminalContainerRef, shells, props.open]
+    [container, terminalContainerRef, shells, props.open, item.metadata?.uid]
   );
-
-  React.useEffect(
-    () => {
-      if (props.open && container === null) {
-        setContainer(getDefaultContainer(item));
-      }
-    },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [props.open]
-  );
-
-  React.useEffect(() => {
-    if (!isAttach && shells.available.length === 0) {
-      setShells({
-        available: getAvailableShells(),
-        currentIdx: 0,
-      });
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item]);
 
   function getAvailableShells() {
     const selector = item.spec?.nodeSelector || {};
