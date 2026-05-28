@@ -124,6 +124,15 @@ export function kubeObjectListQuery<K extends KubeObject>(
 }
 
 /**
+ * Returns a stable string key for a (cluster, namespace) pair.
+ * Used to build Sets and Maps for O(1) membership checks across the
+ * watch-list reconciliation logic.
+ */
+function watchKey(cluster: string, namespace: string | undefined): string {
+  return `${cluster}:${namespace || ''}`;
+}
+
+/**
  * Accepts a list of lists to watch.
  * Upon receiving update it will modify query data for list query
  */
@@ -204,7 +213,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
     }
 
     return lists.map(list => {
-      const key = `${list.cluster}:${list.namespace || ''}`;
+      const key = watchKey(list.cluster, list.namespace);
 
       // Always use the latest resource version from the server
       latestResourceVersions.current[key] = list.resourceVersion;
@@ -230,7 +239,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         return;
       }
 
-      const key = `${cluster}:${namespace || ''}`;
+      const key = watchKey(cluster, namespace);
 
       // Update resource version from incoming message
       if (update.object?.metadata?.resourceVersion) {
@@ -515,31 +524,39 @@ export function useKubeObjectList<K extends KubeObject>({
   >([]);
 
   const currentlyWatchedKeys = useMemo(
-    () => new Set(listsToWatch.map(w => `${w.cluster}:${w.namespace || ''}`)),
+    () => new Set(listsToWatch.map(w => watchKey(w.cluster, w.namespace))),
     [listsToWatch]
   );
 
   const listsNotYetWatched = query.data
-    .filter(Boolean)
-    .filter(data => !currentlyWatchedKeys.has(`${data!.cluster}:${data!.namespace || ''}`))
+    .filter((data): data is ListResponse<K> => data !== null && data !== undefined)
+    .filter(data => !currentlyWatchedKeys.has(watchKey(data.cluster, data.namespace)))
     .map(data => ({
-      cluster: data!.cluster,
-      namespace: data!.namespace,
-      resourceVersion: data!.list.metadata.resourceVersion,
+      cluster: data.cluster,
+      namespace: data.namespace,
+      resourceVersion: data.list.metadata.resourceVersion,
     }));
 
   if (listsNotYetWatched.length > 0) {
     setListsToWatch([...listsToWatch, ...listsNotYetWatched]);
   }
 
+  // Build a Set of (cluster, namespace) keys that are still requested so the
+  // stop-watching check is O(1) instead of a nested find/includes scan.
+  const requestedKeys = useMemo(
+    () =>
+      new Set(
+        requests.flatMap(request =>
+          request.namespaces?.length
+            ? request.namespaces.map(ns => watchKey(request.cluster, ns))
+            : [watchKey(request.cluster, undefined)]
+        )
+      ),
+    [requests]
+  );
+
   const listsToStopWatching = listsToWatch.filter(
-    watching =>
-      requests.find(request => {
-        if (watching.cluster !== request?.cluster) return false;
-        return !request.namespaces?.length
-          ? !watching.namespace
-          : !!watching.namespace && request.namespaces.includes(watching.namespace);
-      }) === undefined
+    watching => !requestedKeys.has(watchKey(watching.cluster, watching.namespace))
   );
 
   if (listsToStopWatching.length > 0) {
