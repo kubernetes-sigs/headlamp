@@ -221,7 +221,7 @@
                       tabindex="0"
                     >
                       <table
-                        class="MuiTable-root css-bv8t57-MuiTable-root"
+                        class="MuiTable-root css-qzmaqi-MuiTable-root"
                       >
                         <thead
                           class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
@@ -247,6 +247,12 @@
                             >
                               Hard
                             </th>
+                            <th
+                              class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                              scope="col"
+                            >
+                              Usage
+                            </th>
                           </tr>
                         </thead>
                         <tbody
@@ -270,6 +276,38 @@
                             >
                               300m (0.3 cores)
                             </td>
+                            <td
+                              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                            >
+                              <div
+                                class="MuiBox-root css-qcwrfd"
+                              >
+                                <div
+                                  class="MuiBox-root css-1khf6jl"
+                                >
+                                  <span
+                                    aria-label="limits.cpu Usage"
+                                    aria-valuemax="100"
+                                    aria-valuemin="0"
+                                    aria-valuenow="0"
+                                    aria-valuetext="0%"
+                                    class="MuiLinearProgress-root MuiLinearProgress-colorSuccess MuiLinearProgress-determinate css-51ro5j-MuiLinearProgress-root"
+                                    role="progressbar"
+                                  >
+                                    <span
+                                      class="MuiLinearProgress-bar MuiLinearProgress-barColorSuccess MuiLinearProgress-bar1Determinate css-h8g9t7-MuiLinearProgress-bar1"
+                                      style="transform: translateX(-100%);"
+                                    />
+                                  </span>
+                                </div>
+                                <p
+                                  class="MuiTypography-root MuiTypography-body2 css-1qnsqjo-MuiTypography-root"
+                                >
+                                  0
+                                  %
+                                </p>
+                              </div>
+                            </td>
                           </tr>
                           <tr
                             class="MuiTableRow-root css-13jktim-MuiTableRow-root"
@@ -288,6 +326,38 @@
                               class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                             >
                               200m (0.2 cores)
+                            </td>
+                            <td
+                              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                            >
+                              <div
+                                class="MuiBox-root css-qcwrfd"
+                              >
+                                <div
+                                  class="MuiBox-root css-1khf6jl"
+                                >
+                                  <span
+                                    aria-label="requests.cpu Usage"
+                                    aria-valuemax="100"
+                                    aria-valuemin="0"
+                                    aria-valuenow="100"
+                                    aria-valuetext="250%"
+                                    class="MuiLinearProgress-root MuiLinearProgress-colorError MuiLinearProgress-determinate css-915jih-MuiLinearProgress-root"
+                                    role="progressbar"
+                                  >
+                                    <span
+                                      class="MuiLinearProgress-bar MuiLinearProgress-barColorError MuiLinearProgress-bar1Determinate css-1b5pryk-MuiLinearProgress-bar1"
+                                      style="transform: translateX(0%);"
+                                    />
+                                  </span>
+                                </div>
+                                <p
+                                  class="MuiTypography-root MuiTypography-body2 css-1qnsqjo-MuiTypography-root"
+                                >
+                                  250
+                                  %
+                                </p>
+                              </div>
                             </td>
                           </tr>
                         </tbody>
