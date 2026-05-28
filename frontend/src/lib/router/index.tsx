@@ -67,6 +67,7 @@ import IngressDetails from '../../components/ingress/Details';
 import IngressList from '../../components/ingress/List';
 import JobDetails from '../../components/job/Details';
 import JobsList from '../../components/job/List';
+import JobSetDetails from '../../components/jobset/Details';
 import JobSetList from '../../components/jobset/List';
 import { LeaseDetails } from '../../components/lease/Details';
 import { LeaseList } from '../../components/lease/List';
@@ -124,7 +125,6 @@ import LocaleSelect from '../../i18n/LocaleSelect/LocaleSelect';
 import { useCluster } from '..//k8s';
 import DaemonSet from '../k8s/daemonSet';
 import Deployment from '../k8s/deployment';
-import JobSet from '../k8s/jobSet';
 import ReplicaSet from '../k8s/replicaSet';
 import StatefulSet from '../k8s/statefulSet';
 import type { RouteURLProps } from './createRouteURL';
@@ -547,7 +547,7 @@ const defaultRoutes: { [routeName: string]: Route } = {
     path: '/jobsets/:namespace/:name',
     exact: true,
     sidebar: 'JobSets',
-    component: () => <WorkloadDetails workloadKind={JobSet} />,
+    component: () => <JobSetDetails />,
   },
   Deployments: {
     path: '/deployments',
