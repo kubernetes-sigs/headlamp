@@ -541,22 +541,14 @@ export function useKubeObjectList<K extends KubeObject>({
     setListsToWatch([...listsToWatch, ...listsNotYetWatched]);
   }
 
-  // Build a Set of (cluster, namespace) keys that are still requested so the
-  // stop-watching check is O(1) instead of a nested find/includes scan.
-  const requestedKeys = useMemo(
-    () =>
-      new Set(
-        requests.flatMap(request =>
-          request.namespaces?.length
-            ? request.namespaces.map(ns => watchKey(request.cluster, ns))
-            : [watchKey(request.cluster, undefined)]
-        )
-      ),
-    [requests]
-  );
-
   const listsToStopWatching = listsToWatch.filter(
-    watching => !requestedKeys.has(watchKey(watching.cluster, watching.namespace))
+    watching =>
+      requests.find(request => {
+        if (watching.cluster !== request?.cluster) return false;
+        return !request.namespaces?.length
+          ? !watching.namespace
+          : !!watching.namespace && request.namespaces.includes(watching.namespace);
+      }) === undefined
   );
 
   if (listsToStopWatching.length > 0) {
