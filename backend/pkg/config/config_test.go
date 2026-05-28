@@ -889,6 +889,7 @@ func TestMakeHeadlampKubeConfigsDir(t *testing.T) {
 		expectedDir = filepath.Join(tmpDir, "Headlamp", "Config", "kubeconfigs")
 	case "darwin":
 		t.Setenv("HOME", tmpDir)
+		expectedDir = filepath.Join(tmpDir, "Library", "Application Support", "Headlamp", "kubeconfigs")
 	default:
 		t.Setenv("XDG_CONFIG_HOME", tmpDir)
 	}
@@ -913,6 +914,7 @@ func TestDefaultHeadlampKubeConfigFile(t *testing.T) {
 		expectedDir = filepath.Join(tmpDir, "Headlamp", "Config", "kubeconfigs")
 	case "darwin":
 		t.Setenv("HOME", tmpDir)
+		expectedDir = filepath.Join(tmpDir, "Library", "Application Support", "Headlamp", "kubeconfigs")
 	default:
 		t.Setenv("XDG_CONFIG_HOME", tmpDir)
 	}
