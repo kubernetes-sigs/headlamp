@@ -103,8 +103,18 @@ ConfigMapNoConsumers.parameters = {
   msw: { handlers: { story: [http.get(PODS_URL, () => podListResponse([]))] } },
 };
 
+// Stories below render against an msw-backed Pod list. The snapshot runner reads
+// the DOM before that request settles, so its snapshot would capture the
+// transient empty state rather than the populated table / error these stories
+// exist to demonstrate. The populated and error UIs are already covered by
+// UsedBySection.test.tsx; the stories stay for visual inspection in Storybook
+// but opt out of storyshots to avoid locking in misleading output. See the
+// Loading story below for the same pattern.
+const NON_DETERMINISTIC_STORYSHOT = { storyshots: { disable: true } };
+
 export const ConfigMapSingleConsumer = ConfigMapTemplate.bind({});
 ConfigMapSingleConsumer.parameters = {
+  ...NON_DETERMINISTIC_STORYSHOT,
   msw: {
     handlers: {
       story: [
@@ -129,6 +139,7 @@ ConfigMapSingleConsumer.parameters = {
 
 export const ConfigMapMultipleConsumersMixedUsage = ConfigMapTemplate.bind({});
 ConfigMapMultipleConsumersMixedUsage.parameters = {
+  ...NON_DETERMINISTIC_STORYSHOT,
   msw: {
     handlers: {
       story: [
@@ -184,6 +195,7 @@ ConfigMapMultipleConsumersMixedUsage.parameters = {
 
 export const SecretEnvFromOnly = SecretTemplate.bind({});
 SecretEnvFromOnly.parameters = {
+  ...NON_DETERMINISTIC_STORYSHOT,
   msw: {
     handlers: {
       story: [
@@ -208,6 +220,7 @@ SecretEnvFromOnly.parameters = {
 
 export const SecretVolumeMount = SecretTemplate.bind({});
 SecretVolumeMount.parameters = {
+  ...NON_DETERMINISTIC_STORYSHOT,
   msw: {
     handlers: {
       story: [
@@ -232,6 +245,7 @@ SecretVolumeMount.parameters = {
 
 export const SecretImagePullSecret = SecretTemplate.bind({});
 SecretImagePullSecret.parameters = {
+  ...NON_DETERMINISTIC_STORYSHOT,
   msw: {
     handlers: {
       story: [
@@ -255,12 +269,11 @@ SecretImagePullSecret.parameters = {
 
 export const Loading = ConfigMapTemplate.bind({});
 Loading.parameters = {
-  // The story exists for visual inspection of the loading state in Storybook.
-  // `delay('infinite')` keeps the request open indefinitely, which is meaningful
-  // for a human looking at the rendered UI but produces a misleading snapshot
-  // (the snapshot runner waits for the request to settle and ends up capturing
-  // the post-load empty state instead of the in-flight loading message).
-  storyshots: { disable: true },
+  // `delay('infinite')` keeps the request open indefinitely so a human can see
+  // the in-flight loading message in Storybook. The snapshot runner would
+  // instead capture the post-load empty state, so disable snapshots (same
+  // reasoning as NON_DETERMINISTIC_STORYSHOT above).
+  ...NON_DETERMINISTIC_STORYSHOT,
   msw: {
     handlers: {
       story: [
@@ -275,6 +288,7 @@ Loading.parameters = {
 
 export const FetchError = ConfigMapTemplate.bind({});
 FetchError.parameters = {
+  ...NON_DETERMINISTIC_STORYSHOT,
   msw: {
     handlers: {
       story: [http.get(PODS_URL, () => HttpResponse.error())],
