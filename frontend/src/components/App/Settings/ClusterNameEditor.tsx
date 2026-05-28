@@ -33,8 +33,8 @@ interface ClusterNameEditorProps {
   clusterConf: {
     [clusterName: string]: Cluster;
   } | null;
-  clusterSettings: ClusterSettings | null;
-  setClusterSettings: React.Dispatch<React.SetStateAction<ClusterSettings | null>>;
+  clusterSettings: ClusterSettings;
+  setClusterSettings: React.Dispatch<React.SetStateAction<ClusterSettings>>;
 }
 
 export function ClusterNameEditor({
@@ -105,13 +105,10 @@ export function ClusterNameEditor({
       setNewClusterName(actualName);
     }
 
-    setClusterSettings((settings: ClusterSettings | null) => {
-      const newSettings = { ...(settings || {}) };
-      if (isValidClusterNameFormat(name)) {
-        newSettings.currentName = actualName;
-      }
-      return newSettings;
-    });
+    setClusterSettings(settings => ({
+      ...settings,
+      ...(isValidClusterNameFormat(name) ? { currentName: actualName } : {}),
+    }));
   }
 
   const handleUpdateClusterName = (source: string) => {

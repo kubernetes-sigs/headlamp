@@ -18,6 +18,8 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 import { createSlice } from '@reduxjs/toolkit';
 import type { ReactNode } from 'react';
 import type { ButtonStyle } from '../components/common/ActionButton/ActionButton';
+import type { ApiResource } from '../lib/k8s/api/v2/ApiResource';
+import { apiResourceId } from '../lib/k8s/api/v2/ApiResource';
 import type { KubeObject } from '../lib/k8s/KubeObject';
 
 export interface ProjectDefinition {
@@ -75,6 +77,8 @@ export interface ProjectsState {
   detailsTabs: Record<string, ProjectDetailsTab>;
   projectDeleteButton?: ProjectDeleteButton;
   headerActions: Record<string, ProjectHeaderAction>;
+  /** Plugin-registered API resources for project resource fetching */
+  apiResources: ApiResource[];
 }
 
 const initialState: ProjectsState = {
@@ -82,6 +86,7 @@ const initialState: ProjectsState = {
   detailsTabs: {},
   overviewSections: {},
   headerActions: {},
+  apiResources: [],
 };
 
 const projectsSlice = createSlice({
@@ -112,6 +117,15 @@ const projectsSlice = createSlice({
     addHeaderAction(state, action: PayloadAction<ProjectHeaderAction>) {
       state.headerActions[action.payload.id] = action.payload;
     },
+
+    /** Register additional API resource for project resource fetching */
+    addProjectApiResource(state, action: PayloadAction<ApiResource>) {
+      const id = apiResourceId(action.payload);
+      const exists = state.apiResources.some(r => apiResourceId(r) === id);
+      if (!exists) {
+        state.apiResources.push(action.payload);
+      }
+    },
   },
 });
 
@@ -121,6 +135,7 @@ export const {
   addOverviewSection,
   setProjectDeleteButton,
   addHeaderAction,
+  addProjectApiResource,
 } = projectsSlice.actions;
 
 export default projectsSlice.reducer;

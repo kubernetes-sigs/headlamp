@@ -103,6 +103,15 @@ func (m *MockCache) UpdateTTL(ctx context.Context, key string, ttl time.Duration
 	return nil
 }
 
+// SetOnEvicted Mocks setting a callback function to be called when an item is evicted.
+func (m *MockCache) SetOnEvicted(f func(key string, value string)) {
+}
+
+// Close mocks closing the cache.
+func (m *MockCache) Close() error {
+	return nil
+}
+
 // TestGetResponseBody checks that the response body is correctly decoded
 // based on the content encoding (e.g., gzip).
 func TestGetResponseBody(t *testing.T) {
@@ -877,4 +886,76 @@ func TestStoreK8sResponseInCache_5xxResponseShouldNotBeCached(t *testing.T) {
 	// Key must NOT be in cache — infrastructure errors should not be cached
 	_, getErr := mockCache.Get(context.Background(), "infra-error-key")
 	assert.Error(t, getErr, "5xx infrastructure errors should not be cached")
+}
+
+func TestRedactContextKey(t *testing.T) {
+	tests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "empty context key",
+			input:    "",
+			expected: "",
+		},
+		{
+			name:     "very short context key",
+			input:    "dev",
+			expected: "[redacted]",
+		},
+		{
+			name:     "medium context key",
+			input:    "prod",
+			expected: "pro...[redacted]",
+		},
+		{
+			name:     "long context key",
+			input:    "my-production-cluster",
+			expected: "my-...[redacted]",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := k8cache.ExportedRedactContextKey(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
+}
+
+func TestRedactCacheKey(t *testing.T) {
+	cacheTests := []struct {
+		name     string
+		input    string
+		expected string
+	}{
+		{
+			name:     "invalid cache key with fewer segments",
+			input:    "api+pods+default",
+			expected: "api+pods+default",
+		},
+		{
+			name:     "valid cache key with 4 segments and short context",
+			input:    "api+pods+default+dev",
+			expected: "api+pods+default+[redacted]",
+		},
+		{
+			name:     "valid cache key with 4 segments and medium context",
+			input:    "api+pods+default+prod",
+			expected: "api+pods+default+pro...[redacted]",
+		},
+		{
+			name:     "valid cache key with 4 segments and long context",
+			input:    "api+pods+default+my-production-cluster",
+			expected: "api+pods+default+my-...[redacted]",
+		},
+	}
+
+	for _, tc := range cacheTests {
+		t.Run(tc.name, func(t *testing.T) {
+			result := k8cache.ExportedRedactCacheKey(tc.input)
+			assert.Equal(t, tc.expected, result)
+		})
+	}
 }

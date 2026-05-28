@@ -175,6 +175,33 @@ func CheckForChanges(
 	go runWatcher(ctx, k8scache, contextKey, kContext)
 }
 
+// SyncWatchers stops watchers for contexts that are no longer active.
+// activeContexts is a list of currently valid context keys.
+func SyncWatchers(activeContexts []string) {
+	activeMap := make(map[string]bool, len(activeContexts))
+	for _, ctx := range activeContexts {
+		activeMap[ctx] = true
+	}
+
+	contextCancel.Range(func(key, value interface{}) bool {
+		contextKey, ok := key.(string)
+		if !ok {
+			return true
+		}
+
+		if !activeMap[contextKey] {
+			if cancel, ok := value.(context.CancelFunc); ok {
+				logger.Log(logger.LevelInfo, nil, nil, "canceling watcher for removed context: "+redactContextKey(contextKey))
+				cancel()
+				watcherRegistry.Delete(contextKey)
+				contextCancel.Delete(contextKey)
+			}
+		}
+
+		return true
+	})
+}
+
 // runWatcher is a long-lived goroutine that sets up and runs Kubernetes informers.
 // It watches for resource changes and invalidates corresponding cache entries.
 // This function will only exit when its context is cancelled.
@@ -189,7 +216,7 @@ func runWatcher(
 		contextCancel.Delete(contextKey)
 	}()
 
-	logger.Log(logger.LevelInfo, nil, nil, "running runWatcher for watching k8s resource: "+contextKey)
+	logger.Log(logger.LevelInfo, nil, nil, "running runWatcher for watching k8s resource: "+redactContextKey(contextKey))
 
 	config, err := kContext.RESTConfig()
 	if err != nil {
@@ -199,7 +226,7 @@ func runWatcher(
 
 	dynamicClient, err := dynamic.NewForConfig(config)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "error creating dynamic client for context: "+contextKey)
+		logger.Log(logger.LevelError, nil, err, "error creating dynamic client for context: "+redactContextKey(contextKey))
 		return
 	}
 
@@ -207,7 +234,7 @@ func runWatcher(
 
 	apiResourceLists, err := discoveryClient.ServerPreferredResources()
 	if apiResourceLists == nil && err != nil {
-		logger.Log(logger.LevelError, nil, err, "error fetching resource list for context: "+contextKey)
+		logger.Log(logger.LevelError, nil, err, "error fetching resource list for context: "+redactContextKey(contextKey))
 		return
 	}
 
@@ -221,7 +248,7 @@ func runWatcher(
 	factory.WaitForCacheSync(ctx.Done())
 
 	<-ctx.Done()
-	logger.Log(logger.LevelInfo, nil, nil, "Watcher for context "+contextKey+" is shutting down...")
+	logger.Log(logger.LevelInfo, nil, nil, "Watcher for context "+redactContextKey(contextKey)+" is shutting down...")
 }
 
 // RunInformerToWatch registers informers for the provided resources and watches
@@ -287,7 +314,7 @@ func handleKeyGenerationAndDeletion(obj interface{}, gvr schema.GroupVersionReso
 	namespace := unstructuredObj.GetNamespace()
 	key := fmt.Sprintf("%s+%s+%s+%s", gvr.Group, gvr.Resource, namespace, contextKey)
 
-	logger.Log(logger.LevelInfo, nil, nil, key+" will be deleted from the cache")
+	logger.Log(logger.LevelInfo, nil, nil, redactCacheKey(key)+" will be deleted from the cache")
 
 	if err := k8scache.Delete(context.Background(), key); err != nil {
 		logger.Log(logger.LevelError, nil, err, "error while deleting key")
