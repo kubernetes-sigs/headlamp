@@ -83,11 +83,29 @@ export function ClusterStatus({
   const customStatuses = useTypedSelector(state => state.clusterProvider.clusterStatuses);
   const renderedCustomStatus = useMemo(() => {
     for (const Status of customStatuses) {
-      // Call as a function (not JSX) so the null-check below is meaningful.
-      // Using <Status ... /> creates a React element object which is always
-      // non-null, causing the loop to exit after the first registered callback
-      // regardless of what that callback renders. Callbacks must not use hooks.
-      const renderedStatus = Status({ cluster, error });
+      // Call as a plain function (not JSX) so the null-check below is meaningful.
+      // Using <Status ... /> would always return a non-null React element, causing
+      // the loop to exit after the first callback regardless of what it renders.
+      //
+      // Constraint: callbacks must not call React hooks. Stateful logic should live
+      // in an inner component that the callback returns, not in the callback itself.
+      // See: https://react.dev/reference/rules/rules-of-hooks
+      //
+      // A try/catch guards against callbacks that violate this constraint so that a
+      // misbehaving plugin does not crash the entire ClusterTable.
+      let renderedStatus: React.ReactElement | null;
+      try {
+        renderedStatus = Status({ cluster, error });
+      } catch (e) {
+        if (process.env.NODE_ENV !== 'production') {
+          console.error(
+            '[ClusterStatus] A registerClusterStatus callback threw. ' +
+              'Callbacks must not use React hooks — move hook calls into an inner component.',
+            e
+          );
+        }
+        continue;
+      }
       if (renderedStatus !== null) {
         return renderedStatus;
       }
