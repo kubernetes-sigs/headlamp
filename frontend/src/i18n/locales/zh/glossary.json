@@ -1,8 +1,8 @@
 {
+  "Namespace": "命名空间",
   "Kubernetes Version": "Kubernetes 版本",
   "Cluster": "集群",
   "Cluster selector": "集群选择器",
-  "Namespace": "命名空间",
   "Git Commit": "Git Commit",
   "Memory": "内存",
   "CPU": "CPU",
