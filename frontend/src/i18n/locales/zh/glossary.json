@@ -274,5 +274,7 @@
   "Reinvocation Policy": "撤销策略",
   "API Versions": "API 版本",
   "RollingUpdate. Max unavailable: {{ maxUnavailable }}, max surge: {{ maxSurge }}": "滚动更新. 最大不可用: {{ maxUnavailable }}, 最大新增: {{ maxSurge }}",
-  "Strategy Type": "策略类型"
+  "Strategy Type": "策略类型",
+  "Storage Size": "",
+  "Volume Name": ""
 }

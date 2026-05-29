@@ -213,6 +213,8 @@
   "Persistent Volume Claims": "Persistent Volume Claims",
   "Persistent Volumes": "Persistent Volumes",
   "Storage Classes": "Storage Classes",
+  "Storage Size": "Storage Size",
+  "Volume Name": "Volume Name",
   "Volume Attributes Classes": "Volume Attributes Classes",
   "Network": "Network",
   "Gateway (beta)": "Gateway (beta)",
