@@ -62,6 +62,10 @@ function parseUnitsOfBytes(value: string): number {
   return number * 1000 ** unitIndex;
 }
 
+export function unparseDiskSpace(value: number) {
+  return unparseRam(value);
+}
+
 export function unparseRam(value: number) {
   let i = 0;
   while (value >= 1024 && i < RAM_TYPES.length - 1) {

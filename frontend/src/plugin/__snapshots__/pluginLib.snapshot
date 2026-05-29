@@ -562,6 +562,7 @@
       "parseDiskSpace": [Function],
       "parseRam": [Function],
       "unparseCpu": [Function],
+      "unparseDiskSpace": [Function],
       "unparseRam": [Function],
     },
     "useErrorState": [Function],
