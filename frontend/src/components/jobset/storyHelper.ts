@@ -21,7 +21,7 @@ export const jobSets: KubeObjectInterface[] = [
     apiVersion: 'jobset.x-k8s.io/v1alpha2',
     kind: 'JobSet',
     metadata: {
-      name: '',
+      name: 'my-jobset-0',
       creationTimestamp: '2023-07-28T08:00:00Z',
       generation: 1,
       labels: {

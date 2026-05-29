@@ -107,6 +107,7 @@
   "Completions": "Завершения",
   "Failed": "Ошибка",
   "Jobs": "Jobs",
+  "Replicated Jobs": "",
   "Job Sets": "Job Sets",
   "Lease": "Lease",
   "LimitRange": "LimitRange",

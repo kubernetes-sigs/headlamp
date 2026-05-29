@@ -107,6 +107,7 @@
   "Completions": "Completions",
   "Failed": "Fallido",
   "Jobs": "Jobs",
+  "Replicated Jobs": "",
   "Job Sets": "",
   "Lease": "Lease",
   "LimitRange": "LimitRange",
