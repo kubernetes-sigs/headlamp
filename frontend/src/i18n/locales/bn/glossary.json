@@ -1,8 +1,8 @@
 {
+  "Namespace": "নেমস্পেস",
   "Kubernetes Version": "Kubernetes Version",
   "Cluster": "Cluster",
   "Cluster selector": "Cluster নির্বাচক",
-  "Namespace": "নেমস্পেস",
   "Git Commit": "Git কমিট",
   "Memory": "মেমরি",
   "CPU": "CPU",
