@@ -16,6 +16,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import React, { useEffect } from 'react';
+import type { AuthRequestResourceAttrs } from '../../../lib/k8s/KubeObject';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
 
@@ -47,14 +48,62 @@ export interface AuthVisibleProps extends React.PropsWithChildren<{}> {
   /** Callback for when the authorization is checked.
    * @param result The result of the authorization check. Its `allowed` member will be true if the user is authorized to perform the specified action on the given resource; false otherwise. The `reason` member will contain a string explaining why the user is authorized or not.
    */
-  onAuthResult?: (result: { allowed: boolean; reason: string }) => void;
+  onAuthResult?: (result: AuthVisibleResult) => void;
+  /** Optional content to show when the permission check is denied. */
+  deniedFallback?: React.ReactNode | ((result: AuthVisibleResult) => React.ReactNode);
+}
+
+export interface AuthVisibleResult {
+  allowed: boolean;
+  reason: string;
+  evaluationError?: string;
+  resourceAttributes: AuthRequestResourceAttrs;
+}
+
+function getAuthDisplayAttributes(
+  item: KubeObject | KubeObjectClass,
+  authVerb: string,
+  subresource?: string,
+  namespace?: string
+): AuthRequestResourceAttrs {
+  const itemClass: KubeObjectClass = (item as KubeObject)?._class?.() ?? item;
+  const apiVersion = Array.isArray(itemClass.apiVersion)
+    ? itemClass.apiVersion[0]
+    : itemClass.apiVersion;
+  let [group, version] = apiVersion?.split('/') ?? [];
+  if (!version) {
+    version = group;
+    group = '';
+  }
+
+  const itemName = (item as KubeObject)?.getName?.();
+  const itemNamespace = (item as KubeObject)?.getNamespace?.();
+
+  return {
+    verb: authVerb,
+    group,
+    version,
+    resource: itemClass.apiName,
+    ...(subresource ? { subresource } : {}),
+    ...(itemName ? { name: itemName } : {}),
+    ...(namespace || itemNamespace ? { namespace: namespace || itemNamespace } : {}),
+  };
 }
 
 /** A component that will only render its children if the user is authorized to perform the specified action on the given resource.
  * @param props The props for the component.
  */
 export default function AuthVisible(props: AuthVisibleProps) {
-  const { item, authVerb, subresource, namespace, onError, onAuthResult, children } = props;
+  const {
+    item,
+    authVerb,
+    subresource,
+    namespace,
+    onError,
+    onAuthResult,
+    deniedFallback,
+    children,
+  } = props;
 
   if (!VALID_AUTH_VERBS.includes(authVerb)) {
     console.warn(`Invalid authVerb provided: "${authVerb}". Skipping authorization check.`);
@@ -63,6 +112,9 @@ export default function AuthVisible(props: AuthVisibleProps) {
 
   const itemClass: KubeObjectClass | null = (item as KubeObject)?._class?.() ?? item;
   const itemName = (item as KubeObject)?.getName?.();
+  const resourceAttributes = item
+    ? getAuthDisplayAttributes(item, authVerb, subresource, namespace)
+    : { verb: authVerb };
 
   // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data } = useQuery<any>({
@@ -70,8 +122,8 @@ export default function AuthVisible(props: AuthVisibleProps) {
     queryKey: [
       'authVisible',
       itemName,
-      itemClass.apiName,
-      itemClass.apiVersion,
+      itemClass?.apiName,
+      itemClass?.apiVersion,
       authVerb,
       subresource,
       namespace,
@@ -98,12 +150,25 @@ export default function AuthVisible(props: AuthVisibleProps) {
       onAuthResult?.({
         allowed: visible,
         reason: data.status?.reason ?? '',
+        evaluationError: data.status?.evaluationError,
+        resourceAttributes,
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
   if (!visible) {
+    if (data && deniedFallback) {
+      const result: AuthVisibleResult = {
+        allowed: false,
+        reason: data.status?.reason ?? '',
+        evaluationError: data.status?.evaluationError,
+        resourceAttributes,
+      };
+
+      return <>{typeof deniedFallback === 'function' ? deniedFallback(result) : deniedFallback}</>;
+    }
+
     return null;
   }
 

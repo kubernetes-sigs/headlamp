@@ -42,6 +42,53 @@ export async function testAuth(cluster = '', namespace = 'default') {
   });
 }
 
+export interface SelfSubjectResourceRule {
+  verbs: string[];
+  apiGroups: string[];
+  resources: string[];
+  resourceNames?: string[];
+}
+
+export interface SelfSubjectNonResourceRule {
+  verbs: string[];
+  nonResourceURLs: string[];
+}
+
+export interface SelfSubjectRulesReviewStatus {
+  resourceRules?: SelfSubjectResourceRule[];
+  nonResourceRules?: SelfSubjectNonResourceRule[];
+  incomplete?: boolean;
+  evaluationError?: string;
+}
+
+export interface SelfSubjectRulesReview {
+  apiVersion: string;
+  kind: string;
+  status?: SelfSubjectRulesReviewStatus;
+}
+
+export async function getSelfSubjectRulesReview(
+  namespace: string,
+  cluster = ''
+): Promise<SelfSubjectRulesReview> {
+  const spec = namespace ? { namespace } : {};
+  const clusterName = cluster || getCluster();
+
+  return post(
+    '/apis/authorization.k8s.io/v1/selfsubjectrulesreviews',
+    {
+      apiVersion: 'authorization.k8s.io/v1',
+      kind: 'SelfSubjectRulesReview',
+      spec,
+    },
+    false,
+    {
+      timeout: 10 * 1000,
+      cluster: clusterName,
+    }
+  );
+}
+
 /**
  * User info returned from SelfSubjectReview or derived from cluster config
  */

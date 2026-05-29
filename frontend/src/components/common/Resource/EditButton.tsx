@@ -33,6 +33,7 @@ import { Activity } from '../../activity/Activity';
 import ActionButton, { ButtonStyle } from '../ActionButton';
 import AuthVisible from './AuthVisible';
 import EditorDialog from './EditorDialog';
+import PermissionDeniedAction from './PermissionDeniedAction';
 import ViewButton from './ViewButton';
 
 interface EditButtonProps {
@@ -133,9 +134,13 @@ export default function EditButton(props: EditButtonProps) {
         console.error(`Error while getting authorization for edit button in ${item}:`, err);
         setIsReadOnly(true);
       }}
-      onAuthResult={({ allowed }) => {
-        setIsReadOnly(!allowed);
-      }}
+      deniedFallback={result => (
+        <PermissionDeniedAction
+          result={result}
+          label={t('translation|Edit')}
+          buttonStyle={buttonStyle}
+        />
+      )}
     >
       <ActionButton
         description={t('translation|Edit')}

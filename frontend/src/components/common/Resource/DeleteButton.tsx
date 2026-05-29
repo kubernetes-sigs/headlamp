@@ -34,6 +34,7 @@ import { useSettings } from '../../App/Settings/hook';
 import ActionButton, { ButtonStyle } from '../ActionButton';
 import { ConfirmDialog } from '../Dialog';
 import AuthVisible from './AuthVisible';
+import PermissionDeniedAction from './PermissionDeniedAction';
 
 interface DeleteButtonProps {
   item?: KubeObject;
@@ -94,6 +95,17 @@ export default function DeleteButton(props: DeleteButtonProps) {
     <AuthVisible
       item={item}
       authVerb="delete"
+      deniedFallback={result => (
+        <PermissionDeniedAction
+          result={result}
+          label={
+            settingsObj.useEvict && item.kind === 'Pod'
+              ? t('translation|Evict')
+              : t('translation|Delete')
+          }
+          buttonStyle={buttonStyle}
+        />
+      )}
       onError={(err: Error) => {
         console.error(`Error while getting authorization for delete button in ${item}:`, err);
       }}
