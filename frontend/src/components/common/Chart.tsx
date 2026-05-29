@@ -19,7 +19,7 @@ import Paper from '@mui/material/Paper';
 import { useTheme } from '@mui/material/styles';
 import { styled } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
-import React, { ReactNode, useCallback, useRef } from 'react';
+import React, { ReactNode, useCallback, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import {
   Bar,
@@ -198,15 +198,11 @@ export function PercentageBar(props: PercentageBarProps) {
   const { data, total = 100, tooltipFunc = null } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const [containerRect, setContainerRect] = useState<DOMRect | null>(null);
 
-  // Expose a stable callback so PaperTooltip can read the container's current
-  // viewport rect without accessing ref.current directly in its render phase.
-  // getBoundingClientRect() is called at tooltip-render time (user hover),
-  // so it always reflects the current scroll/layout position.
-  const getContainerRect = useCallback(
-    (): DOMRect | null => containerRef.current?.getBoundingClientRect() ?? null,
-    []
-  );
+  const handleMouseEnter = useCallback(() => {
+    setContainerRect(containerRef.current?.getBoundingClientRect() ?? null);
+  }, []);
 
   function formatData() {
     const dataItems: { [name: string]: number } = {};
@@ -225,37 +221,39 @@ export function PercentageBar(props: PercentageBarProps) {
     theme.palette.mode === 'dark' ? theme.palette.primary.light : theme.palette.primary.main;
 
   return (
-    <StyledResponsiveContainer width="95%" height={20} ref={containerRef}>
-      <StyledBarChart layout="vertical" maxBarSize={5} data={[formatData()]}>
-        {tooltipFunc && (
-          <Tooltip
-            content={props => (
-              <PaperTooltip
-                rechartsProps={props}
-                tooltipFunc={tooltipFunc}
-                data={data}
-                getContainerRect={getContainerRect}
-              />
-            )}
-          />
-        )}
-        <XAxis hide domain={[0, 100]} type="number" />
-        <YAxis hide type="category" />
-        {data.map((item, index) => {
-          return (
-            <Bar
-              key={index}
-              dataKey={item.name}
-              stackId="1"
-              fill={item.fill || barColor}
-              layout="vertical"
-              radius={theme.shape.borderRadius}
-              background={{ fill: barBackground }}
+    <div onMouseEnter={handleMouseEnter}>
+      <StyledResponsiveContainer width="95%" height={20} ref={containerRef}>
+        <StyledBarChart layout="vertical" maxBarSize={5} data={[formatData()]}>
+          {tooltipFunc && (
+            <Tooltip
+              content={props => (
+                <PaperTooltip
+                  rechartsProps={props}
+                  tooltipFunc={tooltipFunc}
+                  data={data}
+                  containerRect={containerRect}
+                />
+              )}
             />
-          );
-        })}
-      </StyledBarChart>
-    </StyledResponsiveContainer>
+          )}
+          <XAxis hide domain={[0, 100]} type="number" />
+          <YAxis hide type="category" />
+          {data.map((item, index) => {
+            return (
+              <Bar
+                key={index}
+                dataKey={item.name}
+                stackId="1"
+                fill={item.fill || barColor}
+                layout="vertical"
+                radius={theme.shape.borderRadius}
+                background={{ fill: barBackground }}
+              />
+            );
+          })}
+        </StyledBarChart>
+      </StyledResponsiveContainer>
+    </div>
   );
 }
 
@@ -263,17 +261,15 @@ interface PaperTooltipProps {
   rechartsProps?: any;
   tooltipFunc: (data: any) => ReactNode;
   data: any;
-  getContainerRect: () => DOMRect | null;
+  containerRect: DOMRect | null;
 }
 
-function PaperTooltip({ rechartsProps, tooltipFunc, data, getContainerRect }: PaperTooltipProps) {
+function PaperTooltip({ rechartsProps, tooltipFunc, data, containerRect }: PaperTooltipProps) {
   if (!rechartsProps || !rechartsProps.active || !rechartsProps.coordinate) return null;
 
-  const rect = getContainerRect();
-
   const { x, y } = rechartsProps.coordinate;
-  const left = (rect?.left || 0) + x;
-  const top = (rect?.top ?? 0) + y - 5;
+  const left = (containerRect?.left ?? 0) + x;
+  const top = (containerRect?.top ?? 0) + y - 5;
 
   return ReactDOM.createPortal(
     <Paper
