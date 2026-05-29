@@ -47,7 +47,7 @@
                 <h1
                   class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
                 >
-                  StatefulSet: mock-statefulset
+                  Service: lb-service
                 </h1>
                 <div
                   class="MuiBox-root css-ldp2l3"
@@ -74,65 +74,10 @@
               >
                 <div
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-                >
-                  <button
-                    aria-label="Show logs"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                    data-mui-internal-clone-element="true"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
-                </div>
+                />
                 <div
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-                >
-                  <button
-                    aria-label="Rollback"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                    data-mui-internal-clone-element="true"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
-                </div>
-                <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-                >
-                  <button
-                    aria-label="Restart"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                    data-mui-internal-clone-element="true"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
-                  <div />
-                </div>
-                <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-                >
-                  <button
-                    aria-label="Scale"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                    data-mui-internal-clone-element="true"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
-                </div>
+                />
                 <div
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                 >
@@ -200,7 +145,7 @@
                     <span
                       class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
                     >
-                      mock-statefulset
+                      lb-service
                     </span>
                   </dd>
                   <dt
@@ -229,30 +174,13 @@
                     <span
                       class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
                     >
-                      2025-05-31T17:15:53.298Z
+                      2022-10-25T11:48:48.000Z
                     </span>
                   </dd>
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
                   >
-                    Service Name
-                  </dt>
-                  <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
-                  >
-                    <a
-                      aria-label="mock-service"
-                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                      data-mui-internal-clone-element="true"
-                      href="/"
-                    >
-                      mock-service
-                    </a>
-                  </dd>
-                  <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
-                  >
-                    Update Strategy
+                    Type
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
@@ -260,7 +188,143 @@
                     <span
                       class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
                     >
-                      RollingUpdate
+                      LoadBalancer
+                    </span>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
+                    Cluster IP
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    >
+                      10.96.0.300
+                    </span>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
+                    Cluster IPs
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    >
+                      10.96.0.300, fd00::1
+                    </span>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
+                    External IP
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    >
+                      203.0.113.10
+                    </span>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
+                    IP Families
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    >
+                      IPv4, IPv6
+                    </span>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
+                    IP Family Policy
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    >
+                      PreferDualStack
+                    </span>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
+                    External Traffic Policy
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    >
+                      Local
+                    </span>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
+                    Health Check Node Port
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    32123
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
+                    Load Balancer Class
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    >
+                      example.com/lb
+                    </span>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
+                    Load Balancer Source Ranges
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    >
+                      10.0.0.0/8, 192.168.0.0/16
+                    </span>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
+                    Traffic Distribution
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                    >
+                      PreferClose
                     </span>
                   </dd>
                   <dt
@@ -280,7 +344,7 @@
                         <p
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                         >
-                          app: mock-app
+                          app: example
                         </p>
                       </div>
                     </div>
@@ -296,13 +360,6 @@
       >
         <div
           class="MuiBox-root css-p0cik4"
-        />
-      </div>
-      <div
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
-      >
-        <div
-          class="MuiBox-root css-p0cik4"
         >
           <div
             class="MuiBox-root css-j1fy4m"
@@ -319,7 +376,7 @@
                   <h2
                     class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
                   >
-                    Container Spec
+                    Ports
                   </h2>
                   <div
                     class="MuiBox-root css-ldp2l3"
@@ -331,74 +388,92 @@
               class="MuiBox-root css-1txv3mw"
             >
               <div
-                class="MuiBox-root css-4cxybv"
+                aria-atomic="true"
+                aria-live="polite"
+                class="MuiBox-root css-ty8jgw"
+                role="status"
+              />
+              <div
+                class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-onzayo-MuiPaper-root-MuiTableContainer-root"
+                tabindex="0"
               >
-                <dl
-                  class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+                <table
+                  class="MuiTable-root css-qzmaqi-MuiTable-root"
                 >
-                  <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 MuiGrid-grid-md-12 css-gvwr1e-MuiGrid-root"
+                  <thead
+                    class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
                   >
-                    main
-                  </dt>
-                  <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
-                  >
-                    Image Pull Policy
-                  </dt>
-                  <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
-                  />
-                  <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
-                  >
-                    Image
-                  </dt>
-                  <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
-                  >
-                    <p
-                      class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                    <tr
+                      class="MuiTableRow-root MuiTableRow-head css-13jktim-MuiTableRow-root"
                     >
-                      mock-image:latest
-                    </p>
-                  </dd>
-                  <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
-                  >
-                    Ports
-                  </dt>
-                  <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
-                  >
-                    <div
-                      class="MuiGrid-root MuiGrid-container css-11lq3yg-MuiGrid-root"
-                    >
-                      <div
-                        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                        scope="col"
                       >
-                        <div
-                          class="MuiBox-root css-70qvj9"
+                        Protocol
+                      </th>
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                        scope="col"
+                      >
+                        Name
+                      </th>
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                        scope="col"
+                      >
+                        Ports
+                      </th>
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                        scope="col"
+                      >
+                        Node Port
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    class="MuiTableBody-root css-apqrd9-MuiTableBody-root"
+                  >
+                    <tr
+                      class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                    >
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        TCP
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        https
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        <span
+                          class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
                         >
-                          <div
-                            class="MuiBox-root css-1hckbtd"
-                          >
-                            <span
-                              class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
-                            >
-                              undefined:
-                            </span>
-                            <span
-                              class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
-                            >
-                              8080
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  </dd>
-                </dl>
+                          443
+                        </span>
+                        <span
+                          class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                        >
+                          8443
+                        </span>
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        <span
+                          class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                        >
+                          31443
+                        </span>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
               </div>
             </div>
           </div>
@@ -425,7 +500,7 @@
                   <h2
                     class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
                   >
-                    Revision History
+                    Endpoints
                   </h2>
                   <div
                     class="MuiBox-root css-ldp2l3"
@@ -436,11 +511,84 @@
             <div
               class="MuiBox-root css-1txv3mw"
             >
-              <p
-                class="MuiTypography-root MuiTypography-body2 css-7oje3w-MuiTypography-root"
+              <div
+                aria-atomic="true"
+                aria-live="polite"
+                class="MuiBox-root css-ty8jgw"
+                role="status"
               >
-                No revision history available.
-              </p>
+                No data to be shown.
+              </div>
+              <div
+                class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
+              >
+                <div
+                  class="MuiBox-root css-19midj6"
+                >
+                  <p
+                    class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+                  >
+                    No data to be shown.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+      >
+        <div
+          class="MuiBox-root css-p0cik4"
+        >
+          <div
+            class="MuiBox-root css-j1fy4m"
+          >
+            <div
+              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+            >
+              <div
+                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              >
+                <div
+                  class="MuiBox-root css-70qvj9"
+                >
+                  <h2
+                    class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+                  >
+                    Endpoint Slices
+                  </h2>
+                  <div
+                    class="MuiBox-root css-ldp2l3"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="MuiBox-root css-1txv3mw"
+            >
+              <div
+                aria-atomic="true"
+                aria-live="polite"
+                class="MuiBox-root css-ty8jgw"
+                role="status"
+              >
+                No data to be shown.
+              </div>
+              <div
+                class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
+              >
+                <div
+                  class="MuiBox-root css-19midj6"
+                >
+                  <p
+                    class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+                  >
+                    No data to be shown.
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

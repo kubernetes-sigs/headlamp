@@ -97,7 +97,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
         list.items = list.items.map(item => {
           const itm = new kubeObjectClass({
             ...item,
-            kind: list.kind.replace('List', ''),
+            kind: list.kind.replace(/List$/, ''),
             apiVersion: list.apiVersion,
           });
           itm.cluster = cluster;
