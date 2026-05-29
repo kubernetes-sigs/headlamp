@@ -74,7 +74,7 @@ const LazyKubeIcon = lazy(() =>
 /**
  * Object representing a single search result
  */
-interface SearchResult {
+export interface SearchResultItem {
   id: string;
   label: string;
   icon?: JSX.Element;
@@ -84,6 +84,11 @@ interface SearchResult {
   labelMatch?: FuseResultMatch;
   subLabelMatch?: FuseResultMatch;
   k8sLabelsMatch?: FuseResultMatch;
+}
+
+export interface SearchResults {
+  isLoadingResources: boolean;
+  items: SearchResultItem[];
 }
 
 /**
@@ -167,10 +172,12 @@ export function GlobalSearchContent({
   maxWidth,
   defaultValue,
   onBlur,
+  providedSearchResults,
 }: {
   maxWidth: number;
   defaultValue: string;
   onBlur: () => void;
+  providedSearchResults?: SearchResults;
 }) {
   const { t } = useTranslation();
   const history = useHistory();
@@ -184,7 +191,7 @@ export function GlobalSearchContent({
 
   // Resource search items
   const resources = useSearchResources();
-  const loading = resources.filter(it => it.isLoading).map(it => it.kind);
+  const isLoadingResources = resources.filter(it => it.isLoading).length > 0;
   const namespaceItems = useMemo(() => {
     const namespaceResource = resources.find(resource => resource.kind === Namespace.kind);
     return (namespaceResource?.items as Namespace[]) ?? [];
@@ -197,7 +204,7 @@ export function GlobalSearchContent({
       ].filter(Boolean)
     );
 
-    const options: SearchResult[] = [];
+    const options: SearchResultItem[] = [];
 
     const addOption = (namespaceValue: string) => {
       if (!namespaceValue) {
@@ -263,7 +270,7 @@ export function GlobalSearchContent({
   );
 
   // Cluster items
-  const clusterItems: SearchResult[] = useMemo(
+  const clusterItems: SearchResultItem[] = useMemo(
     () =>
       Object.keys(clusters).map(cluster => ({
         id: cluster,
@@ -294,7 +301,7 @@ export function GlobalSearchContent({
           routeFilters.filter(f => f(route)).length !== routeFilters.length
         ) && !route.disabled
     );
-  const routes: SearchResult[] = useMemo(
+  const routes: SearchResultItem[] = useMemo(
     () =>
       filteredRoutes
         .filter(([, route]) => route.name && !route.path.includes(':'))
@@ -349,7 +356,7 @@ export function GlobalSearchContent({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, selectedClusters]);
-  const configureShortcutsAction: SearchResult = useMemo(
+  const configureShortcutsAction: SearchResultItem = useMemo(
     () => ({
       id: 'configure-shortcuts',
       subLabel: t('Settings'),
@@ -373,7 +380,7 @@ export function GlobalSearchContent({
         ...namespaceOptions,
         ...items,
         advancedSearchSuggestion,
-      ].filter(Boolean) as SearchResult[],
+      ].filter(Boolean) as SearchResultItem[],
     [
       configureShortcutsAction,
       themeActions,
@@ -402,47 +409,66 @@ export function GlobalSearchContent({
     [allOptions]
   );
 
-  const results: SearchResult[] = useMemo(() => {
-    if (!query) return [];
-    return fuse
-      .search(
-        {
-          // Construct logical query https://www.fusejs.io/api/query.html
-          // Improves search for space separated terms
-          $and: query
-            .split(' ')
-            .filter(Boolean)
-            .map(it => ({
-              $or: [
-                { label: it },
-                // Only search labels if there's an "=" character in the query
-                it.includes('=') ? { k8sLabels: it } : undefined,
-                { subLabel: it },
-              ].filter(Boolean) as Expression[],
-            })),
-        },
-        { limit: 100 }
-      )
-      .map(
-        ({ item, matches }) =>
-          ({
-            ...item,
-            labelMatch: matches?.find(it => it.key === 'label'),
-            subLabelMatch: matches?.find(it => it.key === 'subLabel'),
-            k8sLabelsMatch: matches?.find(it => it.key === 'k8sLabels'),
-          } satisfies SearchResult)
-      );
-  }, [query, fuse]);
+  const results: SearchResults = useMemo(() => {
+    if (!query) {
+      return {
+        isLoadingResources,
+        items: [],
+      };
+    }
 
-  const recentItems = useMemo(() => {
-    if (query) return [];
+    return {
+      isLoadingResources,
+      items: fuse
+        .search(
+          {
+            // Construct logical query https://www.fusejs.io/api/query.html
+            // Improves search for space separated terms
+            $and: query
+              .split(' ')
+              .filter(Boolean)
+              .map(it => ({
+                $or: [
+                  { label: it },
+                  // Only search labels if there's an "=" character in the query
+                  it.includes('=') ? { k8sLabels: it } : undefined,
+                  { subLabel: it },
+                ].filter(Boolean) as Expression[],
+              })),
+          },
+          { limit: 100 }
+        )
+        .map(
+          ({ item, matches }) =>
+            ({
+              ...item,
+              labelMatch: matches?.find(it => it.key === 'label'),
+              subLabelMatch: matches?.find(it => it.key === 'subLabel'),
+              k8sLabelsMatch: matches?.find(it => it.key === 'k8sLabels'),
+            } satisfies SearchResultItem)
+        ),
+    };
+  }, [query, fuse, isLoadingResources]);
 
-    return allOptions.filter(it => recent[it.id]).sort((a, b) => recent[b.id] - recent[a.id]);
+  const recents: SearchResults = useMemo(() => {
+    if (query) {
+      return {
+        isLoadingResources,
+        items: [],
+      };
+    }
+
+    return {
+      isLoadingResources,
+      items: allOptions.filter(it => recent[it.id]).sort((a, b) => recent[b.id] - recent[a.id]),
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recent, results, query]);
+  }, [recent, results, query, isLoadingResources]);
 
-  const autocomplete = useAutocomplete<SearchResult, false, false, true>({
-    options: !query ? recentItems : results,
+  const displayedSearchResults = providedSearchResults ?? (query ? results : recents);
+
+  const autocomplete = useAutocomplete<SearchResultItem, false, false, true>({
+    options: displayedSearchResults.items,
     freeSolo: true, // free user input, not just autocomplete options
     autoHighlight: true, // highlight first option on open
     openOnFocus: true,
@@ -450,7 +476,7 @@ export function GlobalSearchContent({
     filterOptions: options => options, // we handle filtering ourself
     onHighlightChange(_, option, reason) {
       if (reason === 'keyboard' && option) {
-        const index = results.indexOf(option);
+        const index = displayedSearchResults.items.indexOf(option);
         const list = listRef.current;
         list?.scrollToItem(index);
       }
@@ -502,7 +528,7 @@ export function GlobalSearchContent({
                     <Icon icon="mdi:close" />
                   </IconButton>
                 </Tooltip>
-                {loading.length > 0 && (
+                {displayedSearchResults.isLoadingResources && (
                   <Delayed display="flex" mr={1}>
                     <CircularProgress size="16px" />
                   </Delayed>
@@ -571,12 +597,12 @@ function SearchRow({
   style,
   index,
 }: {
-  data: UseAutocompleteReturnValue<SearchResult, false, false, true>;
+  data: UseAutocompleteReturnValue<SearchResultItem, false, false, true>;
   style: any;
   index: number;
 }) {
   const autocomplete = data;
-  const option = autocomplete.groupedOptions[index] as SearchResult;
+  const option = autocomplete.groupedOptions[index] as SearchResultItem;
 
   return (
     <Box
