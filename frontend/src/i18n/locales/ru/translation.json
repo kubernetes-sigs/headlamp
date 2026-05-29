@@ -542,7 +542,7 @@
   "No data in this config map": "В этой карте конфигурации нет данных",
   "Error getting custom resource definition {{ crdName }}: {{ errorMessage }}": "Ошибка при получении определения пользовательского ресурса {{ crdName }}: {{ errorMessage }}.",
   "Loading custom resource details": "Загрузка сведений о пользовательском ресурсе",
-  "Error getting custom resource {{ crName }}: {{ errorMessage }}": "Ошибка при получении пользовательского ресурса {{ crName }}: {{ errorMessage }}.",
+  "Custom Resource": "",
   "Loading custom resource instances": "Загрузка экземпляров пользовательских ресурсов",
   "No custom resources instances found.": "Экземпляры пользовательских ресурсов не найдены.",
   "Failed to load custom resource instances": "Не удалось загрузить экземпляры пользовательских ресурсов.",

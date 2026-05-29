@@ -25,8 +25,7 @@ import { HoverInfoLabel } from '../common/Label';
 import Link from '../common/Link';
 import Loader from '../common/Loader';
 import { NameValueTableRow } from '../common/NameValueTable';
-import ObjectEventList from '../common/ObjectEventList';
-import { ConditionsTable, MainInfoSection, PageGrid } from '../common/Resource';
+import { ConditionsTable, DetailsGrid } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
 import DetailsViewSection from '../DetailsViewSection';
 
@@ -137,27 +136,17 @@ function CustomResourceDetailsRenderer(props: CustomResourceDetailsRendererProps
   const { t } = useTranslation('glossary');
 
   const CRClass = React.useMemo(() => crd.makeCRClass(), [crd]);
-  const [item, error] = CRClass.useGet(crName, namespace, { cluster });
 
-  const apiVersion = item?.jsonData.apiVersion?.split('/').pop() || '';
-  const extraColumns: AdditionalPrinterColumns = getExtraColumns(crd, apiVersion) || [];
-
-  return !item ? (
-    !!error ? (
-      <Empty color="error">
-        {t('translation|Error getting custom resource {{ crName }}: {{ errorMessage }}', {
-          crName,
-          errorMessage: error.message,
-        })}
-      </Empty>
-    ) : (
-      <Loader title={t('translation|Loading custom resource details')} />
-    )
-  ) : (
-    <PageGrid>
-      <MainInfoSection
-        resource={item}
-        extraInfo={[
+  return (
+    <DetailsGrid
+      resourceType={CRClass}
+      name={crName}
+      namespace={namespace}
+      cluster={cluster}
+      title={`${crd.jsonData.spec?.names?.kind || t('translation|Custom Resource')}: ${crName}`}
+      backLink=""
+      extraInfo={item =>
+        item && [
           {
             name: t('glossary|Definition'),
             value: (
@@ -172,17 +161,33 @@ function CustomResourceDetailsRenderer(props: CustomResourceDetailsRendererProps
               </Link>
             ),
           },
-          ...getExtraInfo(extraColumns, item!.jsonData as KubeCRD),
-        ]}
-        backLink=""
-      />
-      {item!.jsonData.status?.conditions && (
-        <SectionBox>
-          <ConditionsTable resource={item.jsonData} showLastUpdate={false} />
-        </SectionBox>
-      )}
-      <DetailsViewSection resource={item} />
-      {item && <ObjectEventList object={item} />}
-    </PageGrid>
+          ...getExtraInfo(
+            getExtraColumns(crd, item.jsonData.apiVersion?.split('/').pop() || '') || [],
+            item.jsonData as KubeCRD
+          ),
+        ]
+      }
+      extraSections={item =>
+        item && [
+          ...(item.jsonData.status?.conditions
+            ? [
+                {
+                  id: 'headlamp.cr-conditions',
+                  section: (
+                    <SectionBox>
+                      <ConditionsTable resource={item.jsonData} showLastUpdate={false} />
+                    </SectionBox>
+                  ),
+                },
+              ]
+            : []),
+          {
+            id: 'headlamp.cr-details-view',
+            section: <DetailsViewSection resource={item} />,
+          },
+        ]
+      }
+      withEvents
+    />
   );
 }

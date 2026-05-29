@@ -532,7 +532,7 @@
   "No data in this config map": "Keine Daten in dieser Config-Map",
   "Error getting custom resource definition {{ crdName }}: {{ errorMessage }}": "Fehler beim Abrufen der benutzerdefinierten Ressourcendefinition {{ crdName }}: {{ errorMessage }}",
   "Loading custom resource details": "Laden von benutzerdefinierten Ressourcendetails",
-  "Error getting custom resource {{ crName }}: {{ errorMessage }}": "Fehler beim Abrufen der benutzerdefinierten Ressource {{ crName }}: {{ errorMessage }}",
+  "Custom Resource": "",
   "Loading custom resource instances": "",
   "No custom resources instances found.": "",
   "Failed to load custom resource instances": "",

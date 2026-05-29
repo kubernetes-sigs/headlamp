@@ -537,7 +537,7 @@
   "No data in this config map": "Aucune donnée pour cette configuration",
   "Error getting custom resource definition {{ crdName }}: {{ errorMessage }}": "Erreur lors de l'obtention de la définition de la ressource personnalisée {{ crdName }} : {{ errorMessage }}",
   "Loading custom resource details": "Chargement des détails des ressources personnalisées",
-  "Error getting custom resource {{ crName }}: {{ errorMessage }}": "Erreur lors de l'obtention de la ressource personnalisée {{ crName }} : {{ errorMessage }}",
+  "Custom Resource": "",
   "Loading custom resource instances": "Chargement des instances de ressources personnalisées",
   "No custom resources instances found.": "Aucune instance de ressources personnalisées trouvée.",
   "Failed to load custom resource instances": "Échec du chargement des instances de ressources personnalisées",

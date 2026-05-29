@@ -14,9 +14,13 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
+import React from 'react';
+import reducers from '../../redux/reducers/reducers';
 import { TestContext } from '../../test';
+import { SectionBox } from '../common/SectionBox';
 import { CustomResourceDetails, CustomResourceDetailsProps } from './CustomResourceDetails';
 import { mockCRD, mockCRList } from './storyHelper';
 
@@ -124,3 +128,46 @@ ErrorGettingCR.args = {
   crd: 'mydefinition.phonyresources.io',
   namespace: '-',
 };
+
+function WithPluginSectionWrapper(props: CustomResourceDetailsProps) {
+  return <CustomResourceDetails {...props} />;
+}
+
+const PluginTemplate: StoryFn<CustomResourceDetailsProps> = args => (
+  <WithPluginSectionWrapper {...args} />
+);
+
+export const WithPluginSection = PluginTemplate.bind({});
+WithPluginSection.args = {
+  crName: 'mycustomresource',
+  crd: 'mydefinition.phonyresources.io',
+  namespace: 'mynamespace',
+};
+WithPluginSection.decorators = [
+  Story => {
+    const store = configureStore({
+      reducer: reducers,
+      preloadedState: {
+        detailsViewSection: {
+          detailViews: [],
+          detailsViewSections: [
+            {
+              id: 'test-plugin-section',
+              section: ((props: { resource: any }) => (
+                <SectionBox title="Plugin Section">
+                  Custom plugin content for {props.resource?.metadata?.name}
+                </SectionBox>
+              )) as any,
+            },
+          ],
+          detailsViewSectionsProcessors: [],
+        },
+      },
+    });
+    return (
+      <TestContext store={store}>
+        <Story />
+      </TestContext>
+    );
+  },
+];

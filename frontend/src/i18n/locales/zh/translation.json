@@ -527,7 +527,7 @@
   "No data in this config map": "此 ConfigMap 中没有数据",
   "Error getting custom resource definition {{ crdName }}: {{ errorMessage }}": "获取自定义资源定义 {{ crdName }} 时出错：{{ errorMessage }}",
   "Loading custom resource details": "读取自定义资源详情",
-  "Error getting custom resource {{ crName }}: {{ errorMessage }}": "获取自定义资源 {{ crName }} 时出错：{{ errorMessage }}",
+  "Custom Resource": "",
   "Loading custom resource instances": "读取自定义资源实例",
   "No custom resources instances found.": "未找到自定义资源实例。",
   "Failed to load custom resource instances": "读取自定义资源实例失败",
