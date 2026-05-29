@@ -328,11 +328,9 @@ export default function SimpleTable(props: SimpleTableProps) {
     return filterFunction ? displayData.filter(filterFunction) : displayData;
   }, [displayData, filterFunction]);
 
-  React.useEffect(() => {
-    if (filteredData && filteredData.length <= page * rowsPerPage && page !== 0) {
-      setPage(0);
-    }
-  }, [filteredData, page, rowsPerPage, setPage]);
+  if (filteredData && filteredData.length <= page * rowsPerPage && page !== 0) {
+    setPage(0);
+  }
 
   let content;
   if (displayData === null) {
