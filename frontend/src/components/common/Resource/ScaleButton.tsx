@@ -42,6 +42,7 @@ import { AppDispatch } from '../../../redux/stores/store';
 import ActionButton, { ButtonStyle } from '../ActionButton';
 import { LightTooltip } from '../Tooltip';
 import AuthVisible from './AuthVisible';
+import PermissionDeniedAction from './PermissionDeniedAction';
 
 interface ScaleButtonProps {
   item: (Deployment | StatefulSet | ReplicaSet) & { _class?: () => { isScalable?: boolean } };
@@ -92,6 +93,13 @@ export default function ScaleButton(props: ScaleButtonProps) {
       item={item}
       authVerb="patch"
       subresource="scale"
+      deniedFallback={result => (
+        <PermissionDeniedAction
+          result={result}
+          label={t('translation|Scale')}
+          buttonStyle={buttonStyle}
+        />
+      )}
       onError={(err: Error) => {
         console.error(`Error while getting authorization for scaling button in ${item}:`, err);
       }}

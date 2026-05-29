@@ -38,9 +38,11 @@ import { KubeContainer } from '../../../lib/k8s/cluster';
 import { KubeObject, KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import Pod from '../../../lib/k8s/pod';
 import Service from '../../../lib/k8s/service';
-import ActionButton from '../ActionButton';
-export { type PortForward as PortForwardState } from '../../../lib/k8s/api/v1/portForward';
 import PortForwardStartDialog from '../../portforward/PortForwardStartDialog';
+import ActionButton from '../ActionButton';
+import AuthVisible, { AuthVisibleResult } from './AuthVisible';
+import PermissionDeniedAction from './PermissionDeniedAction';
+export { type PortForward as PortForwardState } from '../../../lib/k8s/api/v1/portForward';
 
 interface PortForwardKubeObjectProps {
   containerPort: number | string;
@@ -101,6 +103,37 @@ function checkIfPodPortForwarding(portforwardParam: {
     (item.pod === name || item.service === name) &&
     item.cluster === cluster &&
     item.targetPort === numericContainerPort.toString()
+  );
+}
+
+function PortForwardDeniedButton({ result }: { result: AuthVisibleResult }) {
+  const { t } = useTranslation(['translation']);
+  const detail =
+    result.reason ||
+    result.evaluationError ||
+    t('translation|Kubernetes denied this SelfSubjectAccessReview.');
+
+  return (
+    <Tooltip
+      title={`${t("translation|Why can't I do this?")} ${t(
+        'translation|You cannot create pods/portforward in this namespace.'
+      )} ${detail}`}
+    >
+      <span>
+        <Button
+          aria-label={t('translation|Start port forward')}
+          color="primary"
+          variant="outlined"
+          style={{
+            textTransform: 'none',
+          }}
+          disabled
+        >
+          <InlineIcon icon="mdi:shield-alert" width={20} />
+          <Typography>{t('translation|Forward port')}</Typography>
+        </Button>
+      </span>
+    </Tooltip>
   );
 }
 
@@ -356,19 +389,27 @@ function PortForwardContent(props: PortForwardProps) {
           {loading ? (
             <CircularProgress size={18} />
           ) : (
-            <Button
-              onClick={openStartDialog}
-              aria-label={t('translation|Start port forward')}
-              color="primary"
-              variant="outlined"
-              style={{
-                textTransform: 'none',
-              }}
-              disabled={loading}
+            <AuthVisible
+              item={Pod}
+              authVerb="create"
+              subresource="portforward"
+              namespace={namespace}
+              deniedFallback={result => <PortForwardDeniedButton result={result} />}
             >
-              <InlineIcon icon="mdi:fast-forward" width={20} />
-              <Typography>{t('translation|Forward port')}</Typography>
-            </Button>
+              <Button
+                onClick={openStartDialog}
+                aria-label={t('translation|Start port forward')}
+                color="primary"
+                variant="outlined"
+                style={{
+                  textTransform: 'none',
+                }}
+                disabled={loading}
+              >
+                <InlineIcon icon="mdi:fast-forward" width={20} />
+                <Typography>{t('translation|Forward port')}</Typography>
+              </Button>
+            </AuthVisible>
           )}
           {error && (
             <Box mt={1}>
@@ -394,18 +435,31 @@ function PortForwardContent(props: PortForwardProps) {
                   color: grey[500],
                 }}
               >{`${forwardBaseURL}:${portForward.port}`}</Typography>
-              <ActionButton
-                onClick={openStartDialog}
-                description={t('translation|Start port forward')}
-                color="primary"
-                icon="mdi:fast-forward"
-                iconButtonProps={{
-                  size: 'small',
-                  color: 'primary',
-                  disabled: loading,
-                }}
-                width={'25'}
-              />
+              <AuthVisible
+                item={Pod}
+                authVerb="create"
+                subresource="portforward"
+                namespace={namespace}
+                deniedFallback={result => (
+                  <PermissionDeniedAction
+                    result={result}
+                    label={t('translation|Start port forward')}
+                  />
+                )}
+              >
+                <ActionButton
+                  onClick={openStartDialog}
+                  description={t('translation|Start port forward')}
+                  color="primary"
+                  icon="mdi:fast-forward"
+                  iconButtonProps={{
+                    size: 'small',
+                    color: 'primary',
+                    disabled: loading,
+                  }}
+                  width={'25'}
+                />
+              </AuthVisible>
               <ActionButton
                 onClick={deletePortForwardHandler}
                 description={t('translation|Delete port forward')}

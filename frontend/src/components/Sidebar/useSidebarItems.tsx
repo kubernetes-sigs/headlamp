@@ -350,6 +350,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         icon: 'mdi:lock',
         subList: [
           {
+            name: 'access',
+            label: t('translation|Access'),
+          },
+          {
             name: 'serviceAccounts',
             label: t('glossary|Service Accounts'),
           },

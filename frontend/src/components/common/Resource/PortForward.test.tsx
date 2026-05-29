@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { TestContext } from '../../../test';
 import PortForward, { PORT_FORWARD_STOP_STATUS } from './PortForward';
@@ -36,7 +37,12 @@ vi.mock('../../../lib/k8s/api/v1/portForward', () => ({
   stopOrDeletePortForward: (...args: any[]) => mockStopOrDeletePortForward(...args),
 }));
 vi.mock('../../../lib/k8s/pod', () => ({
-  default: { useList: () => [[], null] },
+  default: {
+    apiName: 'pods',
+    apiVersion: 'v1',
+    getAuthorization: vi.fn().mockResolvedValue({ status: { allowed: true } }),
+    useList: () => [[], null],
+  },
 }));
 vi.mock('../../portforward/PortForwardStartDialog', () => ({ default: () => null }));
 
@@ -63,10 +69,14 @@ function makePod() {
 }
 
 function renderPortForward() {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+
   return render(
-    <TestContext>
-      <PortForward containerPort={80} resource={makePod() as any} />
-    </TestContext>
+    <QueryClientProvider client={queryClient}>
+      <TestContext>
+        <PortForward containerPort={80} resource={makePod() as any} />
+      </TestContext>
+    </QueryClientProvider>
   );
 }
 
