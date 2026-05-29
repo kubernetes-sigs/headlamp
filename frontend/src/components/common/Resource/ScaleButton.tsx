@@ -128,11 +128,13 @@ const Input = styled(OutlinedInput)({
 });
 
 function getNumReplicas(resource: Deployment | StatefulSet | ReplicaSet) {
-  if (!('spec' in resource)) {
+  const replicas = resource.spec?.replicas;
+  if (replicas === undefined || replicas === null) {
     return -1;
   }
 
-  return parseInt(resource.spec.replicas);
+  const parsed = typeof replicas === 'string' ? parseInt(replicas, 10) : Number(replicas);
+  return Number.isFinite(parsed) ? parsed : -1;
 }
 
 function ScaleDialog(props: ScaleDialogProps) {
