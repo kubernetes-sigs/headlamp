@@ -146,7 +146,7 @@ function ScaleDialog(props: ScaleDialogProps) {
   const numReplicasForWarning = 100;
   const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.SCALE_RESOURCE);
 
-  const currentNumReplicas = React.useMemo(() => getNumReplicas(resource), [resource]);
+  const currentNumReplicas = getNumReplicas(resource);
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
