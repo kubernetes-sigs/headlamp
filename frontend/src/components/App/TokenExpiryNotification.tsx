@@ -67,10 +67,15 @@ export function PureTokenExpiryNotification({
   // auto-logout effect targets the right cluster even if the user has since
   // navigated to a different one.
   const expiredClusterRef = React.useRef<string | null>(null);
+  // Captures the tokenExpiry value paired with expiredClusterRef so the
+  // auto-logout effect can verify it still matches the current tokenExpiry
+  // state — guards against a stale local-expiry firing after a cluster switch.
+  const expiredClusterTokenRef = React.useRef<number | null>(null);
 
   // Restart the poller whenever the cluster changes.
   React.useEffect(() => {
     tokenExpiredRef.current = false;
+    expiredClusterTokenRef.current = null;
     setTokenExpiry(null);
     setTokenExpired(false);
     setNow(Math.floor(Date.now() / 1000));
@@ -127,11 +132,27 @@ export function PureTokenExpiryNotification({
       return () => clearInterval(intervalId!);
     }
 
-    const safeDelay = Math.min((secondsLeft - WARNING_BEFORE_EXPIRY_SECONDS) * 1000, 2147483647);
-    const timeoutId = setTimeout(() => {
-      setNow(Math.floor(Date.now() / 1000));
-      intervalId = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
-    }, safeDelay);
+    // setTimeout saturates at 2^31-1 ms (~24.8 days). For tokens with longer
+    // lifetimes, keep rescheduling until we're actually within the warning
+    // window before starting the 1-second countdown interval.
+    const MAX_TIMEOUT_MS = 2147483647;
+    let timeoutId: ReturnType<typeof setTimeout>;
+
+    const scheduleCountdown = (remainingMs: number) => {
+      if (remainingMs <= MAX_TIMEOUT_MS) {
+        timeoutId = setTimeout(() => {
+          setNow(Math.floor(Date.now() / 1000));
+          intervalId = setInterval(() => setNow(Math.floor(Date.now() / 1000)), 1000);
+        }, remainingMs);
+      } else {
+        timeoutId = setTimeout(
+          () => scheduleCountdown(remainingMs - MAX_TIMEOUT_MS),
+          MAX_TIMEOUT_MS
+        );
+      }
+    };
+
+    scheduleCountdown((secondsLeft - WARNING_BEFORE_EXPIRY_SECONDS) * 1000);
 
     return () => {
       clearTimeout(timeoutId);
@@ -145,6 +166,7 @@ export function PureTokenExpiryNotification({
     if (tokenExpiry !== null && now >= tokenExpiry && !tokenExpired) {
       tokenExpiredRef.current = true;
       expiredClusterRef.current = clusterName;
+      expiredClusterTokenRef.current = tokenExpiry;
       if (intervalRef.current !== null) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
@@ -157,11 +179,16 @@ export function PureTokenExpiryNotification({
   // backend poll or from the local clock check above).
   React.useEffect(() => {
     if (!tokenExpired) return;
+    // For locally-detected expiry, verify the tokenExpiry that triggered it
+    // still matches current state — skip if a cluster switch has since reset it.
+    if (expiredClusterTokenRef.current !== null && expiredClusterTokenRef.current !== tokenExpiry) {
+      return;
+    }
     const target = expiredClusterRef.current ?? clusterName;
     if (target) {
       logout(target);
     }
-  }, [tokenExpired, clusterName]);
+  }, [tokenExpired, clusterName, tokenExpiry]);
 
   const showOnRoute = React.useMemo(() => {
     for (const routeName of ROUTES_WITHOUT_EXPIRY_CHECK) {
