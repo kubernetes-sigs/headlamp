@@ -1,8 +1,8 @@
 {
+  "Namespace": "Пространство имён",
   "Kubernetes Version": "Версия Kubernetes",
   "Cluster": "Кластер",
   "Cluster selector": "Селектор кластера",
-  "Namespace": "Пространство имён",
   "Git Commit": "Git-коммит",
   "Memory": "Память",
   "CPU": "Процессор",
