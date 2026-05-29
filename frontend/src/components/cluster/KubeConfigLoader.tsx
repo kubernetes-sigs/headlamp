@@ -192,6 +192,7 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
         // Optimize lookup: precompute a map of cluster name to cluster object
         const clusterMap = new Map<string, KubeConfigCluster>();
         (fileContent?.clusters ?? []).forEach(c => clusterMap.set(c.name, c));
+        const selectedSet = new Set(selectedClusters);
 
         return (
           <Box
@@ -235,7 +236,7 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
                             name={context.name}
                             onChange={onCheckboxChange}
                             color="primary"
-                            checked={selectedClusters.includes(context.name)}
+                            checked={selectedSet.has(context.name)}
                             inputProps={{
                               'aria-label': t('Select {{contextName}}', {
                                 contextName: context.name,
@@ -325,10 +326,8 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
       useCover
       aria-labelledby="kubeconfig-loader-heading"
     >
-      <DialogTitle>
-        <span id="kubeconfig-loader-heading">
-          {step === Step.SelectClusters ? t('Select clusters to add') : t('Load from KubeConfig')}
-        </span>
+      <DialogTitle id="kubeconfig-loader-heading">
+        {step === Step.SelectClusters ? t('Select clusters to add') : t('Load from KubeConfig')}
       </DialogTitle>
       {error && error !== '' ? (
         <Box
@@ -384,6 +383,7 @@ function KubeConfigLoader() {
       );
       setState(Step.SelectClusters);
     } else {
+      setError('');
       setState(Step.ConfigureClusters);
     }
   }, [state, selectedClusters, configuredClusters, t]);
