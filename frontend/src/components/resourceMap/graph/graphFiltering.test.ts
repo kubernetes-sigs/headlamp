@@ -126,4 +126,16 @@ describe('filterGraph', () => {
 
     expect(filteredNodes.map(it => it.id)).toEqual(['pod-with-explicit-error']);
   });
+
+  it('doesnt drop edges when filtering', () => {
+    const nodes: GraphNode[] = [{ id: 'node1', status: 'error' }, { id: 'node2' }, { id: 'node3' }];
+    const edges: GraphEdge[] = [
+      { id: 'edge1', source: 'node1', target: 'node2' },
+      { id: 'edge2', source: 'node2', target: 'node3' },
+      { id: 'edge3', source: 'node1', target: 'node3' },
+    ];
+    const result = filterGraph(nodes, edges, [{ type: 'hasErrors' }]);
+
+    expect(result.edges.length).toBe(3);
+  });
 });
