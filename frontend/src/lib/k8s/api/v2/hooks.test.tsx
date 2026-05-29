@@ -18,6 +18,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, type MockedFunction, vi } from 'vitest';
+import { TestContext } from '../../../../test';
 import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
 import { useEndpoints, useKubeObject } from './hooks';
@@ -64,7 +65,9 @@ const createWrapper = () => {
   });
 
   return ({ children }: { children: ReactNode }) => (
-    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    <TestContext>
+      <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+    </TestContext>
   );
 };
 

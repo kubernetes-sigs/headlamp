@@ -22,6 +22,7 @@ describe('configSlice storage initialization', () => {
     expect(initialState.settings.timezone).toBe('UTC');
     expect(initialState.settings.sidebarSortAlphabetically).toBe(false);
     expect(initialState.settings.useEvict).toBe(true);
+    expect(initialState.settings.websocketMultiplexerEnabled).toBeUndefined();
   }
 
   beforeEach(() => {
@@ -74,6 +75,7 @@ describe('configSlice storage initialization', () => {
         timezone: 'Asia/Kolkata',
         sidebarSortAlphabetically: true,
         useEvict: false,
+        websocketMultiplexerEnabled: false,
       })
     );
 
@@ -83,6 +85,7 @@ describe('configSlice storage initialization', () => {
     expect(initialState.settings.timezone).toBe('Asia/Kolkata');
     expect(initialState.settings.sidebarSortAlphabetically).toBe(true);
     expect(initialState.settings.useEvict).toBe(false);
+    expect(initialState.settings.websocketMultiplexerEnabled).toBe(false);
   });
 
   it('falls back to default timezone when stored timezone is an invalid IANA string', async () => {

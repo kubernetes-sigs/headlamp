@@ -17,6 +17,7 @@
 import type { QueryObserverOptions } from '@tanstack/react-query';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useWebsocketMultiplexerEnabled } from '../../../../helpers/websocketMultiplexer';
 import type { KubeObject, KubeObjectClass } from '../../KubeObject';
 import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError } from './ApiError';
@@ -30,14 +31,6 @@ import { makeUrl } from './makeUrl';
 import { WebSocketManager } from './multiplexer';
 import { kubeRequestRetry } from './retry';
 import { BASE_WS_URL, useWebSockets } from './webSocket';
-
-/**
- * @returns true if the websocket multiplexer is enabled.
- * defaults to true. This is a feature flag to enable the websocket multiplexer.
- */
-export function getWebsocketMultiplexerEnabled(): boolean {
-  return import.meta.env.REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER === 'true';
-}
 
 /**
  * Object representing a List of Kube object
@@ -142,7 +135,7 @@ export function useWatchKubeObjectLists<K extends KubeObject>({
   /** Which clusters and namespaces to watch */
   lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
 }) {
-  const multiplexerEnabled = getWebsocketMultiplexerEnabled();
+  const multiplexerEnabled = useWebsocketMultiplexerEnabled();
 
   useWatchKubeObjectListsMultiplexed({
     kubeObjectClass,
@@ -177,13 +170,13 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
   endpoint,
   lists,
   queryParams,
-  enabled = true,
+  enabled,
 }: {
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
   endpoint?: KubeObjectEndpoint | null;
   lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
   queryParams?: QueryParameters;
-  enabled?: boolean;
+  enabled: boolean;
 }): void {
   const client = useQueryClient();
 
@@ -271,6 +264,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
       return;
     }
 
+    let canceled = false;
     const cleanups: (() => void)[] = [];
 
     // Create subscriptions for each connection
@@ -285,8 +279,17 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         update => handleUpdate(update, cluster, namespace),
         error => console.error(`WebSocket subscription error for cluster ${cluster}:`, error)
       ).then(
-        cleanup => cleanups.push(cleanup),
+        cleanup => {
+          if (canceled) {
+            cleanup();
+            return;
+          }
+          cleanups.push(cleanup);
+        },
         error => {
+          if (canceled) {
+            return;
+          }
           // Track retry count in the URL's searchParams
           const retryCount = parseInt(parsedUrl.searchParams.get('retryCount') || '0');
           if (retryCount < 3) {
@@ -300,6 +303,7 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
 
     // Cleanup subscriptions when effect re-runs or unmounts
     return () => {
+      canceled = true;
       cleanups.forEach(cleanup => cleanup());
     };
   }, [connections, enabled, endpoint, handleUpdate]);
@@ -318,7 +322,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
   endpoint,
   lists,
   queryParams,
-  enabled = true,
+  enabled,
 }: {
   /** KubeObject class of the watched resource list */
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
@@ -328,7 +332,7 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
   endpoint?: KubeObjectEndpoint | null;
   /** Which clusters and namespaces to watch */
   lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
-  enabled?: boolean;
+  enabled: boolean;
 }) {
   const client = useQueryClient();
 
