@@ -53,14 +53,19 @@ export interface ListResponse<K extends KubeObject> {
 }
 
 /**
- * Query to list Kube objects from a cluster and namespace(optional)
+ * Generates a React Query configuration for fetching a list of Kubernetes objects.
+ * This function encapsulates the logic for constructing the API URL, performing
+ * the fetch via clusterFetch, and instantiating the resulting items into the
+ * provided KubeObject class.
  *
- * @param kubeObjectClass - Class to instantiate the object with
- * @param endpoint - API endpoint
- * @param namespace - namespace to list objects from(optional)
- * @param cluster - cluster name
- * @param queryParams - query parameters
- * @returns query options for getting a single list of kube resources
+ * @template K - Type extending KubeObject for the resources being queried
+ * @param kubeObjectClass - The class constructor used to instantiate each item in the list
+ * @param endpoint - The Kubernetes API endpoint information for the resource type
+ * @param namespace - Optional namespace to filter the list. If undefined, namespaced resources are fetched across all namespaces, while cluster-scoped resources are fetched at cluster scope.
+ * @param cluster - The name of the cluster to query
+ * @param queryParams - Additional Kubernetes API query parameters (e.g., labelSelector, fieldSelector)
+ * @param refetchInterval - Optional interval in milliseconds for automatic background refetching
+ * @returns An object compatible with React Query's useQuery or useQueries options
  */
 export function kubeObjectListQuery<K extends KubeObject>(
   kubeObjectClass: KubeObjectClass,
@@ -124,8 +129,16 @@ export function kubeObjectListQuery<K extends KubeObject>(
 }
 
 /**
- * Accepts a list of lists to watch.
- * Upon receiving update it will modify query data for list query
+ * A React hook that manages WebSocket watches for multiple Kubernetes resource lists.
+ * It automatically switches between multiplexed and legacy WebSocket implementations
+ * based on the `getWebsocketMultiplexerEnabled` feature flag.
+ *
+ * @template K - Type extending KubeObject for the resources being watched
+ * @param params - The configuration for the watch
+ * @param params.kubeObjectClass - The class constructor for the resource type
+ * @param params.endpoint - API endpoint information for the resource
+ * @param params.lists - Array of cluster, namespace, and resourceVersion combinations to watch
+ * @param params.queryParams - Optional query parameters for the WebSocket URLs
  */
 export function useWatchKubeObjectLists<K extends KubeObject>({
   kubeObjectClass,
@@ -380,15 +393,19 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
 }
 
 /**
- * Creates multiple requests to list Kube objects
- * Handles multiple clusters, namespaces and allowed namespaces
+ * A utility function that prepares an array of cluster/namespace request configurations.
+ * It calculates which namespaces to query for each cluster by intersecting
+ * the requested namespaces with the user's allowed namespaces (if an allowlist is configured).
+ * An empty allowlist means all requested namespaces are queried unchanged. It also handles
+ * cluster-scoped vs. namespace-scoped resources.
  *
- * @param clusters - list of clusters
- * @param getAllowedNamespaces -  function to get allowed namespaces for a cluster
- * @param isResourceNamespaced - if the resource is namespaced
- * @param requestedNamespaces - requested namespaces(optional)
+ * @param clusters - Array of cluster names to include in the requests
+ * @param getAllowedNamespaces - A function that returns the list of allowed namespaces for a given cluster
+ * @param isResourceNamespaced - Boolean indicating if the resource type is namespace-scoped
+ * @param requestedNamespaces - Optional array of namespaces specifically requested by the user
  *
- * @returns list of requests for clusters and appropriate namespaces
+ * @returns An array of request configurations, where each item specifies a cluster and
+ *          an optional array of namespaces to query within that cluster.
  */
 export function makeListRequests(
   clusters: string[],
@@ -410,10 +427,23 @@ export function makeListRequests(
 }
 
 /**
- * Returns a combined list of Kubernetes objects and watches for changes from the clusters given.
+ * A comprehensive React hook that fetches a combined list of Kubernetes objects from
+ * multiple clusters and namespaces, and optionally watches them for real-time updates.
  *
- * @param param - request paramaters
- * @returns Combined list of Kubernetes resources
+ * It integrates with React Query for caching and state management, and manages
+ * WebSocket subscriptions automatically as the request parameters change.
+ *
+ * @template K - Type extending KubeObject for the resources in the list
+ * @param params - Configuration object for the list request and watch behavior
+ * @param params.requests - Array of objects specifying clusters and namespaces to fetch from
+ * @param params.kubeObjectClass - The class constructor used to instantiate the resource objects
+ * @param params.queryParams - Optional Kubernetes API query parameters (e.g., labelSelector)
+ * @param params.watch - Whether to enable real-time WebSocket updates. Defaults to true.
+ * @param params.refetchInterval - Optional interval in milliseconds for periodic polling.
+ *                                If set, WebSocket watching is automatically disabled.
+ *
+ * @returns A tuple-like object that can be destructured as [items, error] or used as an object
+ *          with properties like `items`, `error`, `isLoading`, `isFetching`, etc.
  */
 export function useKubeObjectList<K extends KubeObject>({
   requests,
@@ -508,18 +538,23 @@ export function useKubeObjectList<K extends KubeObject>({
     },
   });
 
+  // Decide if we should start watching for real-time updates.
+  // We avoid watching during initial load or when polling is enabled.
   const shouldWatch = watch && !refetchInterval && !query.isLoading;
 
   const [listsToWatch, setListsToWatch] = useState<
     { cluster: string; namespace?: string; resourceVersion: string }[]
   >([]);
 
+  // Identify resource lists that have been successfully fetched but are not yet being watched.
+  // We use the resourceVersion from the fetch result to start the watch from the correct point in time.
   const listsNotYetWatched = query.data
     .filter(Boolean)
     .filter(
       data =>
         listsToWatch.find(
-          // resourceVersion is intentionally omitted to avoid recreating WS connection when list is updated
+          // Watch identity here is based on cluster/namespace only; WebSocketManager reuses the
+          // original subscription query and does not update resource versions internally.
           watching => watching.cluster === data?.cluster && watching.namespace === data.namespace
         ) === undefined
     )
@@ -533,6 +568,8 @@ export function useKubeObjectList<K extends KubeObject>({
     setListsToWatch([...listsToWatch, ...listsNotYetWatched]);
   }
 
+  // Identify resource lists that are currently being watched but are no longer present
+  // in the hook's request parameters (e.g., if a cluster or namespace filter changed).
   const listsToStopWatching = listsToWatch.filter(
     watching =>
       requests.find(request => {
