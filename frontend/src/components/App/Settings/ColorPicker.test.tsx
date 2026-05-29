@@ -125,17 +125,10 @@ describe('ColorPicker', () => {
   test('highlights preset color when it matches currentColor', () => {
     const onClose = vi.fn();
     const onSelectColor = vi.fn();
-    const onError = vi.fn();
 
     const { rerender } = render(
       <I18nextProvider i18n={i18n}>
-        <ColorPicker
-          open
-          currentColor=""
-          onClose={onClose}
-          onSelectColor={onSelectColor}
-          onError={onError}
-        />
+        <ColorPicker open currentColor="" onClose={onClose} onSelectColor={onSelectColor} />
       </I18nextProvider>
     );
 
@@ -155,7 +148,6 @@ describe('ColorPicker', () => {
           currentColor={presetColor}
           onClose={onClose}
           onSelectColor={onSelectColor}
-          onError={onError}
         />
       </I18nextProvider>
     );

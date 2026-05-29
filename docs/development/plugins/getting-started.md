@@ -25,8 +25,8 @@ Headlamp plugins are JavaScript/TypeScript modules that extend the functionality
 
 Before starting plugin development, ensure you have:
 
-- **Node.js** (v20.18.1 or later) - [Download here](https://nodejs.org/)
-- **npm** (comes with Node.js)
+- **Node.js** (v22.0.0 or later) - [Download here](https://nodejs.org/)
+- **npm** (v11.0.0 or later) - npm is typically installed with Node.js, but may require a separate upgrade
 - **A running Headlamp instance** - Either the [desktop app](../../installation/desktop/) or [development setup](../index.md)
 - **Basic knowledge of JavaScript/TypeScript and React**
 

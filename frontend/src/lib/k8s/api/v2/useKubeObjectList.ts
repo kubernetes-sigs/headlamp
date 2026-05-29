@@ -97,7 +97,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
         list.items = list.items.map(item => {
           const itm = new kubeObjectClass({
             ...item,
-            kind: list.kind.replace('List', ''),
+            kind: list.kind.replace(/List$/, ''),
             apiVersion: list.apiVersion,
           });
           itm.cluster = cluster;
@@ -278,8 +278,12 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
       const parsedUrl = new URL(url, BASE_WS_URL);
 
       // Subscribe to WebSocket updates
-      WebSocketManager.subscribe(cluster, parsedUrl.pathname, parsedUrl.search.slice(1), update =>
-        handleUpdate(update, cluster, namespace)
+      WebSocketManager.subscribe(
+        cluster,
+        parsedUrl.pathname,
+        parsedUrl.search.slice(1),
+        update => handleUpdate(update, cluster, namespace),
+        error => console.error(`WebSocket subscription error for cluster ${cluster}:`, error)
       ).then(
         cleanup => cleanups.push(cleanup),
         error => {

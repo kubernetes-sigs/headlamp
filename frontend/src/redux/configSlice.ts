@@ -59,6 +59,12 @@ export interface ConfigState {
    */
   defaultPodDebugImage: string;
   /**
+   * Theme configuration from the backend server.
+   */
+  defaultLightTheme?: string;
+  defaultDarkTheme?: string;
+  forceTheme?: string;
+  /**
    * Settings is a map of settings names to settings values.
    */
   settings: {
@@ -176,6 +182,9 @@ const configSlice = createSlice({
         isDynamicClusterEnabled?: boolean;
         allowKubeconfigChanges?: boolean;
         defaultPodDebugImage?: string;
+        defaultLightTheme?: string;
+        defaultDarkTheme?: string;
+        forceTheme?: string;
       }>
     ) {
       state.clusters = action.payload.clusters;
@@ -188,6 +197,9 @@ const configSlice = createSlice({
       if (action.payload.defaultPodDebugImage !== undefined) {
         state.defaultPodDebugImage = action.payload.defaultPodDebugImage;
       }
+      state.defaultLightTheme = action.payload.defaultLightTheme;
+      state.defaultDarkTheme = action.payload.defaultDarkTheme;
+      state.forceTheme = action.payload.forceTheme;
     },
     /**
      * Save the config. To both the store, and localStorage.

@@ -25,7 +25,7 @@ import { timeAgo } from '../util';
 import { useConnectApi, useSelectedClusters } from '.';
 import { post } from './api/v1/clusterRequests';
 import type { DeleteParameters } from './api/v1/deleteParameters';
-import type { RecursivePartial } from './api/v1/factories';
+import type { ApiClient, ApiWithNamespaceClient, RecursivePartial } from './api/v1/factories';
 import { apiFactory, apiFactoryWithNamespace } from './api/v1/factories';
 import type { QueryParameters } from './api/v1/queryParameters';
 import type { ApiError } from './api/v2/ApiError';
@@ -33,6 +33,7 @@ import { useKubeObject } from './api/v2/hooks';
 import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
 import type { KubeEvent } from './event';
 import type { KubeMetadata, KubeMetadataCreate } from './KubeMetadata';
+import { computePatchOperations, computeRawPatchCount } from './patchUtils';
 
 function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
   if (!cluster) {
@@ -511,6 +512,54 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
   update(data: KubeObjectInterface) {
     return this._class().apiEndpoint.put(data, {}, this._clusterName);
+  }
+
+  /**
+   * Updates a resource using JSON Patch (RFC 6902), sending only the diff between
+   * the original and modified objects. This avoids 409 Conflict errors on resources
+   * that are frequently updated by controllers (e.g. HPA).
+   */
+  patchUpdate(
+    original: KubeObjectInterface,
+    modified: KubeObjectInterface
+  ): Promise<KubeObjectInterface> {
+    const filteredOps = computePatchOperations(original, modified);
+    if (filteredOps.length === 0) {
+      const rawCount = computeRawPatchCount(original, modified);
+      if (rawCount > 0) {
+        // The user changed something, but every change was in a
+        // server-managed field that we filter out (status,
+        // resourceVersion, managedFields, generation). Reject so the
+        // editor can surface a clear error rather than silently
+        // dropping the user's edits.
+        return Promise.reject(
+          new Error(
+            `No editable changes to apply: all ${rawCount} change(s) for ${this.getName()} ` +
+              `were in server-managed fields (status, resourceVersion, managedFields, generation).`
+          )
+        );
+      }
+      // True no-op: nothing changed at all.
+      console.debug(`patchUpdate: No differences detected for ${this.getName()}. No patch sent.`);
+      return Promise.resolve(this.jsonData as KubeObjectInterface);
+    }
+
+    const endpoint = this._class().apiEndpoint;
+    if (this.isNamespaced) {
+      return (endpoint as ApiWithNamespaceClient<KubeObjectInterface>).jsonPatch(
+        filteredOps,
+        this.getNamespace()!,
+        this.getName(),
+        {},
+        this._clusterName
+      );
+    }
+    return (endpoint as ApiClient<KubeObjectInterface>).jsonPatch(
+      filteredOps,
+      this.getName(),
+      {},
+      this._clusterName
+    );
   }
 
   static put(data: KubeObjectInterface) {

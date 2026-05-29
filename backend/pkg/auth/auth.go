@@ -71,6 +71,21 @@ var clusterPathRegex = regexp.MustCompile(`^/clusters/([^/]+)/.*`)
 // https://datatracker.ietf.org/doc/html/rfc6750#section-2.1
 var bearerTokenRegex = regexp.MustCompile(`^[\x21-\x7E]+$`)
 
+// BearerTokenValue returns the raw token from an Authorization header value.
+func BearerTokenValue(token string) string {
+	trimmedToken := strings.TrimLeft(token, " \t")
+
+	const bearerScheme = "Bearer"
+	if len(trimmedToken) > len(bearerScheme) && strings.EqualFold(trimmedToken[:len(bearerScheme)], bearerScheme) {
+		credentials := trimmedToken[len(bearerScheme):]
+		if credentials[0] == ' ' || credentials[0] == '\t' {
+			return strings.TrimSpace(credentials)
+		}
+	}
+
+	return strings.TrimSpace(token)
+}
+
 // ParseClusterAndToken extracts the cluster name from the URL path and
 // the Bearer token from the Authorization header of the HTTP request, falling
 // back to the cluster cookie when the header is missing.
@@ -83,14 +98,9 @@ func ParseClusterAndToken(r *http.Request) (string, string) {
 	}
 
 	// Try Authorization header first (for backward compatibility)
-	token := strings.TrimSpace(r.Header.Get("Authorization"))
+	token := BearerTokenValue(r.Header.Get("Authorization"))
 	if strings.Contains(token, ",") {
 		return cluster, ""
-	}
-
-	const bearerPrefix = "Bearer "
-	if strings.HasPrefix(strings.ToLower(token), strings.ToLower(bearerPrefix)) {
-		token = strings.TrimSpace(token[len(bearerPrefix):])
 	}
 
 	// If no auth header, try cookie
@@ -237,7 +247,7 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 		ctx = oidc.ClientContext(ctx, &http.Client{Transport: tlsSkipTransport})
 	}
 
-	if caCert != nil {
+	if caCert != nil && *caCert != "" {
 		caCertPool := x509.NewCertPool()
 		if !caCertPool.AppendCertsFromPEM([]byte(*caCert)) {
 			logger.Log(logger.LevelError, nil,
@@ -613,10 +623,22 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 		params.TelemetryHandler.RecordErrorCount(params.Ctx, attribute.String("error", "token_refresh_failure"))
 	} else if newToken != nil {
 		var newTokenString string
+
+		var ok bool
+
 		if params.OIDCUseAccessToken {
-			newTokenString = newToken.Extra("access_token").(string)
+			newTokenString, ok = newToken.Extra("access_token").(string)
 		} else {
-			newTokenString = newToken.Extra("id_token").(string)
+			newTokenString, ok = newToken.Extra("id_token").(string)
+		}
+
+		if !ok || newTokenString == "" {
+			logger.Log(logger.LevelError, map[string]string{"cluster": params.Cluster},
+				errors.New("refreshed token missing expected field"), "failed to extract token string")
+			params.TelemetryHandler.RecordError(params.Span,
+				errors.New("refreshed token missing expected field"), "Token extraction failed")
+
+			return
 		}
 
 		// Set refreshed token in cookie

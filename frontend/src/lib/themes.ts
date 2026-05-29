@@ -108,6 +108,37 @@ export interface HeadlampNavbar {
   searchHint: string;
 }
 
+/**
+ * Color overrides for the xterm.js based terminal/log viewers, surfaced on the
+ * MUI palette so plugins can set them inline via `registerAppTheme(...)`.
+ *
+ * Every field is optional; missing fields are derived from the surrounding
+ * MUI palette by `getXtermTheme()`.
+ */
+export interface HeadlampTerminal {
+  background?: string;
+  foreground?: string;
+  cursor?: string;
+  ansi?: {
+    black?: string;
+    red?: string;
+    green?: string;
+    yellow?: string;
+    blue?: string;
+    magenta?: string;
+    cyan?: string;
+    white?: string;
+    brightBlack?: string;
+    brightRed?: string;
+    brightGreen?: string;
+    brightYellow?: string;
+    brightBlue?: string;
+    brightMagenta?: string;
+    brightCyan?: string;
+    brightWhite?: string;
+  };
+}
+
 declare module '@mui/material/styles/createPalette.d' {
   interface Palette {
     success: PaletteColor;
@@ -122,6 +153,7 @@ declare module '@mui/material/styles/createPalette.d' {
     sidebarButtonInLinkArea: HeadlampSidebarButtonInLinkArea;
     squareButton: HeadlampSquareButton;
     resourceToolTip: HeadlampResourceToolTip;
+    terminal: HeadlampTerminal;
     normalEventBg: string;
     metadataBgColor: string;
     notificationBorderColor: string;
@@ -139,6 +171,7 @@ declare module '@mui/material/styles/createPalette.d' {
     sidebarButtonInLinkArea?: Partial<HeadlampSidebarButtonInLinkArea>;
     squareButton?: Partial<HeadlampSquareButton>;
     resourceToolTip?: Partial<HeadlampResourceToolTip>;
+    terminal?: HeadlampTerminal;
     normalEventBg?: string;
     metadataBgColor?: string;
     notificationBorderColor?: string;
@@ -289,6 +322,7 @@ export function createMuiTheme(currentTheme: AppTheme) {
         },
       },
       notificationBorderColor: 'rgba(0,0,0,0.12)',
+      terminal: currentTheme.terminal ?? {},
       background: {
         default: currentTheme.background?.default ?? '#fff',
         paper: currentTheme.background?.surface ?? '#FFF',
@@ -447,6 +481,7 @@ export function createMuiTheme(currentTheme: AppTheme) {
           },
         },
         notificationBorderColor: 'rgba(255,255,255,0.12)',
+        terminal: currentTheme.terminal ?? {},
         mode: 'dark',
         navbar: {
           ...commonRules.palette.navbar,
@@ -560,28 +595,58 @@ export function usePrefersColorScheme() {
 /**
  * Hook gets theme based on user preference, and also OS/Browser preference.
  */
-export function getThemeName(): string {
+/**
+ * Computes the theme name based on user preference, backend configuration, and OS preference.
+ *
+ * Precedence order:
+ * 1. If forceTheme is set → use it (ignore user preference)
+ * 2. If user has selected theme in localStorage → use it
+ * 3. If backend has default theme matching OS preference → use it
+ * 4. Fallback to OS/browser preference (light/dark)
+ *
+ * @param backendConfig - Optional backend theme configuration
+ * @returns The theme name to use
+ */
+export function getThemeName(backendConfig?: {
+  defaultLightTheme?: string;
+  defaultDarkTheme?: string;
+  forceTheme?: string;
+}): string {
+  // If force theme is set, it overrides everything
+  if (backendConfig?.forceTheme) {
+    return backendConfig.forceTheme;
+  }
+
   const themePreference = localStorage.headlampThemePreference;
 
-  if (typeof window.matchMedia !== 'function') {
-    return 'light';
+  // User-selected theme preference takes precedence
+  if (themePreference) {
+    return themePreference;
   }
+
+  // Detect OS preference
+  if (typeof window.matchMedia !== 'function') {
+    return backendConfig?.defaultLightTheme || 'light';
+  }
+
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
   const prefersLight = window.matchMedia('(prefers-color-scheme: light)').matches;
 
-  let themeName = 'light';
-  if (themePreference) {
-    // A selected theme preference takes precedence.
-    themeName = themePreference;
-  } else {
-    if (prefersLight) {
-      themeName = 'light';
-    } else if (prefersDark) {
-      themeName = 'dark';
-    }
+  // Apply backend default theme based on OS preference
+  if (prefersLight && backendConfig?.defaultLightTheme) {
+    return backendConfig.defaultLightTheme;
+  } else if (prefersDark && backendConfig?.defaultDarkTheme) {
+    return backendConfig.defaultDarkTheme;
   }
 
-  return themeName;
+  // Fallback to OS preference
+  if (prefersLight) {
+    return 'light';
+  } else if (prefersDark) {
+    return 'dark';
+  }
+
+  return 'light';
 }
 
 export function setTheme(themeName: string) {

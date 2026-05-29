@@ -1,6 +1,7 @@
 package serviceproxy_test
 
 import (
+	"bytes"
 	"context"
 	"net/http"
 	"net/http/httptest"
@@ -11,7 +12,7 @@ import (
 )
 
 //nolint:funlen
-func TestHTTPGet(t *testing.T) {
+func TestHTTPGetStream(t *testing.T) {
 	tests := []struct {
 		name       string
 		url        string
@@ -78,26 +79,30 @@ func TestHTTPGet(t *testing.T) {
 				url = ts.URL + "/error"
 			}
 
-			if ctx := context.Background(); tt.name == "context cancellation" {
+			ctx := context.Background()
+
+			if tt.name == "context cancellation" {
 				var cancel context.CancelFunc
 
-				_, cancel = context.WithCancel(ctx)
+				ctx, cancel = context.WithCancel(ctx)
 				cancel()
 			}
 
-			resp, err := serviceproxy.HTTPGet(context.Background(), url)
+			var buf bytes.Buffer
+
+			err := serviceproxy.HTTPGetStream(ctx, url, &buf)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("HTTPGet() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("HTTPGetStream() error = %v, wantErr %v", err, tt.wantErr)
 			}
 
-			if !tt.wantErr && string(resp) != tt.body {
-				t.Errorf("HTTPGet() response = %s, want %s", resp, tt.body)
+			if !tt.wantErr && buf.String() != tt.body {
+				t.Errorf("HTTPGetStream() response = %s, want %s", buf.String(), tt.body)
 			}
 		})
 	}
 }
 
-func TestHTTPGetTimeout(t *testing.T) {
+func TestHTTPGetStreamTimeout(t *testing.T) {
 	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(15 * time.Second)
 
@@ -110,8 +115,79 @@ func TestHTTPGetTimeout(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
-	_, err := serviceproxy.HTTPGet(ctx, ts.URL)
+	err := serviceproxy.HTTPGetStream(ctx, ts.URL, &countingWriter{})
 	if err == nil {
-		t.Errorf("HTTPGet() error = nil, want error")
+		t.Errorf("HTTPGetStream() error = nil, want error")
 	}
+}
+
+func TestHTTPGetStreamDoesNotBuffer(t *testing.T) {
+	const (
+		size      = 32 * 1024 * 1024
+		chunkSize = 8 * 1024
+	)
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		chunk := make([]byte, chunkSize)
+		for i := range chunk {
+			chunk[i] = 'a'
+		}
+
+		w.Header().Set("Content-Type", "application/octet-stream")
+		w.WriteHeader(http.StatusOK)
+
+		written := 0
+		for written < size {
+			toWrite := chunk
+			if remaining := size - written; remaining < len(chunk) {
+				toWrite = chunk[:remaining]
+			}
+
+			n, err := w.Write(toWrite)
+			if err != nil {
+				t.Fatalf("write test: %v", err)
+			}
+
+			written += n
+		}
+	}))
+	defer ts.Close()
+
+	counter := &countingWriter{}
+
+	if err := serviceproxy.HTTPGetStream(context.Background(), ts.URL, counter); err != nil {
+		t.Fatalf("HTTPGetStream() error = %v", err)
+	}
+
+	if counter.n != size {
+		t.Errorf("HTTPGetStream() streamed %d bytes, want %d", counter.n, size)
+	}
+
+	if counter.writes <= 1 {
+		t.Errorf("HTTPGetStream() performed %d writes, want more than 1 to confirm streaming", counter.writes)
+	}
+
+	if counter.maxWrite > 128*1024 {
+		t.Errorf("HTTPGetStream() max write size = %d, want <= %d", counter.maxWrite, 128*1024)
+	}
+}
+
+// countingWriter records streaming statistics without retaining the response
+// body. Keeping no copy of the payload lets large-body tests assert the stream
+// is forwarded in bounded chunks without themselves buffering the whole body.
+type countingWriter struct {
+	n        int
+	writes   int
+	maxWrite int
+}
+
+func (c *countingWriter) Write(p []byte) (int, error) {
+	c.n += len(p)
+	c.writes++
+
+	if len(p) > c.maxWrite {
+		c.maxWrite = len(p)
+	}
+
+	return len(p), nil
 }

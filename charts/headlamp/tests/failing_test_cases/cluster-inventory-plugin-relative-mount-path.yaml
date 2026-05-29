@@ -1,0 +1,14 @@
+config:
+  clusterInventory:
+    enabled: true
+    accessProvidersConfig:
+      providers:
+        - name: secretreader
+          execConfig:
+            apiVersion: client.authentication.k8s.io/v1
+            command: /access-plugins/secretreader/secretreader-plugin
+            provideClusterInfo: true
+    plugins:
+      - name: secretreader
+        image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.1
+        mountPath: access-plugins/secretreader

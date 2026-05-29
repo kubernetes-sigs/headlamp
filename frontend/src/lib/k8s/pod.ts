@@ -42,7 +42,10 @@ export interface KubePodSpec {
   volumes?: KubeVolume[];
   serviceAccountName?: string;
   serviceAccount?: string;
-  priority?: string;
+  priority?: number;
+  priorityClassName?: string;
+  runtimeClassName?: string;
+  terminationGracePeriodSeconds?: number;
   tolerations?: any[];
   restartPolicy?: string;
 }
@@ -61,6 +64,7 @@ export interface KubePod extends KubeObjectInterface {
     phase: string;
     qosClass?: string;
     reason?: string;
+    nominatedNodeName?: string;
     startTime: Time;
     [other: string]: any;
   };
