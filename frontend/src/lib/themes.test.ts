@@ -178,6 +178,27 @@ describe('themes.ts', () => {
       expect(removeEventListener).toHaveBeenCalledTimes(1);
       expect(removeEventListener).toHaveBeenCalledWith('change', handler);
     });
+
+    it('should register and clean up the media query listener using fallback methods when addEventListener is not defined', () => {
+      const addListener = vi.fn();
+      const removeListener = vi.fn();
+      Object.defineProperty(window, 'matchMedia', {
+        value: vi.fn().mockReturnValue({ matches: false, addListener, removeListener }),
+        writable: true,
+        configurable: true,
+      });
+      const { unmount } = renderHook(() => usePrefersColorScheme());
+
+      expect(addListener).toHaveBeenCalledTimes(1);
+      expect(addListener).toHaveBeenCalledWith(expect.any(Function));
+
+      const handler = addListener.mock.calls[0][0];
+
+      unmount();
+
+      expect(removeListener).toHaveBeenCalledTimes(1);
+      expect(removeListener).toHaveBeenCalledWith(handler);
+    });
   });
 
   describe('getThemeName with backend configuration', () => {
