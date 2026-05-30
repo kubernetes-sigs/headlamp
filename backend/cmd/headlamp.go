@@ -1534,7 +1534,7 @@ func StartHeadlampServer(config *HeadlampConfig) {
 
 	if config.StaticDir != "" {
 		if err := copyStaticFiles(config); err != nil {
-			return
+			os.Exit(1)
 		}
 	}
 
@@ -1545,7 +1545,7 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	handler, err := serverHandler(ctx, config)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting server")
-		return
+		os.Exit(1)
 	}
 
 	listenHost := strings.TrimPrefix(strings.TrimSuffix(config.ListenAddr, "]"), "[")
