@@ -69,11 +69,11 @@ vi.mock('@iconify/react', () => ({
 }));
 
 vi.mock('@monaco-editor/react', () => ({
-  Editor: () => <div className="mock-monaco-editor" />,
-  DiffEditor: () => <div className="mock-monaco-diff-editor" />,
+  Editor: (props: any) => <div className="mock-monaco-editor" {...props.wrapperProps} />,
+  DiffEditor: (props: any) => <div className="mock-monaco-diff-editor" {...props.wrapperProps} />,
   useMonaco: () => null,
   loader: { config: () => null },
-  default: () => <div className="mock-monaco-editor" />,
+  default: (props: any) => <div className="mock-monaco-editor" {...props.wrapperProps} />,
 }));
 
 window.matchMedia = () => ({

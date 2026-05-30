@@ -253,6 +253,7 @@
             >
               <div
                 class="mock-monaco-editor"
+                id="editor-textarea-id"
               />
             </div>
           </div>
