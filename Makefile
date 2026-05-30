@@ -418,6 +418,19 @@ i18n:
 	cd app && npm run i18n
 	cd frontend && npm run i18n
 
+.PHONY: helm-chart-package
+helm-chart-package: ## Package a chart into a versioned chart archive file.
+	DEST_CHART_DIR=$(DEST_CHART_DIR) \
+	GIT_TAG="$(DOCKER_IMAGE_VERSION)" \
+	IMAGE_REGISTRY="$(DOCKER_REPO)" \
+	IMAGE_REPOSITORY="$(DOCKER_IMAGE_NAME)" \
+	HELM_CHART_PUSH=$(HELM_CHART_PUSH) \
+	./tools/helm-chart-package.sh
+
+.PHONY: helm-chart-push
+helm-chart-push: HELM_CHART_PUSH=true
+helm-chart-push: helm-chart-package
+
 .PHONY: helm-template-test
 helm-template-test:
 	charts/headlamp/tests/test.sh

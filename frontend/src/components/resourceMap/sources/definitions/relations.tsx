@@ -188,7 +188,7 @@ const ingressToSecret = makeRelation(Ingress, Secret, (ingress, secret) =>
 );
 
 const networkPolicyToPod = makeRelation(NetworkPolicy, Pod, (np, pod) =>
-  matchesLabels(np.jsonData.spec.podSelector.matchLabels, pod)
+  matchesLabels(np.spec.podSelector.matchLabels ?? {}, pod)
 );
 
 const roleBindingsToRole = makeRelation(
@@ -313,6 +313,5 @@ const staticRelations = [
 export function useGetAllRelations(): Relation[] {
   const crdRelations = useGetCRToOwnerRelations();
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => [...staticRelations, ...crdRelations], [crdRelations, staticRelations]);
+  return useMemo(() => [...staticRelations, ...crdRelations], [crdRelations]);
 }

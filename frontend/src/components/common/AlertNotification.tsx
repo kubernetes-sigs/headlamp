@@ -40,7 +40,7 @@ const ROUTES_WITHOUT_ALERT = ['login', 'token', 'settingsCluster'];
 export function PureAlertNotification({ checkerFunction }: PureAlertNotificationProps) {
   const [networkStatusCheckTimeFactor, setNetworkStatusCheckTimeFactor] = React.useState(0);
   const [error, setError] = React.useState<null | string | boolean>(null);
-  const [intervalID, setIntervalID] = React.useState<NodeJS.Timeout | null>(null);
+
   const { t } = useTranslation();
   const { pathname } = useLocation();
 
@@ -71,16 +71,6 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
     }, (networkStatusCheckTimeFactor + 1) * NETWORK_STATUS_CHECK_TIME);
   }
 
-  React.useEffect(
-    () => {
-      const id = registerSetInterval();
-      setIntervalID(id);
-      return () => clearInterval(id);
-    },
-    // eslint-disable-next-line
-    []
-  );
-
   // Make sure we do not show the alert notification if we are not on a cluster route.
   React.useEffect(() => {
     if (!getCluster()) {
@@ -90,11 +80,7 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
 
   React.useEffect(
     () => {
-      if (intervalID) {
-        clearInterval(intervalID);
-      }
       const id = registerSetInterval();
-      setIntervalID(id);
       return () => clearInterval(id);
     },
     // eslint-disable-next-line

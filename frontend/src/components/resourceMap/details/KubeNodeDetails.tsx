@@ -17,7 +17,6 @@
 import { Box } from '@mui/system';
 import { memo, ReactElement, useEffect } from 'react';
 import Deployment from '../../../lib/k8s/deployment';
-import Job from '../../../lib/k8s/job';
 import JobSet from '../../../lib/k8s/jobSet';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import ConfigDetails from '../../configmap/Details';
@@ -36,6 +35,7 @@ import ReferenceGrantDetails from '../../gateway/ReferenceGrantDetails';
 import HpaDetails from '../../horizontalPodAutoscaler/Details';
 import IngressClassDetails from '../../ingress/ClassDetails';
 import IngressDetails from '../../ingress/Details';
+import JobDetails from '../../job/Details';
 import { LeaseDetails } from '../../lease/Details';
 import { LimitRangeDetails } from '../../limitRange/Details';
 import NamespaceDetails from '../../namespace/Details';
@@ -68,7 +68,7 @@ const kindComponentMap: Record<
   Pod: PodDetails,
   Deployment: props => <WorkloadDetails {...props} workloadKind={Deployment} />,
   ReplicaSet: props => <WorkloadDetails {...props} workloadKind={ReplicaSet} />,
-  Job: props => <WorkloadDetails {...props} workloadKind={Job} />,
+  Job: JobDetails,
   JobSet: props => <WorkloadDetails {...props} workloadKind={JobSet} />,
   Service: ServiceDetails,
   CronJob: CronJobDetails,

@@ -68,6 +68,10 @@ const Template: StoryFn<DetailsViewSectionProps> = args => {
         return null;
       })
     );
+    // `dispatch` is intentionally omitted from the deps array: the store is
+    // created inline in the decorator above, so `dispatch` changes identity
+    // on each decorator re-render. Listing it would re-fire this effect on
+    // every render and accumulate entries in `state.detailViews`.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

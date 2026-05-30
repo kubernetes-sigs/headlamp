@@ -37,19 +37,46 @@ const defaultOauthPopupProps = {
 };
 
 const OauthPopup: React.FC<OauthPopupProps> = props => {
-  let externalWindow: Window | null;
+  const externalWindowRef = React.useRef<Window | null>(null);
+  const storageListenerRef = React.useRef<(() => void) | null>(null);
+  const beforeUnloadListenerRef = React.useRef<(() => void) | null>(null);
 
-  React.useEffect(
-    () => {
-      return () => {
-        if (externalWindow) {
-          externalWindow.close();
+  const cleanupPopup = React.useCallback(
+    (closeWindow = false) => {
+      const popupWindow = externalWindowRef.current;
+
+      if (storageListenerRef.current) {
+        window.removeEventListener('storage', storageListenerRef.current);
+        storageListenerRef.current = null;
+      }
+
+      if (popupWindow && beforeUnloadListenerRef.current) {
+        try {
+          popupWindow.removeEventListener('beforeunload', beforeUnloadListenerRef.current);
+        } catch (e) {
+          console.error('Error occurred while removing beforeunload event listener', e);
         }
-      };
+        beforeUnloadListenerRef.current = null;
+      }
+
+      if (closeWindow && popupWindow) {
+        popupWindow.close();
+        externalWindowRef.current = null;
+        return;
+      }
+
+      if (popupWindow?.closed) {
+        externalWindowRef.current = null;
+      }
     },
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    []
+    [externalWindowRef]
   );
+
+  React.useEffect(() => {
+    return () => {
+      cleanupPopup(true);
+    };
+  }, [cleanupPopup]);
 
   const createPopup = () => {
     const { url, title, width, height, onCode } = { ...defaultOauthPopupProps, ...props };
@@ -58,7 +85,8 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
 
     const windowFeatures = `toolbar=0,scrollbars=1,status=1,resizable=0,location=1,menuBar=0,width=${width},height=${height},top=${top},left=${left}`;
 
-    externalWindow = window.open(url, title, windowFeatures);
+    cleanupPopup(true);
+    externalWindowRef.current = window.open(url, title, windowFeatures);
 
     const storageListener = () => {
       try {
@@ -66,30 +94,29 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
         if (authStatus) {
           onCode(authStatus);
           localStorage.removeItem('auth_status');
-          if (externalWindow) {
-            externalWindow.close();
-          }
-          window.removeEventListener('storage', storageListener);
+          cleanupPopup(true);
         }
       } catch (e) {
         console.error('Error occurred while closing auth window', e);
-        window.removeEventListener('storage', storageListener);
+        cleanupPopup();
       }
     };
 
+    storageListenerRef.current = storageListener;
     window.addEventListener('storage', storageListener);
 
-    if (externalWindow) {
+    if (externalWindowRef.current) {
       try {
-        externalWindow.addEventListener(
-          'beforeunload',
-          () => {
-            if (!!props.onClose) {
-              props.onClose();
-            }
-          },
-          false
-        );
+        const beforeUnloadListener = () => {
+          cleanupPopup();
+          externalWindowRef.current = null;
+          if (!!props.onClose) {
+            props.onClose();
+          }
+        };
+
+        externalWindowRef.current.addEventListener('beforeunload', beforeUnloadListener, false);
+        beforeUnloadListenerRef.current = beforeUnloadListener;
       } catch (e) {
         console.error('Error occurred while adding beforeunload event listener');
       }

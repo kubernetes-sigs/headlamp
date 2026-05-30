@@ -53,6 +53,54 @@ $ helm install my-headlamp headlamp/headlamp \
   --set ingress.hosts[0].paths[0].path=/
 ```
 
+### Upgrade note about image tags
+
+If `image.tag` is set explicitly (for example in a values file or via `--set image.tag=...`), Helm upgrades will keep that value.
+This means the release can show a newer chart/app version while still running an older container image.
+
+To ensure the running image matches the chart version during upgrade, set the tag explicitly to the chart's appVersion-derived format.
+```console
+$ helm upgrade my-headlamp headlamp/headlamp \
+  --namespace kube-system \
+  --reuse-values \
+  --set image.tag=v<appVersion>
+```
+
+### Installation with Cluster Inventory
+
+> **Warning**
+> Cluster Inventory support in Headlamp is alpha/experimental and disabled by
+> default. The upstream Cluster Inventory API is currently `v1alpha1` and this
+> integration uses the `v0.1.x` API, so fields and behavior may change.
+
+```console
+$ helm install my-headlamp headlamp/headlamp \
+  --namespace kube-system \
+  --values cluster-inventory-values.yaml
+```
+
+`cluster-inventory-values.yaml`:
+
+```yaml
+config:
+  clusterInventory:
+    enabled: true
+    accessProvidersConfig:
+      providers:
+        - name: secretreader
+          execConfig:
+            apiVersion: client.authentication.k8s.io/v1
+            command: /access-plugins/secretreader/secretreader-plugin
+            provideClusterInfo: true
+    plugins:
+      - name: secretreader
+        image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.1
+        mountPath: /access-plugins/secretreader
+```
+
+`plugins[]` mounts Cluster Inventory access provider binaries as Kubernetes
+`image` volumes; it is not for Headlamp UI plugins.
+
 ## Configuration
 
 ### Core Parameters
@@ -72,11 +120,25 @@ $ helm install my-headlamp headlamp/headlamp \
 | config.inCluster   | bool   | `true`                | Run Headlamp in-cluster                                                   |
 | config.baseURL     | string | `""`                  | Base URL path for Headlamp UI                                             |
 | config.sessionTTL  | int    | `86400`               | The time in seconds for the internal session to remain valid (Default: 86400/24h, Min: 1 , Max: 31536000/1yr) |
+| config.unsafeUseServiceAccountToken | bool | `false` | UNSAFE: authenticate every user as the pod's service account when running in-cluster. Only safe behind an auth proxy |
+| config.serviceAccountTokenPath | string | `""` | Path to the service account token file. Used only when `unsafeUseServiceAccountToken` is true |
 | config.pluginsDir  | string | `"/headlamp/plugins"` | Directory to load Headlamp plugins from                                   |
 | config.enableHelm  | bool   | `false`               | Enable Helm operations like install, upgrade and uninstall of Helm charts |
+| config.podDebugImage | string | `""`                | Default image to use when creating pod debug containers                    |
+| config.clusterInventory.enabled | bool | `false` | Enable experimental/alpha Cluster Inventory discovery |
+| config.clusterInventory.accessProvidersConfig | object | `{}` | Experimental/alpha Cluster Inventory access providers config. Required when Cluster Inventory is enabled |
+| config.clusterInventory.plugins | list | `[]` | Kubernetes image volumes that provide experimental/alpha Cluster Inventory access provider binaries |
+| config.clusterInventory.labelSelector | string | `"!headlamp.dev/ignore"` | Kubernetes label selector used to filter experimental/alpha ClusterProfile resources |
+| config.clusterInventory.rootReconcileInterval | string | `""` | Override the experimental/alpha Cluster Inventory root reconcile interval. Empty uses the Headlamp default |
+| config.clusterInventory.noCRDCacheTTL | string | `""` | Override the experimental/alpha Cluster Inventory no-CRD cache TTL. Empty uses the Headlamp default |
 | config.extraArgs   | array  | `[]`                  | Additional arguments for Headlamp server                                  |
 | config.tlsCertPath | string | `""`                  | Certificate for serving TLS                                               |
 | config.tlsKeyPath  | string | `""`                  | Key for serving TLS                                                       |
+
+When `config.unsafeUseServiceAccountToken` is enabled, the token file must be
+mounted and readable in the Headlamp container. The default path is provided by
+`automountServiceAccountToken`; custom paths require a matching projected
+volume or volume mount.
 
 ### OIDC Configuration
 
@@ -126,6 +188,40 @@ config:
       enabled: true
       name: your-oidc-secret
 ```
+
+### Cluster Inventory Configuration
+
+> **Warning**
+> Cluster Inventory support in Headlamp is alpha/experimental and disabled by
+> default. The upstream Cluster Inventory API is currently `v1alpha1` and this
+> integration uses the `v0.1.x` API, so fields and behavior may change.
+
+When `config.clusterInventory.enabled` is true, the chart creates a provider
+ConfigMap, makes it available read-only at `/etc/cluster-inventory/config.json`,
+and adds the Headlamp Cluster Inventory flags automatically.
+
+```yaml
+config:
+  clusterInventory:
+    enabled: true
+    accessProvidersConfig:
+      providers:
+        - name: secretreader
+          execConfig:
+            apiVersion: client.authentication.k8s.io/v1
+            command: /access-plugins/secretreader/secretreader-plugin
+            provideClusterInfo: true
+    plugins:
+      - name: secretreader
+        image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.1
+        mountPath: /access-plugins/secretreader
+```
+
+`plugins[]` is for Cluster Inventory access provider binaries, not Headlamp UI
+plugins. Each entry renders as a Kubernetes `image` volume and is mounted
+read-only into the Headlamp container. If an access provider `execConfig.command`
+is configured, the command's parent directory must match one of the
+absolute `plugins[].mountPath` values.
 
 ### Deployment Configuration
 
@@ -314,6 +410,42 @@ httpRoute:
           port: 80
 ```
 
+### Probe Configuration
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| probes.scheme | string | `"HTTP"` | Scheme for liveness/readiness probes (HTTP or HTTPS). Set to HTTPS when TLS is enabled at the backend. |
+| probes.livenessProbe.initialDelaySeconds | int | `0` | Initial delay before liveness probe starts |
+| probes.livenessProbe.periodSeconds | int | `10` | Period between liveness checks |
+| probes.livenessProbe.timeoutSeconds | int | `1` | Timeout for liveness probe |
+| probes.livenessProbe.successThreshold | int | `1` | Must be 1 for liveness probes (Kubernetes requirement) |
+| probes.livenessProbe.failureThreshold | int | `3` | Minimum consecutive failures |
+| probes.readinessProbe.initialDelaySeconds | int | `0` | Initial delay before readiness probe starts |
+| probes.readinessProbe.periodSeconds | int | `10` | Period between readiness checks |
+| probes.readinessProbe.timeoutSeconds | int | `1` | Timeout for readiness probe |
+| probes.readinessProbe.successThreshold | int | `1` | Minimum consecutive successes |
+| probes.readinessProbe.failureThreshold | int | `3` | Minimum consecutive failures |
+
+When using TLS termination at the backend server, you must set `probes.scheme` to `HTTPS`:
+
+```yaml
+config:
+  tlsCertPath: "/headlamp-cert/tls.crt"
+  tlsKeyPath: "/headlamp-cert/tls.key"
+
+probes:
+  scheme: HTTPS  # Required when TLS is enabled at backend
+
+volumes:
+  - name: headlamp-cert
+    secret:
+      secretName: headlamp-tls
+
+volumeMounts:
+  - name: headlamp-cert
+    mountPath: /headlamp-cert
+```
+
 ### Resource Management
 
 | Key | Type | Default | Description |
@@ -322,6 +454,7 @@ httpRoute:
 | nodeSelector | object | `{}` | Node labels for pod assignment |
 | tolerations | list | `[]` | Pod tolerations |
 | affinity | object | `{}` | Pod affinity settings |
+| hostAliases | list | `[]` | Optional list of host/IP mappings injected into the pod's /etc/hosts. Useful when an external host (e.g. an OIDC issuer behind cluster ingress) is not resolvable via cluster DNS. |
 | topologySpreadConstraints | list | `[]` | Topology spread constraints for pod assignment |
 | podAnnotations | object | `{}` | Pod annotations |
 | podLabels | object | `{}` | Pod labels |

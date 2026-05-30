@@ -35,7 +35,13 @@ interface NodeShellTerminalProps {
   onClose?: () => void;
 }
 
-const shellPod = (name: string, namespace: string, nodeName: string, nodeShellImage: string) => {
+const shellPod = (
+  name: string,
+  namespace: string,
+  nodeName: string,
+  nodeShellImage: string,
+  command: string[] = ['sh']
+) => {
   return {
     kind: 'Pod',
     apiVersion: 'v1',
@@ -59,6 +65,7 @@ const shellPod = (name: string, namespace: string, nodeName: string, nodeShellIm
         {
           name: 'debugger',
           image: nodeShellImage,
+          command,
           terminationMessagePolicy: 'File',
           tty: true,
           stdin: true,

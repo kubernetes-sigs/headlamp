@@ -165,9 +165,16 @@ func (c *HeadlampConfig) parseKubeConfig(w http.ResponseWriter, r *http.Request)
 		logger.Log(logger.LevelError, nil, err, "decoding config")
 
 		http.Error(w, "Invalid JSON request body", http.StatusBadRequest)
+
+		return
 	}
 
 	kubeconfigs := kubeconfigReq.Kubeconfigs
+	if len(kubeconfigs) == 0 {
+		http.Error(w, "kubeconfigs is required", http.StatusBadRequest)
+
+		return
+	}
 
 	contexts, setupErrors := parseClusterFromKubeConfig(kubeconfigs)
 	if len(setupErrors) > 0 {
@@ -182,6 +189,9 @@ func (c *HeadlampConfig) parseKubeConfig(w http.ResponseWriter, r *http.Request)
 		Clusters:                contexts,
 		IsDynamicClusterEnabled: c.EnableDynamicClusters,
 		AllowKubeconfigChanges:  c.AllowKubeconfigChanges,
+		DefaultLightTheme:       c.DefaultLightTheme,
+		DefaultDarkTheme:        c.DefaultDarkTheme,
+		ForceTheme:              c.ForceTheme,
 	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {

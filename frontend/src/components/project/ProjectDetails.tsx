@@ -86,11 +86,15 @@ export default function ProjectDetails() {
   const { name } = useParams<ProjectDetailsParams>();
   const { project, isLoading: isProjectLoading } = useProject(name);
 
+  const pluginApiResources = useTypedSelector(state => state.projects.apiResources);
+
   if (isProjectLoading || !project || !name) {
     return <Loader title={t('Loading')} />;
   }
-  // Key is provided to make sure we remount this component
-  return <ProjectDetailsContent key={name} project={project} />;
+  // Key forces remount when project name or plugin resource list changes,
+  // which is required because useProjectItems → useKubeLists calls hooks
+  // per resource in a loop (the array length must stay stable per mount).
+  return <ProjectDetailsContent key={`${name}-${pluginApiResources.length}`} project={project} />;
 }
 
 function ProjectOverview({

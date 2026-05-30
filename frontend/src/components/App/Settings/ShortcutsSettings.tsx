@@ -67,9 +67,12 @@ function ShortcutEditor({
     if (isEditing) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setRecordedKey('');
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsRecording(true);
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsRecording(false);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRecordedKey('');
     }
   }, [isEditing]);

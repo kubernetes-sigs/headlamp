@@ -15,8 +15,14 @@
  */
 
 import React from 'react';
+import { vi } from 'vitest';
 import { AppLogoProps, AppLogoType } from './AppLogo';
-import themeReducer, { initialState, setBrandingAppLogoComponent, setTheme } from './themeSlice';
+import themeReducer, {
+  applyBackendThemeConfig,
+  initialState,
+  setBrandingAppLogoComponent,
+  setTheme,
+} from './themeSlice';
 
 describe('themeSlice', () => {
   it('should handle initial state', () => {
@@ -36,5 +42,48 @@ describe('themeSlice', () => {
     const themeName = 'dark';
     const actual = themeReducer(initialState, setTheme(themeName));
     expect(actual.name).toEqual(themeName);
+  });
+
+  describe('applyBackendThemeConfig', () => {
+    beforeEach(() => {
+      localStorage.clear();
+      // The mock's clear() only resets store; setTheme() writes localStorage.headlampThemePreference
+      // as a direct property that survives clear(). Delete it explicitly so tests start clean.
+      delete (localStorage as any).headlampThemePreference;
+    });
+
+    it('should apply forced theme and override current theme', () => {
+      const state = { ...initialState, name: 'light' };
+      const actual = themeReducer(state, applyBackendThemeConfig({ forceTheme: 'corporate' }));
+      expect(actual.name).toEqual('corporate');
+    });
+
+    it('should preserve localStorage preference when forced theme is applied', () => {
+      localStorage.setItem('headlampThemePreference', 'dark');
+      const state = { ...initialState, name: 'light' };
+      themeReducer(state, applyBackendThemeConfig({ forceTheme: 'corporate' }));
+      expect(localStorage.getItem('headlampThemePreference')).toEqual('dark');
+    });
+
+    it('should not update state if theme has not changed', () => {
+      const state = { ...initialState, name: 'corporate' };
+      const actual = themeReducer(state, applyBackendThemeConfig({ forceTheme: 'corporate' }));
+      expect(actual.name).toEqual('corporate');
+    });
+
+    it('should persist to localStorage when theme is not forced', () => {
+      // setupTests defines matchMedia with writable:true so direct assignment works;
+      // Object.defineProperty with configurable:true would throw on a non-configurable property.
+      (window as any).matchMedia = vi.fn((query: string) => ({
+        matches: query === '(prefers-color-scheme: light)',
+      }));
+      const state = { ...initialState, name: 'old-theme' };
+      const actual = themeReducer(
+        state,
+        applyBackendThemeConfig({ defaultLightTheme: 'solarized-light' })
+      );
+      expect(actual.name).toEqual('solarized-light');
+      expect(localStorage.headlampThemePreference).toEqual('solarized-light');
+    });
   });
 });

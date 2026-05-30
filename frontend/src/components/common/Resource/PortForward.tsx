@@ -289,6 +289,16 @@ function PortForwardContent(props: PortForwardProps) {
         setError(error?.message ?? 'An unexpected error occurred.');
         setLoading(false);
         setPortForward(null);
+
+        if (portForward?.id) {
+          const portForwardsInStorage = localStorage.getItem(PORT_FORWARDS_STORAGE_KEY);
+          const parsedPortForwards = JSON.parse(portForwardsInStorage || '[]');
+          const index = parsedPortForwards.findIndex((pf: any) => pf.id === portForward.id);
+          if (index !== -1) {
+            parsedPortForwards.splice(index, 1);
+            localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify(parsedPortForwards));
+          }
+        }
       });
   }
 
@@ -307,8 +317,7 @@ function PortForwardContent(props: PortForwardProps) {
     setLoading(true);
     stopOrDeletePortForward(cluster, portForward.id, true)
       .then(() => {
-        portForward.status = PORT_FORWARD_STOP_STATUS;
-        setPortForward(portForward);
+        setPortForward({ ...portForward, status: PORT_FORWARD_STOP_STATUS });
       })
       .catch(error => {
         setError(error?.message);

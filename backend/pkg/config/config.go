@@ -7,16 +7,19 @@ import (
 	"fmt"
 	"io/fs"
 	"os"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/providers/basicflag"
 	"github.com/knadh/koanf/providers/env"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
+	"k8s.io/apimachinery/pkg/labels"
+	"sigs.k8s.io/cluster-inventory-api/pkg/access"
 )
 
 const (
@@ -42,38 +45,53 @@ type Config struct {
 	// NoBrowser disables automatically opening the default browser when running
 	// a locally embedded Headlamp binary (non in-cluster with spa.UseEmbeddedFiles == true).
 	// It has no effect in in-cluster mode or when running without embedded frontend.
-	NoBrowser                 bool   `koanf:"no-browser"`
-	CacheEnabled              bool   `koanf:"cache-enabled"`
-	EnableHelm                bool   `koanf:"enable-helm"`
-	EnableDynamicClusters     bool   `koanf:"enable-dynamic-clusters"`
-	AllowKubeconfigChanges    bool   `koanf:"allow-kubeconfig-changes"`
-	ListenAddr                string `koanf:"listen-addr"`
-	WatchPluginsChanges       bool   `koanf:"watch-plugins-changes"`
-	Port                      uint   `koanf:"port"`
-	KubeConfigPath            string `koanf:"kubeconfig"`
-	SkippedKubeContexts       string `koanf:"skipped-kube-contexts"`
-	StaticDir                 string `koanf:"html-static-dir"`
-	PluginsDir                string `koanf:"plugins-dir"`
-	UserPluginsDir            string `koanf:"user-plugins-dir"`
-	BaseURL                   string `koanf:"base-url"`
-	SessionTTL                int    `koanf:"session-ttl"`
-	ProxyURLs                 string `koanf:"proxy-urls"`
-	OidcClientID              string `koanf:"oidc-client-id"`
-	OidcValidatorClientID     string `koanf:"oidc-validator-client-id"`
-	OidcClientSecret          string `koanf:"oidc-client-secret"`
-	OidcIdpIssuerURL          string `koanf:"oidc-idp-issuer-url"`
-	OidcCallbackURL           string `koanf:"oidc-callback-url"`
-	OidcValidatorIdpIssuerURL string `koanf:"oidc-validator-idp-issuer-url"`
-	OidcScopes                string `koanf:"oidc-scopes"`
-	OidcUseAccessToken        bool   `koanf:"oidc-use-access-token"`
-	OidcUseCookie             bool   `koanf:"oidc-use-cookie"`
-	OidcSkipTLSVerify         bool   `koanf:"oidc-skip-tls-verify"`
-	OidcCAFile                string `koanf:"oidc-ca-file"`
-	MeUsernamePath            string `koanf:"me-username-path"`
-	MeEmailPath               string `koanf:"me-email-path"`
-	MeGroupsPath              string `koanf:"me-groups-path"`
-	MeUserInfoURL             string `koanf:"me-user-info-url"`
-	OidcUsePKCE               bool   `koanf:"oidc-use-pkce"`
+	NoBrowser              bool   `koanf:"no-browser"`
+	CacheEnabled           bool   `koanf:"cache-enabled"`
+	EnableHelm             bool   `koanf:"enable-helm"`
+	EnableDynamicClusters  bool   `koanf:"enable-dynamic-clusters"`
+	EnableClusterInventory bool   `koanf:"enable-cluster-inventory"`
+	AllowKubeconfigChanges bool   `koanf:"allow-kubeconfig-changes"`
+	ListenAddr             string `koanf:"listen-addr"`
+	WatchPluginsChanges    bool   `koanf:"watch-plugins-changes"`
+	Port                   uint   `koanf:"port"`
+	KubeConfigPath         string `koanf:"kubeconfig"`
+	SkippedKubeContexts    string `koanf:"skipped-kube-contexts"`
+	StaticDir              string `koanf:"html-static-dir"`
+	PluginsDir             string `koanf:"plugins-dir"`
+	UserPluginsDir         string `koanf:"user-plugins-dir"`
+	BaseURL                string `koanf:"base-url"`
+	SessionTTL             int    `koanf:"session-ttl"`
+	PodDebugImage          string `koanf:"pod-debug-image"`
+	ProxyURLs              string `koanf:"proxy-urls"`
+
+	ClusterInventoryProviderFile          string        `koanf:"cluster-inventory-provider-file"`
+	ClusterInventoryLabelSelector         string        `koanf:"cluster-inventory-label-selector"`
+	ClusterInventoryRootReconcileInterval time.Duration `koanf:"cluster-inventory-root-reconcile-interval"`
+	ClusterInventoryNoCRDCacheTTL         time.Duration `koanf:"cluster-inventory-no-crd-cache-ttl"`
+
+	OidcClientID                 string `koanf:"oidc-client-id"`
+	OidcValidatorClientID        string `koanf:"oidc-validator-client-id"`
+	OidcClientSecret             string `koanf:"oidc-client-secret"`
+	OidcIdpIssuerURL             string `koanf:"oidc-idp-issuer-url"`
+	OidcCallbackURL              string `koanf:"oidc-callback-url"`
+	OidcValidatorIdpIssuerURL    string `koanf:"oidc-validator-idp-issuer-url"`
+	OidcScopes                   string `koanf:"oidc-scopes"`
+	OidcUseAccessToken           bool   `koanf:"oidc-use-access-token"`
+	OidcUseCookie                bool   `koanf:"oidc-use-cookie"`
+	OidcSkipTLSVerify            bool   `koanf:"oidc-skip-tls-verify"`
+	OidcCAFile                   string `koanf:"oidc-ca-file"`
+	MeUsernamePath               string `koanf:"me-username-path"`
+	MeEmailPath                  string `koanf:"me-email-path"`
+	MeGroupsPath                 string `koanf:"me-groups-path"`
+	MeUserInfoURL                string `koanf:"me-user-info-url"`
+	OidcUsePKCE                  bool   `koanf:"oidc-use-pkce"`
+	ProxyAuthEnabled             bool   `koanf:"proxy-auth"`
+	ProxyAuthUsernameHeader      string `koanf:"proxy-auth-username-header"`
+	ProxyAuthGroupHeader         string `koanf:"proxy-auth-group-header"`
+	ProxyAuthEmailHeader         string `koanf:"proxy-auth-email-header"`
+	ProxyAuthTokenHeader         string `koanf:"proxy-auth-token-header"`
+	UnsafeUseServiceAccountToken bool   `koanf:"unsafe-use-service-account-token"`
+	ServiceAccountTokenPath      string `koanf:"service-account-token-path"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -87,6 +105,18 @@ type Config struct {
 	// TLS config
 	TLSCertPath string `koanf:"tls-cert-path"`
 	TLSKeyPath  string `koanf:"tls-key-path"`
+	// Theme config
+	DefaultLightTheme string `koanf:"default-light-theme"`
+	DefaultDarkTheme  string `koanf:"default-dark-theme"`
+	ForceTheme        string `koanf:"force-theme"`
+}
+
+func (c *Config) warnRedundantThemeDefaults() {
+	if c.ForceTheme != "" && (c.DefaultLightTheme != "" || c.DefaultDarkTheme != "") {
+		logger.Log(logger.LevelWarn, nil, nil,
+			"force-theme is set together with default-light-theme/default-dark-theme, "+
+				"default themes will be ignored when force-theme is active")
+	}
 }
 
 func (c *Config) Validate() error {
@@ -97,23 +127,20 @@ func (c *Config) Validate() error {
 			"meant to be used in inCluster mode or with --oidc-use-cookie")
 	}
 
+	// Extracted to keep Validate's cognitive complexity within the linter limit.
+	c.warnRedundantThemeDefaults()
+
+	if err := c.validateServiceAccountTokenFlags(); err != nil {
+		return err
+	}
+
 	// OIDC TLS verification warning.
 	if c.OidcSkipTLSVerify {
 		logger.Log(logger.LevelWarn, nil, nil, "oidc-skip-tls-verify is set, this is not safe for production")
 	}
 
-	// OIDC CA file validation.
-	if c.OidcCAFile != "" {
-		// Check if the file is a valid PEM file.
-		caFileContents, err := os.ReadFile(c.OidcCAFile)
-		if err != nil {
-			return fmt.Errorf("error reading oidc-ca-file: %w", err)
-		}
-
-		caCertPool := x509.NewCertPool()
-		if !caCertPool.AppendCertsFromPEM(caFileContents) {
-			return errors.New("invalid oidc-ca-file")
-		}
+	if err := c.validateOIDCCAFile(); err != nil {
+		return err
 	}
 
 	if c.BaseURL != "" && !strings.HasPrefix(c.BaseURL, "/") {
@@ -145,6 +172,76 @@ func (c *Config) Validate() error {
 			(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") {
 			return errors.New("otlp-endpoint must be configured when use-otlp-http is enabled")
 		}
+	}
+
+	if err := c.validateClusterInventory(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Config) validateOIDCCAFile() error {
+	if c.OidcCAFile == "" {
+		return nil
+	}
+
+	caFileContents, err := os.ReadFile(c.OidcCAFile)
+	if err != nil {
+		return fmt.Errorf("error reading oidc-ca-file: %w", err)
+	}
+
+	caCertPool := x509.NewCertPool()
+	if !caCertPool.AppendCertsFromPEM(caFileContents) {
+		return errors.New("invalid oidc-ca-file")
+	}
+
+	return nil
+}
+
+func (c *Config) validateClusterInventory() error {
+	if !c.EnableClusterInventory {
+		return nil
+	}
+
+	if c.ClusterInventoryProviderFile == "" {
+		return errors.New("cluster-inventory-provider-file is required when cluster inventory is enabled")
+	}
+
+	info, err := os.Stat(c.ClusterInventoryProviderFile)
+	if err != nil {
+		return fmt.Errorf("error reading cluster-inventory-provider-file: %w", err)
+	}
+
+	if !info.Mode().IsRegular() {
+		return errors.New("cluster-inventory-provider-file must be a regular file")
+	}
+
+	if _, err := access.NewFromFile(c.ClusterInventoryProviderFile); err != nil {
+		return fmt.Errorf("invalid cluster-inventory-provider-file: %w", err)
+	}
+
+	labelSelector := strings.TrimSpace(c.ClusterInventoryLabelSelector)
+	if labelSelector != "" {
+		if _, err := labels.Parse(labelSelector); err != nil {
+			return fmt.Errorf("invalid cluster-inventory-label-selector: %w", err)
+		}
+	}
+
+	c.ClusterInventoryLabelSelector = labelSelector
+
+	return nil
+}
+
+func (c *Config) validateServiceAccountTokenFlags() error {
+	if !c.InCluster && (c.UnsafeUseServiceAccountToken || c.ServiceAccountTokenPath != "") {
+		return errors.New("--unsafe-use-service-account-token and --service-account-token-path " +
+			"flags are only meant to be used with --in-cluster")
+	}
+
+	if c.ServiceAccountTokenPath != "" && !c.UnsafeUseServiceAccountToken {
+		return errors.New("--service-account-token-path requires " +
+			"--unsafe-use-service-account-token to be enabled")
 	}
 
 	return nil
@@ -239,22 +336,29 @@ func patchWatchPluginsChanges(config *Config, explicitFlags map[string]bool) {
 }
 
 // setKubeConfigPath sets the kubeconfig path if not set, using env or default.
-func setKubeConfigPath(config *Config) {
+func setKubeConfigPath(config *Config) error {
 	// If a specific path was set, use it. Otherwise, determine default.
 	if config.KubeConfigPath != "" {
-		return
+		return nil
 	}
 
 	if config.InCluster {
-		return
+		return nil
 	}
 
 	kubeConfigEnv := os.Getenv("KUBECONFIG")
 	if kubeConfigEnv != "" {
 		config.KubeConfigPath = kubeConfigEnv
 	} else {
-		config.KubeConfigPath = GetDefaultKubeConfigPath()
+		defaultPath, err := GetDefaultKubeConfigPath()
+		if err != nil {
+			return fmt.Errorf("getting default kubeconfig path: %w", err)
+		}
+
+		config.KubeConfigPath = defaultPath
 	}
+
+	return nil
 }
 
 // ApplyMeDefaults trims and applies defaults to the JMESPath expressions used for the /me endpoint.
@@ -339,7 +443,11 @@ func Parse(args []string) (*Config, error) {
 
 	// 7. Post-process: patch plugin flag and kubeconfig path.
 	patchWatchPluginsChanges(&config, explicitFlags)
-	setKubeConfigPath(&config)
+
+	if err := setKubeConfigPath(&config); err != nil {
+		return nil, err
+	}
+
 	setMeDefaults(&config)
 
 	// 8. Validate flags that depend on build-time behaviour.
@@ -419,6 +527,7 @@ func flagset() *flag.FlagSet {
 
 	addGeneralFlags(f)
 	addOIDCFlags(f)
+	addProxyAuthFlags(f)
 	addTelemetryFlags(f)
 	addTLSFlags(f)
 
@@ -449,10 +558,30 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.String("base-url", "", "Base URL path. eg. /headlamp")
 	f.Int("session-ttl", defaultSessionTTL, "The time in seconds for the session to be valid"+
 		"(Default: 86400/24h, Min: 1 , Max: 31536000/1yr )")
+	f.String("pod-debug-image", "", "Default image to use when creating pod debug containers")
 	f.String("listen-addr", "", "Address to listen on; default is empty, which means listening to any address")
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
 	f.Bool("enable-helm", false, "Enable Helm operations")
+	f.Bool("enable-cluster-inventory", false,
+		"Enable experimental/alpha automatic discovery of clusters from ClusterProfile resources")
+	f.String("cluster-inventory-provider-file", "",
+		"Path to the JSON configuration file for experimental/alpha Cluster Inventory access providers")
+	f.String("cluster-inventory-label-selector", "",
+		"Label selector used to filter ClusterProfile resources for experimental/alpha Cluster Inventory")
+	f.Duration("cluster-inventory-root-reconcile-interval", clusterinventory.DefaultRootReconcileInterval,
+		"Interval for reconciling experimental/alpha Cluster Inventory roots")
+	f.Duration("cluster-inventory-no-crd-cache-ttl", clusterinventory.DefaultNoCRDCacheTTL,
+		"How long to cache that an API server has no experimental/alpha ClusterProfile CRD")
+	f.String("default-light-theme", "", "Default theme to use when user prefers light mode")
+	f.String("default-dark-theme", "", "Default theme to use when user prefers dark mode")
+	f.String("force-theme", "", "Force a specific theme, overriding user preferences")
+	f.Bool("unsafe-use-service-account-token", false,
+		"UNSAFE: use the pod's service account token to authenticate all users in-cluster. "+
+			"Disables per-user auth; only safe behind an auth proxy")
+	f.String("service-account-token-path", "",
+		"Path to the service account token. "+
+			"Only used when --unsafe-use-service-account-token is set and in-cluster")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {
@@ -476,6 +605,14 @@ func addOIDCFlags(f *flag.FlagSet) {
 		"Comma separated JMESPath expressions used to read groups from the JWT payload")
 	f.String("me-user-info-url", DefaultMeUserInfoURL,
 		"URL to fetch additional user info for the /me endpoint. For oauth2proxy /oauth2/userinfo can be used.")
+}
+
+func addProxyAuthFlags(f *flag.FlagSet) {
+	f.Bool("proxy-auth", false, "Enable bypass of authentication when identity-aware proxy headers are present")
+	f.String("proxy-auth-username-header", "X-Forwarded-User", "Header name to read the authenticated username from")
+	f.String("proxy-auth-group-header", "X-Forwarded-Group", "Header name to read the authenticated groups from")
+	f.String("proxy-auth-email-header", "X-Forwarded-Email", "Header name to read the authenticated email from")
+	f.String("proxy-auth-token-header", "X-Forwarded-Id-Token", "Header name to read the proxy Id token from")
 }
 
 func addTelemetryFlags(f *flag.FlagSet) {
@@ -564,14 +701,11 @@ func defaultUserPluginDir() string {
 	return userPluginsConfigDir
 }
 
-func GetDefaultKubeConfigPath() string {
-	user, err := user.Current()
+func GetDefaultKubeConfigPath() (string, error) {
+	homeDirectory, err := os.UserHomeDir()
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "getting current user")
-		os.Exit(1)
+		return "", fmt.Errorf("failed to determine user home directory: %w", err)
 	}
 
-	homeDirectory := user.HomeDir
-
-	return filepath.Join(homeDirectory, ".kube", "config")
+	return filepath.Join(homeDirectory, ".kube", "config"), nil
 }

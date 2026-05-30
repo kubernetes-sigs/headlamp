@@ -63,7 +63,7 @@ describe('Terminal', () => {
     };
     const pod = createMockPod(async (_container: string, onData: (data: ArrayBuffer) => void) => {
       await Promise.resolve();
-      setTimeout(() => onData(buildMessage(Channel.StdOut, 'late data after unmount')), 5000);
+      setTimeout(() => onData(buildMessage(Channel.StdOut, 'late data after unmount')), 100);
       return streamReturn;
     });
 
@@ -81,9 +81,82 @@ describe('Terminal', () => {
     unmount();
 
     await act(() => {
-      vi.advanceTimersByTime(5000);
+      vi.advanceTimersByTime(100);
     });
 
     expect(true).toBe(true);
+  });
+
+  describe('initialContainer', () => {
+    it('uses initialContainer when it matches a known container', async () => {
+      let capturedContainer: string | undefined;
+      const pod = {
+        ...createMockPod(async (container: string) => {
+          capturedContainer = container;
+          return { cancel: () => {}, getSocket: () => null };
+        }),
+        spec: {
+          nodeSelector: { 'kubernetes.io/os': 'linux' },
+          containers: [{ name: 'main' }, { name: 'sidecar' }],
+          initContainers: [],
+          ephemeralContainers: [],
+        },
+      };
+
+      render(
+        <TestContext>
+          <Terminal item={pod as any} open onClose={() => {}} initialContainer="sidecar" />
+        </TestContext>
+      );
+
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      expect(capturedContainer).toBe('sidecar');
+    });
+
+    it('falls back to default container when initialContainer is invalid', async () => {
+      let capturedContainer: string | undefined;
+      const pod = createMockPod(async (container: string) => {
+        capturedContainer = container;
+        return { cancel: () => {}, getSocket: () => null };
+      });
+
+      render(
+        <TestContext>
+          <Terminal item={pod as any} open onClose={() => {}} initialContainer="nonexistent" />
+        </TestContext>
+      );
+
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      expect(capturedContainer).toBe('main');
+    });
+
+    it('uses default container when initialContainer is not specified', async () => {
+      let capturedContainer: string | undefined;
+      const pod = createMockPod(async (container: string) => {
+        capturedContainer = container;
+        return { cancel: () => {}, getSocket: () => null };
+      });
+
+      render(
+        <TestContext>
+          <Terminal item={pod as any} open onClose={() => {}} />
+        </TestContext>
+      );
+
+      await act(async () => {
+        vi.advanceTimersByTime(100);
+      });
+      await act(() => new Promise(res => process.nextTick(res)));
+
+      expect(capturedContainer).toBe('main');
+    });
   });
 });

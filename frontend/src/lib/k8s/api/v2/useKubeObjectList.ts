@@ -28,6 +28,7 @@ import { KubeList } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
 import { WebSocketManager } from './multiplexer';
+import { kubeRequestRetry } from './retry';
 import { BASE_WS_URL, useWebSockets } from './webSocket';
 
 /**
@@ -72,6 +73,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
   return {
     placeholderData: null,
     refetchInterval,
+    retry: kubeRequestRetry,
     queryKey: [
       'kubeObject',
       'list',
@@ -95,7 +97,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
         list.items = list.items.map(item => {
           const itm = new kubeObjectClass({
             ...item,
-            kind: list.kind.replace('List', ''),
+            kind: list.kind.replace(/List$/, ''),
             apiVersion: list.apiVersion,
           });
           itm.cluster = cluster;
@@ -276,8 +278,12 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
       const parsedUrl = new URL(url, BASE_WS_URL);
 
       // Subscribe to WebSocket updates
-      WebSocketManager.subscribe(cluster, parsedUrl.pathname, parsedUrl.search.slice(1), update =>
-        handleUpdate(update, cluster, namespace)
+      WebSocketManager.subscribe(
+        cluster,
+        parsedUrl.pathname,
+        parsedUrl.search.slice(1),
+        update => handleUpdate(update, cluster, namespace),
+        error => console.error(`WebSocket subscription error for cluster ${cluster}:`, error)
       ).then(
         cleanup => cleanups.push(cleanup),
         error => {
@@ -529,11 +535,12 @@ export function useKubeObjectList<K extends KubeObject>({
 
   const listsToStopWatching = listsToWatch.filter(
     watching =>
-      requests.find(request =>
-        watching.cluster === request?.cluster && request.namespaces && watching.namespace
-          ? request.namespaces?.includes(watching.namespace)
-          : true
-      ) === undefined
+      requests.find(request => {
+        if (watching.cluster !== request?.cluster) return false;
+        return !request.namespaces?.length
+          ? !watching.namespace
+          : !!watching.namespace && request.namespaces.includes(watching.namespace);
+      }) === undefined
   );
 
   if (listsToStopWatching.length > 0) {

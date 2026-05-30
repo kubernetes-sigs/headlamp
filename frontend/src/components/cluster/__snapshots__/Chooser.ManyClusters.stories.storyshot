@@ -42,10 +42,7 @@
             <div
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
-              <h1
-                class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
-                style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
-              >
+              <div>
                 <svg
                   fill="none"
                   height="38"
@@ -102,7 +99,7 @@
                 >
                   Headlamp
                 </span>
-              </h1>
+              </div>
             </div>
             <div
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
@@ -167,7 +164,7 @@
                 </p>
               </div>
               <div
-                aria-labelledby="#recent-clusters-label"
+                aria-labelledby="recent-clusters-label"
                 class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-2 css-e7s3o7-MuiGrid-root"
               >
                 <div

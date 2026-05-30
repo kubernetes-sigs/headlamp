@@ -41,15 +41,25 @@ import { useTypedSelector } from '../../../redux/hooks';
 import { Loader } from '../../common';
 import Link from '../../common/Link';
 import Table from '../../common/Table';
+import { LightTooltip } from '../../common/Tooltip';
 import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import ClusterBadge from '../../Sidebar/ClusterBadge';
 import ClusterContextMenu from './ClusterContextMenu';
+import {
+  getClusterStatusAccessor,
+  getClusterStatusInfo,
+  getConditionTooltip,
+  isClusterInventoryCluster,
+  STATUS_VARIANTS,
+} from './ClusterInventory';
+import { canSelectCluster } from './clusterStatus';
 import { MULTI_HOME_ENABLED } from './config';
 import { getCustomClusterNames } from './customClusterNames';
 
 /**
  * ClusterStatus component displays the status of a cluster.
- * It shows an icon and a message indicating whether the cluster is active, unknown, or has an error.
+ * It shows an icon and a message indicating whether the cluster is active, loading, unavailable,
+ * requires authentication, has insufficient permissions, or has an unhealthy control plane.
  *
  * @param {Object} props - The component props.
  * @param {ApiError|null} [props.error] - The error object if there is an error with the cluster.
@@ -72,38 +82,31 @@ function ClusterStatus({ error, cluster }: { error?: ApiError | null; cluster: C
     return renderedCustomStatus;
   }
 
-  const stateUnknown = error === undefined;
-  const hasReachError = error && error.status !== 401 && error.status !== 403;
-
-  return (
-    <Box width="fit-content">
-      <Box display="flex" alignItems="center" justifyContent="center">
-        {hasReachError ? (
-          <Icon icon="mdi:cloud-off" width={16} color={theme.palette.home.status.error} />
-        ) : stateUnknown ? (
-          <Icon icon="mdi:cloud-question" width={16} color={theme.palette.home.status.unknown} />
-        ) : (
-          <Icon
-            icon="mdi:cloud-check-variant"
-            width={16}
-            color={theme.palette.home.status.success}
-          />
-        )}
-        <Typography
-          variant="body2"
-          style={{
-            marginLeft: theme.spacing(1),
-            color: hasReachError
-              ? theme.palette.home.status.error
-              : !stateUnknown
-              ? theme.palette.home.status.success
-              : undefined,
-          }}
-        >
-          {hasReachError ? error.message : stateUnknown ? '⋯' : t('translation|Active')}
-        </Typography>
-      </Box>
+  const { kind, text, condition } = getClusterStatusInfo(cluster, error, t);
+  const variant = STATUS_VARIANTS[kind];
+  const color = theme.palette.home.status[variant.colorKey];
+  const tooltip = condition ? getConditionTooltip(condition) : '';
+  const statusContent = (
+    <Box display="flex" alignItems="center" justifyContent="center" width="fit-content">
+      <Icon icon={variant.icon} width={16} color={color} />
+      <Typography
+        variant="body2"
+        style={{
+          marginLeft: theme.spacing(1),
+          color: variant.coloredText ? color : undefined,
+        }}
+      >
+        {text}
+      </Typography>
     </Box>
+  );
+
+  return tooltip ? (
+    <LightTooltip title={<span style={{ whiteSpace: 'pre-line' }}>{tooltip}</span>}>
+      {statusContent}
+    </LightTooltip>
+  ) : (
+    statusContent
   );
 }
 
@@ -195,11 +198,14 @@ export default function ClusterTable({
       return sourcePath ? `Kubeconfig: ${sourcePath}` : 'Kubeconfig';
     } else if (cluster?.meta_data?.source === 'dynamic_cluster') {
       return t('translation|Plugin');
-    } else if (cluster?.meta_data?.source === 'in_cluster') {
+    } else if (cluster?.meta_data?.source === 'incluster') {
       return t('translation|In-cluster');
+    } else if (isClusterInventoryCluster(cluster)) {
+      return t('translation|Cluster Inventory');
     }
-    return 'Unknown';
+    return t('translation|Unknown');
   }
+
   const viewClusters = t('View Clusters');
 
   const loading = clusters === null;
@@ -279,8 +285,7 @@ export default function ClusterTable({
         {
           id: 'status',
           header: t('Status'),
-          accessorFn: cluster =>
-            errors[cluster?.name] === null ? 'Active' : errors[cluster?.name]?.message,
+          accessorFn: cluster => getClusterStatusAccessor(cluster, errors[cluster?.name], t),
           Cell: ({ row: { original } }) => (
             <ClusterStatus error={errors[original.name]} cluster={original} />
           ),
@@ -302,8 +307,7 @@ export default function ClusterTable({
           muiTableBodyCellProps: {
             align: 'right',
           },
-          accessorFn: cluster =>
-            errors[cluster?.name] === null ? 'Active' : errors[cluster?.name]?.message,
+          accessorFn: cluster => getClusterStatusAccessor(cluster, errors[cluster?.name], t),
           Cell: ({ row: { original: cluster } }) => {
             return <ClusterContextMenu cluster={cluster} />;
           },
@@ -316,7 +320,7 @@ export default function ClusterTable({
         MULTI_HOME_ENABLED
           ? row => {
               // Only allow selection if the cluster is working
-              return !errors[row.original.name];
+              return canSelectCluster(errors[row.original.name]);
             }
           : false
       }

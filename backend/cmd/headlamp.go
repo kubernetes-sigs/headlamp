@@ -49,15 +49,15 @@ import (
 	"github.com/gorilla/mux"
 	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
-
-	headlampcfg "github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/portforward"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
@@ -65,18 +65,63 @@ import (
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
 	"golang.org/x/oauth2"
 )
 
-// HeadlampConfig wraps headlampconfig.HeadlampConfig and adds cmd-specific methods.
 type HeadlampConfig struct {
-	*headlampcfg.HeadlampConfig
+	*headlampconfig.HeadlampConfig
+	proxyURLMu        sync.Mutex
+	compiledProxyURLs []glob.Glob
+}
+
+func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
+	compiledProxyURLs := make([]glob.Glob, 0, len(patterns))
+
+	for _, pattern := range patterns {
+		g, err := glob.Compile(pattern)
+		if err != nil {
+			return nil, fmt.Errorf("compiling proxy URL pattern %q: %w", pattern, err)
+		}
+
+		compiledProxyURLs = append(compiledProxyURLs, g)
+	}
+
+	return compiledProxyURLs, nil
+}
+
+func (c *HeadlampConfig) proxyURLAllowed(proxyURL string) (bool, error) {
+	c.proxyURLMu.Lock()
+
+	if c.compiledProxyURLs == nil && len(c.ProxyURLs) > 0 {
+		compiledProxyURLs, err := compileProxyURLPatterns(c.ProxyURLs)
+		if err != nil {
+			c.proxyURLMu.Unlock()
+
+			return false, err
+		}
+
+		c.compiledProxyURLs = compiledProxyURLs
+	}
+
+	compiledProxyURLs := c.compiledProxyURLs
+	c.proxyURLMu.Unlock()
+
+	for _, g := range compiledProxyURLs {
+		if g.Match(proxyURL) {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 const DrainNodeCacheTTL = 20 // seconds
@@ -88,6 +133,23 @@ const ContextCacheTTL = 5 * time.Minute // minutes
 const ContextUpdateCacheTTL = 20 * time.Second // seconds
 
 const JWTExpirationTTL = 10 * time.Second // seconds
+
+const (
+	// serverReadHeaderTimeout is the maximum time to read the request headers.
+	serverReadHeaderTimeout = 10 * time.Second
+	// serverIdleTimeout is the maximum time to wait for the next request on a keep-alive connection.
+	serverIdleTimeout = 120 * time.Second
+)
+
+// maxProxyResponseSize is the maximum size (in bytes) for proxied responses.
+//
+//nolint:gochecknoglobals // allow test override
+var maxProxyResponseSize int64 = 100 * 1024 * 1024
+
+// externalProxyTimeout is the maximum time to wait for a proxy response.
+//
+//nolint:gochecknoglobals // allow test override
+var externalProxyTimeout = 30 * time.Second
 
 const kubeConfigSource = "kubeconfig" // source for kubeconfig contexts
 
@@ -102,6 +164,10 @@ type clientConfig struct {
 	Clusters                []Cluster `json:"clusters"`
 	IsDynamicClusterEnabled bool      `json:"isDynamicClusterEnabled"`
 	AllowKubeconfigChanges  bool      `json:"allowKubeconfigChanges"`
+	DefaultPodDebugImage    string    `json:"defaultPodDebugImage"`
+	DefaultLightTheme       string    `json:"defaultLightTheme,omitempty"`
+	DefaultDarkTheme        string    `json:"defaultDarkTheme,omitempty"`
+	ForceTheme              string    `json:"forceTheme,omitempty"`
 }
 
 type OauthConfig struct {
@@ -308,7 +374,10 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 		logger.Log(logger.LevelInfo, nil, nil, "Received DELETE request for plugin: "+mux.Vars(r)["name"])
 
 		if err := config.checkHeadlampBackendToken(w, r); err != nil {
-			config.TelemetryHandler.RecordError(span, err, " Invalid backend token")
+			if config.TelemetryHandler != nil {
+				config.TelemetryHandler.RecordError(span, err, "Invalid backend token")
+			}
+
 			logger.Log(logger.LevelWarn, nil, err, "Invalid backend token for DELETE /plugins/{name}")
 
 			return
@@ -316,7 +385,9 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 
 		err := plugins.Delete(config.UserPluginDir, config.PluginDir, pluginName, pluginType)
 		if err != nil {
-			config.TelemetryHandler.RecordError(span, err, "Failed to delete plugin")
+			if config.TelemetryHandler != nil {
+				config.TelemetryHandler.RecordError(span, err, "Failed to delete plugin")
+			}
 
 			logger.Log(logger.LevelError, nil, err, "Error deleting plugin: "+pluginName)
 
@@ -392,10 +463,83 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 	}).Methods("GET")
 }
 
+func startClusterInventory(ctx context.Context, config *HeadlampConfig) error {
+	if !config.EnableClusterInventory {
+		return nil
+	}
+
+	var hubConfig *rest.Config
+
+	if config.UseInCluster {
+		inClusterConfig, err := rest.InClusterConfig()
+		if err != nil {
+			return fmt.Errorf("get in-cluster config for cluster inventory: %w", err)
+		}
+
+		hubConfig = inClusterConfig
+	}
+
+	runner, err := clusterinventory.NewRunner(clusterinventory.Options{
+		Store:                 config.KubeConfigStore,
+		ProviderFile:          config.ClusterInventoryProviderFile,
+		LabelSelector:         config.ClusterInventoryLabelSelector,
+		RootReconcileInterval: config.ClusterInventoryRootReconcileInterval,
+		NoCRDCacheTTL:         config.ClusterInventoryNoCRDCacheTTL,
+		HubConfig:             hubConfig,
+		DiscoverFromStore:     !config.UseInCluster,
+	})
+	if err != nil {
+		return err
+	}
+
+	go runner.Run(ctx)
+
+	return nil
+}
+
+func setupInClusterContext(config *HeadlampConfig) {
+	if config.UnsafeUseServiceAccountToken {
+		logger.Log(
+			logger.LevelWarn,
+			nil,
+			nil,
+			"UNSAFE: authenticating all users with the pod's service account token. "+
+				"This disables per-user auth and is only safe behind an auth proxy.",
+		)
+	}
+
+	inClusterContext, err := kubeconfig.GetInClusterContext(
+		config.InClusterContextName,
+		config.OidcIdpIssuerURL,
+		config.OidcClientID, config.OidcClientSecret,
+		strings.Join(config.OidcScopes, ","),
+		config.OidcSkipTLSVerify,
+		config.OidcCACert,
+		config.UnsafeUseServiceAccountToken,
+		config.ServiceAccountTokenPath,
+	)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
+
+		return
+	}
+
+	if err := inClusterContext.SetupProxy(); err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
+
+		return
+	}
+
+	if err := config.KubeConfigStore.AddContext(inClusterContext); err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+	}
+}
+
 //nolint:gocognit,funlen,gocyclo
 func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
 
+	config.ServerCtx = ctx
 	config.StaticPluginDir = os.Getenv("HEADLAMP_STATIC_PLUGINS_DIR")
 
 	logger.Log(logger.LevelInfo, nil, nil, "Creating Headlamp handler")
@@ -452,28 +596,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	// In-cluster
 	if config.UseInCluster {
-		context, err := kubeconfig.GetInClusterContext(
-			config.InClusterContextName,
-			config.OidcIdpIssuerURL,
-			config.OidcClientID, config.OidcClientSecret,
-			strings.Join(config.OidcScopes, ","),
-			config.OidcSkipTLSVerify,
-			config.OidcCACert)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
-		}
-
-		context.Source = kubeconfig.InCluster
-
-		err = context.SetupProxy()
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
-		}
-
-		err = config.KubeConfigStore.AddContext(context)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
-		}
+		setupInClusterContext(config)
 	}
 
 	if config.StaticDir != "" {
@@ -522,7 +645,13 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	// Setup port forwarding handlers.
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
-		portforward.StartPortForward(config.KubeConfigStore, config.Cache, w, r)
+		portforward.StartPortForward(
+			config.KubeConfigStore,
+			config.Cache,
+			config.shouldUseUnsafeServiceAccountToken(),
+			w,
+			r,
+		)
 	}).Methods("POST")
 
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
@@ -539,10 +668,14 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	// Expose user info so the frontend can show the current user in the top bar using the per-cluster auth cookie.
 	r.HandleFunc("/clusters/{clusterName}/me",
 		auth.HandleMe(auth.MeHandlerOptions{
-			UsernamePaths: config.MeUsernamePaths,
-			EmailPaths:    config.MeEmailPaths,
-			GroupsPaths:   config.MeGroupsPaths,
-			UserInfoURL:   config.MeUserInfoURL,
+			UsernamePaths:           config.MeUsernamePaths,
+			EmailPaths:              config.MeEmailPaths,
+			GroupsPaths:             config.MeGroupsPaths,
+			UserInfoURL:             config.MeUserInfoURL,
+			ProxyAuthEnabled:        config.ProxyAuthEnabled,
+			ProxyAuthUsernameHeader: config.ProxyAuthUsernameHeader,
+			ProxyAuthGroupHeader:    config.ProxyAuthGroupHeader,
+			ProxyAuthEmailHeader:    config.ProxyAuthEmailHeader,
 		}),
 	).Methods("GET")
 
@@ -571,14 +704,12 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		isURLContainedInProxyURLs := false
+		isURLContainedInProxyURLs, err := config.proxyURLAllowed(url.String())
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL}, err, "compiling proxy URL patterns")
+			http.Error(w, "failed to compile proxy URL patterns", http.StatusInternalServerError)
 
-		for _, proxyURL := range config.ProxyURLs {
-			g := glob.MustCompile(proxyURL)
-			if g.Match(url.String()) {
-				isURLContainedInProxyURLs = true
-				break
-			}
+			return
 		}
 
 		if !isURLContainedInProxyURLs {
@@ -588,9 +719,10 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		ctx := context.Background()
+		proxyCtx, cancel := context.WithTimeout(r.Context(), externalProxyTimeout)
+		defer cancel()
 
-		proxyReq, err := http.NewRequestWithContext(ctx, r.Method, proxyURL, r.Body) //nolint:gosec
+		proxyReq, err := http.NewRequestWithContext(proxyCtx, r.Method, proxyURL, r.Body) //nolint:gosec
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "creating request")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -640,18 +772,39 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			reader = resp.Body
 		}
 
-		respBody, err := io.ReadAll(reader)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "reading response")
-			http.Error(w, err.Error(), http.StatusBadGateway)
+		// Read the first chunk before committing the response so early upstream
+		// failures can still return a 502 instead of an empty success response.
+		firstChunk := make([]byte, 32*1024)
+
+		n, readErr := reader.Read(firstChunk)
+		if readErr != nil && !errors.Is(readErr, io.EOF) && n == 0 {
+			logger.Log(logger.LevelError, nil, readErr, "reading response")
+			http.Error(w, readErr.Error(), http.StatusBadGateway)
 
 			return
 		}
 
-		_, err = w.Write(respBody)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "writing response")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if contentType := resp.Header.Get("Content-Type"); contentType != "" {
+			w.Header().Set("Content-Type", contentType)
+		}
+
+		// Reject early if Content-Length exceeds the maximum allowed size.
+		if resp.ContentLength > maxProxyResponseSize {
+			logger.Log(logger.LevelError, nil, nil, "proxy response exceeded maximum allowed size (Content-Length)")
+			http.Error(w, "response too large", http.StatusBadGateway)
+
+			return
+		}
+
+		w.WriteHeader(resp.StatusCode)
+
+		// Stream the body, putting the already-read first chunk back in front of
+		// the reader so a single size limit covers the whole response. The limit
+		// prevents memory exhaustion and decompression bombs; if the length is
+		// unknown and the limit is reached, the response is truncated.
+		body := io.MultiReader(bytes.NewReader(firstChunk[:n]), reader)
+		if _, err := io.Copy(w, io.LimitReader(body, maxProxyResponseSize)); err != nil {
+			logger.Log(logger.LevelError, nil, err, "streaming response")
 
 			return
 		}
@@ -680,9 +833,25 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		cluster := r.URL.Query().Get("cluster")
 
 		if config.Insecure {
-			tr := &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+			baseTransport, ok := http.DefaultTransport.(*http.Transport)
+			if !ok {
+				err := errors.New("http.DefaultTransport is not an *http.Transport")
+				logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+					err, "failed to configure insecure oidc client transport")
+				http.Error(w, "Failed to configure oidc transport", http.StatusInternalServerError)
+
+				return
 			}
+
+			tr := baseTransport.Clone()
+
+			tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+			if baseTransport.TLSClientConfig != nil {
+				tlsCfg = baseTransport.TLSClientConfig.Clone()
+				tlsCfg.InsecureSkipVerify = true
+			}
+
+			tr.TLSClientConfig = tlsCfg
 			InsecureClient := &http.Client{Transport: tr}
 			ctx = oidc.ClientContext(ctx, InsecureClient)
 		}
@@ -745,14 +914,20 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		// state should be unique per request, cryptographically secure random, url safe
-		state := func() string {
+		state, err := func() (string, error) {
 			b := make([]byte, 32)
 			if _, err := rand.Read(b); err != nil {
-				panic(err)
+				return "", fmt.Errorf("generating OIDC state: %w", err)
 			}
 
-			return base64.RawURLEncoding.EncodeToString(b)
+			return base64.RawURLEncoding.EncodeToString(b), nil
 		}()
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{"cluster": cluster}, err, "failed to generate OIDC state")
+			http.Error(w, "failed to generate OIDC state", http.StatusInternalServerError)
+
+			return
+		}
 
 		entry := &OauthConfig{
 			Config:   oauthConfig,
@@ -783,10 +958,15 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		config.handleNodeDrainStatus).Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
 
 	r.HandleFunc("/oidc-callback", func(w http.ResponseWriter, r *http.Request) {
+		// Shadow createHeadlampHandler's outer-scope err so any log call in
+		// this handler is guaranteed to reference this closure's err and
+		// never the startup kubeconfig-load error. See issue #4839.
+		var err error
+
 		state := r.URL.Query().Get("state")
 
 		if state == "" {
-			logger.Log(logger.LevelError, nil, err, "invalid request state is empty")
+			logger.Log(logger.LevelError, nil, nil, "invalid request state is empty")
 			http.Error(w, "invalid request state is empty", http.StatusBadRequest)
 
 			return
@@ -808,8 +988,6 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		var oauth2Token *oauth2.Token
-
-		var err error
 
 		// Exchange authorization code for token, with or without PKCE
 		if config.OidcUsePKCE && oauthConfig.CodeVerifier != "" {
@@ -934,49 +1112,6 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	return r
 }
 
-func (c *HeadlampConfig) refreshAndSetToken(oidcAuthConfig *kubeconfig.OidcConfig,
-	cache cache.Cache[interface{}], token string,
-	w http.ResponseWriter, r *http.Request, cluster string, span trace.Span, ctx context.Context,
-) {
-	// The token type to use
-	tokenType := "id_token"
-	if c.OidcUseAccessToken {
-		tokenType = "access_token"
-	}
-
-	idpIssuerURL := c.OidcIdpIssuerURL
-	if idpIssuerURL == "" {
-		idpIssuerURL = oidcAuthConfig.IdpIssuerURL
-	}
-
-	newToken, err := auth.RefreshAndCacheNewToken(
-		ctx,
-		oidcAuthConfig,
-		cache,
-		tokenType,
-		token,
-		idpIssuerURL,
-	)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
-			err, "failed to refresh token")
-		c.TelemetryHandler.RecordError(span, err, "Token refresh failed")
-		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error", "token_refresh_failure"))
-	} else if newToken != nil {
-		var newTokenString string
-		if c.OidcUseAccessToken {
-			newTokenString = newToken.Extra("access_token").(string)
-		} else {
-			newTokenString = newToken.Extra("id_token").(string)
-		}
-
-		// Set refreshed token in cookie
-		auth.SetTokenCookie(w, r, cluster, newTokenString, c.BaseURL, c.SessionTTL)
-
-		c.TelemetryHandler.RecordEvent(span, "Token refreshed successfully")
-	}
-}
-
 // setTokenFromCookie attempts to get a token from the cookie and set it as Authorization header.
 func setTokenFromCookie(r *http.Request, clusterName string) {
 	tokenFromCookie, err := auth.GetTokenFromCookie(r, clusterName)
@@ -984,6 +1119,73 @@ func setTokenFromCookie(r *http.Request, clusterName string) {
 	if err == nil && tokenFromCookie != "" {
 		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokenFromCookie))
 	}
+}
+
+func clearRequestAuthorization(r *http.Request) {
+	r.Header.Del("Authorization")
+	r.Header.Del("Cookie")
+}
+
+func clearConfiguredProxyTokenHeader(r *http.Request, proxyAuthTokenHeader string) {
+	proxyAuthTokenHeader = strings.TrimSpace(proxyAuthTokenHeader)
+	if proxyAuthTokenHeader != "" {
+		r.Header.Del(proxyAuthTokenHeader)
+	}
+}
+
+func (c *HeadlampConfig) shouldUseUnsafeServiceAccountToken() bool {
+	return c != nil && c.UseInCluster && c.UnsafeUseServiceAccountToken
+}
+
+func (c *HeadlampConfig) shouldUseUnsafeServiceAccountTokenForContext(kContext *kubeconfig.Context) bool {
+	return c.shouldUseUnsafeServiceAccountToken() && kContext.UsesInClusterServiceAccountToken()
+}
+
+func tokenFromCookie(r *http.Request, clusterName string) string {
+	if cookieToken, err := auth.GetTokenFromCookie(r, clusterName); err == nil && cookieToken != "" {
+		return cookieToken
+	}
+
+	return ""
+}
+
+func (c *HeadlampConfig) requestTokenForContext(
+	r *http.Request,
+	clusterName string,
+	kContext *kubeconfig.Context,
+) string {
+	if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+		return ""
+	}
+
+	token := auth.BearerTokenValue(r.Header.Get("Authorization"))
+	if token == "" {
+		token = tokenFromCookie(r, clusterName)
+	}
+
+	if token == "" && kContext != nil && kContext.Name != clusterName {
+		token = tokenFromCookie(r, kContext.Name)
+	}
+
+	return token
+}
+
+func applyRequestTokenToContext(r *http.Request, clusterName string, context *kubeconfig.Context) {
+	// Only promote a cookie token when the request does not already provide Authorization.
+	if strings.TrimSpace(r.Header.Get("Authorization")) == "" {
+		setTokenFromCookie(r, clusterName)
+	}
+
+	bearerToken := auth.BearerTokenValue(r.Header.Get("Authorization"))
+	if bearerToken == "" {
+		return
+	}
+
+	if context.AuthInfo == nil {
+		context.AuthInfo = &api.AuthInfo{}
+	}
+
+	context.AuthInfo.Token = bearerToken
 }
 
 func (c *HeadlampConfig) incrementRequestCounter(ctx context.Context) {
@@ -1063,6 +1265,9 @@ func (c *HeadlampConfig) handleOIDCAuthConfigError(err error, w http.ResponseWri
 	return false
 }
 
+// TODO: moving functions one at a time, this will be relocated
+//
+//nolint:funlen
 func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -1096,6 +1301,16 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 			return
 		}
 
+		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+			c.TelemetryHandler.RecordEvent(span, "Using service account token, skipping OIDC refresh")
+			next.ServeHTTP(w, r)
+			c.TelemetryHandler.RecordDuration(ctx, start,
+				attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
+				attribute.String("status", "service_account_token"))
+
+			return
+		}
+
 		// skip if cluster is not using OIDC auth
 		oidcAuthConfig, err := kContext.OidcConfig()
 		if c.handleOIDCAuthConfigError(err, w, r, span, ctx, start, next) {
@@ -1114,7 +1329,22 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 		}
 
 		// refresh and cache new token
-		c.refreshAndSetToken(oidcAuthConfig, c.Cache, token, w, r, cluster, span, ctx)
+		auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
+			Ctx:                       ctx,
+			OIDCAuthConfig:            oidcAuthConfig,
+			Cache:                     c.Cache,
+			Token:                     token,
+			Cluster:                   cluster,
+			Span:                      span,
+			Writer:                    w,
+			Request:                   r,
+			TelemetryHandler:          c.TelemetryHandler,
+			OIDCUseAccessToken:        c.OidcUseAccessToken,
+			OIDCIdpIssuerURL:          c.OidcIdpIssuerURL,
+			OIDCValidatorIdpIssuerURL: c.OidcValidatorIdpIssuerURL,
+			BaseURL:                   c.BaseURL,
+			SessionTTL:                c.SessionTTL,
+		})
 
 		next.ServeHTTP(w, r)
 		c.TelemetryHandler.RecordDuration(ctx, start,
@@ -1224,6 +1454,26 @@ func hostValidationMiddleware(listenAddr string, port uint) func(http.Handler) h
 	}
 }
 
+func serverHandler(ctx context.Context, config *HeadlampConfig) (http.Handler, error) {
+	handler := createHeadlampHandler(ctx, config)
+
+	if err := startClusterInventory(ctx, config); err != nil {
+		return nil, err
+	}
+
+	handler = config.OIDCTokenRefreshMiddleware(handler)
+
+	// Only validate the Host header when listening on a loopback address.
+	// When bound to a non-loopback address (e.g. behind a reverse proxy),
+	// arbitrary Host headers are expected and must be allowed through.
+	if isLoopbackAddr(config.ListenAddr) {
+		handler = hostValidationMiddleware(config.ListenAddr, config.Port)(handler)
+	}
+
+	return handler, nil
+}
+
+//nolint:funlen
 func StartHeadlampServer(config *HeadlampConfig) {
 	tel, err := initTelemetry(config)
 	if err != nil {
@@ -1256,20 +1506,21 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	handler := createHeadlampHandler(ctx, config)
-	handler = config.OIDCTokenRefreshMiddleware(handler)
-
-	// Only validate the Host header when listening on a loopback address.
-	// When bound to a non-loopback address (e.g. behind a reverse proxy),
-	// arbitrary Host headers are expected and must be allowed through.
-	if isLoopbackAddr(config.ListenAddr) {
-		handler = hostValidationMiddleware(config.ListenAddr, config.Port)(handler)
+	handler, err := serverHandler(ctx, config)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "starting cluster inventory discovery")
+		return
 	}
 
 	listenHost := strings.TrimPrefix(strings.TrimSuffix(config.ListenAddr, "]"), "[")
 	addr := net.JoinHostPort(listenHost, fmt.Sprintf("%d", config.Port))
 
-	server := &http.Server{Addr: addr, Handler: handler} //nolint:gosec
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: serverReadHeaderTimeout,
+		IdleTimeout:       serverIdleTimeout,
+	}
 
 	serverDone := make(chan struct{})
 	setupGracefulShutdown(server, cancel, serverDone)
@@ -1429,7 +1680,7 @@ func (c *HeadlampConfig) checkHeadlampBackendToken(w http.ResponseWriter, r *htt
 func handleClusterServiceProxy(c *HeadlampConfig, router *mux.Router) {
 	router.HandleFunc("/clusters/{clusterName}/serviceproxy/{namespace}/{name}",
 		func(w http.ResponseWriter, r *http.Request) {
-			serviceproxy.RequestHandler(c.KubeConfigStore, w, r)
+			serviceproxy.RequestHandler(c.KubeConfigStore, c.shouldUseUnsafeServiceAccountToken(), w, r)
 		}).Queries("request", "{request}").
 		Methods("GET")
 }
@@ -1488,20 +1739,12 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 	// Create a copy of the context to avoid modifying the cached context
 	context = context.Copy()
 
-	// Always attempt to set the token from the cookie as the function is a no operation when no cookie is present
-	setTokenFromCookie(r, clusterName)
+	unsafeUseServiceAccountToken := c.shouldUseUnsafeServiceAccountTokenForContext(context)
 
-	bearerToken := r.Header.Get("Authorization")
-
-	if bearerToken != "" {
-		// Remove "Bearer " prefix if present
-		bearerToken = strings.TrimPrefix(bearerToken, "Bearer ")
-
-		if context.AuthInfo == nil {
-			context.AuthInfo = &api.AuthInfo{}
-		}
-
-		context.AuthInfo.Token = bearerToken
+	if unsafeUseServiceAccountToken {
+		clearRequestAuthorization(r)
+	} else {
+		applyRequestTokenToContext(r, clusterName, context)
 	}
 
 	handler(context.ClientConfig(), w, r)
@@ -1520,14 +1763,18 @@ func (c *HeadlampConfig) helmRouteRepositoryHandler(
 		attribute.String("operation", operation))
 	c.TelemetryHandler.RecordRequestCount(ctx, r)
 
-	// fetch token from cookie
-	setTokenFromCookie(r, clusterName)
+	context, err := c.KubeConfigStore.GetContext(clusterName)
+	unsafeUseServiceAccountToken := err == nil && c.shouldUseUnsafeServiceAccountTokenForContext(context)
 
-	// fetch token from header
-	bearerToken := r.Header.Get("Authorization")
+	if unsafeUseServiceAccountToken {
+		clearRequestAuthorization(r)
+	} else {
+		// fetch token from cookie
+		setTokenFromCookie(r, clusterName)
+	}
 
 	// if no token present in in-cluster mode, return error
-	if c.UseInCluster && bearerToken == "" {
+	if c.UseInCluster && !unsafeUseServiceAccountToken && r.Header.Get("Authorization") == "" {
 		c.handleError(
 			w, ctx, span,
 			errors.New("no authentication token provided"),
@@ -1677,13 +1924,29 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 		r.URL.Path = mux.Vars(r)["api"]
 		r.URL.Scheme = clusterURL.Scheme
 
-		token, err := auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
-		if err == nil && token != "" {
-			r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-		}
-
 		// Process WebSocket protocol headers if present
 		processWebSocketProtocolHeader(r)
+
+		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+			clearRequestAuthorization(r)
+		} else {
+			var token string
+
+			if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
+				token = strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
+			}
+
+			if token == "" {
+				token, _ = auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
+			}
+
+			if token != "" {
+				r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+			}
+		}
+
+		clearConfiguredProxyTokenHeader(r, c.ProxyAuthTokenHeader)
+
 		plugins.HandlePluginReload(c.Cache, w)
 
 		if err = kContext.ProxyRequest(w, r); err != nil {
@@ -1842,20 +2105,26 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 
 		clusterID := context.ClusterID
 
+		metadata := map[string]interface{}{
+			"source":     source,
+			"namespace":  context.KubeContext.Namespace,
+			"extensions": context.KubeContext.Extensions,
+			"origin": map[string]interface{}{
+				"kubeconfig": kubeconfigPath,
+			},
+			"originalName": context.Name,
+			"clusterID":    clusterID,
+		}
+
+		if context.Source == kubeconfig.ClusterInventory && context.ClusterInventory != nil {
+			metadata["clusterInventory"] = context.ClusterInventory
+		}
+
 		clusters = append(clusters, Cluster{
 			Name:     context.Name,
 			Server:   context.Cluster.Server,
 			AuthType: context.AuthType(),
-			Metadata: map[string]interface{}{
-				"source":     source,
-				"namespace":  context.KubeContext.Namespace,
-				"extensions": context.KubeContext.Extensions,
-				"origin": map[string]interface{}{
-					"kubeconfig": kubeconfigPath,
-				},
-				"originalName": context.Name,
-				"clusterID":    clusterID,
-			},
+			Metadata: metadata,
 		})
 	}
 
@@ -1956,6 +2225,10 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 		Clusters:                c.getClusters(),
 		IsDynamicClusterEnabled: c.EnableDynamicClusters,
 		AllowKubeconfigChanges:  c.AllowKubeconfigChanges,
+		DefaultPodDebugImage:    c.PodDebugImage,
+		DefaultLightTheme:       c.DefaultLightTheme,
+		DefaultDarkTheme:        c.DefaultDarkTheme,
+		ForceTheme:              c.ForceTheme,
 	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {
@@ -2591,7 +2864,7 @@ func (c *HeadlampConfig) addClusterSetupRoute(r *mux.Router) {
 /*
 This function is used to handle the node drain request.
 */
-func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request) {
+func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request) { //nolint:funlen
 	ctx := r.Context()
 	_, span := telemetry.CreateSpan(ctx, r, "node-management", "handleNodeDrain")
 	c.TelemetryHandler.RecordRequestCount(ctx, r)
@@ -2620,8 +2893,6 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 
 		return
 	}
-	// get token from header
-	token := r.Header.Get("Authorization")
 
 	ctxtProxy, err := c.KubeConfigStore.GetContext(drainPayload.Cluster)
 	if err != nil {
@@ -2629,6 +2900,8 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 
 		return
 	}
+
+	token := c.requestTokenForContext(r, drainPayload.Cluster, ctxtProxy)
 
 	clientset, err := ctxtProxy.ClientSetWithToken(token)
 	if err != nil {
@@ -2651,19 +2924,37 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	c.drainNode(clientset, drainPayload.NodeName, drainPayload.Cluster)
+	serverCtx := c.ServerCtx
+	if serverCtx == nil {
+		serverCtx = context.Background()
+	}
+
+	c.drainNode(serverCtx, clientset, drainPayload.NodeName, drainPayload.Cluster)
 }
 
-func (c *HeadlampConfig) drainNode(clientset *kubernetes.Clientset, nodeName string, cluster string) {
+func (c *HeadlampConfig) drainNode(
+	ctx context.Context,
+	clientset kubernetes.Interface,
+	nodeName string,
+	cluster string,
+) {
 	go func() {
+		if ctx.Err() != nil {
+			return
+		}
+
 		nodeClient := clientset.CoreV1().Nodes()
-		ctx := context.Background()
-		cacheKey := uuid.NewSHA1(uuid.Nil, []byte(nodeName+cluster)).String()
-		cacheItemTTL := DrainNodeCacheTTL * time.Minute
+		cacheKey := uuid.NewSHA1(uuid.Nil, []byte(nodeName+"\x00"+cluster)).String()
+		cacheItemTTL := DrainNodeCacheTTL * time.Second
 
 		node, err := nodeClient.Get(ctx, nodeName, v1.GetOptions{})
 		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return
+			}
+
 			_ = c.Cache.SetWithTTL(ctx, cacheKey, "error: "+err.Error(), cacheItemTTL)
+
 			return
 		}
 
@@ -2672,31 +2963,73 @@ func (c *HeadlampConfig) drainNode(clientset *kubernetes.Clientset, nodeName str
 
 		_, err = nodeClient.Update(ctx, node, v1.UpdateOptions{})
 		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return
+			}
+
 			_ = c.Cache.SetWithTTL(ctx, cacheKey, "error: "+err.Error(), cacheItemTTL)
+
 			return
 		}
 
 		pods, err := clientset.CoreV1().Pods("").List(ctx,
 			v1.ListOptions{FieldSelector: "spec.nodeName=" + nodeName})
 		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return
+			}
+
 			_ = c.Cache.SetWithTTL(ctx, cacheKey, "error: "+err.Error(), cacheItemTTL)
+
 			return
 		}
 
-		var gracePeriod int64 = 0
+		c.drainNodePods(ctx, clientset, pods.Items, cacheKey, cacheItemTTL)
+	}()
+}
 
-		for _, pod := range pods.Items {
-			// ignore daemonsets
-			if pod.Labels["kubernetes.io/created-by"] == "daemonset-controller" {
-				continue
-			}
+func (c *HeadlampConfig) drainNodePods(
+	ctx context.Context,
+	clientset kubernetes.Interface,
+	pods []corev1.Pod,
+	cacheKey string,
+	cacheItemTTL time.Duration,
+) {
+	var gracePeriod int64 = 0
 
-			_ = clientset.CoreV1().Pods(pod.Namespace).Delete(ctx,
-				pod.Name, v1.DeleteOptions{GracePeriodSeconds: &gracePeriod})
+	var deleteErrors []string
+
+	for _, pod := range pods {
+		if ctx.Err() != nil {
+			return
 		}
 
+		// ignore daemonsets
+		if pod.Labels["kubernetes.io/created-by"] == "daemonset-controller" {
+			continue
+		}
+
+		if err := clientset.CoreV1().Pods(pod.Namespace).Delete(ctx,
+			pod.Name, v1.DeleteOptions{GracePeriodSeconds: &gracePeriod}); err != nil &&
+			!apierrors.IsNotFound(err) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			deleteErrors = append(deleteErrors, fmt.Sprintf("%s/%s: %v", pod.Namespace, pod.Name, err))
+		}
+	}
+
+	if ctx.Err() != nil {
+		return
+	}
+
+	if len(deleteErrors) > 0 {
+		errMsg := fmt.Sprintf("error: failed to delete %d pod(s)", len(deleteErrors))
+		logger.Log(logger.LevelError, nil, nil,
+			fmt.Sprintf("node drain: failed to delete %d pod(s): %s",
+				len(deleteErrors), strings.Join(deleteErrors, "; ")))
+
+		_ = c.Cache.SetWithTTL(ctx, cacheKey, errMsg, cacheItemTTL)
+	} else {
 		_ = c.Cache.SetWithTTL(ctx, cacheKey, "success", cacheItemTTL)
-	}()
+	}
 }
 
 /*
@@ -2737,7 +3070,7 @@ func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	cacheKey := uuid.NewSHA1(uuid.Nil, []byte(drainPayload.NodeName+drainPayload.Cluster)).String()
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte(drainPayload.NodeName+"\x00"+drainPayload.Cluster)).String()
 
 	cacheItem, err := c.Cache.Get(ctx, cacheKey)
 	if err != nil {

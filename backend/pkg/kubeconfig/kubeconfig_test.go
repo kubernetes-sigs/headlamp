@@ -30,6 +30,16 @@ func stringPtr(s string) *string {
 	return &s
 }
 
+// fileExists returns true if the file exists.
+func fileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	if err != nil {
+		return false
+	}
+
+	return !info.IsDir()
+}
+
 // getTestDataPath returns the absolute path to the test data directory.
 func getTestDataPath() string {
 	// Get the current working directory
@@ -73,6 +83,26 @@ func TestLoadAndStoreKubeConfigs(t *testing.T) {
 		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
 		require.Error(t, err)
 	})
+}
+
+func TestContextSourceStr(t *testing.T) {
+	tests := []struct {
+		name   string
+		source int
+		want   string
+	}{
+		{"kubeconfig", kubeconfig.KubeConfig, "kubeconfig"},
+		{"dynamic cluster", kubeconfig.DynamicCluster, "dynamic_cluster"},
+		{"in cluster", kubeconfig.InCluster, "incluster"},
+		{"cluster inventory", kubeconfig.ClusterInventory, "cluster_inventory"},
+		{"unknown", 0, "unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, (&kubeconfig.Context{Source: tt.source}).SourceStr())
+		})
+	}
 }
 
 func TestLoadContextsFromKubeConfigFile(t *testing.T) {
@@ -319,15 +349,29 @@ func TestContext(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	kubeConfigFile := config.GetDefaultKubeConfigPath()
+	kubeConfigFile, err := config.GetDefaultKubeConfigPath()
+	if err != nil {
+		t.Skipf("Skipping test: failed to resolve default kubeconfig path: %v", err)
+	}
 
 	configStore := kubeconfig.NewContextStore()
 
-	err := kubeconfig.LoadAndStoreKubeConfigs(configStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
-	require.NoError(t, err)
+	err = kubeconfig.LoadAndStoreKubeConfigs(configStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
+	if err != nil {
+		t.Skipf("Skipping test: failed to load default kubeconfig: %v", err)
+	}
 
 	testContext, err := configStore.GetContext("minikube")
-	require.NoError(t, err)
+	if err != nil {
+		t.Skipf("Skipping test: minikube context not found: %v", err)
+	}
+
+	// Verify that the certificates actually exist, if not skip
+	if testContext.Cluster != nil && testContext.Cluster.CertificateAuthority != "" {
+		if !fileExists(testContext.Cluster.CertificateAuthority) {
+			t.Skipf("Skipping test: minikube CA certificate not found at %s", testContext.Cluster.CertificateAuthority)
+		}
+	}
 
 	require.Equal(t, "minikube", testContext.Name)
 	require.NotNil(t, testContext.ClientConfig())

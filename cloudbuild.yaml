@@ -5,9 +5,22 @@ timeout: 3000s
 steps:
   # see https://github.com/kubernetes/test-infra/tree/master/config/jobs/image-pushing
   - name: 'gcr.io/k8s-staging-test-infra/gcb-docker-gcloud@sha256:8d6a3a5b895e6776dbe9115b75db1412fbe57299b8db329d45cb54680e462b0b' # v20251211-4c812d4cd8
-    entrypoint: make
+    entrypoint: bash
+    # Always build/push the image, but only push the Helm chart on SemVer tag
+    # builds (vX.Y.Z). On branch builds the chart version (read from
+    # Chart.yaml) does not change between runs, so an unconditional push would
+    # try to overwrite an existing OCI tag and fail.
     args:
-      - image
+      - -eu
+      - -c
+      - |
+        make image
+        if [[ "$_PULL_BASE_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "Detected SemVer tag ($_PULL_BASE_REF); pushing Helm chart."
+          make helm-chart-push
+        else
+          echo "Skipping Helm chart push: $_PULL_BASE_REF is not a SemVer tag (vX.Y.Z)."
+        fi
     env:
       - DOCKER_CMD= # Because we are using a custom entrypoint, we need to set DOCKER_CMD to empty
       - DOCKER_BUILDX_CMD=/buildx-entrypoint

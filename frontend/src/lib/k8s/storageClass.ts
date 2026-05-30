@@ -22,6 +22,8 @@ export interface KubeStorageClass extends KubeObjectInterface {
   reclaimPolicy: string;
   volumeBindingMode: string;
   allowVolumeExpansion?: boolean;
+  parameters?: { [key: string]: string };
+  mountOptions?: string[];
 }
 
 class StorageClass extends KubeObject<KubeStorageClass> {
@@ -61,6 +63,14 @@ class StorageClass extends KubeObject<KubeStorageClass> {
 
   get allowVolumeExpansion() {
     return this.jsonData.allowVolumeExpansion;
+  }
+
+  get parameters() {
+    return this.jsonData.parameters;
+  }
+
+  get mountOptions() {
+    return this.jsonData.mountOptions;
   }
 
   static get listRoute() {

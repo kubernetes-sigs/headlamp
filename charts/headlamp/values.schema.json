@@ -180,6 +180,18 @@
           "minimum": 1,
           "maximum": 31536000
         },
+        "podDebugImage": {
+          "type": "string",
+          "description": "Default image to use when creating pod debug containers"
+        },
+        "unsafeUseServiceAccountToken": {
+          "type": "boolean",
+          "description": "UNSAFE: authenticate every user as the pod's service account in-cluster mode"
+        },
+        "serviceAccountTokenPath": {
+          "type": "string",
+          "description": "Path to the service account token file when unsafeUseServiceAccountToken is enabled"
+        },
         "oidc": {
           "type": "object",
           "description": "OIDC configuration",
@@ -229,6 +241,10 @@
                 "enabled": {
                   "type": "boolean",
                   "description": "Enable the external secret"
+                },
+                "hasScopes": {
+                  "type": "boolean",
+                  "description": "Set to true if the external secret contains an OIDC_SCOPES key"
                 }
               }
             }
@@ -245,6 +261,64 @@
         "tlsKeyPath": {
           "type": "string",
           "description": "Path of private key file for TLS"
+        },
+        "clusterInventory": {
+          "type": "object",
+          "description": "Experimental/alpha Cluster Inventory configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable experimental/alpha Cluster Inventory discovery",
+              "default": false
+            },
+            "accessProvidersConfig": {
+              "type": "object",
+              "description": "Experimental/alpha Cluster Inventory access providers config",
+              "default": {}
+            },
+            "plugins": {
+              "type": "array",
+              "description": "Kubernetes image volumes that provide experimental/alpha Cluster Inventory access provider binaries",
+              "items": {
+                "type": "object",
+                "required": ["name", "image", "mountPath"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 63,
+                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                    "description": "DNS label name of the plugin image volume"
+                  },
+                  "image": {
+                    "type": "string",
+                    "description": "Image reference for the plugin image volume"
+                  },
+                  "mountPath": {
+                    "type": "string",
+                    "pattern": "^/",
+                    "description": "Absolute read-only mount path for the plugin image volume"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "default": []
+            },
+            "labelSelector": {
+              "type": "string",
+              "description": "Kubernetes label selector used to filter experimental/alpha ClusterProfile resources",
+              "default": "!headlamp.dev/ignore"
+            },
+            "rootReconcileInterval": {
+              "type": "string",
+              "description": "Override the experimental/alpha Cluster Inventory root reconcile interval. Empty uses the Headlamp default",
+              "default": ""
+            },
+            "noCRDCacheTTL": {
+              "type": "string",
+              "description": "Override the experimental/alpha Cluster Inventory no-CRD cache TTL. Empty uses the Headlamp default",
+              "default": ""
+            }
+          }
         },
         "extraArgs": {
           "type": "array",
@@ -662,6 +736,114 @@
       "description": "Extra manifests to apply to the deployment",
       "items": {
         "type": "string"
+      }
+    },
+    "probes": {
+      "type": "object",
+      "description": "Probe configuration for liveness and readiness checks",
+      "properties": {
+        "scheme": {
+          "type": "string",
+          "description": "Scheme for probes (HTTP or HTTPS). Set to HTTPS when TLS is enabled at the backend server.",
+          "enum": ["HTTP", "HTTPS"],
+          "default": "HTTP"
+        },
+        "livenessProbe": {
+          "type": "object",
+          "description": "Liveness probe settings",
+          "properties": {
+            "initialDelaySeconds": {
+              "type": "integer",
+              "description": "Initial delay in seconds before starting liveness probe",
+              "minimum": 0,
+              "default": 0
+            },
+            "periodSeconds": {
+              "type": "integer",
+              "description": "Period in seconds between liveness probe checks",
+              "minimum": 1,
+              "default": 10
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "Timeout in seconds for liveness probe",
+              "minimum": 1,
+              "default": 1
+            },
+            "successThreshold": {
+              "type": "integer",
+              "description": "Minimum consecutive successes for the probe to be considered successful (must be 1 for liveness probes per Kubernetes API)",
+              "minimum": 1,
+              "maximum": 1,
+              "const": 1,
+              "default": 1
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "Minimum consecutive failures for the probe to be considered failed",
+              "minimum": 1,
+              "default": 3
+            }
+          }
+        },
+        "readinessProbe": {
+          "type": "object",
+          "description": "Readiness probe settings",
+          "properties": {
+            "initialDelaySeconds": {
+              "type": "integer",
+              "description": "Initial delay in seconds before starting readiness probe",
+              "minimum": 0,
+              "default": 0
+            },
+            "periodSeconds": {
+              "type": "integer",
+              "description": "Period in seconds between readiness probe checks",
+              "minimum": 1,
+              "default": 10
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "Timeout in seconds for readiness probe",
+              "minimum": 1,
+              "default": 1
+            },
+            "successThreshold": {
+              "type": "integer",
+              "description": "Minimum consecutive successes for the probe to be considered successful",
+              "minimum": 1,
+              "default": 1
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "Minimum consecutive failures for the probe to be considered failed",
+              "minimum": 1,
+              "default": 3
+            }
+          }
+        }
+      }
+    },
+    "hostAliases": {
+      "type": "array",
+      "description": "Host aliases to add to the pod's /etc/hosts file",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ip": {
+            "type": "string",
+            "description": "IP address the hostnames resolve to"
+          },
+          "hostnames": {
+            "type": "array",
+            "description": "Hostnames that resolve to the given IP",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["ip", "hostnames"],
+        "additionalProperties": false
       }
     }
   }

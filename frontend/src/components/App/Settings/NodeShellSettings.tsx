@@ -14,170 +14,52 @@
  * limitations under the License.
  */
 
-import { Icon } from '@iconify/react';
 import { Typography } from '@mui/material';
-import { useTheme } from '@mui/material/styles';
 import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
-import { useEffect, useState } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
 import {
   ClusterSettings,
   DEFAULT_NODE_SHELL_LINUX_IMAGE,
   DEFAULT_NODE_SHELL_NAMESPACE,
-  loadClusterSettings,
-  storeClusterSettings,
 } from '../../../helpers/clusterSettings';
 import { NameValueTable } from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
 import { isValidNamespaceFormat } from './util';
 
-/**
- * Props for the Settings component.
- * @interface SettingsProps
- * @property {Object.<string, {isEnabled?: boolean, namespace?: string, image?: string}>} data - Configuration data for each cluster
- * @property {Function} onDataChange - Callback function when data changes
- */
 interface SettingsProps {
   cluster: string;
+  clusterSettings: ClusterSettings;
+  setClusterSettings: React.Dispatch<React.SetStateAction<ClusterSettings>>;
 }
 
 export default function NodeShellSettings(props: SettingsProps) {
-  const { cluster } = props;
+  const { clusterSettings, setClusterSettings } = props;
   const { t } = useTranslation(['translation']);
-  const theme = useTheme();
-  const [clusterSettings, setClusterSettings] = useState<ClusterSettings | null>(null);
-  const [userNamespace, setUserNamespace] = useState('');
-  const [userImage, setUserImage] = useState('');
-  const [userIsEnabled, setUserIsEnabled] = useState<boolean | null>(null);
 
   const nodeShellLabelID = 'node-shell-enabled-label';
 
-  useEffect(() => {
-    setClusterSettings(!!cluster ? loadClusterSettings(cluster || '') : null);
-  }, [cluster]);
+  const namespace = clusterSettings.nodeShellTerminal?.namespace ?? '';
+  const image = clusterSettings.nodeShellTerminal?.linuxImage ?? '';
+  const isEnabled = clusterSettings.nodeShellTerminal?.isEnabled ?? true;
 
-  useEffect(() => {
-    if (clusterSettings?.nodeShellTerminal?.namespace !== userNamespace) {
-      setUserNamespace(clusterSettings?.nodeShellTerminal?.namespace ?? '');
-    }
+  const [namespaceInput, setNamespaceInput] = React.useState(namespace);
+  React.useEffect(() => {
+    setNamespaceInput(namespace);
+  }, [namespace]);
 
-    if (clusterSettings?.nodeShellTerminal?.linuxImage !== userImage) {
-      setUserImage(clusterSettings?.nodeShellTerminal?.linuxImage ?? '');
-    }
-
-    setUserIsEnabled(clusterSettings?.nodeShellTerminal?.isEnabled ?? true);
-
-    // Avoid re-initializing settings as {} just because the cluster is not yet set.
-    if (clusterSettings !== null) {
-      storeClusterSettings(cluster || '', clusterSettings);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cluster, clusterSettings]);
-
-  //const selectedClusterData = data?.[selectedCluster] || {};
-  //const isEnabled = selectedClusterData.isEnabled ?? true;
-  const isValidNamespace = isValidNamespaceFormat(userNamespace);
+  const isValidNamespace = isValidNamespaceFormat(namespaceInput);
   const invalidNamespaceMessage = t(
     "translation|Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character."
   );
 
-  function isEditingNamespace() {
-    return clusterSettings?.nodeShellTerminal?.namespace !== userNamespace;
+  function updateNodeShell(patch: Partial<ClusterSettings['nodeShellTerminal']>) {
+    setClusterSettings(settings => ({
+      ...settings,
+      nodeShellTerminal: { ...settings.nodeShellTerminal, ...patch },
+    }));
   }
-
-  function isEditingImage() {
-    return clusterSettings?.nodeShellTerminal?.linuxImage !== userImage;
-  }
-
-  function storeNewNamespace(namespace: string) {
-    let actualNamespace = namespace;
-    if (namespace === DEFAULT_NODE_SHELL_NAMESPACE) {
-      actualNamespace = '';
-      setUserNamespace(actualNamespace);
-    }
-
-    setClusterSettings((settings: ClusterSettings | null) => {
-      const newSettings = { ...(settings || {}) };
-      if (isValidNamespaceFormat(namespace)) {
-        if (newSettings.nodeShellTerminal === null || newSettings.nodeShellTerminal === undefined) {
-          newSettings.nodeShellTerminal = {};
-        }
-        newSettings.nodeShellTerminal.namespace = actualNamespace;
-      }
-      return newSettings;
-    });
-  }
-
-  function storeNewImage(image: string) {
-    let actualImage = image;
-    if (image === DEFAULT_NODE_SHELL_LINUX_IMAGE) {
-      actualImage = '';
-      setUserImage(actualImage);
-    }
-
-    setClusterSettings((settings: ClusterSettings | null) => {
-      const newSettings = { ...(settings || {}) };
-      if (newSettings.nodeShellTerminal === null || newSettings.nodeShellTerminal === undefined) {
-        newSettings.nodeShellTerminal = {};
-      }
-      newSettings.nodeShellTerminal.linuxImage = actualImage;
-
-      return newSettings;
-    });
-  }
-
-  function storeNewEnabled(enabled: boolean) {
-    setUserIsEnabled(enabled);
-
-    setClusterSettings((settings: ClusterSettings | null) => {
-      const newSettings = { ...(settings || {}) };
-      if (newSettings.nodeShellTerminal === null || newSettings.nodeShellTerminal === undefined) {
-        newSettings.nodeShellTerminal = {};
-      }
-      newSettings.nodeShellTerminal.isEnabled = enabled;
-
-      return newSettings;
-    });
-  }
-
-  useEffect(() => {
-    let timeoutHandle: NodeJS.Timeout | null = null;
-
-    if (isEditingNamespace()) {
-      // We store the namespace after a timeout.
-      timeoutHandle = setTimeout(() => {
-        if (isValidNamespaceFormat(userNamespace)) {
-          storeNewNamespace(userNamespace);
-        }
-      }, 1000);
-    }
-
-    return () => {
-      if (timeoutHandle) {
-        clearTimeout(timeoutHandle);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userNamespace]);
-
-  useEffect(() => {
-    let timeoutHandle: NodeJS.Timeout | null = null;
-
-    if (isEditingImage()) {
-      // We store the namespace after a timeout.
-      timeoutHandle = setTimeout(() => {
-        storeNewImage(userImage);
-      }, 1000);
-    }
-
-    return () => {
-      if (timeoutHandle) {
-        clearTimeout(timeoutHandle);
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userImage]);
 
   return (
     <SectionBox title={t('translation|Node Shell Settings')} headerProps={{ headerStyle: 'label' }}>
@@ -188,11 +70,8 @@ export default function NodeShellSettings(props: SettingsProps) {
             value: (
               <Switch
                 inputProps={{ 'aria-labelledby': nodeShellLabelID }}
-                checked={userIsEnabled ?? true}
-                onChange={e => {
-                  const newEnabled = e.target.checked;
-                  storeNewEnabled(newEnabled);
-                }}
+                checked={isEnabled}
+                onChange={e => updateNodeShell({ isEnabled: e.target.checked })}
               />
             ),
           },
@@ -201,11 +80,10 @@ export default function NodeShellSettings(props: SettingsProps) {
             value: (
               <TextField
                 onChange={event => {
-                  let value = event.target.value;
-                  value = value.replace(' ', '');
-                  setUserImage(value);
+                  const value = event.target.value.replace(' ', '');
+                  updateNodeShell({ linuxImage: value });
                 }}
-                value={userImage}
+                value={image}
                 placeholder={DEFAULT_NODE_SHELL_LINUX_IMAGE}
                 helperText={t(
                   'translation|The default image is used for dropping a shell into a node (when not specified directly).'
@@ -216,15 +94,6 @@ export default function NodeShellSettings(props: SettingsProps) {
                   'aria-label': t('translation|Linux image'),
                 }}
                 InputProps={{
-                  endAdornment: isEditingImage() ? (
-                    <Icon
-                      width={24}
-                      color={theme.palette.text.secondary}
-                      icon="mdi:progress-check"
-                    />
-                  ) : (
-                    <Icon width={24} icon="mdi:check-bold" />
-                  ),
                   sx: { maxWidth: 300 },
                 }}
               />
@@ -235,11 +104,13 @@ export default function NodeShellSettings(props: SettingsProps) {
             value: (
               <TextField
                 onChange={event => {
-                  let value = event.target.value;
-                  value = value.replace(' ', '');
-                  setUserNamespace(value);
+                  const value = event.target.value.replace(' ', '');
+                  setNamespaceInput(value);
+                  if (isValidNamespaceFormat(value) || value === '') {
+                    updateNodeShell({ namespace: value });
+                  }
                 }}
-                value={userNamespace}
+                value={namespaceInput}
                 placeholder={DEFAULT_NODE_SHELL_NAMESPACE}
                 error={!isValidNamespace}
                 helperText={
@@ -253,15 +124,6 @@ export default function NodeShellSettings(props: SettingsProps) {
                   'aria-label': t('translation|Namespace'),
                 }}
                 InputProps={{
-                  endAdornment: isEditingNamespace() ? (
-                    <Icon
-                      width={24}
-                      color={theme.palette.text.secondary}
-                      icon="mdi:progress-check"
-                    />
-                  ) : (
-                    <Icon width={24} icon="mdi:check-bold" />
-                  ),
                   sx: { maxWidth: 250 },
                 }}
               />

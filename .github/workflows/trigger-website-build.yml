@@ -19,6 +19,6 @@ jobs:
     steps:
       - name: Trigger via gh
         env:
-          GITHUB_TOKEN: ${{ secrets.KINVOLK_REPOS_TOKEN }}
+          GH_TOKEN: ${{ secrets.KINVOLK_REPOS_TOKEN }}
         run: |
           gh api repos/headlamp-k8s/headlamp-website/dispatches --raw-field event_type=headlamp-docs-update

@@ -59,6 +59,14 @@ if (process.env.APPIMAGE) {
   app.commandLine.appendSwitch('disable-setuid-sandbox');
 }
 
+// On Linux, force the GTK 3 backend. Electron 36+ defaults to GTK 4, which
+// conflicts with GTK 2/3 symbols pulled into the process by IM modules and
+// other shims on common desktops (e.g. GNOME on Fedora), aborting before
+// the window is shown.
+if (process.platform === 'linux') {
+  app.commandLine.appendSwitch('gtk-version', '3');
+}
+
 let isRunningScript = false;
 if (process.env.HEADLAMP_RUN_SCRIPT) {
   isRunningScript = true;
@@ -1561,10 +1569,13 @@ function startElectron() {
     });
 
     mainWindow.on('close', event => {
-      if (hasTray && !isQuitting) {
+      if (process.platform === 'darwin' && hasTray && !isQuitting) {
         event.preventDefault();
         mainWindow?.hide();
+        return;
       }
+      isQuitting = true;
+      app.quit();
     });
 
     mainWindow.on('closed', () => {

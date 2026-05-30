@@ -201,7 +201,10 @@ const UploadFromUrl = ({
     try {
       const res = await fetch(u.toString());
       if (!res.ok) {
-        setError(t(`translation|Failed to fetch file: ${res.statusText}`));
+        setError(
+          t('translation|Failed to fetch file: {{statusText}}', { statusText: res.statusText })
+        );
+        return;
       }
       const text = await res.text();
       onLoaded(text);
