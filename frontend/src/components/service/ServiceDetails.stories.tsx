@@ -78,6 +78,97 @@ const serviceMockWithA8RAnnotations = {
   },
 };
 
+/** Service mock for a NodePort with full spec fields */
+const serviceMockNodePort = {
+  ...serviceMock,
+  metadata: {
+    ...serviceMock.metadata,
+    name: 'nodeport-service',
+  },
+  spec: {
+    type: 'NodePort',
+    clusterIP: '10.96.0.200',
+    clusterIPs: ['10.96.0.200'],
+    externalIPs: [],
+    ipFamilies: ['IPv4'],
+    ipFamilyPolicy: 'SingleStack',
+    sessionAffinity: 'ClientIP',
+    sessionAffinityConfig: {
+      clientIP: { timeoutSeconds: 10800 },
+    },
+    externalTrafficPolicy: 'Cluster',
+    internalTrafficPolicy: 'Cluster',
+    ports: [
+      {
+        name: 'http',
+        protocol: 'TCP',
+        port: 80,
+        targetPort: 8080,
+        nodePort: 31080,
+        appProtocol: 'http',
+      },
+    ],
+    selector: { app: 'example' },
+  },
+  status: {},
+};
+
+/** Service mock for a LoadBalancer with health-check and source ranges */
+const serviceMockLoadBalancer = {
+  ...serviceMock,
+  metadata: {
+    ...serviceMock.metadata,
+    name: 'lb-service',
+  },
+  spec: {
+    type: 'LoadBalancer',
+    clusterIP: '10.96.0.300',
+    clusterIPs: ['10.96.0.300', 'fd00::1'],
+    externalIPs: [],
+    ipFamilies: ['IPv4', 'IPv6'],
+    ipFamilyPolicy: 'PreferDualStack',
+    externalTrafficPolicy: 'Local',
+    healthCheckNodePort: 32123,
+    loadBalancerClass: 'example.com/lb',
+    loadBalancerSourceRanges: ['10.0.0.0/8', '192.168.0.0/16'],
+    trafficDistribution: 'PreferClose',
+    sessionAffinity: 'None',
+    ports: [
+      {
+        name: 'https',
+        protocol: 'TCP',
+        port: 443,
+        targetPort: 8443,
+        nodePort: 31443,
+      },
+    ],
+    selector: { app: 'example' },
+  },
+  status: {
+    loadBalancer: {
+      ingress: [{ ip: '203.0.113.10' }],
+    },
+  },
+};
+
+/** Service mock for an ExternalName service */
+const serviceMockExternalName = {
+  ...serviceMock,
+  metadata: {
+    ...serviceMock.metadata,
+    name: 'externalname-service',
+  },
+  spec: {
+    type: 'ExternalName',
+    clusterIP: '',
+    externalIPs: [],
+    externalName: 'api.example.com',
+    selector: {},
+    ports: [],
+  },
+  status: {},
+};
+
 /** Service mock with only a8r.io/owner annotation */
 const serviceMockWithA8ROwnerOnly = {
   ...serviceMock,
@@ -180,6 +271,18 @@ const TemplateA8R: StoryFn<typeof Details> = () => {
 
 const TemplateA8ROwnerOnly: StoryFn<typeof Details> = () => {
   return <Details name="owner-only-service" namespace="default" />;
+};
+
+const TemplateNodePort: StoryFn<typeof Details> = () => {
+  return <Details name="nodeport-service" namespace="default" />;
+};
+
+const TemplateLoadBalancer: StoryFn<typeof Details> = () => {
+  return <Details name="lb-service" namespace="default" />;
+};
+
+const TemplateExternalName: StoryFn<typeof Details> = () => {
+  return <Details name="externalname-service" namespace="default" />;
 };
 
 export const Default = Template.bind({});
@@ -313,5 +416,43 @@ WithA8ROwnerOnly.parameters = {
         ),
       ],
     },
+  },
+};
+
+function makeServiceHandlers(name: string, mock: object) {
+  return [
+    http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+      HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
+    ),
+    http.get('http://localhost:4466/api/v1/namespaces/default/services', () =>
+      HttpResponse.error()
+    ),
+    http.get(`http://localhost:4466/api/v1/namespaces/default/services/${name}`, () =>
+      HttpResponse.json(mock)
+    ),
+    http.get('http://localhost:4466/api/v1/namespaces/default/endpoints', () =>
+      HttpResponse.json({ kind: 'List', items: [], metadata: {} })
+    ),
+    http.get(
+      'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/default/endpointslices',
+      () => HttpResponse.json({ kind: 'List', items: [], metadata: {} })
+    ),
+  ];
+}
+
+export const NodePort = TemplateNodePort.bind({});
+NodePort.parameters = {
+  msw: { handlers: { story: makeServiceHandlers('nodeport-service', serviceMockNodePort) } },
+};
+
+export const LoadBalancer = TemplateLoadBalancer.bind({});
+LoadBalancer.parameters = {
+  msw: { handlers: { story: makeServiceHandlers('lb-service', serviceMockLoadBalancer) } },
+};
+
+export const ExternalName = TemplateExternalName.bind({});
+ExternalName.parameters = {
+  msw: {
+    handlers: { story: makeServiceHandlers('externalname-service', serviceMockExternalName) },
   },
 };

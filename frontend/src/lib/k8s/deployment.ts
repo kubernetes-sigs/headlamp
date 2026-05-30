@@ -37,6 +37,9 @@ export interface KubeDeployment extends KubeObjectInterface {
       metadata?: KubeMetadata;
       spec: KubePodSpec;
     };
+    minReadySeconds?: number;
+    progressDeadlineSeconds?: number;
+    revisionHistoryLimit?: number;
     [otherProps: string]: any;
   };
   status: {

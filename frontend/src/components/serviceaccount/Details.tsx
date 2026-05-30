@@ -21,6 +21,23 @@ import ServiceAccount from '../../lib/k8s/serviceAccount';
 import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
 
+function SecretLinks(props: { items?: { name: string }[]; namespace: string }) {
+  const { items, namespace } = props;
+  if (!items?.length) return null;
+  return (
+    <React.Fragment>
+      {items.map(({ name }, index) => (
+        <React.Fragment key={`${name}__${index}`}>
+          <Link routeName="secret" params={{ namespace, name }}>
+            {name}
+          </Link>
+          {index !== items.length - 1 && ', '}
+        </React.Fragment>
+      ))}
+    </React.Fragment>
+  );
+}
+
 export default function ServiceAccountDetails(props: {
   name?: string;
   namespace?: string;
@@ -41,18 +58,23 @@ export default function ServiceAccountDetails(props: {
         item && [
           {
             name: t('Secrets'),
-            value: (
-              <React.Fragment>
-                {item.secrets?.map(({ name }, index) => (
-                  <React.Fragment key={`${name}__${index}`}>
-                    <Link routeName={'secret'} params={{ namespace, name }}>
-                      {name}
-                    </Link>
-                    {index !== item.secrets.length - 1 && ','}
-                  </React.Fragment>
-                ))}
-              </React.Fragment>
-            ),
+            value: <SecretLinks items={item.secrets} namespace={namespace} />,
+            hide: !item.secrets?.length,
+          },
+          {
+            name: t('Image Pull Secrets'),
+            value: <SecretLinks items={item.imagePullSecrets} namespace={namespace} />,
+            hide: !item.imagePullSecrets?.length,
+          },
+          {
+            name: t('Automount Service Account Token'),
+            value:
+              item.automountServiceAccountToken === undefined
+                ? ''
+                : item.automountServiceAccountToken
+                ? t('translation|Yes')
+                : t('translation|No'),
+            hide: item.automountServiceAccountToken === undefined,
           },
         ]
       }

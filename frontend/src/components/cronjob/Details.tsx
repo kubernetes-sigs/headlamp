@@ -31,6 +31,7 @@ import { useParams } from 'react-router-dom';
 import { apply } from '../../lib/k8s/api/v1/apply';
 import CronJob from '../../lib/k8s/cronJob';
 import Job from '../../lib/k8s/job';
+import { localeDate } from '../../lib/util';
 import { clusterAction } from '../../redux/clusterActionSlice';
 import { AppDispatch } from '../../redux/stores/store';
 import ActionButton from '../common/ActionButton';
@@ -237,6 +238,16 @@ export default function CronJobDetails(props: {
             value: getSchedule(item, i18n.language),
           },
           {
+            name: t('Time Zone'),
+            value: item.spec.timeZone,
+            hide: !item.spec.timeZone,
+          },
+          {
+            name: t('Concurrency Policy'),
+            value: item.spec.concurrencyPolicy,
+            hide: !item.spec.concurrencyPolicy,
+          },
+          {
             name: t('translation|Suspend'),
             value: (item.spec?.suspend ?? false).toString(),
           },
@@ -246,8 +257,30 @@ export default function CronJobDetails(props: {
             hide: !item.spec.startingDeadlineSeconds,
           },
           {
+            name: t('Successful Jobs History Limit'),
+            value: item.spec.successfulJobsHistoryLimit,
+            hide: item.spec.successfulJobsHistoryLimit === undefined,
+          },
+          {
+            name: t('Failed Jobs History Limit'),
+            value: item.spec.failedJobsHistoryLimit,
+            hide: item.spec.failedJobsHistoryLimit === undefined,
+          },
+          {
             name: t('Last Schedule'),
             value: getLastScheduleTime(item),
+          },
+          {
+            name: t('Last Successful Time'),
+            value: item.status?.lastSuccessfulTime
+              ? localeDate(item.status.lastSuccessfulTime)
+              : '',
+            hide: !item.status?.lastSuccessfulTime,
+          },
+          {
+            name: t('Active Jobs'),
+            value: item.status?.active?.length,
+            hide: !item.status?.active?.length,
           },
         ]
       }
