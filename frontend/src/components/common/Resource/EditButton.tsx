@@ -53,11 +53,14 @@ export default function EditButton(props: EditButtonProps) {
   const activityId = 'edit-' + item.metadata.uid;
 
   const originalItemRef = React.useRef<KubeObjectInterface | null>(null);
+  const isActivityOpenRef = React.useRef(false);
 
   function makeErrorMessage(err: any) {
     const status = err?.status;
     if (status === 409) {
-      return t('translation|Conflicts when trying to perform operation (code 409).');
+      return t(
+        'translation|This resource was modified by another process. Close the editor, review the latest version, and reapply your changes.'
+      );
     }
     if (typeof status === 'number') {
       return t('translation|Failed to perform operation: code {{ status }}.', { status });
@@ -89,6 +92,31 @@ export default function EditButton(props: EditButtonProps) {
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const applyFunc = React.useCallback(updateFunc, [item]);
+
+  // When the resource is updated externally (polling picks up a new resourceVersion),
+  // push the new item into the Activity so EditorDialog can detect the conflict and
+  // warn the user rather than silently discarding their unsaved edits.
+  React.useEffect(() => {
+    if (!isActivityOpenRef.current) return;
+    Activity.update(activityId, {
+      content: (
+        <EditorDialog
+          noDialog
+          item={item.getEditableObject() as KubeObjectInterface}
+          open
+          onClose={() => {
+            isActivityOpenRef.current = false;
+            Activity.close(activityId);
+          }}
+          onSave={handleSave}
+          allowToHideManagedFields
+          errorMessage={errorMessage}
+          onEditorChanged={() => setErrorMessage('')}
+        />
+      ),
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item, errorMessage]);
 
   function handleSave(items: KubeObjectInterface[]) {
     const newItemDef = Array.isArray(items) ? items[0] : items;
@@ -150,6 +178,7 @@ export default function EditButton(props: EditButtonProps) {
           // "save without changes" produces a managedFields-only diff that
           // patchUpdate would reject.
           originalItemRef.current = normalizeBaselineForPatch(editableObject);
+          isActivityOpenRef.current = true;
           Activity.launch({
             id: activityId,
             title: t('translation|Edit') + ': ' + item.metadata.name,
@@ -160,7 +189,10 @@ export default function EditButton(props: EditButtonProps) {
                 noDialog
                 item={editableObject}
                 open
-                onClose={() => Activity.close(activityId)}
+                onClose={() => {
+                  isActivityOpenRef.current = false;
+                  Activity.close(activityId);
+                }}
                 onSave={handleSave}
                 allowToHideManagedFields
                 errorMessage={errorMessage}
