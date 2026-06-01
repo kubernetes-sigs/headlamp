@@ -25,7 +25,7 @@ import MenuItem from '@mui/material/MenuItem';
 import { SelectChangeEvent } from '@mui/material/Select';
 import Select from '@mui/material/Select';
 import TextField from '@mui/material/TextField';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import {
@@ -48,24 +48,18 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
       node.focus();
     }
   }, []);
-  const defaultRowsPerPageValue = useMemo(() => {
+  const [selectedValue, setSelectedValue] = useState(() => {
     const val = getTablesRowsPerPage();
-    if (options.includes(val)) {
+    if (defaultValue.includes(val)) {
       return val;
     }
     return defaultTableRowsPerPageOptions[0];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const [selectedValue, setSelectedValue] = useState(defaultRowsPerPageValue);
-  const storedCustomValue = useMemo(() => {
-    const val = options.find(val => !defaultTableRowsPerPageOptions.includes(val));
-    if (!val) {
-      return defaultTableRowsPerPageOptions[0];
-    }
-    return val;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-  const [customValue, setCustomValue] = useState(storedCustomValue.toString());
+  });
+  const [customValue, setCustomValue] = useState(() => {
+    const val = defaultValue.find(v => !defaultTableRowsPerPageOptions.includes(v));
+    const initVal = val || defaultTableRowsPerPageOptions[0];
+    return initVal.toString();
+  });
   const [errorMessage, setErrorMessage] = useState('');
   const dispatch = useDispatch();
 
