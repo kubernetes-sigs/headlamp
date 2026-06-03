@@ -41,6 +41,7 @@
     "@types/semver": "^7.3.8",
     "@typescript-eslint/eslint-plugin": "^8.3.0",
     "@vitejs/plugin-react": "^4.3.4",
+    "@typescript/native-preview": "^7.0.0-dev.20260519.1",
     "@xterm/addon-fit": "^0.10.0",
     "@xterm/addon-search": "^0.15.0",
     "@xterm/xterm": "^5.5.0",
@@ -123,7 +124,7 @@
     "build-typedoc": "typedoc",
     "build-storybook": "storybook build -o ../docs/development/storybook",
     "i18n": "i18next 'src/**/*.{ts,tsx}' -c ./src/i18n/i18next-parser.config.js",
-    "tsc": "tsc",
+    "tsc": "tsgo",
     "make-version": "node ./make-env.js",
     "star": "cross-env REACT_APP_HEADLAMP_BACKEND_TOKEN=headlamp rsbuild dev",
     "build:rsbuild": "rsbuild build"

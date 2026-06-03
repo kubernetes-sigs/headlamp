@@ -217,8 +217,17 @@ export default function IngressDetails(props: {
       namespace={namespace}
       cluster={cluster}
       withEvents
-      extraInfo={ingress =>
-        ingress && [
+      extraInfo={ingress => {
+        if (!ingress) {
+          return null;
+        }
+        const addresses = ingress.getAddresses();
+        return [
+          {
+            name: t('translation|Address'),
+            value: addresses,
+            hide: !addresses,
+          },
           {
             name: t('Default Backend'),
             value: getDefaultBackend(ingress),
@@ -250,8 +259,8 @@ export default function IngressDetails(props: {
               </Link>
             ) : null,
           },
-        ]
-      }
+        ];
+      }}
       extraSections={item => [
         {
           id: 'headlamp.ingress-rules',

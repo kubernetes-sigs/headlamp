@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -608,4 +609,37 @@ func TestHandleNonGETCacheInvalidation_PostOnNormalURL(t *testing.T) {
 	// IsAuthBypassURL("/…/pods") == true → full invalidation → ErrHandled.
 	err := k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
 	assert.ErrorIs(t, err, k8cache.ErrHandled)
+}
+
+func TestSyncWatchers(t *testing.T) {
+	k8cache.ResetRegistries()
+
+	canceled := make(map[string]bool)
+
+	var mu sync.Mutex
+
+	// Mock some watchers
+	contexts := []string{"ctx1", "ctx2", "ctx3"}
+	for _, ctx := range contexts {
+		cKey := ctx
+		_, cancel := context.WithCancel(context.Background())
+		wrappedCancel := func() {
+			mu.Lock()
+			canceled[cKey] = true
+			mu.Unlock()
+			cancel()
+		}
+
+		k8cache.StoreTestContextCancel(cKey, wrappedCancel)
+	}
+
+	// Sync with only ctx1 and ctx3 active
+	k8cache.SyncWatchers([]string{"ctx1", "ctx3"})
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	assert.False(t, canceled["ctx1"], "ctx1 should not be canceled")
+	assert.True(t, canceled["ctx2"], "ctx2 should be canceled")
+	assert.False(t, canceled["ctx3"], "ctx3 should not be canceled")
 }
