@@ -28,9 +28,8 @@ interface Props {
   onClose: () => void;
 }
 
-function KindAccent({ kind }: { kind: NodeDetail['kindAccent'] }) {
-  const color = kind === 'gpu' ? '#f5a06b' : kind === 'agent' ? '#c4b5fd' : '#7aa2ea';
-  return color;
+function kindAccentColor(kind: NodeDetail['kindAccent']): string {
+  return kind === 'gpu' ? '#f5a06b' : kind === 'agent' ? '#c4b5fd' : '#7aa2ea';
 }
 
 function SectionView({ s }: { s: Section }) {
@@ -95,7 +94,7 @@ function SectionView({ s }: { s: Section }) {
 
 export function DetailDrawer({ openId, onClose }: Props) {
   const detail: NodeDetail | undefined = openId ? drawerDetails[openId] : undefined;
-  const accentColor = detail ? KindAccent({ kind: detail.kindAccent }) : '#7aa2ea';
+  const accentColor = detail ? kindAccentColor(detail.kindAccent) : '#7aa2ea';
 
   return (
     <Drawer

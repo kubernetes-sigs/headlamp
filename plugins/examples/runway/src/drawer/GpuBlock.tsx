@@ -100,7 +100,6 @@ export function GpuBlock(p: GpuBlockProps) {
           gap: 6,
         }}
       >
-        GPU telemetry
         <span
           style={{
             background: 'rgba(234,162,122,0.18)',

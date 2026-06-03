@@ -23,7 +23,6 @@ interface Props {
   nodeRefs: React.MutableRefObject<Map<string, HTMLDivElement>>;
   // The canvas element used as the bounding-rect origin for path coordinates.
   canvasRef: React.RefObject<HTMLDivElement>;
-  resizeKey: number; // bump to force a re-measure
 }
 
 interface Path {
@@ -54,7 +53,7 @@ function strokeFor(kind: EdgeKind): React.SVGProps<SVGPathElement> {
   }
 }
 
-export function EdgeLayer({ edges, nodeRefs, canvasRef, resizeKey }: Props) {
+export function EdgeLayer({ edges, nodeRefs, canvasRef }: Props) {
   const [paths, setPaths] = useState<Path[]>([]);
   const [size, setSize] = useState({ w: 0, h: 0 });
   const [tip, setTip] = useState<TipState>({ x: 0, y: 0, text: '', visible: false });
@@ -86,18 +85,26 @@ export function EdgeLayer({ edges, nodeRefs, canvasRef, resizeKey }: Props) {
       setPaths(next);
     };
 
-    measure();
+    // Defer the first measure to the next animation frame so the sibling
+    // nodes have completed their initial layout — measuring synchronously
+    // inside the effect can read zero-size rects on mount.
+    const initialRaf = requestAnimationFrame(measure);
+
     const onResize = () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
       rafRef.current = requestAnimationFrame(measure);
     };
     window.addEventListener('resize', onResize);
     return () => {
+      cancelAnimationFrame(initialRaf);
       window.removeEventListener('resize', onResize);
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [edges, resizeKey]);
+    // nodeRefs and canvasRef are stable refs (the .current is read inside
+    // measure(), not captured), so they are intentionally omitted from the
+    // dep array. edges is a module-level import in the current caller so
+    // its identity is stable across renders.
+  }, [edges]);
 
   const onMove = (e: React.MouseEvent, text: string) => {
     setTip({ x: e.clientX + 12, y: e.clientY + 12, text, visible: true });

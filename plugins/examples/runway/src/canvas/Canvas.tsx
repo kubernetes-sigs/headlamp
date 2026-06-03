@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import React, { useCallback, useLayoutEffect, useRef, useState } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { edges } from '../fixtures/edges';
 import { nodes } from '../fixtures/nodes';
 import { demo } from '../styles/theme';
@@ -32,17 +32,10 @@ interface Props {
 export function Canvas({ selectedId, onSelect }: Props) {
   const nodeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const canvasRef = useRef<HTMLDivElement>(null);
-  const [resizeKey, setResizeKey] = useState(0);
 
   const registerRef = useCallback((id: string, el: HTMLDivElement | null) => {
     if (el) nodeRefs.current.set(id, el);
     else nodeRefs.current.delete(id);
-  }, []);
-
-  // Bump resize key after first layout so EdgeLayer measures the freshly
-  // mounted nodes.
-  useLayoutEffect(() => {
-    setResizeKey(k => k + 1);
   }, []);
 
   return (
@@ -63,7 +56,7 @@ export function Canvas({ selectedId, onSelect }: Props) {
         <Lane label="Models · live" left={488} width={340} />
         <Lane label="Memory · Secrets" left={844} right={16} />
 
-        <EdgeLayer edges={edges} nodeRefs={nodeRefs} canvasRef={canvasRef} resizeKey={resizeKey} />
+        <EdgeLayer edges={edges} nodeRefs={nodeRefs} canvasRef={canvasRef} />
 
         {nodes.map(n => (
           <Node
