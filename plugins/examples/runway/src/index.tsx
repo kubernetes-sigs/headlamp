@@ -15,10 +15,8 @@
  */
 
 import { registerRoute, registerSidebarEntry } from '@kinvolk/headlamp-plugin/lib';
-import { SectionBox } from '@kinvolk/headlamp-plugin/lib/CommonComponents';
-import Typography from '@mui/material/Typography';
+import { TopologyDemoPage } from './TopologyDemoPage';
 
-// Top-level sidebar group for AI Runway demo content.
 registerSidebarEntry({
   parent: null,
   name: 'runway',
@@ -27,7 +25,6 @@ registerSidebarEntry({
   icon: 'mdi:graph-outline',
   useClusterURL: false,
 });
-
 registerSidebarEntry({
   parent: 'runway',
   name: 'runway-topology-demo',
@@ -43,9 +40,5 @@ registerRoute({
   exact: true,
   useClusterURL: false,
   noAuthRequired: true,
-  component: () => (
-    <SectionBox title="AI Runway · Topology demo" paddingTop={2}>
-      <Typography>Hello from runway — scaffold OK.</Typography>
-    </SectionBox>
-  ),
+  component: TopologyDemoPage,
 });
