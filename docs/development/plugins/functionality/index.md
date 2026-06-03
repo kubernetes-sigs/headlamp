@@ -194,6 +194,16 @@ Settings.
 
 ![screenshot of the theme dropdown](./images/settings-theme-dropdown.png)
 
+The terminal/log surfaces (pod logs, exec, node shell) follow the active
+theme automatically. To override their colors, set the optional `terminal`
+field on `AppTheme` — `background`, `foreground`, `cursor`, and a 16-color
+`ansi` palette. Anything you leave out is auto-derived from the surrounding
+MUI palette and contrast-clamped to stay readable on the chosen background.
+See the [custom-theme example](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/custom-theme)
+for a working `registerAppTheme({ ..., terminal: { ... } })` call.
+
+![pod log viewer in light theme](./images/themed-xterm/themed-xterm-light.png)
+
 ### UI Panels
 
 Register a side panel with
@@ -219,6 +229,12 @@ Each tab needs a unique ID, a label, and a React component that receives the pro
 Add custom sections to the project overview page with
 [registerProjectOverviewSection](../../api/plugin/registry/functions/registerProjectOverviewSection).
 These sections appear in the project's main overview area.
+
+Register custom API resources (e.g. CRDs) for project resource tracking with
+[registerProjectApiResource](../../api/plugin/registry/functions/registerProjectApiResource).
+Once registered, the CRD resources will appear in the project's resource count,
+health status, and Resources tab. Only namespaced resources can be registered,
+since Projects are scoped to namespaces.
 
 Example plugin: [How to customize projects](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/projects)
 

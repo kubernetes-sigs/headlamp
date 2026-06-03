@@ -12,6 +12,12 @@ The frontend is written in Typescript and React, as well as a few other importan
 
 ## Building and running
 
+First, install the required dependencies by running:
+
+```bash
+npm run frontend:install
+```
+
 The frontend can be quickly built using:
 
 ```bash

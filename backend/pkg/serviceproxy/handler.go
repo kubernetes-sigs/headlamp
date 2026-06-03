@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/gorilla/mux"
@@ -16,7 +15,12 @@ import (
 )
 
 // RequestHandler is an HTTP handler that proxies requests to a Kubernetes service.
-func RequestHandler(kubeConfigStore kubeconfig.ContextStore, w http.ResponseWriter, r *http.Request) {
+func RequestHandler(
+	kubeConfigStore kubeconfig.ContextStore,
+	unsafeUseServiceAccountToken bool,
+	w http.ResponseWriter,
+	r *http.Request,
+) {
 	clusterName, namespace, name, requestURI := parseInfoFromRequest(r)
 
 	defer disableResponseCaching(w)
@@ -29,12 +33,18 @@ func RequestHandler(kubeConfigStore kubeconfig.ContextStore, w http.ResponseWrit
 		return
 	}
 
-	bearerToken, err := getAuthToken(r, clusterName)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "failed to get auth token")
-		w.WriteHeader(http.StatusUnauthorized)
+	bearerToken := ""
 
-		return
+	if !shouldUseUnsafeServiceAccountToken(ctx, unsafeUseServiceAccountToken) {
+		token, err := getAuthToken(r, clusterName)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "failed to get auth token")
+			w.WriteHeader(http.StatusUnauthorized)
+
+			return
+		}
+
+		bearerToken = token
 	}
 
 	// Get a ClientSet with the auth token
@@ -56,7 +66,11 @@ func RequestHandler(kubeConfigStore kubeconfig.ContextStore, w http.ResponseWrit
 	// Get a service connection object and make the request
 	conn := NewConnection(ps)
 
-	handleServiceProxy(conn, requestURI, w)
+	handleServiceProxy(r.Context(), conn, requestURI, w)
+}
+
+func shouldUseUnsafeServiceAccountToken(ctx *kubeconfig.Context, unsafeUseServiceAccountToken bool) bool {
+	return unsafeUseServiceAccountToken && ctx.UsesInClusterServiceAccountToken()
 }
 
 func parseInfoFromRequest(r *http.Request) (string, string, string, string) {
@@ -81,7 +95,7 @@ func getAuthToken(r *http.Request, clusterName string) (string, error) {
 		return "", fmt.Errorf("unauthorized")
 	}
 
-	bearerToken := strings.TrimPrefix(authToken, "Bearer ")
+	bearerToken := auth.BearerTokenValue(authToken)
 	if bearerToken == "" {
 		return "", fmt.Errorf("unauthorized")
 	}
@@ -111,19 +125,40 @@ func disableResponseCaching(w http.ResponseWriter) {
 	w.Header().Set("X-Accel-Expires", "0")
 }
 
-func handleServiceProxy(conn ServiceConnection, requestURI string, w http.ResponseWriter) {
-	resp, err := conn.Get(requestURI)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "service get request failed")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+type trackingResponseWriter struct {
+	http.ResponseWriter
+	wroteHeader  bool
+	bytesWritten int
+}
 
-		return
+func (w *trackingResponseWriter) WriteHeader(code int) {
+	w.wroteHeader = true
+	w.ResponseWriter.WriteHeader(code)
+}
+
+func (w *trackingResponseWriter) Write(p []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(p)
+	if n > 0 {
+		w.wroteHeader = true
+		w.bytesWritten += n
 	}
 
-	_, err = w.Write(resp) //nolint:gosec
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing response")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+	return n, err
+}
+
+func (w *trackingResponseWriter) HasWritten() bool {
+	return w.wroteHeader || w.bytesWritten > 0
+}
+
+func handleServiceProxy(ctx context.Context, conn ServiceConnection, requestURI string, w http.ResponseWriter) {
+	trackedWriter := &trackingResponseWriter{ResponseWriter: w}
+
+	if err := conn.Get(ctx, requestURI, trackedWriter); err != nil {
+		logger.Log(logger.LevelError, nil, err, "service get request failed")
+
+		if !trackedWriter.HasWritten() {
+			http.Error(trackedWriter, err.Error(), http.StatusInternalServerError)
+		}
 
 		return
 	}

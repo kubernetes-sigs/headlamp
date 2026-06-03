@@ -45,13 +45,17 @@ var (
 	errRepositoryLockNotAcquired = errors.New("repository lock not acquired")
 )
 
-// add repository.
+// CertFile, KeyFile, and CAFile are intentionally omitted from this struct.
+// Accepting filesystem paths from HTTP clients would allow arbitrary local
+// file reads on the server. These values are preserved from the existing
+// repo entry only (server-side state).
 type AddUpdateRepoRequest struct {
-	Name string `json:"name"`
-	URL  string `json:"url"`
-	// TODO: Figure out how to support auth
-	// like username, password, certfile etc
-	// https://github.com/helm/helm/blob/39ca699ca790e02ba36753dec6ba4177cc68d417/cmd/helm/repo_add.go#L169
+	Name                  string  `json:"name"`
+	URL                   string  `json:"url"`
+	Username              *string `json:"username"`
+	Password              *string `json:"password"`
+	InsecureSkipTLSverify *bool   `json:"insecureSkipTLSverify"`
+	PassCredentialsAll    *bool   `json:"passCredentialsAll"`
 }
 
 func (r AddUpdateRepoRequest) Validate() error {
@@ -66,19 +70,20 @@ func (r AddUpdateRepoRequest) Validate() error {
 	return nil
 }
 
-// Creates a filename if it's not there, including any missing directories.
 func createFileIfNotThere(fileName string) error {
 	_, err := os.Stat(fileName)
 	if os.IsNotExist(err) {
-		// create changes
-		_, err = createFullPath(fileName)
-		return err
+		file, err := createFullPath(fileName)
+		if err != nil {
+			return err
+		}
+
+		return file.Close()
 	}
 
-	return nil
+	return err
 }
 
-// Uses a file lock like the helm tool.
 func lockRepositoryFile(lockCtx context.Context, repositoryConfig string) (bool, *flock.Flock, error) {
 	var lockPath string
 
@@ -111,8 +116,29 @@ func ensureRepositoryFileLocked(locked bool, err error) error {
 
 const timeoutForLock = 30 * time.Second
 
-// Adds a repository with name, url to the helm config. Returns error if there is one.
-func addRepository(name string, url string, settings *cli.EnvSettings) error {
+// applyRequestFields applies non-nil fields from request onto entry,
+// leaving existing entry values unchanged for any field not set in the request.
+func applyRequestFields(entry *repo.Entry, request AddUpdateRepoRequest) {
+	if request.Username != nil {
+		entry.Username = *request.Username
+	}
+
+	if request.Password != nil {
+		entry.Password = *request.Password
+	}
+
+	if request.InsecureSkipTLSverify != nil {
+		entry.InsecureSkipTLSverify = *request.InsecureSkipTLSverify
+	}
+
+	if request.PassCredentialsAll != nil {
+		entry.PassCredentialsAll = *request.PassCredentialsAll
+	}
+}
+
+// addRepository adds a repository with the given request fields to the helm config.
+// Returns an error if the repository cannot be created or its index downloaded.
+func addRepository(request AddUpdateRepoRequest, settings *cli.EnvSettings) error {
 	err := createFileIfNotThere(settings.RepositoryConfig)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "creating empty RepositoryConfig file")
@@ -129,39 +155,36 @@ func addRepository(name string, url string, settings *cli.EnvSettings) error {
 	}
 
 	defer func() {
-		err := fileLock.Unlock()
-		if err != nil {
+		if err := fileLock.Unlock(); err != nil {
 			logger.Log(logger.LevelError, nil, err, "unlocking repository config file")
 		}
 	}()
 
-	// read repo file
 	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "reading repo file")
 		return err
 	}
 
-	// add repo
 	newRepo := &repo.Entry{
-		Name: name,
-		URL:  url,
+		Name: request.Name,
+		URL:  request.URL,
 	}
 
-	repo, err := repo.NewChartRepository(newRepo, getter.All(settings))
+	applyRequestFields(newRepo, request)
+
+	r, err := repo.NewChartRepository(newRepo, getter.All(settings))
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "creating chart repository")
 		return err
 	}
 
-	// download chart repo index
-	_, err = repo.DownloadIndexFile()
+	_, err = r.DownloadIndexFile()
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "downloading index file")
 		return err
 	}
 
-	// write repo file
 	repoFile.Update(newRepo)
 
 	err = repoFile.WriteFile(settings.RepositoryConfig, defaultNewConfigFileMode)
@@ -174,7 +197,6 @@ func addRepository(name string, url string, settings *cli.EnvSettings) error {
 }
 
 func (h *Handler) AddRepo(w http.ResponseWriter, r *http.Request) {
-	// parse request
 	var request AddUpdateRepoRequest
 
 	err := json.NewDecoder(r.Body).Decode(&request)
@@ -185,47 +207,49 @@ func (h *Handler) AddRepo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = request.Validate()
-	if err != nil {
+	if err = request.Validate(); err != nil {
 		logger.Log(logger.LevelError, nil, err, "validating request")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
 		return
 	}
 
-	err = addRepository(request.Name, request.URL, h.EnvSettings)
+	err = addRepository(request, h.EnvSettings)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	// respond
 	response := map[string]string{
 		"message": "success",
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	var buf bytes.Buffer
 
-	err = json.NewEncoder(w).Encode(response)
-	if err != nil {
+	if err = json.NewEncoder(&buf).Encode(response); err != nil {
 		logger.Log(logger.LevelError, nil, err, "encoding response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if _, err = w.Write(buf.Bytes()); err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing response")
+	}
 }
 
-// List repository.
 type repositoryInfo struct {
 	Name string `json:"name"`
 	URL  string `json:"url"`
 }
+
 type ListRepoResponse struct {
 	Repositories []repositoryInfo `json:"repositories"`
 }
 
-// Create a full path, including directories if it does not exist.
 func createFullPath(p string) (*os.File, error) {
 	if err := os.MkdirAll(filepath.Dir(p), defaultNewConfigFolderMode); err != nil {
 		return nil, err
@@ -241,14 +265,12 @@ func listRepositories(settings *cli.EnvSettings) ([]repositoryInfo, error) {
 		return nil, err
 	}
 
-	// read repo file
 	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "reading repo file")
 		return nil, err
 	}
 
-	// response
 	repositories := make([]repositoryInfo, 0, len(repoFile.Repositories))
 
 	for _, repo := range repoFile.Repositories {
@@ -274,8 +296,7 @@ func (h *Handler) ListRepo(w http.ResponseWriter, r *http.Request) {
 
 	var buf bytes.Buffer
 
-	err = json.NewEncoder(&buf).Encode(response)
-	if err != nil {
+	if err = json.NewEncoder(&buf).Encode(response); err != nil {
 		logger.Log(logger.LevelError, nil, err, "encoding response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -285,8 +306,8 @@ func (h *Handler) ListRepo(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
-	if _, err := w.Write(buf.Bytes()); err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing repo list response")
+	if _, err = w.Write(buf.Bytes()); err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing response")
 	}
 }
 
@@ -321,11 +342,10 @@ func RemoveRepository(name string, settings *cli.EnvSettings) error {
 
 	isRemoved := repoFile.Remove(name)
 	if !isRemoved {
-		logger.Log(logger.LevelError, nil, errRepositoryNotFound, "repository not found")
+		logger.Log(logger.LevelError, map[string]string{"repository": name}, errRepositoryNotFound, "repository not found")
 		return errRepositoryNotFound
 	}
 
-	// write repo file
 	err = repoFile.WriteFile(settings.RepositoryConfig, defaultNewConfigFileMode)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "writing repo file")
@@ -335,7 +355,6 @@ func RemoveRepository(name string, settings *cli.EnvSettings) error {
 	return nil
 }
 
-// Remove repository name.
 func (h *Handler) RemoveRepo(w http.ResponseWriter, r *http.Request) {
 	name := r.URL.Query().Get("name")
 	if name == "" {
@@ -358,7 +377,27 @@ func (h *Handler) RemoveRepo(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
+func copyExistingRepoFields(updated, existing *repo.Entry) {
+	updated.Username = existing.Username
+	updated.Password = existing.Password
+	updated.CertFile = existing.CertFile
+	updated.KeyFile = existing.KeyFile
+	updated.CAFile = existing.CAFile
+	updated.InsecureSkipTLSverify = existing.InsecureSkipTLSverify
+	updated.PassCredentialsAll = existing.PassCredentialsAll
+}
+
+// UpdateRepository updates an existing repository entry.
+// It returns errRepositoryNotFound if the named repository does not exist.
+// Callers that need create-or-update behaviour should use AddRepo instead.
 func UpdateRepository(name, url string, settings *cli.EnvSettings) error {
+	return updateRepositoryWithRequest(AddUpdateRepoRequest{
+		Name: name,
+		URL:  url,
+	}, settings)
+}
+
+func updateRepositoryWithRequest(request AddUpdateRepoRequest, settings *cli.EnvSettings) error {
 	err := createFileIfNotThere(settings.RepositoryConfig)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "creating empty RepositoryConfig file")
@@ -387,11 +426,27 @@ func UpdateRepository(name, url string, settings *cli.EnvSettings) error {
 		return err
 	}
 
-	// update repo
-	repoFile.Update(&repo.Entry{
-		Name: name,
-		URL:  url,
-	})
+	updated := &repo.Entry{
+		Name: request.Name,
+		URL:  request.URL,
+	}
+
+	existing := repoFile.Get(request.Name)
+	if existing == nil {
+		logger.Log(
+			logger.LevelError,
+			map[string]string{"repository": request.Name},
+			errRepositoryNotFound,
+			"repository not found",
+		)
+
+		return errRepositoryNotFound
+	}
+
+	copyExistingRepoFields(updated, existing)
+
+	applyRequestFields(updated, request)
+	repoFile.Update(updated)
 
 	err = repoFile.WriteFile(settings.RepositoryConfig, defaultNewConfigFileMode)
 	if err != nil {
@@ -402,9 +457,7 @@ func UpdateRepository(name, url string, settings *cli.EnvSettings) error {
 	return nil
 }
 
-// Update repository name.
 func (h *Handler) UpdateRepository(w http.ResponseWriter, r *http.Request) {
-	// parse request
 	var request AddUpdateRepoRequest
 
 	err := json.NewDecoder(r.Body).Decode(&request)
@@ -415,17 +468,22 @@ func (h *Handler) UpdateRepository(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = request.Validate()
-	if err != nil {
+	if err = request.Validate(); err != nil {
 		logger.Log(logger.LevelError, nil, err, "validating request")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
 		return
 	}
 
-	err = UpdateRepository(request.Name, request.URL, h.EnvSettings)
+	err = updateRepositoryWithRequest(request, h.EnvSettings)
 	if err != nil {
+		if errors.Is(err, errRepositoryNotFound) {
+			http.Error(w, err.Error(), http.StatusNotFound)
+			return
+		}
+
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+
 		return
 	}
 

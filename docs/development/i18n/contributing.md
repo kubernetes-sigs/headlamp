@@ -43,7 +43,13 @@ be translated and which should be left in their original form.
 
 ## Helper Commands
 
-We provide several commands to make translation easier:
+We provide several commands to make translation easier.
+
+Before using the following commands, install the required tool dependencies by running:
+
+```bash
+npm run tools:install
+```
 
 ### Check Translation Status
 

@@ -38,8 +38,8 @@ export function parseRam(value: string) {
 function parseUnitsOfBytes(value: string): number {
   if (!value) return 0;
 
-  const groups = value.match(/(\d+)([BKMGTPEe])?(i)?(\d+)?/) || [];
-  const number = parseInt(groups[1], 10);
+  const groups = value.match(/(\d+(?:\.\d+)?)([BKMGTPEe])?(i)?(\d+)?/) || [];
+  const number = parseFloat(groups[1]);
 
   // number ex. 1000
   if (groups[2] === undefined) {

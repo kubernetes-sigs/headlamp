@@ -1650,29 +1650,47 @@ export function ContainerInfo(props: ContainerInfoProps) {
         name: t('Ports'),
         value: (
           <Grid container>
-            {container.ports?.map(({ containerPort, protocol, name }, index) => (
-              <>
-                <Grid item xs={12} key={`port_line_${index}`}>
-                  <Box display="flex" alignItems={'center'}>
-                    <Box px={0.5} minWidth={120}>
-                      {name && <ValueLabel>{`${name} `}</ValueLabel>}
-                      <ValueLabel>{`${protocol}:`}</ValueLabel>
-                      <ValueLabel>{containerPort}</ValueLabel>
-                    </Box>
-                    {!!resource && ['Service', 'Pod'].includes(resource.kind) && (
-                      <PortForward containerPort={containerPort} resource={resource} />
-                    )}
-                  </Box>
-                </Grid>
-                {index < container.ports!.length - 1 && (
+            {container.ports?.map(({ containerPort, protocol, name, hostPort, hostIP }, index) => {
+              const baseKey = `${name ?? 'unnamed'}-${protocol ?? 'TCP'}-${containerPort}-${
+                hostPort ?? 'no-host-port'
+              }-${hostIP ?? 'no-host-ip'}`;
+
+              const duplicateIndex =
+                container.ports
+                  ?.slice(0, index)
+                  .filter(
+                    port =>
+                      `${port.name ?? 'unnamed'}-${port.protocol ?? 'TCP'}-${port.containerPort}-${
+                        port.hostPort ?? 'no-host-port'
+                      }-${port.hostIP ?? 'no-host-ip'}` === baseKey
+                  ).length ?? 0;
+
+              const key = duplicateIndex === 0 ? baseKey : `${baseKey}-${duplicateIndex}`;
+
+              return (
+                <React.Fragment key={key}>
                   <Grid item xs={12}>
-                    <Box mt={2} mb={2}>
-                      <Divider role="separator" />
+                    <Box display="flex" alignItems={'center'}>
+                      <Box px={0.5} minWidth={120}>
+                        {name && <ValueLabel>{`${name} `}</ValueLabel>}
+                        <ValueLabel>{`${protocol}:`}</ValueLabel>
+                        <ValueLabel>{containerPort}</ValueLabel>
+                      </Box>
+                      {!!resource && ['Service', 'Pod'].includes(resource.kind) && (
+                        <PortForward containerPort={containerPort} resource={resource} />
+                      )}
                     </Box>
                   </Grid>
-                )}
-              </>
-            ))}
+                  {index < container.ports!.length - 1 && (
+                    <Grid item xs={12}>
+                      <Box mt={2} mb={2}>
+                        <Divider role="separator" />
+                      </Box>
+                    </Grid>
+                  )}
+                </React.Fragment>
+              );
+            })}
           </Grid>
         ),
         hide: _.isEmpty(container.ports),

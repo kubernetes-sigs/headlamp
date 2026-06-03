@@ -1,0 +1,33 @@
+{{- $clusterInventory := .Values.config.clusterInventory | default dict }}
+{{- $clusterInventoryProviderConfigPath := "config.json" }}
+{{- if $clusterInventory.enabled }}
+{{- if not $clusterInventory.accessProvidersConfig }}
+{{-   fail "config.clusterInventory.enabled is true but config.clusterInventory.accessProvidersConfig is empty; either provide an access providers config or disable Cluster Inventory" }}
+{{- end }}
+{{- $mountPaths := list }}
+{{- range $index, $plugin := ($clusterInventory.plugins | default list) }}
+{{-   $mountPath := $plugin.mountPath | default "" | toString | clean }}
+{{-   if not (hasPrefix "/" $mountPath) }}
+{{-     fail (printf "config.clusterInventory.plugins[%d].mountPath must be an absolute path, got %q" $index ($plugin.mountPath | default "" | toString)) }}
+{{-   end }}
+{{-   $mountPaths = append $mountPaths $mountPath }}
+{{- end }}
+{{- range ($clusterInventory.accessProvidersConfig.providers | default list) }}
+{{-   $cmd := (.execConfig | default dict).command | default "" }}
+{{-   if $cmd }}
+{{-     $cmdDir := dir $cmd | clean }}
+{{-     if not (has $cmdDir $mountPaths) }}
+{{-       fail (printf "provider %q: command dir %q does not match any config.clusterInventory.plugins[].mountPath %v" .name $cmdDir $mountPaths) }}
+{{-     end }}
+{{-   end }}
+{{- end }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "headlamp.fullname" . }}-cluster-inventory
+  namespace: {{ include "headlamp.namespace" . }}
+  labels:
+    {{- include "headlamp.labels" . | nindent 4 }}
+data:
+  {{ $clusterInventoryProviderConfigPath }}: {{ $clusterInventory.accessProvidersConfig | mustToJson | quote }}
+{{- end }}

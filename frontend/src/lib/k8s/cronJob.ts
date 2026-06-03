@@ -29,9 +29,10 @@ export interface KubeCronJob extends KubeObjectInterface {
   spec: {
     suspend: boolean;
     schedule: string;
+    timeZone?: string;
     startingDeadlineSeconds?: number;
-    successfulJobsHistoryLimit: number;
-    failedJobsHistoryLimit: number;
+    successfulJobsHistoryLimit?: number;
+    failedJobsHistoryLimit?: number;
     concurrencyPolicy: string;
     jobTemplate: {
       spec: {
@@ -47,6 +48,9 @@ export interface KubeCronJob extends KubeObjectInterface {
     [otherProps: string]: any;
   };
   status: {
+    active?: { name: string }[];
+    lastScheduleTime?: string;
+    lastSuccessfulTime?: string;
     [otherProps: string]: any;
   };
 }

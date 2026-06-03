@@ -14,18 +14,11 @@
  * limitations under the License.
  */
 
-import { Icon } from '@iconify/react';
-import { useTheme } from '@mui/material/styles';
 import Switch from '@mui/material/Switch';
 import TextField from '@mui/material/TextField';
-import { useCallback, useEffect, useState } from 'react';
+import React from 'react';
 import { useTranslation } from 'react-i18next';
-import {
-  ClusterSettings,
-  DEFAULT_POD_DEBUG_IMAGE,
-  loadClusterSettings,
-  storeClusterSettings,
-} from '../../../helpers/clusterSettings';
+import { ClusterSettings, DEFAULT_POD_DEBUG_IMAGE } from '../../../helpers/clusterSettings';
 import { useTypedSelector } from '../../../redux/hooks';
 import { HoverInfoLabel } from '../../common/Label';
 import { NameValueTable } from '../../common/NameValueTable';
@@ -35,106 +28,37 @@ import SectionBox from '../../common/SectionBox';
  * Props for PodDebugSettings.
  *
  * @property {string} cluster - Cluster name for debug settings
+ * @property {ClusterSettings} clusterSettings - Shared cluster settings state
+ * @property {Function} setClusterSettings - Setter for shared cluster settings state
  */
 interface SettingsProps {
   cluster: string;
+  clusterSettings: ClusterSettings;
+  setClusterSettings: React.Dispatch<React.SetStateAction<ClusterSettings>>;
 }
 
 /**
- * Settings component for pod debugging with ephemeral containers.
+ * Settings for pod debugging with ephemeral containers.
  *
  * Allows enabling/disabling debugging and configuring the default debug image per cluster.
- * Settings persist to localStorage and take effect immediately.
- *
- * @param props - Cluster name
- * @returns Settings section with debug controls
  */
 export default function PodDebugSettings(props: SettingsProps) {
-  const { cluster } = props;
+  const { clusterSettings, setClusterSettings } = props;
   const { t } = useTranslation(['translation']);
-  const theme = useTheme();
-  const [clusterSettings, setClusterSettings] = useState<ClusterSettings | null>(null);
-  const [userImage, setUserImage] = useState('');
-  const [userIsEnabled, setUserIsEnabled] = useState<boolean | null>(null);
   const defaultPodDebugImage =
     useTypedSelector(state => state.config?.defaultPodDebugImage) || DEFAULT_POD_DEBUG_IMAGE;
 
   const podDebugLabelID = 'pod-debug-enabled-label';
 
-  useEffect(() => {
-    setClusterSettings(!!cluster ? loadClusterSettings(cluster) : null);
-  }, [cluster]);
+  const image = clusterSettings.podDebugTerminal?.debugImage ?? '';
+  const isEnabled = clusterSettings.podDebugTerminal?.isEnabled ?? true;
 
-  useEffect(() => {
-    if (clusterSettings?.podDebugTerminal?.debugImage !== userImage) {
-      setUserImage(clusterSettings?.podDebugTerminal?.debugImage ?? '');
-    }
-
-    setUserIsEnabled(clusterSettings?.podDebugTerminal?.isEnabled ?? true);
-
-    // Avoid re-initializing settings as {} just because the cluster is not yet set.
-    if (clusterSettings !== null) {
-      storeClusterSettings(cluster, clusterSettings);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cluster, clusterSettings]);
-
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  function isEditingImage() {
-    return clusterSettings?.podDebugTerminal?.debugImage !== userImage;
+  function updatePodDebug(patch: Partial<ClusterSettings['podDebugTerminal']>) {
+    setClusterSettings(settings => ({
+      ...settings,
+      podDebugTerminal: { ...settings.podDebugTerminal, ...patch },
+    }));
   }
-
-  const storeNewImage = useCallback(
-    (image: string) => {
-      let actualImage = image;
-      if (image === defaultPodDebugImage) {
-        actualImage = '';
-        setUserImage(actualImage);
-      }
-
-      setClusterSettings((settings: ClusterSettings | null) => {
-        const newSettings = { ...(settings || {}) };
-        if (newSettings.podDebugTerminal === null || newSettings.podDebugTerminal === undefined) {
-          newSettings.podDebugTerminal = {};
-        }
-        newSettings.podDebugTerminal.debugImage = actualImage;
-
-        return newSettings;
-      });
-    },
-    [defaultPodDebugImage, setClusterSettings, setUserImage]
-  );
-
-  function storeNewEnabled(enabled: boolean) {
-    setUserIsEnabled(enabled);
-
-    setClusterSettings((settings: ClusterSettings | null) => {
-      const newSettings = { ...(settings || {}) };
-      if (newSettings.podDebugTerminal === null || newSettings.podDebugTerminal === undefined) {
-        newSettings.podDebugTerminal = {};
-      }
-      newSettings.podDebugTerminal.isEnabled = enabled;
-
-      return newSettings;
-    });
-  }
-
-  useEffect(() => {
-    let timeoutHandle: NodeJS.Timeout | null = null;
-
-    if (isEditingImage()) {
-      // We store the image after a timeout.
-      timeoutHandle = setTimeout(() => {
-        storeNewImage(userImage);
-      }, 1000);
-    }
-
-    return () => {
-      if (timeoutHandle) {
-        clearTimeout(timeoutHandle);
-      }
-    };
-  }, [userImage, isEditingImage, storeNewImage]);
 
   return (
     <SectionBox title={t('translation|Pod Debug Settings')} headerProps={{ headerStyle: 'label' }}>
@@ -152,11 +76,8 @@ export default function PodDebugSettings(props: SettingsProps) {
             value: (
               <Switch
                 inputProps={{ 'aria-labelledby': podDebugLabelID }}
-                checked={userIsEnabled ?? true}
-                onChange={e => {
-                  const newEnabled = e.target.checked;
-                  storeNewEnabled(newEnabled);
-                }}
+                checked={isEnabled}
+                onChange={e => updatePodDebug({ isEnabled: e.target.checked })}
               />
             ),
           },
@@ -165,11 +86,10 @@ export default function PodDebugSettings(props: SettingsProps) {
             value: (
               <TextField
                 onChange={event => {
-                  let value = event.target.value;
-                  value = value.replace(' ', '');
-                  setUserImage(value);
+                  const value = event.target.value.replace(' ', '');
+                  updatePodDebug({ debugImage: value });
                 }}
-                value={userImage}
+                value={image}
                 placeholder={defaultPodDebugImage}
                 helperText={t(
                   'translation|The default image is used for creating ephemeral debug containers.'
@@ -177,15 +97,6 @@ export default function PodDebugSettings(props: SettingsProps) {
                 variant="outlined"
                 size="small"
                 InputProps={{
-                  endAdornment: isEditingImage() ? (
-                    <Icon
-                      width={24}
-                      color={theme.palette.text.secondary}
-                      icon="mdi:progress-check"
-                    />
-                  ) : (
-                    <Icon width={24} icon="mdi:check-bold" />
-                  ),
                   sx: { maxWidth: 300 },
                 }}
               />

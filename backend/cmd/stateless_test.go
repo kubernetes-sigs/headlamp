@@ -150,6 +150,62 @@ func TestParseKubeConfigInvalidJSONReturnsBadRequest(t *testing.T) {
 	assert.NotContains(t, resp.Body.String(), "clusters")
 }
 
+func TestParseKubeConfigRequiresKubeconfigs(t *testing.T) {
+	tests := []struct {
+		name string
+		body map[string]interface{}
+	}{
+		{
+			name: "missing kubeconfigs",
+			body: map[string]interface{}{},
+		},
+		{
+			name: "singular kubeconfig",
+			body: map[string]interface{}{
+				"kubeconfig": "bad-or-empty-value",
+			},
+		},
+		{
+			name: "empty kubeconfigs",
+			body: map[string]interface{}{
+				"kubeconfigs": []string{},
+			},
+		},
+		{
+			name: "null kubeconfigs",
+			body: map[string]interface{}{
+				"kubeconfigs": nil,
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cache := cache.New[interface{}]()
+			kubeConfigStore := kubeconfig.NewContextStore()
+			c := HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						UseInCluster:          false,
+						KubeConfigPath:        "",
+						EnableDynamicClusters: true,
+						KubeConfigStore:       kubeConfigStore,
+					},
+					Cache: cache,
+				},
+			}
+			handler := createHeadlampHandler(context.Background(), &c)
+
+			resp, err := getResponseFromRestrictedEndpoint(handler, "POST", "/parseKubeConfig", tc.body)
+			require.NoError(t, err)
+
+			assert.Equal(t, http.StatusBadRequest, resp.Code)
+			assert.Equal(t, "kubeconfigs is required\n", resp.Body.String())
+			assert.NotContains(t, resp.Body.String(), "clusters")
+		})
+	}
+}
+
 //nolint:funlen
 func TestStatelessClusterApiRequest(t *testing.T) {
 	kubeConfigByte, err := os.ReadFile("./headlamp_testdata/kubeconfig")

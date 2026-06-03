@@ -2,6 +2,8 @@ package serviceproxy //nolint
 
 import (
 	"context"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -9,7 +11,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -133,12 +135,52 @@ func TestHandleServiceProxy(t *testing.T) {
 			// Create connection and test
 			conn := NewConnection(tt.proxyService)
 			w := httptest.NewRecorder()
-			handleServiceProxy(conn, tt.requestURI, w)
+			handleServiceProxy(context.Background(), conn, tt.requestURI, w)
 
 			assert.Equal(t, tt.expectedCode, w.Code)
 			assert.Equal(t, tt.expectedBody, w.Body.String())
 		})
 	}
+}
+
+type mockServiceConnection struct {
+	get func(ctx context.Context, requestURI string, w io.Writer) error
+}
+
+func (m mockServiceConnection) Get(ctx context.Context, requestURI string, w io.Writer) error {
+	return m.get(ctx, requestURI, w)
+}
+
+func TestHandleServiceProxyDoesNotWriteErrorAfterPartialStream(t *testing.T) {
+	w := httptest.NewRecorder()
+	conn := mockServiceConnection{
+		get: func(ctx context.Context, requestURI string, out io.Writer) error {
+			if _, err := out.Write([]byte("partial")); err != nil {
+				return err
+			}
+
+			return errors.New("stream aborted")
+		},
+	}
+
+	handleServiceProxy(context.Background(), conn, "/test", w)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "partial", w.Body.String())
+}
+
+func TestHandleServiceProxyWritesErrorBeforeStreamStarts(t *testing.T) {
+	w := httptest.NewRecorder()
+	conn := mockServiceConnection{
+		get: func(ctx context.Context, requestURI string, out io.Writer) error {
+			return errors.New("stream aborted")
+		},
+	}
+
+	handleServiceProxy(context.Background(), conn, "/test", w)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, "stream aborted\n", w.Body.String())
 }
 
 func TestDisableResponseCaching(t *testing.T) {
@@ -255,6 +297,30 @@ func TestGetAuthToken(t *testing.T) {
 			expectError: true,
 			errorMsg:    "unauthorized",
 		},
+		{
+			name:        "Authorization header with lowercase bearer prefix",
+			clusterName: "test-cluster",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
+				req.Header.Set("Authorization", "bearer lowercase-token")
+
+				return req
+			},
+			expectedToken: "lowercase-token",
+			expectError:   false,
+		},
+		{
+			name:        "Authorization header with extra whitespace",
+			clusterName: "test-cluster",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
+				req.Header.Set("Authorization", "  Bearer   spaced-token  ")
+
+				return req
+			},
+			expectedToken: "spaced-token",
+			expectError:   false,
+		},
 		{ //nolint:gosec
 			name:        "valid token with Bearer prefix",
 			clusterName: "test-cluster",
@@ -343,7 +409,7 @@ func TestGetServiceFromCluster(t *testing.T) {
 			namespace:      "default",
 			serviceName:    "restricted-service",
 			setupService:   false,
-			mockError:      errors.NewUnauthorized("user does not have permission"),
+			mockError:      k8serrors.NewUnauthorized("user does not have permission"),
 			expectedStatus: http.StatusUnauthorized,
 			expectError:    true,
 		},
@@ -352,7 +418,7 @@ func TestGetServiceFromCluster(t *testing.T) {
 			namespace:    "default",
 			serviceName:  "forbidden-service",
 			setupService: false,
-			mockError: errors.NewForbidden(
+			mockError: k8serrors.NewForbidden(
 				schema.GroupResource{Resource: "services"},
 				"forbidden-service",
 				nil,

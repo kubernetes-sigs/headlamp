@@ -31,18 +31,38 @@ export interface KubeLoadBalancerIngress {
   ports?: KubePortStatus[];
 }
 
+export interface KubeServicePort {
+  name: string;
+  nodePort?: number;
+  port: number;
+  protocol: string;
+  targetPort: number | string;
+  appProtocol?: string;
+}
+
 export interface KubeService extends KubeObjectInterface {
   spec: {
     clusterIP: string;
-    ports?: {
-      name: string;
-      nodePort: number;
-      port: number;
-      protocol: string;
-      targetPort: number | string;
-    }[];
+    clusterIPs?: string[];
+    ports?: KubeServicePort[];
     type: string;
     externalIPs: string[];
+    externalName?: string;
+    externalTrafficPolicy?: string;
+    internalTrafficPolicy?: string;
+    healthCheckNodePort?: number;
+    sessionAffinity?: string;
+    sessionAffinityConfig?: {
+      clientIP?: {
+        timeoutSeconds?: number;
+      };
+    };
+    ipFamilies?: string[];
+    ipFamilyPolicy?: string;
+    loadBalancerClass?: string;
+    loadBalancerIP?: string;
+    loadBalancerSourceRanges?: string[];
+    trafficDistribution?: string;
     selector: {
       [key: string]: string;
     };

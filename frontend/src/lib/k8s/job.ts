@@ -27,9 +27,23 @@ export interface KubeJob extends KubeObjectInterface {
       metadata?: KubeMetadata;
       spec: KubePodSpec;
     };
+    completions?: number;
+    parallelism?: number;
+    completionMode?: string;
+    suspend?: boolean;
+    backoffLimit?: number;
+    activeDeadlineSeconds?: number;
+    ttlSecondsAfterFinished?: number;
     [otherProps: string]: any;
   };
   status: {
+    active?: number;
+    ready?: number;
+    succeeded?: number;
+    failed?: number;
+    startTime?: string;
+    completionTime?: string;
+    completedIndexes?: string;
     [otherProps: string]: any;
   };
 }
