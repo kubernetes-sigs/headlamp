@@ -22,6 +22,7 @@ import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
+import { useTheme } from '@mui/material/styles';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
@@ -30,6 +31,7 @@ import { useTranslation } from 'react-i18next';
 import { getDefaultContainer, resolveContainerName } from '../../helpers/podContainer';
 import Pod from '../../lib/k8s/pod';
 import { Dialog } from './Dialog';
+import { getXtermTheme } from './xtermTheme';
 
 const decoder = new TextDecoder('utf-8');
 const encoder = new TextEncoder();
@@ -73,6 +75,8 @@ export default function Terminal(props: TerminalProps) {
     currentIdx: 0,
   });
   const { t } = useTranslation(['translation', 'glossary']);
+  const muiTheme = useTheme();
+  const xtermTheme = React.useMemo(() => getXtermTheme(muiTheme), [muiTheme]);
 
   // @todo: Give the real exec type when we have it.
   function setupTerminal(containerRef: HTMLElement, xterm: XTerminal, fitAddon: FitAddon) {
@@ -259,6 +263,12 @@ export default function Terminal(props: TerminalProps) {
     }
   }
 
+  React.useEffect(() => {
+    if (xtermRef.current) {
+      xtermRef.current.xterm.options.theme = xtermTheme;
+    }
+  }, [xtermTheme]);
+
   React.useEffect(
     () => {
       // We need a valid container ref for the terminal to add itself to it.
@@ -291,6 +301,7 @@ export default function Terminal(props: TerminalProps) {
           rows: 30, // initial rows before fit
           windowsMode: isWindows,
           allowProposedApi: true,
+          theme: xtermTheme,
         }),
         connected: false,
         reconnectOnEnter: false,

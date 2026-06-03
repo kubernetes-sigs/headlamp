@@ -34,6 +34,11 @@ export type GraphFilter =
  * Along with the matched node result also includes all the nodes that are related to it,
  * even if they don't match the filter
  *
+ * Important:
+ * First discover every node that should remain visible, including related nodes.
+ * Then keep every original edge whose source and target are both still visible.
+ *
+ * This avoids losing valid non-tree edges during DFS traversal.
  * The filters can be of the following types:
  * - `hasErrors`: Filters nodes that have a warning or error status based on their graph node status.
  * - `namespace`: Filters nodes by their namespace
@@ -47,70 +52,58 @@ export function filterGraph(nodes: GraphNode[], edges: GraphEdge[], filters: Gra
     return { nodes, edges };
   }
 
-  const filteredNodes: GraphNode[] = [];
-  const filteredEdges: GraphEdge[] = [];
-
-  const visitedNodes = new Set();
-  const visitedEdges = new Set();
-
   const graphLookup = makeGraphLookup(nodes, edges);
+  const visibleNodeIds = new Set<string>();
 
-  /**
-   * Add all the nodes that are related to the given node
-   * Related means connected by an edge
-   * @param node - Given node
-   */
-  function pushRelatedNodes(node: GraphNode) {
-    if (visitedNodes.has(node.id)) return;
-    visitedNodes.add(node.id);
-    filteredNodes.push(node);
+  function nodeMatchesFilters(node: GraphNode): boolean {
+    return filters.every(filter => {
+      if (filter.type === 'hasErrors') {
+        return getGraphNodeStatus(node) !== 'success';
+      }
+
+      if (filter.type === 'namespace' && filter.namespaces.size > 0) {
+        const namespace = node.kubeObject?.metadata?.namespace;
+        return !!namespace && filter.namespaces.has(namespace);
+      }
+
+      return true;
+    });
+  }
+
+  function addRelatedNode(node: GraphNode) {
+    if (visibleNodeIds.has(node.id)) return;
+
+    visibleNodeIds.add(node.id);
 
     graphLookup.getOutgoingEdges(node.id)?.forEach(edge => {
-      const targetNode = graphLookup.getNode(edge.target);
-      if (targetNode && !visitedNodes.has(targetNode.id)) {
-        if (!visitedEdges.has(edge.id)) {
-          visitedEdges.add(edge.id);
-          filteredEdges.push(edge);
-        }
-        pushRelatedNodes(targetNode);
+      const target = graphLookup.getNode(edge.target);
+      if (target) {
+        addRelatedNode(target);
       }
     });
 
     graphLookup.getIncomingEdges(node.id)?.forEach(edge => {
-      const sourceNode = graphLookup.getNode(edge.source);
-      if (sourceNode && !visitedNodes.has(sourceNode.id)) {
-        if (!visitedEdges.has(edge.id)) {
-          visitedEdges.add(edge.id);
-          filteredEdges.push(edge);
-        }
-        pushRelatedNodes(sourceNode);
+      const source = graphLookup.getNode(edge.source);
+      if (source) {
+        addRelatedNode(source);
       }
     });
   }
 
   nodes.forEach(node => {
-    let keep = true;
-
-    filters.forEach(filter => {
-      if (filter.type === 'hasErrors') {
-        keep &&= getGraphNodeStatus(node) !== 'success';
-      }
-      if (filter.type === 'namespace' && filter.namespaces.size > 0) {
-        keep &&=
-          'kubeObject' in node &&
-          node.kubeObject !== undefined &&
-          !!node.kubeObject.metadata?.namespace &&
-          filter.namespaces.has(node.kubeObject?.metadata?.namespace);
-      }
-    });
-
-    if (keep) {
-      pushRelatedNodes(node);
+    if (nodeMatchesFilters(node)) {
+      addRelatedNode(node);
     }
   });
 
+  const filteredNodes = nodes.filter(node => visibleNodeIds.has(node.id));
+
+  const filteredEdges = edges.filter(
+    edge => visibleNodeIds.has(edge.source) && visibleNodeIds.has(edge.target)
+  );
+
   return {
-    edges: filteredEdges,
     nodes: filteredNodes,
+    edges: filteredEdges,
   };
 }

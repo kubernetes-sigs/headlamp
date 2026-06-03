@@ -21,6 +21,7 @@ import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
+import { normalizeBaselineForPatch } from '../../../lib/k8s/patchUtils';
 import { CallbackActionOptions, clusterAction } from '../../../redux/clusterActionSlice';
 import {
   EventStatus,
@@ -51,19 +52,33 @@ export default function EditButton(props: EditButtonProps) {
   const dispatchHeadlampEditEvent = useEventCallback(HeadlampEventType.EDIT_RESOURCE);
   const activityId = 'edit-' + item.metadata.uid;
 
+  const originalItemRef = React.useRef<KubeObjectInterface | null>(null);
+
   function makeErrorMessage(err: any) {
-    const status: number = err.status;
-    switch (status) {
-      case 408:
-        return 'Conflicts when trying to perform operation (code 408).';
-      default:
-        return `Failed to perform operation: code ${status}`;
+    const status = err?.status;
+    if (status === 409) {
+      return t('translation|Conflicts when trying to perform operation (code 409).');
     }
+    if (typeof status === 'number') {
+      return t('translation|Failed to perform operation: code {{ status }}.', { status });
+    }
+    const fallbackMessage = t('translation|unknown error');
+    return t('translation|Failed to perform operation: {{ message }}.', {
+      message: err?.message || fallbackMessage,
+    });
   }
 
   async function updateFunc(newItem: KubeObjectInterface) {
+    const original = originalItemRef.current;
+    if (!original) {
+      throw new Error('Cannot compute patch: original resource state was not captured');
+    }
     try {
-      await item.update(newItem);
+      await item.patchUpdate(original, newItem);
+      // Use a normalized clone of the modified object (what the editor shows)
+      // as the new baseline, not the server response which includes
+      // server-managed fields the editor may not display.
+      originalItemRef.current = normalizeBaselineForPatch(newItem);
       Activity.close(activityId);
     } catch (err) {
       Activity.update(activityId, { minimized: false });
@@ -129,6 +144,12 @@ export default function EditButton(props: EditButtonProps) {
           if (afterConfirm) {
             afterConfirm();
           }
+          const editableObject = item.getEditableObject() as KubeObjectInterface;
+          // Normalize the baseline to match what EditorDialog presents to the
+          // user (which by default hides metadata.managedFields). Otherwise a
+          // "save without changes" produces a managedFields-only diff that
+          // patchUpdate would reject.
+          originalItemRef.current = normalizeBaselineForPatch(editableObject);
           Activity.launch({
             id: activityId,
             title: t('translation|Edit') + ': ' + item.metadata.name,
@@ -137,7 +158,7 @@ export default function EditButton(props: EditButtonProps) {
             content: (
               <EditorDialog
                 noDialog
-                item={item.getEditableObject()}
+                item={editableObject}
                 open
                 onClose={() => Activity.close(activityId)}
                 onSave={handleSave}

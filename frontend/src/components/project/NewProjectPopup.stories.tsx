@@ -56,6 +56,7 @@ const makeStore = () => {
         customCreateProject: {},
         detailsTabs: {},
         overviewSections: {},
+        apiResources: [],
       },
     },
   });

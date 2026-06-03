@@ -15,8 +15,10 @@
  */
 
 import { Icon } from '@iconify/react';
+import { useQuery } from '@tanstack/react-query';
 import React, { useMemo } from 'react';
-import { useCluster } from '../../../../lib/k8s';
+import { useCluster, useSelectedClusters } from '../../../../lib/k8s';
+import { apiDiscovery } from '../../../../lib/k8s/api/v2/apiDiscovery';
 import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
 import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
 import ConfigMap from '../../../../lib/k8s/configMap';
@@ -127,9 +129,19 @@ const generateCRSources = (crds: CRD[], vpaEnabled: boolean): GraphSource[] => {
 };
 
 export function useGetAllSources(): GraphSource[] {
-  const { items: CustomResourceDefinition } = CRD.useList({ namespace: useNamespaces() });
+  const namespaces = useNamespaces();
+  const { items: CustomResourceDefinition } = CRD.useList({ namespace: namespaces });
   const cluster = useCluster();
+  const selectedClusters = useSelectedClusters();
   const [vpaEnabled, setVpaEnabled] = React.useState(false);
+
+  // Show the Gateway (beta) group only when the Gateway API group is served.
+  const { data: discoveredResources } = useQuery({
+    queryFn: () => apiDiscovery([...selectedClusters]),
+    queryKey: ['api-discovery', ...selectedClusters],
+  });
+  const gatewayEnabled =
+    discoveredResources?.some(r => r.groupName === 'gateway.networking.k8s.io') ?? false;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -241,28 +253,32 @@ export function useGetAllSources(): GraphSource[] {
           makeKubeSource(Lease),
         ],
       },
-      {
-        id: 'gateway-beta',
-        label: 'Gateway (beta)',
-        icon: (
-          <Icon
-            icon="mdi:lan-connect"
-            width="100%"
-            height="100%"
-            color={getKindGroupColor('network')}
-          />
-        ),
-        isEnabledByDefault: false,
-        sources: [
-          makeKubeSource(GatewayClass),
-          makeKubeSource(Gateway),
-          makeKubeSource(HTTPRoute),
-          makeKubeSource(GRPCRoute),
-          makeKubeSource(ReferenceGrant),
-          makeKubeSource(BackendTLSPolicy),
-          makeKubeSource(BackendTrafficPolicy),
-        ],
-      },
+      ...(gatewayEnabled
+        ? [
+            {
+              id: 'gateway-beta',
+              label: 'Gateway (beta)',
+              icon: (
+                <Icon
+                  icon="mdi:lan-connect"
+                  width="100%"
+                  height="100%"
+                  color={getKindGroupColor('network')}
+                />
+              ),
+              isEnabledByDefault: false,
+              sources: [
+                makeKubeSource(GatewayClass),
+                makeKubeSource(Gateway),
+                makeKubeSource(HTTPRoute),
+                makeKubeSource(GRPCRoute),
+                makeKubeSource(ReferenceGrant),
+                makeKubeSource(BackendTLSPolicy),
+                makeKubeSource(BackendTrafficPolicy),
+              ],
+            },
+          ]
+        : []),
     ];
 
     if (CustomResourceDefinition !== null) {
@@ -283,5 +299,5 @@ export function useGetAllSources(): GraphSource[] {
     }
 
     return sources;
-  }, [CustomResourceDefinition, vpaEnabled]);
+  }, [CustomResourceDefinition, vpaEnabled, gatewayEnabled]);
 }

@@ -182,7 +182,7 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
     }
 
     const id = setTimeout(() => setIsExpanded(true), EXPAND_DELAY);
-    return () => clearInterval(id);
+    return () => clearTimeout(id);
   }, [isHovered]);
 
   const icon = kubeObject ? (

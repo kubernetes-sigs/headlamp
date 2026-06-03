@@ -40,6 +40,19 @@ describe('parseRam', () => {
     expect(parseRam('1e6')).toBe(1000000);
   });
 
+  it('should parse decimal values with binary units', () => {
+    expect(parseRam('1.5Ki')).toBe(1.5 * 1024);
+    expect(parseRam('1.5Mi')).toBe(1.5 * 1024 * 1024);
+    expect(parseRam('0.5Gi')).toBe(0.5 * 1024 * 1024 * 1024);
+    expect(parseRam('289.9Mi')).toBeCloseTo(289.9 * 1024 * 1024, 5);
+  });
+
+  it('should parse decimal values with decimal units', () => {
+    expect(parseRam('1.5K')).toBe(1500);
+    expect(parseRam('2.5M')).toBe(2500000);
+    expect(parseRam('0.5G')).toBe(500000000);
+  });
+
   it('should scale binary units by powers of 1024', () => {
     fc.assert(
       fc.property(fc.integer({ min: 1, max: 100 }), num => {

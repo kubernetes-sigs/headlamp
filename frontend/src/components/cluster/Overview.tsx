@@ -190,12 +190,14 @@ function EventsSection() {
       errors={eventsErrors}
       columns={[
         {
+          id: 'type',
           label: t('Type'),
           gridTemplate: 'min-content',
           filterVariant: 'multi-select',
           getValue: event => event.involvedObject.kind,
         },
         {
+          id: 'name',
           label: t('Name'),
           getValue: event => event.involvedObjectInstance?.getName() ?? event.involvedObject.name,
           render: event => makeObjectLink(event),
@@ -204,6 +206,14 @@ function EventsSection() {
         'namespace',
         'cluster',
         {
+          id: 'node',
+          label: t('glossary|Node'),
+          gridTemplate: 'min-content',
+          filterVariant: 'multi-select',
+          getValue: event => event.source?.host ?? '',
+        },
+        {
+          id: 'reason',
           label: t('Reason'),
           gridTemplate: 'min-content',
           filterVariant: 'multi-select',
@@ -215,6 +225,7 @@ function EventsSection() {
           ),
         },
         {
+          id: 'message',
           label: t('Message'),
           getValue: event => event.message ?? '',
           render: event => (
