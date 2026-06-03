@@ -20,6 +20,7 @@ import { IpcMainEvent } from 'electron/main';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import i18n from './i18next.config';
 import { defaultPluginsDir, defaultUserPluginsDir } from './plugin-management';
 import { loadSettings, saveSettings, SETTINGS_PATH } from './settings';
@@ -299,7 +300,7 @@ export function handleRunCommand(
  * This is needed to run the "scriptjs" commands, as a way of running
  * node js scripts without requiring node to also be installed.
  */
-export function runScript() {
+export function runScript(): Promise<unknown> | undefined {
   const baseDir = path.resolve(defaultPluginsDir());
   const userPluginsDir = path.resolve(defaultUserPluginsDir());
   const staticPluginsDir = path.resolve(path.join(process.resourcesPath, '.plugins'));
@@ -316,7 +317,8 @@ export function runScript() {
     process.exit(1);
   }
 
-  import(scriptPath);
+  // Use a file:// URL so absolute paths (especially on Windows) are valid ESM specifiers.
+  return import(pathToFileURL(scriptPath).href);
 }
 
 /**

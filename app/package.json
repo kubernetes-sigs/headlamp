@@ -182,7 +182,7 @@
     "esbuild": "^0.25.0",
     "i18next-parser": "^9.0.0",
     "typescript": "5.5.4",
-    "vitest": "^3.0.0"
+    "vitest": "^4.1.8"
   },
   "overrides": {
     "typescript": "5.5.4",
