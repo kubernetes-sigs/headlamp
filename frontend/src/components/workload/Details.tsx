@@ -36,6 +36,7 @@ import {
   RollbackButton,
 } from '../common/Resource';
 import { WorkloadDiagnosticsSection } from '../diagnostics/Diagnostics';
+import { KIND_EXTRA_INFO } from './extraInfo';
 
 interface WorkloadDetailsProps<T extends WorkloadClass> {
   workloadKind: T;
@@ -222,8 +223,11 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
 
         return actions;
       }}
-      extraInfo={item =>
-        item && [
+      extraInfo={item => {
+        if (!item) return [];
+        const extraInfoFn = KIND_EXTRA_INFO[workloadKind.kind];
+        const extraRows = extraInfoFn ? extraInfoFn(item, t) : [];
+        return [
           {
             name: t('Strategy Type'),
             value: renderUpdateStrategy(item),
@@ -250,8 +254,9 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
             value: renderReplicas(item),
             hide: !showReplicas(item),
           },
-        ]
-      }
+          ...extraRows,
+        ];
+      }}
       extraSections={item => {
         if (!item) return [];
         const sections = [

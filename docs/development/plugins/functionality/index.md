@@ -230,6 +230,12 @@ Add custom sections to the project overview page with
 [registerProjectOverviewSection](../../api/plugin/registry/functions/registerProjectOverviewSection).
 These sections appear in the project's main overview area.
 
+Register custom API resources (e.g. CRDs) for project resource tracking with
+[registerProjectApiResource](../../api/plugin/registry/functions/registerProjectApiResource).
+Once registered, the CRD resources will appear in the project's resource count,
+health status, and Resources tab. Only namespaced resources can be registered,
+since Projects are scoped to namespaces.
+
 Example plugin: [How to customize projects](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/projects)
 
 ### Activities

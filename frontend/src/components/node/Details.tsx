@@ -48,7 +48,12 @@ import ActionButton from '../common/ActionButton';
 import ConfirmDialog from '../common/ConfirmDialog';
 import { StatusLabelProps } from '../common/Label';
 import { HeaderLabel, StatusLabel, ValueLabel } from '../common/Label';
-import { ConditionsSection, DetailsGrid, OwnedPodsSection } from '../common/Resource';
+import {
+  ConditionsSection,
+  DetailsGrid,
+  MetadataDictGrid,
+  OwnedPodsSection,
+} from '../common/Resource';
 import AuthVisible from '../common/Resource/AuthVisible';
 import { SectionBox } from '../common/SectionBox';
 import { NameValueTable } from '../common/SimpleTable';
@@ -340,8 +345,22 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
             },
           ];
         }}
-        extraInfo={item =>
-          item && [
+        extraInfo={item => {
+          if (!item) return [];
+          const roles = item.getRoles();
+          // The keys of interest are reported by the API in kebab-case.
+          const reportedKeys = ['cpu', 'memory', 'pods', 'ephemeral-storage'];
+          const pickResources = (res: { [key: string]: string } = {}) =>
+            Object.fromEntries(reportedKeys.filter(key => res[key]).map(key => [key, res[key]]));
+          const capacity = pickResources(item.status?.capacity);
+          const allocatable = pickResources(item.status?.allocatable);
+
+          return [
+            {
+              name: t('translation|Roles'),
+              value: roles.join(', '),
+              hide: roles.length === 0,
+            },
             {
               name: t('translation|Taints'),
               value: <NodeTaintsLabel node={item} />,
@@ -359,8 +378,18 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
               value: item.spec.podCIDR,
             },
             ...getAddresses(item),
-          ]
-        }
+            {
+              name: t('Capacity'),
+              value: <MetadataDictGrid dict={capacity} />,
+              hide: _.isEmpty(capacity),
+            },
+            {
+              name: t('Allocatable'),
+              value: <MetadataDictGrid dict={allocatable} />,
+              hide: _.isEmpty(allocatable),
+            },
+          ];
+        }}
         extraSections={item =>
           item && [
             {

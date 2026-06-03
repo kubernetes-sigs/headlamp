@@ -21,6 +21,7 @@ import React, { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useClustersConf } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
+import { useTypedSelector } from '../../redux/hooks';
 import { ProjectDefinition } from '../../redux/projectsSlice';
 import { StatusLabel } from '../common';
 import Link from '../common/Link';
@@ -89,6 +90,7 @@ export const useProject = (name: string) => {
 export default function ProjectList() {
   const { t } = useTranslation();
   const [showCreate, setShowCreate] = useState(false);
+  const pluginApiResources = useTypedSelector(state => state.projects.apiResources);
 
   const projects = useProjects();
 
@@ -220,7 +222,7 @@ export default function ProjectList() {
         </Button>
       </Box>
 
-      <Table columns={columns} data={projects} />
+      <Table key={pluginApiResources.length} columns={columns} data={projects} />
     </>
   );
 }

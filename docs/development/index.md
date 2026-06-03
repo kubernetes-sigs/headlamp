@@ -14,8 +14,9 @@ See [platforms](../platforms.md) to find out which browsers, OS and flavors of K
 
 These are the required dependencies to get started. Other dependencies are pulled in by the golang or node package managers (see frontend/package.json, app/package.json, backend/go.mod and Dockerfile).
 
-- [Node.js](https://nodejs.org/en/download/) >= 20.11.1 (LTS recommended). Many of us use [nvm](https://github.com/nvm-sh/nvm) for installing multiple versions of Node.
-- [Go](https://go.dev/doc/install) (>= 1.25.8)
+- [Node.js](https://nodejs.org/en/download/) >= 22.0.0 (LTS recommended). Many of us use [nvm](https://github.com/nvm-sh/nvm) for installing multiple versions of Node.
+- [npm](https://www.npmjs.com/) (>= 11.0.0)
+- [Go](https://go.dev/doc/install) (>= 1.25.9)
 - [Kubernetes](https://kubernetes.io/), we suggest [minikube](https://minikube.sigs.k8s.io/docs/) as one good K8s installation for testing locally. Other k8s installations are supported (see [platforms](../platforms.md)).
 
 You can install the required frontend, app, and backend dependencies by running:
