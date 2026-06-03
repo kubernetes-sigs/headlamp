@@ -97,21 +97,26 @@ function RestartButtonInner(
   }
 
   return (
-    <AuthVisible
-      item={item}
-      authVerb="update"
-      onError={(err: Error) => {
-        console.error(`Error while getting authorization for restart button in ${item}:`, err);
-      }}
-    >
-      <ActionButton
-        description={t('translation|Restart')}
-        buttonStyle={buttonStyle}
-        onClick={() => {
-          setOpenDialog(true);
+    <>
+      <AuthVisible
+        item={item}
+        authVerb="patch"
+        onError={(err: Error) => {
+          console.error(
+            `Error while getting authorization for restart button in ${item.kind} ${item.metadata.namespace}/${item.metadata.name}:`,
+            err
+          );
         }}
-        icon="mdi:restart"
-      />
+      >
+        <ActionButton
+          description={t('translation|Restart')}
+          buttonStyle={buttonStyle}
+          onClick={() => {
+            setOpenDialog(true);
+          }}
+          icon="mdi:restart"
+        />
+      </AuthVisible>
       <ConfirmDialog
         open={openDialog}
         title={t('translation|Restart')}
@@ -132,6 +137,6 @@ function RestartButtonInner(
         cancelLabel={t('Cancel')}
         confirmLabel={t('Restart')}
       />
-    </AuthVisible>
+    </>
   );
 }
