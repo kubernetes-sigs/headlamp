@@ -46,20 +46,21 @@ interface RestartButtonProps {
 }
 
 export function RestartButton(props: RestartButtonProps) {
-  const dispatch: AppDispatch = useDispatch();
-  const { item, buttonStyle, afterConfirm } = props;
+  const { item } = props;
 
   if (!item || !isRestartableResource(item)) {
     return null;
   }
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+  return <RestartButtonInner {...props} />;
+}
+
+function RestartButtonInner(props: RestartButtonProps) {
+  const { item, buttonStyle, afterConfirm } = props;
+  const dispatch: AppDispatch = useDispatch();
   const [openDialog, setOpenDialog] = useState(false);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const location = useLocation();
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { t } = useTranslation(['translation']);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const dispatchRestartEvent = useEventCallback(HeadlampEventType.RESTART_RESOURCE);
 
   async function restartResource() {
@@ -94,21 +95,23 @@ export function RestartButton(props: RestartButtonProps) {
   }
 
   return (
-    <AuthVisible
-      item={item}
-      authVerb="update"
-      onError={(err: Error) => {
-        console.error(`Error while getting authorization for restart button in ${item}:`, err);
-      }}
-    >
-      <ActionButton
-        description={t('translation|Restart')}
-        buttonStyle={buttonStyle}
-        onClick={() => {
-          setOpenDialog(true);
+    <>
+      <AuthVisible
+        item={item}
+        authVerb="patch"
+        onError={(err: Error) => {
+          console.error(`Error while getting authorization for restart button in ${item}:`, err);
         }}
-        icon="mdi:restart"
-      />
+      >
+        <ActionButton
+          description={t('translation|Restart')}
+          buttonStyle={buttonStyle}
+          onClick={() => {
+            setOpenDialog(true);
+          }}
+          icon="mdi:restart"
+        />
+      </AuthVisible>
       <ConfirmDialog
         open={openDialog}
         title={t('translation|Restart')}
@@ -129,6 +132,6 @@ export function RestartButton(props: RestartButtonProps) {
         cancelLabel={t('Cancel')}
         confirmLabel={t('Restart')}
       />
-    </AuthVisible>
+    </>
   );
 }
