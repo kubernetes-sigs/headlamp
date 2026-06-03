@@ -81,7 +81,7 @@ export const nodes: DemoNode[] = [
     id: 'md-llama',
     kind: 'gpu',
     lane: 'models',
-    title: 'llama-3-70b-instruct',
+    title: 'llama-3.3-70b-instruct',
     icon: '▣',
     status: 'ok',
     x: 508,

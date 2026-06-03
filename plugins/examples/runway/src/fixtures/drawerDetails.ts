@@ -133,7 +133,7 @@ export const drawerDetails: Record<string, NodeDetail> = {
         title: 'Routing decisions · last 15m',
         rows: [
           { key: '→ phi-3-mini (fast path)', value: '2,840 (71%)' },
-          { key: '→ llama-3-70b (complex)', value: '980 (24%)' },
+          { key: '→ llama-3.3-70b (complex)', value: '980 (24%)' },
           { key: '→ AOAI fallback', value: '208 (5%)', tone: 'warn' },
           { key: 'Routing model latency (p95)', value: '62 ms' },
         ],
@@ -154,7 +154,7 @@ export const drawerDetails: Record<string, NodeDetail> = {
   'md-llama': {
     kind: 'ModelDeployment · Reasoning',
     kindAccent: 'gpu',
-    name: 'llama-3-70b-instruct',
+    name: 'llama-3.3-70b-instruct',
     ns: 'support',
     sub: 'airunway.ai/v1alpha1 · vLLM · KAITO preset · FP8',
     sections: [
@@ -396,7 +396,7 @@ export const drawerDetails: Record<string, NodeDetail> = {
         title: 'Pull secret',
         rows: [
           { key: 'Registry', value: 'registry.huggingface.co' },
-          { key: 'Used by', value: 'llama-3-70b-0, phi-3-mini-router-0' },
+          { key: 'Used by', value: 'llama-3.3-70b-0, phi-3-mini-router-0' },
         ],
       },
     ],
