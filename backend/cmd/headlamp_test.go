@@ -2386,7 +2386,7 @@ func TestCacheMiddleware_AuthErrorResponse(t *testing.T) {
 	ctx := context.Background()
 
 	expectedResponse := `{"kind":"Status","apiVersion":"v1","metadata":{"resourceVersion":""},` +
-		`"message":"resource is forbidden: User \"system:serviceaccount:default:test\" cannot get resource ` +
+		`"message":"resource is forbidden: User \"system:serviceaccount:default:test\" cannot list resource ` +
 		`\"resource\" in API group \"\" at the cluster scope","reason":"Forbidden","details":{"kind":"resource"},` +
 		`"code":403}`
 

@@ -125,7 +125,7 @@ func TestGetKindAndVerb(t *testing.T) {
 			urlPath:      "/api/v1/pods",
 			muxVars:      map[string]string{"api": "api/v1/pods"},
 			expectedKind: "pods",
-			expectedVerb: "get",
+			expectedVerb: "list",
 		},
 		{
 			name:         "Named API with trailing slash",
@@ -133,7 +133,7 @@ func TestGetKindAndVerb(t *testing.T) {
 			urlPath:      "/apis/apps/v1/deployments/",
 			muxVars:      map[string]string{"api": "apis/apps/v1/deployments"},
 			expectedKind: "deployments",
-			expectedVerb: "get",
+			expectedVerb: "list",
 		},
 		{
 			name:         "POST request",
@@ -157,12 +157,97 @@ func TestGetKindAndVerb(t *testing.T) {
 			urlPath:      "/apis/apps/v1/deployments?watch=0",
 			muxVars:      map[string]string{"api": "apis/apps/v1/deployments"},
 			expectedKind: "deployments",
-			expectedVerb: "get",
+			expectedVerb: "list",
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequestWithContext(context.Background(), tc.method, tc.urlPath, nil)
+			req = mux.SetURLVars(req, tc.muxVars)
+			kind, verb := k8cache.GetKindAndVerb(req)
+			assert.Equal(t, tc.expectedKind, kind)
+			assert.Equal(t, tc.expectedVerb, verb)
+		})
+	}
+}
+
+type getKindAndVerbTestCase struct {
+	name         string
+	urlPath      string
+	muxVars      map[string]string
+	expectedKind string
+	expectedVerb string
+}
+
+func TestGetKindAndVerbNamedResources(t *testing.T) {
+	tests := []getKindAndVerbTestCase{
+		{
+			name:         "Core API named namespaced resource",
+			urlPath:      "/api/v1/namespaces/default/pods/nginx",
+			muxVars:      map[string]string{"api": "api/v1/namespaces/default/pods/nginx"},
+			expectedKind: "pods",
+			expectedVerb: "get",
+		},
+		{
+			name:         "Named API named namespaced resource",
+			urlPath:      "/apis/apps/v1/namespaces/default/deployments/frontend",
+			muxVars:      map[string]string{"api": "apis/apps/v1/namespaces/default/deployments/frontend"},
+			expectedKind: "deployments",
+			expectedVerb: "get",
+		},
+		{
+			name:         "Core API named resource subresource",
+			urlPath:      "/api/v1/namespaces/default/pods/nginx/log",
+			muxVars:      map[string]string{"api": "api/v1/namespaces/default/pods/nginx/log"},
+			expectedKind: "pods",
+			expectedVerb: "get",
+		},
+	}
+
+	runGetKindAndVerbTests(t, tests)
+}
+
+func TestGetKindAndVerbNamespaceResources(t *testing.T) {
+	tests := []getKindAndVerbTestCase{
+		{
+			name:         "Core API namespace list",
+			urlPath:      "/api/v1/namespaces",
+			muxVars:      map[string]string{"api": "api/v1/namespaces"},
+			expectedKind: "namespaces",
+			expectedVerb: "list",
+		},
+		{
+			name:         "Core API named namespace",
+			urlPath:      "/api/v1/namespaces/default",
+			muxVars:      map[string]string{"api": "api/v1/namespaces/default"},
+			expectedKind: "namespaces",
+			expectedVerb: "get",
+		},
+		{
+			name:         "Core API namespace status subresource",
+			urlPath:      "/api/v1/namespaces/default/status",
+			muxVars:      map[string]string{"api": "api/v1/namespaces/default/status"},
+			expectedKind: "namespaces",
+			expectedVerb: "get",
+		},
+		{
+			name:         "Core API namespace finalize subresource",
+			urlPath:      "/api/v1/namespaces/default/finalize",
+			muxVars:      map[string]string{"api": "api/v1/namespaces/default/finalize"},
+			expectedKind: "namespaces",
+			expectedVerb: "get",
+		},
+	}
+
+	runGetKindAndVerbTests(t, tests)
+}
+
+func runGetKindAndVerbTests(t *testing.T, tests []getKindAndVerbTestCase) {
+	t.Helper()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, tc.urlPath, nil)
 			req = mux.SetURLVars(req, tc.muxVars)
 			kind, verb := k8cache.GetKindAndVerb(req)
 			assert.Equal(t, tc.expectedKind, kind)
