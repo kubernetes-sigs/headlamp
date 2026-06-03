@@ -86,12 +86,17 @@ export default function RecentClusters(props: RecentClustersProps) {
 
   let recentClusters: Cluster[] = [];
 
-  // If we have more than the maximum number of recent clusters allowed, we show the most
-  // recent ones. Otherwise, just show the clusters in the order they are received.
+  const clustersByName = React.useMemo(() => {
+    if (clusters.length <= maxRecentClusters) {
+      return new Map<string, Cluster>();
+    }
+    return new Map<string, Cluster>(clusters.map(cluster => [cluster.name, cluster] as const));
+  }, [clusters]);
+
   if (clusters.length > maxRecentClusters) {
     // Get clusters matching the recent cluster names, if they exist still.
     recentClusters = recentClusterNames
-      .map(name => clusters.find(cluster => cluster.name === name))
+      .map(name => clustersByName.get(name))
       .filter(item => !!item) as Cluster[];
     // See whether we need to fill with new clusters (when the recent clusters were less than the
     // maximum/wanted).

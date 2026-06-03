@@ -126,9 +126,9 @@ export function JobsListRenderer(props: JobsListRendererProps) {
   }
 
   function sortByCompletions(job1: Job, job2: Job) {
-    const parallelismSorted = job1.spec.parallelism - job2.spec.parallelism;
+    const parallelismSorted = (job1.spec.parallelism ?? 0) - (job2.spec.parallelism ?? 0);
     if (parallelismSorted === 0) {
-      return job1.spec.completions - job2.spec.completions;
+      return (job1.spec.completions ?? 0) - (job2.spec.completions ?? 0);
     }
     return parallelismSorted;
   }

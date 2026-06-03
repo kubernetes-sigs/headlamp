@@ -37,14 +37,12 @@ type Story = StoryObj<typeof ColorPicker>;
 
 const StatefulWrapper = (args: React.ComponentProps<typeof ColorPicker>) => {
   const [color, setColor] = useState(args.currentColor || '');
-  const [, setError] = useState('');
 
   return (
     <ColorPicker
       {...args}
       currentColor={color}
       onSelectColor={(newColor: string) => setColor(newColor)}
-      onError={(err: string) => setError(err)}
     />
   );
 };
