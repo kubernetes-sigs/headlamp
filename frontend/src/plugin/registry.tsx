@@ -39,6 +39,7 @@ import { DefaultSidebars, SidebarEntryProps } from '../components/Sidebar';
 import { setSidebarItem, setSidebarItemFilter } from '../components/Sidebar/sidebarSlice';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
 import { AppTheme } from '../lib/AppTheme';
+import type { ApiResource } from '../lib/k8s/api/v2/ApiResource';
 import { KubeObject } from '../lib/k8s/KubeObject';
 import type { Route } from '../lib/router/Route';
 import {
@@ -96,6 +97,7 @@ import {
   addDetailsTab,
   addHeaderAction,
   addOverviewSection,
+  addProjectApiResource,
   CustomCreateProject,
   ProjectDeleteButton,
   ProjectDetailsTab,
@@ -149,6 +151,8 @@ export type {
   IconDefinition,
   OverviewChartsProcessor,
 };
+
+export type { ApiResource } from '../lib/k8s/api/v2/ApiResource';
 export const DefaultHeadlampEvents = HeadlampEventType;
 export const DetailsViewDefaultHeaderActions = DefaultHeaderAction;
 export type { AppBarActionProcessorType };
@@ -1164,6 +1168,54 @@ export function registerProjectDeleteButton(projectDeleteButton: ProjectDeleteBu
  */
 export function registerProjectHeaderAction(projectHeaderAction: ProjectHeaderAction) {
   store.dispatch(addHeaderAction(projectHeaderAction));
+}
+
+/**
+ * Register a custom API resource to be included in Project resource fetching.
+ *
+ * This allows plugins to extend the default list of resources that Projects
+ * track, enabling CRD-based resources to appear in project resource counts,
+ * health status, and the Resources tab.
+ *
+ * Only namespaced resources should be registered, as Projects are scoped to namespaces.
+ *
+ * @param apiResource - The API resource definition to register.
+ *   Must include apiVersion, version, pluralName, singularName, kind, and isNamespaced.
+ *
+ * @example
+ * ```tsx
+ * registerProjectApiResource({
+ *   apiVersion: 'argoproj.io/v1alpha1',
+ *   version: 'v1alpha1',
+ *   groupName: 'argoproj.io',
+ *   pluralName: 'applications',
+ *   singularName: 'application',
+ *   kind: 'Application',
+ *   isNamespaced: true,
+ * });
+ * ```
+ *
+ * @note If the total number of watched resources (defaults + plugin-registered)
+ *   grows too large, the fetch strategy may fall back from watch to polling.
+ *   Register only resources that are needed for project health/status.
+ */
+export function registerProjectApiResource(apiResource: ApiResource) {
+  if (!apiResource.isNamespaced) {
+    console.warn(
+      `registerProjectApiResource: Ignored non-namespaced resource "${apiResource.kind}" ` +
+        'because Projects are namespace-scoped.'
+    );
+    return;
+  }
+
+  // Normalize groupName from apiVersion (e.g. 'argoproj.io/v1alpha1' → 'argoproj.io')
+  // when not explicitly provided, to ensure consistent deduplication via apiResourceId.
+  const normalizedResource =
+    !apiResource.groupName && apiResource.apiVersion.includes('/')
+      ? { ...apiResource, groupName: apiResource.apiVersion.split('/')[0] }
+      : apiResource;
+
+  store.dispatch(addProjectApiResource(normalizedResource));
 }
 
 export {

@@ -108,6 +108,37 @@ export interface HeadlampNavbar {
   searchHint: string;
 }
 
+/**
+ * Color overrides for the xterm.js based terminal/log viewers, surfaced on the
+ * MUI palette so plugins can set them inline via `registerAppTheme(...)`.
+ *
+ * Every field is optional; missing fields are derived from the surrounding
+ * MUI palette by `getXtermTheme()`.
+ */
+export interface HeadlampTerminal {
+  background?: string;
+  foreground?: string;
+  cursor?: string;
+  ansi?: {
+    black?: string;
+    red?: string;
+    green?: string;
+    yellow?: string;
+    blue?: string;
+    magenta?: string;
+    cyan?: string;
+    white?: string;
+    brightBlack?: string;
+    brightRed?: string;
+    brightGreen?: string;
+    brightYellow?: string;
+    brightBlue?: string;
+    brightMagenta?: string;
+    brightCyan?: string;
+    brightWhite?: string;
+  };
+}
+
 declare module '@mui/material/styles/createPalette.d' {
   interface Palette {
     success: PaletteColor;
@@ -122,6 +153,7 @@ declare module '@mui/material/styles/createPalette.d' {
     sidebarButtonInLinkArea: HeadlampSidebarButtonInLinkArea;
     squareButton: HeadlampSquareButton;
     resourceToolTip: HeadlampResourceToolTip;
+    terminal: HeadlampTerminal;
     normalEventBg: string;
     metadataBgColor: string;
     notificationBorderColor: string;
@@ -139,6 +171,7 @@ declare module '@mui/material/styles/createPalette.d' {
     sidebarButtonInLinkArea?: Partial<HeadlampSidebarButtonInLinkArea>;
     squareButton?: Partial<HeadlampSquareButton>;
     resourceToolTip?: Partial<HeadlampResourceToolTip>;
+    terminal?: HeadlampTerminal;
     normalEventBg?: string;
     metadataBgColor?: string;
     notificationBorderColor?: string;
@@ -289,6 +322,7 @@ export function createMuiTheme(currentTheme: AppTheme) {
         },
       },
       notificationBorderColor: 'rgba(0,0,0,0.12)',
+      terminal: currentTheme.terminal ?? {},
       background: {
         default: currentTheme.background?.default ?? '#fff',
         paper: currentTheme.background?.surface ?? '#FFF',
@@ -447,6 +481,7 @@ export function createMuiTheme(currentTheme: AppTheme) {
           },
         },
         notificationBorderColor: 'rgba(255,255,255,0.12)',
+        terminal: currentTheme.terminal ?? {},
         mode: 'dark',
         navbar: {
           ...commonRules.palette.navbar,

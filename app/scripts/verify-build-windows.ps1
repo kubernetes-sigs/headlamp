@@ -205,5 +205,81 @@ if ($appPath -and (Test-Path $appPath)) {
 }
 
 Write-Host ""
+Write-Host "=== Verifying Server Cleanup After App Close ===" -ForegroundColor Cyan
+
+# Record existing headlamp-server PIDs to exclude them
+$existingServerPIDs = @(Get-Process -Name "headlamp-server" -ErrorAction SilentlyContinue | Select-Object -ExpandProperty Id)
+
+# Start the app in background
+Write-Host "Launching app for server cleanup test..."
+$appProcess = Start-Process -FilePath $appPath -PassThru -ErrorAction Stop
+Write-Host "Electron app started with PID: $($appProcess.Id)"
+
+# Wait for headlamp-server to appear (up to 30 seconds)
+Write-Host "Waiting for headlamp-server to start..."
+$serverPID = $null
+for ($i = 1; $i -le 30; $i++) {
+  $allServerProcs = @(Get-Process -Name "headlamp-server" -ErrorAction SilentlyContinue)
+  foreach ($proc in $allServerProcs) {
+    if ($existingServerPIDs -notcontains $proc.Id) {
+      $serverPID = $proc.Id
+      break
+    }
+  }
+  if ($null -ne $serverPID) {
+    Write-Host "headlamp-server started with PID: $serverPID"
+    break
+  }
+  Start-Sleep -Seconds 1
+}
+
+if ($null -eq $serverPID) {
+  Write-Host "WARNING: headlamp-server did not start within 30 seconds, skipping cleanup test" -ForegroundColor Yellow
+  Stop-Process -Id $appProcess.Id -Force -ErrorAction SilentlyContinue
+} else {
+  # Gracefully close the Electron app (CloseMainWindow sends WM_CLOSE)
+  Write-Host "Closing Electron app (PID: $($appProcess.Id))..."
+  try {
+    $appProcess.CloseMainWindow() | Out-Null
+  } catch {
+    # Ignore if window is not available
+  }
+  # Wait for the app to exit gracefully (up to 10 seconds)
+  $appExited = $false
+  try {
+    $appExited = $appProcess.WaitForExit(10000)
+  } catch {
+    # Ignore if already exited
+  }
+  if (-not $appExited) {
+    Write-Host "App did not exit gracefully, forcing termination..."
+    Stop-Process -Id $appProcess.Id -Force -ErrorAction SilentlyContinue
+  }
+
+  # Wait for all new server processes to exit (up to 10 seconds)
+  Write-Host "Waiting for headlamp-server to exit..."
+  for ($i = 1; $i -le 10; $i++) {
+    $remainingServers = @(Get-Process -Name "headlamp-server" -ErrorAction SilentlyContinue | Where-Object { $existingServerPIDs -notcontains $_.Id })
+    if ($remainingServers.Count -eq 0) {
+      break
+    }
+    Start-Sleep -Seconds 1
+  }
+
+  # Final check: are any new headlamp-server processes still running?
+  $remainingServers = @(Get-Process -Name "headlamp-server" -ErrorAction SilentlyContinue | Where-Object { $existingServerPIDs -notcontains $_.Id })
+  if ($remainingServers.Count -gt 0) {
+    $remainingPIDs = ($remainingServers | Select-Object -ExpandProperty Id) -join ", "
+    Write-Host "[FAIL] headlamp-server process(es) still running after app close: $remainingPIDs" -ForegroundColor Red
+    foreach ($proc in $remainingServers) {
+      Stop-Process -Id $proc.Id -Force -ErrorAction SilentlyContinue
+    }
+    exit 1
+  } else {
+    Write-Host "[PASS] headlamp-server properly terminated after app close" -ForegroundColor Green
+  }
+}
+
+Write-Host ""
 Write-Host "[PASS] All Windows verification checks passed" -ForegroundColor Green
 

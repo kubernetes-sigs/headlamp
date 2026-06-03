@@ -57,7 +57,7 @@ const Template: StoryFn<typeof ClusterNameEditor> = args => {
 export const Default = Template.bind({});
 Default.args = {
   cluster: 'my-cluster',
-  clusterSettings: null,
+  clusterSettings: {},
   setClusterSettings: () => {},
 };
 

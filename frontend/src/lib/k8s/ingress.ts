@@ -16,6 +16,7 @@
 
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
+import type { KubeLoadBalancerIngress } from './service';
 
 interface LegacyIngressRule {
   host: string;
@@ -82,6 +83,11 @@ export interface KubeIngress extends KubeObjectInterface {
     };
     [key: string]: any;
   };
+  status?: {
+    loadBalancer?: {
+      ingress?: KubeLoadBalancerIngress[];
+    };
+  };
 }
 
 class Ingress extends KubeObject<KubeIngress> {
@@ -128,6 +134,14 @@ class Ingress extends KubeObject<KubeIngress> {
 
   get spec(): KubeIngress['spec'] {
     return this.jsonData.spec;
+  }
+
+  getAddresses(): string {
+    const ingressEntries = this.jsonData.status?.loadBalancer?.ingress ?? [];
+    return ingressEntries
+      .map(entry => entry.hostname || entry.ip)
+      .filter(Boolean)
+      .join(', ');
   }
 
   getHosts() {

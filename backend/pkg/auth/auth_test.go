@@ -182,6 +182,66 @@ var parseClusterAndTokenTests = []struct {
 	},
 }
 
+func TestBearerTokenValue(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+		want   string
+	}{
+		{
+			name:   "raw token",
+			header: "raw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "bearer token",
+			header: "Bearer raw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "case insensitive bearer token",
+			header: "bearer raw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "uppercase bearer token",
+			header: "BEARER raw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "trim whitespace",
+			header: "  Bearer   raw-token  ",
+			want:   "raw-token",
+		},
+		{
+			name:   "tab separated bearer token",
+			header: "Bearer\traw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "only bearer keyword is raw token",
+			header: "Bearer",
+			want:   "Bearer",
+		},
+		{
+			name:   "bearer scheme without credentials",
+			header: "Bearer ",
+			want:   "",
+		},
+		{
+			name:   "bearer-like raw token",
+			header: "bearer",
+			want:   "bearer",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, auth.BearerTokenValue(tt.header))
+		})
+	}
+}
+
 func TestParseClusterAndToken(t *testing.T) {
 	for _, tt := range parseClusterAndTokenTests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -390,6 +450,14 @@ func (cacheStub) GetAll(ctx context.Context, _ cache.Matcher) (map[string]interf
 }
 
 func (cacheStub) UpdateTTL(ctx context.Context, k string, ttl time.Duration) error {
+	return nil
+}
+
+func (cacheStub) SetOnEvicted(callback func(key string, value interface{})) {
+	// No-op for stub
+}
+
+func (cacheStub) Close() error {
 	return nil
 }
 
@@ -1033,6 +1101,15 @@ func TestConfigureTLSContext_CACert(t *testing.T) {
 	caCertParsed, err := x509.ParseCertificate(block.Bytes)
 	require.NoError(t, err)
 	assert.True(t, caCertParsed.IsCA, "Generated certificate should be a CA certificate")
+}
+
+// TestConfigureTLSContext_EmptyCACert verifies that a non-nil pointer
+// to an empty string is treated the same as nil (no custom CA configured).
+func TestConfigureTLSContext_EmptyCACert(t *testing.T) {
+	baseCtx := context.Background()
+	emptyCert := ""
+	resultCtx := auth.ConfigureTLSContext(baseCtx, nil, &emptyCert)
+	assert.Equal(t, baseCtx, resultCtx, "Context should not be modified when caCert is empty")
 }
 
 // TestConfigureTLSContext_SkipTLS_PreservesDefaults verifies that cloning

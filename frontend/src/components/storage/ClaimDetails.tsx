@@ -22,8 +22,8 @@ import { DetailsGrid } from '../common/Resource';
 import { StatusLabelByPhase } from './utils';
 
 export function makePVCStatusLabel(item: PersistentVolumeClaim, t: (key: string) => string) {
-  const status = item.status!.phase;
-  return StatusLabelByPhase(status!, t);
+  const status = item.status?.phase ?? '';
+  return StatusLabelByPhase(status, t);
 }
 
 export default function VolumeClaimDetails(props: {
@@ -49,29 +49,56 @@ export default function VolumeClaimDetails(props: {
             value: makePVCStatusLabel(item, t),
           },
           {
-            name: t('Capacity'),
-            value: item.spec!.resources!.requests.storage,
-          },
-          {
-            name: t('Access Modes'),
-            value: item.spec!.accessModes!.join(', '),
-          },
-          {
-            name: t('Volume Mode'),
-            value: item.spec!.volumeMode,
-          },
-          {
-            name: t('Storage Class'),
-            value: (
+            name: t('Volume'),
+            value: item.spec?.volumeName ? (
               <Link
-                routeName="storageClass"
-                params={{ name: item.spec!.storageClassName }}
+                routeName="persistentVolume"
+                params={{ name: item.spec.volumeName }}
                 activeCluster={item.cluster}
                 tooltip
               >
-                {item.spec!.storageClassName}
+                {item.spec.volumeName}
               </Link>
+            ) : (
+              ''
             ),
+            hide: !item.spec?.volumeName,
+          },
+          {
+            name: t('Requested'),
+            value: item.spec?.resources?.requests?.storage,
+            hide: !item.spec?.resources?.requests?.storage,
+          },
+          {
+            name: t('Capacity'),
+            value: item.status?.capacity?.storage ?? item.spec?.resources?.requests?.storage,
+            hide: value => !value,
+          },
+          {
+            name: t('Access Modes'),
+            value: (item.status?.accessModes ?? item.spec?.accessModes ?? []).join(', '),
+            hide: value => !value,
+          },
+          {
+            name: t('Volume Mode'),
+            value: item.spec?.volumeMode,
+            hide: !item.spec?.volumeMode,
+          },
+          {
+            name: t('Storage Class'),
+            value: item.spec?.storageClassName ? (
+              <Link
+                routeName="storageClass"
+                params={{ name: item.spec.storageClassName }}
+                activeCluster={item.cluster}
+                tooltip
+              >
+                {item.spec.storageClassName}
+              </Link>
+            ) : (
+              ''
+            ),
+            hide: !item.spec?.storageClassName,
           },
         ]
       }

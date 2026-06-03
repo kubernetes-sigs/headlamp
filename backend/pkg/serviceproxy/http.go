@@ -10,32 +10,33 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
-// HTTPGet sends an HTTP GET request to the specified URI.
-func HTTPGet(ctx context.Context, uri string) ([]byte, error) {
+// HTTPGetStream sends an HTTP GET request to the specified URI and streams the
+// response body into w. The body is never fully buffered, so an upstream that
+// returns an arbitrarily large response cannot exhaust server memory.
+func HTTPGetStream(ctx context.Context, uri string, w io.Writer) error {
 	cli := &http.Client{Timeout: 10 * time.Second}
 
 	logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf("make request to %s", uri))
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil) //nolint:gosec
 	if err != nil {
-		return nil, fmt.Errorf("creating request: %v", err)
+		return fmt.Errorf("creating request: %v", err)
 	}
 
 	resp, err := cli.Do(req) //nolint:gosec
 	if err != nil {
-		return nil, fmt.Errorf("failed HTTP GET: %v", err)
+		return fmt.Errorf("failed HTTP GET: %v", err)
 	}
 
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("failed HTTP GET, status code %v", resp.StatusCode)
+		return fmt.Errorf("failed HTTP GET, status code %v", resp.StatusCode)
 	}
 
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return nil, err
+	if _, err := io.Copy(w, resp.Body); err != nil {
+		return fmt.Errorf("streaming response: %v", err)
 	}
 
-	return body, nil
+	return nil
 }

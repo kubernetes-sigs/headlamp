@@ -23,16 +23,11 @@ import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import { useSnackbar } from 'notistack';
-import React from 'react';
+import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
-import { getClusterAppearanceFromMeta, isValidCssColor } from '../../../helpers/clusterAppearance';
-import {
-  ClusterSettings,
-  loadClusterSettings,
-  storeClusterSettings,
-} from '../../../helpers/clusterSettings';
+import { sanitizeCssColor } from '../../../helpers/clusterAppearance';
 import { isElectron } from '../../../helpers/isElectron';
 import { useCluster, useClustersConf } from '../../../lib/k8s';
 import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
@@ -49,25 +44,21 @@ import ColorPicker from './ColorPicker';
 import IconPicker from './IconPicker';
 import NodeShellSettings from './NodeShellSettings';
 import PodDebugSettings from './PodDebugSettings';
+import { useClusterSettings } from './useClusterSettings';
 import { isValidNamespaceFormat } from './util';
 
 export default function SettingsCluster() {
   const clusterConf = useClustersConf();
-  const clusters = Object.values(clusterConf || {}).map(cluster => cluster.name);
+  const clusters = Object.values(clusterConf || {})
+    .map(cluster => cluster.name)
+    .sort((a, b) => a.localeCompare(b));
   const { t } = useTranslation(['translation']);
-  const [defaultNamespace, setDefaultNamespace] = React.useState('default');
-  const [userDefaultNamespace, setUserDefaultNamespace] = React.useState('');
+  const initialCluster = useCluster() || '';
+  const [cluster, setCluster] = React.useState(initialCluster);
+
+  const [clusterSettings, setClusterSettings] = useClusterSettings(cluster);
+
   const [newAllowedNamespace, setNewAllowedNamespace] = React.useState('');
-  const [clusterSettings, setClusterSettings] = React.useState<ClusterSettings | null>(null);
-  const [cluster, setCluster] = React.useState(useCluster() || '');
-  const clusterFromURLRef = React.useRef('');
-
-  const [appearanceAccentColor, setAppearanceAccentColor] = React.useState<string>('');
-  const [appearanceIcon, setAppearanceIcon] = React.useState<string>('');
-  const [appearanceSaving, setAppearanceSaving] = React.useState(false);
-  const [appearanceError, setAppearanceError] = React.useState<string>('');
-
-  // Dialog states for pickers
   const [colorPickerOpen, setColorPickerOpen] = React.useState(false);
   const [iconPickerOpen, setIconPickerOpen] = React.useState(false);
 
@@ -105,65 +96,22 @@ export default function SettingsCluster() {
     return clusterInfo?.meta_data?.source === 'dynamic_cluster';
   }, [cluster, clusterConf]);
 
-  React.useEffect(() => {
-    setClusterSettings(!!cluster ? loadClusterSettings(cluster || '') : null);
-  }, [cluster]);
+  const appearanceAccentColor = sanitizeCssColor(clusterSettings.appearance?.accentColor) || '';
+  const appearanceIcon = clusterSettings.appearance?.icon || '';
 
-  React.useEffect(() => {
-    // Load appearance from localStorage
-    const appearance = getClusterAppearanceFromMeta(cluster || '');
+  function updateAppearance(patch: { accentColor?: string; icon?: string }) {
+    setClusterSettings(s => ({
+      ...s,
+      appearance: { ...s.appearance, ...patch },
+    }));
+  }
 
-    setAppearanceAccentColor(appearance.accentColor || '');
-    setAppearanceIcon(appearance.icon || '');
-    setAppearanceError('');
-  }, [cluster]);
+  const clusterFromUrl = useMemo(
+    () => new URLSearchParams(location.search).get('c'),
+    [location.search]
+  );
 
-  React.useEffect(() => {
-    const clusterInfo = (clusterConf && clusterConf[cluster || '']) || null;
-    const clusterConfNs = clusterInfo?.meta_data?.namespace;
-    if (!!clusterConfNs && clusterConfNs !== defaultNamespace) {
-      setDefaultNamespace(clusterConfNs);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cluster, clusterConf]);
-
-  React.useEffect(() => {
-    if (clusterSettings?.defaultNamespace !== userDefaultNamespace) {
-      setUserDefaultNamespace(clusterSettings?.defaultNamespace || '');
-    }
-
-    // Avoid re-initializing settings as {} just because the cluster is not yet set.
-    if (clusterSettings !== null) {
-      storeClusterSettings(cluster || '', clusterSettings);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cluster, clusterSettings]);
-
-  React.useEffect(() => {
-    let timeoutHandle: NodeJS.Timeout | null = null;
-
-    if (isEditingDefaultNamespace()) {
-      // We store the namespace after a timeout.
-      timeoutHandle = setTimeout(() => {
-        if (isValidNamespaceFormat(userDefaultNamespace)) {
-          storeNewDefaultNamespace(userDefaultNamespace);
-        }
-      }, 1000);
-    }
-
-    return () => {
-      if (timeoutHandle) {
-        clearTimeout(timeoutHandle);
-        clusterFromURLRef.current = '';
-      }
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userDefaultNamespace]);
-
-  React.useEffect(() => {
-    const clusterFromUrl = new URLSearchParams(location.search).get('c');
-    clusterFromURLRef.current = clusterFromUrl || '';
-
+  React.useLayoutEffect(() => {
     if (clusterFromUrl && clusters.includes(clusterFromUrl)) {
       setCluster(clusterFromUrl);
     } else if (clusters.length > 0 && !clusterFromUrl) {
@@ -171,17 +119,21 @@ export default function SettingsCluster() {
     } else {
       setCluster('');
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [location.search, clusters]);
+  }, [clusters, history, clusterFromUrl]);
 
-  function isEditingDefaultNamespace() {
-    return clusterSettings?.defaultNamespace !== userDefaultNamespace;
-  }
+  const clusterInfo = (clusterConf && clusterConf[cluster || '']) || null;
+  const placeholderNamespace = clusterInfo?.meta_data?.namespace || 'default';
+  const defaultNamespace = clusterSettings.defaultNamespace || '';
+
+  const [defaultNamespaceInput, setDefaultNamespaceInput] = React.useState(defaultNamespace);
+  React.useEffect(() => {
+    setDefaultNamespaceInput(defaultNamespace);
+  }, [defaultNamespace]);
 
   function storeNewAllowedNamespace(namespace: string) {
     setNewAllowedNamespace('');
-    setClusterSettings((settings: ClusterSettings | null) => {
-      const newSettings = { ...(settings || {}) };
+    setClusterSettings(settings => {
+      const newSettings = { ...settings };
       newSettings.allowedNamespaces = newSettings.allowedNamespaces || [];
       newSettings.allowedNamespaces.push(namespace);
       // Sort and avoid duplicates
@@ -190,33 +142,14 @@ export default function SettingsCluster() {
     });
   }
 
-  function storeNewDefaultNamespace(namespace: string) {
-    let actualNamespace = namespace;
-    if (namespace === defaultNamespace) {
-      actualNamespace = '';
-      setUserDefaultNamespace(actualNamespace);
-    }
-
-    setClusterSettings((settings: ClusterSettings | null) => {
-      const newSettings = { ...(settings || {}) };
-      if (isValidNamespaceFormat(namespace)) {
-        newSettings.defaultNamespace = actualNamespace;
-      }
-      return newSettings;
-    });
-  }
-
-  const isValidDefaultNamespace = isValidNamespaceFormat(userDefaultNamespace);
+  const isValidDefaultNamespace = isValidNamespaceFormat(defaultNamespaceInput);
   const isValidNewAllowedNamespace = isValidNamespaceFormat(newAllowedNamespace);
   const invalidNamespaceMessage = t(
     "translation|Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character."
   );
 
-  // Wrapper to allow empty string (optional field)
-  const isValidAccentColor = (color: string): boolean => !color || isValidCssColor(color);
-
   // If we don't have yet a cluster name from the URL, we are still loading.
-  if (!clusterFromURLRef.current) {
+  if (!clusterFromUrl) {
     return <Loader title="Loading" />;
   }
 
@@ -243,7 +176,7 @@ export default function SettingsCluster() {
             {t(
               'translation|Cluster {{ clusterName }} does not exist. Please select a valid cluster:',
               {
-                clusterName: clusterFromURLRef.current,
+                clusterName: clusterFromUrl,
               }
             )}
           </Typography>
@@ -332,7 +265,7 @@ export default function SettingsCluster() {
                       {appearanceAccentColor && (
                         <IconButton
                           size="small"
-                          onClick={() => setAppearanceAccentColor('')}
+                          onClick={() => updateAppearance({ accentColor: '' })}
                           aria-label={t('translation|Clear accent color')}
                         >
                           <Icon icon="mdi:close" />
@@ -368,65 +301,13 @@ export default function SettingsCluster() {
                       {appearanceIcon && (
                         <IconButton
                           size="small"
-                          onClick={() => setAppearanceIcon('')}
+                          onClick={() => updateAppearance({ icon: '' })}
                           aria-label={t('translation|Clear cluster icon')}
                         >
                           <Icon icon="mdi:close" />
                         </IconButton>
                       )}
                     </Box>
-                  </Box>
-
-                  {!!appearanceError && (
-                    <Typography
-                      color={theme.palette.mode === 'dark' ? 'error.light' : 'error.main'}
-                    >
-                      {appearanceError}
-                    </Typography>
-                  )}
-                  <Box textAlign="right">
-                    <ConfirmButton
-                      disabled={appearanceSaving || (!!appearanceAccentColor && !!appearanceError)}
-                      onConfirm={() => {
-                        if (!isValidAccentColor(appearanceAccentColor)) {
-                          setAppearanceError(
-                            t(
-                              'translation|Accent color format is invalid. Use hex (#ff0000), rgb(), rgba(), or a CSS color name.'
-                            )
-                          );
-                          return;
-                        }
-
-                        setAppearanceSaving(true);
-                        setAppearanceError('');
-
-                        try {
-                          // Save appearance to localStorage via clusterSettings
-                          setClusterSettings((settings: ClusterSettings | null) => {
-                            const newSettings = { ...(settings || {}) };
-                            newSettings.appearance = {
-                              accentColor: appearanceAccentColor || undefined,
-                              icon: appearanceIcon || undefined,
-                            };
-                            return newSettings;
-                          });
-
-                          // Force a re-render of components by dispatching a storage event
-                          window.dispatchEvent(new Event('storage'));
-                        } catch (err: any) {
-                          setAppearanceError(err.message);
-                        } finally {
-                          setAppearanceSaving(false);
-                        }
-                      }}
-                      confirmTitle={t('translation|Apply appearance')}
-                      confirmDescription={t(
-                        'translation|Apply appearance changes for "{{ clusterName }}"? This will be stored in your browser.',
-                        { clusterName: cluster }
-                      )}
-                    >
-                      {appearanceSaving ? t('translation|Applying...') : t('translation|Apply')}
-                    </ConfirmButton>
                   </Box>
                 </Box>
               ),
@@ -441,12 +322,14 @@ export default function SettingsCluster() {
               value: (
                 <TextField
                   onChange={event => {
-                    let value = event.target.value;
-                    value = value.replace(' ', '');
-                    setUserDefaultNamespace(value);
+                    const value = event.target.value.replace(' ', '');
+                    setDefaultNamespaceInput(value);
+                    if (isValidNamespaceFormat(value) || value === '') {
+                      setClusterSettings(s => ({ ...s, defaultNamespace: value }));
+                    }
                   }}
-                  value={userDefaultNamespace}
-                  placeholder={defaultNamespace}
+                  value={defaultNamespaceInput}
+                  placeholder={placeholderNamespace}
                   error={!isValidDefaultNamespace}
                   inputProps={{
                     'aria-labelledby': defaultNamespaceLabelID,
@@ -461,15 +344,6 @@ export default function SettingsCluster() {
                   variant="outlined"
                   size="small"
                   InputProps={{
-                    endAdornment: isEditingDefaultNamespace() ? (
-                      <Icon
-                        width={24}
-                        color={theme.palette.text.secondary}
-                        icon="mdi:progress-check"
-                      />
-                    ) : (
-                      <Icon width={24} icon="mdi:check-bold" />
-                    ),
                     sx: { maxWidth: 250 },
                   }}
                 />
@@ -540,7 +414,7 @@ export default function SettingsCluster() {
                       marginTop: theme.spacing(1),
                     }}
                   >
-                    {((clusterSettings || {}).allowedNamespaces || []).map(namespace => (
+                    {(clusterSettings.allowedNamespaces || []).map(namespace => (
                       <Chip
                         key={namespace}
                         label={namespace}
@@ -564,8 +438,16 @@ export default function SettingsCluster() {
           ]}
         />
       </SectionBox>
-      <NodeShellSettings cluster={cluster} />
-      <PodDebugSettings cluster={cluster} />
+      <NodeShellSettings
+        cluster={cluster}
+        clusterSettings={clusterSettings}
+        setClusterSettings={setClusterSettings}
+      />
+      <PodDebugSettings
+        cluster={cluster}
+        clusterSettings={clusterSettings}
+        setClusterSettings={setClusterSettings}
+      />
       {removableCluster && isElectron() && (
         <Box pt={2} textAlign="right">
           <ConfirmButton
@@ -586,15 +468,14 @@ export default function SettingsCluster() {
         open={colorPickerOpen}
         currentColor={appearanceAccentColor}
         onClose={() => setColorPickerOpen(false)}
-        onSelectColor={setAppearanceAccentColor}
-        onError={setAppearanceError}
+        onSelectColor={color => updateAppearance({ accentColor: color })}
       />
 
       <IconPicker
         open={iconPickerOpen}
         currentIcon={appearanceIcon}
         onClose={() => setIconPickerOpen(false)}
-        onSelectIcon={setAppearanceIcon}
+        onSelectIcon={icon => updateAppearance({ icon })}
       />
     </>
   );

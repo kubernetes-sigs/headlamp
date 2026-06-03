@@ -16,6 +16,7 @@
 
 // @todo: Params is a confusing name for options, because params are also query params.
 
+import type { OpPatch } from 'json-patch';
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
@@ -287,7 +288,7 @@ export function patch(
  */
 export function jsonPatch(
   url: string,
-  operations: Array<{ op: string; path: string; value?: any }>,
+  operations: OpPatch[],
   autoLogoutOnAuthError = true,
   options: ClusterRequestParams = {}
 ) {

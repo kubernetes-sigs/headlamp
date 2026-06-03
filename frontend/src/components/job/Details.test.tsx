@@ -128,7 +128,7 @@ describe('JobDetails', () => {
     expect(statusField.hide).toBe(true);
   });
 
-  it('resets owned pods state when navigating to a different Job', () => {
+  it('provides onResourceUpdate to DetailsGrid for tracking workload changes', () => {
     render(
       <TestContext routerMap={{ namespace: 'default', name: 'test-job' }}>
         <JobDetails />
@@ -137,5 +137,12 @@ describe('JobDetails', () => {
 
     const props = mockDetailsGrid.mock.calls[0][0];
     expect(props.onResourceUpdate).toBeDefined();
+
+    // Should not throw when called with a resource
+    expect(() => props.onResourceUpdate(fakeJob)).not.toThrow();
+    // Should not throw when called with a different UID (triggers state reset)
+    expect(() =>
+      props.onResourceUpdate({ ...fakeJob, metadata: { ...fakeJob.metadata, uid: 'new-uid' } })
+    ).not.toThrow();
   });
 });

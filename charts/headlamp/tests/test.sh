@@ -9,6 +9,7 @@ set -euo pipefail
 # Set up variables
 CHART_DIR="./charts/headlamp"
 TEST_CASES_DIR="${CHART_DIR}/tests/test_cases"
+FAILING_TEST_CASES_DIR="${CHART_DIR}/tests/failing_test_cases"
 EXPECTED_TEMPLATES_DIR="${CHART_DIR}/tests/expected_templates"
 
 # Print header information
@@ -24,6 +25,18 @@ render_templates() {
     if [ ! -s "${output_dir}/rendered_templates.yaml" ]; then
         echo "ERROR: Failed to render templates for ${values_file}"
         exit 1
+    fi
+}
+
+# Function to verify templates fail to render for a specific values file
+render_templates_expect_failure() {
+    values_file="$1"
+    if output=$(helm template headlamp ${CHART_DIR} --values ${values_file} 2>&1); then
+        echo "ERROR: Expected template rendering to fail for ${values_file}, but it succeeded"
+        echo "${output}"
+        exit 1
+    else
+        echo "Template failure test PASSED for ${values_file}: $(echo "${output}" | grep -m1 '^Error:' || echo "${output}" | head -n 1)"
     fi
 }
 
@@ -117,6 +130,13 @@ if [ "$(ls -A ${TEST_CASES_DIR})" ]; then
     done
 else
     echo "No test cases found in ${TEST_CASES_DIR}. Skipping template testing."
+fi
+
+# Check failing test cases
+if [ -d "${FAILING_TEST_CASES_DIR}" ] && [ "$(ls -A ${FAILING_TEST_CASES_DIR})" ]; then
+    for values_file in ${FAILING_TEST_CASES_DIR}/*; do
+        render_templates_expect_failure "${values_file}"
+    done
 fi
 
 echo "Template testing completed."
