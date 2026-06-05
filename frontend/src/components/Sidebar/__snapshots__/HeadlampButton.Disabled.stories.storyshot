@@ -4,19 +4,23 @@
       class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1if9c89-MuiPaper-root"
     >
       <div
-        class="MuiBox-root css-0"
+        class="MuiBox-root css-70qvj9"
       >
         <button
           aria-label="Shrink sidebar"
-          class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-1rafjp7-MuiButtonBase-root-MuiButton-root"
+          class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-1475lf0-MuiButtonBase-root-MuiButton-root"
           disabled=""
           tabindex="-1"
           type="button"
+        />
+        <a
+          href="/"
+          style="display: flex; align-items: center; text-decoration: none; margin-left: 8px;"
         >
           <div
             class="MuiBox-root css-19midj6"
           />
-        </button>
+        </a>
       </div>
     </div>
   </div>

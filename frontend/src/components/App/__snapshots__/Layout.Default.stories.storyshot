@@ -19,9 +19,13 @@
           <div
             class="MuiToolbar-root MuiToolbar-gutters MuiToolbar-regular css-1g5gxk7-MuiToolbar-root"
           >
-            <div
-              class="MuiBox-root css-19midj6"
-            />
+            <a
+              href="/"
+            >
+              <div
+                class="MuiBox-root css-19midj6"
+              />
+            </a>
             <div
               class="MuiBox-root css-p8ekiu"
             >

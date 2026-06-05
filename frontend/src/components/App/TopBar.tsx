@@ -32,7 +32,7 @@ import { has } from 'lodash';
 import React, { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { useHistory } from 'react-router-dom';
+import { Link, useHistory } from 'react-router-dom';
 import { getProductName, getVersion } from '../../helpers/getProductInfo';
 import { logout } from '../../lib/auth';
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
@@ -553,7 +553,9 @@ export const PureTopBar = memo(
               </>
             ) : (
               <>
-                <AppLogo />
+                <Link to="/">
+                  <AppLogo />
+                </Link>
                 <AppBarActions
                   appBarActions={processAppBarActions(allAppBarActions, appBarActionsProcessors)}
                 />
