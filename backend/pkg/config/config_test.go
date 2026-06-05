@@ -855,6 +855,39 @@ var validateTracingTests = []struct {
 		errorContains: "otlp-endpoint must be configured when use-otlp-http is enabled",
 	},
 	{
+		name: "stdout_trace_enabled_without_endpoint",
+		args: []string{
+			"go run ./cmd",
+			"--tracing-enabled=true",
+			"--service-name=myapp",
+			"--otlp-endpoint=",
+			"--stdout-trace-enabled=true",
+		},
+		expectError: false,
+	},
+	{
+		name: "jaeger_endpoint_without_stdout",
+		args: []string{
+			"go run ./cmd",
+			"--tracing-enabled=true",
+			"--service-name=myapp",
+			"--jaeger-endpoint=http://jaeger:14268/api/traces",
+		},
+		expectError:   true,
+		errorContains: "jaeger-endpoint is not supported",
+	},
+	{
+		name: "jaeger_endpoint_with_stdout_uses_stdout_priority",
+		args: []string{
+			"go run ./cmd",
+			"--tracing-enabled=true",
+			"--service-name=myapp",
+			"--jaeger-endpoint=http://jaeger:14268/api/traces",
+			"--stdout-trace-enabled=true",
+		},
+		expectError: false,
+	},
+	{
 		name: "tracing_disabled_no_validation",
 		args: []string{
 			"go run ./cmd",

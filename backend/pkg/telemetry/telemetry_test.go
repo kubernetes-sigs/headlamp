@@ -14,6 +14,7 @@ func TestNewTelemetry(t *testing.T) { //nolint:funlen // multiple test cases fun
 	testVersion := "1.0.0"
 	sampleRate := 1.0
 	emptyStr := ""
+	jaegerEndpoint := "http://jaeger:14268/api/traces"
 	trueVal := true
 	falseVal := false
 
@@ -67,6 +68,22 @@ func TestNewTelemetry(t *testing.T) { //nolint:funlen // multiple test cases fun
 			},
 			expectError:   true,
 			errorContains: "service name cannot be empty",
+		},
+		{
+			name: "jaeger endpoint is rejected instead of falling back to otlp",
+			config: cfg.Config{
+				ServiceName:        "test-service",
+				ServiceVersion:     &testVersion,
+				TracingEnabled:     &trueVal,
+				StdoutTraceEnabled: &falseVal,
+				SamplingRate:       &sampleRate,
+				MetricsEnabled:     &falseVal,
+				JaegerEndpoint:     &jaegerEndpoint,
+				OTLPEndpoint:       &emptyStr,
+				UseOTLPHTTP:        &falseVal,
+			},
+			expectError:   true,
+			errorContains: "jaeger endpoint http://jaeger:14268/api/traces is not supported",
 		},
 	}
 

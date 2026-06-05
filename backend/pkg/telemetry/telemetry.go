@@ -208,13 +208,9 @@ func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolin
 		enabledExporters++
 
 		enabledTypes = append(enabledTypes, "Jaeger")
-
-		if !isOTLPConfigured {
-			isOTLPConfigured = true
-		}
 	}
 
-	if isOTLPConfigured && !isJaegerConfigured {
+	if isOTLPConfigured {
 		enabledExporters++
 
 		enabledTypes = append(enabledTypes, "OTLP")
@@ -234,6 +230,10 @@ func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolin
 		}
 
 		return exporter, nil
+	}
+
+	if isJaegerConfigured {
+		return nil, fmt.Errorf("jaeger endpoint %s is not supported; use an OTLP endpoint instead", *cfg.JaegerEndpoint)
 	}
 
 	if isOTLPConfigured {
