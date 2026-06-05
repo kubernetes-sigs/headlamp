@@ -109,7 +109,7 @@ function EventsSection() {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const eventsFilter = queryParams.get('eventsFilter');
-  const filterFunc = useFilterFunc<Event>(['.jsonData.involvedObject.kind']);
+  const filterFunc = useFilterFunc<Event>(['.jsonData.regarding.kind']);
   const [isWarningEventSwitchChecked, setIsWarningEventSwitchChecked] = React.useState(
     Boolean(
       JSON.parse(
@@ -164,7 +164,7 @@ function EventsSection() {
       return <Link kubeObject={obj} />;
     }
 
-    return event.involvedObject.name;
+    return event.regarding.name;
   }
 
   return (
@@ -194,12 +194,12 @@ function EventsSection() {
           label: t('Type'),
           gridTemplate: 'min-content',
           filterVariant: 'multi-select',
-          getValue: event => event.involvedObject.kind,
+          getValue: event => event.regarding.kind,
         },
         {
           id: 'name',
           label: t('Name'),
-          getValue: event => event.involvedObjectInstance?.getName() ?? event.involvedObject.name,
+          getValue: event => event.involvedObjectInstance?.getName() ?? event.regarding.name,
           render: event => makeObjectLink(event),
           gridTemplate: 'auto',
         },

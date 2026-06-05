@@ -26,9 +26,9 @@ import { KubeObject } from './KubeObject';
 export interface KubeEvent {
   type: string;
   reason: string;
-  message: string;
+  note: string;
   metadata: KubeMetadata;
-  involvedObject: {
+  regarding: {
     kind: string;
     namespace: string;
     name: string;
@@ -37,13 +37,14 @@ export interface KubeEvent {
     resourceVersion: string;
     fieldPath: string;
   };
+  eventTime: string;
   [otherProps: string]: any;
 }
 
 class Event extends KubeObject<KubeEvent> {
   static kind = 'Event';
   static apiName = 'events';
-  static apiVersion = 'v1';
+  static apiVersion = 'events.k8s.io/v1';
 
   static isNamespaced = true;
 
@@ -71,8 +72,15 @@ class Event extends KubeObject<KubeEvent> {
     return this.getValue('status');
   }
 
+  get regarding() {
+    return this.getValue('regarding');
+  }
+
+  /**
+   * @deprecated Use 'regarding' instead.
+   */
   get involvedObject() {
-    return this.getValue('involvedObject');
+    return this.regarding;
   }
 
   get type() {
@@ -84,11 +92,21 @@ class Event extends KubeObject<KubeEvent> {
   }
 
   get message() {
-    return this.getValue('message');
+    return this.getValue('note');
   }
 
-  get source() {
-    return this.getValue('source');
+  get source(): { component?: string; host?: string } | undefined {
+    const deprecatedSource = this.getValue('deprecatedSource') as
+      | { component?: string; host?: string }
+      | undefined;
+    if (deprecatedSource?.component) {
+      return deprecatedSource;
+    }
+    const reportingController = this.getValue('reportingController');
+    if (reportingController) {
+      return { component: reportingController };
+    }
+    return deprecatedSource;
   }
 
   get count() {
@@ -106,9 +124,9 @@ class Event extends KubeObject<KubeEvent> {
       return series.lastObservedTime;
     }
 
-    const lastTimestamp = this.getValue('lastTimestamp');
-    if (!!lastTimestamp) {
-      return lastTimestamp;
+    const deprecatedLastTimestamp = this.getValue('deprecatedLastTimestamp');
+    if (!!deprecatedLastTimestamp) {
+      return deprecatedLastTimestamp;
     }
 
     const eventTime = this.getValue('eventTime');
@@ -116,9 +134,9 @@ class Event extends KubeObject<KubeEvent> {
       return eventTime;
     }
 
-    const firstTimestamp = this.getValue('firstTimestamp');
-    if (!!firstTimestamp) {
-      return firstTimestamp;
+    const deprecatedFirstTimestamp = this.getValue('deprecatedFirstTimestamp');
+    if (!!deprecatedFirstTimestamp) {
+      return deprecatedFirstTimestamp;
     }
 
     const creationTimestamp = this.metadata.creationTimestamp;
@@ -131,9 +149,9 @@ class Event extends KubeObject<KubeEvent> {
       return eventTime;
     }
 
-    const firstTimestamp = this.getValue('firstTimestamp');
-    if (!!firstTimestamp) {
-      return firstTimestamp;
+    const deprecatedFirstTimestamp = this.getValue('deprecatedFirstTimestamp');
+    if (!!deprecatedFirstTimestamp) {
+      return deprecatedFirstTimestamp;
     }
 
     const creationTimestamp = this.metadata.creationTimestamp;
@@ -146,15 +164,15 @@ class Event extends KubeObject<KubeEvent> {
     const objectKind = object.kind;
     const cluster = object.cluster;
 
-    let path = '/api/v1/events';
+    let path = '/apis/events.k8s.io/v1/events';
     const fieldSelector: { [key: string]: string } = {
-      'involvedObject.kind': objectKind,
-      'involvedObject.name': name,
+      'regarding.kind': objectKind,
+      'regarding.name': name,
     };
 
     if (namespace) {
-      path = `/api/v1/namespaces/${namespace}/events`;
-      fieldSelector['involvedObject.namespace'] = namespace;
+      path = `/apis/events.k8s.io/v1/namespaces/${namespace}/events`;
+      fieldSelector['regarding.namespace'] = namespace;
     }
 
     const queryParams = {
@@ -172,22 +190,22 @@ class Event extends KubeObject<KubeEvent> {
   }
 
   get involvedObjectInstance(): KubeObject | null {
-    if (!this.involvedObject) {
+    if (!this.regarding) {
       return null;
     }
 
     const InvolvedObjectClass = (ResourceClasses as Record<string, KubeObjectClass>)[
-      this.involvedObject.kind
+      this.regarding.kind
     ];
     let objInstance: KubeObject | null = null;
     if (!!InvolvedObjectClass) {
       objInstance = new InvolvedObjectClass(
         {
-          kind: this.involvedObject.kind,
+          kind: this.regarding.kind,
           metadata: {
-            name: this.involvedObject.name,
+            name: this.regarding.name,
             namespace: InvolvedObjectClass.isNamespaced
-              ? this.involvedObject.namespace ?? this.getNamespace()
+              ? this.regarding.namespace ?? this.getNamespace()
               : undefined,
           } as KubeMetadata,
         },

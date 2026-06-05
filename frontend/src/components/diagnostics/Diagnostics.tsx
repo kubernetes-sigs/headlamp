@@ -126,9 +126,9 @@ function getEventLastOccurrence(event: EventLike) {
   return (
     (event as Event).lastOccurrence ||
     (event as KubeEvent).series?.lastObservedTime ||
-    (event as KubeEvent).lastTimestamp ||
     (event as KubeEvent).eventTime ||
-    (event as KubeEvent).firstTimestamp ||
+    (event as KubeEvent).deprecatedLastTimestamp ||
+    (event as KubeEvent).deprecatedFirstTimestamp ||
     (event as KubeEvent).metadata?.creationTimestamp ||
     ''
   );
@@ -139,7 +139,7 @@ function getEventFirstOccurrence(event: EventLike) {
   return (
     (event as Event).firstOccurrence ||
     (event as KubeEvent).eventTime ||
-    (event as KubeEvent).firstTimestamp ||
+    (event as KubeEvent).deprecatedFirstTimestamp ||
     (event as KubeEvent).metadata?.creationTimestamp ||
     ''
   );
@@ -410,7 +410,7 @@ function getPendingHints(pod: PodLike, warningEvents: EventLike[], t: Translate)
       severity: 'warning',
       title: t('Pod scheduling event: {{ reason }}', { reason }),
       message:
-        (failedSchedulingEvent as Event).message || (failedSchedulingEvent as KubeEvent).message,
+        (failedSchedulingEvent as Event).message || (failedSchedulingEvent as KubeEvent).note,
     });
   }
 
@@ -483,7 +483,7 @@ function eventDiagnostics(events: EventLike[], t: Translate): DiagnosticItem[] {
                 eventCount: count,
               })
             : t('Warning event: {{ reason }}', { reason }),
-        message: (event as Event).message ?? (event as KubeEvent).message,
+        message: (event as Event).message ?? (event as KubeEvent).note,
         details,
       };
     });
