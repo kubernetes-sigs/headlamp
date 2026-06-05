@@ -671,8 +671,6 @@
   "Max": "최대",
   "Min": "최소",
   "A namespace with this name already exists.": "이 이름을 가진 네임스페이스가 이미 존재합니다.",
-  "Applying {{  newItemName  }}…": "{{ newItemName }} 적용 중…",
-  "Cancelled applying  {{  newItemName  }}.": "{{ newItemName }} 적용 취소됨.",
   "Namespaces must be under 64 characters.": "네임스페이스는 64자 이하여야 합니다.",
   "Create Namespace": "네임스페이스 생성",
   "To": "대상",

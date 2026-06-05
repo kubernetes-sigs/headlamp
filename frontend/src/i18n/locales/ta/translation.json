@@ -676,8 +676,6 @@
   "Max": "மாக்ஸ்",
   "Min": "மின்",
   "A namespace with this name already exists.": "இந்த பெயரில் ஒரு நேம்ஸ்பேஸ் ஏற்கனவே உள்ளது.",
-  "Applying {{  newItemName  }}…": "{{  newItemName  }}-ஐ ஏற்றுகிறது...",
-  "Cancelled applying  {{  newItemName  }}.": "{{  newItemName  }}-ஐ ஏற்றுவது ரத்து செய்யப்பட்டது.",
   "Namespaces must be under 64 characters.": "நேம்ஸ்பேஸ்கள் 64 எழுத்துகளுக்கு குறைவாக இருக்க வேண்டும்.",
   "Create Namespace": "நேம்ஸ்பேஸ் உருவாக்கு",
   "To": "To",

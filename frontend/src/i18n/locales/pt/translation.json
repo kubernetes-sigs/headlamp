@@ -681,8 +681,6 @@
   "Max": "Máx.",
   "Min": "Mín.",
   "A namespace with this name already exists.": "Um namespace com este nome já existe.",
-  "Applying {{  newItemName  }}…": "A aplicar {{  newItemName  }}…",
-  "Cancelled applying  {{  newItemName  }}.": "Cancelou-se a aplicação de {{  newItemName  }}.",
   "Namespaces must be under 64 characters.": "Os namespaces devem ter menos de 64 caracteres.",
   "Create Namespace": "Criar Namespace",
   "To": "Para",

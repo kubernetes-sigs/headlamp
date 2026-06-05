@@ -74,10 +74,10 @@ export default function CreateNamespaceButton() {
 
     dispatch(
       clusterAction(() => namespaceRequest(), {
-        startMessage: t('translation|Applying {{  newItemName  }}…', {
+        startMessage: t('translation|Applying {{ newItemName }}…', {
           newItemName: newNamespaceName,
         }),
-        cancelledMessage: t('translation|Cancelled applying  {{  newItemName  }}.', {
+        cancelledMessage: t('translation|Cancelled applying {{ newItemName }}.', {
           newItemName: newNamespaceName,
         }),
         successMessage: t('translation|Applied {{ newItemName }}.', {
