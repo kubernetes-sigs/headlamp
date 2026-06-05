@@ -72,6 +72,8 @@
   "Authentication required": "",
   "Insufficient permissions": "",
   "Unavailable": "",
+  "Kubeconfig: {{path}}": "",
+  "Kubeconfig": "",
   "Plugin": "插件",
   "In-cluster": "集群内",
   "Cluster Inventory": "",

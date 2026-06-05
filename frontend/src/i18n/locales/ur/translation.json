@@ -72,6 +72,8 @@
   "Authentication required": "",
   "Insufficient permissions": "",
   "Unavailable": "",
+  "Kubeconfig: {{path}}": "",
+  "Kubeconfig": "",
   "Plugin": "پلگ ان",
   "In-cluster": "کلسٹر کے اندر",
   "Cluster Inventory": "",
