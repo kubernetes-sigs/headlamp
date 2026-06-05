@@ -32,7 +32,6 @@ import { SxProps } from '@mui/system';
 import { visuallyHidden } from '@mui/utils';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation } from 'react-router-dom';
 import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../helpers/tablesRowsPerPage';
 import { useURLState } from '../../lib/util';
 import { useSettings } from '../App/Settings/hook';
@@ -176,12 +175,14 @@ export default function SimpleTable(props: SimpleTableProps) {
   const [displayData, setDisplayData] = React.useState(data);
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const rowsPerPageOptions = props.rowsPerPage || storeRowsPerPageOptions;
-  const defaultRowsPerPage = getTablesRowsPerPage(rowsPerPageOptions[0]);
+  // Memoize with empty deps so the value is stable across renders and never
+  // triggers the effects below unnecessarily.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const defaultRowsPerPage = React.useMemo(() => getTablesRowsPerPage(rowsPerPageOptions[0]), []);
   const [rowsPerPage, setRowsPerPage] = useURLState(shouldReflectInURL ? 'perPage' : '', {
     defaultValue: defaultRowsPerPage,
     prefix,
   });
-  const location = useLocation();
 
   React.useEffect(() => {
     if (!shouldReflectInURL) {
@@ -194,12 +195,15 @@ export default function SimpleTable(props: SimpleTableProps) {
       return;
     }
     const key = prefix ? `${prefix}.perPage` : 'perPage';
-    const hasURLParam = new URLSearchParams(location.search).has(key);
+    // Read directly from window.location.search instead of subscribing to
+    // useLocation() — this avoids re-rendering non-URL tables on every route
+    // change while still detecting whether the param is present in the URL.
+    const hasURLParam = new URLSearchParams(window.location.search).has(key);
 
     if (!hasURLParam) {
       setRowsPerPage(defaultRowsPerPage);
     }
-  }, [defaultRowsPerPage, shouldReflectInURL, prefix, setRowsPerPage, location.search]);
+  }, [defaultRowsPerPage, shouldReflectInURL, prefix, setRowsPerPage]);
   const gridTemplateColumns = React.useMemo(() => {
     const columnsTemplates = columns.map(column => column.gridTemplate || 1);
     const templates: string[] = [];
