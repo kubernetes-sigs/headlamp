@@ -15,20 +15,20 @@
  */
 
 import { useMemo } from 'react';
-import { ResourceClasses } from '.';
 import { request } from './api/v1/clusterRequests';
 import type { QueryParameters } from './api/v1/queryParameters';
 import type { ApiError } from './api/v2/ApiError';
-import type { KubeMetadata } from './KubeMetadata';
+import { ResourceClasses } from './index';
+import { KubeMetadata } from './KubeMetadata';
 import type { KubeObjectClass } from './KubeObject';
 import { KubeObject } from './KubeObject';
 
-export interface KubeEvent {
+export interface KubeEventV2 {
   type: string;
   reason: string;
-  message: string;
+  note: string;
   metadata: KubeMetadata;
-  involvedObject: {
+  regarding: {
     kind: string;
     namespace: string;
     name: string;
@@ -37,18 +37,19 @@ export interface KubeEvent {
     resourceVersion: string;
     fieldPath: string;
   };
+  eventTime: string;
   [otherProps: string]: any;
 }
 
-class Event extends KubeObject<KubeEvent> {
+class EventV2 extends KubeObject<KubeEventV2> {
   static kind = 'Event';
   static apiName = 'events';
-  static apiVersion = 'v1';
+  static apiVersion = 'events.k8s.io/v1';
 
   static isNamespaced = true;
 
-  static useListForClusters = useEventListForClusters;
-  static useWarningList = useEventWarningList;
+  static useListForClusters = useEventV2ListForClusters;
+  static useWarningList = useEventV2WarningList;
 
   // Max number of events to fetch from the API
   private static maxEventsLimit = 2000;
@@ -71,8 +72,15 @@ class Event extends KubeObject<KubeEvent> {
     return this.getValue('status');
   }
 
+  get regarding() {
+    return this.getValue('regarding');
+  }
+
+  /**
+   * @deprecated Use 'regarding' instead.
+   */
   get involvedObject() {
-    return this.getValue('involvedObject');
+    return this.regarding;
   }
 
   get type() {
@@ -84,11 +92,21 @@ class Event extends KubeObject<KubeEvent> {
   }
 
   get message() {
-    return this.getValue('message');
+    return this.getValue('note');
   }
 
-  get source() {
-    return this.getValue('source');
+  get source(): { component?: string; host?: string } | undefined {
+    const deprecatedSource = this.getValue('deprecatedSource') as
+      | { component?: string; host?: string }
+      | undefined;
+    if (deprecatedSource?.component) {
+      return deprecatedSource;
+    }
+    const reportingController = this.getValue('reportingController');
+    if (reportingController) {
+      return { component: reportingController };
+    }
+    return deprecatedSource;
   }
 
   get count() {
@@ -106,9 +124,9 @@ class Event extends KubeObject<KubeEvent> {
       return series.lastObservedTime;
     }
 
-    const lastTimestamp = this.getValue('lastTimestamp');
-    if (!!lastTimestamp) {
-      return lastTimestamp;
+    const deprecatedLastTimestamp = this.getValue('deprecatedLastTimestamp');
+    if (!!deprecatedLastTimestamp) {
+      return deprecatedLastTimestamp;
     }
 
     const eventTime = this.getValue('eventTime');
@@ -116,9 +134,9 @@ class Event extends KubeObject<KubeEvent> {
       return eventTime;
     }
 
-    const firstTimestamp = this.getValue('firstTimestamp');
-    if (!!firstTimestamp) {
-      return firstTimestamp;
+    const deprecatedFirstTimestamp = this.getValue('deprecatedFirstTimestamp');
+    if (!!deprecatedFirstTimestamp) {
+      return deprecatedFirstTimestamp;
     }
 
     const creationTimestamp = this.metadata.creationTimestamp;
@@ -131,9 +149,9 @@ class Event extends KubeObject<KubeEvent> {
       return eventTime;
     }
 
-    const firstTimestamp = this.getValue('firstTimestamp');
-    if (!!firstTimestamp) {
-      return firstTimestamp;
+    const deprecatedFirstTimestamp = this.getValue('deprecatedFirstTimestamp');
+    if (!!deprecatedFirstTimestamp) {
+      return deprecatedFirstTimestamp;
     }
 
     const creationTimestamp = this.metadata.creationTimestamp;
@@ -146,15 +164,15 @@ class Event extends KubeObject<KubeEvent> {
     const objectKind = object.kind;
     const cluster = object.cluster;
 
-    let path = '/api/v1/events';
+    let path = '/apis/events.k8s.io/v1/events';
     const fieldSelector: { [key: string]: string } = {
-      'involvedObject.kind': objectKind,
-      'involvedObject.name': name,
+      'regarding.kind': objectKind,
+      'regarding.name': name,
     };
 
     if (namespace) {
-      path = `/api/v1/namespaces/${namespace}/events`;
-      fieldSelector['involvedObject.namespace'] = namespace;
+      path = `/apis/events.k8s.io/v1/namespaces/${namespace}/events`;
+      fieldSelector['regarding.namespace'] = namespace;
     }
 
     const queryParams = {
@@ -172,22 +190,22 @@ class Event extends KubeObject<KubeEvent> {
   }
 
   get involvedObjectInstance(): KubeObject | null {
-    if (!this.involvedObject) {
+    if (!this.regarding) {
       return null;
     }
 
     const InvolvedObjectClass = (ResourceClasses as Record<string, KubeObjectClass>)[
-      this.involvedObject.kind
+      this.regarding.kind
     ];
     let objInstance: KubeObject | null = null;
     if (!!InvolvedObjectClass) {
       objInstance = new InvolvedObjectClass(
         {
-          kind: this.involvedObject.kind,
+          kind: this.regarding.kind,
           metadata: {
-            name: this.involvedObject.name,
+            name: this.regarding.name,
             namespace: InvolvedObjectClass.isNamespaced
-              ? this.involvedObject.namespace ?? this.getNamespace()
+              ? this.regarding.namespace ?? this.getNamespace()
               : undefined,
           } as KubeMetadata,
         },
@@ -199,7 +217,7 @@ class Event extends KubeObject<KubeEvent> {
   }
 }
 
-export default Event;
+export default EventV2;
 
 /**
  * Fetch events for given clusters
@@ -208,18 +226,18 @@ export default Event;
  * so that component remounts when clusters change, instead of rerendering
  * with different number of clusters
  */
-export function useEventListForClusters(
+export function useEventV2ListForClusters(
   clusterNames: string[],
   options: { queryParams?: QueryParameters } = {}
 ) {
-  const queries = Event.useList({
+  const queries = EventV2.useList({
     clusters: clusterNames,
     ...options.queryParams,
   });
 
   type EventsPerCluster = {
     [cluster: string]: {
-      warnings: Event[];
+      warnings: EventV2[];
       error?: ApiError | null;
     };
   };
@@ -250,25 +268,25 @@ export function useEventListForClusters(
 
 /**
  * Fetch warning events for given clusters
- * Amount is limited to {@link Event.maxLimit}
+ * Amount is limited to {@link EventV2.maxLimit}
  *
  * Important! Make sure to have the parent component have clusters as a key
  * so that component remounts when clusters change, instead of rerendering
  * with different number of clusters
  */
-export function useEventWarningList(
+export function useEventV2WarningList(
   clusters: string[],
   options?: { queryParams?: QueryParameters }
 ) {
   const queryParameters = Object.assign(
     {
-      limit: Event.maxLimit,
+      limit: EventV2.maxLimit,
       fieldSelector: 'type!=Normal',
     },
     options?.queryParams ?? {}
   );
 
-  const warningsList = useEventListForClusters(clusters, { queryParams: queryParameters });
+  const warningsList = useEventV2ListForClusters(clusters, { queryParams: queryParameters });
 
   return warningsList;
 }

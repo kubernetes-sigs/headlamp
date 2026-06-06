@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-vi.mock('../../lib/k8s/event', () => ({
-  default: class Event {
+vi.mock('../../lib/k8s/eventV2', () => ({
+  default: class EventV2 {
     static objectEvents = vi.fn();
   },
   __esModule: true,

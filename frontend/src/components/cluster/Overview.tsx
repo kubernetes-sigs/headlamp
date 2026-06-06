@@ -21,7 +21,7 @@ import Switch from '@mui/material/Switch';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
-import Event from '../../lib/k8s/event';
+import EventV2 from '../../lib/k8s/eventV2';
 import Node from '../../lib/k8s/node';
 import Pod from '../../lib/k8s/pod';
 import { useFilterFunc } from '../../lib/util';
@@ -109,7 +109,7 @@ function EventsSection() {
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const eventsFilter = queryParams.get('eventsFilter');
-  const filterFunc = useFilterFunc<Event>(['.jsonData.regarding.kind']);
+  const filterFunc = useFilterFunc<EventV2>(['.jsonData.regarding.kind']);
   const [isWarningEventSwitchChecked, setIsWarningEventSwitchChecked] = React.useState(
     Boolean(
       JSON.parse(
@@ -119,12 +119,12 @@ function EventsSection() {
     )
   );
   const namespace = useNamespaces();
-  const { items: events, errors: eventsErrors } = Event.useList({
-    limit: Event.maxLimit,
+  const { items: events, errors: eventsErrors } = EventV2.useList({
+    limit: EventV2.maxLimit,
     namespace,
   });
 
-  const warningActionFilterFunc = (event: Event, search?: string) => {
+  const warningActionFilterFunc = (event: EventV2, search?: string) => {
     if (!filterFunc(event, search)) {
       return false;
     }
@@ -143,7 +143,7 @@ function EventsSection() {
     [events]
   );
 
-  function makeStatusLabel(event: Event) {
+  function makeStatusLabel(event: EventV2) {
     return (
       <StatusLabel
         status={event.type === 'Normal' ? '' : 'warning'}
@@ -158,7 +158,7 @@ function EventsSection() {
     );
   }
 
-  function makeObjectLink(event: Event) {
+  function makeObjectLink(event: EventV2) {
     const obj = event.involvedObjectInstance;
     if (!!obj) {
       return <Link kubeObject={obj} />;

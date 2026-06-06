@@ -169,6 +169,76 @@ export default {
               metadata: {},
             })
           ),
+          http.get('http://localhost:4466/apis/events.k8s.io/v1/events', () =>
+            HttpResponse.json({
+              kind: 'EventList',
+              items: [
+                {
+                  apiVersion: 'events.k8s.io/v1',
+                  eventTime: '2023-07-13T13:42:00Z',
+                  regarding: {
+                    apiVersion: 'v1',
+                    fieldPath: 'spec.containers{hello}',
+                    kind: 'Pod',
+                    name: 'hello-123-123',
+                    namespace: 'default',
+                    resourceVersion: '44429432',
+                    uid: 'a1234',
+                  },
+                  kind: 'Event',
+                  note: 'Started container hello',
+                  metadata: {
+                    creationTimestamp: '2023-07-13T13:42:00Z',
+                    name: 'hello-123-123.321',
+                    namespace: 'default',
+                    resourceVersion: '44429443',
+                    uid: 'a12345',
+                  },
+                  reason: 'Started',
+                  deprecatedSource: {
+                    component: 'kubelet',
+                    host: 'aks-agentpool-30159275-vmss00003g',
+                  },
+                  type: 'Normal',
+                  series: {
+                    count: 1,
+                    lastObservedTime: '2023-07-13T13:42:00Z',
+                  },
+                },
+                {
+                  apiVersion: 'events.k8s.io/v1',
+                  eventTime: '2023-07-13T14:42:17Z',
+                  regarding: {
+                    apiVersion: 'autoscaling/v2',
+                    kind: 'HorizontalPodAutoscaler',
+                    name: 'nginx-deployment',
+                    namespace: 'default',
+                    resourceVersion: '1',
+                    uid: 'b1234',
+                  },
+                  kind: 'Event',
+                  note: 'failed to get cpu utilization: missing request for cpu',
+                  metadata: {
+                    creationTimestamp: '2023-07-12T20:07:10Z',
+                    name: 'nginx-deployment.1234',
+                    namespace: 'default',
+                    resourceVersion: '1',
+                    uid: 'b12345',
+                  },
+                  reason: 'FailedGetResourceMetric',
+                  deprecatedSource: {
+                    component: 'horizontal-pod-autoscaler',
+                  },
+                  type: 'Warning',
+                  series: {
+                    count: 4449,
+                    lastObservedTime: '2023-07-13T14:42:17Z',
+                  },
+                },
+              ],
+              metadata: {},
+            })
+          ),
           http.get('http://localhost:4466/api/v1/pods', () =>
             HttpResponse.json({
               kind: 'PodList',
@@ -205,6 +275,13 @@ EmptyState.parameters = {
             metadata: {},
           })
         ),
+        http.get('http://localhost:4466/apis/events.k8s.io/v1/events', () =>
+          HttpResponse.json({
+            kind: 'EventList',
+            items: [],
+            metadata: {},
+          })
+        ),
         http.get('http://localhost:4466/api/v1/pods', () =>
           HttpResponse.json({
             kind: 'PodList',
@@ -225,6 +302,7 @@ LoadingState.parameters = {
     handlers: {
       story: [
         http.get('http://localhost:4466/api/v1/events', () => new Promise(() => {})),
+        http.get('http://localhost:4466/apis/events.k8s.io/v1/events', () => new Promise(() => {})),
         http.get('http://localhost:4466/api/v1/pods', () => new Promise(() => {})),
       ],
     },
@@ -237,6 +315,7 @@ ErrorState.parameters = {
     handlers: {
       story: [
         http.get('http://localhost:4466/api/v1/events', () => HttpResponse.error()),
+        http.get('http://localhost:4466/apis/events.k8s.io/v1/events', () => HttpResponse.error()),
         http.get('http://localhost:4466/api/v1/pods', () => HttpResponse.error()),
       ],
     },

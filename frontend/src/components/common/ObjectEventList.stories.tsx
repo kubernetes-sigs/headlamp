@@ -50,14 +50,14 @@ const mockOwnerObjectNoEvents = new KubeObject({
 const mockEvents: KubeEvent[] = [
   {
     kind: 'Event',
-    apiVersion: 'events.k8s.io/v1',
+    apiVersion: 'v1',
     metadata: {
       name: 'event1.123',
       namespace: 'default',
       uid: 'event-uid-1',
       creationTimestamp: new Date(getTestDate().getTime() - 5 * 60 * 1000).toISOString(),
     },
-    regarding: {
+    involvedObject: {
       kind: 'Pod',
       namespace: 'default',
       name: 'test-pod-for-events',
@@ -67,24 +67,23 @@ const mockEvents: KubeEvent[] = [
       fieldPath: '',
     },
     reason: 'Scheduled',
-    note: 'Successfully assigned default/test-pod-for-events to worker-node-1',
-    deprecatedSource: { component: 'default-scheduler' },
-    deprecatedFirstTimestamp: new Date(getTestDate().getTime() - 5 * 60 * 1000).toISOString(),
-    deprecatedLastTimestamp: new Date(getTestDate().getTime() - 5 * 60 * 1000).toISOString(),
-    eventTime: new Date(getTestDate().getTime() - 5 * 60 * 1000).toISOString(),
+    message: 'Successfully assigned default/test-pod-for-events to worker-node-1',
+    source: { component: 'default-scheduler' },
+    firstTimestamp: new Date(getTestDate().getTime() - 5 * 60 * 1000).toISOString(),
+    lastTimestamp: new Date(getTestDate().getTime() - 5 * 60 * 1000).toISOString(),
     count: 1,
     type: 'Normal',
   },
   {
     kind: 'Event',
-    apiVersion: 'events.k8s.io/v1',
+    apiVersion: 'v1',
     metadata: {
       name: 'event2.456',
       namespace: 'default',
       uid: 'event-uid-2',
       creationTimestamp: new Date(getTestDate().getTime() - 2 * 60 * 1000).toISOString(),
     },
-    regarding: {
+    involvedObject: {
       kind: 'Pod',
       namespace: 'default',
       name: 'test-pod-for-events',
@@ -94,11 +93,10 @@ const mockEvents: KubeEvent[] = [
       fieldPath: '',
     },
     reason: 'Pulled',
-    note: 'Container image "nginx:latest" already present on machine',
-    deprecatedSource: { component: 'kubelet' },
-    deprecatedFirstTimestamp: new Date(getTestDate().getTime() - 2 * 60 * 1000).toISOString(),
-    deprecatedLastTimestamp: new Date(getTestDate().getTime() - 2 * 60 * 1000).toISOString(),
-    eventTime: new Date(getTestDate().getTime() - 2 * 60 * 1000).toISOString(),
+    message: 'Container image "nginx:latest" already present on machine',
+    source: { component: 'kubelet' },
+    firstTimestamp: new Date(getTestDate().getTime() - 2 * 60 * 1000).toISOString(),
+    lastTimestamp: new Date(getTestDate().getTime() - 2 * 60 * 1000).toISOString(),
     count: 1,
     type: 'Normal',
   },
@@ -120,36 +118,40 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get(
-            'http://localhost:4466/apis/events.k8s.io/v1/namespaces/:namespace/events',
-            ({ params, request }) => {
-              const url = new URL(request.url);
-              const fieldSelector = url.searchParams.get('fieldSelector');
-              const reqNamespace = params.namespace;
+          http.get('*/api/v1/events', () =>
+            HttpResponse.json({
+              kind: 'EventList',
+              items: [],
+              metadata: {},
+            })
+          ),
+          http.get('*/api/v1/namespaces/:namespace/events', ({ params, request }) => {
+            const url = new URL(request.url);
+            const fieldSelector = url.searchParams.get('fieldSelector');
+            const reqNamespace = params.namespace;
 
-              if (
-                reqNamespace === mockOwnerObject.metadata.namespace &&
-                fieldSelector &&
-                fieldSelector.includes(`regarding.kind=${mockOwnerObject.kind}`) &&
-                fieldSelector.includes(`regarding.name=${mockOwnerObject.metadata.name}`)
-              ) {
-                return HttpResponse.json({
-                  kind: 'EventList',
-                  items: mockEvents,
-                  metadata: {},
-                });
-              }
-              if (
-                reqNamespace === mockOwnerObjectNoEvents.metadata.namespace &&
-                fieldSelector &&
-                fieldSelector.includes(`regarding.kind=${mockOwnerObjectNoEvents.kind}`) &&
-                fieldSelector.includes(`regarding.name=${mockOwnerObjectNoEvents.metadata.name}`)
-              ) {
-                return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
-              }
+            if (
+              reqNamespace === mockOwnerObject.metadata.namespace &&
+              fieldSelector &&
+              fieldSelector.includes(`involvedObject.kind=${mockOwnerObject.kind}`) &&
+              fieldSelector.includes(`involvedObject.name=${mockOwnerObject.metadata.name}`)
+            ) {
+              return HttpResponse.json({
+                kind: 'EventList',
+                items: mockEvents,
+                metadata: {},
+              });
+            }
+            if (
+              reqNamespace === mockOwnerObjectNoEvents.metadata.namespace &&
+              fieldSelector &&
+              fieldSelector.includes(`involvedObject.kind=${mockOwnerObjectNoEvents.kind}`) &&
+              fieldSelector.includes(`involvedObject.name=${mockOwnerObjectNoEvents.metadata.name}`)
+            ) {
               return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
             }
-          ),
+            return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
+          }),
         ],
       },
     },
@@ -193,23 +195,27 @@ ErrorFetching.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/apis/events.k8s.io/v1/namespaces/default/events', () => {
+        http.get('*/api/v1/events', () =>
+          HttpResponse.json({
+            kind: 'EventList',
+            items: [],
+            metadata: {},
+          })
+        ),
+        http.get('*/api/v1/namespaces/default/events', () => {
           return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
         }),
-        http.get(
-          'http://localhost:4466/apis/events.k8s.io/v1/namespaces/errors/events',
-          ({ request }) => {
-            const url = new URL(request.url);
-            const fieldSelector = url.searchParams.get('fieldSelector');
-            if (fieldSelector && fieldSelector.includes('regarding.name=error-secret')) {
-              return HttpResponse.json(
-                { message: 'Simulated server error fetching events' },
-                { status: 500 }
-              );
-            }
-            return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
+        http.get('*/api/v1/namespaces/errors/events', ({ request }) => {
+          const url = new URL(request.url);
+          const fieldSelector = url.searchParams.get('fieldSelector');
+          if (fieldSelector && fieldSelector.includes('involvedObject.name=error-secret')) {
+            return HttpResponse.json(
+              { message: 'Simulated server error fetching events' },
+              { status: 500 }
+            );
           }
-        ),
+          return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
+        }),
       ],
     },
   },

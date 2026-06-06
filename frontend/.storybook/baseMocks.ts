@@ -77,6 +77,34 @@ export const baseMocks = [
       metadata: {},
     })
   ),
+  http.get('*/api/v1/events', () =>
+    HttpResponse.json({
+      kind: 'EventList',
+      items: [],
+      metadata: {},
+    })
+  ),
+  http.get('*/api/v1/namespaces/:namespace/events', () =>
+    HttpResponse.json({
+      kind: 'EventList',
+      items: [],
+      metadata: {},
+    })
+  ),
+  http.get('*/apis/events.k8s.io/v1/events', () =>
+    HttpResponse.json({
+      kind: 'EventList',
+      items: [],
+      metadata: {},
+    })
+  ),
+  http.get('*/apis/events.k8s.io/v1/namespaces/:namespace/events', () =>
+    HttpResponse.json({
+      kind: 'EventList',
+      items: [],
+      metadata: {},
+    })
+  ),
   http.get('http://localhost:4466/version', () => HttpResponse.json({})),
   http.get('http://localhost:4466/api/v1/events', () =>
     HttpResponse.json({
