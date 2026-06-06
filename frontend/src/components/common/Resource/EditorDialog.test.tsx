@@ -108,6 +108,62 @@ describe('EditorDialog', () => {
     expect(screen.queryByText('Invalid YAML')).not.toBeInTheDocument();
   });
 
+  it('shows a warning and preserves user edits when the resource is modified externally', async () => {
+    const initialItem = {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: { name: 'my-config', resourceVersion: '1' },
+    };
+
+    const { rerender } = render(
+      <TestContext>
+        <EditorDialog
+          open
+          keepMounted
+          noDialog
+          item={initialItem}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+        />
+      </TestContext>
+    );
+
+    const editor = screen.getByRole('textbox', { name: /code$/i });
+
+    // Simulate user making an edit
+    fireEvent.change(editor, { target: { value: 'user-edited-content' } });
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    // Re-render with updated resourceVersion simulating an external modification
+    act(() => {
+      rerender(
+        <TestContext>
+          <EditorDialog
+            open
+            keepMounted
+            noDialog
+            item={{
+              apiVersion: 'v1',
+              kind: 'ConfigMap',
+              metadata: { name: 'my-config', resourceVersion: '2' },
+            }}
+            onClose={vi.fn()}
+            onSave={vi.fn()}
+          />
+        </TestContext>
+      );
+    });
+
+    // Warning banner should be visible
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+
+    // User's edit must be preserved — not overwritten with the new server content
+    expect(screen.getByRole('textbox', { name: /code$/i })).toHaveValue('user-edited-content');
+  });
+
   it('cancels pending validation when undo restores the original content', () => {
     renderEditorDialog();
 

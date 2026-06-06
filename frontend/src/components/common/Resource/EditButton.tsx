@@ -17,7 +17,7 @@
 import { Icon } from '@iconify/react';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
@@ -28,7 +28,7 @@ import {
   HeadlampEventType,
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
-import { AppDispatch } from '../../../redux/stores/store';
+import { AppDispatch, RootState } from '../../../redux/stores/store';
 import { Activity } from '../../activity/Activity';
 import ActionButton, { ButtonStyle } from '../ActionButton';
 import AuthVisible from './AuthVisible';
@@ -42,6 +42,54 @@ interface EditButtonProps {
   afterConfirm?: () => void;
 }
 
+interface ResourceWatcherProps {
+  item: KubeObject;
+  activityId: string;
+  errorMessage: string;
+  handleSave: (items: KubeObjectInterface[]) => void;
+  setErrorMessage: (msg: string) => void;
+  onClose: () => void;
+}
+
+function ResourceWatcher({
+  item,
+  activityId,
+  errorMessage,
+  handleSave,
+  setErrorMessage,
+  onClose,
+}: ResourceWatcherProps) {
+  const ItemClass = item.constructor as (new (...args: any) => KubeObject) & typeof KubeObject;
+  const [watchedItem] = ItemClass.useGet(item.metadata.name, item.metadata.namespace, {
+    cluster: item.cluster,
+  });
+  const isActivityOpen = useSelector((state: RootState) => !!state.activity.activities[activityId]);
+  const lastUpdateKeyRef = React.useRef<string>('');
+
+  React.useEffect(() => {
+    if (!isActivityOpen || !watchedItem) return;
+    const updateKey = `${watchedItem.metadata?.resourceVersion ?? ''}::${errorMessage}`;
+    if (updateKey === lastUpdateKeyRef.current) return;
+    lastUpdateKeyRef.current = updateKey;
+    Activity.update(activityId, {
+      content: (
+        <EditorDialog
+          noDialog
+          item={watchedItem.getEditableObject() as KubeObjectInterface}
+          open
+          onClose={onClose}
+          onSave={handleSave}
+          allowToHideManagedFields
+          errorMessage={errorMessage}
+          onEditorChanged={() => setErrorMessage('')}
+        />
+      ),
+    });
+  }, [isActivityOpen, watchedItem, errorMessage, activityId, onClose, handleSave, setErrorMessage]);
+
+  return null;
+}
+
 export default function EditButton(props: EditButtonProps) {
   const dispatch: AppDispatch = useDispatch();
   const { item, options = {}, buttonStyle, afterConfirm } = props;
@@ -51,9 +99,9 @@ export default function EditButton(props: EditButtonProps) {
   const { t } = useTranslation(['translation', 'resource']);
   const dispatchHeadlampEditEvent = useEventCallback(HeadlampEventType.EDIT_RESOURCE);
   const activityId = 'edit-' + item.metadata.uid;
+  const isEditorOpen = useSelector((state: RootState) => !!state.activity.activities[activityId]);
 
   const originalItemRef = React.useRef<KubeObjectInterface | null>(null);
-  const isActivityOpenRef = React.useRef(false);
 
   function makeErrorMessage(err: any) {
     const status = err?.status;
@@ -93,57 +141,49 @@ export default function EditButton(props: EditButtonProps) {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const applyFunc = React.useCallback(updateFunc, [item]);
 
-  // When the resource is updated externally (polling picks up a new resourceVersion),
-  // push the new item into the Activity so EditorDialog can detect the conflict and
-  // warn the user rather than silently discarding their unsaved edits.
-  React.useEffect(() => {
-    if (!isActivityOpenRef.current) return;
-    Activity.update(activityId, {
-      content: (
-        <EditorDialog
-          noDialog
-          item={item.getEditableObject() as KubeObjectInterface}
-          open
-          onClose={() => {
-            isActivityOpenRef.current = false;
-            Activity.close(activityId);
-          }}
-          onSave={handleSave}
-          allowToHideManagedFields
-          errorMessage={errorMessage}
-          onEditorChanged={() => setErrorMessage('')}
-        />
-      ),
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item, errorMessage]);
+  const handleSave = React.useCallback(
+    (items: KubeObjectInterface[]) => {
+      const newItemDef = Array.isArray(items) ? items[0] : items;
+      const cancelUrl = location.pathname;
+      const itemName = item.metadata.name;
 
-  function handleSave(items: KubeObjectInterface[]) {
-    const newItemDef = Array.isArray(items) ? items[0] : items;
-    const cancelUrl = location.pathname;
-    const itemName = item.metadata.name;
+      Activity.update(activityId, { minimized: true });
+      dispatch(
+        clusterAction(() => applyFunc(newItemDef), {
+          startMessage: t('translation|Applying changes to {{ itemName }}…', { itemName }),
+          cancelledMessage: t('translation|Cancelled changes to {{ itemName }}.', { itemName }),
+          successMessage: t('translation|Applied changes to {{ itemName }}.', { itemName }),
+          errorMessage: t('translation|Failed to apply changes to {{ itemName }}.', { itemName }),
+          cancelUrl,
+          errorUrl: cancelUrl,
+          ...options,
+        })
+      );
 
-    Activity.update(activityId, { minimized: true });
-    dispatch(
-      clusterAction(() => applyFunc(newItemDef), {
-        startMessage: t('translation|Applying changes to {{ itemName }}…', { itemName }),
-        cancelledMessage: t('translation|Cancelled changes to {{ itemName }}.', { itemName }),
-        successMessage: t('translation|Applied changes to {{ itemName }}.', { itemName }),
-        errorMessage: t('translation|Failed to apply changes to {{ itemName }}.', { itemName }),
-        cancelUrl,
-        errorUrl: cancelUrl,
-        ...options,
-      })
-    );
+      dispatchHeadlampEditEvent({
+        resource: item,
+        status: EventStatus.CLOSED,
+      });
+      if (afterConfirm) {
+        afterConfirm();
+      }
+    },
+    [
+      activityId,
+      afterConfirm,
+      applyFunc,
+      dispatch,
+      dispatchHeadlampEditEvent,
+      item,
+      location,
+      options,
+      t,
+    ]
+  );
 
-    dispatchHeadlampEditEvent({
-      resource: item,
-      status: EventStatus.CLOSED,
-    });
-    if (afterConfirm) {
-      afterConfirm();
-    }
-  }
+  const handleClose = React.useCallback(() => {
+    Activity.close(activityId);
+  }, [activityId]);
 
   if (!item) {
     return null;
@@ -165,6 +205,16 @@ export default function EditButton(props: EditButtonProps) {
         setIsReadOnly(!allowed);
       }}
     >
+      {isEditorOpen && (
+        <ResourceWatcher
+          item={item}
+          activityId={activityId}
+          errorMessage={errorMessage}
+          handleSave={handleSave}
+          setErrorMessage={setErrorMessage}
+          onClose={handleClose}
+        />
+      )}
       <ActionButton
         description={t('translation|Edit')}
         buttonStyle={buttonStyle}
@@ -178,7 +228,6 @@ export default function EditButton(props: EditButtonProps) {
           // "save without changes" produces a managedFields-only diff that
           // patchUpdate would reject.
           originalItemRef.current = normalizeBaselineForPatch(editableObject);
-          isActivityOpenRef.current = true;
           Activity.launch({
             id: activityId,
             title: t('translation|Edit') + ': ' + item.metadata.name,
@@ -189,10 +238,7 @@ export default function EditButton(props: EditButtonProps) {
                 noDialog
                 item={editableObject}
                 open
-                onClose={() => {
-                  isActivityOpenRef.current = false;
-                  Activity.close(activityId);
-                }}
+                onClose={handleClose}
                 onSave={handleSave}
                 allowToHideManagedFields
                 errorMessage={errorMessage}
