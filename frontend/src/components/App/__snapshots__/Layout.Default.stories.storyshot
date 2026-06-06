@@ -20,6 +20,7 @@
             class="MuiToolbar-root MuiToolbar-gutters MuiToolbar-regular css-1g5gxk7-MuiToolbar-root"
           >
             <a
+              aria-label="Home"
               href="/"
             >
               <div

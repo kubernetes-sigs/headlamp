@@ -553,7 +553,7 @@ export const PureTopBar = memo(
               </>
             ) : (
               <>
-                <Link to="/">
+                <Link to="/" aria-label={t('translation|Home')}>
                   <AppLogo />
                 </Link>
                 <AppBarActions

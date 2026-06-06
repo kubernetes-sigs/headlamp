@@ -17,6 +17,7 @@
           />
         </button>
         <a
+          aria-label="Home"
           href="/"
           style="display: flex; align-items: center; text-decoration: none; margin-left: 8px;"
         >

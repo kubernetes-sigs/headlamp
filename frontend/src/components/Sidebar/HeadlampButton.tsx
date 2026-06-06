@@ -72,6 +72,7 @@ export default function HeadlampButton({
       </Button>
       <Link
         to="/"
+        aria-label="Home"
         style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', marginLeft: '8px' }}
       >
         <AppLogo
