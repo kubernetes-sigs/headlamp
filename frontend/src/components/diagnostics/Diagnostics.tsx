@@ -116,8 +116,7 @@ function containerSeverity(reason?: string, exitCode?: number): AlertColor {
 
 /** Returns the occurrence count for an event, falling back to 1 if unavailable. */
 function getEventCount(event: EventLike) {
-  const series = (event as KubeEventV2).series;
-  const count = (event as EventV2).count ?? series?.count ?? (event as KubeEventV2).count;
+  const count = (event as EventV2).count ?? (event as KubeEventV2).deprecatedCount;
   return typeof count === 'number' && count > 0 ? count : 1;
 }
 
@@ -126,8 +125,8 @@ function getEventLastOccurrence(event: EventLike) {
   return (
     (event as EventV2).lastOccurrence ||
     (event as KubeEventV2).series?.lastObservedTime ||
-    (event as KubeEventV2).eventTime ||
     (event as KubeEventV2).deprecatedLastTimestamp ||
+    (event as KubeEventV2).eventTime ||
     (event as KubeEventV2).deprecatedFirstTimestamp ||
     (event as KubeEventV2).metadata?.creationTimestamp ||
     ''

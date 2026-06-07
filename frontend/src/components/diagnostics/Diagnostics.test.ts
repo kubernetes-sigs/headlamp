@@ -102,7 +102,7 @@ describe('diagnostics helpers', () => {
         type: 'Warning',
         reason: 'BackOff',
         note: 'Back-off restarting failed container gadget',
-        count: 5,
+        deprecatedCount: 5,
         eventTime: '2026-05-09T05:31:00Z',
         deprecatedLastTimestamp: '2026-05-09T05:31:00Z',
         deprecatedFirstTimestamp: '2026-05-09T05:20:00Z',

@@ -20,14 +20,13 @@ import type { QueryParameters } from './api/v1/queryParameters';
 import type { ApiError } from './api/v2/ApiError';
 import { ResourceClasses } from './index';
 import { KubeMetadata } from './KubeMetadata';
-import type { KubeObjectClass } from './KubeObject';
+import type { KubeObjectClass, KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 
-export interface KubeEventV2 {
+export interface KubeEventV2 extends KubeObjectInterface {
   type: string;
   reason: string;
   note: string;
-  metadata: KubeMetadata;
   regarding: {
     kind: string;
     namespace: string;
@@ -38,7 +37,25 @@ export interface KubeEventV2 {
     fieldPath: string;
   };
   eventTime: string;
-  [otherProps: string]: any;
+  series?: {
+    count: number;
+    lastObservedTime: string;
+    state: string;
+  };
+  reportingController?: string;
+  reportingInstance?: string;
+  action?: string;
+  deprecatedCount?: number;
+  deprecatedFirstTimestamp?: string;
+  deprecatedLastTimestamp?: string;
+  deprecatedSource?: {
+    component?: string;
+    host?: string;
+  };
+  /** @deprecated Use 'note' instead. */
+  message?: string;
+  /** @deprecated Use 'regarding' instead. */
+  involvedObject?: KubeEventV2['regarding'];
 }
 
 class EventV2 extends KubeObject<KubeEventV2> {
@@ -111,8 +128,13 @@ class EventV2 extends KubeObject<KubeEventV2> {
 
   get count() {
     const series = this.getValue('series');
-    if (!!series) {
+    if (series) {
       return series.count;
+    }
+
+    const deprecatedCount = this.getValue('deprecatedCount');
+    if (typeof deprecatedCount === 'number') {
+      return deprecatedCount;
     }
 
     return this.getValue('count');
