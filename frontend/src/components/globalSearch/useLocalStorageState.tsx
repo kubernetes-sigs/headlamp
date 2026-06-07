@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 /** Store listeners to allow updates outside of the hook */
 const updateListeners: Record<string, Array<(newValue: any) => void>> = {};
@@ -44,11 +44,16 @@ export function useLocalStorageState<T>(key: string, defaultValue: T) {
 
   const [state, setState] = useState<T>(() => get());
 
-  const set = (updater: (old: T) => T) => {
-    const newValue = updater(state);
-    put(newValue);
-    setState(newValue);
-  };
+  const set = useCallback(
+    (updater: (old: T) => T) => {
+      setState(oldState => {
+        const newValue = updater(oldState);
+        put(newValue);
+        return newValue;
+      });
+    },
+    [key]
+  );
 
   // Listen to any updates to local storage
   useEffect(() => {
@@ -60,8 +65,7 @@ export function useLocalStorageState<T>(key: string, defaultValue: T) {
     return () => {
       updateListeners[key] = updateListeners[key].filter(it => it !== listener);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, set]);
 
   return [state, set] as const;
 }
