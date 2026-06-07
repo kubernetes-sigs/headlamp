@@ -1,0 +1,71 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-0"
+    >
+      <div
+        class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+      >
+        <div
+          aria-activedescendant=""
+          aria-autocomplete="list"
+          aria-expanded="false"
+          autocapitalize="none"
+          class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth Mui-focused MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd css-1qswgw4-MuiInputBase-root-MuiOutlinedInput-root"
+          role="combobox"
+          spellcheck="false"
+        >
+          <input
+            aria-invalid="false"
+            autocomplete="off"
+            class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+            id=":mock-test-id:"
+            placeholder="Search resources, pages, clusters by name"
+            type="text"
+            value=""
+          />
+          <button
+            aria-label="Clear"
+            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ppbyx2-MuiButtonBase-root-MuiIconButton-root"
+            data-mui-internal-clone-element="true"
+            tabindex="0"
+            type="button"
+          >
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+          <fieldset
+            aria-hidden="true"
+            class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+          >
+            <legend
+              class="css-1whs34k-MuiNotchedOutlined-root"
+            >
+              <span
+                class="notranslate"
+              >
+                ​
+              </span>
+            </legend>
+          </fieldset>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div
+    class="MuiPopper-root css-5vmmeo-MuiPopper-root"
+    data-popper-escaped=""
+    data-popper-placement="bottom"
+    data-popper-reference-hidden=""
+    role="tooltip"
+    style="position: absolute; top: 0px; left: 0px; margin: 0px; right: auto; bottom: auto; transform: translate(0px, 0px);"
+  >
+    <ul
+      aria-labelledby=":mock-test-id:"
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-atm94b-MuiPaper-root"
+      id=":mock-test-id:"
+      role="listbox"
+    />
+  </div>
+</body>
