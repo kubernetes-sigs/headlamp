@@ -58,19 +58,8 @@ const store = configureStore({
   },
 });
 
-const queryClients = new Map<string, QueryClient>();
 const recentSearchItemsKey = 'search-recent-items';
 const sampleClusterApiBase = `http://localhost:4466/clusters/${sampleCluster.name}`;
-
-function getQueryClient(storyId: string) {
-  let queryClient = queryClients.get(storyId);
-  if (!queryClient) {
-    queryClient = new QueryClient();
-    queryClients.set(storyId, queryClient);
-  }
-
-  return queryClient;
-}
 
 function makeKubeList(apiVersion: string, kind: string, items: any[] = []) {
   return {
@@ -159,17 +148,24 @@ const meta: Meta<typeof GlobalSearchContent> = {
     },
   },
   decorators: [
-    (Story, context) => {
+    Story => {
       localStorage.removeItem(recentSearchItemsKey);
 
-      const queryClient = getQueryClient(context.id);
+      const queryClient = new QueryClient({
+        defaultOptions: {
+          queries: {
+            retry: false,
+            gcTime: 0,
+          },
+        },
+      });
 
       return (
-        <QueryClientProvider client={queryClient}>
-          <TestContext store={store} routerMap={{ cluster: sampleCluster.name }} urlPrefix="/c">
+        <TestContext store={store} routerMap={{ cluster: sampleCluster.name }} urlPrefix="/c">
+          <QueryClientProvider client={queryClient}>
             <Story />
-          </TestContext>
-        </QueryClientProvider>
+          </QueryClientProvider>
+        </TestContext>
       );
     },
   ],
