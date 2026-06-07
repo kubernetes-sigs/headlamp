@@ -529,14 +529,14 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
       {/* Lines selector */}
       <FormControl sx={{ minWidth: 120 }}>
-        <InputLabel>Lines</InputLabel>
+        <InputLabel>{t('translation|Lines')}</InputLabel>
         <Select value={lines} onChange={handleLinesChange}>
           {[100, 1000, 2500].map(i => (
             <MenuItem key={i} value={i}>
               {i}
             </MenuItem>
           ))}
-          <MenuItem value={-1}>All</MenuItem>
+          <MenuItem value={-1}>{t('translation|All')}</MenuItem>
         </Select>
       </FormControl>
 
