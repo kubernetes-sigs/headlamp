@@ -411,39 +411,42 @@ export function ContainerTextField(props: ContainerTextFieldProps) {
   const { value, onChange, label } = props;
   const { t } = useTranslation(['translation']);
   const groupLabelId = useId('container-group-');
-  const [rowIds, setRowIds] = React.useState<string[]>(() => value.map(() => nextContainerRowId()));
+  const safeValue = Array.isArray(value) ? value : [];
+  const [rowIds, setRowIds] = React.useState<string[]>(() =>
+    safeValue.map(() => nextContainerRowId())
+  );
 
   // Keep row IDs in sync when value changes externally (e.g. YAML editor).
   React.useEffect(() => {
     setRowIds(prev => {
-      if (prev.length === value.length) return prev;
-      if (prev.length < value.length) {
+      if (prev.length === safeValue.length) return prev;
+      if (prev.length < safeValue.length) {
         const next = [...prev];
-        while (next.length < value.length) {
+        while (next.length < safeValue.length) {
           next.push(nextContainerRowId());
         }
         return next;
       }
-      return prev.slice(0, value.length);
+      return prev.slice(0, safeValue.length);
     });
-  }, [value.length]);
+  }, [safeValue.length]);
 
   function handleAdd() {
     setRowIds(prev => [...prev, nextContainerRowId()]);
     onChange([
-      ...value,
+      ...safeValue,
       { name: '', image: '', ports: [{ containerPort: 80 }], imagePullPolicy: 'Always' },
     ]);
   }
 
   function handleRemove(index: number) {
     setRowIds(prev => prev.filter((_, i) => i !== index));
-    onChange(value.filter((_, i) => i !== index));
+    onChange(safeValue.filter((_, i) => i !== index));
   }
 
   function handleEdit(index: number, field: string, newVal: string) {
     onChange(
-      value.map((c, i) => {
+      safeValue.map((c, i) => {
         if (i !== index) return c;
         if (field === 'containerPort') {
           const portNum = parseInt(newVal, 10);
@@ -459,7 +462,7 @@ export function ContainerTextField(props: ContainerTextFieldProps) {
   }
 
   function getPort(container: Record<string, any>): string {
-    const port = container?.ports?.[0]?.containerPort ?? container.containerPort;
+    const port = container?.ports?.[0]?.containerPort ?? container?.containerPort;
     return port !== null && port !== undefined ? String(port) : '';
   }
 
@@ -470,55 +473,61 @@ export function ContainerTextField(props: ContainerTextFieldProps) {
           {label}
         </Typography>
       )}
-      {value.map((container, index) => (
-        <Box
-          key={rowIds[index] ?? `container-${index}`}
-          sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 2, mb: 2 }}
-        >
-          <FormTextField
-            label={t('translation|Name')}
-            value={container.name ?? ''}
-            onChange={e => handleEdit(index, 'name', e.target.value)}
-            inputProps={{ 'aria-label': t('translation|Container name') }}
-          />
-          <FormTextField
-            label={t('translation|Image')}
-            value={container.image ?? ''}
-            onChange={e => handleEdit(index, 'image', e.target.value)}
-            inputProps={{ 'aria-label': t('translation|Container image') }}
-          />
-          <FormTextField
-            label={t('translation|Container Port')}
-            value={getPort(container)}
-            onChange={e => handleEdit(index, 'containerPort', e.target.value)}
-            inputProps={{ 'aria-label': t('translation|Container port') }}
-            type="number"
-          />
-          <FormTextField
-            label={t('translation|Pull Policy')}
-            value={container.imagePullPolicy ?? 'Always'}
-            onChange={e => handleEdit(index, 'imagePullPolicy', e.target.value)}
-            inputProps={{ 'aria-label': t('translation|Image pull policy') }}
-            select
+      {safeValue.map((rawContainer, index) => {
+        const container =
+          rawContainer && typeof rawContainer === 'object' && !Array.isArray(rawContainer)
+            ? (rawContainer as Record<string, any>)
+            : {};
+        return (
+          <Box
+            key={rowIds[index] ?? `container-fallback-${index}`}
+            sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 2, mb: 2 }}
           >
-            {IMAGE_PULL_POLICIES.map(p => (
-              <MenuItem key={p} value={p}>
-                {p}
-              </MenuItem>
-            ))}
-          </FormTextField>
-          <IconButton
-            onClick={() => handleRemove(index)}
-            color="default"
-            size="small"
-            aria-label={t('translation|Remove container {{ name }}', {
-              name: container.name ?? index,
-            })}
-          >
-            <Icon icon="mdi:close-circle" width={24} height={24} />
-          </IconButton>
-        </Box>
-      ))}
+            <FormTextField
+              label={t('translation|Name')}
+              value={container.name ?? ''}
+              onChange={e => handleEdit(index, 'name', e.target.value)}
+              inputProps={{ 'aria-label': t('translation|Container name') }}
+            />
+            <FormTextField
+              label={t('translation|Image')}
+              value={container.image ?? ''}
+              onChange={e => handleEdit(index, 'image', e.target.value)}
+              inputProps={{ 'aria-label': t('translation|Container image') }}
+            />
+            <FormTextField
+              label={t('translation|Container Port')}
+              value={getPort(container)}
+              onChange={e => handleEdit(index, 'containerPort', e.target.value)}
+              inputProps={{ 'aria-label': t('translation|Container port') }}
+              type="number"
+            />
+            <FormTextField
+              label={t('translation|Pull Policy')}
+              value={container.imagePullPolicy ?? 'Always'}
+              onChange={e => handleEdit(index, 'imagePullPolicy', e.target.value)}
+              inputProps={{ 'aria-label': t('translation|Image pull policy') }}
+              select
+            >
+              {IMAGE_PULL_POLICIES.map(p => (
+                <MenuItem key={p} value={p}>
+                  {p}
+                </MenuItem>
+              ))}
+            </FormTextField>
+            <IconButton
+              onClick={() => handleRemove(index)}
+              color="default"
+              size="small"
+              aria-label={t('translation|Remove container {{ name }}', {
+                name: container.name ?? index,
+              })}
+            >
+              <Icon icon="mdi:close-circle" width={24} height={24} />
+            </IconButton>
+          </Box>
+        );
+      })}
       <Box sx={{ mt: 2 }}>
         <Button
           onClick={handleAdd}
