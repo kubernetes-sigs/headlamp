@@ -172,69 +172,75 @@ export default {
   ],
   parameters: {
     msw: {
-      handlers: [
-        // Mock authorization checks
-        http.post(
-          'http://localhost:4466/clusters/default/apis/authorization.k8s.io/v1/selfsubjectaccessreviews',
-          () => HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
-        ),
-        // Mock the PATCH request to create ephemeral container
-        http.patch(
-          'http://localhost:4466/clusters/default/api/v1/namespaces/default/pods/:podName/ephemeralcontainers',
-          async ({ request, params }) => {
-            const podName = String(params.podName);
-            const body = (await request.json()) as any;
-            const newEphemeral = body?.spec?.ephemeralContainers?.slice(-1)[0] || {};
-            const targetContainerName = newEphemeral?.targetContainerName;
+      handlers: {
+        story: [
+          // Mock authorization checks
+          http.post(
+            /\/selfsubjectaccessreviews$/,
+            () => HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
+          ),
+          // Mock the PATCH request to create ephemeral container
+          http.patch(
+            /\/ephemeralcontainers$/,
+            async ({ request }) => {
+              const url = new URL(request.url);
+              const parts = url.pathname.split('/');
+              const podName = parts[parts.length - 2];
+              const body = (await request.json()) as any;
+              const newEphemeral = body?.spec?.ephemeralContainers?.slice(-1)[0] || {};
+              const targetContainerName = newEphemeral?.targetContainerName;
 
-            const currentPodData = mockPodsDb.get(podName) || mockPod.jsonData;
-            const debugContainerName = newEphemeral?.name || 'headlamp-debug';
+              const currentPodData = mockPodsDb.get(podName) || mockPod.jsonData;
+              const debugContainerName = newEphemeral?.name || 'headlamp-debug';
 
-            const updatedPod = {
-              ...currentPodData,
-              spec: {
-                ...currentPodData.spec,
-                ephemeralContainers: [
-                  ...(currentPodData.spec.ephemeralContainers || []),
-                  {
-                    name: debugContainerName,
-                    image: newEphemeral?.image || 'busybox',
-                    command: newEphemeral?.command || ['sh'],
-                    ...(targetContainerName ? { targetContainerName } : {}),
-                  },
-                ],
-              },
-              status: {
-                ...currentPodData.status,
-                ephemeralContainerStatuses: [
-                  ...(currentPodData.status.ephemeralContainerStatuses || []),
-                  {
-                    name: debugContainerName,
-                    image: newEphemeral?.image || 'busybox',
-                    imageID: '',
-                    ready: false,
-                    restartCount: 0,
-                    state: { running: { startedAt: '2023-01-01T00:00:01Z' } },
-                    lastState: {},
-                  },
-                ],
-              },
-            };
+              const updatedPod = {
+                ...currentPodData,
+                spec: {
+                  ...currentPodData.spec,
+                  ephemeralContainers: [
+                    ...(currentPodData.spec.ephemeralContainers || []),
+                    {
+                      name: debugContainerName,
+                      image: newEphemeral?.image || 'busybox',
+                      command: newEphemeral?.command || ['sh'],
+                      ...(targetContainerName ? { targetContainerName } : {}),
+                    },
+                  ],
+                },
+                status: {
+                  ...currentPodData.status,
+                  ephemeralContainerStatuses: [
+                    ...(currentPodData.status.ephemeralContainerStatuses || []),
+                    {
+                      name: debugContainerName,
+                      image: newEphemeral?.image || 'busybox',
+                      imageID: '',
+                      ready: false,
+                      restartCount: 0,
+                      state: { running: { startedAt: '2023-01-01T00:00:01Z' } },
+                      lastState: {},
+                    },
+                  ],
+                },
+              };
 
-            mockPodsDb.set(podName, updatedPod);
-            return HttpResponse.json(updatedPod);
-          }
-        ),
-        // Mock the GET request to poll pod status — returns pod with running debug container
-        http.get(
-          'http://localhost:4466/clusters/default/api/v1/namespaces/default/pods/:podName',
-          ({ params }) => {
-            const podName = String(params.podName);
-            const podData = mockPodsDb.get(podName);
-            return HttpResponse.json(podData || mockPod.jsonData);
-          }
-        ),
-      ],
+              mockPodsDb.set(podName, updatedPod);
+              return HttpResponse.json(updatedPod);
+            }
+          ),
+          // Mock the GET request to poll pod status — returns pod with running debug container
+          http.get(
+            /\/api\/v1\/namespaces\/([^/]+)\/pods\/([^/]+)$/,
+            ({ request }) => {
+              const url = new URL(request.url);
+              const parts = url.pathname.split('/');
+              const podName = parts[parts.length - 1];
+              const podData = mockPodsDb.get(podName);
+              return HttpResponse.json(podData || mockPod.jsonData);
+            }
+          ),
+        ],
+      },
     },
   },
 } as Meta<typeof PodDebugTerminal>;
