@@ -298,6 +298,11 @@ export function handleRunCommand(
     event.sender.send('command-stderr', commandData.id, data.toString());
   });
 
+  child.on('error', (err: Error) => {
+    event.sender.send('command-stderr', commandData.id, err.message);
+    event.sender.send('command-exit', commandData.id, -1);
+  });
+
   child.on('exit', (code: number | null) => {
     event.sender.send('command-exit', commandData.id, code);
   });
