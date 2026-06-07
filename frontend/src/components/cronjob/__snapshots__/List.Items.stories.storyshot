@@ -898,7 +898,7 @@
               >
                 <p
                   aria-label="Every minute"
-                  class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                   data-mui-internal-clone-element="true"
                 >
                   * * * * *
@@ -944,7 +944,7 @@
               >
                 <p
                   aria-label="2022-01-01T00:00:00.000Z"
-                  class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                   data-mui-internal-clone-element="true"
                 >
                   90d
@@ -1025,7 +1025,7 @@
               >
                 <p
                   aria-label=""
-                  class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                   data-mui-internal-clone-element="true"
                 >
                   *
@@ -1071,7 +1071,7 @@
               >
                 <p
                   aria-label="2022-01-01T00:00:00.000Z"
-                  class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                   data-mui-internal-clone-element="true"
                 >
                   90d
@@ -1152,7 +1152,7 @@
               >
                 <p
                   aria-label="Every hour"
-                  class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                   data-mui-internal-clone-element="true"
                 >
                   0 * * * *
@@ -1198,7 +1198,7 @@
               >
                 <p
                   aria-label="2022-01-01T00:00:00.000Z"
-                  class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                   data-mui-internal-clone-element="true"
                 >
                   90d
@@ -1279,7 +1279,7 @@
               >
                 <p
                   aria-label="At 09:00 AM, Monday through Friday"
-                  class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                   data-mui-internal-clone-element="true"
                 >
                   0 9 * * 1-5
@@ -1325,7 +1325,7 @@
               >
                 <p
                   aria-label="2022-01-01T00:00:00.000Z"
-                  class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                   data-mui-internal-clone-element="true"
                 >
                   90d
@@ -1406,7 +1406,7 @@
               >
                 <p
                   aria-label="At 12:00 AM, on the last day of the month"
-                  class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                   data-mui-internal-clone-element="true"
                 >
                   0 0 L * *
@@ -1452,7 +1452,7 @@
               >
                 <p
                   aria-label="2022-01-01T00:00:00.000Z"
-                  class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                  class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                   data-mui-internal-clone-element="true"
                 >
                   90d
