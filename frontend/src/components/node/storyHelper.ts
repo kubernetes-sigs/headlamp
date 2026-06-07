@@ -14,9 +14,107 @@
  * limitations under the License.
  */
 
+import { KubeMetrics } from '../../lib/k8s/cluster';
 import { KubeNode } from '../../lib/k8s/node';
 
 const creationTimestamp = new Date('2022-01-01').toISOString();
+
+/**
+ * A fully-populated node with capacity, allocatable, conditions and system info.
+ * Useful for Details and Charts stories that need realistic resource data.
+ */
+export const NODE_DETAILED_DATA: KubeNode = {
+  kind: 'Node',
+  apiVersion: 'v1',
+  metadata: {
+    name: 'node',
+    creationTimestamp,
+    uid: 'detailed-node-uid',
+    labels: {
+      'node-role.kubernetes.io/control-plane': '',
+      'kubernetes.io/arch': 'amd64',
+      'kubernetes.io/os': 'linux',
+    },
+  },
+  spec: {
+    podCIDR: '10.244.0.0/24',
+    podCIDRs: ['10.244.0.0/24'],
+    providerID: 'kind://docker/headlamp/node',
+    taints: [],
+    unschedulable: false,
+  },
+  status: {
+    addresses: [
+      { type: 'InternalIP', address: '172.18.0.2' },
+      { type: 'Hostname', address: 'node' },
+    ],
+    allocatable: {
+      cpu: '4',
+      'ephemeral-storage': '50000000Ki',
+      'hugepages-1Gi': '0',
+      'hugepages-2Mi': '0',
+      memory: '8000000Ki',
+      pods: '110',
+    },
+    capacity: {
+      cpu: '4',
+      'ephemeral-storage': '50000000Ki',
+      'hugepages-1Gi': '0',
+      'hugepages-2Mi': '0',
+      memory: '8000000Ki',
+      pods: '110',
+    },
+    conditions: [
+      {
+        type: 'Ready',
+        status: 'True',
+        lastHeartbeatTime: creationTimestamp,
+        lastTransitionTime: creationTimestamp,
+        reason: 'KubeletReady',
+        message: 'kubelet is posting ready status',
+      },
+    ],
+    nodeInfo: {
+      architecture: 'amd64',
+      bootID: 'boot-id',
+      containerRuntimeVersion: 'containerd://1.6.9',
+      kernelVersion: '5.15.0',
+      kubeProxyVersion: 'v1.25.3',
+      kubeletVersion: 'v1.25.3',
+      machineID: 'machine-id',
+      operatingSystem: 'linux',
+      osImage: 'Ubuntu 22.04 LTS',
+      systemUUID: 'system-uuid',
+    },
+  },
+};
+
+/**
+ * Node metrics matching {@link NODE_DETAILED_DATA}: usage is half of the node's
+ * capacity, so the interactive Storybook view renders ~50% CPU/memory usage.
+ *
+ * Note: the storyshot snapshot shows 0% usage because metric polling resolves
+ * after the snapshot is captured (same as the cluster/Overview stories).
+ */
+export const NODE_METRICS_DATA: KubeMetrics[] = [
+  {
+    metadata: {
+      name: 'node',
+      creationTimestamp,
+      uid: 'node-metrics-uid',
+    },
+    usage: {
+      cpu: '2',
+      memory: '4000000Ki',
+    },
+    status: {
+      capacity: {
+        cpu: '4',
+        memory: '8000000Ki',
+      },
+    },
+  },
+];
 
 export const NODE_DUMMY_DATA: KubeNode[] = [
   {
