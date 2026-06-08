@@ -59,6 +59,7 @@ import { getA8RMetadata } from './A8RInfo';
 import DeleteButton from './DeleteButton';
 import DownloadButton from './DownloadButton';
 import EditButton from './EditButton';
+import { getResourceRowId } from './getResourceRowId';
 import ResourceTableMultiActions from './ResourceTableMultiActions';
 import { RestartButton } from './RestartButton';
 import ScaleButton from './ScaleButton';
@@ -718,7 +719,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
         }}
         globalFilterFn="kubeObjectSearch"
         filterFunction={filterFunc}
-        getRowId={item => item?.metadata?.uid}
+        getRowId={getResourceRowId}
       />
     </>
   );
