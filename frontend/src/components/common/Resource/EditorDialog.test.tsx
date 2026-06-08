@@ -20,21 +20,50 @@ import React from 'react';
 import { TestContext } from '../../../test';
 import EditorDialog from './EditorDialog';
 
-vi.mock('js-yaml', () => ({
-  dump: vi.fn((value: unknown) => JSON.stringify(value, null, 2)),
-  loadAll: vi.fn((value: string) => {
-    if (value.includes('invalid')) {
-      throw new Error('Invalid YAML');
+const { mockSetModelMarkers, mockGetModel } = vi.hoisted(() => ({
+  mockSetModelMarkers: vi.fn(),
+  mockGetModel: vi.fn(() => ({})),
+}));
+
+vi.mock('js-yaml', () => {
+  class YAMLException extends Error {
+    reason: string;
+    mark: any;
+    constructor(reason: string, mark: any) {
+      super(reason);
+      this.name = 'YAMLException';
+      this.reason = reason;
+      this.mark = mark;
     }
+  }
 
-    return [{ apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } }];
-  }),
-}));
+  return {
+    YAMLException,
+    dump: vi.fn((value: unknown) => JSON.stringify(value, null, 2)),
+    loadAll: vi.fn((value: string) => {
+      if (value.includes('invalid')) {
+        throw new YAMLException('Invalid YAML', { line: 2, column: 5 });
+      }
 
-vi.mock('@monaco-editor/react', () => ({
-  Editor: () => null,
-  DiffEditor: () => null,
-}));
+      return [{ apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } }];
+    }),
+  };
+});
+
+vi.mock('@monaco-editor/react', () => {
+  return {
+    Editor: ({ onChange, onMount }: any) => {
+      if (onMount) {
+        onMount(
+          { getModel: mockGetModel },
+          { editor: { setModelMarkers: mockSetModelMarkers }, MarkerSeverity: { Error: 8 } }
+        );
+      }
+      return <textarea aria-label="monaco-code" onChange={e => onChange?.(e.target.value)} />;
+    },
+    DiffEditor: () => null,
+  };
+});
 
 vi.mock('./DocsViewer', () => ({
   default: () => null,
@@ -121,5 +150,37 @@ describe('EditorDialog', () => {
     });
 
     expect(screen.queryByText('Invalid YAML')).not.toBeInTheDocument();
+  });
+
+  it('sets model markers on invalid YAML and clears them on valid YAML in monaco editor', () => {
+    localStorage.setItem('useSimpleEditor', 'false'); // Use monaco
+    renderEditorDialog();
+
+    const editor = screen.getByRole('textbox', { name: /monaco-code/i });
+
+    // Simulate invalid yaml
+    fireEvent.change(editor, { target: { value: 'invalid' } });
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(mockSetModelMarkers).toHaveBeenCalledWith({}, 'yaml', [
+      {
+        startLineNumber: 3,
+        startColumn: 6,
+        endLineNumber: 3,
+        endColumn: 7,
+        message: 'Invalid YAML',
+        severity: 8,
+      },
+    ]);
+
+    // Simulate valid yaml
+    fireEvent.change(editor, { target: { value: 'valid' } });
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(mockSetModelMarkers).toHaveBeenCalledWith({}, 'yaml', []);
   });
 });
