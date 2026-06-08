@@ -33,6 +33,13 @@ export default {
 } as Meta;
 
 const Template: StoryFn = () => <Details name="my-service-account" namespace="default" />;
+const MinimalTemplate: StoryFn = () => (
+  <Details name="minimal-service-account" namespace="default" />
+);
+
+const mockEvents = http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+  HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
+);
 
 export const Loading = Template.bind({});
 Loading.parameters = {
@@ -57,6 +64,52 @@ WithData.parameters = {
           'http://localhost:4466/api/v1/namespaces/default/serviceaccounts/my-service-account',
           () => HttpResponse.json(SERVICE_ACCOUNT_DUMMY_DATA[0])
         ),
+        mockEvents,
+      ],
+    },
+  },
+};
+
+export const NoSecrets = MinimalTemplate.bind({});
+NoSecrets.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          'http://localhost:4466/api/v1/namespaces/default/serviceaccounts/minimal-service-account',
+          () => HttpResponse.json(SERVICE_ACCOUNT_DUMMY_DATA[1])
+        ),
+        mockEvents,
+      ],
+    },
+  },
+};
+
+export const AutomountDisabled = MinimalTemplate.bind({});
+AutomountDisabled.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          'http://localhost:4466/api/v1/namespaces/default/serviceaccounts/minimal-service-account',
+          () => HttpResponse.json(SERVICE_ACCOUNT_DUMMY_DATA[1])
+        ),
+        mockEvents,
+      ],
+    },
+  },
+};
+
+export const Error = Template.bind({});
+Error.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          'http://localhost:4466/api/v1/namespaces/default/serviceaccounts/my-service-account',
+          () => HttpResponse.json({ message: 'Not found' }, { status: 404 })
+        ),
+        mockEvents,
       ],
     },
   },

@@ -42,4 +42,18 @@ export const SERVICE_ACCOUNT_DUMMY_DATA: KubeServiceAccount[] = [
     imagePullSecrets: [{ name: 'my-pull-secret' }],
     automountServiceAccountToken: true,
   },
+  {
+    kind: 'ServiceAccount',
+    apiVersion: 'v1',
+    metadata: {
+      name: 'minimal-service-account',
+      namespace: 'default',
+      creationTimestamp,
+      uid: 'abc-456',
+      labels: {},
+    },
+    secrets: [],
+    imagePullSecrets: [],
+    automountServiceAccountToken: false,
+  },
 ];
