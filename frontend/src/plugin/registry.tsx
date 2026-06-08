@@ -44,6 +44,7 @@ import { KubeObject } from '../lib/k8s/KubeObject';
 import type { Route } from '../lib/router/Route';
 import {
   addDetailsViewHeaderActionsProcessor,
+  addResourceActionProvider,
   AppBarAction,
   AppBarActionProcessorType,
   AppBarActionsProcessor,
@@ -52,6 +53,8 @@ import {
   DefaultHeaderAction,
   HeaderActionsProcessor,
   HeaderActionType,
+  ResourceAction,
+  ResourceActionProvider,
   setAppBarAction,
   setAppBarActionsProcessor,
   setDetailsViewHeaderAction,
@@ -150,6 +153,8 @@ export type {
   GraphSource,
   IconDefinition,
   OverviewChartsProcessor,
+  ResourceAction,
+  ResourceActionProvider,
 };
 
 export type { ApiResource } from '../lib/k8s/api/v2/ApiResource';
@@ -278,6 +283,14 @@ export default class Registry {
       'Registry.registerClusterChooserComponent is deprecated. Please use registerClusterChooser.'
     );
     return registerClusterChooser(component);
+  }
+
+  /**
+   * Register a resource action provider.
+   * Allows plugins to return custom actions for a given Kubernetes resource.
+   */
+  registerResourceActionProvider(callback: ResourceActionProvider) {
+    return registerResourceActionProvider(callback);
   }
 }
 
@@ -1216,6 +1229,16 @@ export function registerProjectApiResource(apiResource: ApiResource) {
       : apiResource;
 
   store.dispatch(addProjectApiResource(normalizedResource));
+}
+
+/**
+ * Register a resource action provider.
+ * Allows plugins to return custom actions for a given Kubernetes resource.
+ *
+ * @param callback - Callback function that receives a resource and the translation function `t`, and returns an array of resource actions, a single resource action, or null.
+ */
+export function registerResourceActionProvider(callback: ResourceActionProvider) {
+  store.dispatch(addResourceActionProvider(callback));
 }
 
 export {

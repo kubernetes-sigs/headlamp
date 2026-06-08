@@ -248,3 +248,14 @@ For example when you click on a resource (like a Pod or ReplicaSet), the details
 You can create and update Actitivities from plugins using [Activity API](../../api/components/activity/Activity/variables/Activity.md)
 
 Check the [example plugin](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/activity) for the full code.
+
+### Resource Action Provider
+
+Add custom actions to a Kubernetes resource (such as buttons on a details view header and row context menus in tables) using
+[registerResourceActionProvider](../../api/modules/plugin_registry.md#registerresourceactionprovider).
+
+Custom actions automatically support translations, confirmation dialogs, loading spinners, and error notification boundaries out of the box.
+
+- Example plugin: [How to register a Resource Action Provider](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/resource-actions)
+- API reference: [registerResourceActionProvider](../../api/modules/plugin_registry.md#registerresourceactionprovider)
+

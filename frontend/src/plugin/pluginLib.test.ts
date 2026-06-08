@@ -21,6 +21,7 @@ describe('pluginLib variable', () => {
   it('should stay the same for plugin compatibility', async () => {
     const externalLibs = [
       'Iconify',
+      'Lodash',
       'MonacoEditor',
       'MuiCore',
       'MuiLab',
