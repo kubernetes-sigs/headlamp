@@ -41,7 +41,7 @@ Loading.parameters = {
       story: [
         http.get(
           'http://localhost:4466/api/v1/namespaces/default/serviceaccounts/my-service-account',
-          () => HttpResponse.json(SERVICE_ACCOUNT_DUMMY_DATA[0])
+          () => new Promise(() => {})
         ),
       ],
     },
