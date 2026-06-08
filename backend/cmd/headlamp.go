@@ -258,13 +258,7 @@ func baseURLReplace(staticDir string, baseURL string) {
 	mustWriteFile(index, output)
 }
 
-func getOidcCallbackURL(r *http.Request, config *HeadlampConfig) string {
-	// If callback URL is configured, use it
-	if config.OidcCallbackURL != "" {
-		return config.OidcCallbackURL
-	}
-
-	// Otherwise, generate callback URL dynamically
+func getUrlScheme(r *http.Request) string {
 	urlScheme := r.URL.Scheme
 	if urlScheme == "" {
 		// check proxy headers first
@@ -279,6 +273,18 @@ func getOidcCallbackURL(r *http.Request, config *HeadlampConfig) string {
 			urlScheme = "https"
 		}
 	}
+
+	return urlScheme
+}
+
+func getOidcCallbackURL(r *http.Request, config *HeadlampConfig) string {
+	// If callback URL is configured, use it
+	if config.OidcCallbackURL != "" {
+		return config.OidcCallbackURL
+	}
+
+	// Otherwise, generate callback URL dynamically
+	urlScheme := getUrlScheme(r)
 
 	// Clean up + add the base URL to the redirect URL
 	hostWithBaseURL := strings.Trim(r.Host, "/")
@@ -1068,10 +1074,182 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		// Set auth cookie
 		auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
 
+		// Also save the ID token in a separate cookie for OIDC logout (id_token_hint)
+		// Try to get id_token from oauth2 token extras first
+		rawIDToken, ok := oauth2Token.Extra("id_token").(string)
+		logger.Log(logger.LevelInfo, map[string]string{
+			"cluster":         oauthConfig.Cluster,
+			"idTokenExtraOk":  fmt.Sprintf("%v", ok),
+			"tokenType":       tokenType,
+			"rawUserTokenLen": fmt.Sprintf("%d", len(rawUserToken)),
+		}, nil, "oidc-callback: attempting to save ID token cookie")
+
+		if !ok || rawIDToken == "" {
+			// Fallback: if tokenType is id_token, rawUserToken itself is the ID token
+			if tokenType == "id_token" {
+				rawIDToken = rawUserToken
+
+				logger.Log(logger.LevelInfo, map[string]string{
+					"cluster": oauthConfig.Cluster,
+				}, nil, "oidc-callback: using rawUserToken as ID token fallback")
+			}
+		}
+
+		if rawIDToken != "" {
+			auth.SetIDTokenCookie(w, r, oauthConfig.Cluster, rawIDToken, config.BaseURL, config.SessionTTL)
+			logger.Log(logger.LevelInfo, map[string]string{
+				"cluster":       oauthConfig.Cluster,
+				"rawIDTokenLen": fmt.Sprintf("%d", len(rawIDToken)),
+			}, nil, "oidc-callback: ID token cookie saved")
+		} else {
+			logger.Log(logger.LevelWarn, map[string]string{
+				"cluster": oauthConfig.Cluster,
+			}, nil, "oidc-callback: no ID token available to save")
+		}
+
 		redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 	})
+
+	r.HandleFunc("/oidc-logout", func(w http.ResponseWriter, r *http.Request) {
+		cluster := r.URL.Query().Get("cluster")
+
+		// If OIDC logout is disabled, just clear the cookie and redirect to login
+		if config.OidcSkipLogout {
+			logger.Log(logger.LevelInfo, map[string]string{"cluster": cluster},
+				nil, "oidc-logout: disabled, clearing cookie and redirecting")
+			auth.ClearTokenCookie(w, r, cluster, config.BaseURL)
+			auth.ClearIDTokenCookie(w, r, cluster, config.BaseURL)
+			baseURL := strings.TrimRight(config.BaseURL, "/")
+			http.Redirect(w, r, fmt.Sprintf("%s/c/%s/login", baseURL, url.PathEscape(cluster)), http.StatusFound)
+
+			return
+		}
+
+		kContext, err := config.KubeConfigStore.GetContext(cluster)
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+				err, "failed to get context for oidc logout")
+			http.NotFound(w, r)
+
+			return
+		}
+
+		oidcAuthConfig, err := kContext.OidcConfig()
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+				err, "failed to get oidc config for logout")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		ctx := context.Background()
+
+		if config.Insecure {
+			baseTransport, ok := http.DefaultTransport.(*http.Transport)
+			if ok {
+				tr := baseTransport.Clone()
+
+				tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+				if baseTransport.TLSClientConfig != nil {
+					tlsCfg = baseTransport.TLSClientConfig.Clone()
+					tlsCfg.InsecureSkipVerify = true
+				}
+
+				tr.TLSClientConfig = tlsCfg
+				InsecureClient := &http.Client{Transport: tr}
+				ctx = oidc.ClientContext(ctx, InsecureClient)
+			}
+		}
+
+		ctx = auth.ConfigureTLSContext(ctx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
+
+		// Discover the provider's end_session_endpoint
+		provider, err := oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{"idpIssuerURL": oidcAuthConfig.IdpIssuerURL},
+				err, "failed to get provider for logout")
+			// Fall back to just clearing the cookie and redirecting to home
+			auth.ClearTokenCookie(w, r, cluster, config.BaseURL)
+			auth.ClearIDTokenCookie(w, r, cluster, config.BaseURL)
+			http.Redirect(w, r, strings.TrimRight(config.BaseURL, "/")+"/", http.StatusFound)
+
+			return
+		}
+
+		// Get the raw provider claims to extract end_session_endpoint
+		var providerClaims struct {
+			EndSessionEndpoint string `json:"end_session_endpoint"`
+		}
+
+		if err := provider.Claims(&providerClaims); err != nil {
+			logger.Log(logger.LevelError, nil, err, "failed to get provider claims")
+			auth.ClearTokenCookie(w, r, cluster, config.BaseURL)
+			auth.ClearIDTokenCookie(w, r, cluster, config.BaseURL)
+			http.Redirect(w, r, strings.TrimRight(config.BaseURL, "/")+"/", http.StatusFound)
+
+			return
+		}
+
+		// Get the current ID token from cookie to pass as id_token_hint
+		idToken, idTokenErr := auth.GetIDTokenFromCookie(r, cluster)
+		if idTokenErr != nil && !errors.Is(idTokenErr, http.ErrNoCookie) {
+			logger.Log(logger.LevelError, nil, idTokenErr, "failed to get ID token from cookie")
+		} else if errors.Is(idTokenErr, http.ErrNoCookie) {
+			logger.Log(logger.LevelWarn, map[string]string{"cluster": cluster}, nil, "oidc-logout: no ID token cookie found")
+		}
+
+		// Clear the auth cookie regardless of whether end_session_endpoint is available
+		auth.ClearTokenCookie(w, r, cluster, config.BaseURL)
+		auth.ClearIDTokenCookie(w, r, cluster, config.BaseURL)
+
+		if providerClaims.EndSessionEndpoint == "" {
+			logger.Log(logger.LevelWarn, map[string]string{"cluster": cluster},
+				nil, "oidc-logout: no end_session_endpoint found, redirecting to home")
+			http.Redirect(w, r, strings.TrimRight(config.BaseURL, "/")+"/", http.StatusFound)
+
+			return
+		}
+
+		// Build the post-logout redirect URL
+		urlScheme := getUrlScheme(r)
+
+		hostWithBaseURL := strings.Trim(r.Host, "/")
+
+		baseURL := strings.Trim(config.BaseURL, "/")
+		if baseURL != "" {
+			hostWithBaseURL = hostWithBaseURL + "/" + baseURL
+		}
+
+		// Redirect to the cluster-specific login page so AuthChooser can determine the cluster
+		postLogoutRedirectURI := fmt.Sprintf("%s://%s/c/%s/login", urlScheme, hostWithBaseURL, url.PathEscape(cluster))
+
+		// Build the logout URL with post_logout_redirect_uri and id_token_hint
+		logoutURL, err := url.Parse(providerClaims.EndSessionEndpoint)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "failed to parse end_session_endpoint")
+			http.Redirect(w, r, strings.TrimRight(config.BaseURL, "/")+"/", http.StatusFound)
+
+			return
+		}
+
+		query := logoutURL.Query()
+		query.Set("post_logout_redirect_uri", postLogoutRedirectURI)
+
+		if idToken == "" {
+			logger.Log(logger.LevelWarn, map[string]string{
+				"cluster": cluster,
+			}, nil, "oidc-logout: no id_token_hint available")
+		} else {
+			query.Set("id_token_hint", idToken)
+		}
+
+		logoutURL.RawQuery = query.Encode()
+
+		http.Redirect(w, r, logoutURL.String(), http.StatusFound)
+	}).Methods("GET").Queries("cluster", "{cluster}")
 
 	// Serve the frontend if needed
 	if spa.UseEmbeddedFiles {
