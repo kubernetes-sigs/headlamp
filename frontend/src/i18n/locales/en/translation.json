@@ -418,6 +418,8 @@
   "Annotations": "Annotations",
   "Owner refs": "Owner refs",
   "Controlled by": "Controlled by",
+  "Show all annotations (+{{count}} more)_one": "Show all annotations (+{{count}} more)",
+  "Show all annotations (+{{count}} more)_other": "Show all annotations (+{{count}} more)",
   "Show all labels (+{{count}} more)_one": "Show all labels (+{{count}} more)",
   "Show all labels (+{{count}} more)_other": "Show all labels (+{{count}} more)",
   "Start port forward": "Start port forward",

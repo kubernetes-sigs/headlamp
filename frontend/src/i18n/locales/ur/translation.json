@@ -418,6 +418,8 @@
   "Annotations": "تشریحات",
   "Owner refs": "اونر ریفرنسز",
   "Controlled by": "کنٹرول کیا گیا بذریعہ",
+  "Show all annotations (+{{count}} more)_one": "",
+  "Show all annotations (+{{count}} more)_other": "",
   "Show all labels (+{{count}} more)_one": "تمام لیبلز دکھائیں (+{{count}} مزید)",
   "Show all labels (+{{count}} more)_other": "تمام لیبلز دکھائیں (+{{count}} مزید)",
   "Start port forward": "پورٹ فارورڈ شروع کریں",

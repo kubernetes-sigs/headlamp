@@ -418,6 +418,8 @@
   "Annotations": "Annotations",
   "Owner refs": "Besitzer-Referenzen",
   "Controlled by": "Gesteuert von",
+  "Show all annotations (+{{count}} more)_one": "",
+  "Show all annotations (+{{count}} more)_other": "",
   "Show all labels (+{{count}} more)_one": "",
   "Show all labels (+{{count}} more)_other": "",
   "Start port forward": "Portweiterleitung starten",

@@ -415,6 +415,7 @@
   "Annotations": "註釋",
   "Owner refs": "所有者引用",
   "Controlled by": "受控於",
+  "Show all annotations (+{{count}} more)_other": "",
   "Show all labels (+{{count}} more)_other": "",
   "Start port forward": "開始連接埠轉發",
   "Forward port": "轉發連接埠",

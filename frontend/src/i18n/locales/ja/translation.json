@@ -415,6 +415,7 @@
   "Annotations": "アノテーション",
   "Owner refs": "オーナー参照",
   "Controlled by": "制御者",
+  "Show all annotations (+{{count}} more)_other": "",
   "Show all labels (+{{count}} more)_other": "",
   "Start port forward": "ポートフォワードを開始",
   "Forward port": "ポートを転送",

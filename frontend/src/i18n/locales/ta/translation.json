@@ -418,6 +418,8 @@
   "Annotations": "அன்னோடேஷன்கள்",
   "Owner refs": "ஓனர் ரெஃப்கள்",
   "Controlled by": "கட்டுப்படுத்தப்படுவது",
+  "Show all annotations (+{{count}} more)_one": "",
+  "Show all annotations (+{{count}} more)_other": "",
   "Show all labels (+{{count}} more)_one": "",
   "Show all labels (+{{count}} more)_other": "",
   "Start port forward": "போர்ட் ஃபார்வர்ட் தொடங்கு",

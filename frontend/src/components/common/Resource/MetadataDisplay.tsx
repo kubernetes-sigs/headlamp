@@ -156,13 +156,15 @@ export function MetadataDisplay<T extends KubeObject>(props: MetadataDisplayProp
       },
       {
         name: t('Labels'),
-        value: resource.metadata.labels && <MetadataDictGrid dict={resource.metadata.labels} />,
+        value: resource.metadata.labels && (
+          <MetadataDictGrid dict={resource.metadata.labels} kind="labels" />
+        ),
         hide: !resource.metadata.labels,
       },
       {
         name: t('Annotations'),
         value: resource.metadata.annotations && (
-          <MetadataDictGrid dict={resource.metadata.annotations} />
+          <MetadataDictGrid dict={resource.metadata.annotations} kind="annotations" />
         ),
         hide: !resource.metadata.annotations,
       },
@@ -193,10 +195,12 @@ interface MetadataDictGridProps {
   gridProps?: {
     [index: string]: any;
   };
+  /** Whether the items are 'labels' or 'annotations'. Used for localized button texts. */
+  kind?: 'labels' | 'annotations';
 }
 
 export function MetadataDictGrid(props: MetadataDictGridProps) {
-  const { dict, showKeys = true, gridProps } = props;
+  const { dict, showKeys = true, gridProps, kind = 'labels' } = props;
   const { t } = useTranslation();
   const [expanded, setExpanded] = React.useState(false);
   const defaultNumShown = 20;
@@ -279,9 +283,13 @@ export function MetadataDictGrid(props: MetadataDictGridProps) {
           sx={{ mt: 1, mb: 1 }}
         >
           {!expanded
-            ? t('translation|Show all labels (+{{count}} more)', {
-                count: keys.length - defaultNumShown,
-              })
+            ? kind === 'annotations'
+              ? t('translation|Show all annotations (+{{count}} more)', {
+                  count: keys.length - defaultNumShown,
+                })
+              : t('translation|Show all labels (+{{count}} more)', {
+                  count: keys.length - defaultNumShown,
+                })
             : t('translation|Show fewer')}
         </Button>
       )}
