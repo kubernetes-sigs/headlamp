@@ -246,11 +246,12 @@ type ListRepoResponse struct {
 }
 
 func createFullPath(p string) error {
-	if err := os.MkdirAll(filepath.Dir(p), defaultNewConfigFolderMode); err != nil {
+	cleanPath := filepath.Clean(p)
+	if err := os.MkdirAll(filepath.Dir(cleanPath), defaultNewConfigFolderMode); err != nil {
 		return err
 	}
 
-	file, err := os.OpenFile(filepath.Clean(p), os.O_CREATE|os.O_WRONLY, defaultNewConfigFileMode)
+	file, err := os.OpenFile(cleanPath, os.O_CREATE|os.O_WRONLY, defaultNewConfigFileMode)
 	if err != nil {
 		return err
 	}
