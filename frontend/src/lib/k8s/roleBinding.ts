@@ -27,7 +27,9 @@ export interface KubeRoleBinding extends KubeObjectInterface {
     apiGroup: string;
     kind: string;
     name: string;
-    namespace: string;
+    // namespace is only meaningful for ServiceAccount subjects; User and Group
+    // subjects are not namespaced.
+    namespace?: string;
   }[];
 }
 
