@@ -20,9 +20,11 @@ import React from 'react';
 import { TestContext } from '../../../test';
 import EditorDialog from './EditorDialog';
 
-const { mockTextarea, mockEditorInstance } = vi.hoisted(() => {
+const { mockSetModelMarkers, mockGetModel, mockTextarea, mockEditorInstance } = vi.hoisted(() => {
   const textarea = document.createElement('textarea');
   return {
+    mockSetModelMarkers: vi.fn(),
+    mockGetModel: vi.fn(() => ({})),
     mockTextarea: textarea,
     mockEditorInstance: {
       getDomNode: () => ({
@@ -37,27 +39,50 @@ const { mockTextarea, mockEditorInstance } = vi.hoisted(() => {
   };
 });
 
-vi.mock('js-yaml', () => ({
-  dump: vi.fn((value: unknown) => JSON.stringify(value, null, 2)),
-  loadAll: vi.fn((value: string) => {
-    if (value.includes('invalid')) {
-      throw new Error('Invalid YAML');
+vi.mock('js-yaml', () => {
+  class YAMLException extends Error {
+    reason: string;
+    mark: any;
+    constructor(reason: string, mark: any) {
+      super(reason);
+      this.name = 'YAMLException';
+      this.reason = reason;
+      this.mark = mark;
     }
+  }
 
-    return [{ apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } }];
-  }),
-}));
+  return {
+    YAMLException,
+    dump: vi.fn((value: unknown) => JSON.stringify(value, null, 2)),
+    loadAll: vi.fn((value: string) => {
+      if (value.includes('invalid')) {
+        throw new YAMLException('Invalid YAML', { line: 2, column: 5 });
+      }
+      return [{ apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } }];
+    }),
+  };
+});
 
-vi.mock('@monaco-editor/react', () => ({
-  Editor: ({ onMount }: any) => {
-    React.useEffect(() => {
-      onMount?.(mockEditorInstance, {});
-    }, [onMount]);
+vi.mock('@monaco-editor/react', () => {
+  return {
+    Monaco: {} as any,
+    Editor: ({ onChange, onMount }: any) => {
+      React.useEffect(() => {
+        onMount?.(
+          { ...mockEditorInstance, getModel: mockGetModel },
+          { editor: { setModelMarkers: mockSetModelMarkers }, MarkerSeverity: { Error: 8 } }
+        );
+      }, [onMount]);
 
-    return <div data-testid="mock-monaco-editor" />;
-  },
-  DiffEditor: () => null,
-}));
+      return (
+        <div data-testid="mock-monaco-editor">
+          <textarea aria-label="monaco-code" onChange={e => onChange?.(e.target.value)} />
+        </div>
+      );
+    },
+    DiffEditor: () => null,
+  };
+});
 
 vi.mock('./DocsViewer', () => ({
   default: () => null,
@@ -148,6 +173,47 @@ describe('EditorDialog', () => {
     });
 
     expect(screen.queryByText('Invalid YAML')).not.toBeInTheDocument();
+  });
+
+  it('sets model markers on invalid YAML and clears them on valid YAML in monaco editor', () => {
+    localStorage.setItem('useSimpleEditor', 'false'); // Use monaco
+    renderEditorDialog();
+
+    const editor = screen.getByRole('textbox', { name: /monaco-code/i });
+
+    // Simulate invalid yaml
+    fireEvent.change(editor, { target: { value: 'invalid' } });
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(mockSetModelMarkers).toHaveBeenCalledWith(expect.any(Object), 'headlamp-yaml-parse', [
+      {
+        startLineNumber: 3,
+        startColumn: 6,
+        endLineNumber: 3,
+        endColumn: 7,
+        message: 'Invalid YAML',
+        severity: 8,
+      },
+    ]);
+
+    // Simulate valid yaml
+    fireEvent.change(editor, { target: { value: 'valid' } });
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(mockSetModelMarkers).toHaveBeenCalledWith(expect.any(Object), 'headlamp-yaml-parse', []);
+
+    // Ensure Undo also clears markers
+    fireEvent.change(editor, { target: { value: 'invalid' } });
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+    expect(mockSetModelMarkers).toHaveBeenCalledWith(expect.any(Object), 'headlamp-yaml-parse', []);
   });
 
   it('renders the editor textarea and action buttons with correct id and aria-controls attributes', () => {
