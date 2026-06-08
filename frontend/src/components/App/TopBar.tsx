@@ -33,6 +33,7 @@ import React, { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
+import { getAppUrl } from '../../helpers/getAppUrl';
 import { getProductName, getVersion } from '../../helpers/getProductInfo';
 import { logout } from '../../lib/auth';
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
@@ -118,23 +119,38 @@ export default function TopBar({}: TopBarProps) {
   // The logout callback
   const logoutCallback = useCallback(
     async (clusterToLogout?: string) => {
+      let oidcClusterToRedirect: string | null = null;
+
       if (clusterToLogout) {
-        await logout(clusterToLogout);
+        const isOIDC = await logout(clusterToLogout, true);
+        if (isOIDC) {
+          oidcClusterToRedirect = clusterToLogout;
+        }
       } else {
         if (selectedClusters.length > 0) {
-          await Promise.all(
-            selectedClusters.map(async c => {
-              await logout(c);
-            })
-          );
+          for (const c of selectedClusters) {
+            const isOIDC = await logout(c, true);
+            if (isOIDC && oidcClusterToRedirect === null) {
+              oidcClusterToRedirect = c;
+            }
+          }
         } else if (cluster) {
-          await logout(cluster);
+          const isOIDC = await logout(cluster, true);
+          if (isOIDC) {
+            oidcClusterToRedirect = cluster;
+          }
         }
       }
 
       handleLogoutPathUpdate(clusterToLogout, history.location.pathname, (path: string) =>
         history.push(path)
       );
+
+      if (oidcClusterToRedirect) {
+        window.location.href = `${getAppUrl()}clusters/${encodeURIComponent(
+          oidcClusterToRedirect
+        )}/oidc-logout`;
+      }
     },
     [cluster, selectedClusters, history]
   );
@@ -252,7 +268,7 @@ export const PureTopBar = memo(
   ({
     appBarActions,
     appBarActionsProcessors = [],
-    logout,
+    logout: onLogout,
     cluster,
     selectedClusters,
     clusters,
@@ -334,7 +350,7 @@ export const PureTopBar = memo(
       >
         <MenuItem
           onClick={async () => {
-            await logout();
+            await onLogout();
             handleMenuClose();
           }}
         >
