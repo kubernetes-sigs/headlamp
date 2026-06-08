@@ -27,6 +27,7 @@ const avoidCheck = [
   'AlertNotification',
   'ErrorBoundary',
   'logSeverityFilter',
+  'getResourceRowId',
 ];
 
 const checkExports = [
