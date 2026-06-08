@@ -27,6 +27,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -641,6 +642,120 @@ func TestHandleNonGETCacheInvalidation_PostOnResourceNamedVersion(t *testing.T) 
 	require.NoError(t, err)
 	assert.Contains(t, cachedValue, "ConfigMap")
 	assert.NotContains(t, cachedValue, "stale")
+}
+
+func TestFilterImportantResources(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name  string
+		input []schema.GroupVersionResource
+		want  []schema.GroupVersionResource
+	}{
+		{
+			name:  "empty input",
+			input: nil,
+			want:  []schema.GroupVersionResource{},
+		},
+		{
+			name: "keeps allowed resources and drops others",
+			input: []schema.GroupVersionResource{
+				{Group: "", Version: "v1", Resource: "pods"},
+				{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
+				{Group: "apps", Version: "v1", Resource: "deployments"},
+				{Group: "", Version: "v1", Resource: "namespaces"},
+			},
+			want: []schema.GroupVersionResource{
+				{Group: "", Version: "v1", Resource: "pods"},
+				{Group: "apps", Version: "v1", Resource: "deployments"},
+			},
+		},
+		{
+			name: "preserves group and version fields",
+			input: []schema.GroupVersionResource{
+				{Group: "batch", Version: "v1", Resource: "jobs"},
+				{Group: "batch", Version: "v1", Resource: "cronjobs"},
+			},
+			want: []schema.GroupVersionResource{
+				{Group: "batch", Version: "v1", Resource: "jobs"},
+				{Group: "batch", Version: "v1", Resource: "cronjobs"},
+			},
+		},
+		{
+			name: "keeps all allowlisted resource kinds",
+			input: []schema.GroupVersionResource{
+				{Group: "", Version: "v1", Resource: "pods"},
+				{Group: "", Version: "v1", Resource: "services"},
+				{Group: "apps", Version: "v1", Resource: "deployments"},
+				{Group: "apps", Version: "v1", Resource: "replicasets"},
+				{Group: "apps", Version: "v1", Resource: "statefulsets"},
+				{Group: "apps", Version: "v1", Resource: "daemonsets"},
+				{Group: "", Version: "v1", Resource: "nodes"},
+				{Group: "", Version: "v1", Resource: "configmaps"},
+				{Group: "", Version: "v1", Resource: "secrets"},
+				{Group: "batch", Version: "v1", Resource: "jobs"},
+				{Group: "batch", Version: "v1", Resource: "cronjobs"},
+			},
+			want: []schema.GroupVersionResource{
+				{Group: "", Version: "v1", Resource: "pods"},
+				{Group: "", Version: "v1", Resource: "services"},
+				{Group: "apps", Version: "v1", Resource: "deployments"},
+				{Group: "apps", Version: "v1", Resource: "replicasets"},
+				{Group: "apps", Version: "v1", Resource: "statefulsets"},
+				{Group: "apps", Version: "v1", Resource: "daemonsets"},
+				{Group: "", Version: "v1", Resource: "nodes"},
+				{Group: "", Version: "v1", Resource: "configmaps"},
+				{Group: "", Version: "v1", Resource: "secrets"},
+				{Group: "batch", Version: "v1", Resource: "jobs"},
+				{Group: "batch", Version: "v1", Resource: "cronjobs"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := k8cache.ExportedFilterImportantResources(tt.input)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestReturnGVRList_FiltersImportantResources(t *testing.T) {
+	t.Parallel()
+
+	apiResourceLists := []*metav1.APIResourceList{
+		{
+			GroupVersion: "v1",
+			APIResources: []metav1.APIResource{
+				{Name: "pods", Kind: "Pod", Verbs: []string{"list", "watch", "get"}},
+				{Name: "ingresses", Kind: "Ingress", Verbs: []string{"list", "watch", "get"}},
+			},
+		},
+		{
+			GroupVersion: "apps/v1",
+			APIResources: []metav1.APIResource{
+				{Name: "deployments", Kind: "Deployment", Verbs: []string{"list", "watch", "get"}},
+				{Name: "deployments/scale", Kind: "Scale", Verbs: []string{"get", "update"}},
+			},
+		},
+		{
+			GroupVersion: "v1",
+			APIResources: []metav1.APIResource{
+				{Name: "events", Kind: "Event", Verbs: []string{"list", "watch"}},
+			},
+		},
+	}
+
+	got := k8cache.ExportedReturnGVRList(apiResourceLists)
+
+	want := []schema.GroupVersionResource{
+		{Group: "", Version: "v1", Resource: "pods"},
+		{Group: "apps", Version: "v1", Resource: "deployments"},
+	}
+
+	assert.Equal(t, want, got)
 }
 
 func TestSyncWatchers(t *testing.T) {

@@ -6,6 +6,8 @@ import (
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/kubernetes"
 )
 
@@ -139,4 +141,14 @@ func ExportedRedactContextKey(key string) string {
 // ExportedRedactCacheKey exposes redactCacheKey for testing.
 func ExportedRedactCacheKey(key string) string {
 	return redactCacheKey(key)
+}
+
+// ExportedFilterImportantResources exposes filterImportantResources for testing.
+func ExportedFilterImportantResources(gvrList []schema.GroupVersionResource) []schema.GroupVersionResource {
+	return filterImportantResources(gvrList)
+}
+
+// ExportedReturnGVRList exposes returnGVRList for testing.
+func ExportedReturnGVRList(apiResourceLists []*metav1.APIResourceList) []schema.GroupVersionResource {
+	return returnGVRList(apiResourceLists)
 }
