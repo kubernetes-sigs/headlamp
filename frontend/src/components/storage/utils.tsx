@@ -19,7 +19,8 @@ import { PhaseLabel } from '../common/PhaseLabel';
 
 /**
  * @deprecated Use PhaseLabel from common/PhaseLabel directly.
- * Kept for backwards compatibility with existing storage list/details callers.
+ * Note: the t translation argument has been removed. Callers
+ * that previously passed t as a second argument must be updated.
  */
 export function StatusLabelByPhase(phase: string) {
   return <PhaseLabel phase={phase} successPhase="Bound" warningPhases={['Available']} />;

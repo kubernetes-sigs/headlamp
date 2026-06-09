@@ -17,7 +17,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { KubeCondition } from '../../lib/k8s/cluster';
-import { DateLabel, HoverInfoLabel, StatusLabel } from './Label';
+import { DateLabel, HoverInfoLabel, StatusLabel, StatusLabelProps } from './Label';
 import SimpleTable from './SimpleTable';
 
 /**
@@ -40,7 +40,7 @@ export function getReadyCondition(
 export interface ConditionListProps {
   /**
    * The conditions array, typically from resource.status.conditions.
-   * Renders nothing when null or undefined.
+   * Renders nothing when null, undefined, or empty.
    */
   conditions: KubeCondition[] | undefined | null;
   /**
@@ -77,10 +77,10 @@ export function ConditionList({ conditions, showLastUpdate = false }: ConditionL
     return null;
   }
 
-  function statusFromCondition(condition: KubeCondition) {
-    if (condition.status === 'True') return 'success' as const;
-    if (condition.status === 'False') return 'error' as const;
-    return '' as const;
+  function statusFromCondition(condition: KubeCondition): StatusLabelProps['status'] {
+    if (condition.status === 'True') return 'success';
+    if (condition.status === 'False') return 'error';
+    return '';
   }
 
   const columns: {
@@ -102,7 +102,7 @@ export function ConditionList({ conditions, showLastUpdate = false }: ConditionL
       label: t('glossary|Last Transition'),
       getter: condition =>
         condition.lastTransitionTime ? (
-          <DateLabel date={condition.lastTransitionTime as string} />
+          <DateLabel date={String(condition.lastTransitionTime)} />
         ) : (
           '-'
         ),
@@ -110,7 +110,7 @@ export function ConditionList({ conditions, showLastUpdate = false }: ConditionL
     {
       label: t('glossary|Last Update'),
       getter: condition =>
-        condition.lastUpdateTime ? <DateLabel date={condition.lastUpdateTime as string} /> : '-',
+        condition.lastUpdateTime ? <DateLabel date={String(condition.lastUpdateTime)} /> : '-',
       hide: !showLastUpdate,
     },
     {
