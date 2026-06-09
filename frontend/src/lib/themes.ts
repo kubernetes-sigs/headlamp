@@ -374,7 +374,7 @@ export function createMuiTheme(currentTheme: AppTheme) {
       MuiTooltip: {
         styleOverrides: {
           tooltip: {
-            fontSize: '1.3em',
+            fontSize: '0.875rem',
             color: '#fff',
             backgroundColor: '#000',
           },
