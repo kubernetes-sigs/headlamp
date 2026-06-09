@@ -53,6 +53,7 @@ import ActionButton from '../common/ActionButton';
 import { DialogTitle } from '../common/Dialog';
 import ErrorBoundary from '../common/ErrorBoundary';
 import Loader from '../common/Loader';
+import { LightTooltip } from '../common/Tooltip';
 import ClusterChooser from './ClusterChooser';
 import ClusterChooserPopup from './ClusterChooserPopup';
 
@@ -150,19 +151,20 @@ const ClusterButton = React.forwardRef<HTMLButtonElement, ClusterButtonProps>((p
           }}
         >
           <Icon icon={icon} width="50" height="50" color={iconColor} />
-          <Typography
-            color="textSecondary"
-            gutterBottom
-            sx={{
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              display: 'block',
-            }}
-            title={cluster.name}
-          >
-            {cluster.name}
-          </Typography>
+          <LightTooltip title={cluster.name}>
+            <Typography
+              color="textSecondary"
+              gutterBottom
+              sx={{
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                display: 'block',
+              }}
+            >
+              {cluster.name}
+            </Typography>
+          </LightTooltip>
         </CardContent>
       </Card>
     </ButtonBase>
