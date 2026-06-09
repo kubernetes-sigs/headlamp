@@ -29,12 +29,12 @@ export interface KubeEventV2 extends KubeObjectInterface {
   note: string;
   regarding: {
     kind: string;
-    namespace: string;
+    namespace?: string;
     name: string;
-    uid: string;
-    apiVersion: string;
-    resourceVersion: string;
-    fieldPath: string;
+    uid?: string;
+    apiVersion?: string;
+    resourceVersion?: string;
+    fieldPath?: string;
   };
   eventTime: string;
   series?: {

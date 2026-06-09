@@ -116,7 +116,10 @@ function containerSeverity(reason?: string, exitCode?: number): AlertColor {
 
 /** Returns the occurrence count for an event, falling back to 1 if unavailable. */
 function getEventCount(event: EventLike) {
-  const count = (event as EventV2).count ?? (event as KubeEventV2).deprecatedCount;
+  const count =
+    (event as EventV2).count ??
+    (event as KubeEventV2).series?.count ??
+    (event as KubeEventV2).deprecatedCount;
   return typeof count === 'number' && count > 0 ? count : 1;
 }
 
