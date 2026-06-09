@@ -644,75 +644,75 @@ func TestHandleNonGETCacheInvalidation_PostOnResourceNamedVersion(t *testing.T) 
 	assert.NotContains(t, cachedValue, "stale")
 }
 
+var filterImportantResourcesTests = []struct {
+	name  string
+	input []schema.GroupVersionResource
+	want  []schema.GroupVersionResource
+}{
+	{
+		name:  "empty input",
+		input: nil,
+		want:  []schema.GroupVersionResource{},
+	},
+	{
+		name: "keeps allowed resources and drops others",
+		input: []schema.GroupVersionResource{
+			{Group: "", Version: "v1", Resource: "pods"},
+			{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
+			{Group: "apps", Version: "v1", Resource: "deployments"},
+			{Group: "", Version: "v1", Resource: "namespaces"},
+		},
+		want: []schema.GroupVersionResource{
+			{Group: "", Version: "v1", Resource: "pods"},
+			{Group: "apps", Version: "v1", Resource: "deployments"},
+		},
+	},
+	{
+		name: "preserves group and version fields",
+		input: []schema.GroupVersionResource{
+			{Group: "batch", Version: "v1", Resource: "jobs"},
+			{Group: "batch", Version: "v1", Resource: "cronjobs"},
+		},
+		want: []schema.GroupVersionResource{
+			{Group: "batch", Version: "v1", Resource: "jobs"},
+			{Group: "batch", Version: "v1", Resource: "cronjobs"},
+		},
+	},
+	{
+		name: "keeps all allowlisted resource kinds",
+		input: []schema.GroupVersionResource{
+			{Group: "", Version: "v1", Resource: "pods"},
+			{Group: "", Version: "v1", Resource: "services"},
+			{Group: "apps", Version: "v1", Resource: "deployments"},
+			{Group: "apps", Version: "v1", Resource: "replicasets"},
+			{Group: "apps", Version: "v1", Resource: "statefulsets"},
+			{Group: "apps", Version: "v1", Resource: "daemonsets"},
+			{Group: "", Version: "v1", Resource: "nodes"},
+			{Group: "", Version: "v1", Resource: "configmaps"},
+			{Group: "", Version: "v1", Resource: "secrets"},
+			{Group: "batch", Version: "v1", Resource: "jobs"},
+			{Group: "batch", Version: "v1", Resource: "cronjobs"},
+		},
+		want: []schema.GroupVersionResource{
+			{Group: "", Version: "v1", Resource: "pods"},
+			{Group: "", Version: "v1", Resource: "services"},
+			{Group: "apps", Version: "v1", Resource: "deployments"},
+			{Group: "apps", Version: "v1", Resource: "replicasets"},
+			{Group: "apps", Version: "v1", Resource: "statefulsets"},
+			{Group: "apps", Version: "v1", Resource: "daemonsets"},
+			{Group: "", Version: "v1", Resource: "nodes"},
+			{Group: "", Version: "v1", Resource: "configmaps"},
+			{Group: "", Version: "v1", Resource: "secrets"},
+			{Group: "batch", Version: "v1", Resource: "jobs"},
+			{Group: "batch", Version: "v1", Resource: "cronjobs"},
+		},
+	},
+}
+
 func TestFilterImportantResources(t *testing.T) {
 	t.Parallel()
 
-	tests := []struct {
-		name  string
-		input []schema.GroupVersionResource
-		want  []schema.GroupVersionResource
-	}{
-		{
-			name:  "empty input",
-			input: nil,
-			want:  []schema.GroupVersionResource{},
-		},
-		{
-			name: "keeps allowed resources and drops others",
-			input: []schema.GroupVersionResource{
-				{Group: "", Version: "v1", Resource: "pods"},
-				{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
-				{Group: "apps", Version: "v1", Resource: "deployments"},
-				{Group: "", Version: "v1", Resource: "namespaces"},
-			},
-			want: []schema.GroupVersionResource{
-				{Group: "", Version: "v1", Resource: "pods"},
-				{Group: "apps", Version: "v1", Resource: "deployments"},
-			},
-		},
-		{
-			name: "preserves group and version fields",
-			input: []schema.GroupVersionResource{
-				{Group: "batch", Version: "v1", Resource: "jobs"},
-				{Group: "batch", Version: "v1", Resource: "cronjobs"},
-			},
-			want: []schema.GroupVersionResource{
-				{Group: "batch", Version: "v1", Resource: "jobs"},
-				{Group: "batch", Version: "v1", Resource: "cronjobs"},
-			},
-		},
-		{
-			name: "keeps all allowlisted resource kinds",
-			input: []schema.GroupVersionResource{
-				{Group: "", Version: "v1", Resource: "pods"},
-				{Group: "", Version: "v1", Resource: "services"},
-				{Group: "apps", Version: "v1", Resource: "deployments"},
-				{Group: "apps", Version: "v1", Resource: "replicasets"},
-				{Group: "apps", Version: "v1", Resource: "statefulsets"},
-				{Group: "apps", Version: "v1", Resource: "daemonsets"},
-				{Group: "", Version: "v1", Resource: "nodes"},
-				{Group: "", Version: "v1", Resource: "configmaps"},
-				{Group: "", Version: "v1", Resource: "secrets"},
-				{Group: "batch", Version: "v1", Resource: "jobs"},
-				{Group: "batch", Version: "v1", Resource: "cronjobs"},
-			},
-			want: []schema.GroupVersionResource{
-				{Group: "", Version: "v1", Resource: "pods"},
-				{Group: "", Version: "v1", Resource: "services"},
-				{Group: "apps", Version: "v1", Resource: "deployments"},
-				{Group: "apps", Version: "v1", Resource: "replicasets"},
-				{Group: "apps", Version: "v1", Resource: "statefulsets"},
-				{Group: "apps", Version: "v1", Resource: "daemonsets"},
-				{Group: "", Version: "v1", Resource: "nodes"},
-				{Group: "", Version: "v1", Resource: "configmaps"},
-				{Group: "", Version: "v1", Resource: "secrets"},
-				{Group: "batch", Version: "v1", Resource: "jobs"},
-				{Group: "batch", Version: "v1", Resource: "cronjobs"},
-			},
-		},
-	}
-
-	for _, tt := range tests {
+	for _, tt := range filterImportantResourcesTests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
