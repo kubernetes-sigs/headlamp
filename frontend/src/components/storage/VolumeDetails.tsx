@@ -22,9 +22,9 @@ import Link from '../common/Link';
 import { DetailsGrid } from '../common/Resource';
 import { StatusLabelByPhase } from './utils';
 
-export function makePVStatusLabel(item: PersistentVolume, t: (key: string) => string) {
+export function makePVStatusLabel(item: PersistentVolume) {
   const status = item.status?.phase ?? '';
-  return StatusLabelByPhase(status, t);
+  return StatusLabelByPhase(status);
 }
 
 function renderClaimRef(claimRef: KubeClaimRef, cluster?: string): ReactNode {
@@ -66,7 +66,7 @@ export default function VolumeDetails(props: { name?: string; cluster?: string }
         return [
           {
             name: t('translation|Status'),
-            value: makePVStatusLabel(item, t),
+            value: makePVStatusLabel(item),
           },
           {
             name: t('Capacity'),
