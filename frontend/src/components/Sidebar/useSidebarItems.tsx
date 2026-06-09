@@ -53,8 +53,10 @@ const sortSidebarItems = (items: SidebarItemProps[]): SidebarItemProps[] => {
 };
 
 const safeLinkUrl = (url: string): string | null => {
-  const lower = url.toLowerCase();
-  return lower.startsWith('http://') || lower.startsWith('https://') ? url.toLowerCase() : null;
+  const trimmed = url.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return null;
+  // Normalize only the scheme so external URLs are detected reliably without changing the full URL.
+  return trimmed.replace(/^https?:\/\//i, m => m.toLowerCase());
 };
 
 export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER) => {
@@ -459,19 +461,28 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     }
 
     if (externalLinks.length > 0) {
-      inClusterItems.push({
-        name: 'externalLinks',
-        label: t('translation|External Links'),
-        icon: 'mdi:link-variant',
-        subList: externalLinks
-          .filter(link => safeLinkUrl(link.url))
-          .map((link, i) => ({
-            name: `external-link-${i}`,
-            label: link.label,
-            url: safeLinkUrl(link.url)!,
-            icon: link.icon || 'mdi:link',
-          })),
-      });
+      const links = externalLinks
+        .map((link, i) => {
+          const url = safeLinkUrl(link.url);
+          return url
+            ? {
+                name: `external-link-${i}`,
+                label: link.label,
+                url,
+                icon: link.icon || 'mdi:link',
+              }
+            : null;
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+
+      if (links.length > 0) {
+        inClusterItems.push({
+          name: 'externalLinks',
+          label: t('translation|External Links'),
+          icon: 'mdi:link-variant',
+          subList: links,
+        });
+      }
     }
 
     // List of sidebars, they act as roots for the sidebar tree
