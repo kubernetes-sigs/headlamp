@@ -18,6 +18,7 @@ import Box from '@mui/material/Box';
 import Breadcrumbs from '@mui/material/Breadcrumbs';
 import Link from '@mui/material/Link';
 import { useTranslation } from 'react-i18next';
+import { LightTooltip } from '../common/Tooltip';
 import { getMainNode } from './graph/graphGrouping';
 import { GraphNode } from './graph/graphModel';
 import { KubeIcon } from './kubeIcon/KubeIcon';
@@ -103,53 +104,53 @@ export function SelectionBreadcrumbs({
         const label = getLabel(it);
 
         return i === path.length - 1 ? (
-          <Box
-            key={it.id}
-            title={label}
-            sx={{
-              display: 'flex',
-              gap: 0.5,
-              maxWidth: '200px',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-            }}
-          >
-            {icon} {subtitleElement}{' '}
+          <LightTooltip title={label} key={it.id}>
             <Box
               sx={{
+                display: 'flex',
+                gap: 0.5,
+                maxWidth: '200px',
+                whiteSpace: 'nowrap',
                 overflow: 'hidden',
-                textOverflow: 'ellipsis',
               }}
             >
-              {label}
+              {icon} {subtitleElement}{' '}
+              <Box
+                sx={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {label}
+              </Box>
             </Box>
-          </Box>
+          </LightTooltip>
         ) : (
-          <Link
-            key={it.id}
-            onClick={() => onNodeClick(it.id)}
-            title={label}
-            sx={{
-              display: 'flex',
-              gap: 0.5,
-              textTransform: 'unset',
-              maxWidth: '200px',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-              cursor: 'pointer',
-            }}
-          >
-            {icon} {subtitleElement}{' '}
-            <Box
+          <LightTooltip title={label} key={it.id}>
+            <Link
+              onClick={() => onNodeClick(it.id)}
               sx={{
+                display: 'flex',
+                gap: 0.5,
+                textTransform: 'unset',
+                maxWidth: '200px',
+                whiteSpace: 'nowrap',
                 overflow: 'hidden',
                 textOverflow: 'ellipsis',
+                cursor: 'pointer',
               }}
             >
-              {label}
-            </Box>
-          </Link>
+              {icon} {subtitleElement}{' '}
+              <Box
+                sx={{
+                  overflow: 'hidden',
+                  textOverflow: 'ellipsis',
+                }}
+              >
+                {label}
+              </Box>
+            </Link>
+          </LightTooltip>
         );
       })}
     </Breadcrumbs>

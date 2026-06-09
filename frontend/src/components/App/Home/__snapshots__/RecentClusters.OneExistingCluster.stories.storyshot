@@ -20,8 +20,9 @@
               class="MuiCardContent-root css-d64700-MuiCardContent-root"
             >
               <p
+                aria-label="cluster0"
                 class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-qscjxq-MuiTypography-root"
-                title="cluster0"
+                data-mui-internal-clone-element="true"
               >
                 cluster0
               </p>

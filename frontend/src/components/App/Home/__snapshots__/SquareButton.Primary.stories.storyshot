@@ -12,8 +12,9 @@
           class="MuiCardContent-root css-d64700-MuiCardContent-root"
         >
           <p
+            aria-label="Some label"
             class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-11x8x5l-MuiTypography-root"
-            title="Some label"
+            data-mui-internal-clone-element="true"
           >
             Some label
           </p>
