@@ -31,7 +31,7 @@ import * as Utils from './lib/util';
 import { Headlamp, Plugin } from './plugin/lib';
 import { getSupportedLocales, isLocaleSupported, useTranslation } from './plugin/pluginI18n';
 import { PluginSettingsDetailsProps } from './plugin/pluginsSlice';
-import type { CallbackActionOptions, HeadlampEvent } from './plugin/registry';
+import type { CallbackActionOptions, HeadlampEvent, PluginExtension } from './plugin/registry';
 import Registry, {
   AppLogoProps,
   clusterAction,
@@ -44,6 +44,7 @@ import Registry, {
   DetailsViewDefaultHeaderActions,
   DetailsViewSectionProps,
   getHeadlampAPIHeaders,
+  getPluginExtensions,
   PluginManager,
   registerAddClusterProvider,
   registerAppBarAction,
@@ -64,6 +65,7 @@ import Registry, {
   registerKubeObjectGlance,
   registerMapSource,
   registerOverviewChartsProcessor,
+  registerPluginExtension,
   registerPluginSettings,
   registerProjectApiResource,
   registerProjectDeleteButton,
@@ -77,6 +79,7 @@ import Registry, {
   registerSidebarEntryFilter,
   registerUIPanel,
   runCommand,
+  usePluginExtensions,
 } from './plugin/registry';
 export type { ApiResource } from './plugin/registry';
 
@@ -97,6 +100,7 @@ export {
   DefaultHeadlampEvents,
   DetailsViewDefaultHeaderActions,
   getHeadlampAPIHeaders,
+  getPluginExtensions,
   registerAppLogo,
   registerAppBarAction,
   registerClusterChooser,
@@ -111,6 +115,7 @@ export {
   registerGetTokenFunction,
   registerResourceTableColumnsProcessor,
   registerOverviewChartsProcessor,
+  registerPluginExtension,
   registerPluginSettings,
   clusterAction,
   runCommand,
@@ -135,6 +140,7 @@ export {
   registerClusterStatus,
   registerProjectApiResource,
   registerProjectDeleteButton,
+  usePluginExtensions,
   Activity,
 };
 
@@ -147,4 +153,5 @@ export type {
   DetailsViewSectionProps,
   DefaultSidebars,
   HeadlampEvent,
+  PluginExtension,
 };

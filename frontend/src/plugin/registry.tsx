@@ -91,6 +91,7 @@ import {
   ScaleResourceEvent,
   TerminalEvent,
 } from '../redux/headlampEventSlice';
+import { useTypedSelector } from '../redux/hooks';
 import { addOverviewChartsProcessor, OverviewChartsProcessor } from '../redux/overviewChartsSlice';
 import {
   addCustomCreateProject,
@@ -109,6 +110,7 @@ import { setRoute, setRouteFilter } from '../redux/routesSlice';
 import store from '../redux/stores/store';
 import { UIPanel, uiSlice } from '../redux/uiSlice';
 import { ConfigStore } from './configStore';
+import { addPluginExtension, PluginExtension } from './pluginExtensionsSlice';
 import {
   PluginSettingsComponentType,
   PluginSettingsDetailsProps,
@@ -150,12 +152,14 @@ export type {
   GraphSource,
   IconDefinition,
   OverviewChartsProcessor,
+  PluginExtension,
 };
 
 export type { ApiResource } from '../lib/k8s/api/v2/ApiResource';
 export const DefaultHeadlampEvents = HeadlampEventType;
 export const DetailsViewDefaultHeaderActions = DefaultHeaderAction;
 export type { AppBarActionProcessorType };
+const emptyPluginExtensions: Record<string, PluginExtension> = {};
 /**
  * @deprecated please used DetailsViewSectionType and registerDetailViewSection
  */
@@ -727,6 +731,55 @@ export function registerGetTokenFunction(override: (cluster: string) => string |
  */
 export function registerHeadlampEventCallback(callback: HeadlampEventCallback) {
   store.dispatch(addEventCallback(callback));
+}
+
+/**
+ * Register a plugin-owned extension for another plugin to consume.
+ *
+ * This is a low-level primitive for plugin extension points. Prefer the
+ * specific register* APIs for Headlamp-owned UI surfaces.
+ *
+ * @param extensionPoint - Stable extension point key, for example "prometheus.resourceMetrics.v1".
+ * @param value - Extension payload. The id must be stable and unique within the extension point.
+ */
+export function registerPluginExtension<T extends PluginExtension>(
+  extensionPoint: string,
+  value: T
+) {
+  if (!extensionPoint) {
+    console.error('registerPluginExtension: extensionPoint is required.');
+    return;
+  }
+
+  if (!value?.id) {
+    console.error('registerPluginExtension: value.id is required.');
+    return;
+  }
+
+  store.dispatch(addPluginExtension({ extensionPoint, value }));
+}
+
+/**
+ * Get plugin-owned extensions registered for an extension point key.
+ *
+ * @param extensionPoint - Stable extension point key.
+ */
+export function getPluginExtensions<T extends PluginExtension>(extensionPoint: string): T[] {
+  const extensions =
+    store.getState().pluginExtensions.extensions[extensionPoint] || emptyPluginExtensions;
+  return Object.values(extensions) as T[];
+}
+
+/**
+ * React hook for plugin-owned extensions registered for an extension point key.
+ *
+ * @param extensionPoint - Stable extension point key.
+ */
+export function usePluginExtensions<T extends PluginExtension>(extensionPoint: string): T[] {
+  const extensions = useTypedSelector(
+    state => state.pluginExtensions.extensions[extensionPoint] || emptyPluginExtensions
+  );
+  return React.useMemo(() => Object.values(extensions) as T[], [extensions]);
 }
 
 /**
