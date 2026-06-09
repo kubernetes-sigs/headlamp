@@ -27,6 +27,8 @@ import type { RevisionInfo, RollbackOptions, RollbackResult } from './rollback';
 export interface KubeStatefulSet extends KubeObjectInterface {
   spec: {
     selector: LabelSelector;
+    serviceName?: string;
+    podManagementPolicy?: 'OrderedReady' | 'Parallel';
     updateStrategy: {
       rollingUpdate: {
         partition: number;

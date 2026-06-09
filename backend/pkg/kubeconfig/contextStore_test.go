@@ -7,6 +7,8 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/require"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/client-go/tools/clientcmd/api"
 )
 
 func TestContextStore(t *testing.T) {
@@ -133,4 +135,35 @@ func TestContextStoreGetContextKeys(t *testing.T) {
 	require.Len(t, keys, 2)
 	require.Contains(t, keys, "test-key-1")
 	require.Contains(t, keys, "test-key-2")
+}
+
+func TestAddContextWithHeadlampInfo(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	customInfo := kubeconfig.CustomObject{
+		CustomName: "my-custom-cluster-name",
+	}
+
+	// Create context with headlamp_info extension
+	ctx := &kubeconfig.Context{
+		Name: "original-name",
+		KubeContext: &api.Context{
+			Extensions: map[string]runtime.Object{
+				"headlamp_info": &customInfo,
+			},
+		},
+	}
+
+	err := store.AddContext(ctx)
+	require.NoError(t, err)
+
+	// Verify the context was saved under the custom name
+	savedCtx, err := store.GetContext("my-custom-cluster-name")
+	require.NoError(t, err)
+	require.Equal(t, "my-custom-cluster-name", savedCtx.Name)
+
+	// Verify original name is NOT in store
+	_, err = store.GetContext("original-name")
+	require.Error(t, err)
+	require.Equal(t, cache.ErrNotFound, err)
 }

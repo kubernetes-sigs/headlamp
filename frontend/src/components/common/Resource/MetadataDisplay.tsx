@@ -69,13 +69,32 @@ export function MetadataDisplay<T extends KubeObject>(props: MetadataDisplayProp
 
     return ownerReferences
       .map((ownerRef, i) => {
-        if (ownerRef.kind in ResourceClasses) {
+        // Match both kind AND apiVersion to avoid linking to the wrong resource when
+        // different API groups share the same kind name (e.g. batch/v1 Job vs a CRD Job).
+        const matchingClass =
+          ownerRef.kind in ResourceClasses
+            ? (() => {
+                const cls = ResourceClasses[ownerRef.kind as keyof typeof ResourceClasses];
+                const apiVersions = Array.isArray(cls.apiVersion)
+                  ? cls.apiVersion
+                  : [cls.apiVersion];
+                const apiVersionMatches = apiVersions.includes(ownerRef.apiVersion);
+                return apiVersionMatches ? cls : null;
+              })()
+            : null;
+
+        if (matchingClass) {
           let routeName;
           try {
-            routeName = ResourceClasses[ownerRef.kind as keyof typeof ResourceClasses].detailsRoute;
+            routeName = matchingClass.detailsRoute;
           } catch (e) {
-            console.error(`Error getting routeName for {ownerRef.kind}`, e);
-            return null;
+            console.error(`Error getting routeName for ${ownerRef.kind}`, e);
+            return (
+              <>
+                {`${ownerRef.kind}: ${ownerRef.name}`}
+                {i < numItems - 1 && <br />}
+              </>
+            );
           }
           return (
             <>

@@ -52,6 +52,18 @@ describe('filterGraph', () => {
     },
   ];
 
+  it('doesnt drop edges when filtering', () => {
+    const nodes: GraphNode[] = [{ id: 'node1', status: 'error' }, { id: 'node2' }, { id: 'node3' }];
+    const edges: GraphEdge[] = [
+      { id: 'edge1', source: 'node1', target: 'node2' },
+      { id: 'edge2', source: 'node2', target: 'node3' },
+      { id: 'edge3', source: 'node1', target: 'node3' },
+    ];
+    const result = filterGraph(nodes, edges, [{ type: 'hasErrors' }]);
+
+    expect(result.edges.length).toBe(3);
+  });
+
   const edges: GraphEdge[] = [
     { id: 'e1', source: '1', target: '2' },
     { id: 'e2', source: '3', target: '4' },
@@ -70,7 +82,7 @@ describe('filterGraph', () => {
     const { nodes: filteredNodes } = filterGraph(nodes, edges, filters);
 
     // Finds node 2 that has an error, and node 1 that is related to it
-    expect(filteredNodes.map(it => it.id)).toEqual(['2', '1']);
+    expect(filteredNodes.map(it => it.id)).toEqual(['1', '2']);
   });
 
   it('filters nodes by explicit status', () => {

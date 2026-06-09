@@ -336,3 +336,69 @@ const Template: StoryFn = () => {
 };
 
 export const DaemonSets = Template.bind({});
+
+export const Loading = Template.bind({});
+Loading.parameters = {
+  storyshots: { disable: true },
+  msw: {
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/apis/apps/v1/daemonsets', () => new Promise(() => {})),
+      ],
+    },
+  },
+};
+
+export const Empty = Template.bind({});
+Empty.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/apis/apps/v1/daemonsets', () =>
+          HttpResponse.json({
+            kind: 'DaemonSetList',
+            items: [],
+            metadata: {},
+          })
+        ),
+      ],
+    },
+  },
+};
+
+export const Error = Template.bind({});
+Error.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/apis/apps/v1/daemonsets', () => HttpResponse.error()),
+      ],
+    },
+  },
+};
+
+export const LongName = Template.bind({});
+LongName.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/apis/apps/v1/daemonsets', () =>
+          HttpResponse.json({
+            kind: 'DaemonSetList',
+            items: [
+              {
+                ...objList[0],
+                metadata: {
+                  ...objList[0].metadata,
+                  name: 'this-is-a-very-long-daemonset-name-that-should-test-overflow-behaviour',
+                  namespace: 'this-is-also-a-very-long-namespace-name',
+                },
+              },
+            ],
+            metadata: {},
+          })
+        ),
+      ],
+    },
+  },
+};
