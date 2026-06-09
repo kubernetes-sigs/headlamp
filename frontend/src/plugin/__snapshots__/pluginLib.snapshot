@@ -41,6 +41,7 @@
     "AuthVisible": [Function],
     "BackLink": [Function],
     "CircularChart": [Function],
+    "ConditionList": [Function],
     "ConditionsSection": [Function],
     "ConditionsTable": [Function],
     "ConfirmButton": [Function],
@@ -107,6 +108,7 @@
     "PageGrid": [Function],
     "PercentageBar": [Function],
     "PercentageCircle": [Function],
+    "PhaseLabel": [Function],
     "PortForward": [Function],
     "PureNamespacesAutocomplete": [Function],
     "RESOURCE_DEFINITIONS": {
@@ -259,6 +261,7 @@
     "VolumeSection": [Function],
     "addResourceTableColumnsProcessor": [Function],
     "getA8RMetadata": [Function],
+    "getReadyCondition": [Function],
     "isRestartableResource": [Function],
     "isRollbackableResource": [Function],
     "isScalableResource": [Function],

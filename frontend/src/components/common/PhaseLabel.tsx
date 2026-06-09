@@ -20,7 +20,7 @@ import { StatusLabel, StatusLabelProps } from './Label';
 export interface PhaseLabelProps {
   /**
    * The phase string, typically from resource.status.phase.
-   * Renders nothing when null or undefined.
+   * Renders nothing when null, undefined, or empty string.
    */
   phase: string | undefined | null;
   /**
@@ -64,7 +64,7 @@ export function PhaseLabel({
   successPhase = 'Active',
   warningPhases = [],
 }: PhaseLabelProps) {
-  if (phase === undefined || phase === null) {
+  if (phase === undefined || phase === null || phase === '') {
     return null;
   }
 
