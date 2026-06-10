@@ -24,7 +24,9 @@ export interface KubeRoleBinding extends KubeObjectInterface {
     name: string;
   };
   subjects: {
-    apiGroup: string;
+    // apiGroup is optional in the Kubernetes RBAC Subject; it is omitted for
+    // ServiceAccount subjects (which belong to the core API group).
+    apiGroup?: string;
     kind: string;
     name: string;
     // namespace is only meaningful for ServiceAccount subjects; User and Group
