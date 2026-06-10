@@ -1,6 +1,6 @@
 {
   "name": "headlamp",
-  "version": "0.42.0",
+  "version": "0.43.0",
   "description": "Easy-to-use and extensible Kubernetes web UI",
   "main": "build/main.js",
   "homepage": "https://github.com/kubernetes-sigs/headlamp/#readme",
