@@ -259,13 +259,17 @@ export default function ClusterTable({
           Cell: ({ row: { original } }) => {
             const appearance = getClusterAppearanceFromMeta(original.name);
             return (
-              <Link routeName="cluster" params={{ cluster: original.name }}>
-                <ClusterBadge
-                  name={original.name}
-                  icon={appearance.icon}
-                  accentColor={appearance.accentColor}
-                />
-              </Link>
+              <LightTooltip title={original.name}>
+                <span>
+                  <Link routeName="cluster" params={{ cluster: original.name }}>
+                    <ClusterBadge
+                      name={original.name}
+                      icon={appearance.icon}
+                      accentColor={appearance.accentColor}
+                    />
+                  </Link>
+                </span>
+              </LightTooltip>
             );
           },
         },

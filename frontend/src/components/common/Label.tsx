@@ -83,6 +83,8 @@ export function ValueLabel(props: React.PropsWithChildren<{}>) {
 export interface StatusLabelProps {
   status: 'success' | 'warning' | 'error' | '';
   sx?: SxProps<Theme>;
+  /** When set, the label is wrapped in a tooltip instead of forwarding a native title to the span. */
+  title?: string;
   [otherProps: string]: any;
 }
 

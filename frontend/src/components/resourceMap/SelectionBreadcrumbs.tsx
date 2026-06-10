@@ -102,9 +102,13 @@ export function SelectionBreadcrumbs({
         const subtitle = it.subtitle ?? it?.kubeObject?.kind;
         const subtitleElement = subtitle ? <Box sx={{ opacity: 0.7 }}>{subtitle}</Box> : null;
         const label = getLabel(it);
+        // Include the subtitle so the tooltip (and the aria-label the tooltip
+        // sets on its child) announces both the subtitle and the label, rather
+        // than relabeling the child with the label alone.
+        const tooltipTitle = [subtitle, label].filter(Boolean).join(' ');
 
         return i === path.length - 1 ? (
-          <LightTooltip title={label} key={it.id}>
+          <LightTooltip title={tooltipTitle} key={it.id}>
             <Box
               sx={{
                 display: 'flex',
@@ -126,7 +130,7 @@ export function SelectionBreadcrumbs({
             </Box>
           </LightTooltip>
         ) : (
-          <LightTooltip title={label} key={it.id}>
+          <LightTooltip title={tooltipTitle} key={it.id}>
             <Link
               onClick={() => onNodeClick(it.id)}
               sx={{

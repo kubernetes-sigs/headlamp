@@ -82,24 +82,38 @@ export const GroupNodeComponent = memo(({ id }: { id: string }) => {
         handleSelect();
       }}
     >
-      {(node?.label || node?.subtitle) && (
-        <LightTooltip title={node?.label ?? ''}>
-          <Label>
-            {node?.kubeObject ? (
-              <KubeIcon
-                kind={node.kubeObject.kind}
-                apiGroup={apiGroup}
-                width="24px"
-                height="24px"
-              />
-            ) : (
-              node?.icon ?? null
-            )}
-            <Box sx={{ opacity: 0.8 }}>{node?.subtitle}</Box>
-            <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{node?.label}</Box>
-          </Label>
-        </LightTooltip>
-      )}
+      {(node?.label || node?.subtitle) &&
+        (() => {
+          const labelContent = (
+            <Label>
+              {node?.kubeObject ? (
+                <KubeIcon
+                  kind={node.kubeObject.kind}
+                  apiGroup={apiGroup}
+                  width="24px"
+                  height="24px"
+                />
+              ) : (
+                node?.icon ?? null
+              )}
+              <Box sx={{ opacity: 0.8 }}>{node?.subtitle}</Box>
+              <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{node?.label}</Box>
+            </Label>
+          );
+
+          // Include the subtitle so the tooltip (and the aria-label the tooltip
+          // sets on its child) announces both the subtitle and the label, rather
+          // than dropping the subtitle from the accessible name.
+          const tooltipTitle = [node?.subtitle, node?.label].filter(Boolean).join(' ');
+
+          // Only wrap in a tooltip when there's something to show; otherwise an
+          // empty title would render an empty tooltip (and an empty aria-label).
+          return tooltipTitle ? (
+            <LightTooltip title={tooltipTitle}>{labelContent}</LightTooltip>
+          ) : (
+            labelContent
+          );
+        })()}
     </Container>
   );
 });
