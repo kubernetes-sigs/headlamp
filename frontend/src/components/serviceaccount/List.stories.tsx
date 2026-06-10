@@ -22,7 +22,7 @@ import List from './List';
 import { SERVICE_ACCOUNT_DUMMY_DATA } from './storyHelper';
 
 export default {
-  title: 'serviceaccount/List',
+  title: 'ServiceAccount/ListView',
   component: List,
   decorators: [
     Story => (
