@@ -486,8 +486,10 @@ function LogsButtonContent({ item }: LogsButtonProps) {
     >
       {/* Pod selection dropdown */}
       <FormControl sx={{ minWidth: 200 }}>
-        <InputLabel>{t('translation|Select Pod')}</InputLabel>
+        <InputLabel id="logs-pod-chooser-label">{t('translation|Select Pod')}</InputLabel>
         <Select
+          labelId="logs-pod-chooser-label"
+          id="logs-pod-chooser"
           value={selectedPodIndex}
           onChange={event => {
             setSelectedPodIndex(event.target.value as number | 'all');
@@ -506,8 +508,10 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
       {/* Container selection dropdown */}
       <FormControl sx={{ minWidth: 200 }}>
-        <InputLabel>{t('translation|Container')}</InputLabel>
+        <InputLabel id="logs-container-chooser-label">{t('translation|Container')}</InputLabel>
         <Select
+          labelId="logs-container-chooser-label"
+          id="logs-container-chooser"
           value={selectedContainer}
           onChange={event => {
             setSelectedContainer(event.target.value);
@@ -529,8 +533,13 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
       {/* Lines selector */}
       <FormControl sx={{ minWidth: 120 }}>
-        <InputLabel>{t('translation|Lines')}</InputLabel>
-        <Select value={lines} onChange={handleLinesChange}>
+        <InputLabel id="logs-lines-chooser-label">{t('translation|Lines')}</InputLabel>
+        <Select
+          labelId="logs-lines-chooser-label"
+          id="logs-lines-chooser"
+          value={lines}
+          onChange={handleLinesChange}
+        >
           {[100, 1000, 2500].map(i => (
             <MenuItem key={i} value={i}>
               {i}
@@ -542,8 +551,10 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
       {/* Severity filter dropdown */}
       <FormControl sx={{ minWidth: 140 }}>
-        <InputLabel>{t('translation|Severity')}</InputLabel>
+        <InputLabel id="logs-severity-filter-label">{t('translation|Severity')}</InputLabel>
         <Select
+          labelId="logs-severity-filter-label"
+          id="logs-severity-filter"
           multiple
           value={selectedSeverities}
           onChange={event => {
