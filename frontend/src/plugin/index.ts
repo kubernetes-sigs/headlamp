@@ -47,10 +47,12 @@ import * as K8s from '../lib/k8s';
 import * as ApiProxy from '../lib/k8s/apiProxy';
 import * as Crd from '../lib/k8s/crd';
 import * as Notification from '../lib/notification';
+import * as queryClient from '../lib/queryClient';
 import * as Router from '../lib/router';
 import * as Utils from '../lib/util';
 import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
 import store from '../redux/stores/store';
+import * as stateless from '../stateless/index';
 import { Headlamp, Plugin } from './lib';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
@@ -102,6 +104,8 @@ window.pluginLib = {
   useTranslation,
   ...registryToExport,
   Activity,
+  stateless,
+  queryClient,
 };
 
 // backwards compat.
