@@ -190,7 +190,7 @@ func (c *Config) validateTracing() error {
 	if (c.JaegerEndpoint == nil || *c.JaegerEndpoint == "") &&
 		(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") &&
 		(c.StdoutTraceEnabled == nil || !*c.StdoutTraceEnabled) {
-		return errors.New("at least one tracing exporter (jaeger, otlp, or stdout) must be configured")
+		return errors.New("at least one tracing exporter (otlp or stdout) must be configured")
 	}
 
 	return nil

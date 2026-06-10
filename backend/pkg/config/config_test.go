@@ -855,6 +855,17 @@ var validateTracingTests = []struct {
 		errorContains: "otlp-endpoint must be configured when use-otlp-http is enabled",
 	},
 	{
+		name: "tracing_enabled_without_exporter",
+		args: []string{
+			"go run ./cmd",
+			"--tracing-enabled=true",
+			"--service-name=myapp",
+			"--otlp-endpoint=",
+		},
+		expectError:   true,
+		errorContains: "at least one tracing exporter (otlp or stdout) must be configured",
+	},
+	{
 		name: "stdout_trace_enabled_without_endpoint",
 		args: []string{
 			"go run ./cmd",
