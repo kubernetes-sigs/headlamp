@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { setStatelessConfig } from '../redux/configSlice';
+import store from '../redux/stores/store';
 import {
+  fetchStatelessClusterKubeConfigs,
   findAndReplaceKubeconfig,
   getStatelessClusterKubeConfigs,
   storeStatelessClusterKubeconfig,
@@ -288,5 +291,68 @@ extensions:
     expect(configs).toContain(kubeconfig1);
     expect(configs).toContain(kubeconfig2);
     expect(configs).toContain(kubeconfig3);
+  });
+});
+
+describe('fetchStatelessClusterKubeConfigs', () => {
+  const clearIndexedDB = () =>
+    new Promise<void>(resolve => {
+      const request = indexedDB.open('kubeconfigs', 1);
+      request.onupgradeneeded = (event: any) => {
+        const db = event.target.result as IDBDatabase;
+        if (!db.objectStoreNames.contains('kubeconfigStore')) {
+          db.createObjectStore('kubeconfigStore', { keyPath: 'id', autoIncrement: true });
+        }
+      };
+      request.onsuccess = (event: any) => {
+        const db = event.target.result as IDBDatabase;
+        const tx = db.transaction(['kubeconfigStore'], 'readwrite');
+        const clearReq = tx.objectStore('kubeconfigStore').clear();
+        clearReq.onsuccess = () => {
+          db.close();
+          resolve();
+        };
+        clearReq.onerror = () => {
+          db.close();
+          resolve();
+        };
+      };
+      request.onerror = () => resolve();
+    });
+
+  beforeEach(async () => {
+    await clearIndexedDB();
+    store.dispatch(setStatelessConfig({ statelessClusters: null }));
+  });
+
+  afterEach(async () => {
+    await clearIndexedDB();
+    store.dispatch(setStatelessConfig({ statelessClusters: null }));
+  });
+
+  it('dispatches setStatelessConfig({}) when IndexedDB is empty and stale state exists', async () => {
+    // Seed stale redux state (simulates a previous session leaving clusters behind)
+    store.dispatch(
+      setStatelessConfig({
+        statelessClusters: { 'stale-cluster': { name: 'stale-cluster' } as any },
+      })
+    );
+    expect(store.getState().config.statelessClusters).not.toBeNull();
+
+    const dispatch = vi.fn();
+    // IndexedDB is empty — fetchStatelessClusterKubeConfigs should clear stale state
+    await fetchStatelessClusterKubeConfigs(dispatch);
+
+    expect(dispatch).toHaveBeenCalledWith(setStatelessConfig({ statelessClusters: {} }));
+  });
+
+  it('does not dispatch when IndexedDB is empty and state is already clear', async () => {
+    // statelessClusters is null in the store (already clean)
+    expect(store.getState().config.statelessClusters).toBeNull();
+
+    const dispatch = vi.fn();
+    await fetchStatelessClusterKubeConfigs(dispatch);
+
+    expect(dispatch).not.toHaveBeenCalled();
   });
 });

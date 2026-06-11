@@ -16,6 +16,7 @@
 
 import _ from 'lodash';
 import { addBackstageAuthHeaders } from '../helpers/addBackstageAuthHeaders';
+import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
 import { request } from '../lib/k8s/api/v1/clusterRequests';
 import { JSON_HEADERS } from '../lib/k8s/api/v1/constants';
 import { Cluster } from '../lib/k8s/cluster';
@@ -373,13 +374,21 @@ export function isEqualClusterConfigs(
  */
 export async function fetchStatelessClusterKubeConfigs(dispatch: any) {
   const config = await getStatelessClusterKubeConfigs();
+
+  if (!config || config.length === 0) {
+    const statelessClusters = store.getState().config.statelessClusters;
+    if (statelessClusters && Object.keys(statelessClusters).length > 0) {
+      dispatch(setStatelessConfig({ statelessClusters: {} }));
+    }
+    return;
+  }
+
   const statelessClusters = store.getState().config.statelessClusters;
   const headers = addBackstageAuthHeaders(JSON_HEADERS);
   const clusterReq = {
     kubeconfigs: config,
   };
 
-  // Parses statelessCluster config
   request(
     '/parseKubeConfig',
     {
@@ -387,6 +396,7 @@ export async function fetchStatelessClusterKubeConfigs(dispatch: any) {
       body: JSON.stringify(clusterReq),
       headers: {
         ...headers,
+        ...getHeadlampAPIHeaders(),
       },
     },
     false,
@@ -395,18 +405,16 @@ export async function fetchStatelessClusterKubeConfigs(dispatch: any) {
     .then((config: ParsedConfig) => {
       const clustersToConfig: ConfigState['statelessClusters'] = {};
       if (config?.clusters && Array.isArray(config.clusters)) {
-        config?.clusters.forEach((cluster: Cluster) => {
+        config.clusters.forEach((cluster: Cluster) => {
           clustersToConfig[cluster.name] = cluster;
         });
       }
 
-      const configToStore = {
-        statelessClusters: clustersToConfig,
-      };
-      if (statelessClusters === null) {
-        dispatch(setStatelessConfig({ ...configToStore }));
-      } else if (Object.keys(clustersToConfig).length !== Object.keys(statelessClusters).length) {
-        dispatch(setStatelessConfig({ ...configToStore }));
+      if (
+        statelessClusters === null ||
+        Object.keys(clustersToConfig).length !== Object.keys(statelessClusters).length
+      ) {
+        dispatch(setStatelessConfig({ statelessClusters: clustersToConfig }));
       }
     })
     .catch((err: Error) => {
