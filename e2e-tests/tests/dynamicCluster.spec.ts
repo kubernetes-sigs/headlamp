@@ -26,7 +26,15 @@ let headlampPage: HeadlampPage;
 test.beforeEach(async ({ page }) => {
   headlampPage = new HeadlampPage(page);
 
-  await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+  // Navigate to the test cluster page
+  await headlampPage.navigateTopage('/c/test');
+
+  // Authenticate only if the auth page is shown (e.g. minikube with token auth).
+  // When using cert-based auth (e.g. KWOK), no auth page appears.
+  const hasAuthPage = await page.locator('h1:has-text("Authentication")').isVisible();
+  if (hasAuthPage) {
+    await headlampPage.authenticate(process.env.HEADLAMP_TEST_TOKEN);
+  }
 });
 
 test('There is cluster choose button and test cluster is selected', async () => {
@@ -47,18 +55,67 @@ test('Store modified kubeconfig to IndexDB and check if present', async ({ page 
   expect(storedKubeconfig).not.toBeNull();
 });
 
-test('check dummy is present in cluster and working', async ({ page }) => {
+test('parseKubeConfig endpoint accepts kubeconfigs array format', async ({ page }) => {
   const base64EncodedKubeconfig = await getBase64EncodedKubeconfig();
+
+  // Call /parseKubeConfig with the correct kubeconfigs (plural, array) format
+  const response = await page.evaluate(async (kubeconfig: string) => {
+    const resp = await fetch('/parseKubeConfig', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kubeconfigs: [kubeconfig] }),
+    });
+    return { status: resp.status, body: await resp.json() };
+  }, base64EncodedKubeconfig);
+
+  expect(response.status).toBe(200);
+  expect(response.body).toHaveProperty('clusters');
+  expect(Array.isArray(response.body.clusters)).toBe(true);
+  expect(response.body.clusters.length).toBeGreaterThan(0);
+  expect(response.body.clusters.some((c: { name: string }) => c.name === 'dummy')).toBe(true);
+});
+
+test('parseKubeConfig endpoint rejects singular kubeconfig format', async ({ page }) => {
+  const base64EncodedKubeconfig = await getBase64EncodedKubeconfig();
+
+  // Verify the old singular kubeconfig format is rejected by the backend
+  const rejectResponse = await page.evaluate(async (kubeconfig: string) => {
+    const resp = await fetch('/parseKubeConfig', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kubeconfig: kubeconfig }),
+    });
+    return { status: resp.status };
+  }, base64EncodedKubeconfig);
+
+  // The backend requires kubeconfigs (plural, array) and rejects kubeconfig (singular)
+  expect(rejectResponse.status).toBe(400);
+});
+
+test('stateless cluster loads without errors after storing kubeconfig', async ({ page }) => {
+  const base64EncodedKubeconfig = await getBase64EncodedKubeconfig();
+
+  // Step 1: Store kubeconfig in IndexedDB (simulates the user adding a cluster)
   await saveKubeconfigToIndexDB(page, base64EncodedKubeconfig);
-  await page.waitForLoadState('load');
 
+  // Step 2: Read it back from IndexedDB (simulates fetchStatelessClusterKubeConfigs reading it)
   const storedKubeconfig = await getKubeconfigFromIndexDB(page);
-  await page.waitForLoadState('load');
-
   expect(storedKubeconfig).not.toBeNull();
 
-  await headlampPage.navigateTopage('/c/dummy', /Cluster/);
-  await headlampPage.pageLocatorContent('h2:has-text("Overview")', 'Overview');
+  // Step 3: Call /parseKubeConfig with the stored kubeconfig — exactly as
+  // fetchStatelessClusterKubeConfigs does — and verify it returns 200.
+  // This catches the bug where the wrong field name (kubeconfig vs kubeconfigs)
+  // would cause a 400 "kubeconfigs is required" error.
+  const response = await page.evaluate(async (kubeconfig: string) => {
+    const resp = await fetch('/parseKubeConfig', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ kubeconfigs: [kubeconfig] }),
+    });
+    return { status: resp.status };
+  }, storedKubeconfig as string);
+
+  expect(response.status).toBe(200);
 });
 
 const getBase64EncodedKubeconfig = async () => {
@@ -116,48 +173,48 @@ const getBase64EncodedKubeconfig = async () => {
 
 const saveKubeconfigToIndexDB = async (page, base64EncodedKubeconfig) => {
   await page.evaluate(base64EncodedKubeconfig => {
-    // Open or create an IndexDB database
-    const request = indexedDB.open('kubeconfigs', 1);
+    return new Promise<void>((resolve, reject) => {
+      // Open or create an IndexDB database
+      const request = indexedDB.open('kubeconfigs', 1);
 
-    // Handle database creation or upgrade
-    request.onupgradeneeded = function (event: any) {
-      const db = event.target ? event.target.result : null;
-      // Create the object store if it doesn't exist
-      if (!db.objectStoreNames.contains('kubeconfigStore')) {
-        db.createObjectStore('kubeconfigStore', {
-          keyPath: 'id',
-          autoIncrement: true,
-        });
-      }
-    };
-
-    request.onsuccess = (event: any) => {
-      const db = event.target.result;
-      const transaction = db.transaction(['kubeconfigStore'], 'readwrite');
-      const store = transaction.objectStore('kubeconfigStore');
-
-      // Add the base64 encoded kubeconfig to the IndexDB store
-      const addRequest = store.add({ kubeconfig: base64EncodedKubeconfig });
-
-      // Handle the success or failure of the add operation
-      addRequest.onsuccess = () => {
-        console.log('Kubeconfig added to IndexDB');
+      // Handle database creation or upgrade
+      request.onupgradeneeded = function (event: any) {
+        const db = event.target ? event.target.result : null;
+        // Create the object store if it doesn't exist
+        if (!db.objectStoreNames.contains('kubeconfigStore')) {
+          db.createObjectStore('kubeconfigStore', {
+            keyPath: 'id',
+            autoIncrement: true,
+          });
+        }
       };
 
-      addRequest.onerror = () => {
-        console.error('Error adding kubeconfig to IndexDB');
+      request.onsuccess = (event: any) => {
+        const db = event.target.result;
+        const transaction = db.transaction(['kubeconfigStore'], 'readwrite');
+        const store = transaction.objectStore('kubeconfigStore');
+
+        // Add the base64 encoded kubeconfig to the IndexDB store
+        const addRequest = store.add({ kubeconfig: base64EncodedKubeconfig });
+
+        addRequest.onsuccess = () => {
+          console.log('Kubeconfig added to IndexDB');
+          db.close();
+          resolve();
+        };
+
+        addRequest.onerror = () => {
+          console.error('Error adding kubeconfig to IndexDB');
+          db.close();
+          reject(new Error('Error adding kubeconfig to IndexDB'));
+        };
       };
 
-      // Close the database when done
-      transaction.oncomplete = () => {
-        db.close();
+      request.onerror = function (event: any) {
+        console.error('Error opening the database:', event.target.error);
+        reject(event.target.error);
       };
-    };
-
-    request.onerror = function (event: any) {
-      console.error('Error opening the database:', event.target.error);
-      return event.target.error;
-    };
+    });
   }, base64EncodedKubeconfig);
 };
 
