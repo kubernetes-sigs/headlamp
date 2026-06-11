@@ -738,6 +738,260 @@ export function ContainerTextField(props: ContainerTextFieldProps) {
   );
 }
 
+/** Props for {@link PodLabelsEditor}. */
+export interface PodLabelsEditorProps {
+  /** Current full pod template labels map (locked entries + extras). */
+  value: Record<string, string>;
+  /** Labels mirrored from the selector. Rendered disabled with no delete. */
+  lockedLabels: Record<string, string>;
+  /** Called with the updated full pod template labels map. */
+  onChange: (labels: Record<string, string>) => void;
+}
+
+/** Pod template labels editor. Rows whose key is in `lockedLabels` (mirrored
+ *  from the selector) render disabled with no delete. Other rows are fully
+ *  editable; both end up in `spec.template.metadata.labels`. */
+export function PodLabelsEditor(props: PodLabelsEditorProps) {
+  const { value, lockedLabels, onChange } = props;
+  const { t } = useTranslation(['translation']);
+
+  /** Editable rows = full value minus locked keys. */
+  function extrasFromValue(full: Record<string, string>): Record<string, string> {
+    const extras: Record<string, string> = {};
+    for (const [k, v] of Object.entries(full ?? {})) {
+      if (!(k in lockedLabels)) extras[k] = v;
+    }
+    return extras;
+  }
+
+  const [extraRows, setExtraRows] = React.useState<LabelRow[]>(() =>
+    buildLabelRows(extrasFromValue(value))
+  );
+  /** Last full map we emitted. Lets us tell our own echo apart from an
+   *  outside change (e.g. YAML editor) and re-seed rows only when needed. */
+  const lastEmittedRef = React.useRef<Record<string, string>>({
+    ...lockedLabels,
+    ...labelRowsToMap(extraRows),
+  });
+
+  React.useEffect(() => {
+    const merged = { ...lockedLabels, ...value };
+    if (!labelMapsEqual(merged, lastEmittedRef.current)) {
+      setExtraRows(buildLabelRows(extrasFromValue(value ?? {})));
+      lastEmittedRef.current = merged;
+    }
+    // extrasFromValue closes over lockedLabels; both are in deps.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value, lockedLabels]);
+
+  function commit(nextExtras: LabelRow[]) {
+    setExtraRows(nextExtras);
+    const extrasMap = labelRowsToMap(nextExtras);
+    // Locked entries win on key collision so selector edits aren't
+    // shadowed by a same-key extra.
+    const full = { ...extrasMap, ...lockedLabels };
+    lastEmittedRef.current = full;
+    onChange(full);
+  }
+
+  function addRow() {
+    const used = new Set([...extraRows.map(r => r.key), ...Object.keys(lockedLabels)]);
+    let nextKey = 'new-label';
+    let idx = 1;
+    while (used.has(nextKey)) {
+      idx += 1;
+      nextKey = `new-label-${idx}`;
+    }
+    commit([...extraRows, { id: nextLabelRowId(), key: nextKey, value: '' }]);
+  }
+
+  function handleDelete(id: string) {
+    commit(extraRows.filter(r => r.id !== id));
+  }
+
+  function handleKeyEdit(id: string, newKeyVal: string) {
+    // Two rows may briefly share a key while typing; the map drops the duplicate.
+    commit(extraRows.map(r => (r.id === id ? { ...r, key: newKeyVal } : r)));
+  }
+
+  function handleValueEdit(id: string, newValue: string) {
+    commit(extraRows.map(r => (r.id === id ? { ...r, value: newValue } : r)));
+  }
+
+  const lockedEntries = Object.entries(lockedLabels ?? {});
+
+  return (
+    <Box>
+      {lockedEntries.map(([k, v]) => (
+        <Box
+          key={`locked-${k}`}
+          sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 2, mb: 2 }}
+        >
+          <FormTextField
+            label={t('translation|Key')}
+            value={k}
+            disabled
+            inputProps={{ 'aria-label': t('translation|Label key'), readOnly: true }}
+          />
+          <FormTextField
+            label={t('translation|Value')}
+            value={v}
+            disabled
+            inputProps={{ 'aria-label': t('translation|Label value'), readOnly: true }}
+          />
+        </Box>
+      ))}
+      {extraRows.map(r => (
+        <Box key={r.id} sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 2, mb: 2 }}>
+          <FormTextField
+            label={t('translation|Key')}
+            value={r.key}
+            onChange={e => handleKeyEdit(r.id, e.target.value)}
+            inputProps={{ 'aria-label': t('translation|Label key') }}
+          />
+          <FormTextField
+            label={t('translation|Value')}
+            value={r.value}
+            onChange={e => handleValueEdit(r.id, e.target.value)}
+            inputProps={{ 'aria-label': t('translation|Label value') }}
+          />
+          <IconButton
+            onClick={() => handleDelete(r.id)}
+            color="default"
+            size="small"
+            aria-label={t('translation|Remove label {{ label }}', {
+              label: `${r.key}=${r.value}`,
+            })}
+          >
+            <Icon icon="mdi:close-circle" width={24} height={24} />
+          </IconButton>
+        </Box>
+      ))}
+      <Box sx={{ mt: 2 }}>
+        <Button
+          onClick={addRow}
+          color="primary"
+          size="small"
+          aria-label={t('translation|Add label')}
+        >
+          <Icon icon="mdi:plus-circle" width={24} height={24} />
+          <Typography variant="body2" sx={{ ml: 0.5 }}>
+            {t('translation|New Label')}
+          </Typography>
+        </Button>
+      </Box>
+    </Box>
+  );
+}
+
+/** Options for {@link useSelectorPodTemplate}. */
+export interface UseSelectorPodTemplateOptions<T extends Record<string, any>> {
+  /** Current resource draft. */
+  resource: T;
+  /** Called when the resource is updated (defaults seeded, selector edited). */
+  onChange: (resource: T) => void;
+  /** Label seeded into `spec.selector.matchLabels` and mirrored into the pod
+   *  template when the selector is empty on first mount. Defaults to
+   *  `{ app: 'headlamp' }`. Pass `null` to skip seeding labels. */
+  defaultMatchLabels?: Record<string, string> | null;
+  /** Value seeded into `spec.replicas` when unset on first mount. Defaults
+   *  to `1`. Pass `null` to skip seeding replicas (useful for DaemonSet,
+   *  Job, etc. which don't take a replica count). */
+  defaultReplicas?: number | null;
+}
+
+/** Returned by {@link useSelectorPodTemplate}. */
+export interface SelectorPodTemplateState {
+  /** Current `spec.selector.matchLabels`. */
+  matchLabels: Record<string, string>;
+  /** Current `spec.template.metadata.labels`. */
+  podLabels: Record<string, string>;
+  /** Apply a new selector map. Old selector entries are replaced with
+   *  `nextMatch`; any pod-template-only extras are preserved. Selector wins
+   *  on key collision, matching {@link PodLabelsEditor}. */
+  handleMatchLabelsChange: (nextMatch: Record<string, string>) => void;
+}
+
+/** Shared selector + pod-template wiring for resources that embed a pod
+ *  template (Deployment, ReplicaSet, StatefulSet, DaemonSet, Job, ...).
+ *  Seeds defaults once on mount and exposes a selector change handler that
+ *  mirrors selector entries into the pod template labels.
+ *
+ *  Opt-in: only call this from forms that actually have a selector + pod
+ *  template. Pair with {@link LabelTextField} for the selector field and
+ *  {@link PodLabelsEditor} for the pod template labels field, both via the
+ *  `render` callback on a {@link FormField}. */
+export function useSelectorPodTemplate<T extends Record<string, any>>(
+  opts: UseSelectorPodTemplateOptions<T>
+): SelectorPodTemplateState {
+  const {
+    resource,
+    onChange,
+    defaultMatchLabels = { app: 'headlamp' },
+    defaultReplicas = 1,
+  } = opts;
+
+  const matchLabels = React.useMemo(
+    () => (resource.spec?.selector?.matchLabels as Record<string, string> | undefined) ?? {},
+    [resource.spec?.selector?.matchLabels]
+  );
+  const podLabels =
+    (resource.spec?.template?.metadata?.labels as Record<string, string> | undefined) ?? {};
+
+  // Seed defaults once. Effect (not render) so the seed reaches the
+  // resource / YAML, not just the form UI.
+  const didSeedDefaultsRef = React.useRef(false);
+  React.useEffect(() => {
+    if (didSeedDefaultsRef.current) return;
+    didSeedDefaultsRef.current = true;
+    const next = _.cloneDeep(resource) as T;
+    let changed = false;
+    if (defaultMatchLabels !== null) {
+      if (Object.keys(matchLabels).length === 0) {
+        _.set(next, 'spec.selector.matchLabels', { ...defaultMatchLabels });
+        _.set(next, 'spec.template.metadata.labels', {
+          ...((next.spec?.template?.metadata?.labels as Record<string, string> | undefined) ?? {}),
+          ...defaultMatchLabels,
+        });
+        changed = true;
+      } else {
+        // Mirror every selector entry into pod labels, keeping existing extras.
+        const mergedPodLabels = { ...podLabels, ...matchLabels };
+        if (!labelMapsEqual(mergedPodLabels, podLabels)) {
+          _.set(next, 'spec.template.metadata.labels', mergedPodLabels);
+          changed = true;
+        }
+      }
+    }
+    if (defaultReplicas !== null && next.spec?.replicas === undefined) {
+      _.set(next, 'spec.replicas', defaultReplicas);
+      changed = true;
+    }
+    if (changed) {
+      onChange(next);
+    }
+    // Only run once: re-running would clobber user edits.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  function handleMatchLabelsChange(nextMatch: Record<string, string>) {
+    const extras: Record<string, string> = {};
+    for (const [k, v] of Object.entries(podLabels)) {
+      if (!(k in matchLabels)) extras[k] = v;
+    }
+    const nextPodLabels = { ...extras, ...nextMatch };
+
+    const nextResource = _.cloneDeep(resource) as T;
+    _.set(nextResource, 'spec.selector.matchLabels', nextMatch);
+    if (!labelMapsEqual(nextPodLabels, podLabels)) {
+      _.set(nextResource, 'spec.template.metadata.labels', nextPodLabels);
+    }
+    onChange(nextResource);
+  }
+
+  return { matchLabels, podLabels, handleMatchLabelsChange };
+}
+
 /** Safely parse a YAML string into an object, returning {} on failure. */
 export function parseYaml(input: string | undefined): Record<string, any> {
   if (!input) return {};

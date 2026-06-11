@@ -292,7 +292,9 @@
                   </button>
                 </div>
                 <div
+                  aria-labelledby="label-group-id"
                   class="MuiBox-root css-0"
+                  role="group"
                 >
                   <div
                     class="MuiBox-root css-bqqf5i"

@@ -31,6 +31,8 @@ export * from '../../pod/CreatePodForm';
 export { default as CreatePodForm } from '../../pod/CreatePodForm';
 export * from '../../deployments/CreateDeploymentForm';
 export { default as CreateDeploymentForm } from '../../deployments/CreateDeploymentForm';
+export * from '../../replicaset/CreateReplicaSetForm';
+export { default as CreateReplicaSetForm } from '../../replicaset/CreateReplicaSetForm';
 export * from './CreateResourceForm';
 export { default as CreateResourceForm } from './CreateResourceForm';
 export * from './CopyButton';
