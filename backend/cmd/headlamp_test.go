@@ -1023,7 +1023,11 @@ func deletedPodNames(actions []k8stesting.Action) []string {
 			continue
 		}
 
-		deleteAction := action.(k8stesting.DeleteAction)
+		deleteAction, ok := action.(k8stesting.DeleteAction)
+		if !ok {
+			continue
+		}
+
 		deletedPods = append(deletedPods, deleteAction.GetName())
 	}
 
