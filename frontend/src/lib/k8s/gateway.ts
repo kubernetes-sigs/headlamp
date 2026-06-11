@@ -74,12 +74,12 @@ export interface GatewayStatusAddress {
  * @see {@link https://gateway-api.sigs.k8s.io/api-types/gateway/} Gateway API definition for Gateway
  */
 export interface KubeGateway extends KubeObjectInterface {
-  spec: {
+  spec?: {
     gatewayClassName?: string;
-    listeners: GatewayListener[];
+    listeners?: GatewayListener[];
     [key: string]: any;
   };
-  status: {
+  status?: {
     addresses?: GatewayStatusAddress[];
     listeners?: GatewayListenerStatus[];
     conditions?: KubeCondition[];
@@ -102,15 +102,15 @@ class Gateway extends KubeObject<KubeGateway> {
   }
 
   getListeners(): GatewayListener[] {
-    return this.jsonData.spec.listeners;
+    return this.jsonData.spec?.listeners ?? [];
   }
 
   getAddresses(): GatewayStatusAddress[] {
-    return this.jsonData.status.addresses || [];
+    return this.jsonData.status?.addresses ?? [];
   }
 
   getListernerStatusByName(name: string): GatewayListenerStatus | null {
-    return this.jsonData.status.listeners?.find(t => t.name === name) || null;
+    return this.jsonData.status?.listeners?.find(t => t.name === name) ?? null;
   }
 
   static get pluralName() {
