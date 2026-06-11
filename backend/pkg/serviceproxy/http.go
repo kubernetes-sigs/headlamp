@@ -20,12 +20,12 @@ func HTTPGetStream(ctx context.Context, uri string, w io.Writer) error {
 
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, uri, nil) //nolint:gosec
 	if err != nil {
-		return fmt.Errorf("creating request: %v", err)
+		return fmt.Errorf("creating request: %w", err)
 	}
 
 	resp, err := cli.Do(req) //nolint:gosec
 	if err != nil {
-		return fmt.Errorf("failed HTTP GET: %v", err)
+		return fmt.Errorf("failed HTTP GET: %w", err)
 	}
 
 	defer func() { _ = resp.Body.Close() }()
@@ -35,7 +35,7 @@ func HTTPGetStream(ctx context.Context, uri string, w io.Writer) error {
 	}
 
 	if _, err := io.Copy(w, resp.Body); err != nil {
-		return fmt.Errorf("streaming response: %v", err)
+		return fmt.Errorf("streaming response: %w", err)
 	}
 
 	return nil
