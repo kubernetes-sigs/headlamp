@@ -178,6 +178,15 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		clusterName += userID
 	}
 
+	// Ensure we don't orphan an existing port-forward by overwriting its cache entry
+	if existingPF, err := getPortForwardByID(cache, clusterName, p.ID); err == nil && existingPF.Status == RUNNING {
+		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName, "id": p.ID},
+			nil, "portforward ID already exists")
+		http.Error(w, "portforward with this ID is already running", http.StatusConflict)
+
+		return
+	}
+
 	kContext, err := kubeConfigStore.GetContext(clusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},

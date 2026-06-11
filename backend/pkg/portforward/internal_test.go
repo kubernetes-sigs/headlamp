@@ -29,6 +29,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/rest"
@@ -640,4 +641,42 @@ func TestStopOrDeletePortForwardHandler_UserIDKeyIsolation(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, res.StatusCode,
 		"stop request with user ID must not find entries stored under base cluster key")
+}
+
+// TestStartPortForward_DuplicateIDConflict verifies that StartPortForward
+// returns a 409 Conflict if a port-forward with the same ID is already running.
+func TestStartPortForward_DuplicateIDConflict(t *testing.T) {
+	c := cache.New[interface{}]()
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	// Seed a running port-forward in the cache
+	pf := portForward{
+		ID:        "duplicate-id",
+		Cluster:   "test-cluster",
+		Pod:       "some-pod",
+		Namespace: "default",
+		Status:    RUNNING,
+	}
+	portforwardstore(c, pf)
+
+	reqPayload := map[string]interface{}{
+		"id":         "duplicate-id",
+		"pod":        "another-pod",
+		"namespace":  "default",
+		"targetPort": "8080",
+	}
+	jsonReq, err := json.Marshal(reqPayload)
+	require.NoError(t, err)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/portforward", bytes.NewReader(jsonReq))
+	r = mux.SetURLVars(r, map[string]string{"clusterName": "test-cluster"})
+
+	StartPortForward(kubeConfigStore, c, false, w, r)
+
+	res := w.Result()
+
+	defer func() { _ = res.Body.Close() }()
+
+	assert.Equal(t, http.StatusConflict, res.StatusCode, "expected 409 Conflict for duplicate ID, but got something else")
 }
