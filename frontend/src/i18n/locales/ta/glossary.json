@@ -142,6 +142,7 @@
   "Uncordon": "அன்கார்டன்",
   "Cordon": "கார்டன்",
   "Drain": "ட்ரெயின்",
+  "Node Pool": "",
   "Pod CIDR": "பாட் சிஐடிஆர்",
   "Capacity": "கொள்ளளவு",
   "Allocatable": "",
