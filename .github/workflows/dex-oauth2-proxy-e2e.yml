@@ -1,0 +1,121 @@
+name: Dex + OAuth2-Proxy e2e
+
+# Drives the opt-in Playwright spec
+# `e2e-tests/tests/dexOauth2Proxy.spec.ts` end-to-end against the
+# runnable test scripts at
+# `docs/installation/in-cluster/dex/test-scripts/`
+# (Minikube + Dex + Headlamp + OAuth2-Proxy).
+#
+# This is a separate workflow from the main e2e (`build-container.yml`)
+# because it brings up its own Minikube profile with OIDC apiserver
+# flags and runs Dex on the host — it should not share a cluster with
+# the other e2e tests.
+on:
+  pull_request:
+    paths:
+      - 'docs/installation/in-cluster/dex/**'
+      - 'e2e-tests/tests/dexOauth2Proxy.spec.ts'
+      - 'e2e-tests/package.json'
+      - 'e2e-tests/package-lock.json'
+      - 'e2e-tests/playwright.config.ts'
+      - '.github/workflows/dex-oauth2-proxy-e2e.yml'
+  push:
+    branches:
+      - main
+      - rc-*
+      - testing-rc-*
+
+permissions:
+  contents: read
+
+jobs:
+  dex-oauth2-proxy-e2e:
+    runs-on: ubuntu-22.04
+    name: Dex + OAuth2-Proxy e2e
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - uses: actions/setup-node@1a4442cacd436585916779262731d5b162bc6ec7 # v3.8.2
+        with:
+          node-version: 22.x
+
+      - name: Install dex
+        run: |
+          set -euo pipefail
+          # Dex does not publish prebuilt binaries on its GitHub Releases
+          # page (only source tarballs and container images), so we build
+          # `dex` from source. Go is preinstalled on ubuntu-22.04 runners.
+          # Pinned to match docs/installation/in-cluster/dex/test-scripts/README.md
+          DEX_VERSION=v2.45.1
+          git clone --depth=1 --branch "${DEX_VERSION}" \
+            https://github.com/dexidp/dex.git /tmp/dex-src
+          (cd /tmp/dex-src && go build -o /tmp/dex ./cmd/dex)
+          sudo install -m 0755 /tmp/dex /usr/local/bin/dex
+          rm -rf /tmp/dex-src /tmp/dex
+          dex version
+
+      - name: Verify prerequisites
+        run: |
+          kubectl version --client
+          helm version
+          openssl version
+
+      - name: Map host.minikube.internal in /etc/hosts
+        # Dex's `issuer` URL in test-scripts/dex-config.yaml is
+        # `http://host.minikube.internal:5556`. That hostname resolves
+        # from inside the Minikube container (Minikube wires it up) and
+        # from the oauth2-proxy pod, but on a fresh GitHub runner it
+        # does NOT resolve in the host's network namespace — so when
+        # OAuth2-Proxy redirects the Playwright Chromium browser to
+        # `http://host.minikube.internal:5556/auth?...` the browser
+        # fails with `chrome-error://chromewebdata/`. Dex listens on
+        # 0.0.0.0:5556 on the host, so pointing the name at 127.0.0.1
+        # makes the browser-side redirect succeed without changing the
+        # in-cluster resolution.
+        run: |
+          echo '127.0.0.1 host.minikube.internal' | sudo tee -a /etc/hosts
+          getent hosts host.minikube.internal
+
+      - name: Start Minikube
+        # The test scripts manage their own Minikube profile ("dex"),
+        # but we still need the minikube binary on PATH and the docker
+        # driver available on the runner.
+        uses: medyagh/setup-minikube@d8c0eb871f6f455542491d86a574477bd3894533 # latest
+        with:
+          start: false
+
+      - name: Install e2e-tests dependencies
+        working-directory: e2e-tests
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+
+      - name: Run Dex + OAuth2-Proxy Playwright e2e
+        working-directory: e2e-tests
+        env:
+          HEADLAMP_TEST_DEX_OAUTH2_PROXY: '1'
+          HEADLAMP_TEST_DEX_OAUTH2_PROXY_MANAGE: '1'
+        run: |
+          npx playwright test tests/dexOauth2Proxy.spec.ts
+
+      - name: Collect Dex and stack logs on failure
+        if: failure()
+        run: |
+          set +e
+          echo '----- /tmp/headlamp-dex.log -----'
+          cat /tmp/headlamp-dex.log || true
+          echo '----- minikube profile list -----'
+          minikube profile list || true
+          echo '----- pods in headlamp namespace -----'
+          kubectl --context dex -n headlamp get pods || true
+          kubectl --context dex -n headlamp describe pods || true
+          kubectl --context dex -n headlamp logs -l app.kubernetes.io/name=headlamp --tail=200 || true
+          kubectl --context dex -n headlamp logs -l app.kubernetes.io/name=oauth2-proxy --tail=200 || true
+
+      - uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+        if: always()
+        with:
+          name: dex-oauth2-proxy-e2e-report
+          path: e2e-tests/playwright-report/
+          retention-days: 30
