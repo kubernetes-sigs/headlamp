@@ -142,6 +142,7 @@
   "Uncordon": "Planungssperre aufheben",
   "Cordon": "Planungssperre setzen",
   "Drain": "Entleeren",
+  "Node Pool": "",
   "Pod CIDR": "CIDR des Pods",
   "Capacity": "Kapazität",
   "Allocatable": "",

@@ -4,7 +4,7 @@ timeout: 3000s
 # For each build step, cloudbuild executes a docker container.
 steps:
   # see https://github.com/kubernetes/test-infra/tree/master/config/jobs/image-pushing
-  - name: 'gcr.io/k8s-staging-test-infra/gcb-docker-gcloud@sha256:8d6a3a5b895e6776dbe9115b75db1412fbe57299b8db329d45cb54680e462b0b' # v20251211-4c812d4cd8
+  - name: 'gcr.io/k8s-staging-test-infra/gcb-docker-gcloud@sha256:ff388e0dc16351e96f8464e2e185b74a7578a5ccb7a112cf3393468e59e6e2d2' # v20260205-38cfa9523f
     entrypoint: bash
     # Always build/push the image, but only push the Helm chart on SemVer tag
     # builds (vX.Y.Z). On branch builds the chart version (read from

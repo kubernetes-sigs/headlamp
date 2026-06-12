@@ -142,6 +142,7 @@
   "Uncordon": "انکارڈن",
   "Cordon": "کارڈن",
   "Drain": "ڈرین",
+  "Node Pool": "",
   "Pod CIDR": "پوڈ CIDR",
   "Capacity": "صلاحیت",
   "Allocatable": "",

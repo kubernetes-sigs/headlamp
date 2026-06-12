@@ -63,6 +63,18 @@ export interface KubeNode extends KubeObjectInterface {
   };
 }
 
+/**
+ * The exact label keys checked by {@link Node.getNodePool}.
+ * Export this so test helpers and stories can strip them without drifting.
+ */
+export const NODE_POOL_LABEL_KEYS = [
+  'cloud.google.com/gke-nodepool',
+  'kubernetes.azure.com/agentpool',
+  'eks.amazonaws.com/nodegroup',
+  'kops.k8s.io/instancegroup',
+  'cluster.x-k8s.io/deployment-name',
+] as const;
+
 class Node extends KubeObject<KubeNode> {
   static kind = 'Node';
   static apiName = 'nodes';
@@ -141,6 +153,20 @@ class Node extends KubeObject<KubeNode> {
     return Object.keys(labels)
       .filter(key => key.startsWith(rolePrefix))
       .map(key => key.slice(rolePrefix.length));
+  }
+
+  /**
+   * Returns the node pool name from well-known cloud provider labels.
+   * Supports GKE, AKS, EKS, kOps, and Cluster API.
+   */
+  getNodePool(): string {
+    const labels = this.metadata.labels ?? {};
+    for (const key of NODE_POOL_LABEL_KEYS) {
+      if (labels[key] !== undefined) {
+        return labels[key];
+      }
+    }
+    return '';
   }
 }
 

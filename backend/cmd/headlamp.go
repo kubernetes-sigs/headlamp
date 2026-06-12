@@ -160,6 +160,13 @@ const (
 	TokenCacheFileName = "headlamp-token-cache"
 )
 
+// Structured-log field names that recur across many log sites in the cmd package.
+const (
+	logFieldCluster    = "cluster"
+	logFieldClusterID  = "clusterID"
+	logFieldDurationMs = "duration_ms"
+)
+
 type clientConfig struct {
 	Clusters                []Cluster `json:"clusters"`
 	IsDynamicClusterEnabled bool      `json:"isDynamicClusterEnabled"`
@@ -836,7 +843,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			baseTransport, ok := http.DefaultTransport.(*http.Transport)
 			if !ok {
 				err := errors.New("http.DefaultTransport is not an *http.Transport")
-				logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+				logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
 					err, "failed to configure insecure oidc client transport")
 				http.Error(w, "Failed to configure oidc transport", http.StatusInternalServerError)
 
@@ -858,7 +865,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 		kContext, err := config.KubeConfigStore.GetContext(cluster)
 		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+			logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
 				err, "failed to get context")
 
 			http.NotFound(w, r)
@@ -870,7 +877,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		if err != nil {
 			// Avoid the noise in the pod log while accessing Headlamp using Service Token
 			if config.OidcIdpIssuerURL != "" {
-				logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+				logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
 					err, "failed to get oidc config")
 			}
 
@@ -923,7 +930,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return base64.RawURLEncoding.EncodeToString(b), nil
 		}()
 		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"cluster": cluster}, err, "failed to generate OIDC state")
+			logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster}, err, "failed to generate OIDC state")
 			http.Error(w, "failed to generate OIDC state", http.StatusInternalServerError)
 
 			return
@@ -1234,7 +1241,7 @@ func (c *HeadlampConfig) handleGetContextError(err error, cluster string, w http
 	span trace.Span, ctx context.Context, start time.Time, next http.Handler,
 ) bool {
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
 			err, "failed to get context")
 		c.TelemetryHandler.RecordError(span, err, "Failed to get context")
 		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error", "get_context_failure"))
@@ -1988,7 +1995,7 @@ func recordRequestCompletion(c *HeadlampConfig, ctx context.Context,
 		attribute.String("http.path", r.URL.Path),
 		attribute.String("cluster", mux.Vars(r)["clusterName"]))
 	logger.Log(logger.LevelInfo,
-		map[string]string{"duration_ms": fmt.Sprintf("%.2f", duration)},
+		map[string]string{logFieldDurationMs: fmt.Sprintf("%.2f", duration)},
 		nil, "Request completed successfully")
 }
 
@@ -2112,8 +2119,8 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 			"origin": map[string]interface{}{
 				"kubeconfig": kubeconfigPath,
 			},
-			"originalName": context.Name,
-			"clusterID":    clusterID,
+			"originalName":    context.Name,
+			logFieldClusterID: clusterID,
 		}
 
 		if context.Source == kubeconfig.ClusterInventory && context.ClusterInventory != nil {
@@ -2143,7 +2150,7 @@ func parseCustomNameClusters(contexts []kubeconfig.Context) ([]Cluster, []error)
 			// Convert the runtime.Unknown object to a byte slice
 			unknownBytes, err := json.Marshal(info)
 			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{"cluster": context.Name},
+				logger.Log(logger.LevelError, map[string]string{logFieldCluster: context.Name},
 					err, "unmarshaling context data")
 
 				setupErrors = append(setupErrors, err)
@@ -2156,7 +2163,7 @@ func parseCustomNameClusters(contexts []kubeconfig.Context) ([]Cluster, []error)
 
 			err = json.Unmarshal(unknownBytes, &customObj)
 			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{"cluster": context.Name},
+				logger.Log(logger.LevelError, map[string]string{logFieldCluster: context.Name},
 					err, "unmarshaling into CustomObject")
 
 				setupErrors = append(setupErrors, err)
@@ -2452,8 +2459,8 @@ func (c *HeadlampConfig) deleteCluster(w http.ResponseWriter, r *http.Request) {
 
 		c.TelemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "/cluster/delete"))
 		logger.Log(logger.LevelInfo, map[string]string{
-			"duration_ms": fmt.Sprintf("%d", duration),
-			"api.route":   "/cluster/delete",
+			logFieldDurationMs: fmt.Sprintf("%d", duration),
+			"api.route":        "/cluster/delete",
 		}, nil, "Completed deleteCluster request")
 	}()
 
@@ -2493,7 +2500,7 @@ func (c *HeadlampConfig) handleDeleteCluster(
 		return
 	}
 
-	logger.Log(logger.LevelInfo, map[string]string{"cluster": name, "proxy": name},
+	logger.Log(logger.LevelInfo, map[string]string{logFieldCluster: name, "proxy": name},
 		nil, "removed cluster successfully")
 }
 
@@ -2545,7 +2552,7 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 	defer span.End()
 
 	if err := c.KubeConfigStore.RemoveContext(clusterName); err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: clusterName},
 			err, "decoding request body")
 		c.TelemetryHandler.RecordError(span, err, "decoding request body")
 		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "remove_context_failure"))
@@ -2560,8 +2567,8 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 	duration := time.Since(start).Milliseconds()
 	c.TelemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "handleStatelessClusterRename"))
 	logger.Log(logger.LevelInfo, map[string]string{
-		"duration_ms": fmt.Sprintf("%d", duration),
-		"api.route":   "handleStatelessClusterRename",
+		logFieldDurationMs: fmt.Sprintf("%d", duration),
+		"api.route":        "handleStatelessClusterRename",
 	}, nil, "Completed stateless cluster rename")
 }
 
@@ -2572,7 +2579,7 @@ func customNameToExtensions(config *api.Config, contextName, newClusterName, pat
 	// Get the context with the given cluster name
 	contextConfig, ok := config.Contexts[contextName]
 	if !ok {
-		logger.Log(logger.LevelError, map[string]string{"cluster": contextName},
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: contextName},
 			err, "getting context from kubeconfig")
 
 		return err
@@ -2595,7 +2602,7 @@ func customNameToExtensions(config *api.Config, contextName, newClusterName, pat
 	contextConfig.Extensions["headlamp_info"] = customObj
 
 	if err := clientcmd.WriteToFile(*config, path); err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": contextName},
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: contextName},
 			err, "writing kubeconfig file")
 
 		return err
@@ -2640,7 +2647,7 @@ func (c *HeadlampConfig) getPathAndLoadKubeconfig(source, clusterName string) (s
 	// Get path of kubeconfig from source
 	path, err := c.getKubeConfigPath(source)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: clusterName},
 			err, "getting kubeconfig file")
 
 		return "", nil, err
@@ -2649,7 +2656,7 @@ func (c *HeadlampConfig) getPathAndLoadKubeconfig(source, clusterName string) (s
 	// Load kubeconfig file
 	config, err := clientcmd.LoadFromFile(path)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: clusterName},
 			err, "loading kubeconfig file")
 
 		return "", nil, err
@@ -2695,8 +2702,8 @@ func (c *HeadlampConfig) renameCluster(w http.ResponseWriter, r *http.Request) {
 	// Record success metrics and logging
 	c.TelemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "renameCluster"))
 	logger.Log(logger.LevelInfo, map[string]string{
-		"duration_ms": fmt.Sprintf("%d", time.Since(start).Milliseconds()),
-		"api.route":   "renameCluster",
+		logFieldDurationMs: fmt.Sprintf("%d", time.Since(start).Milliseconds()),
+		"api.route":        "renameCluster",
 	}, nil, "Completed renameCluster request")
 }
 
@@ -2713,7 +2720,7 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 	isUnique := CheckUniqueName(config.Contexts, clusterName, reqBody.NewClusterName)
 	if !isUnique {
 		http.Error(w, "custom name already in use", http.StatusBadRequest)
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: clusterName},
 			err, "cluster name already exists in the kubeconfig")
 
 		return err
@@ -2757,7 +2764,7 @@ func findMatchingContextName(config *api.Config, clusterName string) string {
 
 		customObj, err := MarshalCustomObject(info, k)
 		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"cluster": k},
+			logger.Log(logger.LevelError, map[string]string{logFieldCluster: k},
 				err, "marshaling custom object")
 
 			continue
@@ -3096,7 +3103,8 @@ func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Re
 	}
 
 	c.TelemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "handleNodeDrainStatus"))
-	logger.Log(logger.LevelInfo, map[string]string{"duration_ms": fmt.Sprintf("%d", time.Since(start).Milliseconds())},
+	logger.Log(logger.LevelInfo,
+		map[string]string{logFieldDurationMs: fmt.Sprintf("%d", time.Since(start).Milliseconds())},
 		nil, "handleNodeDrainStatus completed")
 }
 

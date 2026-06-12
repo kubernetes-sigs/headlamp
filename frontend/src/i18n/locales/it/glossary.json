@@ -142,6 +142,7 @@
   "Uncordon": "Abilita",
   "Cordon": "Disabilita",
   "Drain": "Svuota",
+  "Node Pool": "",
   "Pod CIDR": "CIDR del Pod",
   "Capacity": "Capacità",
   "Allocatable": "",

@@ -507,6 +507,12 @@ const mdiIcons = {
     'swap-vertical': {
       body: '<path fill="currentColor" d="M9 3L5 7h3v7h2V7h3m3 10v-7h-2v7h-3l4 4l4-4z"/>',
     },
+    'clipboard-arrow-down': {
+      body: '<path fill="currentColor" d="m12 18l-5-5h3V9h4v4h3M12 3a1 1 0 0 1 1 1a1 1 0 0 1-1 1a1 1 0 0 1-1-1a1 1 0 0 1 1-1m7 0h-4.18C14.4 1.84 13.3 1 12 1s-2.4.84-2.82 2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2"/>',
+    },
+    'timer-sand': {
+      body: '<path fill="currentColor" d="M6 2h12v6l-4 4l4 4v6H6v-6l4-4l-4-4zm10 14.5l-4-4l-4 4V20h8zm-4-5l4-4V4H8v3.5zM10 6h4v.75l-2 2l-2-2z"/>',
+    },
   },
   aliases: {
     'more-vert': {

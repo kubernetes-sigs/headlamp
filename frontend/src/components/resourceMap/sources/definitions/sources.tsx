@@ -42,6 +42,7 @@ import { Lease } from '../../../../lib/k8s/lease';
 import { LimitRange } from '../../../../lib/k8s/limitRange';
 import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookConfiguration';
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
+import Node from '../../../../lib/k8s/node';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
 import PDB from '../../../../lib/k8s/podDisruptionBudget';
@@ -192,6 +193,15 @@ export function useGetAllSources(): GraphSource[] {
           />
         ),
         sources: [makeKubeSource(PersistentVolumeClaim)],
+      },
+      {
+        id: 'cluster',
+        label: 'Cluster',
+        icon: (
+          <Icon icon="mdi:server" width="100%" height="100%" color={getKindGroupColor('other')} />
+        ),
+        isEnabledByDefault: false,
+        sources: [makeKubeSource(Node)],
       },
       {
         id: 'network',

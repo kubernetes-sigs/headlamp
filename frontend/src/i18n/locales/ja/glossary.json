@@ -142,6 +142,7 @@
   "Uncordon": "封鎖解除",
   "Cordon": "封鎖",
   "Drain": "排出",
+  "Node Pool": "",
   "Pod CIDR": "ポッド CIDR",
   "Capacity": "容量",
   "Allocatable": "",

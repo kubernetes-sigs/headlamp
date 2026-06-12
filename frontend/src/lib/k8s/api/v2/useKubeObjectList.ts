@@ -539,7 +539,7 @@ export function useKubeObjectList<K extends KubeObject>({
         if (watching.cluster !== request?.cluster) return false;
         return !request.namespaces?.length
           ? !watching.namespace
-          : !!watching.namespace && request.namespaces.includes(watching.namespace);
+          : watching.namespace !== undefined && request.namespaces.includes(watching.namespace);
       }) === undefined
   );
 
