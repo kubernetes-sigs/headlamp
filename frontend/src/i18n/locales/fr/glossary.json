@@ -192,7 +192,6 @@
   "Attach": "Attacher",
   "{{ loaded }} loaded": "",
   "{{ loaded }} of ~{{ total }}": "",
-  "Loading...": "",
   "Load more": "",
   "Restarts": "Redémarrages",
   "{{ restarts }} ({{ abbrevTime }} ago)": "{{ restarts }} (il y a {{ abbrevTime }})",

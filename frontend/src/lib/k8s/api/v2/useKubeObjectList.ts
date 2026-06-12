@@ -97,7 +97,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
             cluster,
           }
         ).then(it => it.json());
-        const kind = list.kind.replace('List', '');
+        const kind = list.kind.replace(/List$/, '');
         const apiVersion = list.apiVersion;
         list.items = list.items.map(item => {
           // managedFields are not shown in list views and can be several KB per
@@ -302,8 +302,12 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
       const parsedUrl = new URL(url, BASE_WS_URL);
 
       // Subscribe to WebSocket updates
-      WebSocketManager.subscribe(cluster, parsedUrl.pathname, parsedUrl.search.slice(1), update =>
-        handleUpdate(update, cluster, namespace)
+      WebSocketManager.subscribe(
+        cluster,
+        parsedUrl.pathname,
+        parsedUrl.search.slice(1),
+        update => handleUpdate(update, cluster, namespace),
+        error => console.error(`WebSocket subscription error for cluster ${cluster}:`, error)
       ).then(
         cleanup => cleanups.push(cleanup),
         error => {
@@ -769,7 +773,7 @@ export function useKubeObjectList<K extends KubeObject>({
             throw error;
           }
 
-          const kind = raw.kind.replace('List', '');
+          const kind = raw.kind.replace(/List$/, '');
           const apiVersion = raw.apiVersion;
           const newItems: K[] = raw.items.map((item: any) => {
             if (item.metadata?.managedFields) delete item.metadata.managedFields;

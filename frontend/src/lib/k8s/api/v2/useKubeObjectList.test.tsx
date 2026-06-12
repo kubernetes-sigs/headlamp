@@ -154,18 +154,20 @@ const mockNodeClass = class {
 } as any;
 
 function makeListResponse({
+  kind = 'PodList',
   items = [],
   resourceVersion = '1',
   continueToken,
   remainingItemCount,
 }: {
+  kind?: string;
   items?: any[];
   resourceVersion?: string;
   continueToken?: string;
   remainingItemCount?: number;
 } = {}) {
   return {
-    kind: 'PodList',
+    kind,
     apiVersion: 'v1',
     metadata: {
       resourceVersion,
@@ -387,6 +389,30 @@ describe('useKubeObjectList', () => {
     });
   });
 
+  it('should strip only the List suffix from item kind', async () => {
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () =>
+        Promise.resolve(
+          makeListResponse({
+            kind: 'EventListenerList',
+            items: [makePod('listener-1', '1')],
+          })
+        ),
+    } as Response);
+
+    const query = kubeObjectListQuery(
+      mockClass,
+      { version: 'v1', resource: 'pods' },
+      undefined,
+      'default',
+      {}
+    );
+
+    const response = await (query.queryFn as any)();
+
+    expect(response.list.items[0].jsonData.kind).toBe('EventListener');
+  });
+
   it('should append the next page and start watching when all pages are loaded', async () => {
     const queryClient = new QueryClient();
     mockClusterFetch
@@ -405,6 +431,7 @@ describe('useKubeObjectList', () => {
         json: () =>
           Promise.resolve(
             makeListResponse({
+              kind: 'EventListenerList',
               items: [makePod('pod-2', '2')],
               resourceVersion: '2',
             })
@@ -440,6 +467,7 @@ describe('useKubeObjectList', () => {
       'pod-1',
       'pod-2',
     ]);
+    expect(result.result.current.items?.[1].jsonData.kind).toBe('EventListener');
     expect(mockClusterFetch.mock.calls[1][0]).toBe('api/v1/pods?limit=1000&continue=token-1');
     expect(result.result.current.hasMore).toBe(false);
     expect(result.result.current.loadMore).toBeUndefined();
@@ -853,6 +881,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       'cluster-a',
       expect.stringContaining('/api/v1/namespaces/namespace-a/pods'),
       'watch=1&resourceVersion=1',
+      expect.any(Function),
       expect.any(Function)
     );
   });
@@ -883,6 +912,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       'cluster-a',
       expect.stringContaining('/api/v1/namespaces/namespace-a/pods'),
       'watch=1&resourceVersion=1',
+      expect.any(Function),
       expect.any(Function)
     );
     expect(mockSubscribe).toHaveBeenNthCalledWith(
@@ -890,6 +920,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       'cluster-b',
       expect.stringContaining('/api/v1/namespaces/namespace-b/pods'),
       'watch=1&resourceVersion=2',
+      expect.any(Function),
       expect.any(Function)
     );
   });
@@ -915,6 +946,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       'cluster-a',
       expect.stringContaining('/api/v1/pods'),
       'watch=1&resourceVersion=1',
+      expect.any(Function),
       expect.any(Function)
     );
   });

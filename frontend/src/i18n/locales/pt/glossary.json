@@ -192,7 +192,6 @@
   "Attach": "Anexar",
   "{{ loaded }} loaded": "",
   "{{ loaded }} of ~{{ total }}": "",
-  "Loading...": "",
   "Load more": "",
   "Restarts": "Reinícios",
   "{{ restarts }} ({{ abbrevTime }} ago)": "{{ restarts }} (há {{ abbrevTime }})",

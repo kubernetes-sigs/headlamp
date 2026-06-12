@@ -192,7 +192,6 @@
   "Attach": "இணை",
   "{{ loaded }} loaded": "",
   "{{ loaded }} of ~{{ total }}": "",
-  "Loading...": "",
   "Load more": "",
   "Restarts": "மறுதொடக்கம்",
   "{{ restarts }} ({{ abbrevTime }} ago)": "{{ restarts }} ({{ abbrevTime }} முன்பு)",
