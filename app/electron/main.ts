@@ -52,7 +52,13 @@ import {
   PluginManager,
 } from './plugin-management';
 import { addRunCmdConsent, removeRunCmdConsent, runScript, setupRunCmdHandlers } from './runCmd';
-import { cleanupHeadlampTray, createHeadlampTray } from './tray';
+import {
+  cleanupHeadlampTray,
+  createHeadlampTray,
+  isHeadlampTrayCreated,
+  isTrayIconEnabled,
+  setTrayIconEnabled,
+} from './tray';
 import windowSize from './windowSize';
 
 if (process.env.APPIMAGE) {
@@ -1722,6 +1728,17 @@ function startElectron() {
       mainWindow?.webContents.send('backend-port', actualPort);
     });
 
+    ipcMain.on('request-tray-icon', () => {
+      mainWindow?.webContents.send('tray-icon', isTrayIconEnabled());
+    });
+
+    ipcMain.on('set-tray-icon', (event: IpcMainEvent, enabled: boolean) => {
+      if (typeof enabled !== 'boolean') {
+        return;
+      }
+      applyTrayIconSetting(enabled);
+    });
+
     setupRunCmdHandlers(mainWindow, ipcMain);
 
     new PluginManagerEventListeners().setupEventHandlers();
@@ -1790,9 +1807,8 @@ function startElectron() {
     app.disableHardwareAcceleration();
   }
 
-  app.on('ready', async () => {
-    await Promise.all([startServerIfNeeded(), createWindow()]);
-    hasTray = createHeadlampTray({
+  function buildTrayOptions() {
+    return {
       backendToken,
       createWindow,
       getBackendPort: () => actualPort,
@@ -1802,7 +1818,27 @@ function startElectron() {
         isQuitting = true;
         app.quit();
       },
-    });
+    };
+  }
+
+  /**
+   * Applies the system tray preference at runtime: persists it, then creates or
+   * removes the tray so the change takes effect without restarting the app.
+   */
+  function applyTrayIconSetting(enabled: boolean) {
+    setTrayIconEnabled(enabled);
+
+    if (enabled && !isHeadlampTrayCreated()) {
+      hasTray = createHeadlampTray(buildTrayOptions());
+    } else if (!enabled && isHeadlampTrayCreated()) {
+      cleanupHeadlampTray();
+      hasTray = false;
+    }
+  }
+
+  app.on('ready', async () => {
+    await Promise.all([startServerIfNeeded(), createWindow()]);
+    hasTray = createHeadlampTray(buildTrayOptions());
   });
   app.on('activate', async function () {
     if (mainWindow === null) {

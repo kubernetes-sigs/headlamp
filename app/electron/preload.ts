@@ -16,6 +16,18 @@
 
 import { contextBridge, ipcRenderer } from 'electron';
 
+// Keeps the mapping between a caller-provided listener and the wrapped one we
+// actually register with ipcRenderer, so removeListener can still unsubscribe
+// the listener when callers pass the original function reference.
+// Using a WeakMap so the mapping itself doesn't retain listeners; note this
+// doesn't avoid leaks on its own - ipcRenderer holds a strong reference to
+// the wrapped listener (which closes over the original) until the caller
+// unsubscribes via the returned function or removeListener.
+const wrappedListeners = new WeakMap<
+  (...args: unknown[]) => void,
+  { channel: string; wrapped: (event: unknown, ...args: unknown[]) => void }
+>();
+
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('desktopApi', {
@@ -32,6 +44,8 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'request-plugin-permission-secrets',
       'open-plugin-folder',
       'request-backend-port',
+      'request-tray-icon',
+      'set-tray-icon',
       'cluster-changed',
     ];
     if (validChannels.includes(channel)) {
@@ -52,14 +66,30 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'plugin-permission-secrets',
       'open-about-dialog',
       'backend-port',
+      'tray-icon',
     ];
     if (validChannels.includes(channel)) {
       // Deliberately strip event as it includes `sender`
-      ipcRenderer.on(channel, (event, ...args) => func(...args));
+      const wrapped = (event: unknown, ...args: unknown[]) => func(...args);
+      ipcRenderer.on(channel, wrapped);
+      wrappedListeners.set(func, { channel, wrapped });
+      // Also return an unsubscribe function for new callers; older callers
+      // that prefer `removeListener(channel, originalFunc)` keep working too.
+      return () => {
+        ipcRenderer.removeListener(channel, wrapped);
+        wrappedListeners.delete(func);
+      };
     }
   },
 
   removeListener: (channel: string, func: (...args: unknown[]) => void) => {
+    const entry = wrappedListeners.get(func);
+    if (entry && entry.channel === channel) {
+      ipcRenderer.removeListener(channel, entry.wrapped);
+      wrappedListeners.delete(func);
+      return;
+    }
+    // Fallback for listeners registered without going through `receive`.
     ipcRenderer.removeListener(channel, func);
   },
 

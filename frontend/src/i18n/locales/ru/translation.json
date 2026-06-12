@@ -168,6 +168,7 @@
   "Timezone to display for dates": "Часовой пояс для отображения дат",
   "Sort sidebar items alphabetically": "Сортировка элементов боковой панели по алфавиту",
   "Use evict for pod deletion": "Использовать Evict при удалении Pod",
+  "Show system tray icon": "",
   "Theme": "Тема",
   "Theme has been forced by your administrator": "",
   "Keyboard Shortcuts": "Сочетания клавиш",

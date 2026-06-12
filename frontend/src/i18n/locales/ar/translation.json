@@ -168,6 +168,7 @@
   "Timezone to display for dates": "المنطقة الزمنية لعرض التواريخ",
   "Sort sidebar items alphabetically": "ترتيب عناصر الشريط الجانبي أبجديًا",
   "Use evict for pod deletion": "استخدام evict لحذف الـ pod",
+  "Show system tray icon": "",
   "Theme": "السمة",
   "Theme has been forced by your administrator": "",
   "Keyboard Shortcuts": "اختصارات لوحة المفاتيح",
