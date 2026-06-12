@@ -413,6 +413,14 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             label: t('glossary|Mutating Webhook Configurations'),
           },
           {
+            name: 'mutatingAdmissionPolicies',
+            label: t('glossary|Mutating Admission Policies'),
+          },
+          {
+            name: 'mutatingAdmissionPolicyBindings',
+            label: t('glossary|Mutating Admission Policy Bindings'),
+          },
+          {
             name: 'validatingWebhookConfigurations',
             label: t('glossary|Validating Webhook Configurations'),
           },
