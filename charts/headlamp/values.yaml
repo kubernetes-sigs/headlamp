@@ -165,6 +165,11 @@ config:
     noCRDCacheTTL: ""
   # Extra arguments that can be given to the container. See charts/headlamp/README.md for more information.
   extraArgs: []
+  # -- Custom external links to show in the sidebar. Example:
+  # - label: "My Link"
+  #   url: "https://example.com"
+  #   icon: "mdi:link"
+  externalLinks: []
 
 # -- An optional list of environment variables
 # env:

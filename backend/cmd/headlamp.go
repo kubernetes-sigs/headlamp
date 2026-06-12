@@ -160,14 +160,21 @@ const (
 	TokenCacheFileName = "headlamp-token-cache"
 )
 
+type ExternalLink struct {
+	Label string `json:"label"`
+	URL   string `json:"url"`
+	Icon  string `json:"icon,omitempty"`
+}
+
 type clientConfig struct {
-	Clusters                []Cluster `json:"clusters"`
-	IsDynamicClusterEnabled bool      `json:"isDynamicClusterEnabled"`
-	AllowKubeconfigChanges  bool      `json:"allowKubeconfigChanges"`
-	DefaultPodDebugImage    string    `json:"defaultPodDebugImage"`
-	DefaultLightTheme       string    `json:"defaultLightTheme,omitempty"`
-	DefaultDarkTheme        string    `json:"defaultDarkTheme,omitempty"`
-	ForceTheme              string    `json:"forceTheme,omitempty"`
+	Clusters                []Cluster      `json:"clusters"`
+	IsDynamicClusterEnabled bool           `json:"isDynamicClusterEnabled"`
+	AllowKubeconfigChanges  bool           `json:"allowKubeconfigChanges"`
+	DefaultPodDebugImage    string         `json:"defaultPodDebugImage"`
+	DefaultLightTheme       string         `json:"defaultLightTheme,omitempty"`
+	DefaultDarkTheme        string         `json:"defaultDarkTheme,omitempty"`
+	ForceTheme              string         `json:"forceTheme,omitempty"`
+	ExternalLinks           []ExternalLink `json:"externalLinks"`
 }
 
 type OauthConfig struct {
@@ -2221,6 +2228,14 @@ func parseClusterFromKubeConfig(kubeConfigs []string) ([]Cluster, []error) {
 func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	externalLinks := []ExternalLink{} // not nil
+	if c.ExternalLinks != "" {
+		if err := json.Unmarshal([]byte(c.ExternalLinks), &externalLinks); err != nil {
+			logger.Log(logger.LevelError, nil, err, "parsing external links config")
+			externalLinks = []ExternalLink{} // reset on error
+		}
+	}
+
 	clientConfig := clientConfig{
 		Clusters:                c.getClusters(),
 		IsDynamicClusterEnabled: c.EnableDynamicClusters,
@@ -2229,6 +2244,7 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 		DefaultLightTheme:       c.DefaultLightTheme,
 		DefaultDarkTheme:        c.DefaultDarkTheme,
 		ForceTheme:              c.ForceTheme,
+		ExternalLinks:           externalLinks,
 	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {
