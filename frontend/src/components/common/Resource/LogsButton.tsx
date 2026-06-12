@@ -47,6 +47,7 @@ import {
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
 import { Activity } from '../../activity/Activity';
+import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import ActionButton from '../ActionButton';
 import { LogViewer } from '../LogViewer';
 import { LightTooltip } from '../Tooltip';
@@ -100,8 +101,11 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   });
   const [allPodLogs, setAllPodLogs] = useState<{ [podName: string]: string[] }>({});
 
-  const [showTimestamps, setShowTimestamps] = useState<boolean>(true);
-  const [follow, setFollow] = useState<boolean>(true);
+  const [showTimestamps, setShowTimestamps] = useLocalStorageState<boolean>(
+    'headlamp.logs.showTimestamps',
+    true
+  );
+  const [follow, setFollow] = useLocalStorageState<boolean>('headlamp.logs.follow', true);
   const [lines, setLines] = useState<number>(100);
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showReconnectButton, setShowReconnectButton] = useState(false);
