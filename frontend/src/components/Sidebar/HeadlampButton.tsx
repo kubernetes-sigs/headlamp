@@ -20,6 +20,7 @@ import Button from '@mui/material/Button';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { styled } from '@mui/system';
 import { useTranslation } from 'react-i18next';
+import { Link } from 'react-router-dom';
 import { getThemeName } from '../../lib/themes';
 import { AppLogo } from '../App/AppLogo';
 
@@ -52,17 +53,28 @@ export default function HeadlampButton({
   }
 
   return (
-    <Box>
+    <Box sx={{ display: 'flex', alignItems: 'center' }}>
       <Button
         onClick={onToggleOpen}
         sx={theme => ({
           padding: isSmall && !open ? `10px 10px` : '6px 8px',
           color: theme.palette.text.primary,
+          minWidth: 'auto',
         })}
         aria-label={open ? t('Shrink sidebar') : t('Expand sidebar')}
         disabled={disabled}
       >
-        <StyledIcon icon={open ? 'mdi:backburger' : 'mdi:menu'} width="1.5rem" />
+        <StyledIcon
+          icon={open ? 'mdi:backburger' : 'mdi:menu'}
+          width="1.5rem"
+          sx={{ marginRight: 0 }}
+        />
+      </Button>
+      <Link
+        to="/"
+        aria-label="Home"
+        style={{ display: 'flex', alignItems: 'center', textDecoration: 'none', marginLeft: '8px' }}
+      >
         <AppLogo
           logoType={'large'}
           themeName={getThemeName()}
@@ -71,7 +83,7 @@ export default function HeadlampButton({
             width: 'auto',
           }}
         />
-      </Button>
+      </Link>
     </Box>
   );
 }
