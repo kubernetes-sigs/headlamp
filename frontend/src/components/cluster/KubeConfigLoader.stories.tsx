@@ -63,14 +63,14 @@ export default {
     step: {
       control: 'select',
       options: [
-        Step.LoadKubeConfig,
+        Step.UploadKubeConfig,
         Step.SelectClusters,
         Step.ValidateKubeConfig,
         Step.ConfigureClusters,
         Step.Success,
       ],
       labels: {
-        [Step.LoadKubeConfig]: 'Load KubeConfig',
+        [Step.UploadKubeConfig]: 'Upload KubeConfig',
         [Step.SelectClusters]: 'Select Clusters',
         [Step.ValidateKubeConfig]: 'Validate KubeConfig',
         [Step.ConfigureClusters]: 'Configure Clusters',
@@ -95,7 +95,7 @@ const Template: StoryFn<PureKubeConfigLoaderProps> = args => <PureKubeConfigLoad
  */
 export const FileUpload = Template.bind({});
 FileUpload.args = {
-  step: Step.LoadKubeConfig,
+  step: Step.UploadKubeConfig,
   fileContent: { clusters: [], users: [], contexts: [], currentContext: '' },
   selectedClusters: [],
 };
@@ -166,7 +166,7 @@ SuccessfulImport.args = {
  */
 export const InvalidYAMLError = Template.bind({});
 InvalidYAMLError.args = {
-  step: Step.LoadKubeConfig,
+  step: Step.UploadKubeConfig,
   error: 'Invalid kubeconfig file: unexpected end of file at line 45',
   fileContent: { clusters: [], users: [], contexts: [], currentContext: '' },
   selectedClusters: [],
