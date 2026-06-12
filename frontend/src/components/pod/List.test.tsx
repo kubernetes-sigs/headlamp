@@ -73,11 +73,13 @@ describe('PodListRenderer', () => {
 
     expect(screen.getByText('1 of ~5')).toBeVisible();
     const button = screen.getByRole('button', { name: 'Load more' });
+    expect(mockTranslation).toHaveBeenCalledWith('glossary|Load more');
 
     fireEvent.click(button);
 
     expect(onLoadMore).toHaveBeenCalledOnce();
     expect(screen.getByRole('button', { name: 'Loading...' })).toBeDisabled();
+    expect(mockTranslation).toHaveBeenCalledWith('translation|Loading...');
 
     finishLoading();
     await waitFor(() => expect(screen.getByRole('button', { name: 'Load more' })).toBeEnabled());
