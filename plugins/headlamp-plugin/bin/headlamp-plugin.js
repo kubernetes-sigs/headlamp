@@ -33,13 +33,36 @@ const { PluginManager, MultiPluginManager } = require('@headlamp-k8s/pluginctl')
 const { table } = require('table');
 const tar = require('tar');
 
-// On Windows, use the .cmd shim so execFileSync can run it without a shell.
-const binExt = process.platform === 'win32' ? '.cmd' : '';
-
 // ES imports
 const viteCopyPluginPromise = import('vite-plugin-static-copy');
 const viteConfigPromise = import('../config/vite.config.mjs');
 const vitePromise = import('vite');
+
+// On Windows, npm-installed CLIs are `.cmd` shims that Node can't spawn directly.
+// We append this suffix when looking them up on disk.
+const binExt = process.platform === 'win32' ? '.cmd' : '';
+
+/**
+ * Adapt a `(file, args)` pair for spawning on the current platform.
+ *
+ * On Windows, `.cmd`/`.bat` shims can't be spawned directly by Node, so we route them
+ * through `cmd.exe /d /s /c`, as recommended by
+ * https://nodejs.org/api/child_process.html#spawning-bat-and-cmd-files-on-windows.
+ * This avoids `shell: true`, which is deprecated with an `args` array (DEP0190).
+ *
+ * Spread the result into `spawnSync` / `execFileSync`:
+ *
+ *     child_process.execFileSync(...viaCmd('npm' + binExt, ['view', spec, '--json']), opts)
+ *
+ * @param {string} file
+ * @param {string[]} args
+ * @returns {[string, string[]]}
+ */
+function viaCmd(file, args) {
+  return process.platform === 'win32'
+    ? ['cmd.exe', ['/d', '/s', '/c', file, ...args]]
+    : [file, args];
+}
 
 /**
  * Creates a new plugin folder.
@@ -101,7 +124,7 @@ function create(name, link, noInstall) {
   // This can be used to make testing locally easier.
   if (link) {
     console.log('Linking @kinvolk/headlamp-plugin');
-    child_process.spawnSync('npm', ['link', '@kinvolk/headlamp-plugin'], {
+    child_process.spawnSync(...viaCmd('npm' + binExt, ['link', '@kinvolk/headlamp-plugin']), {
       cwd: dstFolder,
     });
   }
@@ -118,8 +141,12 @@ function create(name, link, noInstall) {
     let useNpmCi = false;
     try {
       const npmJsPkgResponse = child_process.execFileSync(
-        'npm' + binExt,
-        ['view', `@kinvolk/headlamp-plugin@${headlampPluginPkg.version}`, 'dist', '--json'],
+        ...viaCmd('npm' + binExt, [
+          'view',
+          `@kinvolk/headlamp-plugin@${headlampPluginPkg.version}`,
+          'dist',
+          '--json',
+        ]),
         { encoding: 'utf8' }
       );
       const npmJsPkg = JSON.parse(npmJsPkgResponse);
@@ -177,7 +204,7 @@ function create(name, link, noInstall) {
     if (link) {
       // Seems to require linking again with npm 7+
       console.log('Linking @kinvolk/headlamp-plugin');
-      child_process.spawnSync('npm', ['link', '@kinvolk/headlamp-plugin'], {
+      child_process.spawnSync(...viaCmd('npm' + binExt, ['link', '@kinvolk/headlamp-plugin']), {
         cwd: dstFolder,
       });
     }
@@ -720,7 +747,7 @@ function runScriptOnPackages(packageFolder, scriptName, cmdLine, env) {
     const [cmd, ...args] = cmdLineToUse.split(' ');
 
     try {
-      child_process.execFileSync(cmd, args, {
+      child_process.execFileSync(...viaCmd(cmd, args), {
         stdio: 'inherit',
         encoding: 'utf8',
         env: { ...process.env, ...(env || {}) },
@@ -1474,13 +1501,15 @@ function setupI18n(packageFolder) {
       console.log(`🔍 Extracting translatable strings from source code...`);
       const i18nextPath = path.join(__dirname, '..', 'node_modules', '.bin', 'i18next' + binExt);
       const bundledConfigPath = path.join(__dirname, '..', 'config', 'i18next-parser.config.js');
-      const { execFileSync } = require('child_process');
 
       try {
-        execFileSync(i18nextPath, ['src/**/*.{ts,tsx,js,jsx}', '-c', bundledConfigPath], {
-          stdio: 'inherit',
-          cwd: process.cwd(),
-        });
+        child_process.execFileSync(
+          ...viaCmd(i18nextPath, ['src/**/*.{ts,tsx,js,jsx}', '-c', bundledConfigPath]),
+          {
+            stdio: 'inherit',
+            cwd: process.cwd(),
+          }
+        );
         console.log(`📝 Successfully extracted translatable strings`);
       } catch (error) {
         console.warn(`⚠️ Warning: Failed to run i18next-parser: ${error.message}`);
@@ -1683,14 +1712,17 @@ function extractI18n(packageFolder, newLocale) {
 
     console.log(`🔍 Extracting translatable strings from ${packageJson.name || packageFolder}...`);
 
-    // Run i18next-parser using npx for better reliability
-    const { execFileSync } = require('child_process');
-
     // Use npx to run i18next from the headlamp-plugin package
     const headlampPluginPath = path.join(__dirname, '..');
-    execFileSync(
-      'npx' + binExt,
-      ['--prefix', headlampPluginPath, 'i18next', 'src/**/*.{ts,tsx,js,jsx}', '-c', configToUse],
+    child_process.execFileSync(
+      ...viaCmd('npx' + binExt, [
+        '--prefix',
+        headlampPluginPath,
+        'i18next',
+        'src/**/*.{ts,tsx,js,jsx}',
+        '-c',
+        configToUse,
+      ]),
       {
         stdio: 'inherit',
         cwd: packageFolder,
