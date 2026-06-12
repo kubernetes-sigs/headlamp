@@ -464,6 +464,13 @@
       "default": [Function],
     },
     "node": {
+      "NODE_POOL_LABEL_KEYS": [
+        "cloud.google.com/gke-nodepool",
+        "kubernetes.azure.com/agentpool",
+        "eks.amazonaws.com/nodegroup",
+        "kops.k8s.io/instancegroup",
+        "cluster.x-k8s.io/deployment-name",
+      ],
       "default": [Function],
     },
     "persistentVolume": {
@@ -530,9 +537,7 @@
       "default": [Function],
     },
   },
-  "Lodash": Function {
-    "default": [Function],
-  },
+  "Lodash": "Present",
   "MonacoEditor": "Present",
   "MuiCore": "Present",
   "MuiLab": "Present",
@@ -612,9 +617,6 @@
   "clusterAction": [Function],
   "default": [Function],
   "getHeadlampAPIHeaders": [Function],
-  "queryClient": {
-    "queryClient": QueryClient {},
-  },
   "registerAddClusterProvider": [Function],
   "registerAppBarAction": [Function],
   "registerAppLogo": [Function],

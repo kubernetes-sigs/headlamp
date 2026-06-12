@@ -6,10 +6,10 @@ config:
         - name: secretreader
           execConfig:
             apiVersion: client.authentication.k8s.io/v1
-            command: /access-plugins/secretreader/bin/secretreader-plugin
+            command: /access-plugins/secretreader
             interactiveMode: Never
             provideClusterInfo: true
     plugins:
       - name: secretreader
         image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.3@sha256:ec3090dc166aa2b42fb35d714d161c417d8b27bbc463404c8f615f5f4c610a1d
-        mountPath: access-plugins/secretreader
+        mountPath: /access-plugins/secretreader

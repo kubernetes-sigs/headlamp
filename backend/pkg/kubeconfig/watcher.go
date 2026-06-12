@@ -14,6 +14,9 @@ import (
 
 const watchInterval = 10 * time.Second
 
+// logFieldPath is the structured-log field name for filesystem paths.
+const logFieldPath = "path"
+
 // LoadAndWatchFiles loads kubeconfig files and watches them for changes.
 // It runs until the provided context is cancelled.
 func LoadAndWatchFiles(
@@ -85,7 +88,7 @@ func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
 		if !filepath.IsAbs(path) {
 			absPath, err := filepath.Abs(path)
 			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{"path": path},
+				logger.Log(logger.LevelError, map[string]string{logFieldPath: path},
 					err, "getting absolute path")
 
 				continue
@@ -96,7 +99,7 @@ func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
 
 		// check if path exists
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			logger.Log(logger.LevelError, map[string]string{"path": path},
+			logger.Log(logger.LevelError, map[string]string{logFieldPath: path},
 				err, "Path does not exist")
 
 			continue
@@ -112,7 +115,7 @@ func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
 		// if it isn't, add it to the watcher
 		err := watcher.Add(path)
 		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"path": path},
+			logger.Log(logger.LevelError, map[string]string{logFieldPath: path},
 				err, "adding path to watcher")
 		}
 	}
