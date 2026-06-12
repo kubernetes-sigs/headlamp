@@ -72,7 +72,7 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// check whether a file exists at the given path
-	_, err = os.Stat(absPath)
+	_, err = os.Stat(absPath) //nolint:gosec // path validated by filepath.Rel above
 	if os.IsNotExist(err) {
 		// file does not exist, serve index.html
 		h.serveStatic(w, r, filepath.Join(absStaticPath, h.indexPath))
