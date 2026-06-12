@@ -25,7 +25,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -679,4 +681,109 @@ func TestStartPortForward_DuplicateIDConflict(t *testing.T) {
 	defer func() { _ = res.Body.Close() }()
 
 	assert.Equal(t, http.StatusConflict, res.StatusCode, "expected 409 Conflict for duplicate ID, but got something else")
+}
+
+// blockingContextStore makes GetContext block until released, and signals via
+// `entered` (closed once) that a caller is inside, meaning it holds the in-flight lock.
+type blockingContextStore struct {
+	kubeconfig.ContextStore
+	entered chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (b *blockingContextStore) GetContext(name string) (*kubeconfig.Context, error) {
+	b.once.Do(func() { close(b.entered) })
+	<-b.release
+
+	return nil, fmt.Errorf("context not found: %s", name)
+}
+
+// TestStartPortForward_ConcurrentRequests verifies the in-flight lock deterministically:
+// G1 acquires the lock and blocks in GetContext; only then is G2 started (guaranteed 409).
+// G2 completes, the test unblocks G1, which returns 500 on the missing context.
+//
+//nolint:funlen
+func TestStartPortForward_ConcurrentRequests(t *testing.T) {
+	c := cache.New[interface{}]()
+
+	store := &blockingContextStore{
+		ContextStore: kubeconfig.NewContextStore(),
+		entered:      make(chan struct{}),
+		release:      make(chan struct{}),
+	}
+
+	makeRequest := func() *httptest.ResponseRecorder {
+		payload := map[string]interface{}{
+			"id":         "concurrent-id",
+			"pod":        "some-pod",
+			"namespace":  "default",
+			"targetPort": "8080",
+		}
+
+		body, err := json.Marshal(payload)
+		require.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/portforward", bytes.NewReader(body))
+		r = mux.SetURLVars(r, map[string]string{"clusterName": "test-cluster"})
+
+		StartPortForward(store, c, false, w, r)
+
+		return w
+	}
+
+	// Separate WaitGroups: wg2 lets us wait for G2 alone while G1 is still blocked.
+	var (
+		wg1, wg2 sync.WaitGroup
+		rec      [2]*httptest.ResponseRecorder
+	)
+
+	wg1.Add(1)
+
+	go func() {
+		defer wg1.Done()
+
+		rec[0] = makeRequest()
+	}()
+
+	// Wait (bounded) for G1 to enter GetContext (holding the lock); otherwise fail instead of hanging.
+	select {
+	case <-store.entered:
+		// G1 is now inside GetContext
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for first request to enter GetContext")
+	}
+
+	wg2.Add(1)
+
+	go func() {
+		defer wg2.Done()
+
+		rec[1] = makeRequest()
+	}()
+
+	wg2.Wait()           // G2 short-circuits at 409; doesn't call GetContext.
+	close(store.release) // unblock G1.
+	wg1.Wait()
+
+	res0 := rec[0].Result()
+	defer func() { _ = res0.Body.Close() }()
+
+	res1 := rec[1].Result()
+	defer func() { _ = res1.Body.Close() }()
+
+	statusCodes := []int{res0.StatusCode, res1.StatusCode}
+
+	conflicts := 0
+
+	for _, sc := range statusCodes {
+		if sc == http.StatusConflict {
+			conflicts++
+		}
+	}
+
+	assert.Equal(t, 1, conflicts, "expected exactly one 409 Conflict from the in-flight lock")
+	assert.Contains(t, statusCodes, http.StatusInternalServerError,
+		"expected the winning request to return 500 for missing context")
 }

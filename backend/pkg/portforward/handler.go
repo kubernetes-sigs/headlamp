@@ -57,6 +57,8 @@ const (
 	PortForwardReadinessTimeout = 30 * time.Second
 )
 
+var inFlightPortForwards sync.Map
+
 type portForwardRequest struct {
 	ID               string `json:"id"`
 	Namespace        string `json:"namespace"`
@@ -151,6 +153,38 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		p.ID = uuid.New().String()
 	}
 
+	userID := r.Header.Get("X-HEADLAMP-USER-ID")
+	requestClusterName := mux.Vars(r)["clusterName"]
+	clusterName := requestClusterName
+
+	if userID != "" {
+		clusterName += userID
+	}
+
+	// Ensure we don't orphan an existing port-forward by overwriting its cache entry.
+	// This check happens before any resource allocation or blocking code so duplicates short-circuit
+	// deterministically and avoid unnecessary listener churn.
+	if existingPF, err := getPortForwardByID(cache, clusterName, p.ID); err == nil && existingPF.Status == RUNNING {
+		//nolint:goconst
+		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName, "id": p.ID},
+			nil, "portforward ID already exists")
+		http.Error(w, "portforward with this ID is already running", http.StatusConflict)
+
+		return
+	}
+
+	// Reject duplicates before any resource-consuming work (port alloc, kubeconfig lookup).
+	inFlightKey := strings.Join([]string{requestClusterName, userID, p.ID}, "\x00")
+	if _, loaded := inFlightPortForwards.LoadOrStore(inFlightKey, struct{}{}); loaded {
+		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName, "id": p.ID},
+			nil, "portforward ID is already starting")
+		http.Error(w, "portforward with this ID is already starting", http.StatusConflict)
+
+		return
+	}
+
+	defer inFlightPortForwards.Delete(inFlightKey)
+
 	if err := p.Validate(); err != nil {
 		logger.Log(logger.LevelError, nil, err, "validating portforward payload")
 		http.Error(w, err.Error(), http.StatusBadRequest)
@@ -170,27 +204,11 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		p.Port = strconv.Itoa(freePort)
 	}
 
-	userID := r.Header.Get("X-HEADLAMP-USER-ID")
-	requestClusterName := mux.Vars(r)["clusterName"]
-	clusterName := requestClusterName
-
-	if userID != "" {
-		clusterName += userID
-	}
-
-	// Ensure we don't orphan an existing port-forward by overwriting its cache entry
-	if existingPF, err := getPortForwardByID(cache, clusterName, p.ID); err == nil && existingPF.Status == RUNNING {
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName, "id": p.ID},
-			nil, "portforward ID already exists")
-		http.Error(w, "portforward with this ID is already running", http.StatusConflict)
-
-		return
-	}
-
 	kContext, err := kubeConfigStore.GetContext(clusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
 			err, "getting kubeconfig context")
+
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
@@ -204,6 +222,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 	err = startPortForward(kContext, cache, p, token, clusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting portforward")
+
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
