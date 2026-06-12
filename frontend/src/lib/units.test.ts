@@ -35,6 +35,13 @@ describe('parseRam', () => {
     expect(parseRam('1G')).toBe(1000000000);
   });
 
+  it('should parse milli-bytes suffix (m)', () => {
+    expect(parseRam('1000m')).toBe(1);
+    expect(parseRam('11973899059200m')).toBe(11973899059.2);
+    expect(parseRam('14712779571200m')).toBe(14712779571.2);
+    expect(parseRam('1.5m')).toBeCloseTo(0.0015, 10);
+  });
+
   it('should parse exponential notation', () => {
     expect(parseRam('1e3')).toBe(1000);
     expect(parseRam('1e6')).toBe(1000000);
