@@ -14,13 +14,26 @@
  * limitations under the License.
  */
 
+import { EventEmitter } from 'events';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
-import { checkPermissionSecret, validateCommandData } from './runCmd';
+import { checkPermissionSecret, handleRunCommand, validateCommandData } from './runCmd';
 
 vi.mock('./plugin-management', () => ({
   defaultPluginsDir: vi.fn(() => '/plugins/default'),
   defaultUserPluginsDir: vi.fn(() => '/plugins/user'),
+}));
+
+vi.mock('./settings', () => ({
+  loadSettings: vi.fn(() => ({
+    confirmedCommands: { 'minikube start': true, gh: true, az: true },
+  })),
+  saveSettings: vi.fn(),
+  SETTINGS_PATH: '/fake/settings.json',
+}));
+
+vi.mock('./i18next.config', () => ({
+  default: { t: (s: string) => s },
 }));
 
 describe('checkPermissionSecret', () => {
@@ -224,6 +237,47 @@ describe('validateCommandData', () => {
         permissionSecrets: { 'runCmd-scriptjs-myscript.js': 42 },
       })[0]
     ).toBe(true);
+  });
+});
+
+describe('handleRunCommand - child process error event', () => {
+  it('sends command-stderr and command-exit with -1 when child emits error', async () => {
+    const childEmitter = new EventEmitter() as any;
+    childEmitter.stdout = new EventEmitter();
+    childEmitter.stderr = new EventEmitter();
+
+    vi.mock('child_process', () => ({
+      spawn: vi.fn(() => childEmitter),
+    }));
+
+    const { spawn } = await import('child_process');
+    (spawn as Mock).mockReturnValue(childEmitter);
+
+    const sentMessages: Array<[string, ...unknown[]]> = [];
+    const fakeEvent = {
+      sender: {
+        send: vi.fn((...args: [string, ...unknown[]]) => sentMessages.push(args)),
+      },
+    } as any;
+
+    const fakeMainWindow = { id: 1 } as any;
+    const permissionSecrets = { 'runCmd-minikube': 99 };
+
+    const eventData = {
+      id: 'test-id',
+      command: 'minikube',
+      args: ['start'],
+      options: {},
+      permissionSecrets: { 'runCmd-minikube': 99 },
+    };
+
+    handleRunCommand(fakeEvent, eventData, fakeMainWindow, permissionSecrets);
+
+    const err = new Error('spawn error');
+    childEmitter.emit('error', err);
+
+    expect(sentMessages).toContainEqual(['command-stderr', 'test-id', 'spawn error']);
+    expect(sentMessages).toContainEqual(['command-exit', 'test-id', -1]);
   });
 });
 

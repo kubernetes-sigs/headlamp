@@ -19,7 +19,7 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { TestContext } from '../../test';
 import List from './List';
-import { NODE_DUMMY_DATA } from './storyHelper';
+import { NODE_DUMMY_DATA, NODE_DUMMY_DATA_NO_POOLS } from './storyHelper';
 
 export default {
   title: 'node/List',
@@ -61,3 +61,38 @@ const Template: StoryFn = () => {
 };
 
 export const Nodes = Template.bind({});
+
+export const NoNodePools: StoryFn = () => (
+  <Container maxWidth="xl">
+    <List />
+  </Container>
+);
+NoNodePools.parameters = {
+  msw: {
+    handlers: {
+      base: null,
+      story: [
+        http.get('http://localhost:4466/api/v1/nodes', () =>
+          HttpResponse.json({
+            kind: 'NodeList',
+            apiVersion: 'v1',
+            metadata: {},
+            items: NODE_DUMMY_DATA_NO_POOLS,
+          })
+        ),
+        http.post(
+          'http://localhost:4466/apis/authorization.k8s.io/v1/selfsubjectaccessreviews',
+          () => HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
+        ),
+        http.get('http://localhost:4466/apis/metrics.k8s.io/v1beta1/nodes', () =>
+          HttpResponse.json({
+            apiVersion: 'metrics.k8s.io/v1beta1',
+            kind: 'NodeMetricsList',
+            metadata: {},
+            items: [],
+          })
+        ),
+      ],
+    },
+  },
+};
