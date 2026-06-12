@@ -23,6 +23,13 @@ describe('parseRam', () => {
     expect(parseRam('')).toBe(0);
   });
 
+  it('should reject invalid inputs with trailing digits or signs', () => {
+    expect(parseRam('1Ki3')).toBeNaN();
+    expect(parseRam('1+6')).toBeNaN();
+    expect(parseRam('1Ki-3')).toBeNaN();
+    expect(parseRam('1M+2')).toBeNaN();
+  });
+
   it('should parse binary units', () => {
     expect(parseRam('1Ki')).toBe(1024);
     expect(parseRam('1Mi')).toBe(1024 * 1024);
@@ -31,6 +38,8 @@ describe('parseRam', () => {
 
   it('should parse decimal units', () => {
     expect(parseRam('1K')).toBe(1000);
+    expect(parseRam('1k')).toBe(1000);
+    expect(parseRam('1ki')).toBe(1024);
     expect(parseRam('1M')).toBe(1000000);
     expect(parseRam('1G')).toBe(1000000000);
   });
@@ -38,6 +47,17 @@ describe('parseRam', () => {
   it('should parse exponential notation', () => {
     expect(parseRam('1e3')).toBe(1000);
     expect(parseRam('1e6')).toBe(1000000);
+    expect(parseRam('1E3')).toBe(1000);
+    expect(parseRam('1E6')).toBe(1000000);
+    expect(parseRam('1e-3')).toBe(0.001);
+    expect(parseRam('1.5e-3')).toBe(0.0015);
+    expect(parseRam('1E+6')).toBe(1000000);
+    expect(parseRam('1e')).toBeNaN();
+  });
+
+  it('should parse exabytes correctly', () => {
+    expect(parseRam('1E')).toBe(1000 ** 6);
+    expect(parseRam('1Ei')).toBe(1024 ** 6);
   });
 
   it('should parse decimal values with binary units', () => {
@@ -91,6 +111,12 @@ describe('parseRam', () => {
         expect(result).toBeGreaterThanOrEqual(0);
       })
     );
+  });
+
+  it('should trim surrounding whitespace', () => {
+    expect(parseRam(' 1000 ')).toBe(1000);
+    expect(parseRam(' 1Ki\n')).toBe(1024);
+    expect(parseRam('\t1Mi ')).toBe(1024 * 1024);
   });
 });
 
@@ -168,6 +194,25 @@ describe('parseCpu', () => {
         expect(result).toBeGreaterThanOrEqual(0);
       })
     );
+  });
+
+  it('should trim surrounding whitespace', () => {
+    expect(parseCpu(' 1n ')).toBe(1);
+    expect(parseCpu(' 1u\n')).toBe(1000);
+    expect(parseCpu('\t1m ')).toBe(1000000);
+    expect(parseCpu(' 1 ')).toBe(1000000000);
+  });
+
+  it('should handle fractional CPU values', () => {
+    expect(parseCpu('0.5')).toBe(500000000);
+    expect(parseCpu('0.1')).toBe(100000000);
+    expect(parseCpu('1.5')).toBe(1500000000);
+  });
+
+  it('should avoid floating-point artifacts', () => {
+    expect(parseCpu('0.3')).toBe(300000000);
+    expect(parseCpu('0.1')).toBe(100000000);
+    expect(parseCpu('0.000000001')).toBe(1);
   });
 });
 

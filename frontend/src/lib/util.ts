@@ -466,14 +466,48 @@ export function useURLState<T extends string | number | undefined = string>(
   return [value, setValue] as [T, React.Dispatch<React.SetStateAction<T>>];
 }
 
-// compareUnits compares two units and returns true if they are equal
-export function compareUnits(quantity1: string, quantity2: string) {
-  // strip whitespace and convert to lowercase
-  const qty1 = quantity1.replace(/\s/g, '').toLowerCase();
-  const qty2 = quantity2.replace(/\s/g, '').toLowerCase();
+/**
+ * Compares two Kubernetes resource quantities and returns true if they are equal.
+ * Known call site: ResourceQuota/Details.tsx.
+ * When possible, callers should pass resourceType (e.g. 'cpu', 'memory') for unambiguous comparison.
+ */
+export function compareUnits(quantity1: string, quantity2: string, resourceType?: string) {
+  // strip whitespace
+  const qty1 = quantity1.replace(/\s/g, '');
+  const qty2 = quantity2.replace(/\s/g, '');
 
-  // compare numbers
-  return parseInt(qty1) === parseInt(qty2);
+  const type = resourceType?.toLowerCase() || '';
+  const lastToken = type.split('.').pop() || '';
+  const isExplicitCpu = lastToken === 'cpu';
+  const isExplicitMemory =
+    lastToken === 'memory' ||
+    lastToken === 'storage' ||
+    lastToken === 'ephemeral-storage' ||
+    lastToken.startsWith('hugepages-');
+
+  // Match CPU suffixes case-sensitively to avoid misclassifying memory 'M' as CPU 'm'
+  const hasCpuSuffix = (val: string) => /[mun]$/.test(val);
+  // Plain decimal values (e.g. '0.5') without any suffix are CPU cores
+  const isPlainDecimalCpu = (val: string) => /^[+-]?(?:\d+\.\d*|\.\d+)$/.test(val);
+
+  if (isExplicitCpu) {
+    return parseCpu(qty1) === parseCpu(qty2);
+  }
+  if (isExplicitMemory) {
+    return parseRam(qty1) === parseRam(qty2);
+  }
+
+  // Fallback to heuristic if type is unknown
+  if (
+    hasCpuSuffix(qty1) ||
+    hasCpuSuffix(qty2) ||
+    isPlainDecimalCpu(qty1) ||
+    isPlainDecimalCpu(qty2)
+  ) {
+    return parseCpu(qty1) === parseCpu(qty2);
+  }
+
+  return parseRam(qty1) === parseRam(qty2);
 }
 
 export function normalizeUnit(resourceType: string, quantity: string) {
@@ -486,16 +520,23 @@ export function normalizeUnit(resourceType: string, quantity: string) {
   let normalizedQuantity = '';
   let bytes = 0;
   switch (type) {
-    case 'cpu':
-      normalizedQuantity = quantity?.endsWith('m')
-        ? `${Number(quantity.substring(0, quantity.length - 1)) / 1000}`
-        : `${quantity}`;
+    case 'cpu': {
+      const cpuValue = parseCpu(quantity);
+      if (!Number.isFinite(cpuValue)) {
+        return quantity;
+      }
+      const cores = cpuValue / 1000000000;
+      normalizedQuantity = cores
+        .toFixed(9)
+        .replace(/(\.\d*?[1-9])0+$/, '$1')
+        .replace(/\.0+$/, '');
       if (normalizedQuantity === '1') {
         normalizedQuantity = normalizedQuantity + ' ' + 'core';
       } else {
         normalizedQuantity = normalizedQuantity + ' ' + 'cores';
       }
       break;
+    }
 
     case 'memory':
       /**
