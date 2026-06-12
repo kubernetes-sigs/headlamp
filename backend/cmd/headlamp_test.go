@@ -1201,6 +1201,197 @@ func TestDeletePlugin(t *testing.T) {
 	assert.True(t, os.IsNotExist(err))
 }
 
+// TestRestrictedEndpointsRequireToken pins the auth gate for the endpoints that
+// must only be reachable from the local desktop app. For each restricted route
+// it asserts that:
+//   - a request with no X-HEADLAMP_BACKEND-TOKEN header is rejected with 403
+//   - a request with the wrong token value is rejected with 403
+//   - a request with the correct token is NOT rejected by the auth gate
+//     (status may be 2xx/4xx depending on the body, but never 401/403)
+//
+// A regression that drops checkHeadlampBackendToken from any of these handlers
+// would silently expose cluster/plugin mutation to anonymous callers; this test
+// is the canary for that.
+//
+// Note: PUT /cluster/{name} (renameCluster) is intentionally NOT included here.
+// At the time of writing it does not call checkHeadlampBackendToken, so adding
+// it would assert behavior that does not exist. That gap should be fixed in
+// the handler before being pinned here.
+func TestRestrictedEndpointsRequireToken(t *testing.T) {
+	const validToken = "valid-token-for-test"
+
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", validToken)
+
+	kubeConfigBytes, err := os.ReadFile("./headlamp_testdata/kubeconfig")
+	require.NoError(t, err)
+
+	kubeConfigB64 := base64.StdEncoding.EncodeToString(kubeConfigBytes)
+
+	cases := []struct {
+		name   string
+		method string
+		path   string
+		body   interface{}
+	}{
+		{
+			name:   "POST /cluster (addCluster)",
+			method: http.MethodPost,
+			path:   "/cluster",
+			body:   ClusterReq{KubeConfig: &kubeConfigB64},
+		},
+		{
+			name:   "DELETE /cluster/{name} (deleteCluster)",
+			method: http.MethodDelete,
+			path:   "/cluster/" + minikubeName,
+			body:   nil,
+		},
+		{
+			name:   "DELETE /plugins/{name} (deletePlugin)",
+			method: http.MethodDelete,
+			path:   "/plugins/test-plugin",
+			body:   nil,
+		},
+	}
+
+	// newHandler builds a fresh handler with its own backing state per route, so
+	// that mutating subtests (the "valid token" case) cannot bleed into others.
+	newHandler := func(t *testing.T) http.Handler {
+		t.Helper()
+
+		pluginRoot := t.TempDir()
+
+		userPluginDir := filepath.Join(pluginRoot, "user-plugins")
+		require.NoError(t, os.Mkdir(userPluginDir, 0o750))
+
+		devPluginDir := filepath.Join(pluginRoot, "plugins")
+		require.NoError(t, os.Mkdir(devPluginDir, 0o750))
+
+		pluginDir := filepath.Join(devPluginDir, "test-plugin")
+		require.NoError(t, os.Mkdir(pluginDir, 0o750))
+
+		f, err := os.Create(filepath.Join(pluginDir, "main.js")) //nolint:gosec
+		require.NoError(t, err)
+		require.NoError(t, f.Close())
+
+		c := HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					UseInCluster:          false,
+					KubeConfigPath:        "./headlamp_testdata/kubeconfig",
+					EnableDynamicClusters: true,
+					PluginDir:             devPluginDir,
+					UserPluginDir:         userPluginDir,
+					KubeConfigStore:       kubeconfig.NewContextStore(),
+				},
+				Cache:            cache.New[interface{}](),
+				TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+				TelemetryHandler: &telemetry.RequestHandler{},
+			},
+		}
+
+		return createHeadlampHandler(context.Background(), &c)
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			authVariants := []struct {
+				name        string
+				setHeader   bool
+				headerValue string
+				// expectStatus is the exact status returned by the auth gate when
+				// it rejects (the handler uses 403 Forbidden via http.Error).
+				// For the "valid" case we only assert the gate did NOT reject.
+				rejected bool
+			}{
+				{name: "missing token header", setHeader: false, rejected: true},
+				{name: "wrong token value", setHeader: true, headerValue: "not-the-token", rejected: true},
+				{name: "valid token", setHeader: true, headerValue: validToken, rejected: false},
+			}
+
+			for _, av := range authVariants {
+				t.Run(av.name, func(t *testing.T) {
+					handler := newHandler(t)
+
+					req, err := makeJSONReq(tc.method, tc.path, tc.body)
+					require.NoError(t, err)
+
+					if av.setHeader {
+						req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", av.headerValue)
+					}
+
+					rr := httptest.NewRecorder()
+					handler.ServeHTTP(rr, req)
+
+					if av.rejected {
+						assert.Equal(t, http.StatusForbidden, rr.Code,
+							"%s %s with %s must be rejected by the backend-token gate",
+							tc.method, tc.path, av.name)
+					} else {
+						assert.NotEqual(t, http.StatusForbidden, rr.Code,
+							"%s %s with a valid token must NOT be rejected by the backend-token gate",
+							tc.method, tc.path)
+						assert.NotEqual(t, http.StatusUnauthorized, rr.Code,
+							"%s %s with a valid token must NOT be rejected by the backend-token gate",
+							tc.method, tc.path)
+					}
+				})
+			}
+		})
+	}
+}
+
+// TestRestrictedEndpointsRejectEmptyEnvToken pins a second important property
+// of checkHeadlampBackendToken: when HEADLAMP_BACKEND_TOKEN is unset (empty),
+// requests must be rejected even if the client sends an empty header. Without
+// this, an attacker could bypass the gate simply by clearing the env var.
+func TestRestrictedEndpointsRejectEmptyEnvToken(t *testing.T) {
+	// Make sure the env var is empty for this test, regardless of caller state.
+	t.Setenv("HEADLAMP_BACKEND_TOKEN", "")
+
+	c := HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:          false,
+				KubeConfigPath:        "./headlamp_testdata/kubeconfig",
+				EnableDynamicClusters: true,
+				PluginDir:             t.TempDir(),
+				UserPluginDir:         t.TempDir(),
+				KubeConfigStore:       kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+	handler := createHeadlampHandler(context.Background(), &c)
+
+	routes := []struct {
+		method string
+		path   string
+	}{
+		{http.MethodPost, "/cluster"},
+		{http.MethodDelete, "/cluster/" + minikubeName},
+		{http.MethodDelete, "/plugins/test-plugin"},
+	}
+
+	for _, route := range routes {
+		t.Run(route.method+" "+route.path, func(t *testing.T) {
+			for _, headerValue := range []string{"" /* matches empty env */, "anything"} {
+				req, err := makeJSONReq(route.method, route.path, nil)
+				require.NoError(t, err)
+
+				req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", headerValue)
+
+				rr := httptest.NewRecorder()
+				handler.ServeHTTP(rr, req)
+
+				assert.Equal(t, http.StatusForbidden, rr.Code,
+					"empty HEADLAMP_BACKEND_TOKEN env must reject all callers (header=%q)", headerValue)
+			}
+		})
+	}
+}
+
 func TestHandleClusterAPI_XForwardedHost(t *testing.T) {
 	// Create a new server for testing
 	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
