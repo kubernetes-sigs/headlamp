@@ -163,6 +163,9 @@ type writeCountingResponseRecorder struct {
 }
 
 func (r *writeCountingResponseRecorder) Write(b []byte) (int, error) {
+	if r.writeHeaderCount == 0 {
+		r.WriteHeader(http.StatusOK)
+	}
 	r.writeCount++
 
 	return r.ResponseRecorder.Write(b)
