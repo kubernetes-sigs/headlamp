@@ -46,15 +46,18 @@ vi.mock('../ConfirmButton', () => ({
     onConfirm,
     disabled,
     ariaLabel,
+    'aria-controls': ariaControls,
   }: {
     children: React.ReactNode;
     onConfirm: () => void;
     disabled?: boolean;
     ariaLabel?: string;
+    'aria-controls'?: string;
   }) => (
     <Button
       aria-label={ariaLabel}
       disabled={disabled}
+      aria-controls={ariaControls}
       onClick={() => {
         if (!disabled) {
           onConfirm();
@@ -121,5 +124,23 @@ describe('EditorDialog', () => {
     });
 
     expect(screen.queryByText('Invalid YAML')).not.toBeInTheDocument();
+  });
+
+  it('renders the editor textarea and action buttons with correct id and aria-controls attributes', () => {
+    renderEditorDialog();
+
+    const textarea = screen.getByRole('textbox', { name: /code/i });
+    expect(textarea.id).toMatch(/^editor-textarea-/);
+
+    const textareaId = textarea.id;
+
+    const undoButton = screen.getByRole('button', { name: /undo changes/i });
+    expect(undoButton).toHaveAttribute('aria-controls', textareaId);
+
+    const dryRunButton = screen.getByRole('button', { name: /dry run/i });
+    expect(dryRunButton).toHaveAttribute('aria-controls', textareaId);
+
+    const saveApplyButton = screen.getByRole('button', { name: /save & apply/i });
+    expect(saveApplyButton).toHaveAttribute('aria-controls', textareaId);
   });
 });
