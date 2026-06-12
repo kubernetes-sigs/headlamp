@@ -60,8 +60,8 @@ import LightTooltip from '../common/Tooltip/TooltipLight';
 import { PodDiagnosticsSection } from '../diagnostics/Diagnostics';
 import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { colorizePrettifiedLog } from './jsonHandling';
-import { makePodStatusLabel } from './List';
 import { PodDebugAction } from './PodDebugAction';
+import { makePodStatusLabel } from './podStatus';
 
 const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   margin: 0,

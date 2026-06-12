@@ -874,6 +874,7 @@
   "Handler": "المعالج",
   "No data in this secret": "لا توجد بيانات في هذا السر",
   "Hide Helm Secrets": "إخفاء أسرار Helm",
+  "Error loading pods": "",
   "Shrink sidebar": "تصغير الشريط الجانبي",
   "Expand sidebar": "توسيع الشريط الجانبي",
   "Main Navigation": "التنقل الرئيسي",

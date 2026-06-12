@@ -844,6 +844,7 @@
   "Handler": "ハンドラー",
   "No data in this secret": "このシークレットにデータがありません",
   "Hide Helm Secrets": "",
+  "Error loading pods": "",
   "Shrink sidebar": "サイドバーを縮小",
   "Expand sidebar": "サイドバーを展開",
   "Main Navigation": "メインナビゲーション",

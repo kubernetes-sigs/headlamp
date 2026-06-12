@@ -233,6 +233,8 @@
   "Traffic Distribution": "",
   "Node Port": "",
   "App Protocol": "",
+  "This Service has no selector, so it does not target Pods directly": "",
+  "Pod Name": "",
   "Services": "Servizi",
   "Image Pull Secrets": "",
   "Automount Service Account Token": "",

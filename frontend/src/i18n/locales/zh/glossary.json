@@ -220,6 +220,7 @@
   "Verbs": "动作",
   "RuntimeClass": "运行时类别",
   "Secrets": "Secrets",
+<<<<<<< HEAD
   "Cluster IPs": "",
   "External Name": "",
   "IP Families": "",
@@ -233,6 +234,10 @@
   "Traffic Distribution": "",
   "Node Port": "",
   "App Protocol": "",
+=======
+  "This Service has no selector, so it does not target Pods directly": "",
+  "Pod Name": "",
+>>>>>>> 6166cc06b (frontend: Service: Add Pods table to details view)
   "Services": "Services",
   "Image Pull Secrets": "",
   "Automount Service Account Token": "",

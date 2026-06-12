@@ -850,6 +850,7 @@
   "Handler": "ہینڈلر",
   "No data in this secret": "اس سیکرٹ میں کوئی ڈیٹا نہیں",
   "Hide Helm Secrets": "Helm سیکرٹس چھپائیں",
+  "Error loading pods": "",
   "Shrink sidebar": "سائیڈ بار چھوٹا کریں",
   "Expand sidebar": "سائیڈ بار پھیلائیں",
   "Main Navigation": "مرکزی نیویگیشن",

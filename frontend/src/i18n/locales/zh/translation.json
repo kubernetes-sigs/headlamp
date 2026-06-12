@@ -844,6 +844,7 @@
   "Handler": "处理程序",
   "No data in this secret": "此 Secret 中无数据",
   "Hide Helm Secrets": "",
+  "Error loading pods": "",
   "Shrink sidebar": "收缩侧边栏",
   "Expand sidebar": "展开侧边栏",
   "Main Navigation": "主导航",
