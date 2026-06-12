@@ -626,7 +626,7 @@ export function getThemeName(backendConfig?: {
 
   // Detect OS preference
   if (typeof window.matchMedia !== 'function') {
-    return backendConfig?.defaultLightTheme || 'light';
+    return backendConfig?.defaultLightTheme || 'Light';
   }
 
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -641,12 +641,12 @@ export function getThemeName(backendConfig?: {
 
   // Fallback to OS preference
   if (prefersLight) {
-    return 'light';
+    return 'Light';
   } else if (prefersDark) {
-    return 'dark';
+    return 'Dark';
   }
 
-  return 'light';
+  return 'Light';
 }
 
 export function setTheme(themeName: string) {

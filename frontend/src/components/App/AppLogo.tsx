@@ -17,7 +17,7 @@
 import { Theme } from '@mui/material/styles';
 import { SxProps } from '@mui/system';
 import React, { isValidElement, ReactElement } from 'react';
-import { getThemeName, useNavBarMode } from '../../lib/themes';
+import { useNavBarMode } from '../../lib/themes';
 import { useTypedSelector } from '../../redux/hooks';
 import LogoDark from '../../resources/icon-dark.svg?react';
 import LogoLight from '../../resources/icon-light.svg?react';
@@ -60,11 +60,12 @@ export default function OriginalAppLogo(props: AppLogoProps) {
 }
 
 export function AppLogo(props: AppLogoProps) {
-  const { logoType = 'large', themeName = getThemeName() } = props;
+  const { logoType = 'large', themeName: themeNameOverride } = props;
   const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
   const PluginAppLogoComponent = useTypedSelector(state => state.theme.logo);
   const PluginAppLogoComp = PluginAppLogoComponent as typeof React.Component;
-  const mode = useNavBarMode();
+  const navBarMode = useNavBarMode();
+  const mode = themeNameOverride ?? navBarMode;
 
   // Till all plugins are not loaded show empty content for logo as we might have logo coming from a plugin
   if (!arePluginsLoaded) {
@@ -80,7 +81,7 @@ export function AppLogo(props: AppLogoProps) {
         // It is a component, so we make it here.
         <PluginAppLogoComp
           logoType={logoType}
-          themeName={themeName}
+          themeName={mode}
           sx={{ height: '32px', width: 'auto' }}
         />
       )}
