@@ -105,13 +105,30 @@ export const kubeOwnersEdgesReversed = (obj: KubeObject): GraphEdge[] => {
  */
 export const makeKubeObjectNode = (obj: KubeObject): GraphNode => {
   const crd = (obj.constructor as any)?.customResourceDefinition;
-  if (crd && typeof crd.getMainAPIGroup === 'function') {
-    const [group, , plural] = crd.getMainAPIGroup();
-    return {
-      id: obj.metadata.uid,
-      kubeObject: obj,
-      customResourceDefinition: plural + '.' + group,
-    };
+  if (crd) {
+    // Prefer the explicit-nullable variant introduced for the incomplete-spec
+    // guards. Fall back to legacy `getMainAPIGroup()` so a plugin shipping an
+    // older bundle of this SDK (where only the original method exists) still
+    // gets its CRD identified instead of silently treated as a non-CRD.
+    let apiGroup: [string, string, string] | null = null;
+    if (typeof crd.getMainAPIGroupOrNull === 'function') {
+      apiGroup = crd.getMainAPIGroupOrNull();
+    } else if (typeof crd.getMainAPIGroup === 'function') {
+      const legacy = crd.getMainAPIGroup();
+      // Treat the new in-tree all-empty sentinel as "no usable identity"; for
+      // older bundles, any non-empty group+plural is good enough.
+      if (legacy && legacy[0] && legacy[2]) {
+        apiGroup = legacy;
+      }
+    }
+    if (apiGroup) {
+      const [group, , plural] = apiGroup;
+      return {
+        id: obj.metadata.uid,
+        kubeObject: obj,
+        customResourceDefinition: plural + '.' + group,
+      };
+    }
   }
 
   return {

@@ -101,49 +101,74 @@ export interface CustomResourceTableProps {
 
 export function CustomResourceListTable(props: CustomResourceTableProps) {
   const { t } = useTranslation(['glossary', 'translation']);
-  const { crd, title = crd.spec.names.kind, includeCRDLink } = props;
+  const { crd } = props;
 
-  const apiGroup = React.useMemo(() => {
-    return crd.getMainAPIGroup();
-  }, [crd]);
+  // Computed per render rather than memoised: both calls are cheap and
+  // re-evaluating every render avoids returning a stale "incomplete" result
+  // if the same CRD instance is mutated in place (rather than replaced) when
+  // its spec arrives.
+  const CRClass = crd.makeCRClassOrNull();
+  const apiGroup = crd.getMainAPIGroupOrNull();
 
-  const CRClass: typeof KubeObject<KubeCRD> = React.useMemo(() => {
-    return crd.makeCRClass();
-  }, [crd]);
+  if (!CRClass || !apiGroup) {
+    // The outer `CustomResourceList` has already resolved `crd` from the API,
+    // so reaching here means the CRD object is loaded but its spec is missing
+    // required fields. The state may be transient (e.g. an in-flight watch
+    // update) or persistent (a malformed CRD); rather than guess and risk an
+    // indefinite spinner, show an explicit empty message and let the next
+    // refetch swap us back into the data path when the spec becomes complete.
+    return <Empty>{t('translation|This CustomResourceDefinition has an incomplete spec.')}</Empty>;
+  }
+
+  return <CustomResourceTableInner {...props} CRClass={CRClass} apiGroup={apiGroup} />;
+}
+
+function CustomResourceTableInner(
+  props: CustomResourceTableProps & {
+    CRClass: NonNullable<ReturnType<CRD['makeCRClassOrNull']>>;
+    apiGroup: NonNullable<ReturnType<CRD['getMainAPIGroupOrNull']>>;
+  }
+) {
+  const { t } = useTranslation(['glossary', 'translation']);
+  const {
+    crd,
+    title = crd.spec?.names?.kind || crd.metadata.name,
+    includeCRDLink,
+    CRClass,
+    apiGroup,
+  } = props;
 
   const clusters = useSelectedClusters();
   const isMultiCluster = clusters.length > 1;
 
-  const additionalPrinterCols = React.useMemo(() => {
-    const currentVersion = apiGroup[1];
-    const colsFromSpec =
-      crd.jsonData.spec.versions.find(
-        (version: KubeCRD['spec']['versions'][number]) => version.name === currentVersion
-      )?.additionalPrinterColumns || [];
-    const cols: ResourceTableColumn<KubeObject<KubeCRD>>[] = [];
-    for (let i = 0; i < colsFromSpec.length; i++) {
-      const idx = i;
-      const colSpec = colsFromSpec[idx];
-      // Skip creation date because we already show it by default
-      if (colSpec.jsonPath === '.metadata.creationTimestamp') {
-        continue;
-      }
-
-      cols.push({
-        label: colSpec.name,
-        getValue: resource => {
-          let value = getValueWithJSONPath(resource, colSpec.jsonPath);
-          if (colSpec.type === 'date') {
-            value = localeDate(new Date(value));
-          }
-
-          return value;
-        },
-      });
+  // Computed per render rather than memoised: walking the printer-columns
+  // array is cheap (typically <10 entries) and re-evaluating every render
+  // avoids returning a stale result if the same CRD instance is mutated in
+  // place (e.g. `additionalPrinterColumns` updated for the same version).
+  const currentVersion = apiGroup[1];
+  const colsFromSpec =
+    crd.jsonData.spec?.versions?.find(
+      (version: KubeCRD['spec']['versions'][number]) => version.name === currentVersion
+    )?.additionalPrinterColumns || [];
+  const additionalPrinterCols: ResourceTableColumn<KubeObject<KubeCRD>>[] = [];
+  for (let i = 0; i < colsFromSpec.length; i++) {
+    const idx = i;
+    const colSpec = colsFromSpec[idx];
+    // Skip creation date because we already show it by default.
+    if (colSpec.jsonPath === '.metadata.creationTimestamp') {
+      continue;
     }
-
-    return cols;
-  }, [crd, apiGroup]);
+    additionalPrinterCols.push({
+      label: colSpec.name,
+      getValue: resource => {
+        let value = getValueWithJSONPath(resource, colSpec.jsonPath);
+        if (colSpec.type === 'date') {
+          value = localeDate(new Date(value));
+        }
+        return value;
+      },
+    });
+  }
 
   const cols = React.useMemo(
     () => {
@@ -170,10 +195,6 @@ export function CustomResourceListTable(props: CustomResourceTableProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [crd, additionalPrinterCols, isMultiCluster]
   );
-
-  if (!CRClass) {
-    return <Empty>{t('translation|No custom resources found')}</Empty>;
-  }
 
   return (
     <ResourceListView

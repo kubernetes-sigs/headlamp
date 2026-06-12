@@ -99,13 +99,22 @@ const generateCRSources = (crds: CRD[], vpaEnabled: boolean): GraphSource[] => {
   const groupedSources = new Map<string, GraphSource[]>();
 
   for (const crd of crds) {
-    const kind = crd.spec.names.kind;
+    const kind = crd.spec?.names?.kind;
+    if (!kind) {
+      // CRD with incomplete spec; skip it (#4824).
+      continue;
+    }
     if (BUILTIN_CRD_KINDS.includes(kind) && (kind !== 'VerticalPodAutoscaler' || vpaEnabled)) {
       continue;
     }
 
-    const [group] = crd.getMainAPIGroup();
-    const source = makeKubeSource(crd.makeCRClass());
+    const apiGroup = crd.getMainAPIGroupOrNull();
+    const crClass = crd.makeCRClassOrNull();
+    if (!apiGroup || !crClass) {
+      continue;
+    }
+    const [group] = apiGroup;
+    const source = makeKubeSource(crClass);
     // Add crd prefix to avoid id clashes with resources already defined in other places
     source.id = 'crd-' + source.id;
 
