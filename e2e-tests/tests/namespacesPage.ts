@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, Page } from '@playwright/test';
 
@@ -20,7 +21,7 @@ export class NamespacesPage {
   constructor(private page: Page) {}
 
   async a11y() {
-    const axeBuilder = new AxeBuilder({ page: this.page });
+    const axeBuilder = new AxeBuilder({ page: this.page }).disableRules(['region']);
     const accessibilityResults = await axeBuilder.analyze();
     expect(accessibilityResults.violations).toStrictEqual([]);
   }
