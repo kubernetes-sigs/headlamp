@@ -42,6 +42,8 @@ import (
 // it becomes eligible for eviction.
 const clientsetTTL = 10 * time.Minute
 
+const unknownVerb = "unknown"
+
 // janitorInterval is how often the background goroutine sweeps the
 // cache for expired entries.
 const janitorInterval = 5 * time.Minute
@@ -264,33 +266,131 @@ func GetClientSet(k *kubeconfig.Context, token string) (*kubernetes.Clientset, e
 	return cs, err
 }
 
-// GetKindAndVerb extracts the Kubernetes resource kind and intended verb (e.g., get, watch)
-// from the incoming HTTP request.
-func GetKindAndVerb(r *http.Request) (string, string) {
-	apiPath, ok := mux.Vars(r)["api"]
-	if !ok || apiPath == "" {
-		return "", "unknown"
+type apiResourceRequest struct {
+	group       string
+	version     string
+	namespace   string
+	resource    string
+	name        string
+	subresource string
+}
+
+func isNamespaceSubresource(subresource string) bool {
+	return subresource == "status" || subresource == "finalize"
+}
+
+func parseAPIResourceRequest(apiPath string) (apiResourceRequest, bool) {
+	parts := strings.Split(strings.Trim(apiPath, "/"), "/")
+	if len(parts) < 3 {
+		return apiResourceRequest{}, false
 	}
 
-	parts := strings.Split(apiPath, "/")
-	last := parts[len(parts)-1]
+	request := apiResourceRequest{}
+	resourceIndex := 0
 
-	var kubeVerb string
+	switch parts[0] {
+	case apiPathSegment:
+		request.version = parts[1]
+		resourceIndex = 2
+	case apisPathSegment:
+		if len(parts) < 4 {
+			return apiResourceRequest{}, false
+		}
 
+		request.group = parts[1]
+		request.version = parts[2]
+		resourceIndex = 3
+	default:
+		return apiResourceRequest{}, false
+	}
+
+	if parts[resourceIndex] == namespacePathSegment &&
+		len(parts) == resourceIndex+3 &&
+		isNamespaceSubresource(parts[resourceIndex+2]) {
+		request.resource = namespacePathSegment
+		request.name = parts[resourceIndex+1]
+		request.subresource = parts[resourceIndex+2]
+
+		return request, true
+	}
+
+	if parts[resourceIndex] == namespacePathSegment && len(parts) > resourceIndex+2 {
+		request.namespace = parts[resourceIndex+1]
+		resourceIndex += 2
+	}
+
+	request.resource = parts[resourceIndex]
+	if len(parts) > resourceIndex+1 {
+		request.name = parts[resourceIndex+1]
+	}
+
+	if len(parts) > resourceIndex+2 {
+		request.subresource = parts[resourceIndex+2]
+	}
+
+	return request, true
+}
+
+func getKubeVerb(r *http.Request, request apiResourceRequest) string {
 	isWatch, _ := strconv.ParseBool(r.URL.Query().Get("watch"))
 
 	switch r.Method {
 	case "GET":
 		if isWatch {
-			kubeVerb = "watch"
-		} else {
-			kubeVerb = "get"
+			return "watch"
 		}
+
+		if request.name == "" {
+			return "list"
+		}
+
+		return "get"
 	default:
-		kubeVerb = "unknown"
+		return unknownVerb
+	}
+}
+
+// GetKindAndVerb extracts the Kubernetes resource kind and intended verb (e.g., get, watch)
+// from the incoming HTTP request.
+func GetKindAndVerb(r *http.Request) (string, string) {
+	apiPath, ok := mux.Vars(r)["api"]
+	if !ok || apiPath == "" {
+		return "", unknownVerb
 	}
 
-	return last, kubeVerb
+	request, ok := parseAPIResourceRequest(apiPath)
+	if !ok {
+		return "", unknownVerb
+	}
+
+	return request.resource, getKubeVerb(r, request)
+}
+
+func getResourceAttributes(r *http.Request) (*authorizationv1.ResourceAttributes, error) {
+	apiPath, ok := mux.Vars(r)["api"]
+	if !ok || apiPath == "" {
+		return nil, fmt.Errorf("could not determine resource or verb from request")
+	}
+
+	request, ok := parseAPIResourceRequest(apiPath)
+	if !ok {
+		return nil, fmt.Errorf("could not determine resource or verb from request")
+	}
+
+	kubeVerb := getKubeVerb(r, request)
+	if request.resource == "" || kubeVerb == "" {
+		return nil, fmt.Errorf("could not determine resource or verb from request")
+	}
+
+	return &authorizationv1.ResourceAttributes{
+		Group:       request.group,
+		Version:     request.version,
+		Resource:    request.resource,
+		Subresource: request.subresource,
+		Namespace:   request.namespace,
+		Name:        request.name,
+		Verb:        kubeVerb,
+	}, nil
 }
 
 // IsAllowed checks the user's permission to access the resource.
@@ -307,17 +407,14 @@ func IsAllowed(
 		return false, err
 	}
 
-	last, kubeVerb := GetKindAndVerb(r)
-	if last == "" || kubeVerb == "" {
-		return false, fmt.Errorf("could not determine resource or verb from request")
+	resourceAttributes, err := getResourceAttributes(r)
+	if err != nil {
+		return false, err
 	}
 
 	review := &authorizationv1.SelfSubjectAccessReview{
 		Spec: authorizationv1.SelfSubjectAccessReviewSpec{
-			ResourceAttributes: &authorizationv1.ResourceAttributes{
-				Resource: last,
-				Verb:     kubeVerb,
-			},
+			ResourceAttributes: resourceAttributes,
 		},
 	}
 
