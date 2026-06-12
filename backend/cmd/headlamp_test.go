@@ -1830,6 +1830,42 @@ func TestOidcCallbackEmptyStateDoesNotLogStaleError(t *testing.T) {
 		"missing-state log must not carry a stale error from the outer createHeadlampHandler scope")
 }
 
+// TestOidcStateMapEviction verifies that abandoned OIDC state entries (where
+// the user never completes the callback) are evicted from oauthRequestMap once
+// they exceed OidcStateTTL, preventing unbounded memory growth.
+// It calls evictExpiredOidcStates directly so it exercises the same production
+// code path used by the background goroutine in createHeadlampHandler.
+func TestOidcStateMapEviction(t *testing.T) {
+	oauthRequestMap := make(map[string]*OauthConfig)
+
+	var oauthMu sync.Mutex
+
+	// Insert a stale entry that is already past the TTL.
+	staleState := "stale-state-token"
+	oauthRequestMap[staleState] = &OauthConfig{
+		Cluster:   "test-cluster",
+		createdAt: time.Now().Add(-OidcStateTTL - time.Second),
+	}
+
+	// Insert a fresh entry that should survive eviction.
+	freshState := "fresh-state-token"
+	oauthRequestMap[freshState] = &OauthConfig{
+		Cluster:   "test-cluster",
+		createdAt: time.Now(),
+	}
+
+	// Call the production helper — same function used by the goroutine.
+	evictExpiredOidcStates(oauthRequestMap, &oauthMu, OidcStateTTL)
+
+	oauthMu.Lock()
+	_, stalePresent := oauthRequestMap[staleState]
+	_, freshPresent := oauthRequestMap[freshState]
+	oauthMu.Unlock()
+
+	assert.False(t, stalePresent, "stale OIDC state entry should have been evicted")
+	assert.True(t, freshPresent, "fresh OIDC state entry should still be present")
+}
+
 func TestOIDCTokenRefreshMiddleware(t *testing.T) {
 	kubeConfigStore := kubeconfig.NewContextStore()
 	config := &HeadlampConfig{
