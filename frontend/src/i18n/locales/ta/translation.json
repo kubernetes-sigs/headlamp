@@ -259,6 +259,7 @@
   "No clusters found!": "க்ளஸ்டர்கள் எதுவும் கிடைக்கவில்லை!",
   "No contexts found!": "கான்டெக்ஸ்ட்கள் எதுவும் கிடைக்கவில்லை!",
   "Invalid kubeconfig file: {{ errorMessage }}": "தவறான கியூப்கான்ஃபிக் கோப்பு: {{ errorMessage }}",
+  "Kubernetes events have a lifetime of 1 hour by default. This duration may vary depending on your cluster's configuration.": "",
   "Only warnings ({{ numWarnings }})": "எச்சரிக்கைகள் ({{ numWarnings }})",
   "Reason": "காரணம்",
   "Count": "",

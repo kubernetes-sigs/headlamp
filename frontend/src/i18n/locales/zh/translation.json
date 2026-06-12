@@ -258,6 +258,7 @@
   "No clusters found!": "未找到集群！",
   "No contexts found!": "未找到上下文！",
   "Invalid kubeconfig file: {{ errorMessage }}": "无效的 kubeconfig 文件：{{ errorMessage }}",
+  "Kubernetes events have a lifetime of 1 hour by default. This duration may vary depending on your cluster's configuration.": "",
   "Only warnings ({{ numWarnings }})": "仅警告 ({{ numWarnings }})",
   "Reason": "原因",
   "Count": "",

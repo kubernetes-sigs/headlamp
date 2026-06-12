@@ -260,6 +260,7 @@
   "No clusters found!": "Nessun cluster trovato!",
   "No contexts found!": "Nessun contesto trovato!",
   "Invalid kubeconfig file: {{ errorMessage }}": "File kubeconfig non valido: {{ errorMessage }}",
+  "Kubernetes events have a lifetime of 1 hour by default. This duration may vary depending on your cluster's configuration.": "Gli eventi di Kubernetes hanno una durata predefinita di 1 ora. Tale durata può variare a seconda della configurazione del cluster.",
   "Only warnings ({{ numWarnings }})": "Solo avvertenze ({{ numWarnings }})",
   "Reason": "Motivo",
   "Count": "",
