@@ -226,6 +226,16 @@ var ParseWithEnvTests = []struct {
 			assert.Equal(t, "X-Env-Token-Header", conf.ProxyAuthTokenHeader)
 		},
 	},
+	{
+		name: "watch_plugins_changes_from_env_in_cluster",
+		args: []string{"go run ./cmd", "--in-cluster"},
+		env: map[string]string{
+			"HEADLAMP_CONFIG_WATCH_PLUGINS_CHANGES": "true",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.WatchPluginsChanges)
+		},
+	},
 }
 
 func TestParseWithEnv(t *testing.T) {
@@ -677,6 +687,22 @@ func TestOIDCTLSEnvironmentVariables(t *testing.T) {
 	}
 }
 
+func TestWatchPluginsChangesInClusterDefaults(t *testing.T) {
+	require.NoError(t, os.Unsetenv("HEADLAMP_CONFIG_WATCH_PLUGINS_CHANGES"))
+
+	conf, err := config.Parse([]string{"go run ./cmd", "--in-cluster"})
+	require.NoError(t, err)
+	require.NotNil(t, conf)
+	assert.Equal(t, false, conf.WatchPluginsChanges)
+}
+
+func TestWatchPluginsChangesInClusterFlagOverride(t *testing.T) {
+	conf, err := config.Parse([]string{"go run ./cmd", "--in-cluster", "--watch-plugins-changes=true"})
+	require.NoError(t, err)
+	require.NotNil(t, conf)
+	assert.Equal(t, true, conf.WatchPluginsChanges)
+}
+
 var applyMeDefaultsTests = []struct {
 	name             string
 	usernamePath     string
@@ -798,6 +824,143 @@ func TestValidateSessionTTL(t *testing.T) {
 			name:        "session_ttl_default",
 			args:        []string{"go run ./cmd"},
 			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, conf)
+				assert.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, conf)
+			}
+		})
+	}
+}
+
+func TestValidatePort(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          []string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:          "port_zero",
+			args:          []string{"go run ./cmd", "--port=0"},
+			expectError:   true,
+			errorContains: "port must be between 1 and 65535",
+		},
+		{
+			name:          "port_above_max",
+			args:          []string{"go run ./cmd", "--port=65536"},
+			expectError:   true,
+			errorContains: "port must be between 1 and 65535",
+		},
+		{
+			name:        "port_max",
+			args:        []string{"go run ./cmd", "--port=65535"},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, conf)
+				assert.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, conf)
+			}
+		})
+	}
+}
+
+func TestValidateLogLevel(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          []string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:        "log_level_debug",
+			args:        []string{"go run ./cmd", "--log-level=debug"},
+			expectError: false,
+		},
+		{
+			name:        "log_level_error",
+			args:        []string{"go run ./cmd", "--log-level=error"},
+			expectError: false,
+		},
+		{
+			name:        "log_level_empty",
+			args:        []string{"go run ./cmd", "--log-level="},
+			expectError: false,
+		},
+		{
+			name:        "log_level_whitespace",
+			args:        []string{"go run ./cmd", "--log-level= \t"},
+			expectError: false,
+		},
+		{
+			name:          "log_level_invalid",
+			args:          []string{"go run ./cmd", "--log-level=verbose"},
+			expectError:   true,
+			errorContains: "log-level must be one of debug, info, warn, or error",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, conf)
+				assert.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, conf)
+			}
+		})
+	}
+}
+
+func TestValidateTLSPaths(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          []string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:          "tls_cert_without_key",
+			args:          []string{"go run ./cmd", "--tls-cert-path=/tmp/tls.crt"},
+			expectError:   true,
+			errorContains: "tls-cert-path and tls-key-path must be configured together",
+		},
+		{
+			name:          "tls_key_without_cert",
+			args:          []string{"go run ./cmd", "--tls-key-path=/tmp/tls.key"},
+			expectError:   true,
+			errorContains: "tls-cert-path and tls-key-path must be configured together",
+		},
+		{
+			name: "tls_invalid_pair",
+			args: []string{
+				"go run ./cmd",
+				"--tls-cert-path=" + filepath.Join(getTestDataPath(), "valid_ca.pem"),
+				"--tls-key-path=" + filepath.Join(getTestDataPath(), "invalid_ca.pem"),
+			},
+			expectError:   true,
+			errorContains: "invalid tls certificate or key path",
 		},
 	}
 
