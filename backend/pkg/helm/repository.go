@@ -73,12 +73,7 @@ func (r AddUpdateRepoRequest) Validate() error {
 func createFileIfNotThere(fileName string) error {
 	_, err := os.Stat(fileName)
 	if os.IsNotExist(err) {
-		file, err := createFullPath(fileName)
-		if err != nil {
-			return err
-		}
-
-		return file.Close()
+		return createFullPath(fileName)
 	}
 
 	return err
@@ -250,12 +245,18 @@ type ListRepoResponse struct {
 	Repositories []repositoryInfo `json:"repositories"`
 }
 
-func createFullPath(p string) (*os.File, error) {
-	if err := os.MkdirAll(filepath.Dir(p), defaultNewConfigFolderMode); err != nil {
-		return nil, err
+func createFullPath(p string) error {
+	cleanPath := filepath.Clean(p)
+	if err := os.MkdirAll(filepath.Dir(cleanPath), defaultNewConfigFolderMode); err != nil {
+		return err
 	}
 
-	return os.Create(p) //nolint:gosec
+	file, err := os.OpenFile(cleanPath, os.O_CREATE|os.O_WRONLY, defaultNewConfigFileMode)
+	if err != nil {
+		return err
+	}
+
+	return file.Close()
 }
 
 func listRepositories(settings *cli.EnvSettings) ([]repositoryInfo, error) {
