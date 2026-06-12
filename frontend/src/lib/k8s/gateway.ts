@@ -20,7 +20,7 @@ import { KubeObject, type KubeObjectInterface } from './KubeObject';
 /**
  * ParentReference identifies an API object (usually a Gateway) that can be considered a parent of this resource (usually a route).
  *
- * @see {@link https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.ParentReference} Gateway API reference for ParentReference
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#parentreference} Gateway API reference for ParentReference
  */
 export interface GatewayParentReference {
   group?: string;
@@ -34,7 +34,7 @@ export interface GatewayParentReference {
 /**
  * Listener embodies the concept of a logical endpoint where a Gateway accepts network connections.
  *
- * @see {@link https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.Listener} Gateway API reference for Listener
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#listener} Gateway API reference for Listener
  */
 export interface GatewayListener {
   hostname: string;
@@ -47,7 +47,7 @@ export interface GatewayListener {
 /**
  * ListenerStatus is the status associated with a Listener.
  *
- * @see {@link https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.ListenerStatus} Gateway API reference for ListenerStatus
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#listenerstatus} Gateway API reference for ListenerStatus
  */
 export interface GatewayListenerStatus {
   name: string;
@@ -59,7 +59,7 @@ export interface GatewayListenerStatus {
 /**
  * GatewayStatusAddress describes a network address that is bound to a Gateway.
  *
- * @see {@link https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.GatewayStatusAddress} Gateway API reference for GatewayStatusAddress
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#gatewaystatusaddress} Gateway API reference for GatewayStatusAddress
  */
 export interface GatewayStatusAddress {
   type?: string;
@@ -69,9 +69,9 @@ export interface GatewayStatusAddress {
 /**
  * Gateway represents an instance of a service-traffic handling infrastructure by binding Listeners to a set of IP addresses.
  *
- * @see {@link https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.Gateway} Gateway API reference for Gateway
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#gateway} Gateway API reference for Gateway
  *
- * @see {@link https://gateway-api.sigs.k8s.io/api-types/gateway/} Gateway API definition for Gateway
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-types/gateway/} Gateway API definition for Gateway
  */
 export interface KubeGateway extends KubeObjectInterface {
   spec: {
