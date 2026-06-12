@@ -18,6 +18,7 @@ import {
   combineClusterListErrors,
   flattenClusterListItems,
   formatDuration,
+  localeDate,
   normalizeUnit,
   timeAgo,
 } from './util';
@@ -316,5 +317,13 @@ describe('normalizeUnit', () => {
     it('shows plural cores', () => {
       expect(normalizeUnit('cpu', '2')).toBe('2 cores');
     });
+  });
+});
+
+describe('localeDate', () => {
+  it('returns a formatted date string', () => {
+    const result = localeDate('2024-01-15T10:00:00.000Z');
+    expect(typeof result).toBe('string');
+    expect(result.length).toBeGreaterThan(0);
   });
 });
