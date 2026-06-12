@@ -113,8 +113,8 @@ jobs:
         run: |
           make frontend-build-rsbuild
 
-  testplugins:
-    name: test plugins
+  test-headlamp-plugin:
+    name: test headlamp-plugin
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
@@ -129,11 +129,62 @@ jobs:
         with:
           node-version: ${{ matrix.node-version }}
           cache: "npm"
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: plugins/headlamp-plugin/package-lock.json
 
-      - name: Test plugins
+      - name: Test headlamp-plugin
         run: |
-          make plugins-test
+          cd plugins/headlamp-plugin && ./test-headlamp-plugin.js
+
+  test-plugin-examples:
+    name: test plugin examples
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        node-version: [22.x]
+        os: [ubuntu-22.04] # [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+          cache-dependency-path: |
+            plugins/headlamp-plugin/package-lock.json
+            plugins/examples/*/package-lock.json
+
+      - name: Test plugin examples
+        run: |
+          cd plugins/headlamp-plugin && npm ci && ./test-plugins-examples.sh
+
+  test-pluginctl:
+    name: test pluginctl
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        node-version: [22.x]
+        os: [ubuntu-22.04] # [windows-latest, ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+
+      - name: Use Node.js ${{ matrix.node-version }}
+        uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+        with:
+          node-version: ${{ matrix.node-version }}
+          cache: "npm"
+          cache-dependency-path: plugins/pluginctl/package-lock.json
+
+      - name: Test pluginctl
+        working-directory: plugins/pluginctl
+        run: |
+          npm ci
+          cd src && node ./plugin-management.e2e.js
+          cd ..
+          npx jest --runInBand src/multi-plugin-management.test.js src/plugin-management.test.js
+          npm run test
 
   builddocs:
     name: build docs
