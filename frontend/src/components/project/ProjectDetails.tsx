@@ -493,14 +493,11 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
     loadTabs();
   }, [registeredTabs, project]);
 
-  // Set initial selected tab to the first available tab
   const tabIds = Object.keys(allTabs);
-  if (tabIds.length > 0 && !selectedTab) {
-    setSelectedTab(tabIds[0]);
-  }
-
-  // Get the definition for the currently selected tab
-  const selectedTabData = selectedTab ? allTabs[selectedTab] : undefined;
+  const renderableTabIds = tabIds.filter(tabId => allTabs[tabId]?.component);
+  const effectiveSelectedTab =
+    selectedTab && allTabs[selectedTab]?.component ? selectedTab : renderableTabIds[0] ?? false;
+  const selectedTabData = effectiveSelectedTab ? allTabs[effectiveSelectedTab] : undefined;
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: string) => {
     setSelectedTab(newValue);
@@ -547,7 +544,7 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
           }
         >
           <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs value={selectedTab} onChange={handleTabChange}>
+            <Tabs value={effectiveSelectedTab} onChange={handleTabChange}>
               {Object.values(allTabs)
                 .filter(tab => tab.component)
                 .map(tab => (
