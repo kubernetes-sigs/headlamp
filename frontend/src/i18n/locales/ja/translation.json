@@ -680,8 +680,6 @@
   "Max": "最大",
   "Min": "最小",
   "A namespace with this name already exists.": "この名前のネームスペースは既に存在します。",
-  "Applying {{  newItemName  }}…": "{{  newItemName  }} を適用中…",
-  "Cancelled applying  {{  newItemName  }}.": "{{  newItemName  }} の適用をキャンセルしました。",
   "Namespaces must be under 64 characters.": "ネームスペースは 64 文字未満である必要があります。",
   "Create Namespace": "ネームスペースの作成",
   "To": "宛先",

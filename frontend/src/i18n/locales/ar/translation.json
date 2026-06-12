@@ -705,8 +705,6 @@
   "Max": "الحد الأقصى",
   "Min": "الحد الأدنى",
   "A namespace with this name already exists.": "يوجد نطاق بهذا الاسم بالفعل",
-  "Applying {{  newItemName  }}…": "جارٍ تطبيق {{  newItemName  }}…",
-  "Cancelled applying  {{  newItemName  }}.": "تم إلغاء تطبيق {{  newItemName  }}",
   "Namespaces must be under 64 characters.": "يجب أن يكون اسم النطاق أقل من 64 حرفًا",
   "Create Namespace": "إنشاء نطاق",
   "To": "إلى",

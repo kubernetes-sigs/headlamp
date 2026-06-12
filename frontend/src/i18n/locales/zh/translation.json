@@ -680,8 +680,6 @@
   "Max": "最大",
   "Min": "最小",
   "A namespace with this name already exists.": "已存在具有此名称的命名空间。",
-  "Applying {{  newItemName  }}…": "正在应用 {{  newItemName  }}…",
-  "Cancelled applying  {{  newItemName  }}.": "取消应用 {{  newItemName  }}。",
   "Namespaces must be under 64 characters.": "命名空间必须小于 64 个字符。",
   "Create Namespace": "新增命名空间",
   "To": "到",

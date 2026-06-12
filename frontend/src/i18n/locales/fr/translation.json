@@ -690,8 +690,6 @@
   "Max": "Max",
   "Min": "Min",
   "A namespace with this name already exists.": "Un espace de noms avec ce nom existe déjà.",
-  "Applying {{  newItemName  }}…": "Application de {{  newItemName  }}…",
-  "Cancelled applying  {{  newItemName  }}.": "Application de {{  newItemName  }} annulée.",
   "Namespaces must be under 64 characters.": "Les espaces de noms doivent contenir moins de 64 caractères.",
   "Create Namespace": "Créer un espace de noms",
   "To": "À",
