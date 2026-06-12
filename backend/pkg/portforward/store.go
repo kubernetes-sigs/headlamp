@@ -19,6 +19,7 @@ package portforward
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"strings"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -27,22 +28,30 @@ import (
 
 const storeKeyPrefix = "PORT_FORWARD_"
 
+func portforwardCacheKeyPrefix(cluster string) string {
+	return storeKeyPrefix + url.QueryEscape(cluster) + ":"
+}
+
 // portforwardKeyGenerator generates a unique key
 // based on the cluster name, id,service name, and pod name.
 func portforwardKeyGenerator(p portForward) string {
-	if p.ID != "" {
-		return storeKeyPrefix + p.Cluster + p.ID
+	cluster := p.Cluster
+	if p.cacheCluster != "" {
+		cluster = p.cacheCluster
 	}
 
-	key := storeKeyPrefix + p.Cluster
+	key := portforwardCacheKeyPrefix(cluster)
 
-	if p.Service != "" {
-		key += p.Service
-	} else if p.Pod != "" {
-		key += p.Pod
+	switch {
+	case p.ID != "":
+		return key + url.QueryEscape(p.ID)
+	case p.Service != "":
+		return key + url.QueryEscape(p.Service)
+	case p.Pod != "":
+		return key + url.QueryEscape(p.Pod)
+	default:
+		return key
 	}
-
-	return key
 }
 
 // portforwardstore stores a port forward in the cache.
@@ -91,7 +100,7 @@ func stopOrDeletePortForward(cache cache.Cache[interface{}], cluster string, id 
 // getPortForwardList returns a list of port forwards by its cluster name.
 func getPortForwardList(cache cache.Cache[interface{}], cluster string) []portForward {
 	portforwards, err := cache.GetAll(context.Background(), func(key string) bool {
-		return strings.HasPrefix(key, storeKeyPrefix+cluster)
+		return strings.HasPrefix(key, portforwardCacheKeyPrefix(cluster))
 	})
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
@@ -110,7 +119,10 @@ func getPortForwardList(cache cache.Cache[interface{}], cluster string) []portFo
 
 // getPortForwardByID returns a port forward by its cluster name and id.
 func getPortForwardByID(cache cache.Cache[interface{}], cluster string, id string) (portForward, error) {
-	cacheValue, err := cache.Get(context.Background(), storeKeyPrefix+cluster+id)
+	cacheValue, err := cache.Get(context.Background(), portforwardKeyGenerator(portForward{
+		cacheCluster: cluster,
+		ID:           id,
+	}))
 	if err != nil {
 		return portForward{}, fmt.Errorf("failed to get portforward from cache: %v", err)
 	}
