@@ -1,9 +1,9 @@
 package spa
 
 import (
+	"mime"
 	"net/http"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
@@ -28,46 +28,54 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Clean the path to prevent directory traversal
-	rPath := strings.TrimPrefix(r.URL.Path, h.baseURL)
-	rPath = strings.TrimPrefix(rPath, "/")
-	rPath = path.Clean(rPath)
-
-	// Reject direct traversal hacks explicitly
-	if rPath == ".." || strings.HasPrefix(rPath, "../") {
-		http.Error(w, "Invalid file name", http.StatusBadRequest)
+	// Reject backslashes: HTTP paths must use forward slashes only, and a
+	// backslash in the URL could be used for traversal on Windows where
+	// filepath treats it as a separator.
+	if strings.ContainsRune(r.URL.Path, '\\') {
+		http.Error(w, "Invalid file path", http.StatusBadRequest)
 		return
 	}
 
-	if rPath == "" || rPath == "." {
-		rPath = h.indexPath
+	// Strip the base URL prefix, then strip leading slashes so the remainder
+	// is a relative path. filepath.Join silently drops its first argument when
+	// the second is absolute, so leaving a leading "/" would resolve the path
+	// against the filesystem root instead of absStaticPath.
+	urlPath := strings.TrimPrefix(r.URL.Path, h.baseURL)
+	urlPath = strings.TrimLeft(urlPath, "/")
+
+	// A request for the bare base URL (e.g. "/headlamp" with no trailing
+	// slash) produces an empty urlPath. Map it to the index directly so
+	// http.ServeFile doesn't issue a 301 redirect to add the trailing slash.
+	if urlPath == "" {
+		urlPath = h.indexPath
 	}
 
-	// prepend the path with the path to the static directory
-	fullPath := filepath.Join(absStaticPath, rPath)
+	// Resolve the full path inside the static root.
+	// filepath.FromSlash converts URL forward slashes to the OS separator so
+	// the result is correct on both Unix and Windows.
+	absPath := filepath.Join(absStaticPath, filepath.FromSlash(urlPath))
 
-	// This is defensive, for preventing using files outside of the staticPath
-	// if in the future we touch the code.
-	absPath, err := filepath.Abs(fullPath)
-	if err != nil {
-		http.Error(w, "Invalid file name", http.StatusBadRequest)
-		return
-	}
+	// Use filepath.Rel for containment validation instead of strings.HasPrefix.
+	// HasPrefix is bypassable when the static dir and a sibling share a prefix
+	// (e.g. "/static" is a prefix of "/static2/evil"), whereas Rel returns ".."
+	// components for any path that escapes the base.
+	//
+	// Check rel == ".." OR rel starts with "../" (OS-specific separator) rather
+	// than a bare HasPrefix("..", rel) to avoid false positives on directory
+	// names that legitimately begin with ".." (e.g. "...").
+	rel, relErr := filepath.Rel(absStaticPath, absPath)
+	sep := string(filepath.Separator)
 
-	relPath, err := filepath.Rel(absStaticPath, absPath)
-	if err != nil ||
-		filepath.IsAbs(relPath) ||
-		relPath == ".." ||
-		strings.HasPrefix(relPath, ".."+string(os.PathSeparator)) {
-		http.Error(w, "Invalid file name (file to serve is outside of the static dir!)", http.StatusBadRequest)
+	if relErr != nil || rel == ".." || strings.HasPrefix(rel, ".."+sep) {
+		http.Error(w, "Invalid file path", http.StatusBadRequest)
 		return
 	}
 
 	// check whether a file exists at the given path
-	_, err = os.Stat(fullPath)
+	_, err = os.Stat(absPath)
 	if os.IsNotExist(err) {
 		// file does not exist, serve index.html
-		http.ServeFile(w, r, filepath.Join(absStaticPath, h.indexPath))
+		h.serveStatic(w, r, filepath.Join(absStaticPath, h.indexPath))
 		return
 	} else if err != nil {
 		// if we got an error (that wasn't that the file doesn't exist) stating the
@@ -79,7 +87,50 @@ func (h spaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// The file does exist, so we serve that.
-	http.ServeFile(w, r, fullPath)
+	h.serveStatic(w, r, absPath)
+}
+
+// serveStatic serves a static file, transparently swapping in a precompressed
+// `.br` sidecar when the client advertises support and the sidecar
+// exists on disk. The Content-Type is always derived from the original
+// filename so the encoding handshake is invisible to the client.
+func (h spaHandler) serveStatic(w http.ResponseWriter, r *http.Request, path string) {
+	// `Vary: Accept-Encoding` must be set on every response from this
+	// handler so caches keep per-encoding entries even when we end up
+	// serving the identity representation.
+	setEncodingHeaders(w, "")
+
+	if encoding := pickEncoding(r.Header.Get("Accept-Encoding")); encoding != "" {
+		// Skip the precompressed sidecar for the index document. headlamp.go
+		// rewrites index.html at startup for baseURL substitution, so any
+		// build-time .br sidecar would contain stale unrewritten bytes.
+		isIndex := filepath.Base(path) == filepath.Base(h.indexPath)
+		sidecar := path + encodingExt(encoding)
+
+		if !isIndex {
+			if info, err := os.Stat(sidecar); err == nil && !info.IsDir() { //nolint:gosec
+				ctype := mime.TypeByExtension(filepath.Ext(path))
+				if ctype == "" {
+					// Extension not in MIME tables; sniff from the uncompressed file
+					// so ServeFile doesn't guess from the .br bytes.
+					if orig, err := os.ReadFile(path); err == nil { //nolint:gosec
+						ctype = http.DetectContentType(orig)
+					}
+				}
+
+				if ctype != "" {
+					w.Header().Set("Content-Type", ctype)
+				}
+
+				setEncodingHeaders(w, encoding)
+				http.ServeFile(w, r, sidecar)
+
+				return
+			}
+		}
+	}
+
+	http.ServeFile(w, r, path)
 }
 
 // NewHandler creates a new handler.
