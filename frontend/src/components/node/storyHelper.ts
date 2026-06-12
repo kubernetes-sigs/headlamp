@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { KubeNode } from '../../lib/k8s/node';
+import { KubeNode, NODE_POOL_LABEL_KEYS } from '../../lib/k8s/node';
 
 const creationTimestamp = new Date('2022-01-01').toISOString();
 
@@ -27,7 +27,9 @@ export const NODE_DUMMY_DATA: KubeNode[] = [
       namespace: 'default',
       creationTimestamp,
       uid: '123',
-      labels: {},
+      labels: {
+        'cloud.google.com/gke-nodepool': 'default-pool',
+      },
     },
     spec: {
       podCIDR: '',
@@ -89,3 +91,19 @@ export const NODE_DUMMY_DATA: KubeNode[] = [
     status: {},
   },
 ];
+
+/**
+ * Node data where no node has a node pool label.
+ * Used to verify the "Node Pool" column is hidden when no pool labels exist.
+ */
+export const NODE_DUMMY_DATA_NO_POOLS: KubeNode[] = NODE_DUMMY_DATA.map(node => ({
+  ...node,
+  metadata: {
+    ...node.metadata,
+    labels: Object.fromEntries(
+      Object.entries(node.metadata.labels ?? {}).filter(
+        ([key]) => !(NODE_POOL_LABEL_KEYS as readonly string[]).includes(key)
+      )
+    ),
+  },
+}));

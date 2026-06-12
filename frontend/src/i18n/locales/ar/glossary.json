@@ -142,6 +142,7 @@
   "Uncordon": "إلغاء العزل",
   "Cordon": "عزل",
   "Drain": "تفريغ",
+  "Node Pool": "",
   "Pod CIDR": "نطاق Pod CIDR",
   "Capacity": "السعة",
   "Allocatable": "",

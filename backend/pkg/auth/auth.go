@@ -49,6 +49,9 @@ const (
 
 const JWTExpirationTTL = 10 * time.Second // seconds
 
+// errFieldMessage is the JSON field name used by writeMeJSON for error messages.
+const errFieldMessage = "message"
+
 // DecodeBase64JSON decodes a base64 URL-encoded JSON string into a map.
 func DecodeBase64JSON(base64JSON string) (map[string]interface{}, error) {
 	payloadBytes, err := base64.RawURLEncoding.DecodeString(base64JSON)
@@ -350,7 +353,7 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		clusterName := mux.Vars(r)["clusterName"]
 		if clusterName == "" {
-			writeMeJSON(w, http.StatusBadRequest, map[string]interface{}{"message": "cluster not specified"})
+			writeMeJSON(w, http.StatusBadRequest, map[string]interface{}{errFieldMessage: "cluster not specified"})
 			return
 		}
 
@@ -365,23 +368,23 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 		}
 
 		if requestCluster != clusterName {
-			writeMeJSON(w, http.StatusBadRequest, map[string]interface{}{"message": "cluster mismatch"})
+			writeMeJSON(w, http.StatusBadRequest, map[string]interface{}{errFieldMessage: "cluster mismatch"})
 			return
 		}
 
 		if token == "" {
-			writeMeJSON(w, http.StatusUnauthorized, map[string]interface{}{"message": "unauthorized"})
+			writeMeJSON(w, http.StatusUnauthorized, map[string]interface{}{errFieldMessage: "unauthorized"})
 			return
 		}
 
 		claims, status, errMsg := parseClaimsFromToken(token)
 		if status != 0 {
-			writeMeJSON(w, status, map[string]interface{}{"message": errMsg})
+			writeMeJSON(w, status, map[string]interface{}{errFieldMessage: errMsg})
 			return
 		}
 
 		if expiry, err := GetExpiryUnixTimeUTC(claims); err != nil || time.Now().After(expiry) {
-			writeMeJSON(w, http.StatusUnauthorized, map[string]interface{}{"message": "token expired"})
+			writeMeJSON(w, http.StatusUnauthorized, map[string]interface{}{errFieldMessage: "token expired"})
 			return
 		}
 

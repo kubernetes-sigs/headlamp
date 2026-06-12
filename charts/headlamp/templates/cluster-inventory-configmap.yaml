@@ -13,11 +13,17 @@
 {{-   $mountPaths = append $mountPaths $mountPath }}
 {{- end }}
 {{- range ($clusterInventory.accessProvidersConfig.providers | default list) }}
-{{-   $cmd := (.execConfig | default dict).command | default "" }}
-{{-   if $cmd }}
-{{-     $cmdDir := dir $cmd | clean }}
-{{-     if not (has $cmdDir $mountPaths) }}
-{{-       fail (printf "provider %q: command dir %q does not match any config.clusterInventory.plugins[].mountPath %v" .name $cmdDir $mountPaths) }}
+{{-   $rawCmd := (.execConfig | default dict).command | default "" | toString }}
+{{-   $cmd := $rawCmd | clean }}
+{{-   if $rawCmd }}
+{{-     $matched := false }}
+{{-     range $mountPath := $mountPaths }}
+{{-       if hasPrefix (printf "%s/" $mountPath) $cmd }}
+{{-         $matched = true }}
+{{-       end }}
+{{-     end }}
+{{-     if not $matched }}
+{{-       fail (printf "provider %q: command %q is not under any config.clusterInventory.plugins[].mountPath %v" .name $cmd $mountPaths) }}
 {{-     end }}
 {{-   end }}
 {{- end }}

@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import Node from '../../lib/k8s/node';
 import { getResourceMetrics } from '../../lib/util';
@@ -26,9 +27,15 @@ import { formatTaint, NodeTaintsLabel } from './utils';
 
 export default function NodeList() {
   const [nodeMetrics, metricsError] = Node.useMetrics();
+  const { items } = Node.useList();
   const { t } = useTranslation(['glossary', 'translation']);
 
   const noMetrics = metricsError?.status === 404;
+
+  const hasNodePools = useMemo(() => {
+    if (!items || items.length === 0) return false;
+    return items.some(node => node.getNodePool() !== '');
+  }, [items]);
 
   return (
     <>
@@ -105,6 +112,17 @@ export default function NodeList() {
                 .join(',');
             },
           },
+          ...(hasNodePools
+            ? [
+                {
+                  id: 'nodePool',
+                  label: t('Node Pool'),
+                  gridTemplate: 'minmax(150px, .5fr)',
+                  getValue: (node: Node) => node.getNodePool(),
+                  filterVariant: 'multi-select' as const,
+                },
+              ]
+            : []),
           {
             id: 'internalIP',
             label: t('translation|Internal IP'),

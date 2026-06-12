@@ -47,7 +47,6 @@ import * as K8s from '../lib/k8s';
 import * as ApiProxy from '../lib/k8s/apiProxy';
 import * as Crd from '../lib/k8s/crd';
 import * as Notification from '../lib/notification';
-import * as queryClient from '../lib/queryClient';
 import * as Router from '../lib/router';
 import * as Utils from '../lib/util';
 import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
@@ -105,7 +104,6 @@ window.pluginLib = {
   ...registryToExport,
   Activity,
   stateless,
-  queryClient,
 };
 
 // backwards compat.
@@ -616,6 +614,11 @@ export async function fetchAndExecutePlugins(
               secrets['runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js'];
           }
 
+          if (isPackage['@headlamp-k8s/ai-assistant']) {
+            secretsToReturn['runCmd-gh'] = secrets['runCmd-gh'];
+            secretsToReturn['runCmd-az'] = secrets['runCmd-az'];
+          }
+
           return secretsToReturn;
         },
         getArgValues: (pluginName, pluginPath, allowedPermissions) => {
@@ -644,6 +647,28 @@ export async function fetchAndExecutePlugins(
               [pluginRunCommand, pluginPath],
             ];
           }
+
+          if (isPackage['@headlamp-k8s/ai-assistant']) {
+            function pluginRunCommand(
+              command: 'gh' | 'az',
+              args: string[],
+              options: {}
+            ): ReturnType<typeof internalRunCommand> {
+              return internalRunCommand(
+                command,
+                args,
+                options,
+                allowedPermissions,
+                pluginDesktopApiSend,
+                pluginDesktopApiReceive
+              );
+            }
+            return [
+              ['pluginRunCommand', 'pluginPath'],
+              [pluginRunCommand, pluginPath],
+            ];
+          }
+
           return [[], []];
         },
         PrivateFunction,

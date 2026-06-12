@@ -1079,8 +1079,11 @@ func TestHandleNodeDrainUsesRequestedClusterCookieForCustomNamedContext(t *testi
 	})
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{
-		Name:  "headlamp-auth-" + customCluster + ".0",
-		Value: testToken,
+		Name:     "headlamp-auth-" + customCluster + ".0",
+		Value:    testToken,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
 	})
 
 	rr := httptest.NewRecorder()
@@ -2952,8 +2955,11 @@ func TestOidcUseCookieLogic(t *testing.T) {
 	assert.NoError(t, err)
 
 	req.AddCookie(&http.Cookie{
-		Name:  cookieName,
-		Value: testToken,
+		Name:     cookieName,
+		Value:    testToken,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
 	})
 
 	setTokenFromCookie(req, clusterName)
@@ -3021,8 +3027,11 @@ func TestHelmRouteReleaseHandlerTokenExtraction(t *testing.T) {
 	require.NoError(t, err)
 
 	req.AddCookie(&http.Cookie{
-		Name:  cookieName,
-		Value: testToken,
+		Name:     cookieName,
+		Value:    testToken,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
 	})
 
 	w := httptest.NewRecorder()
@@ -3093,8 +3102,11 @@ func TestHelmRouteReleaseHandlerUsesServiceAccountToken(t *testing.T) {
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "Bearer proxy-token")
 	req.AddCookie(&http.Cookie{
-		Name:  "headlamp-auth-" + clusterName + ".0",
-		Value: "cookie-token",
+		Name:     "headlamp-auth-" + clusterName + ".0",
+		Value:    "cookie-token",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
 	})
 
 	w := httptest.NewRecorder()
@@ -3158,7 +3170,7 @@ func TestHelmRouteRepositoryHandlerUsesServiceAccountToken(t *testing.T) {
 	assert.Empty(t, capturedAuthHeader)
 }
 
-func TestClusterRequestHandlerUsesServiceAccountToken(t *testing.T) {
+func TestClusterRequestHandlerUsesServiceAccountToken(t *testing.T) { //nolint:funlen // test scaffolding.
 	const cluster, proxyAuthTokenHeader = "main", "Impersonate-User"
 
 	tokenFile := writeTestTokenFile(t)
@@ -3207,8 +3219,11 @@ func TestClusterRequestHandlerUsesServiceAccountToken(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer proxy-token")
 	req.Header.Set(proxyAuthTokenHeader, "kind-header-leak")
 	req.AddCookie(&http.Cookie{
-		Name:  "headlamp-auth-main.0",
-		Value: "cookie-token",
+		Name:     "headlamp-auth-main.0",
+		Value:    "cookie-token",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
 	})
 
 	rr := httptest.NewRecorder()
