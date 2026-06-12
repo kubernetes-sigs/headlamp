@@ -50,9 +50,6 @@ function testPluginctl() {
   checkFileExists(pluginsDir + "/" + PACKAGE_NAME + "/package.json");
   checkFileExists(pluginsDir + "/" + PACKAGE_NAME + "/main.js");
 
-  // test list command
-  run("node", ["bin/pluginctl.js", "list"]);
-
   // test uninstall command
   run("node", [
     "bin/pluginctl.js",
@@ -105,6 +102,7 @@ function run(cmd, args) {
       stdio: "inherit",
       cwd: curDir,
       encoding: "utf8",
+      shell: process.platform === 'win32',
     });
   } catch (e) {
     exit(

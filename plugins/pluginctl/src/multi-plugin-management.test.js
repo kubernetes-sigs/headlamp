@@ -28,17 +28,14 @@ describe('MultiPluginManagement', () => {
     {
       name: 'headlamp_flux',
       source: 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux',
-      version: '0.4.0',
     },
     {
-      name: 'headlamp_minikube',
-      source: 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_minikube',
-      version: '0.3.0',
+      name: 'headlamp-kubescape',
+      source: 'https://artifacthub.io/packages/headlamp/headlamp-kubescape-plugin/headlamp-kubescape',
     },
     {
-      name: 'headlamp_cert-manager',
-      source: 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_cert-manager',
-      version: '0.1.0',
+      name: 'headlamp-polaris',
+      source: 'https://artifacthub.io/packages/headlamp/headlamp-polaris/headlamp-polaris',
     },
   ];
   beforeEach(async () => {
@@ -66,7 +63,6 @@ describe('MultiPluginManagement', () => {
 plugins:
   - name: ${PLUGIN_DATA[1].name}
     source: ${PLUGIN_DATA[1].source}
-    version: ${PLUGIN_DATA[1].version}
 `;
       await fsp.writeFile(configPath, config);
 
@@ -226,7 +222,6 @@ installOptions:
 plugins:
   - name: ${PLUGIN_DATA[0].name}
     source: ${PLUGIN_DATA[0].source}
-    version: ${PLUGIN_DATA[0].version}
 `;
       await fsp.writeFile(configPath, config);
 
@@ -235,7 +230,8 @@ plugins:
 
       expect(result.successful).toEqual(1);
       expect(result.failed).toEqual(0);
-      expect(fs.existsSync(path.join(tempDir, PLUGIN_DATA[0].name))).toBe(true);
+      const expectedFolderName = PLUGIN_DATA[0].name;
+      expect(fs.existsSync(path.join(tempDir, expectedFolderName))).toBe(true);
     }, 10000);
 
     it('should handle missing configuration file', async () => {
