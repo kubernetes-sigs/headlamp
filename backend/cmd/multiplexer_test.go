@@ -1801,3 +1801,77 @@ func TestConcurrentUpdateStatusAndSendDataMessage(t *testing.T) {
 		t.Fatal("deadlock detected: concurrent updateStatus and sendDataMessage blocked for 5s")
 	}
 }
+
+// TestConcurrentClusterWrites verifies that concurrent writes to the cluster
+// WebSocket connection (from writeMessageToCluster and heartbeat pings in
+// monitorConnection) are properly serialized by conn.writeMu.
+// Without the mutex protection this test will fail under `go test -race`.
+func TestConcurrentClusterWrites(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	// Create a WebSocket pair for the cluster-side connection.
+	clusterConn, clusterServer := createTestWebSocketConnection()
+	defer clusterServer.Close()
+
+	conn := &Connection{
+		ClusterID: "test-cluster",
+		UserID:    "test-user",
+		Path:      "/api/v1/pods",
+		WSConn:    clusterConn.conn,
+		Done:      make(chan struct{}),
+		Status: ConnectionStatus{
+			State:   StateConnected,
+			LastMsg: time.Now(),
+		},
+	}
+
+	// Drain reads on the other end so writes don't block.
+	go func() {
+		for {
+			_, _, err := clusterConn.conn.ReadMessage()
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	var wg sync.WaitGroup
+
+	// Simulate heartbeat pings (what monitorConnection does).
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		for i := 0; i < 50; i++ {
+			conn.writeMu.Lock()
+			_ = conn.WSConn.WriteMessage(websocket.PingMessage, nil)
+			conn.writeMu.Unlock()
+		}
+	}()
+
+	// Simulate client data forwarding (what writeMessageToCluster does).
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		for i := 0; i < 50; i++ {
+			_ = m.writeMessageToCluster(conn, []byte(fmt.Sprintf("msg-%d", i)))
+		}
+	}()
+
+	done := make(chan struct{})
+
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Success: no race detected.
+	case <-time.After(5 * time.Second):
+		t.Fatal("concurrent cluster writes timed out — possible deadlock")
+	}
+}
