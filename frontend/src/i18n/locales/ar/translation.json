@@ -412,6 +412,7 @@
   "Select Pod": "اختر Pod",
   "All Pods": "جميع الـ Pods",
   "Container": "الحاوية",
+  "Init": "",
   "Restarted": "أُعيد التشغيل",
   "Severity": "الخطورة",
   "All": "الكل",

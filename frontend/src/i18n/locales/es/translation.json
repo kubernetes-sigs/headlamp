@@ -403,6 +403,7 @@
   "Select Pod": "Seleccionar Pod",
   "All Pods": "Todos los Pods",
   "Container": "Contenedor",
+  "Init": "",
   "Restarted": "Reiniciado",
   "Severity": "",
   "All": "",

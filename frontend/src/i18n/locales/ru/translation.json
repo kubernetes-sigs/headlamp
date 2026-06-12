@@ -406,6 +406,7 @@
   "Select Pod": "Выбрать Pod",
   "All Pods": "Все Pod",
   "Container": "Контейнер",
+  "Init": "",
   "Restarted": "Перезапущен",
   "Severity": "Серьёзность",
   "All": "Все",

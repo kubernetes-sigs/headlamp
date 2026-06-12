@@ -397,6 +397,7 @@
   "Select Pod": "ポッドを選択",
   "All Pods": "すべてのポッド",
   "Container": "コンテナー",
+  "Init": "",
   "Restarted": "再起動済み",
   "Severity": "",
   "All": "",
