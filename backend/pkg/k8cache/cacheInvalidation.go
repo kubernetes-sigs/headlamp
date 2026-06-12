@@ -212,6 +212,12 @@ func runWatcher(
 	kContext kubeconfig.Context,
 ) {
 	defer func() {
+		if cancelVal, ok := contextCancel.Load(contextKey); ok {
+			if cancel, ok := cancelVal.(context.CancelFunc); ok {
+				cancel()
+			}
+		}
+
 		watcherRegistry.Delete(contextKey)
 		contextCancel.Delete(contextKey)
 	}()
