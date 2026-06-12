@@ -75,6 +75,10 @@ export const supportedLanguages: {
     label: 'हिन्दी',
     dir: 'ltr',
   },
+  bn: {
+    label: 'বাংলা',
+    dir: 'ltr',
+  },
   ta: {
     label: 'தமிழ்',
     dir: 'ltr',
