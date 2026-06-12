@@ -65,6 +65,8 @@ const checkExports = [
   'TimezoneSelect',
   'Tooltip',
   'ObjectEventList',
+  'ConditionList',
+  'PhaseLabel',
 ];
 
 const internalExports = ['useObjectEvents'];
