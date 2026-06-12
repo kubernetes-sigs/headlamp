@@ -53,6 +53,7 @@
     "CreateButton": [Function],
     "CreateDeploymentForm": [Function],
     "CreatePodForm": [Function],
+    "CreateReplicaSetForm": [Function],
     "CreateResourceButton": [Function],
     "CreateResourceForm": [Function],
     "DOCKER_DESKTOP_MAX_PORT": 32000,
@@ -120,6 +121,10 @@
         "class": [Function],
         "form": [Function],
       },
+      "ReplicaSet": {
+        "class": [Function],
+        "form": [Function],
+      },
     },
     "Resource": {
       "A8RInfo": [Function],
@@ -135,6 +140,7 @@
       "CreateButton": [Function],
       "CreateDeploymentForm": [Function],
       "CreatePodForm": [Function],
+      "CreateReplicaSetForm": [Function],
       "CreateResourceForm": [Function],
       "DOCKER_DESKTOP_MAX_PORT": 32000,
       "DOCKER_DESKTOP_MIN_PORT": 30000,
@@ -177,6 +183,10 @@
           "form": [Function],
         },
         "Pod": {
+          "class": [Function],
+          "form": [Function],
+        },
+        "ReplicaSet": {
           "class": [Function],
           "form": [Function],
         },

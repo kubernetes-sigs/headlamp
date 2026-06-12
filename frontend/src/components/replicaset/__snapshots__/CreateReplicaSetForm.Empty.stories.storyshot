@@ -1,0 +1,657 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1n7m0yu"
+    >
+      <div
+        aria-label="Resource form"
+        class="MuiBox-root css-13qs1rf"
+      >
+        <fieldset
+          class="MuiBox-root css-jh9hvo"
+        >
+          <legend
+            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
+          >
+            Metadata
+          </legend>
+          <div
+            class="MuiBox-root css-1u8z8t1"
+          >
+            <div
+              class="MuiBox-root css-0"
+            >
+              <div
+                class="MuiBox-root css-0"
+              >
+                <div
+                  class="MuiBox-root css-r6ef99"
+                >
+                  <span
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                  >
+                    Name
+                     *
+                  </span>
+                </div>
+                <div
+                  class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+                >
+                  <div
+                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
+                  >
+                    <input
+                      aria-invalid="false"
+                      aria-label="Name"
+                      class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
+                      id=":mock-test-id:"
+                      required=""
+                      type="text"
+                      value=""
+                    />
+                    <fieldset
+                      aria-hidden="true"
+                      class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+                    >
+                      <legend
+                        class="css-1whs34k-MuiNotchedOutlined-root"
+                      >
+                        <span
+                          class="notranslate"
+                        >
+                          ​
+                        </span>
+                      </legend>
+                    </fieldset>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="MuiBox-root css-0"
+            >
+              <div
+                class="MuiBox-root css-0"
+              >
+                <div
+                  class="MuiBox-root css-r6ef99"
+                >
+                  <span
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                  >
+                    Namespace
+                  </span>
+                </div>
+                <div
+                  class="MuiAutocomplete-root MuiAutocomplete-hasClearIcon css-ka7ti6-MuiAutocomplete-root"
+                >
+                  <div
+                    class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+                  >
+                    <div
+                      class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1qswgw4-MuiInputBase-root-MuiOutlinedInput-root"
+                    >
+                      <input
+                        aria-autocomplete="list"
+                        aria-expanded="false"
+                        aria-invalid="false"
+                        autocapitalize="none"
+                        autocomplete="off"
+                        class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+                        id=":mock-test-id:"
+                        role="combobox"
+                        spellcheck="false"
+                        type="text"
+                        value=""
+                      />
+                      <div
+                        class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
+                      >
+                        <button
+                          aria-label="Clear"
+                          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-clearIndicator css-1ihl7t8-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-clearIndicator"
+                          tabindex="-1"
+                          title="Clear"
+                          type="button"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-ptiqhd-MuiSvgIcon-root"
+                            data-testid="CloseIcon"
+                            focusable="false"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              d="M19 6.41L17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"
+                            />
+                          </svg>
+                          <span
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          />
+                        </button>
+                      </div>
+                      <fieldset
+                        aria-hidden="true"
+                        class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+                      >
+                        <legend
+                          class="css-1whs34k-MuiNotchedOutlined-root"
+                        >
+                          <span
+                            class="notranslate"
+                          >
+                            ​
+                          </span>
+                        </legend>
+                      </fieldset>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="MuiBox-root css-0"
+            >
+              <div
+                aria-labelledby="label-group-id"
+                class="MuiBox-root css-0"
+                role="group"
+              >
+                <div
+                  class="MuiBox-root css-r6ef99"
+                >
+                  <span
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                    id="label-group-id"
+                  >
+                    Labels
+                  </span>
+                </div>
+                <div
+                  class="MuiBox-root css-1yuhvjn"
+                >
+                  <button
+                    aria-label="Add label"
+                    class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-38mgk-MuiTypography-root"
+                    >
+                      New Label
+                    </p>
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset
+          class="MuiBox-root css-jh9hvo"
+        >
+          <legend
+            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
+          >
+            Spec
+          </legend>
+          <div
+            class="MuiBox-root css-1u8z8t1"
+          >
+            <div
+              class="MuiBox-root css-0"
+            >
+              <div
+                class="MuiBox-root css-j0ozid"
+              >
+                <div
+                  class="MuiBox-root css-xrxduh"
+                >
+                  <span
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                  >
+                    Replicas
+                  </span>
+                  <button
+                    aria-label="Desired number of pod replicas"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ew19cs-MuiButtonBase-root-MuiIconButton-root"
+                    data-mui-internal-clone-element="true"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                </div>
+                <div
+                  class="MuiBox-root css-1gtfl7l"
+                >
+                  <div
+                    class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+                  >
+                    <div
+                      class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
+                    >
+                      <input
+                        aria-invalid="false"
+                        aria-label="Replicas"
+                        class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
+                        id=":mock-test-id:"
+                        min="0"
+                        step="1"
+                        type="number"
+                        value="1"
+                      />
+                      <fieldset
+                        aria-hidden="true"
+                        class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+                      >
+                        <legend
+                          class="css-1whs34k-MuiNotchedOutlined-root"
+                        >
+                          <span
+                            class="notranslate"
+                          >
+                            ​
+                          </span>
+                        </legend>
+                      </fieldset>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="MuiBox-root css-0"
+            >
+              <div
+                class="MuiBox-root css-j0ozid"
+              >
+                <div
+                  class="MuiBox-root css-xrxduh"
+                >
+                  <span
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                  >
+                    Min Ready Seconds
+                  </span>
+                  <button
+                    aria-label="Minimum seconds a new pod must run without crashing before being considered available."
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ew19cs-MuiButtonBase-root-MuiIconButton-root"
+                    data-mui-internal-clone-element="true"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                </div>
+                <div
+                  class="MuiBox-root css-1gtfl7l"
+                >
+                  <div
+                    class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+                  >
+                    <div
+                      class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
+                    >
+                      <input
+                        aria-invalid="false"
+                        aria-label="Min Ready Seconds"
+                        class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
+                        id=":mock-test-id:"
+                        min="0"
+                        step="1"
+                        type="number"
+                        value=""
+                      />
+                      <fieldset
+                        aria-hidden="true"
+                        class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+                      >
+                        <legend
+                          class="css-1whs34k-MuiNotchedOutlined-root"
+                        >
+                          <span
+                            class="notranslate"
+                          >
+                            ​
+                          </span>
+                        </legend>
+                      </fieldset>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="MuiBox-root css-0"
+            >
+              <div
+                class="MuiBox-root css-0"
+              >
+                <div
+                  class="MuiBox-root css-r6ef99"
+                >
+                  <span
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                  >
+                    Selector
+                  </span>
+                  <button
+                    aria-label="Selects which pods belong to this ReplicaSet. Entries are mirrored read-only into the pod template labels below; extra pod-template-only labels can be added there."
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ew19cs-MuiButtonBase-root-MuiIconButton-root"
+                    data-mui-internal-clone-element="true"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                </div>
+                <div
+                  class="MuiBox-root css-0"
+                >
+                  <div
+                    class="MuiBox-root css-bqqf5i"
+                  >
+                    <div
+                      class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+                    >
+                      <label
+                        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
+                        data-shrink="true"
+                        for=":mock-test-id:"
+                        id=":mock-test-id:"
+                      >
+                        Key
+                      </label>
+                      <div
+                        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
+                      >
+                        <input
+                          aria-invalid="false"
+                          aria-label="Label key"
+                          class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
+                          id=":mock-test-id:"
+                          type="text"
+                          value="app"
+                        />
+                        <fieldset
+                          aria-hidden="true"
+                          class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+                        >
+                          <legend
+                            class="css-sl37lx-MuiNotchedOutlined-root"
+                          >
+                            <span>
+                              Key
+                            </span>
+                          </legend>
+                        </fieldset>
+                      </div>
+                    </div>
+                    <div
+                      class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+                    >
+                      <label
+                        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
+                        data-shrink="true"
+                        for=":mock-test-id:"
+                        id=":mock-test-id:"
+                      >
+                        Value
+                      </label>
+                      <div
+                        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
+                      >
+                        <input
+                          aria-invalid="false"
+                          aria-label="Label value"
+                          class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
+                          id=":mock-test-id:"
+                          type="text"
+                          value="headlamp"
+                        />
+                        <fieldset
+                          aria-hidden="true"
+                          class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+                        >
+                          <legend
+                            class="css-sl37lx-MuiNotchedOutlined-root"
+                          >
+                            <span>
+                              Value
+                            </span>
+                          </legend>
+                        </fieldset>
+                      </div>
+                    </div>
+                    <button
+                      aria-label="Remove label app=headlamp"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                      tabindex="0"
+                      type="button"
+                    >
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                  </div>
+                  <div
+                    class="MuiBox-root css-1yuhvjn"
+                  >
+                    <button
+                      aria-label="Add label"
+                      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+                      tabindex="0"
+                      type="button"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-38mgk-MuiTypography-root"
+                      >
+                        New Label
+                      </p>
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+        <fieldset
+          class="MuiBox-root css-jh9hvo"
+        >
+          <legend
+            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
+          >
+            Pod Template
+          </legend>
+          <div
+            class="MuiBox-root css-1u8z8t1"
+          >
+            <div
+              class="MuiBox-root css-0"
+            >
+              <div
+                class="MuiBox-root css-0"
+              >
+                <div
+                  class="MuiBox-root css-r6ef99"
+                >
+                  <span
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                  >
+                    Labels
+                  </span>
+                  <button
+                    aria-label="Selector entries appear here read-only. Use New Label to add extra pod-template-only labels."
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ew19cs-MuiButtonBase-root-MuiIconButton-root"
+                    data-mui-internal-clone-element="true"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                </div>
+                <div
+                  class="MuiBox-root css-0"
+                >
+                  <div
+                    class="MuiBox-root css-bqqf5i"
+                  >
+                    <div
+                      class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+                    >
+                      <label
+                        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary Mui-disabled MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
+                        data-shrink="true"
+                        for=":mock-test-id:"
+                        id=":mock-test-id:"
+                      >
+                        Key
+                      </label>
+                      <div
+                        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary Mui-disabled MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
+                      >
+                        <input
+                          aria-invalid="false"
+                          aria-label="Label key"
+                          class="MuiInputBase-input MuiOutlinedInput-input Mui-disabled MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
+                          disabled=""
+                          id=":mock-test-id:"
+                          readonly=""
+                          type="text"
+                          value="app"
+                        />
+                        <fieldset
+                          aria-hidden="true"
+                          class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+                        >
+                          <legend
+                            class="css-sl37lx-MuiNotchedOutlined-root"
+                          >
+                            <span>
+                              Key
+                            </span>
+                          </legend>
+                        </fieldset>
+                      </div>
+                    </div>
+                    <div
+                      class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+                    >
+                      <label
+                        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary Mui-disabled MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
+                        data-shrink="true"
+                        for=":mock-test-id:"
+                        id=":mock-test-id:"
+                      >
+                        Value
+                      </label>
+                      <div
+                        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary Mui-disabled MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
+                      >
+                        <input
+                          aria-invalid="false"
+                          aria-label="Label value"
+                          class="MuiInputBase-input MuiOutlinedInput-input Mui-disabled MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
+                          disabled=""
+                          id=":mock-test-id:"
+                          readonly=""
+                          type="text"
+                          value="headlamp"
+                        />
+                        <fieldset
+                          aria-hidden="true"
+                          class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+                        >
+                          <legend
+                            class="css-sl37lx-MuiNotchedOutlined-root"
+                          >
+                            <span>
+                              Value
+                            </span>
+                          </legend>
+                        </fieldset>
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    class="MuiBox-root css-1yuhvjn"
+                  >
+                    <button
+                      aria-label="Add label"
+                      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+                      tabindex="0"
+                      type="button"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-38mgk-MuiTypography-root"
+                      >
+                        New Label
+                      </p>
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+            <div
+              class="MuiBox-root css-0"
+            >
+              <div
+                aria-labelledby="container-group-id"
+                class="MuiBox-root css-0"
+                role="group"
+              >
+                <div
+                  class="MuiBox-root css-r6ef99"
+                >
+                  <span
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                    id="container-group-id"
+                  >
+                    Containers
+                  </span>
+                </div>
+                <div
+                  class="MuiBox-root css-1yuhvjn"
+                >
+                  <button
+                    aria-label="Add container"
+                    class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+                    tabindex="0"
+                    type="button"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-38mgk-MuiTypography-root"
+                    >
+                      New Container
+                    </p>
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </fieldset>
+      </div>
+    </div>
+  </div>
+</body>
