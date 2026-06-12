@@ -337,8 +337,12 @@ func TestVerifyUser(t *testing.T) {
 				}
 			}
 
-			result := helm.VerifyUser(actionConfig, tt.req)
-			assert.Equal(t, result, tt.wantResult)
+			err = helm.VerifyUser(actionConfig, tt.req)
+			if tt.wantResult {
+				assert.NoError(t, err)
+			} else {
+				assert.Error(t, err)
+			}
 		})
 	}
 }
