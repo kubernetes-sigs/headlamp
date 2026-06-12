@@ -110,12 +110,13 @@ interface BackstageMessage {
 const BACKSTAGE_ACK_TIMEOUT_MS = 1000;
 
 /**
- * setupBackstageMessageReceiver sets up a listener for messages from the backstage app
- * and sets the backend token if it is received
+ * Sets up a listener for messages from the Backstage app.
+ * Handles Backstage auth token messages by storing the Backstage token,
+ * and kubeconfig messages by storing the kubeconfig for stateless use.
  *
- * @returns void
+ * @returns A cleanup function that removes the registered message event listener.
  */
-export function setupBackstageMessageReceiver() {
+export function setupBackstageMessageReceiver(): () => void {
   if (isBackstage()) {
     const handleMessage = async (event: MessageEvent) => {
       try {
@@ -146,5 +147,10 @@ export function setupBackstageMessageReceiver() {
     };
 
     window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
   }
+
+  return () => {};
 }
