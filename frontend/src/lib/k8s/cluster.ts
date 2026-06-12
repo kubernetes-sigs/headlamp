@@ -417,8 +417,30 @@ export interface KubeContainer {
    */
   restartPolicy?: string;
 
+  /**
+   * SecurityContext defines the security options the container should be run with.
+   * If set, the fields of SecurityContext override the equivalent fields of PodSecurityContext.
+   *
+   * @see {@link https://kubernetes.io/docs/tasks/configure-pod-container/security-context/ | more info}
+   */
+  securityContext?: {
+    allowPrivilegeEscalation?: boolean;
+    capabilities?: {
+      add?: string[];
+      drop?: string[];
+    };
+    runAsNonRoot?: boolean;
+    runAsUser?: number;
+    runAsGroup?: number;
+    readOnlyRootFilesystem?: boolean;
+    seccompProfile?: {
+      type: string;
+      localhostProfile?: string;
+    };
+    privileged?: boolean;
+  };
+
   // @todo:
-  // securityContext SecurityContext	SecurityContext defines the security options the container should be run with. If set, the fields of SecurityContext override the equivalent fields of PodSecurityContext. More info: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
   // startupProbe Probe	StartupProbe indicates that the Pod has successfully initialized. If specified, no other probes are executed until this completes successfully. If this probe fails, the Pod will be restarted, just as if the livenessProbe failed. This can be used to provide different probe parameters at the beginning of a Pod's lifecycle, when it might take a long time to load data or warm a cache, than during steady-state operation. This cannot be updated. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
 
   /**

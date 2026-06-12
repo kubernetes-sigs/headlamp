@@ -160,6 +160,8 @@
   "Pod Debug Settings": "",
   "Ephemeral debug containers cannot be removed via Kubernetes API. They will remain in the pod specification even after the terminal closes. To remove them, the pod must be recreated.": "",
   "The default image is used for creating ephemeral debug containers.": "",
+  "Debug Profile": "",
+  "Security profile for the ephemeral debug container. Mirrors kubectl debug --profile. Use \"restricted\" for namespaces enforcing the restricted PodSecurity policy.": "",
   "General Settings": "一般设置",
   "Version": "版本",
   "Language": "语言",
