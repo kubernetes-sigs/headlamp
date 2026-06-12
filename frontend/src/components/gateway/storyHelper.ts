@@ -50,8 +50,9 @@ export const DEFAULT_GATEWAY: KubeGateway = {
   },
 };
 
-// Simulates the crash from issue #5987: a Gateway whose spec/listeners is missing.
-// The API can return such an object even though KubeGateway types spec/listeners as required.
+// Regression fixture for issue #5987: the API can return a Gateway with no `spec`,
+// which previously crashed the list view. `spec` is optional on KubeGateway, so this
+// reproduces that case without a cast.
 export const BROKEN_GATEWAY: KubeGateway = {
   apiVersion: 'gateway.networking.k8s.io/v1beta1',
   kind: 'Gateway',
@@ -63,9 +64,9 @@ export const BROKEN_GATEWAY: KubeGateway = {
     resourceVersion: '12346',
     uid: 'abc999',
   },
-  // no `spec` at all — this is the condition that triggers the crash at GatewayList.tsx:61
+  // no `spec` at all — the list view must handle this gracefully
   status: {},
-} as KubeGateway;
+};
 
 export const DEFAULT_GATEWAY_CLASS: KubeGatewayClass = {
   apiVersion: 'gateway.networking.k8s.io/v1beta1',
