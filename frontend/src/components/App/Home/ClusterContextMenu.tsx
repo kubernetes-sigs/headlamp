@@ -200,12 +200,11 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
       {openConfirmDialog !== null &&
         dialogs.map((Dialog, index) => {
           return (
-            <ErrorBoundary>
+            <ErrorBoundary key={Dialog.name || index}>
               <Dialog
                 cluster={cluster}
                 openConfirmDialog={openConfirmDialog}
                 setOpenConfirmDialog={setOpenConfirmDialog}
-                key={index}
               />
             </ErrorBoundary>
           );
