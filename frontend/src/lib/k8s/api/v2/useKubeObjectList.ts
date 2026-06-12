@@ -28,16 +28,9 @@ import { KubeList } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
 import { WebSocketManager } from './multiplexer';
+import { getKubeObjectClassCacheKey, getWebsocketMultiplexerEnabled } from './queryKeys';
 import { kubeRequestRetry } from './retry';
 import { BASE_WS_URL, useWebSockets } from './webSocket';
-
-/**
- * @returns true if the websocket multiplexer is enabled.
- * defaults to true. This is a feature flag to enable the websocket multiplexer.
- */
-export function getWebsocketMultiplexerEnabled(): boolean {
-  return import.meta.env.REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER === 'true';
-}
 
 /**
  * Object representing a List of Kube object
@@ -79,6 +72,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
       'list',
       kubeObjectClass.apiVersion,
       kubeObjectClass.apiName,
+      getKubeObjectClassCacheKey(kubeObjectClass),
       cluster,
       namespace ?? '',
       queryParams,

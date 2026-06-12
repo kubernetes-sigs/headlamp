@@ -25,8 +25,12 @@ import type { KubeListUpdateEvent } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
 import { useWebSocket } from './multiplexer';
+import {
+  getKubeObjectClassCacheKey,
+  getWebsocketMultiplexerEnabled,
+  kubeObjectQueryKey,
+} from './queryKeys';
 import { kubeRequestRetry } from './retry';
-import { getWebsocketMultiplexerEnabled } from './useKubeObjectList';
 import { useWebSockets } from './webSocket';
 
 export type QueryStatus = 'pending' | 'success' | 'error';
@@ -82,20 +86,6 @@ export interface QueryListResponse<DataType, ItemType, ErrorType>
   errors: ApiError[] | null;
 }
 
-export const kubeObjectQueryKey = ({
-  cluster,
-  endpoint,
-  namespace,
-  name,
-  queryParams,
-}: {
-  cluster: string;
-  endpoint?: KubeObjectEndpoint | null;
-  namespace?: string;
-  name: string;
-  queryParams?: QueryParameters;
-}) => ['object', cluster, endpoint, namespace ?? '', name, queryParams ?? {}];
-
 /**
  * Returns a single KubeObject.
  */
@@ -124,15 +114,19 @@ export function useKubeObject<K extends KubeObject>({
     name
   );
 
-  const cleanedUpQueryParams = Object.fromEntries(
-    Object.entries(queryParams ?? {}).filter(([, value]) => value !== undefined && value !== '')
-  );
+  const cleanedUpQueryParams = useStableCleanedQueryParams(queryParams);
 
   const queryKey = useMemo(
     () =>
-      kubeObjectQueryKey({ cluster, name, namespace, endpoint, queryParams: cleanedUpQueryParams }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [endpoint, namespace, name]
+      kubeObjectQueryKey({
+        cluster,
+        name,
+        namespace,
+        endpoint,
+        queryParams: cleanedUpQueryParams,
+        kubeObjectClassCacheKey: getKubeObjectClassCacheKey(kubeObjectClass),
+      }),
+    [cluster, endpoint, namespace, name, kubeObjectClass, cleanedUpQueryParams]
   );
 
   const client = useQueryClient();
@@ -174,8 +168,7 @@ export function useKubeObject<K extends KubeObject>({
         },
       },
     ];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [endpoint]);
+  }, [endpoint, namespace, name, cluster, cleanedUpQueryParams, kubeObjectClass, queryKey, client]);
 
   const multiplexerEnabled = getWebsocketMultiplexerEnabled();
 
@@ -284,3 +277,35 @@ export const useEndpoints = (
 
   return { endpoint, error };
 };
+
+/**
+ * Filters `queryParams` to drop undefined/empty values and returns a reference
+ * that's stable across renders when the resulting set of entries is unchanged
+ * (regardless of input reference identity or key insertion order). The
+ * stability matters for downstream effect deps (the legacy WebSocket
+ * connection in `useKubeObject`) that would otherwise churn on each render.
+ *
+ * Exported so the contract (stability + reference equality across reorders)
+ * can be exercised directly in unit tests.
+ */
+export function useStableCleanedQueryParams(
+  queryParams: QueryParameters | undefined
+): QueryParameters {
+  const key = useMemo(
+    () =>
+      JSON.stringify(
+        Object.entries(queryParams ?? {})
+          .filter(([, value]) => value !== undefined && value !== '')
+          .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      ),
+    [queryParams]
+  );
+  return useMemo(
+    () =>
+      Object.fromEntries(
+        Object.entries(queryParams ?? {}).filter(([, value]) => value !== undefined && value !== '')
+      ) as QueryParameters,
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- proxied via the stringified key above
+    [key]
+  );
+}
