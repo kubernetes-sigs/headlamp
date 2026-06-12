@@ -14,12 +14,75 @@
  * limitations under the License.
  */
 
+import Box from '@mui/material/Box';
+import LinearProgress from '@mui/material/LinearProgress';
+import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import ResourceQuota from '../../lib/k8s/resourceQuota';
+import { parseCpu, parseRam } from '../../lib/units';
 import { compareUnits, normalizeUnit } from '../../lib/util';
 import { DetailsGrid } from '../common/Resource';
 import SimpleTable from '../common/SimpleTable';
+
+/**
+ * Computes the usage ratio (0–1) for a given resource by parsing
+ * the used and hard values according to their resource type.
+ */
+export function getUsageRatio(name: string, used: string, hard: string): number {
+  const resourceType = name.includes('.') ? name.split('.').pop()! : name;
+
+  let usedNum: number;
+  let hardNum: number;
+
+  switch (resourceType) {
+    case 'cpu':
+      usedNum = parseCpu(used);
+      hardNum = parseCpu(hard);
+      break;
+    case 'memory':
+    case 'storage':
+    case 'ephemeral-storage':
+      usedNum = parseRam(used);
+      hardNum = parseRam(hard);
+      break;
+    default:
+      usedNum = parseInt(used, 10) || 0;
+      hardNum = parseInt(hard, 10) || 0;
+      break;
+  }
+
+  if (hardNum === 0) return 0;
+  return usedNum / hardNum;
+}
+
+function getProgressColor(ratio: number): 'success' | 'warning' | 'error' {
+  if (ratio >= 0.9) return 'error';
+  if (ratio >= 0.8) return 'warning';
+  return 'success';
+}
+
+export function QuotaUsageBar({ name, used, hard }: { name: string; used: string; hard: string }) {
+  const ratio = getUsageRatio(name, used, hard);
+  const percentage = Math.round(ratio * 100);
+  const barValue = Math.min(percentage, 100);
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', minWidth: 120 }}>
+      <Box sx={{ flex: 1, mr: 1 }}>
+        <LinearProgress
+          variant="determinate"
+          value={barValue}
+          color={getProgressColor(ratio)}
+          sx={{ height: 8, borderRadius: 4 }}
+        />
+      </Box>
+      <Typography variant="body2" color="text.secondary" sx={{ minWidth: 35 }}>
+        {percentage}%
+      </Typography>
+    </Box>
+  );
+}
 
 export function ResourceQuotaTable({
   resourceStats,
@@ -57,6 +120,10 @@ export function ResourceQuotaTable({
               ? normalizedUnit
               : `${item.hard} (${normalizedUnit})`;
           },
+        },
+        {
+          label: t('translation|Usage'),
+          getter: item => <QuotaUsageBar name={item.name} used={item.used} hard={item.hard} />,
         },
       ]}
     />
