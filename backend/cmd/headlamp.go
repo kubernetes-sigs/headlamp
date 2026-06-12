@@ -535,6 +535,145 @@ func setupInClusterContext(config *HeadlampConfig) {
 	}
 }
 
+// maxFaviconSize bounds how large a custom favicon may be (1 MiB).
+const maxFaviconSize = 1 << 20
+
+// faviconMagic maps a server-controlled content type to the leading magic bytes
+// the data must start with. We never trust a caller- or extension-supplied MIME
+// type: the content type is fixed here and the bytes are validated against it,
+// so a renamed/mislabelled file (e.g. HTML or SVG posing as an icon) is rejected
+// rather than served and sniffed by the browser.
+var faviconMagic = map[string][]byte{
+	"image/png":    {0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A}, // \x89PNG\r\n\x1a\n
+	"image/x-icon": {0x00, 0x00, 0x01, 0x00},                         // ICONDIR header
+}
+
+// resolveFavicon turns the configured favicon (file path and/or base64 PNG) into
+// in-memory bytes plus a server-determined content type. It returns ok=false
+// when nothing is configured or the input is invalid, in which case the bundled
+// default icon is left in place.
+func resolveFavicon(config *HeadlampConfig) (data []byte, contentType string, ok bool) {
+	switch {
+	case config.Favicon != "" && config.FaviconBase64 != "":
+		logger.Log(logger.LevelWarn, nil, nil,
+			"both --favicon and --favicon-base64 are set; using --favicon and ignoring --favicon-base64")
+
+		data, contentType, ok = faviconFromFile(config.Favicon)
+	case config.Favicon != "":
+		data, contentType, ok = faviconFromFile(config.Favicon)
+	case config.FaviconBase64 != "":
+		data, contentType, ok = faviconFromBase64(config.FaviconBase64)
+	default:
+		return nil, "", false
+	}
+
+	return data, contentType, ok
+}
+
+// faviconFromFile reads an icon file, picking a fixed content type from the
+// extension (only .png and .ico are allowed) and validating the magic bytes.
+func faviconFromFile(path string) (data []byte, contentType string, ok bool) {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".png":
+		contentType = "image/png"
+	case ".ico":
+		contentType = "image/x-icon"
+	default:
+		logger.Log(logger.LevelWarn, map[string]string{"path": path}, nil,
+			"unsupported favicon file type (only .png and .ico are allowed); serving default icon")
+
+		return nil, "", false
+	}
+
+	logFields := map[string]string{"path": path}
+
+	info, err := os.Stat(path) //nolint:gosec // path is admin-provided configuration
+	if err != nil {
+		logger.Log(logger.LevelWarn, logFields, err, "favicon file not accessible; serving default icon")
+		return nil, "", false
+	}
+
+	if info.Size() > maxFaviconSize {
+		logger.Log(logger.LevelWarn, logFields, nil, "favicon file too large; serving default icon")
+		return nil, "", false
+	}
+
+	data, err = os.ReadFile(path) //nolint:gosec // path is admin-provided configuration
+	if err != nil {
+		logger.Log(logger.LevelWarn, logFields, err, "reading favicon file; serving default icon")
+		return nil, "", false
+	}
+
+	if !hasFaviconMagic(data, contentType) {
+		logger.Log(logger.LevelWarn, logFields, nil,
+			"favicon file content does not match its extension; serving default icon")
+
+		return nil, "", false
+	}
+
+	return data, contentType, true
+}
+
+// faviconFromBase64 decodes a base64 PNG. The content type is fixed to
+// image/png and the decoded bytes are validated against the PNG signature.
+func faviconFromBase64(encoded string) (data []byte, contentType string, ok bool) {
+	data, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encoded))
+	if err != nil {
+		logger.Log(logger.LevelWarn, nil, err, "decoding favicon-base64; serving default icon")
+		return nil, "", false
+	}
+
+	if len(data) > maxFaviconSize {
+		logger.Log(logger.LevelWarn, nil, nil, "favicon-base64 too large; serving default icon")
+		return nil, "", false
+	}
+
+	if !hasFaviconMagic(data, "image/png") {
+		logger.Log(logger.LevelWarn, nil, nil, "favicon-base64 is not a valid PNG; serving default icon")
+		return nil, "", false
+	}
+
+	return data, "image/png", true
+}
+
+// hasFaviconMagic reports whether data starts with the magic bytes registered
+// for the given content type.
+func hasFaviconMagic(data []byte, contentType string) bool {
+	magic, known := faviconMagic[contentType]
+	if !known {
+		return false
+	}
+
+	return bytes.HasPrefix(data, magic)
+}
+
+// addFaviconRoutes overrides the bundled tab-icon paths with an admin-configured
+// favicon. It is registered before the SPA/embedded catch-all so it wins in both
+// embedded-binary and --html-static-dir modes. Only the browser-tab icons are
+// overridden; apple-touch-icon keeps the default.
+func addFaviconRoutes(config *HeadlampConfig, r *mux.Router) {
+	data, contentType, ok := resolveFavicon(config)
+	if !ok {
+		return
+	}
+
+	for _, route := range []string{"/favicon.ico", "/favicon-16x16.png", "/favicon-32x32.png"} {
+		r.HandleFunc(route, func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("Content-Type", contentType)
+			w.Header().Set("X-Content-Type-Options", "nosniff")
+			w.Header().Set("Cache-Control", "public, max-age=86400")
+
+			// data is a validated PNG/ICO image (magic-byte checked, fixed
+			// content type, served with nosniff), not attacker-controlled markup.
+			if _, err := w.Write(data); err != nil { //nolint:gosec // validated image bytes, served with nosniff
+				logger.Log(logger.LevelError, nil, err, "writing favicon response")
+			}
+		})
+	}
+
+	logger.Log(logger.LevelInfo, nil, nil, "Serving custom favicon ("+contentType+")")
+}
+
 //nolint:gocognit,funlen,gocyclo
 func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
@@ -1072,6 +1211,10 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
 	})
+
+	// Override the bundled favicon with an admin-configured one, if any.
+	// Registered before the catch-all so it takes precedence.
+	addFaviconRoutes(config, r)
 
 	// Serve the frontend if needed
 	if spa.UseEmbeddedFiles {

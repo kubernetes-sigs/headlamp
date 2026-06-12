@@ -119,6 +119,8 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		DefaultLightTheme:                     conf.DefaultLightTheme,
 		DefaultDarkTheme:                      conf.DefaultDarkTheme,
 		ForceTheme:                            conf.ForceTheme,
+		Favicon:                               conf.Favicon,
+		FaviconBase64:                         conf.FaviconBase64,
 		UnsafeUseServiceAccountToken:          conf.UnsafeUseServiceAccountToken,
 		ServiceAccountTokenPath:               conf.ServiceAccountTokenPath,
 	}
