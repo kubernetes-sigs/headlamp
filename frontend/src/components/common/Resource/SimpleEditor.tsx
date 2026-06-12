@@ -28,13 +28,16 @@ export interface SimpleEditorProps {
   value: string | undefined;
   /** When things in the editor change. */
   onChange(value: string | undefined, ev: any): void;
+  /** Optional ID for the textarea element. */
+  id?: string;
 }
 
 /** A very basic code editor. */
-function SimpleEditor({ language, value, onChange }: SimpleEditorProps) {
+function SimpleEditor({ language, value, onChange, id }: SimpleEditorProps) {
   // TextareaAutosize doesn't react well within a dialog/tab
   return (
     <SizedTextarea
+      id={id}
       aria-label={`${language} Code`}
       onChange={event => onChange(event.target.value, event)}
       value={value}
