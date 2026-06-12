@@ -120,6 +120,7 @@ SingleCluster.args = {
   ],
   open: true,
 };
+SingleCluster.storyName = 'Single Cluster';
 
 export const ManyClusters = Template.bind({});
 ManyClusters.args = {
@@ -131,7 +132,7 @@ ManyClusters.args = {
     })),
   open: true,
 };
-
+ManyClusters.storyName = 'Many Clusters';
 export const NoClusters = Template.bind({});
 NoClusters.args = {
   clusters: [],
