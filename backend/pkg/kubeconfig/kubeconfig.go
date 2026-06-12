@@ -4,6 +4,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"io/fs"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -476,9 +477,23 @@ type ContextLoadError struct {
 // It returns an error if the file cannot be read.
 // It will return valid (contexts, ContextLoadErrors,nil) and errors if there are any errors in the file.
 func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []ContextLoadError, error) {
+	// An empty path or a path that does not exist on disk is not an error
+	// condition for this loader: there is simply nothing to read. The
+	// in-cluster mode leaves KubeConfigPath empty, and the dynamic-cluster
+	// persistence file is absent on a fresh deployment until the user adds
+	// the first dynamic cluster. Treating both as ERRORs produced log
+	// spam reported in issues #4724 and #4401.
+	if kubeConfigPath == "" {
+		return nil, nil, nil
+	}
+
 	data, err := os.ReadFile(kubeConfigPath) //nolint:gosec
 	if err != nil {
-		return nil, nil, fmt.Errorf("error reading kubeconfig file: %v", err)
+		if errors.Is(err, fs.ErrNotExist) {
+			return nil, nil, nil
+		}
+
+		return nil, nil, fmt.Errorf("error reading kubeconfig file: %w", err)
 	}
 
 	skipProxySetup := source != KubeConfig
