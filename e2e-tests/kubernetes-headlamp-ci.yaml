@@ -82,52 +82,54 @@ spec:
         app.kubernetes.io/instance: headlamp
     spec:
       initContainers:
-      - command:
-        - /bin/sh
-        - -c
-        - mkdir -p /build/plugins && cp -r /plugins/* /build/plugins/
-        image: ghcr.io/headlamp-k8s/headlamp-plugins-test:latest
-        imagePullPolicy: Never
-        name: headlamp-plugins
-        volumeMounts:
-        - mountPath: /build/plugins
+        - command:
+            - /bin/sh
+            - -c
+            - mkdir -p /build/plugins && cp -r /plugins/* /build/plugins/
+          image: ghcr.io/headlamp-k8s/headlamp-plugins-test:latest
+          imagePullPolicy: Never
           name: headlamp-plugins
+          volumeMounts:
+            - mountPath: /build/plugins
+              name: headlamp-plugins
       containers:
-      - name: headlamp
-        securityContext:
-          privileged: false
-          runAsGroup: 101
-          runAsNonRoot: true
-          runAsUser: 100
-        image: "ghcr.io/headlamp-k8s/headlamp:latest"
-        imagePullPolicy: Never
-        args:
-        - "-enable-dynamic-clusters"
-        - "-plugins-dir=/build/plugins"
-        env:
-        - name: KUBECONFIG
-          value: "/home/headlamp/.config/Headlamp/kubeconfigs/config"
-        ports:
-        - name: http
-          containerPort: 4466
-          protocol: TCP
-        volumeMounts:
-        - mountPath: /build/plugins
-          name: headlamp-plugins
-        - mountPath: "/home/headlamp/.config/Headlamp/kubeconfigs"
-          name: kubeconfig
+        - name: headlamp
+          securityContext:
+            privileged: false
+            runAsGroup: 101
+            runAsNonRoot: true
+            runAsUser: 100
+          image: "ghcr.io/headlamp-k8s/headlamp:latest"
+          imagePullPolicy: Never
+          args:
+            - "-enable-dynamic-clusters"
+            - "-plugins-dir=/build/plugins"
+          env:
+            - name: KUBECONFIG
+              value: "/home/headlamp/.config/Headlamp/kubeconfigs/config"
+            - name: HEADLAMP_BACKEND_TOKEN
+              value: "headlamp"
+          ports:
+            - name: http
+              containerPort: 4466
+              protocol: TCP
+          volumeMounts:
+            - mountPath: /build/plugins
+              name: headlamp-plugins
+            - mountPath: "/home/headlamp/.config/Headlamp/kubeconfigs"
+              name: kubeconfig
       nodeSelector:
-        'kubernetes.io/os': linux
+        "kubernetes.io/os": linux
       volumes:
-      - name: headlamp-plugins
-        persistentVolumeClaim:
-          claimName: headlamp
-      - name: kubeconfig
-        configMap:
-          name: headlamp-kubeconfig
-          items:
-          - key: config
-            path: config
+        - name: headlamp-plugins
+          persistentVolumeClaim:
+            claimName: headlamp
+        - name: kubeconfig
+          configMap:
+            name: headlamp-kubeconfig
+            items:
+              - key: config
+                path: config
 ---
 kind: Secret
 apiVersion: v1
