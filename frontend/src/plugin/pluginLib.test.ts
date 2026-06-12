@@ -38,11 +38,12 @@ describe('pluginLib variable', () => {
     ];
     // External libraries that we bundle can have different values per OS
     // So we're just going to check if they're present or not
+    const pluginLibCopy: Record<string, unknown> = { ...window.pluginLib };
     externalLibs.forEach(lib => {
-      window.pluginLib[lib] = window.pluginLib[lib] ? 'Present' : 'Missing';
+      pluginLibCopy[lib] = window.pluginLib[lib] ? 'Present' : 'Missing';
     });
 
-    await expect(window.pluginLib).toMatchFileSnapshot('__snapshots__/pluginLib.snapshot');
+    await expect(pluginLibCopy).toMatchFileSnapshot('__snapshots__/pluginLib.snapshot');
   });
 
   it('should not expose queryClient to plugins', () => {

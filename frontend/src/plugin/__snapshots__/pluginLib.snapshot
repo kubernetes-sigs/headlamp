@@ -201,6 +201,7 @@
       "ViewDialog": [Function],
       "VolumeMounts": [Function],
       "VolumeSection": [Function],
+      "addResourceStatusProvider": [Function],
       "addResourceTableColumnsProcessor": [Function],
       "buildLabelRows": [Function],
       "getA8RMetadata": [Function],
@@ -217,9 +218,11 @@
       "parseYaml": [Function],
       "resourceTableSlice": {
         "actions": {
+          "addResourceStatusProvider": [Function],
           "addResourceTableColumnsProcessor": [Function],
         },
         "caseReducers": {
+          "addResourceStatusProvider": [Function],
           "addResourceTableColumnsProcessor": [Function],
         },
         "getInitialState": [Function],
@@ -236,6 +239,7 @@
     },
     "ResourceLink": [Function],
     "ResourceListView": [Function],
+    "ResourceStatusBadge": [Function],
     "ResourceTable": {
       "default": [Function],
       "useThrottle": [Function],
@@ -272,6 +276,7 @@
     "ViewDialog": [Function],
     "VolumeMounts": [Function],
     "VolumeSection": [Function],
+    "addResourceStatusProvider": [Function],
     "addResourceTableColumnsProcessor": [Function],
     "buildLabelRows": [Function],
     "getA8RMetadata": [Function],
@@ -289,9 +294,11 @@
     "parseYaml": [Function],
     "resourceTableSlice": {
       "actions": {
+        "addResourceStatusProvider": [Function],
         "addResourceTableColumnsProcessor": [Function],
       },
       "caseReducers": {
+        "addResourceStatusProvider": [Function],
         "addResourceTableColumnsProcessor": [Function],
       },
       "getInitialState": [Function],
@@ -642,6 +649,7 @@
   "registerProjectDetailsTab": [Function],
   "registerProjectHeaderAction": [Function],
   "registerProjectOverviewSection": [Function],
+  "registerResourceStatusProvider": [Function],
   "registerResourceTableColumnsProcessor": [Function],
   "registerRoute": [Function],
   "registerRouteFilter": [Function],
