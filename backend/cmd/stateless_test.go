@@ -87,7 +87,7 @@ func TestStatelessClustersKubeConfig(t *testing.T) {
 					Cache: cache,
 				},
 			}
-			handler := createHeadlampHandler(context.Background(), &c)
+			handler := createHandler(t, context.Background(), &c)
 
 			for _, clusterReq := range tc.clusters {
 				r, err := getResponseFromRestrictedEndpoint(handler, "POST", "/parseKubeConfig", clusterReq)
@@ -127,7 +127,8 @@ func TestParseKubeConfigInvalidJSONReturnsBadRequest(t *testing.T) {
 			Cache: cache,
 		},
 	}
-	handler := createHeadlampHandler(context.Background(), &c)
+	handler, err := createHeadlampHandler(context.Background(), &c)
+	require.NoError(t, err)
 
 	token := uuid.New().String()
 	require.NoError(t, os.Setenv("HEADLAMP_BACKEND_TOKEN", token))
@@ -194,7 +195,7 @@ func TestParseKubeConfigRequiresKubeconfigs(t *testing.T) {
 					Cache: cache,
 				},
 			}
-			handler := createHeadlampHandler(context.Background(), &c)
+			handler := createHandler(t, context.Background(), &c)
 
 			resp, err := getResponseFromRestrictedEndpoint(handler, "POST", "/parseKubeConfig", tc.body)
 			require.NoError(t, err)
@@ -240,7 +241,7 @@ func TestStatelessClusterApiRequest(t *testing.T) {
 					TelemetryHandler: &telemetry.RequestHandler{},
 				},
 			}
-			handler := createHeadlampHandler(context.Background(), &c)
+			handler := createHandler(t, context.Background(), &c)
 			headers := map[string]string{
 				"KUBECONFIG":         kubeConfig,
 				"X-HEADLAMP-USER-ID": tc.userID,

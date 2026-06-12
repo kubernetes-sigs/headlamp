@@ -36,6 +36,7 @@ import (
 func requireEvent(t *testing.T, events <-chan string, expected string) {
 	t.Helper()
 
+	expected = filepath.ToSlash(expected)
 	timeout := time.After(10 * time.Second)
 
 	for {
@@ -152,17 +153,12 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 
 		// create main.js and package.json in the sub directory
 		pluginPath := filepath.Join(subDir, "main.js")
-		pf, err := os.Create(pluginPath) //nolint:gosec
+		err = os.WriteFile(pluginPath, []byte(""), 0o600)
 		require.NoError(t, err)
-
-		require.NoError(t, pf.Close())
 
 		packageJSONPath := filepath.Join(subDir, "package.json")
-		ppf, err := os.Create(packageJSONPath) //nolint:gosec
+		err = os.WriteFile(packageJSONPath, []byte(""), 0o600)
 		require.NoError(t, err)
-
-		require.NoError(t, ppf.Close())
-
 		pathList, err := plugins.GeneratePluginPaths("", "", testDirName)
 		require.NoError(t, err)
 		require.Len(t, pathList, 1)
@@ -188,17 +184,12 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 
 		// create main.js and package.json in the sub directory
 		pluginPath := filepath.Join(subDir, "main.js")
-		spf, err := os.Create(pluginPath) //nolint:gosec
+		err = os.WriteFile(pluginPath, []byte(""), 0o600)
 		require.NoError(t, err)
-
-		require.NoError(t, spf.Close())
 
 		packageJSONPath := filepath.Join(subDir, "package.json")
-		sppf, err := os.Create(packageJSONPath) //nolint:gosec
+		err = os.WriteFile(packageJSONPath, []byte(""), 0o600)
 		require.NoError(t, err)
-
-		require.NoError(t, sppf.Close())
-
 		pathList, err := plugins.GeneratePluginPaths(testDirName, "", "")
 		require.NoError(t, err)
 		require.Len(t, pathList, 1)
@@ -224,10 +215,8 @@ func TestGeneratePluginPaths(t *testing.T) { //nolint:funlen
 
 		// create random file in the sub directory
 		fileName := filepath.Join(subDir, uuid.NewString())
-		rf, err := os.Create(fileName) //nolint:gosec
+		err = os.WriteFile(fileName, []byte(""), 0o600)
 		require.NoError(t, err)
-
-		require.NoError(t, rf.Close())
 
 		// test with file as plugin Dir
 		pathList, err := plugins.GeneratePluginPaths(fileName, "", "")
@@ -250,17 +239,13 @@ func createPlugin(t *testing.T, baseDir string, pluginName string) string {
 
 	// create main.js
 	mainJsPath := filepath.Join(pluginDir, "main.js")
-	mjf, err := os.Create(mainJsPath) //nolint:gosec
+	err = os.WriteFile(mainJsPath, []byte(""), 0o600)
 	require.NoError(t, err)
-
-	require.NoError(t, mjf.Close())
 
 	// create package.json
 	packageJSONPath := filepath.Join(pluginDir, "package.json")
-	pjf, err := os.Create(packageJSONPath) //nolint:gosec
+	err = os.WriteFile(packageJSONPath, []byte(""), 0o600)
 	require.NoError(t, err)
-
-	require.NoError(t, pjf.Close())
 
 	return pluginDir
 }
@@ -381,17 +366,11 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 	require.NoError(t, err)
 
 	// create main.js and package.json in the sub directory
-	pluginPath := filepath.Join(pluginDirPath, "main.js")
-	pf, err := os.Create(pluginPath) //nolint:gosec
+	err = os.WriteFile(filepath.Join(pluginDirPath, "main.js"), []byte(""), 0o600)
 	require.NoError(t, err)
 
-	require.NoError(t, pf.Close())
-
-	packageJSONPath := filepath.Join(pluginDirPath, "package.json")
-	ppf, err := os.Create(packageJSONPath) //nolint:gosec
+	err = os.WriteFile(filepath.Join(pluginDirPath, "package.json"), []byte(""), 0o600)
 	require.NoError(t, err)
-
-	require.NoError(t, ppf.Close())
 
 	// create channel to receive events
 	events := make(chan string)
@@ -399,7 +378,10 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 	// create cache
 	ch := cache.New[interface{}]()
 
-	go plugins.HandlePluginEvents("", "", testDirPath, events, ch)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go plugins.HandlePluginEventsWithContext(ctx, "", "", testDirPath, events, ch)
 
 	// plugin list key should be empty
 	pluginList, err := ch.Get(context.Background(), plugins.PluginListKey)
@@ -440,7 +422,16 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 	err = ch.Delete(context.Background(), plugins.PluginListKey)
 	require.NoError(t, err)
 
-	go plugins.HandlePluginEvents("", "", testDirPath, events, ch)
+	// Stop the first handler before starting another one so we do not have
+	// two goroutines competing to consume from the same events channel.
+	cancel()
+
+	ctx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+
+	events = make(chan string, 1)
+
+	go plugins.HandlePluginEventsWithContext(ctx, "", "", testDirPath, events, ch)
 
 	// send event
 	events <- "test"
