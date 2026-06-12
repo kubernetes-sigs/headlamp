@@ -860,9 +860,7 @@
                     <span
                       class="MuiTypography-root MuiTypography-body1 css-1aajmzw-MuiTypography-root"
                     >
-                      <span>
-                        Progressing
-                      </span>
+                      Progressing
                     </span>
                   </div>
                 </td>
@@ -988,9 +986,7 @@
                     <span
                       class="MuiTypography-root MuiTypography-body1 css-1aajmzw-MuiTypography-root"
                     >
-                      <span>
-                        Available
-                      </span>
+                      Available
                     </span>
                   </div>
                 </td>

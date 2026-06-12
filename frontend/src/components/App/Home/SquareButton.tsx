@@ -21,6 +21,7 @@ import CardContent from '@mui/material/CardContent';
 import { useTheme } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 import React from 'react';
+import { LightTooltip } from '../../common/Tooltip';
 
 export interface SquareButtonProps extends ButtonBaseProps {
   /** The icon to display for this button. */
@@ -62,24 +63,25 @@ const SquareButton = React.forwardRef<HTMLButtonElement, SquareButtonProps>((pro
                 : theme.palette.getContrastText(theme.palette.squareButton.background))
             }
           />
-          <Typography
-            color="textSecondary"
-            gutterBottom
-            title={label}
-            sx={{
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              display: 'block',
-              fontSize: '1rem',
-              paddingTop: '8px',
-              color: primary
-                ? theme.palette.getContrastText(theme.palette.text.primary)
-                : theme.palette.getContrastText(theme.palette.squareButton.background),
-            }}
-          >
-            {label}
-          </Typography>
+          <LightTooltip title={label}>
+            <Typography
+              color="textSecondary"
+              gutterBottom
+              sx={{
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                display: 'block',
+                fontSize: '1rem',
+                paddingTop: '8px',
+                color: primary
+                  ? theme.palette.getContrastText(theme.palette.text.primary)
+                  : theme.palette.getContrastText(theme.palette.squareButton.background),
+              }}
+            >
+              {label}
+            </Typography>
+          </LightTooltip>
         </CardContent>
       </Card>
     </ButtonBase>

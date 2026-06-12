@@ -18,6 +18,7 @@ import Box from '@mui/material/Box';
 import { styled } from '@mui/material/styles';
 import { alpha } from '@mui/system/colorManipulator';
 import { memo } from 'react';
+import { LightTooltip } from '../../common/Tooltip';
 import { useGraphView, useNode } from '../GraphView';
 import { KubeIcon } from '../kubeIcon/KubeIcon';
 
@@ -72,17 +73,33 @@ export const GroupNodeComponent = memo(({ id }: { id: string }) => {
         }
       }}
     >
-      {(node?.label || node?.subtitle) && (
-        <Label title={node?.label}>
-          {node?.kubeObject ? (
-            <KubeIcon kind={node.kubeObject.kind} apiGroup={apiGroup} width="24px" height="24px" />
+      {(node?.label || node?.subtitle) &&
+        (() => {
+          const labelContent = (
+            <Label>
+              {node?.kubeObject ? (
+                <KubeIcon
+                  kind={node.kubeObject.kind}
+                  apiGroup={apiGroup}
+                  width="24px"
+                  height="24px"
+                />
+              ) : (
+                node?.icon ?? null
+              )}
+              <Box sx={{ opacity: 0.8 }}>{node?.subtitle}</Box>
+              <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{node?.label}</Box>
+            </Label>
+          );
+
+          // Only wrap in a tooltip when there's a label to show; otherwise an
+          // empty title would render an empty tooltip (and an empty aria-label).
+          return node?.label ? (
+            <LightTooltip title={node.label}>{labelContent}</LightTooltip>
           ) : (
-            node?.icon ?? null
-          )}
-          <Box sx={{ opacity: 0.8 }}>{node?.subtitle}</Box>
-          <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{node?.label}</Box>
-        </Label>
-      )}
+            labelContent
+          );
+        })()}
     </Container>
   );
 });
