@@ -23,8 +23,8 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import type { KubeCondition, KubeContainerStatus } from '../../lib/k8s/cluster';
-import type Event from '../../lib/k8s/event';
-import type { KubeEvent } from '../../lib/k8s/event';
+import type EventV2 from '../../lib/k8s/eventV2';
+import type { KubeEventV2 } from '../../lib/k8s/eventV2';
 import type { KubeObject } from '../../lib/k8s/KubeObject';
 import Pod from '../../lib/k8s/pod';
 import type { Workload } from '../../lib/k8s/Workload';
@@ -32,11 +32,11 @@ import { localeDate, timeAgo } from '../../lib/util';
 import Empty from '../common/EmptyContent';
 import Link from '../common/Link';
 import Loader from '../common/Loader';
-import { useObjectEvents } from '../common/ObjectEventList';
 import SectionBox from '../common/SectionBox';
+import { useObjectEventsV2 } from './useObjectEventsV2';
 
-/** Union of the Event class and raw KubeEvent object, used so helpers work with both shapes. */
-type EventLike = Event | KubeEvent;
+/** Union of the EventV2 class and raw KubeEventV2 object, used so helpers work with both shapes. */
+type EventLike = EventV2 | KubeEventV2;
 /** Alias for Pod, kept as an indirection so helpers are not tightly coupled to the class. */
 type PodLike = Pod;
 /** A translation function compatible with i18next's `t()`. */
@@ -116,20 +116,22 @@ function containerSeverity(reason?: string, exitCode?: number): AlertColor {
 
 /** Returns the occurrence count for an event, falling back to 1 if unavailable. */
 function getEventCount(event: EventLike) {
-  const series = (event as KubeEvent).series;
-  const count = (event as Event).count ?? series?.count ?? (event as KubeEvent).count;
+  const count =
+    (event as EventV2).count ??
+    (event as KubeEventV2).series?.count ??
+    (event as KubeEventV2).deprecatedCount;
   return typeof count === 'number' && count > 0 ? count : 1;
 }
 
 /** Returns the most recent timestamp for an event, trying several fields in priority order. */
 function getEventLastOccurrence(event: EventLike) {
   return (
-    (event as Event).lastOccurrence ||
-    (event as KubeEvent).series?.lastObservedTime ||
-    (event as KubeEvent).lastTimestamp ||
-    (event as KubeEvent).eventTime ||
-    (event as KubeEvent).firstTimestamp ||
-    (event as KubeEvent).metadata?.creationTimestamp ||
+    (event as EventV2).lastOccurrence ||
+    (event as KubeEventV2).series?.lastObservedTime ||
+    (event as KubeEventV2).deprecatedLastTimestamp ||
+    (event as KubeEventV2).eventTime ||
+    (event as KubeEventV2).deprecatedFirstTimestamp ||
+    (event as KubeEventV2).metadata?.creationTimestamp ||
     ''
   );
 }
@@ -137,18 +139,18 @@ function getEventLastOccurrence(event: EventLike) {
 /** Returns the earliest timestamp for an event, trying several fields in priority order. */
 function getEventFirstOccurrence(event: EventLike) {
   return (
-    (event as Event).firstOccurrence ||
-    (event as KubeEvent).eventTime ||
-    (event as KubeEvent).firstTimestamp ||
-    (event as KubeEvent).metadata?.creationTimestamp ||
+    (event as EventV2).firstOccurrence ||
+    (event as KubeEventV2).eventTime ||
+    (event as KubeEventV2).deprecatedFirstTimestamp ||
+    (event as KubeEventV2).metadata?.creationTimestamp ||
     ''
   );
 }
 
 /** Returns true if the event is a Warning type or has a failure-related reason. */
 function isWarningEvent(event: EventLike) {
-  const eventType = (event as Event).type ?? (event as KubeEvent).type;
-  const reason = (event as Event).reason ?? (event as KubeEvent).reason ?? '';
+  const eventType = (event as EventV2).type ?? (event as KubeEventV2).type;
+  const reason = (event as EventV2).reason ?? (event as KubeEventV2).reason ?? '';
 
   return (
     eventType === 'Warning' ||
@@ -390,7 +392,9 @@ function getPendingHints(pod: PodLike, warningEvents: EventLike[], t: Translate)
     condition => condition.type === 'PodScheduled'
   );
   const failedSchedulingEvent = warningEvents.find(event =>
-    /FailedScheduling|Unschedulable/i.test((event as Event).reason ?? (event as KubeEvent).reason)
+    /FailedScheduling|Unschedulable/i.test(
+      (event as EventV2).reason ?? (event as KubeEventV2).reason
+    )
   );
 
   if (scheduledCondition && scheduledCondition.status !== 'True') {
@@ -404,13 +408,13 @@ function getPendingHints(pod: PodLike, warningEvents: EventLike[], t: Translate)
     });
   } else if (failedSchedulingEvent) {
     const reason =
-      (failedSchedulingEvent as Event).reason || (failedSchedulingEvent as KubeEvent).reason;
+      (failedSchedulingEvent as EventV2).reason || (failedSchedulingEvent as KubeEventV2).reason;
     diagnostics.push({
       id: 'pod-scheduling-event',
       severity: 'warning',
       title: t('Pod scheduling event: {{ reason }}', { reason }),
       message:
-        (failedSchedulingEvent as Event).message || (failedSchedulingEvent as KubeEvent).message,
+        (failedSchedulingEvent as EventV2).message || (failedSchedulingEvent as KubeEventV2).note,
     });
   }
 
@@ -452,7 +456,7 @@ function eventDiagnostics(events: EventLike[], t: Translate): DiagnosticItem[] {
   return sortWarningEvents(events)
     .slice(0, 5)
     .map(event => {
-      const reason = (event as Event).reason ?? (event as KubeEvent).reason ?? 'Warning';
+      const reason = (event as EventV2).reason ?? (event as KubeEventV2).reason ?? 'Warning';
       const count = getEventCount(event);
       const lastOccurrence = getEventLastOccurrence(event);
       const firstOccurrence = getEventFirstOccurrence(event);
@@ -474,7 +478,7 @@ function eventDiagnostics(events: EventLike[], t: Translate): DiagnosticItem[] {
       ].filter(Boolean);
 
       return {
-        id: `event-${(event as Event).metadata?.uid || reason}`,
+        id: `event-${(event as EventV2).metadata?.uid || reason}`,
         severity: containerSeverity(reason),
         title:
           count > 1
@@ -483,7 +487,7 @@ function eventDiagnostics(events: EventLike[], t: Translate): DiagnosticItem[] {
                 eventCount: count,
               })
             : t('Warning event: {{ reason }}', { reason }),
-        message: (event as Event).message ?? (event as KubeEvent).message,
+        message: (event as EventV2).message ?? (event as KubeEventV2).note,
         details,
       };
     });
@@ -787,10 +791,10 @@ function DiagnosticsList(props: { items: DiagnosticItem[] }) {
  * Section component that displays diagnostics for a single pod.
  * Fetches events automatically unless pre-fetched events are provided.
  */
-export function PodDiagnosticsSection(props: { pod: Pod; events?: Event[] }) {
+export function PodDiagnosticsSection(props: { pod: Pod; events?: EventV2[] }) {
   const { pod, events } = props;
   const { t } = useTranslation('translation');
-  const fetchedEvents = useObjectEvents(events === undefined ? pod : null);
+  const fetchedEvents = useObjectEventsV2(events === undefined ? pod : null);
   const diagnosticEvents = events ?? fetchedEvents;
   const diagnostics = React.useMemo(
     () => getPodDiagnostics(pod, diagnosticEvents, t),

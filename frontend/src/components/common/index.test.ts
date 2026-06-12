@@ -65,9 +65,10 @@ const checkExports = [
   'TimezoneSelect',
   'Tooltip',
   'ObjectEventList',
+  'ObjectEventListUtils',
 ];
 
-const internalExports = ['useObjectEvents'];
+const internalExports = ['useObjectEvents', 'getObjectEventsKey'];
 
 function getFilesToVerify() {
   const filesToVerify: string[] = [];

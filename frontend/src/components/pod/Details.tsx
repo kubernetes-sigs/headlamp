@@ -891,11 +891,11 @@ export default function PodDetails(props: PodDetailsProps) {
         ]
       }
       extraInfo={item => prepareExtraInfo(item)}
-      extraSections={(item, context) =>
+      extraSections={item =>
         item && [
           {
             id: 'headlamp.pod-diagnostics',
-            section: <PodDiagnosticsSection pod={item} events={context.events} />,
+            section: <PodDiagnosticsSection pod={item} />,
           },
           {
             id: 'headlamp.pod-tolerations',

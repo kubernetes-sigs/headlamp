@@ -14,8 +14,8 @@
  * limitations under the License.
  */
 
-vi.mock('../../lib/k8s/event', () => ({
-  default: class Event {
+vi.mock('../../lib/k8s/eventV2', () => ({
+  default: class EventV2 {
     static objectEvents = vi.fn();
   },
   __esModule: true,
@@ -101,10 +101,11 @@ describe('diagnostics helpers', () => {
       {
         type: 'Warning',
         reason: 'BackOff',
-        message: 'Back-off restarting failed container gadget',
-        count: 5,
-        lastTimestamp: '2026-05-09T05:31:00Z',
-        firstTimestamp: '2026-05-09T05:20:00Z',
+        note: 'Back-off restarting failed container gadget',
+        deprecatedCount: 5,
+        eventTime: '2026-05-09T05:31:00Z',
+        deprecatedLastTimestamp: '2026-05-09T05:31:00Z',
+        deprecatedFirstTimestamp: '2026-05-09T05:20:00Z',
         metadata: { uid: 'event-1' },
       } as any,
     ]);

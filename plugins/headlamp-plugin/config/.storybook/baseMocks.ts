@@ -16,7 +16,7 @@
 
 import { http, HttpResponse } from 'msw';
 
-// NOTE: Please keep this synced with headlamp/plugins/headlamp-plugin/config/.storybook/baseMocks.ts
+// NOTE: Please keep this synced with frontend/.storybook/baseMocks.ts
 
 const creationTimestamp = new Date('2022-01-01').toISOString();
 
@@ -144,6 +144,34 @@ export const baseMocks = [
     })
   ),
   http.get('http://localhost:4466/clusters/cluster2/api/v1/events', () =>
+    HttpResponse.json({
+      kind: 'EventList',
+      items: [],
+      metadata: {},
+    })
+  ),
+  http.get('*/api/v1/events', () =>
+    HttpResponse.json({
+      kind: 'EventList',
+      items: [],
+      metadata: {},
+    })
+  ),
+  http.get('*/api/v1/namespaces/:namespace/events', () =>
+    HttpResponse.json({
+      kind: 'EventList',
+      items: [],
+      metadata: {},
+    })
+  ),
+  http.get('*/apis/events.k8s.io/v1/events', () =>
+    HttpResponse.json({
+      kind: 'EventList',
+      items: [],
+      metadata: {},
+    })
+  ),
+  http.get('*/apis/events.k8s.io/v1/namespaces/:namespace/events', () =>
     HttpResponse.json({
       kind: 'EventList',
       items: [],

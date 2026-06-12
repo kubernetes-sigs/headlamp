@@ -23,27 +23,12 @@ import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSl
 import { HoverInfoLabel } from '../common/Label';
 import SectionBox from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
+import { getObjectEventsKey } from './ObjectEventListUtils';
 import ShowHideLabel from './ShowHideLabel';
 
 export interface ObjectEventListProps {
   object: KubeObject;
   events?: Event[];
-}
-
-function getObjectEventsKey(object: KubeObject | null) {
-  if (!object) {
-    return '';
-  }
-
-  return [
-    object.cluster,
-    object.kind,
-    object.metadata.namespace,
-    object.metadata.name,
-    object.metadata.uid,
-  ]
-    .filter(Boolean)
-    .join('/');
 }
 
 export function useObjectEvents(object: KubeObject | null) {
