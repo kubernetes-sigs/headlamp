@@ -18,6 +18,7 @@ import {
   combineClusterListErrors,
   flattenClusterListItems,
   formatDuration,
+  getPercentStr,
   normalizeUnit,
   timeAgo,
 } from './util';
@@ -56,6 +57,31 @@ describe('flattenClusterListItems', () => {
       null
     );
     expect(result).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe('getPercentStr', () => {
+  it('should return null when total is zero', () => {
+    expect(getPercentStr(0, 0)).toBeNull();
+  });
+
+  it('should not add decimals for whole-number percentages', () => {
+    // Multiples of ten and other whole numbers should render identically.
+    expect(getPercentStr(7, 10)).toBe('70 %');
+    expect(getPercentStr(2, 4)).toBe('50 %');
+    expect(getPercentStr(3, 4)).toBe('75 %');
+    expect(getPercentStr(1, 4)).toBe('25 %');
+    expect(getPercentStr(1, 1)).toBe('100 %');
+    expect(getPercentStr(0, 4)).toBe('0 %');
+    // 29/100 computes to 28.999999999999996; it must still render as "29 %".
+    expect(getPercentStr(29, 100)).toBe('29 %');
+  });
+
+  it('should keep a single decimal for fractional percentages', () => {
+    expect(getPercentStr(5, 8)).toBe('62.5 %');
+    expect(getPercentStr(1, 8)).toBe('12.5 %');
+    expect(getPercentStr(2, 3)).toBe('66.7 %');
+    expect(getPercentStr(1, 3)).toBe('33.3 %');
   });
 });
 

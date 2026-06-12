@@ -225,8 +225,12 @@ export function getPercentStr(value: number, total: number) {
     return null;
   }
   const percentage = (value / total) * 100;
-  const decimals = percentage % 10 > 0 ? 1 : 0;
-  return `${percentage.toFixed(decimals)} %`;
+  // Round to a single decimal, then strip a trailing ".0" so whole-number
+  // percentages render without it. Rounding first avoids floating-point dust
+  // (e.g. 29/100 -> 28.999999999999996) being treated as a fractional value.
+  // Operate on the fixed-point string directly to keep formatting stable.
+  const formatted = percentage.toFixed(1);
+  return `${formatted.endsWith('.0') ? formatted.slice(0, -2) : formatted} %`;
 }
 
 export function getReadyReplicas(item: Workload) {
