@@ -3038,6 +3038,11 @@ func isDaemonSetPod(pod corev1.Pod) bool {
 		return true
 	}
 
+	// Prefer the controller owner reference (matches kubectl drain behavior).
+	if controller := v1.GetControllerOf(&pod); controller != nil && controller.Kind == "DaemonSet" {
+		return true
+	}
+
 	for _, owner := range pod.OwnerReferences {
 		if owner.Kind == "DaemonSet" {
 			return true
