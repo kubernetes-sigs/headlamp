@@ -13,7 +13,7 @@ import (
 // HTTPGetStream sends an HTTP GET request to the specified URI and streams the
 // response body into w. The body is never fully buffered, so an upstream that
 // returns an arbitrarily large response cannot exhaust server memory.
-func HTTPGetStream(ctx context.Context, uri string, w io.Writer) error {
+func HTTPGetStream(ctx context.Context, uri string, w http.ResponseWriter) error {
 	cli := &http.Client{Timeout: 10 * time.Second}
 
 	logger.Log(logger.LevelInfo, nil, nil, fmt.Sprintf("make request to %s", uri))
@@ -30,9 +30,11 @@ func HTTPGetStream(ctx context.Context, uri string, w io.Writer) error {
 
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed HTTP GET, status code %v", resp.StatusCode)
+	if contentType := resp.Header.Get("Content-Type"); contentType != "" {
+		w.Header().Set("Content-Type", contentType)
 	}
+
+	w.WriteHeader(resp.StatusCode)
 
 	if _, err := io.Copy(w, resp.Body); err != nil {
 		return fmt.Errorf("streaming response: %v", err)
