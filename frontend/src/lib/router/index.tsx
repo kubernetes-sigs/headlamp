@@ -18,6 +18,10 @@ import React from 'react';
 import { useHistory } from 'react-router';
 import NotFoundComponent from '../../components/404';
 import AuthToken from '../../components/account/Auth';
+import ValidatingAdmissionPolicyBindingDetails from '../../components/admissionpolicy/ValidatingAdmissionPolicyBindingDetails';
+import ValidatingAdmissionPolicyBindingList from '../../components/admissionpolicy/ValidatingAdmissionPolicyBindingList';
+import ValidatingAdmissionPolicyDetails from '../../components/admissionpolicy/ValidatingAdmissionPolicyDetails';
+import ValidatingAdmissionPolicyList from '../../components/admissionpolicy/ValidatingAdmissionPolicyList';
 import AddCluster from '../../components/App/CreateCluster/AddCluster';
 import Home from '../../components/App/Home';
 import NotificationList from '../../components/App/Notifications/List';
@@ -792,6 +796,34 @@ const defaultRoutes: { [routeName: string]: Route } = {
     name: 'Validating Webhook Configuration',
     sidebar: 'validatingWebhookConfigurations',
     component: () => <ValidatingWebhookConfigurationDetails />,
+  },
+  validatingAdmissionPolicies: {
+    path: '/validatingadmissionpolicies',
+    exact: true,
+    name: 'Validating Admission Policies',
+    sidebar: 'validatingAdmissionPolicies',
+    component: () => <ValidatingAdmissionPolicyList />,
+  },
+  validatingAdmissionPolicy: {
+    path: '/validatingadmissionpolicies/:name',
+    exact: true,
+    name: 'Validating Admission Policy',
+    sidebar: 'validatingAdmissionPolicies',
+    component: () => <ValidatingAdmissionPolicyDetails />,
+  },
+  validatingAdmissionPolicyBindings: {
+    path: '/validatingadmissionpolicybindings',
+    exact: true,
+    name: 'Validating Admission Policy Bindings',
+    sidebar: 'validatingAdmissionPolicyBindings',
+    component: () => <ValidatingAdmissionPolicyBindingList />,
+  },
+  validatingAdmissionPolicyBinding: {
+    path: '/validatingadmissionpolicybindings/:name',
+    exact: true,
+    name: 'Validating Admission Policy Binding',
+    sidebar: 'validatingAdmissionPolicyBindings',
+    component: () => <ValidatingAdmissionPolicyBindingDetails />,
   },
   verticalPodAutoscalers: {
     path: '/verticalpodautoscalers',
