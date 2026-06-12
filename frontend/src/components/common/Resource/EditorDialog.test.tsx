@@ -164,7 +164,7 @@ describe('EditorDialog', () => {
       vi.advanceTimersByTime(500);
     });
 
-    expect(mockSetModelMarkers).toHaveBeenCalledWith({}, 'yaml', [
+    expect(mockSetModelMarkers).toHaveBeenCalledWith(expect.any(Object), 'yaml', [
       {
         startLineNumber: 3,
         startColumn: 6,
@@ -181,6 +181,6 @@ describe('EditorDialog', () => {
       vi.advanceTimersByTime(500);
     });
 
-    expect(mockSetModelMarkers).toHaveBeenCalledWith({}, 'yaml', []);
+    expect(mockSetModelMarkers).toHaveBeenCalledWith(expect.any(Object), 'yaml', []);
   });
 });

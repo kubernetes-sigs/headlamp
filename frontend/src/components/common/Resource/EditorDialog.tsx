@@ -146,9 +146,12 @@ export default function EditorDialog(props: EditorDialogProps) {
   const monacoRef = React.useRef<Monaco | null>(null);
   const editorRef = React.useRef<editor.IStandaloneCodeEditor | null>(null);
 
-  function handleEditorDidMount(editor: any, monaco: any) {
-    editorRef.current = editor;
-    monacoRef.current = monaco;
+  function handleEditorDidMount(
+    editorInstance: editor.IStandaloneCodeEditor,
+    monacoInstance: Monaco
+  ) {
+    editorRef.current = editorInstance;
+    monacoRef.current = monacoInstance;
   }
 
   React.useEffect(() => {
