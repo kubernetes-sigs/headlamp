@@ -278,7 +278,7 @@ export function PodListRenderer(props: PodListProps) {
                     disabled={loadingMore}
                     onClick={handleLoadMore}
                   >
-                    {loadingMore ? t('Loading...') : t('Load more')}
+                    {loadingMore ? t('translation|Loading...') : t('glossary|Load more')}
                   </Button>
                 </Box>,
               ]
