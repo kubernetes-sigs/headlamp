@@ -19,8 +19,10 @@
  */
 
 import { Base64 } from 'js-base64';
+import { getAppUrl } from '../helpers/getAppUrl';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
 import store from '../redux/stores/store';
+import { getClusterAuthType } from './k8s/api/v1/clusterRequests';
 import { backendFetch } from './k8s/api/v2/fetch';
 import { queryClient } from './queryClient';
 
@@ -133,11 +135,34 @@ export function setToken(cluster: string, token: string | null) {
 
 /**
  * Logs out the user by clearing the authentication token for the specified cluster.
+ * For OIDC clusters, redirects to the IdP logout endpoint to properly end the session.
  *
  * @param cluster - The name of the cluster to log out from.
  * @throws {Error} When logout request fails
  */
 export async function logout(cluster: string) {
+  const authType = getClusterAuthType(cluster);
+
+  // For OIDC auth, redirect to the backend OIDC logout endpoint which will
+  // redirect to the IdP's end_session_endpoint to properly terminate the session.
+  if (authType === 'oidc') {
+    // Clear local state first
+    queryClient.removeQueries({ queryKey: ['auth'], exact: false });
+    queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
+
+    // Clear the cluster auth cookie before redirecting (cookie path is cluster-scoped).
+    try {
+      await setToken(cluster, null);
+    } catch {
+      // Continue with logout redirect even if cookie clearing fails.
+    }
+
+    // Redirect to the OIDC logout endpoint
+    // The backend will clear cookies and redirect to the IdP logout endpoint
+    window.location.href = `${getAppUrl()}oidc-logout?cluster=${encodeURIComponent(cluster)}`;
+    return;
+  }
+
   return setToken(cluster, null).then(() => {
     queryClient.removeQueries({ queryKey: ['auth'], exact: false });
     queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });

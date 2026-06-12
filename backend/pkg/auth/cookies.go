@@ -170,6 +170,114 @@ func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL s
 	}
 }
 
+// SetIDTokenCookie sets an ID token cookie for a specific cluster.
+// This is used for OIDC RP-initiated logout (id_token_hint parameter).
+// The cookie path is set to "/" so it's available on the /oidc-logout endpoint.
+// Large ID tokens are split into chunks to avoid exceeding per-cookie size limits (~4KB).
+func SetIDTokenCookie(w http.ResponseWriter, r *http.Request, cluster, idToken, baseURL string, sessionTTL int) {
+	if cluster == "" || idToken == "" {
+		return
+	}
+
+	sanitizedCluster := SanitizeClusterName(cluster)
+	if sanitizedCluster == "" {
+		return
+	}
+
+	// Clear any existing ID token cookies
+	ClearIDTokenCookie(w, r, cluster, baseURL)
+
+	secure := IsSecureContext(r)
+
+	// Use root path so the cookie is sent to /oidc-logout
+	cookiePath := "/"
+	if baseURL != "" {
+		cookiePath = "/" + strings.Trim(baseURL, "/") + "/"
+	}
+
+	// Split large ID tokens into chunks to avoid exceeding cookie size limits
+	chunks := splitToken(idToken, chunkSize)
+	for i, chunk := range chunks {
+		cookie := &http.Cookie{
+			Name:     fmt.Sprintf("headlamp-id-token-%s.%d", sanitizedCluster, i),
+			Value:    chunk,
+			HttpOnly: true,
+			Secure:   secure,
+			SameSite: http.SameSiteStrictMode,
+			Path:     cookiePath,
+			MaxAge:   sessionTTL,
+		}
+
+		http.SetCookie(w, cookie)
+	}
+}
+
+// GetIDTokenFromCookie retrieves the ID token cookie for a specific cluster.
+// Supports chunked cookies for large ID tokens.
+func GetIDTokenFromCookie(r *http.Request, cluster string) (string, error) {
+	sanitizedCluster := SanitizeClusterName(cluster)
+	if sanitizedCluster == "" {
+		return "", errors.New("invalid cluster name")
+	}
+
+	// Check for chunked cookies
+	var idToken strings.Builder
+
+	for i := 0; ; i++ {
+		cookie, err := r.Cookie(fmt.Sprintf("headlamp-id-token-%s.%d", sanitizedCluster, i))
+		if err != nil {
+			break
+		}
+
+		idToken.WriteString(cookie.Value)
+	}
+
+	if idToken.Len() > 0 {
+		return idToken.String(), nil
+	}
+
+	return "", errors.New("http: named cookie not present")
+}
+
+// ClearIDTokenCookie clears the ID token cookie for a specific cluster.
+// Supports chunked cookies for large ID tokens.
+func ClearIDTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL string) {
+	sanitizedCluster := SanitizeClusterName(cluster)
+	if sanitizedCluster == "" {
+		return
+	}
+
+	secure := IsSecureContext(r)
+
+	// Use root path to match SetIDTokenCookie
+	cookiePath := "/"
+	if baseURL != "" {
+		cookiePath = "/" + strings.Trim(baseURL, "/") + "/"
+	}
+
+	// Clear chunked cookies
+	for i := 0; ; i++ {
+		cookieName := fmt.Sprintf("headlamp-id-token-%s.%d", sanitizedCluster, i)
+
+		_, err := r.Cookie(cookieName)
+		if err != nil {
+			// No more cookies for this cluster
+			break
+		}
+
+		cookie := &http.Cookie{
+			Name:     cookieName,
+			Value:    "",
+			HttpOnly: true,
+			Secure:   secure,
+			SameSite: http.SameSiteStrictMode,
+			Path:     cookiePath,
+			MaxAge:   -1,
+		}
+		http.SetCookie(w, cookie)
+	}
+}
+
 // splitToken splits a token into chunks of a given size.
 func splitToken(token string, size int) []string {
 	var chunks []string
