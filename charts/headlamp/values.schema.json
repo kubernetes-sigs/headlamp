@@ -342,9 +342,124 @@
           "value": {
             "type": "string",
             "description": "Value of the environment variable"
+          },
+          "valueFrom": {
+            "type": "object",
+            "description": "Source for the environment variable's value",
+            "properties": {
+              "secretKeyRef": {
+                "type": "object",
+                "description": "Selects a key of a Secret",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Name of the Secret"
+                  },
+                  "key": {
+                    "type": "string",
+                    "description": "Key of the Secret to select from"
+                  },
+                  "optional": {
+                    "type": "boolean",
+                    "description": "Specify whether the Secret or its key must be defined"
+                  }
+                },
+                "required": ["key"],
+                "additionalProperties": false
+              },
+              "configMapKeyRef": {
+                "type": "object",
+                "description": "Selects a key of a ConfigMap",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Name of the ConfigMap"
+                  },
+                  "key": {
+                    "type": "string",
+                    "description": "Key of the ConfigMap to select from"
+                  },
+                  "optional": {
+                    "type": "boolean",
+                    "description": "Specify whether the ConfigMap or its key must be defined"
+                  }
+                },
+                "required": ["key"],
+                "additionalProperties": false
+              },
+              "fieldRef": {
+                "type": "object",
+                "description": "Selects a field of the pod",
+                "properties": {
+                  "apiVersion": {
+                    "type": "string",
+                    "description": "API version of the schema the fieldPath is written in"
+                  },
+                  "fieldPath": {
+                    "type": "string",
+                    "description": "Path of the field to select in the specified API version"
+                  }
+                },
+                "required": ["fieldPath"],
+                "additionalProperties": false
+              },
+              "resourceFieldRef": {
+                "type": "object",
+                "description": "Selects a resource of the container",
+                "properties": {
+                  "containerName": {
+                    "type": "string",
+                    "description": "Container name to select resources from"
+                  },
+                  "resource": {
+                    "type": "string",
+                    "description": "Resource to select"
+                  },
+                  "divisor": {
+                    "type": "string",
+                    "description": "Output format of the exposed resource"
+                  }
+                },
+                "required": ["resource"],
+                "additionalProperties": false
+              }
+            },
+            "oneOf": [
+              {
+                "required": ["secretKeyRef"],
+                "not": { "anyOf": [{ "required": ["configMapKeyRef"] }, { "required": ["fieldRef"] }, { "required": ["resourceFieldRef"] }] }
+              },
+              {
+                "required": ["configMapKeyRef"],
+                "not": { "anyOf": [{ "required": ["secretKeyRef"] }, { "required": ["fieldRef"] }, { "required": ["resourceFieldRef"] }] }
+              },
+              {
+                "required": ["fieldRef"],
+                "not": { "anyOf": [{ "required": ["secretKeyRef"] }, { "required": ["configMapKeyRef"] }, { "required": ["resourceFieldRef"] }] }
+              },
+              {
+                "required": ["resourceFieldRef"],
+                "not": { "anyOf": [{ "required": ["secretKeyRef"] }, { "required": ["configMapKeyRef"] }, { "required": ["fieldRef"] }] }
+              }
+            ],
+            "additionalProperties": false
           }
         },
-        "required": ["name", "value"],
+        "required": ["name"],
+        "oneOf": [
+          {
+            "required": ["value"],
+            "not": {
+              "required": ["valueFrom"]
+            }
+          },
+          {
+            "required": ["valueFrom"],
+            "not": {
+              "required": ["value"]
+            }
+          }
+        ],
         "additionalProperties": false
       }
     },
