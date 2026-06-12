@@ -109,6 +109,10 @@ vi.mock('./PodDebugAction', () => ({
   PodDebugAction: () => null,
 }));
 
+vi.mock('./PodEnvironmentVariables', () => ({
+  PodEnvironmentVariables: () => <div data-testid="mock-pod-env-vars" />,
+}));
+
 vi.mock('../globalSearch/useLocalStorageState', () => ({
   useLocalStorageState: () => [false, vi.fn()],
 }));
@@ -459,6 +463,73 @@ describe('PodDetails auto-launch views', () => {
           }),
         })
       );
+    });
+  });
+
+  describe('?view=env', () => {
+    it('auto-launches the environment variables panel', () => {
+      render(
+        <TestContext
+          routerMap={{ namespace: 'default', name: 'test-pod' }}
+          urlPrefix="/c/main/pods"
+          urlSearchParams={{ view: 'env' }}
+        >
+          <PodDetails name="test-pod" namespace="default" />
+        </TestContext>
+      );
+
+      act(() => {
+        simulatePodLoad();
+      });
+
+      expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
+      expect(mockActivityLaunch).toHaveBeenCalledWith(
+        expect.objectContaining({
+          id: 'pod-environment-pod-uid-123',
+        })
+      );
+    });
+
+    it('re-launches when ?container changes for the same pod', () => {
+      const history = renderPodDetailsWithHistory(
+        '/c/main/pods/default/test-pod?view=env&container=nginx'
+      );
+
+      act(() => {
+        simulatePodLoad();
+      });
+
+      expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
+      expect(mockActivityLaunch.mock.calls[0][0].content.props.initialContainer).toBe('nginx');
+
+      act(() => {
+        history.push('/c/main/pods/default/test-pod?view=env&container=sidecar');
+        simulatePodLoad();
+      });
+
+      expect(mockActivityLaunch).toHaveBeenCalledTimes(2);
+      expect(mockActivityLaunch.mock.calls[1][0].content.props.initialContainer).toBe('sidecar');
+    });
+
+    it('does not re-launch on subsequent renders for the same pod', () => {
+      render(
+        <TestContext
+          routerMap={{ namespace: 'default', name: 'test-pod' }}
+          urlPrefix="/c/main/pods"
+          urlSearchParams={{ view: 'env' }}
+        >
+          <PodDetails name="test-pod" namespace="default" />
+        </TestContext>
+      );
+
+      act(() => {
+        simulatePodLoad();
+      });
+      act(() => {
+        simulatePodLoad();
+      });
+
+      expect(mockActivityLaunch).toHaveBeenCalledTimes(1);
     });
   });
 });

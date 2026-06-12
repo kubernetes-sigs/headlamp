@@ -62,6 +62,7 @@ import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
 import { PodDebugAction } from './PodDebugAction';
+import { PodEnvironmentVariables } from './PodEnvironmentVariables';
 
 const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   margin: 0,
@@ -581,6 +582,7 @@ export default function PodDetails(props: PodDetailsProps) {
 
   const lastAutoLaunchedPodLogs = React.useRef<string | null>(null);
   const lastAutoLaunchedPodExec = React.useRef<string | null>(null);
+  const lastAutoLaunchedPodEnv = React.useRef<string | null>(null);
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const autoLaunchView = queryParams.get('view');
@@ -613,6 +615,32 @@ export default function PodDetails(props: PodDetailsProps) {
       });
     },
     [t, dispatchHeadlampEvent, autoLaunchContainer]
+  );
+
+  const launchEnvironment = React.useCallback(
+    (item: Pod) => {
+      // Include the container in the activity id so that switching containers
+      // via ?container= opens a fresh panel with the new initialContainer
+      // instead of just un-minimizing the existing one (launchActivity does
+      // not re-render content for an already-open id).
+      const containerSuffix = autoLaunchContainer ? `-${autoLaunchContainer}` : '';
+      const activityId = `pod-environment-${item.metadata.uid}${containerSuffix}`;
+      Activity.launch({
+        id: activityId,
+        title: t('translation|Environment: {{ itemName }}', { itemName: item.metadata.name }),
+        cluster: item.cluster,
+        icon: <Icon icon="mdi:variable" width="100%" height="100%" />,
+        location: 'full',
+        content: (
+          <PodEnvironmentVariables
+            item={item}
+            initialContainer={autoLaunchContainer}
+            onClose={() => Activity.close(activityId)}
+          />
+        ),
+      });
+    },
+    [t, autoLaunchContainer]
   );
 
   const launchTerminal = React.useCallback(
@@ -677,6 +705,22 @@ export default function PodDetails(props: PodDetailsProps) {
       launchTerminal(podItem);
     }
   }, [podItem, launchTerminal, autoLaunchView, autoLaunchContainer]);
+
+  React.useEffect(() => {
+    if (autoLaunchView !== 'env') {
+      lastAutoLaunchedPodEnv.current = null;
+      return;
+    }
+
+    if (
+      podItem &&
+      autoLaunchView === 'env' &&
+      lastAutoLaunchedPodEnv.current !== `${podItem.metadata.uid}:${autoLaunchContainer ?? ''}`
+    ) {
+      lastAutoLaunchedPodEnv.current = `${podItem.metadata.uid}:${autoLaunchContainer ?? ''}`;
+      launchEnvironment(podItem);
+    }
+  }, [podItem, launchEnvironment, autoLaunchView, autoLaunchContainer]);
 
   function prepareExtraInfo(item: Pod | null) {
     let extraInfo: (NameValueTableRow & { hideLabel?: boolean })[] = [];
@@ -852,6 +896,18 @@ export default function PodDetails(props: PodDetailsProps) {
                   description={t('Terminal / Exec')}
                   icon="mdi:console"
                   onClick={() => launchTerminal(item)}
+                />
+              </AuthVisible>
+            ),
+          },
+          {
+            id: DefaultHeaderAction.POD_ENVIRONMENT,
+            action: (
+              <AuthVisible item={item} authVerb="create" subresource="exec">
+                <ActionButton
+                  description={t('translation|Environment variables')}
+                  icon="mdi:variable"
+                  onClick={() => launchEnvironment(item)}
                 />
               </AuthVisible>
             ),
