@@ -19,6 +19,7 @@ package helm
 import (
 	"errors"
 	"io/fs"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -53,15 +54,44 @@ func TestEnsureRepositoryFileLocked(t *testing.T) {
 		lockErr := fs.ErrPermission
 
 		err := ensureRepositoryFileLocked(false, lockErr)
-
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, lockErr))
 	})
 
 	t.Run("not_locked_without_error", func(t *testing.T) {
 		err := ensureRepositoryFileLocked(false, nil)
-
 		require.Error(t, err)
 		assert.True(t, errors.Is(err, errRepositoryLockNotAcquired))
+	})
+}
+
+func TestCreateFullPathDoesNotTruncateExistingFile(t *testing.T) {
+	t.Run("creates_new_file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		path := filepath.Join(tmpDir, "repos", "test.yaml")
+
+		err := createFullPath(path)
+		require.NoError(t, err)
+
+		_, err = os.Stat(path)
+		assert.NoError(t, err)
+	})
+
+	t.Run("does_not_truncate_existing_file", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		path := filepath.Join(tmpDir, "repos", "test.yaml")
+
+		// Create the file with some content
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), defaultNewConfigFolderMode))
+		require.NoError(t, os.WriteFile(path, []byte("existing content"), defaultNewConfigFileMode))
+
+		// Call createFullPath again - it should not truncate the file
+		err := createFullPath(path)
+		require.NoError(t, err)
+
+		// Verify the content is still there
+		content, err := os.ReadFile(path)
+		require.NoError(t, err)
+		assert.Equal(t, "existing content", string(content))
 	})
 }
