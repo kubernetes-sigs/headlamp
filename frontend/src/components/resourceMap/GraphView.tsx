@@ -196,18 +196,21 @@ function GraphViewContent({
   // Group the graph
   const [allNamespaces] = Namespace.useList();
   const [allNodes] = K8sNode.useList();
+
+  const activeNamespaces = groupBy === 'namespace' ? allNamespaces : undefined;
+  const activeNodes = groupBy === 'node' ? allNodes : undefined;
+
   const { visibleGraph, fullGraph } = useMemo(() => {
     const graph = groupGraph(filteredGraph.nodes, filteredGraph.edges, {
       groupBy,
-      namespaces: allNamespaces ?? [],
-      k8sNodes: allNodes ?? [],
+      namespaces: activeNamespaces ?? [],
+      k8sNodes: activeNodes ?? [],
     });
 
     const visibleGraph = collapseGraph(graph, { selectedNodeId, expandAll });
 
     return { visibleGraph, fullGraph: graph };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredGraph, groupBy, selectedNodeId, expandAll, allNamespaces]);
+  }, [filteredGraph, groupBy, selectedNodeId, expandAll, activeNamespaces, activeNodes]);
 
   const viewport = useGraphViewport();
 
