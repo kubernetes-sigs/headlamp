@@ -17,7 +17,13 @@
 /// <reference types="@testing-library/jest-dom" />
 import '@testing-library/jest-dom/vitest';
 import indexeddb from 'fake-indexeddb';
+import { transferableAbortController } from 'node:util';
 
+const NativeAbortController = transferableAbortController().constructor;
+const NativeAbortSignal = transferableAbortController().signal.constructor;
+
+globalThis.AbortController = NativeAbortController as any;
+globalThis.AbortSignal = NativeAbortSignal as any;
 globalThis.indexedDB = indexeddb;
 
 if (typeof TextDecoder === 'undefined' && typeof require !== 'undefined') {

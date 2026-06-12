@@ -176,9 +176,11 @@ export type GraphSource = {
 );
 
 export interface Relation {
+  id: string;
   fromSource: string;
   toSource?: string;
   predicate: (from: GraphNode, to: GraphNode) => boolean;
+  label?: string;
 }
 
 /**
