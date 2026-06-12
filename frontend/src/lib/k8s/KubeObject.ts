@@ -15,8 +15,8 @@
  */
 
 import { JSONPath } from 'jsonpath-plus';
-import cloneDeep from 'lodash/cloneDeep';
-import unset from 'lodash/unset';
+import * as cloneDeep from 'lodash/cloneDeep';
+import * as unset from 'lodash/unset';
 import React, { useMemo } from 'react';
 import { loadClusterSettings } from '../../helpers/clusterSettings';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../cluster';

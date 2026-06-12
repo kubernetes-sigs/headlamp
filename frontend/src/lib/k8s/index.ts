@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import _ from 'lodash';
+import * as _ from 'lodash';
 import React, { useContext, useMemo } from 'react';
 import { useHistory, useLocation } from 'react-router-dom';
 import { ConfigState } from '../../redux/configSlice';

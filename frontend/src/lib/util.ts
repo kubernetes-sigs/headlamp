@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import merge from 'lodash/merge';
+import * as merge from 'lodash/merge';
 import React from 'react';
 import { useHistory } from 'react-router';
 import { filterGeneric, filterResource } from '../redux/filterSlice';
