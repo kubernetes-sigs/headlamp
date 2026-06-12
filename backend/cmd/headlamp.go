@@ -80,11 +80,16 @@ import (
 type HeadlampConfig struct {
 	*headlampconfig.HeadlampConfig
 	proxyURLMu        sync.Mutex
-	compiledProxyURLs []glob.Glob
+	compiledProxyURLs []proxyURLAllowlistEntry
 }
 
-func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
-	compiledProxyURLs := make([]glob.Glob, 0, len(patterns))
+type proxyURLAllowlistEntry struct {
+	pattern string
+	matcher glob.Glob
+}
+
+func compileProxyURLPatterns(patterns []string) ([]proxyURLAllowlistEntry, error) {
+	compiledProxyURLs := make([]proxyURLAllowlistEntry, 0, len(patterns))
 
 	for _, pattern := range patterns {
 		g, err := glob.Compile(pattern)
@@ -92,7 +97,10 @@ func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
 			return nil, fmt.Errorf("compiling proxy URL pattern %q: %w", pattern, err)
 		}
 
-		compiledProxyURLs = append(compiledProxyURLs, g)
+		compiledProxyURLs = append(compiledProxyURLs, proxyURLAllowlistEntry{
+			pattern: pattern,
+			matcher: g,
+		})
 	}
 
 	return compiledProxyURLs, nil
@@ -115,13 +123,19 @@ func (c *HeadlampConfig) proxyURLAllowed(proxyURL string) (bool, error) {
 	compiledProxyURLs := c.compiledProxyURLs
 	c.proxyURLMu.Unlock()
 
-	for _, g := range compiledProxyURLs {
-		if g.Match(proxyURL) {
-			return true, nil
+	allowed := matchProxyURLAllowlist(proxyURL, compiledProxyURLs)
+
+	return allowed, nil
+}
+
+func matchProxyURLAllowlist(proxyURL string, allowlist []proxyURLAllowlistEntry) bool {
+	for _, entry := range allowlist {
+		if entry.matcher.Match(proxyURL) {
+			return true
 		}
 	}
 
-	return false, nil
+	return false
 }
 
 const DrainNodeCacheTTL = 20 // seconds
@@ -150,6 +164,30 @@ var maxProxyResponseSize int64 = 100 * 1024 * 1024
 //
 //nolint:gochecknoglobals // allow test override
 var externalProxyTimeout = 30 * time.Second
+
+type proxyURLListContextKey struct{}
+
+//nolint:gochecknoglobals // shared client preserves connection pooling for external proxy requests
+var externalProxyHTTPClient = &http.Client{
+	Transport: newExternalProxyTransport(),
+	CheckRedirect: func(req *http.Request, via []*http.Request) error {
+		if len(via) >= 10 {
+			return fmt.Errorf("stopped after 10 redirects while requesting %q", req.URL.Redacted())
+		}
+
+		proxyURLAllowlist, ok := req.Context().Value(proxyURLListContextKey{}).([]proxyURLAllowlistEntry)
+		if !ok || len(proxyURLAllowlist) == 0 {
+			// If not an external proxy request or no allowlist provided, do not follow redirects
+			return http.ErrUseLastResponse
+		}
+
+		if !matchProxyURLAllowlist(req.URL.String(), proxyURLAllowlist) {
+			return fmt.Errorf("redirect target %q not in allowlist", req.URL.Redacted())
+		}
+
+		return nil
+	},
+}
 
 const kubeConfigSource = "kubeconfig" // source for kubeconfig contexts
 
@@ -551,6 +589,25 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	logger.Log(logger.LevelInfo, nil, nil, "Dynamic clusters support: "+fmt.Sprint(config.EnableDynamicClusters))
 	logger.Log(logger.LevelInfo, nil, nil, "Helm support: "+fmt.Sprint(config.EnableHelm))
 	logger.Log(logger.LevelInfo, nil, nil, "Proxy URLs: "+fmt.Sprint(config.ProxyURLs))
+
+	config.proxyURLMu.Lock()
+
+	proxyURLAllowlist := config.compiledProxyURLs
+	if proxyURLAllowlist == nil {
+		var err error
+
+		proxyURLAllowlist, err = compileProxyURLPatterns(config.ProxyURLs)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, nil,
+				"Invalid ProxyURLs configuration; disabling /externalproxy: "+err.Error())
+
+			proxyURLAllowlist = []proxyURLAllowlistEntry{}
+		}
+
+		config.compiledProxyURLs = proxyURLAllowlist
+	}
+
+	config.proxyURLMu.Unlock()
 	logger.Log(logger.LevelInfo, nil, nil, "TLS certificate path: "+config.TLSCertPath)
 	logger.Log(logger.LevelInfo, nil, nil, "TLS key path: "+config.TLSKeyPath)
 	logger.Log(logger.LevelInfo, nil, nil, "me Username Paths: "+config.MeUsernamePaths)
@@ -695,7 +752,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		url, err := url.Parse(proxyURL)
+		targetURL, err := url.Parse(proxyURL)
 		if err != nil {
 			logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL},
 				err, "The provided proxy URL is invalid")
@@ -704,22 +761,18 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		isURLContainedInProxyURLs, err := config.proxyURLAllowed(url.String())
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL}, err, "compiling proxy URL patterns")
-			http.Error(w, "failed to compile proxy URL patterns", http.StatusInternalServerError)
+		if !matchProxyURLAllowlist(targetURL.String(), proxyURLAllowlist) {
+			denyErr := errors.New("no allowed proxy url match, request denied")
+			logger.Log(logger.LevelError, map[string]string{"proxyURL": targetURL.Redacted()},
+				denyErr, "no allowed proxy url match, request denied")
+			http.Error(w, "no allowed proxy url match, request denied", http.StatusBadRequest)
 
 			return
 		}
 
-		if !isURLContainedInProxyURLs {
-			logger.Log(logger.LevelError, nil, err, "no allowed proxy url match, request denied")
-			http.Error(w, "no allowed proxy url match, request denied ", http.StatusBadRequest)
+		proxyCtx := context.WithValue(r.Context(), proxyURLListContextKey{}, proxyURLAllowlist)
 
-			return
-		}
-
-		proxyCtx, cancel := context.WithTimeout(r.Context(), externalProxyTimeout)
+		proxyCtx, cancel := context.WithTimeout(proxyCtx, externalProxyTimeout)
 		defer cancel()
 
 		proxyReq, err := http.NewRequestWithContext(proxyCtx, r.Method, proxyURL, r.Body) //nolint:gosec
@@ -732,7 +785,17 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 		// We may want to filter some headers, otherwise we could just use a shallow copy
 		proxyReq.Header = make(http.Header)
+		connectionHeaderTokens := externalProxyConnectionHeaderTokens(r.Header)
+
 		for h, val := range r.Header {
+			if shouldFilterExternalProxyRequestHeader(h) {
+				continue
+			}
+
+			if _, ok := connectionHeaderTokens[strings.ToLower(h)]; ok {
+				continue
+			}
+
 			proxyReq.Header[h] = val
 		}
 
@@ -742,12 +805,10 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("X-Accel-Expires", "0")
 
-		client := http.Client{}
-
-		resp, err := client.Do(proxyReq) //nolint:gosec
+		resp, err := externalProxyHTTPClient.Do(proxyReq) //nolint:gosec
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "making request")
-			http.Error(w, err.Error(), http.StatusBadGateway)
+			http.Error(w, "external proxy request failed", http.StatusBadGateway)
 
 			return
 		}
@@ -792,6 +853,15 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		if resp.ContentLength > maxProxyResponseSize {
 			logger.Log(logger.LevelError, nil, nil, "proxy response exceeded maximum allowed size (Content-Length)")
 			http.Error(w, "response too large", http.StatusBadGateway)
+
+			return
+		}
+
+		// Prevent unexpected or unfollowed redirects from being returned or breaking the proxy.
+		if resp.StatusCode >= 300 && resp.StatusCode <= 399 && resp.StatusCode != http.StatusNotModified {
+			logger.Log(logger.LevelError, nil, nil,
+				fmt.Sprintf("proxy response returned an unexpected or unfollowed redirect (status %d)", resp.StatusCode))
+			http.Error(w, "external proxy request failed: unexpected redirect", http.StatusBadGateway)
 
 			return
 		}
@@ -1363,6 +1433,63 @@ func isLoopbackAddr(addr string) bool {
 	ip := net.ParseIP(strings.Trim(addr, "[]"))
 
 	return ip != nil && ip.IsLoopback()
+}
+
+func shouldFilterExternalProxyRequestHeader(headerName string) bool {
+	hLower := strings.ToLower(headerName)
+
+	if hLower == "authorization" ||
+		hLower == "cookie" ||
+		hLower == "accept-encoding" ||
+		hLower == "proxy-authorization" ||
+		strings.HasPrefix(hLower, "x-headlamp-") ||
+		strings.HasPrefix(hLower, "x-headlamp_") {
+		return true
+	}
+
+	switch hLower {
+	case "connection",
+		"forward-to",
+		"keep-alive",
+		"proxy-connection",
+		"proxy-to",
+		"te",
+		"trailer",
+		"transfer-encoding",
+		"upgrade":
+		return true
+	default:
+		return false
+	}
+}
+
+func externalProxyConnectionHeaderTokens(headers http.Header) map[string]struct{} {
+	tokens := map[string]struct{}{}
+
+	for _, headerValue := range headers.Values("Connection") {
+		for _, token := range strings.Split(headerValue, ",") {
+			token = strings.ToLower(strings.TrimSpace(token))
+			if token != "" {
+				tokens[token] = struct{}{}
+			}
+		}
+	}
+
+	return tokens
+}
+
+func newExternalProxyTransport() http.RoundTripper {
+	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
+	if !ok {
+		return &http.Transport{
+			DisableCompression: true,
+		}
+	}
+
+	transport := defaultTransport.Clone()
+	transport.DisableCompression = true
+
+	return transport
 }
 
 // allowedHosts returns the set of normalized host values that are considered
