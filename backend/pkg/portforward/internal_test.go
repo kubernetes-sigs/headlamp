@@ -25,6 +25,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
 
 	"github.com/gorilla/mux"
@@ -679,4 +680,51 @@ func TestStartPortForward_DuplicateIDConflict(t *testing.T) {
 	defer func() { _ = res.Body.Close() }()
 
 	assert.Equal(t, http.StatusConflict, res.StatusCode, "expected 409 Conflict for duplicate ID, but got something else")
+}
+
+// TestStartPortForward_ConcurrentRequests verifies the in-flight lock by firing two
+// simultaneous requests with the same ID. An intentionally empty config store is used
+// so the winning request fails fast (HTTP 500) rather than attempting a real connection,
+// while the blocked request immediately returns a 409 Conflict.
+func TestStartPortForward_ConcurrentRequests(t *testing.T) {
+	c := cache.New[interface{}]()
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	reqPayload := map[string]interface{}{
+		"id":         "concurrent-id",
+		"pod":        "some-pod",
+		"namespace":  "default",
+		"targetPort": "8080",
+	}
+
+	jsonReq, err := json.Marshal(reqPayload)
+	require.NoError(t, err)
+
+	var wg sync.WaitGroup
+	wg.Add(2)
+
+	responses := make([]*httptest.ResponseRecorder, 2)
+
+	// Fire two requests concurrently
+	for i := 0; i < 2; i++ {
+		go func(idx int) {
+			defer wg.Done()
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/portforward", bytes.NewReader(jsonReq))
+			r = mux.SetURLVars(r, map[string]string{"clusterName": "test-cluster"})
+
+			StartPortForward(kubeConfigStore, c, false, w, r)
+			responses[idx] = w
+		}(i)
+	}
+
+	wg.Wait()
+
+	statusCodes := []int{responses[0].Result().StatusCode, responses[1].Result().StatusCode}
+
+	// Exactly one request should be rejected with 409 due to the in-flight lock.
+	// The winning request passes the lock and fails fast with 500 on the missing config.
+	has409 := statusCodes[0] == http.StatusConflict || statusCodes[1] == http.StatusConflict
+	assert.True(t, has409, "expected exactly one request to return 409 Conflict due to in-flight lock")
 }

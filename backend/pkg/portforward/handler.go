@@ -57,6 +57,8 @@ const (
 	PortForwardReadinessTimeout = 30 * time.Second
 )
 
+var inFlightPortForwards sync.Map
+
 type portForwardRequest struct {
 	ID               string `json:"id"`
 	Namespace        string `json:"namespace"`
@@ -178,7 +180,22 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		clusterName += userID
 	}
 
-	// Ensure we don't orphan an existing port-forward by overwriting its cache entry
+	// Acquire an in-memory lock for this specific cluster+ID combination.
+	// This prevents duplicate requests from passing the cache check while the
+	// first request is still connecting to Kubernetes and has not yet written
+	// the RUNNING entry to the cache.
+	inFlightKey := clusterName + ":" + p.ID
+	if _, loaded := inFlightPortForwards.LoadOrStore(inFlightKey, struct{}{}); loaded {
+		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName, "id": p.ID},
+			nil, "portforward ID is already starting")
+		http.Error(w, "portforward with this ID is already starting", http.StatusConflict)
+
+		return
+	}
+
+	defer inFlightPortForwards.Delete(inFlightKey)
+
+	// Ensure we don't orphan an existing port-forward by overwriting its cache entry.
 	if existingPF, err := getPortForwardByID(cache, clusterName, p.ID); err == nil && existingPF.Status == RUNNING {
 		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName, "id": p.ID},
 			nil, "portforward ID already exists")
@@ -191,6 +208,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
 			err, "getting kubeconfig context")
+
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
@@ -204,6 +222,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 	err = startPortForward(kContext, cache, p, token, clusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting portforward")
+
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
