@@ -16,6 +16,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import React, { useEffect } from 'react';
+import { getCluster } from '../../../lib/cluster';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
 
@@ -56,54 +57,67 @@ export interface AuthVisibleProps extends React.PropsWithChildren<{}> {
 export default function AuthVisible(props: AuthVisibleProps) {
   const { item, authVerb, subresource, namespace, onError, onAuthResult, children } = props;
 
-  if (!VALID_AUTH_VERBS.includes(authVerb)) {
-    console.warn(`Invalid authVerb provided: "${authVerb}". Skipping authorization check.`);
-    return null;
-  }
+  const isValidVerb = VALID_AUTH_VERBS.includes(authVerb);
 
   const itemClass: KubeObjectClass | null = (item as KubeObject)?._class?.() ?? item;
   const itemName = (item as KubeObject)?.getName?.();
+  const cluster = (item as KubeObject)?.cluster ?? (getCluster() ?? undefined);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { data } = useQuery<any>({
-    enabled: !!item,
+    enabled: !!itemClass && isValidVerb,
+
     queryKey: [
       'authVisible',
+      cluster,
       itemName,
-      itemClass.apiName,
-      itemClass.apiVersion,
+      itemClass?.apiName,
+      itemClass?.apiVersion,
       authVerb,
       subresource,
       namespace,
     ],
     queryFn: async () => {
       try {
-        const res = await item!.getAuthorization(
-          authVerb,
-          { subresource, namespace },
-          (item as any).cluster
-        );
-        return res;
+        if (!item) {
+          return null;
+        }
+
+        if (item instanceof KubeObject) {
+          return item.getAuthorization(authVerb, {
+            subresource,
+            namespace,
+          });
+        }
+
+        return await item.getAuthorization(authVerb, { subresource, namespace }, cluster);
       } catch (e: any) {
         onError?.(e);
+        return null;
       }
     },
   });
 
-  const visible = data?.status?.allowed ?? false;
+  const visible = isValidVerb && (data?.status?.allowed ?? false);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useEffect(() => {
-    if (data) {
-      onAuthResult?.({
-        allowed: visible,
-        reason: data.status?.reason ?? '',
-      });
+    if (!isValidVerb || !data) {
+      return;
     }
+    onAuthResult?.({
+      allowed: visible,
+      reason: data.status?.reason ?? '',
+    });
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
-  if (!visible) {
+  useEffect(() => {
+    if (!isValidVerb) {
+      console.warn(`Invalid authVerb provided: "${authVerb}". Skipping authorization check.`);
+    }
+  }, [isValidVerb, authVerb]);
+
+  if (!isValidVerb || !visible) {
     return null;
   }
 
