@@ -31,6 +31,7 @@
   "Ephemeral Containers": "الحاويات المؤقتة",
   "Owner": "المالك",
   "Container": "الحاوية",
+  "Pod": "",
   "Config Maps": "خرائط الإعدادات",
   "Definition": "التعريف",
   "CRD: {{ crdName }}": "CRD: {{ crdName }}",

@@ -31,6 +31,7 @@
   "Ephemeral Containers": "Ephemeral 컨테이너",
   "Owner": "",
   "Container": "컨테이너",
+  "Pod": "",
   "Config Maps": "Config 맵",
   "Definition": "정의",
   "CRD: {{ crdName }}": "CRD: {{ crdName }}",
