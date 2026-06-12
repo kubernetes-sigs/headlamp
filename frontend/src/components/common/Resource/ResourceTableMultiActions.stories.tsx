@@ -404,6 +404,112 @@ export const DeleteConfirmationDialogError: StoryObj = {
   },
 };
 
+// Open edit metadata dialog
+export const EditMetadataDialogOpen: StoryObj = {
+  render: () => <ResourceTableMultiActions table={makeMockTable([mockDeployment])} />,
+  parameters: {
+    storyshots: {
+      disable: true,
+    },
+  },
+  play: async () => {
+    await userEvent.click(screen.getByLabelText('Edit metadata'));
+
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: 'Edit metadata' })).toBeVisible()
+    );
+
+    expect(screen.getByText(/deployment/i)).toBeVisible();
+  },
+};
+
+// Cancel edit metadata dialog
+export const EditMetadataDialogCancel: StoryObj = {
+  render: () => <ResourceTableMultiActions table={makeMockTable([mockDeployment])} />,
+  parameters: {
+    storyshots: {
+      disable: true,
+    },
+  },
+  play: async () => {
+    await userEvent.click(screen.getByLabelText('Edit metadata'));
+
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: 'Edit metadata' })).toBeVisible()
+    );
+
+    await userEvent.click(screen.getByTestId('cancel-button'));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Edit metadata' })).not.toBeInTheDocument()
+    );
+  },
+};
+
+// Confirm edit metadata for multiple items
+export const EditMetadataMultipleConfirm: StoryObj = {
+  render: () => (
+    <ResourceTableMultiActions
+      table={makeMockTable([mockDeployment, mockStatefulSet, mockDaemonSet])}
+    />
+  ),
+  parameters: {
+    storyshots: {
+      disable: true,
+    },
+  },
+  play: async () => {
+    await userEvent.click(screen.getByLabelText('Edit metadata'));
+
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: 'Edit metadata' })).toBeVisible()
+    );
+
+    // Type a label key and value
+    await userEvent.type(screen.getByLabelText('label-key-0'), 'environment');
+    await userEvent.type(screen.getByLabelText('label-value-0'), 'production');
+
+    await userEvent.click(screen.getByTestId('confirm-button'));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Edit metadata' })).not.toBeInTheDocument()
+    );
+  },
+};
+
+// Edit metadata error
+export const EditMetadataDialogError: StoryObj = {
+  render: () => <ResourceTableMultiActions table={makeMockTable([mockDeploymentError])} />,
+  parameters: {
+    storyshots: {
+      disable: true,
+    },
+  },
+  play: async () => {
+    await userEvent.click(screen.getByLabelText('Edit metadata'));
+
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: 'Edit metadata' })).toBeVisible()
+    );
+
+    await userEvent.type(screen.getByLabelText('label-key-0'), 'env');
+    await userEvent.type(screen.getByLabelText('label-value-0'), 'test');
+
+    await userEvent.click(screen.getByTestId('confirm-button'));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Edit metadata' })).not.toBeInTheDocument()
+    );
+
+    await waitFor(
+      () => {
+        expect(screen.getByText(/Failed to update metadata for 1 of 1 items/)).toBeVisible();
+      },
+      { timeout: 3000 }
+    );
+  },
+};
+
 // Restart Error
 export const RestartConfirmationDialogError: StoryObj = {
   render: () => <ResourceTableMultiActions table={makeMockTable([mockDeploymentError])} />,

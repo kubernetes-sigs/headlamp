@@ -42,6 +42,8 @@ export { default as DocsViewer } from './DocsViewer';
 export { default as DryRunPreviewDialog } from './DryRunPreviewDialog';
 export * from './EditButton';
 export { default as EditButton } from './EditButton';
+export * from './EditMetadataMultipleButton';
+export { default as EditMetadataMultipleButton } from './EditMetadataMultipleButton';
 export * from './DownloadButton';
 export { default as DownloadButton } from './DownloadButton';
 export * from './EditorDialog';
