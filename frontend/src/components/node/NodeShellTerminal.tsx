@@ -27,7 +27,7 @@ import { getCluster } from '../../lib/cluster';
 import { apply } from '../../lib/k8s/api/v1/apply';
 import { stream, StreamResultsCb } from '../../lib/k8s/api/v1/streamingApi';
 import Node from '../../lib/k8s/node';
-import { KubePod } from '../../lib/k8s/pod';
+import Pod, { KubePod } from '../../lib/k8s/pod';
 import { Channel, useTerminalStream, XTerminalConnected } from '../../lib/k8s/useTerminalStream';
 
 interface NodeShellTerminalProps {
@@ -136,6 +136,8 @@ async function shell(item: Node, onExec: StreamResultsCb) {
   ];
   return {
     stream: stream(url, onExec, { additionalProtocols, isJson: false }),
+    podName,
+    namespace,
   };
 }
 
@@ -144,12 +146,24 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
   const [terminalContainerRef, setTerminalContainerRef] = useState<HTMLElement | null>(null);
   const exitSentRef = useRef(false);
   const pendingExitRef = useRef(false);
+  const shellPodInfoRef = useRef<{ podName: string; namespace: string } | null>(null);
+  const unmountedRef = useRef(false);
 
   const { xtermRef, streamRef, send } = useTerminalStream({
     containerRef: terminalContainerRef,
     connectStream: async onDataCallback => {
       xtermRef.current?.xterm.writeln('Trying to open a shell');
-      const { stream } = await shell(item, onDataCallback);
+      const { stream, podName, namespace } = await shell(item, onDataCallback);
+      if (podName && namespace) {
+        if (unmountedRef.current) {
+          // Component already unmounted while pod was being created — delete immediately
+          Pod.apiEndpoint
+            .delete(namespace, podName)
+            .catch((err: unknown) => console.error('Failed to delete node shell pod:', err));
+        } else {
+          shellPodInfoRef.current = { podName, namespace };
+        }
+      }
       return {
         stream,
       };
@@ -195,6 +209,15 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
 
   function wrappedOnClose() {
     requestShellExit('dialog-close');
+
+    if (shellPodInfoRef.current) {
+      const { podName, namespace } = shellPodInfoRef.current;
+      shellPodInfoRef.current = null; // Clear first to prevent double-delete on unmount
+      Pod.apiEndpoint
+        .delete(namespace, podName)
+        .catch((err: unknown) => console.error('Failed to delete node shell pod:', err));
+    }
+
     if (onClose) {
       onClose();
     }
@@ -262,6 +285,16 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      unmountedRef.current = true;
+      if (shellPodInfoRef.current) {
+        const { podName, namespace } = shellPodInfoRef.current;
+        shellPodInfoRef.current = null;
+        Pod.apiEndpoint
+          .delete(namespace, podName)
+          .catch((err: unknown) =>
+            console.error('Failed to delete node shell pod on unmount:', err)
+          );
+      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
