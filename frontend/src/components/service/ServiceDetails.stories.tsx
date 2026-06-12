@@ -289,6 +289,18 @@ export const Default = Template.bind({});
 Default.parameters = {
   msw: {
     handlers: {
+      metrics: http.get(
+        'http://localhost:4466/apis/metrics.k8s.io/v1beta1/namespaces/default/pods',
+        () =>
+          HttpResponse.json({
+            items: [],
+          })
+      ),
+      pods: http.get('http://localhost:4466/api/v1/namespaces/default/pods', () =>
+        HttpResponse.json({
+          items: [],
+        })
+      ),
       story: [
         http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
@@ -324,6 +336,18 @@ export const ErrorWithEndpoints = Template.bind({});
 ErrorWithEndpoints.parameters = {
   msw: {
     handlers: {
+      metrics: http.get(
+        'http://localhost:4466/apis/metrics.k8s.io/v1beta1/namespaces/default/pods',
+        () =>
+          HttpResponse.json({
+            items: [],
+          })
+      ),
+      pods: http.get('http://localhost:4466/api/v1/namespaces/default/pods', () =>
+        HttpResponse.json({
+          items: [],
+        })
+      ),
       story: [
         http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
@@ -350,6 +374,18 @@ export const WithA8RAnnotations = TemplateA8R.bind({});
 WithA8RAnnotations.parameters = {
   msw: {
     handlers: {
+      metrics: http.get(
+        'http://localhost:4466/apis/metrics.k8s.io/v1beta1/namespaces/default/pods',
+        () =>
+          HttpResponse.json({
+            items: [],
+          })
+      ),
+      pods: http.get('http://localhost:4466/api/v1/namespaces/default/pods', () =>
+        HttpResponse.json({
+          items: [],
+        })
+      ),
       story: [
         http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
@@ -387,6 +423,18 @@ export const WithA8ROwnerOnly = TemplateA8ROwnerOnly.bind({});
 WithA8ROwnerOnly.parameters = {
   msw: {
     handlers: {
+      metrics: http.get(
+        'http://localhost:4466/apis/metrics.k8s.io/v1beta1/namespaces/default/pods',
+        () =>
+          HttpResponse.json({
+            items: [],
+          })
+      ),
+      pods: http.get('http://localhost:4466/api/v1/namespaces/default/pods', () =>
+        HttpResponse.json({
+          items: [],
+        })
+      ),
       story: [
         http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })

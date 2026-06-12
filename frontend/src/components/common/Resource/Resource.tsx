@@ -1730,8 +1730,18 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
   } else {
     namespace = resource.metadata.namespace;
   }
+
   let labelSelector = '';
-  if (resource?.jsonData?.spec?.selector) {
+
+  if (resource.kind === 'Service') {
+    const serviceSelector = resource?.jsonData?.spec?.selector;
+
+    if (serviceSelector && Object.keys(serviceSelector).length > 0) {
+      labelSelector = labelSelectorToQuery({
+        matchLabels: serviceSelector,
+      });
+    }
+  } else if (resource?.jsonData?.spec?.selector) {
     labelSelector = labelSelectorToQuery(resource?.jsonData?.spec?.selector);
   } else if (resource.kind === 'JobSet') {
     labelSelector = `jobset.sigs.k8s.io/jobset-name=${resource.metadata.name}`;
@@ -1743,18 +1753,36 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
     fieldSelector: resource.kind === 'Node' ? `spec.nodeName=${resource.metadata.name}` : undefined,
     cluster: resource.cluster,
   };
+
   const podMetricsQueryData = {
     ...queryData,
     // The metrics.k8s.io pod metrics list endpoint does not support spec.nodeName field selectors.
     fieldSelector: undefined,
   };
 
-  const { items: pods, errors } = Pod.useList(queryData);
+  const hasValidSelector = resource.kind !== 'Service' || !!labelSelector;
+
+  const { items: pods, errors } = Pod.useList(
+    hasValidSelector
+      ? queryData
+      : {
+          ...queryData,
+          labelSelector: 'headlamp.dev/no-match=true',
+        }
+  );
+
   const { items: podMetrics } = PodMetrics.useList({
-    ...podMetricsQueryData,
+    ...(hasValidSelector
+      ? podMetricsQueryData
+      : {
+          ...podMetricsQueryData,
+          labelSelector: 'headlamp.dev/no-match=true',
+        }),
     refetchInterval: METRIC_REFETCH_INTERVAL_MS,
   });
+
   const resourceRef = React.useRef(resource);
+
   const resourceIdentity = [
     resource.cluster,
     resource.kind,
@@ -1771,7 +1799,12 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
     onPodsUpdate?.(resourceRef.current, pods, errors ?? null);
   }, [onPodsUpdate, resourceIdentity, pods, errors]);
 
+  if (!labelSelector && resource.kind === 'Service') {
+    return null;
+  }
+
   const onlyOneNamespace = !!resource.metadata.namespace || resource.kind === 'Namespace';
+
   const hideNamespaceFilter = onlyOneNamespace || noSearch;
 
   return (
