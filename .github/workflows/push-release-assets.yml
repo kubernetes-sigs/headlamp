@@ -41,17 +41,31 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          EXPECTED_SHA=$(git rev-list -n 1 "refs/tags/${{ inputs.release_name }}")
+          # Ensure tags are available
+          git fetch --tags --force origin
 
-          echo "Expected release SHA: $EXPECTED_SHA"
+          RELEASE_NAME="${{ inputs.release_name }}"
+          TAG_NAME="$RELEASE_NAME"
+
+          if ! git rev-parse "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
+            TAG_NAME="v$RELEASE_NAME"
+            if ! git rev-parse "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
+              echo "Error: Tag '$RELEASE_NAME' or 'v$RELEASE_NAME' not found."
+              exit 1
+            fi
+          fi
+
+          EXPECTED_SHA=$(git rev-list -n 1 "refs/tags/$TAG_NAME")
+
+          echo "Expected release SHA: $EXPECTED_SHA (from tag $TAG_NAME)"
 
           IFS=',' read -ra RUN_IDS <<< "${{ inputs.run_ids }}"
 
           for run_id in "${RUN_IDS[@]}"; do
-            run_id=$(echo $run_id | xargs)
+            run_id=$(echo "$run_id" | xargs)
 
             if [ -n "$run_id" ]; then
-              RUN_SHA=$(gh run view "$run_id" --json headSha -q .headSha)
+              RUN_SHA=$(gh run view "$run_id" --repo "${{ github.repository }}" --json headSha -q .headSha)
 
               echo "Run ID: $run_id"
               echo "Run SHA: $RUN_SHA"
@@ -61,7 +75,7 @@ jobs:
                 exit 1
               fi
             fi
-          done      
+          done
 
       - name: Download artifacts from workflow runs
         if: ${{ inputs.run_ids != '' }}
@@ -72,7 +86,7 @@ jobs:
           IFS=',' read -ra RUN_IDS <<< "${{ inputs.run_ids }}"
 
           for run_id in "${RUN_IDS[@]}"; do
-            run_id=$(echo $run_id | xargs)  # Trim whitespace
+            run_id=$(echo "$run_id" | xargs)  # Trim whitespace
             if [ -n "$run_id" ]; then
               echo "Downloading artifacts from run ID: $run_id"
 
@@ -81,7 +95,7 @@ jobs:
 
               # Download artifacts for this run ID
               # Note: This action will automatically download all artifacts from the run
-              gh run download $run_id --dir "./artifacts/run-$run_id"
+              gh run download "$run_id" --repo "${{ github.repository }}" --dir "./artifacts/run-$run_id"
             fi
           done
         env:
@@ -146,24 +160,26 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_UPDATE_TOKEN }}
         run: |
-          FORCE_FLAG=""
-          if [ "${{ github.event.inputs.force }}" == "true" ]; then
-            FORCE_FLAG="--force"
-          fi
-
           ARTIFACTS_PATH="$(pwd)/flattened-artifacts"
-          ASSETS=($(ls -1 $ARTIFACTS_PATH))
+          
+          # Gather assets safely into an array
+          ASSETS=()
+          while IFS= read -r -d '' file; do
+            ASSETS+=("$file")
+          done < <(find "$ARTIFACTS_PATH" -maxdepth 1 -type f -print0 | sort -z)
 
-          # Create the command with all artifact paths
           cd ./app/scripts/push-release-assets/
-          CMD="node push-release-assets.js $FORCE_FLAG ${{ inputs.release_name }}"
+          
+          # Build the command arguments
+          ARGS=()
+          if [ "${{ inputs.force }}" == "true" ]; then
+            ARGS+=("--force")
+          fi
+          ARGS+=("${{ inputs.release_name }}")
+          ARGS+=("${ASSETS[@]}")
 
-          for asset in "${ASSETS[@]}"; do
-            CMD+=" $ARTIFACTS_PATH/$asset"
-          done
-
-          echo "Executing: $CMD"
-          eval $CMD
+          echo "Executing: node push-release-assets.js ${ARGS[*]}"
+          node push-release-assets.js "${ARGS[@]}"
 
       - name: Create and sign checksums signature
         run: |
@@ -174,13 +190,13 @@ jobs:
           mkdir -p ./temp-checksums
 
           # Download the checksums.txt file that was just uploaded
-          gh release download ${{ inputs.release_name }} --pattern "checksums.txt" --dir ./temp-checksums --clobber
+          gh release download "${{ inputs.release_name }}" --repo "${{ github.repository }}" --pattern "checksums.txt" --dir ./temp-checksums --clobber
 
           # Create detached signature for checksums.txt
           gpg --batch --yes --passphrase-file "$CR_PASSPHRASE_FILE" --default-key "${{ secrets.GPG_SIGNING_KEY_NAME }}" --armor --detach-sign ./temp-checksums/checksums.txt
 
           # Upload the signature file
-          gh release upload ${{ inputs.release_name }} ./temp-checksums/checksums.txt.asc --clobber
+          gh release upload "${{ inputs.release_name }}" --repo "${{ github.repository }}" ./temp-checksums/checksums.txt.asc --clobber
 
           echo "Checksums signature created and uploaded successfully"
         env:
