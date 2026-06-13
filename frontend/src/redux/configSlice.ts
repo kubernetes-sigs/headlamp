@@ -92,7 +92,7 @@ export interface ConfigState {
   };
 }
 
-export const defaultTableRowsPerPageOptions = [15, 25, 50];
+export const defaultTableRowsPerPageOptions = [15, 25, 50, 100];
 
 function defaultTimezone() {
   return import.meta.env.UNDER_TEST ? 'UTC' : Intl.DateTimeFormat().resolvedOptions().timeZone;

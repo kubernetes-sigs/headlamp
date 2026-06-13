@@ -111,7 +111,7 @@ export type TableProps<RowItem extends Record<string, any>> = Omit<
   initialPage?: number;
   /**
    * List of options for the rows per page selector
-   * @example [15, 25, 50]
+   * @example [15, 25, 50, 100]
    */
   rowsPerPage?: number[];
   /**
