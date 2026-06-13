@@ -33,6 +33,7 @@ import { Activity } from '../../activity/Activity';
 import ActionButton, { ButtonStyle } from '../ActionButton';
 import AuthVisible from './AuthVisible';
 import EditorDialog from './EditorDialog';
+import { fetchLatestKubeObject } from './fetchLatestKubeObject';
 import ViewButton from './ViewButton';
 
 interface EditButtonProps {
@@ -53,6 +54,7 @@ export default function EditButton(props: EditButtonProps) {
   const activityId = 'edit-' + item.metadata.uid;
 
   const originalItemRef = React.useRef<KubeObjectInterface | null>(null);
+  const editorItemRef = React.useRef<KubeObject>(item);
 
   function makeErrorMessage(err: any) {
     const status = err?.status;
@@ -74,7 +76,7 @@ export default function EditButton(props: EditButtonProps) {
       throw new Error('Cannot compute patch: original resource state was not captured');
     }
     try {
-      await item.patchUpdate(original, newItem);
+      await editorItemRef.current.patchUpdate(original, newItem);
       // Use a normalized clone of the modified object (what the editor shows)
       // as the new baseline, not the server response which includes
       // server-managed fields the editor may not display.
@@ -140,21 +142,30 @@ export default function EditButton(props: EditButtonProps) {
       <ActionButton
         description={t('translation|Edit')}
         buttonStyle={buttonStyle}
-        onClick={() => {
+        onClick={async () => {
           if (afterConfirm) {
             afterConfirm();
           }
-          const editableObject = item.getEditableObject() as KubeObjectInterface;
+          let editorItem = item;
+          try {
+            editorItem = await fetchLatestKubeObject(item);
+          } catch (err) {
+            setErrorMessage(makeErrorMessage(err));
+          }
+
+          const editableObject = editorItem.getEditableObject() as KubeObjectInterface;
           // Normalize the baseline to match what EditorDialog presents to the
           // user (which by default hides metadata.managedFields). Otherwise a
           // "save without changes" produces a managedFields-only diff that
           // patchUpdate would reject.
           originalItemRef.current = normalizeBaselineForPatch(editableObject);
+          editorItemRef.current = editorItem;
+          Activity.close(activityId);
           Activity.launch({
             id: activityId,
-            title: t('translation|Edit') + ': ' + item.metadata.name,
+            title: t('translation|Edit') + ': ' + editorItem.metadata.name,
             icon: <Icon icon="mdi:pencil" />,
-            cluster: item.cluster,
+            cluster: editorItem.cluster,
             content: (
               <EditorDialog
                 noDialog
@@ -171,7 +182,7 @@ export default function EditButton(props: EditButtonProps) {
           });
 
           dispatchHeadlampEditEvent({
-            resource: item,
+            resource: editorItem,
             status: EventStatus.OPENED,
           });
         }}
