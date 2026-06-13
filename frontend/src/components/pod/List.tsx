@@ -207,10 +207,17 @@ export function PodListRenderer(props: PodListProps) {
   } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
+  const metricsMap = React.useMemo(() => {
+    const map = new Map<string, PodMetrics>();
+    (metrics || []).forEach(m => {
+      map.set(`${m.getNamespace()}/${m.getName()}`, m);
+    });
+    return map;
+  }, [metrics]);
+
   const getCpuUsage = (pod: Pod) => {
-    const metric = metrics?.find(
-      it => it.getName() === pod.getName() && it.getNamespace() === pod.getNamespace()
-    );
+    const metric = metricsMap.get(`${pod.getNamespace()}/${pod.getName()}`);
+
     if (!metric) return;
 
     return (
@@ -219,9 +226,8 @@ export function PodListRenderer(props: PodListProps) {
   };
 
   const getMemoryUsage = (pod: Pod) => {
-    const metric = metrics?.find(
-      it => it.getName() === pod.getName() && it.getNamespace() === pod.getNamespace()
-    );
+    const metric = metricsMap.get(`${pod.getNamespace()}/${pod.getName()}`);
+
     if (!metric) return;
 
     return (
