@@ -14,10 +14,17 @@
  * limitations under the License.
  */
 
-import { Page } from '@playwright/test';
+import { AxeBuilder } from '@axe-core/playwright';
+import { expect, Page } from '@playwright/test';
 
 export class SecurityPage {
   constructor(private page: Page) {}
+
+  async a11y() {
+    const axeBuilder = new AxeBuilder({ page: this.page });
+    const accessibilityResults = await axeBuilder.analyze();
+    expect(accessibilityResults.violations).toStrictEqual([]);
+  }
 
   async navigateToSecurity() {
     // Click on the "Security" button
