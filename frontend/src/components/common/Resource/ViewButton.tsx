@@ -21,6 +21,7 @@ import { KubeObject } from '../../../lib/k8s/cluster';
 import { Activity } from '../../activity/Activity';
 import ActionButton, { ButtonStyle } from '../ActionButton';
 import EditorDialog from './EditorDialog';
+import { fetchLatestKubeObject } from './fetchLatestKubeObject';
 
 export interface ViewButtonProps {
   /** The item we want to view */
@@ -33,18 +34,45 @@ export interface ViewButtonProps {
 function ViewButton({ item, buttonStyle, initialToggle }: ViewButtonProps) {
   const { t } = useTranslation();
   const activityId = 'yaml-' + item.metadata.uid;
+  const launchRequestRef = React.useRef(0);
 
-  const launchActivity = () => {
+  const launchActivity = async () => {
+    const requestId = ++launchRequestRef.current;
+    let editorItem = item;
+    try {
+      editorItem = await fetchLatestKubeObject(item);
+    } catch (err) {
+      if (requestId !== launchRequestRef.current) {
+        return;
+      }
+
+      console.error(
+        'Error while fetching latest resource for YAML view:',
+        {
+          kind: item.kind,
+          name: item.metadata.name,
+          namespace: item.metadata.namespace,
+          cluster: item.cluster,
+        },
+        err
+      );
+    }
+
+    if (requestId !== launchRequestRef.current) {
+      return;
+    }
+
+    Activity.close(activityId);
     Activity.launch({
       id: activityId,
-      title: item.metadata.name,
-      cluster: item.cluster,
+      title: editorItem.metadata.name,
+      cluster: editorItem.cluster,
       icon: <Icon icon="mdi:eye" />,
       location: 'window',
       content: (
         <EditorDialog
           noDialog
-          item={item.jsonData}
+          item={editorItem.jsonData}
           open
           allowToHideManagedFields
           onClose={() => Activity.close(activityId)}
