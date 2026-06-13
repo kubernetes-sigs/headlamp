@@ -49,6 +49,7 @@ test('headlamp is there and so is minikube', async () => {
 
 test('main page should have Network tab', async () => {
   await headlampPage.hasNetworkTab();
+  await headlampPage.a11y();
 });
 
 test('main page should have global search along with react-hotkey hint text', async () => {
@@ -75,11 +76,12 @@ test('react-hotkey for global search', async ({ page }) => {
 
 test('service page should have headlamp service', async () => {
   await servicesPage.navigateToServices();
+  await servicesPage.a11y();
   await servicesPage.clickOnServicesSection();
 
   // Check if there is text "headlamp" on the page
   await headlampPage.checkPageContent('headlamp');
-  await headlampPage.a11y();
+  await servicesPage.a11y();
 });
 
 test('headlamp service page should contain port', async () => {
@@ -94,6 +96,11 @@ test('headlamp service page should contain port', async () => {
 
 test('main page should have Security tab', async () => {
   await headlampPage.hasSecurityTab();
+});
+
+test('security page is accessible', async () => {
+  await securityPage.navigateToSecurity();
+  await securityPage.a11y();
 });
 
 test('Service account tab should have headlamp-admin', async () => {
