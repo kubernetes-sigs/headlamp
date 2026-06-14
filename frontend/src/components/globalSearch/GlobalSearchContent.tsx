@@ -155,13 +155,13 @@ function makeKubeObjectResults(
 }
 
 /**
- * Global search component
+ * The `GlobalSearchContent` component provides the search field and results list for global search.
+ * The default results include Kubernetes objects, clusters, app pages, namespace filters,
+ * theme switching, keyboard shortcut settings, and advanced search suggestions.
  *
- * Can search:
- *  - Kubernetes objects
- *  - Clusters
- *  - App Pages
- *  - Custom Actions
+ * @param props.maxWidth - The maximum width of the results list.
+ * @param props.defaultValue - The initial search query to display in the search field.
+ * @param props.onBlur - Callback called when the search field loses focus.
  */
 export function GlobalSearchContent({
   maxWidth,
