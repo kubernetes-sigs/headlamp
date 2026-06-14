@@ -66,6 +66,39 @@ headlamp-plugin --help
   headlamp-plugin.js uninstall [pluginName] Uninstall the plugin.
 ```
 
+## Scaffolding the Claude Code agent harness
+
+`create` accepts an opt-in `--with-claude-skills` flag:
+
+```
+headlamp-plugin create my-plugin --with-claude-skills
+```
+
+In addition to the default scaffold, this adds a Claude Code agent harness for
+building the plugin with an AI agent:
+
+- `CLAUDE.md` — always-on agent policy for a Headlamp plugin (replaces the
+  default `AGENTS.md`).
+- `.claude/skills/` — step-by-step skills for the CNCF/CRD plugin workflow
+  (`create-crd-plugin`, `plan-plugin`, `define-resource`, `add-list-view`,
+  `add-detail-view`, `add-settings`, `ensure-dependency`, `seed-test-data`,
+  `run-and-verify`, `document-plugin`).
+- `.claude/settings.json` — a permission allowlist for the common dev commands.
+- `.mcp.json` — the `kubernetes`, `helm` and `chrome-devtools` MCP servers the
+  skills use.
+
+Without the flag, `create` behaves exactly as before (default `AGENTS.md`, no
+`.claude/` or `.mcp.json`).
+
+To add the harness to an **existing** plugin, pass the same flag to `upgrade`:
+
+```
+headlamp-plugin upgrade --with-claude-skills
+```
+
+Existing harness files are left untouched, so it is safe to re-run; it only adds
+what is missing and drops `AGENTS.md` once `CLAUDE.md` is present.
+
 ## Template for installing plugins from a configuration file
 
 plugins.yaml:

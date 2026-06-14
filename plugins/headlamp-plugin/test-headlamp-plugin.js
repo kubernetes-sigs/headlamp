@@ -24,6 +24,7 @@ This tests unpublished @kinvolk/headlamp-plugin package in repo.
 Assumes being run within the plugins/headlamp-plugin folder
 `;
 const PACKAGE_NAME = 'headlamp-myfancy';
+const CLAUDE_PACKAGE_NAME = 'headlamp-myfancy-claude';
 
 function testHeadlampPlugin() {
   // remove some temporary files.
@@ -184,6 +185,55 @@ function testHeadlampPlugin() {
   if (fs.readFileSync(indexTsxPath, 'utf8').includes('@material-ui')) {
     exit(`Error: @material-ui imports in ${indexTsxPath}`);
   }
+
+  // test "create --with-claude-skills" scaffolds the Claude Code agent harness
+  // and drops the default AGENTS.md in favour of CLAUDE.md.
+  curDir = '.';
+  fs.rmSync(CLAUDE_PACKAGE_NAME, { recursive: true, force: true });
+  run('node', [
+    'bin/headlamp-plugin.js',
+    'create',
+    CLAUDE_PACKAGE_NAME,
+    '--link',
+    '--noinstall',
+    '--with-claude-skills',
+  ]);
+  checkFileExists(join(CLAUDE_PACKAGE_NAME, 'CLAUDE.md'));
+  checkFileExists(join(CLAUDE_PACKAGE_NAME, '.mcp.json'));
+  checkFileExists(join(CLAUDE_PACKAGE_NAME, '.claude', 'settings.json'));
+  checkFileExists(join(CLAUDE_PACKAGE_NAME, '.claude', 'skills', 'create-crd-plugin', 'SKILL.md'));
+  // CLAUDE.md supersedes AGENTS.md when the harness is added.
+  checkFileDoesNotExist(join(CLAUDE_PACKAGE_NAME, 'AGENTS.md'));
+  // The default scaffold must NOT include the harness.
+  checkFileDoesNotExist(join(PACKAGE_NAME, 'CLAUDE.md'));
+  fs.rmSync(CLAUDE_PACKAGE_NAME, { recursive: true, force: true });
+
+  // test "upgrade --with-claude-skills" opts a default plugin into the harness:
+  // it adds CLAUDE.md/.mcp.json/.claude and drops the default AGENTS.md.
+  run('node', ['bin/headlamp-plugin.js', 'create', CLAUDE_PACKAGE_NAME, '--link', '--noinstall']);
+  checkFileExists(join(CLAUDE_PACKAGE_NAME, 'AGENTS.md'));
+  checkFileDoesNotExist(join(CLAUDE_PACKAGE_NAME, 'CLAUDE.md'));
+  run('node', [
+    'bin/headlamp-plugin.js',
+    'upgrade',
+    CLAUDE_PACKAGE_NAME,
+    '--skip-package-updates',
+    '--with-claude-skills',
+  ]);
+  checkFileExists(join(CLAUDE_PACKAGE_NAME, 'CLAUDE.md'));
+  checkFileExists(join(CLAUDE_PACKAGE_NAME, '.mcp.json'));
+  checkFileExists(join(CLAUDE_PACKAGE_NAME, '.claude', 'skills', 'plan-plugin', 'SKILL.md'));
+  checkFileDoesNotExist(join(CLAUDE_PACKAGE_NAME, 'AGENTS.md'));
+  // a plain upgrade must not reintroduce AGENTS.md once CLAUDE.md is present.
+  run('node', [
+    'bin/headlamp-plugin.js',
+    'upgrade',
+    CLAUDE_PACKAGE_NAME,
+    '--skip-package-updates',
+  ]);
+  checkFileDoesNotExist(join(CLAUDE_PACKAGE_NAME, 'AGENTS.md'));
+  checkFileExists(join(CLAUDE_PACKAGE_NAME, 'CLAUDE.md'));
+  fs.rmSync(CLAUDE_PACKAGE_NAME, { recursive: true, force: true });
 }
 
 const fs = require('fs');
@@ -200,7 +250,11 @@ function cleanup() {
     .filter(file => file.match('kinvolk-headlamp-plugin-.*gz'))
     .forEach(file => fs.rmSync(file));
 
-  const foldersToRemove = [path.join('.plugins', PACKAGE_NAME), PACKAGE_NAME];
+  const foldersToRemove = [
+    path.join('.plugins', PACKAGE_NAME),
+    PACKAGE_NAME,
+    CLAUDE_PACKAGE_NAME,
+  ];
   console.log('Temp foldersToRemove', foldersToRemove);
   foldersToRemove
     .filter(folder => fs.existsSync(folder))
@@ -281,6 +335,11 @@ function runAndCaptureOutput(cmd, args) {
 function checkFileExists(fname) {
   if (!fs.existsSync(fname)) {
     exit(`Error: ${fname} does not exist.`);
+  }
+}
+function checkFileDoesNotExist(fname) {
+  if (fs.existsSync(fname)) {
+    exit(`Error: ${fname} exists but should not.`);
   }
 }
 function exit(message) {
