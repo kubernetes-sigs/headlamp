@@ -50,7 +50,7 @@ export const DEFAULT_GATEWAY: KubeGateway = {
   },
 };
 
-// Regression fixture for issue #5987: the API can return a Gateway with no `spec`,
+// Regression fixture : the API can return a Gateway with no `spec`,
 // which previously crashed the list view. `spec` is optional on KubeGateway, so this
 // reproduces that case without a cast.
 export const BROKEN_GATEWAY: KubeGateway = {
