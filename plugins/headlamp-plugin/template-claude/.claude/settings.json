@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "Skill",
+      "Bash(npm install:*)",
+      "Bash(npm start:*)",
+      "Bash(npm run tsc:*)",
+      "Bash(npm run lint:*)",
+      "Bash(npm run lint-fix:*)",
+      "Bash(npm run build:*)",
+      "Bash(npm run format:*)",
+      "Bash(npm run test:*)",
+      "Bash(npm run i18n:*)",
+      "Bash(npm run package:*)",
+      "Bash(npx @kinvolk/headlamp-plugin:*)",
+      "Bash(npx tsc:*)",
+      "Read(.claude/**)",
+      "Read(node_modules/@kinvolk/headlamp-plugin/**)",
+      "Read(/tmp/**)",
+      "Bash(echo:*)",
+      "Bash(ls:*)",
+      "Bash(cat:*)",
+      "Bash(grep:*)",
+      "Bash(find:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(wc:*)",
+      "Bash(which:*)",
+      "Bash(sleep:*)",
+      "Bash(mkdir:*)",
+      "Bash(cp:*)",
+      "Bash(kubectl get:*)",
+      "Bash(kubectl describe:*)",
+      "Bash(kubectl explain:*)",
+      "Bash(kubectl wait:*)",
+      "mcp__kubernetes__*",
+      "mcp__chrome-devtools__*"
+    ],
+    "ask": [],
+    "deny": []
+  }
+}
