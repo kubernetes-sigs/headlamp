@@ -74,6 +74,44 @@ API for linting, Storybook, and i18n extraction. See the
 [TypeScript setup and limitations](../../docs/development/plugins/getting-started.md#typescript-versions).
 Do not globally override `typescript` to version 7.
 
+## Scaffolding the coding agent harness
+
+`create` accepts an opt-in `--with-agent-skills` flag that adds a harness for
+building the plugin with a coding agent:
+
+```
+headlamp-plugin create my-plugin --with-agent-skills
+```
+
+The harness is vendor neutral: a plugin is shared, so it is set up for Claude
+Code, Codex and GitHub Copilot at once, and each contributor can use their own
+agent. It adds:
+
+- `AGENTS.md` — always-on agent rules for a Headlamp plugin (replaces the
+  default `AGENTS.md`). All three agents read it; `CLAUDE.md` imports it for
+  Claude Code.
+- Step-by-step [Agent Skills](https://agentskills.io) for the CNCF/CRD plugin
+  workflow (`create-cncf-plugin`, `plan-plugin`, `define-resource`,
+  `add-list-view`, `add-detail-view`, `add-settings`, `ensure-dependency`,
+  `seed-test-data`, `run-and-verify`, `document-plugin`), in `.claude/skills/`
+  for Claude Code and `.agents/skills/` for Codex. GitHub Copilot reads both.
+- MCP config for the `kubernetes`, `helm` and `chrome-devtools` servers the
+  skills use: `.mcp.json` (Claude Code, GitHub Copilot) and `.codex/config.toml`
+  (Codex, which reads it only in trusted projects).
+
+Without the flag, `create` behaves exactly as before.
+
+To add the harness to an **existing** plugin, pass the same flag to `upgrade`:
+
+```
+headlamp-plugin upgrade --with-agent-skills
+```
+
+Existing skills and agent config are left untouched, so it is safe to re-run;
+it prints which agent config files it kept and what to add to them.
+Like the default `AGENTS.md`, the harness `AGENTS.md` is kept in sync with the
+template by `upgrade`.
+
 ## Template for installing plugins from a configuration file
 
 plugins.yaml:

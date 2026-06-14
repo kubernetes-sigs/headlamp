@@ -149,6 +149,7 @@
     "bin",
     "config",
     "template",
+    "template-agents",
     "lib",
     "types",
     ".storybook",

@@ -167,6 +167,66 @@ test('create validates names and existing destinations, then substitutes templat
   assert.ok(fs.existsSync('example/AGENTS.md'));
 });
 
+test('create and upgrade scaffold the agent harness for every supported agent', async t => {
+  fixture(t);
+  const harnessAgentsMd = fs.readFileSync(path.join(root, 'template-agents/AGENTS.md'), 'utf8');
+  const defaultAgentsMd = fs.readFileSync(path.join(root, 'template/AGENTS.md'), 'utf8');
+  const skill = 'create-cncf-plugin/SKILL.md';
+
+  assert.equal((await run(['create', 'all', '--noinstall', '--with-agent-skills'])).status, 0);
+  assert.equal(fs.readFileSync('all/AGENTS.md', 'utf8'), harnessAgentsMd);
+  assert.match(fs.readFileSync('all/CLAUDE.md', 'utf8'), /^@AGENTS\.md/);
+  assert.ok(fs.existsSync('all/.mcp.json'));
+  assert.ok(fs.existsSync('all/.codex/config.toml'));
+  assert.match(fs.readFileSync(`all/.claude/skills/${skill}`, 'utf8'), /^allowed-tools:/m);
+  const codexSkill = fs.readFileSync(`all/.agents/skills/${skill}`, 'utf8');
+  assert.match(codexSkill, /^name: create-cncf-plugin$/m);
+  assert.doesNotMatch(codexSkill, /^(allowed-tools|argument-hint):/m);
+  assert.match(codexSkill, /^description: .+$/m);
+  assert.match(codexSkill, /^# create-cncf-plugin$/m);
+
+  plugin('existing');
+  fs.outputFileSync(`existing/.agents/skills/${skill}`, 'custom');
+  fs.outputFileSync('existing/CLAUDE.md', 'custom');
+  fs.outputFileSync('existing/.mcp.json', '{}');
+  const upgrade = ['upgrade', 'existing', '--skip-package-updates'];
+  const optIn = await run([...upgrade, '--with-agent-skills']);
+  assert.equal(optIn.status, 0);
+  assert.equal(fs.readFileSync('existing/AGENTS.md', 'utf8'), harnessAgentsMd);
+  assert.equal(fs.readFileSync(`existing/.agents/skills/${skill}`, 'utf8'), 'custom');
+  // Existing agent config is kept, with a note on what to add by hand.
+  assert.equal(fs.readFileSync('existing/CLAUDE.md', 'utf8'), 'custom');
+  assert.equal(fs.readFileSync('existing/.mcp.json', 'utf8'), '{}');
+  const kept = optIn.messages.filter(message => message.startsWith('Kept existing'));
+  assert.equal(kept.length, 2);
+  assert.match(kept.join('\n'), /CLAUDE\.md: add a line "@AGENTS\.md"/);
+  assert.match(kept.join('\n'), /\.mcp\.json: make sure it has the kubernetes, helm/);
+  // Re-running on the files the harness wrote itself prints no notices.
+  const rerun = await run(['upgrade', 'all', '--skip-package-updates', '--with-agent-skills']);
+  assert.equal(rerun.status, 0);
+  assert.deepEqual(
+    rerun.messages.filter(message => message.startsWith('Kept existing')),
+    []
+  );
+  assert.ok(fs.existsSync('existing/.agents/skills/plan-plugin/SKILL.md'));
+  assert.ok(fs.existsSync(`existing/.claude/skills/${skill}`));
+  assert.ok(fs.existsSync('existing/CLAUDE.md') && fs.existsSync('existing/.codex/config.toml'));
+
+  // A plain upgrade keeps the harness AGENTS.md for harness plugins only.
+  fs.writeFileSync('existing/AGENTS.md', defaultAgentsMd);
+  assert.equal((await run(upgrade)).status, 0);
+  assert.equal(fs.readFileSync('existing/AGENTS.md', 'utf8'), harnessAgentsMd);
+  // It still does after the day-one create-cncf-plugin skill is deleted.
+  for (const dir of ['.claude', '.agents'])
+    fs.rmSync(`existing/${dir}/skills/create-cncf-plugin`, { recursive: true });
+  fs.writeFileSync('existing/AGENTS.md', defaultAgentsMd);
+  assert.equal((await run(upgrade)).status, 0);
+  assert.equal(fs.readFileSync('existing/AGENTS.md', 'utf8'), harnessAgentsMd);
+  plugin('plain');
+  assert.equal((await run(['upgrade', 'plain', '--skip-package-updates'])).status, 0);
+  assert.equal(fs.readFileSync('plain/AGENTS.md', 'utf8'), defaultAgentsMd);
+});
+
 test('create resolves install integrity and preserves explicitly requested linking', async t => {
   fixture(t);
   const result = await run(['create', 'example', '--link']);

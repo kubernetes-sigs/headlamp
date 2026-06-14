@@ -1,0 +1,17 @@
+# MCP servers used by the agent skills in .agents/skills/.
+# Codex only reads this project config when the project is trusted.
+
+[mcp_servers.kubernetes]
+command = "npx"
+args = ["-y", "kubernetes-mcp-server@0.0.67", "--read-only"]
+
+[mcp_servers.helm]
+command = "npx"
+args = ["-y", "mcp-server-kubernetes@4.2.3"]
+
+[mcp_servers.helm.env]
+ALLOWED_TOOLS = "install_helm_chart,upgrade_helm_chart"
+
+[mcp_servers.chrome-devtools]
+command = "npx"
+args = ["-y", "chrome-devtools-mcp@1.14.0", "--browser-url=http://127.0.0.1:9222"]
