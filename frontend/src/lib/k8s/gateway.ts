@@ -109,7 +109,7 @@ class Gateway extends KubeObject<KubeGateway> {
     return this.jsonData.status?.addresses ?? [];
   }
 
-  getListernerStatusByName(name: string): GatewayListenerStatus | null {
+  getListenerStatusByName(name: string): GatewayListenerStatus | null {
     return this.jsonData.status?.listeners?.find(t => t.name === name) ?? null;
   }
 

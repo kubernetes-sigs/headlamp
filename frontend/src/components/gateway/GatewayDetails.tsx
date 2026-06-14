@@ -138,7 +138,7 @@ export default function GatewayDetails(props: { name?: string; namespace?: strin
                     .map((listener: GatewayListener) => (
                       <GatewayListenerTable
                         listener={listener}
-                        status={item.getListernerStatusByName(listener.name)}
+                        status={item.getListenerStatusByName(listener.name)}
                       />
                     ))
                 )}
