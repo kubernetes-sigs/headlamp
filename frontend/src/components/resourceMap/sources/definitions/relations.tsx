@@ -251,7 +251,7 @@ const jobToJobSet = makeRelation(Job, JobSet, (job, jobSet) =>
 const gatewayToGatewayClass = makeRelation(
   Gateway,
   GatewayClass,
-  (gateway, gatewayClass) => gateway.spec.gatewayClassName === gatewayClass.metadata.name
+  (gateway, gatewayClass) => gateway.spec?.gatewayClassName === gatewayClass.metadata.name
 );
 
 const httpRouteToGateway = makeRelation(HTTPRoute, Gateway, (httpRoute, gateway) =>
