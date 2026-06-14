@@ -257,6 +257,7 @@ func TestClearAuthCookie(t *testing.T) {
 		Name:     "headlamp-auth-test-cluster.0",
 		Value:    "test-token",
 		HttpOnly: true,
+		Secure:   true,
 		SameSite: http.SameSiteStrictMode,
 		Path:     "/",
 		MaxAge:   86400, // 24 hours

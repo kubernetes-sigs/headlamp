@@ -34,7 +34,7 @@ func MarshalCustomObject(info runtime.Object, contextName string) (kubeconfig.Cu
 	// Convert the runtime.Unknown object to a byte slice
 	unknownBytes, err := json.Marshal(info)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": contextName},
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: contextName},
 			err, "unmarshaling context data")
 
 		return kubeconfig.CustomObject{}, err
@@ -45,7 +45,7 @@ func MarshalCustomObject(info runtime.Object, contextName string) (kubeconfig.Cu
 
 	err = json.Unmarshal(unknownBytes, &customObj)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": contextName},
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: contextName},
 			err, "unmarshaling into CustomObject")
 
 		return kubeconfig.CustomObject{}, err
@@ -121,7 +121,7 @@ func (c *HeadlampConfig) handleStatelessReq(r *http.Request, kubeConfig string) 
 		if info != nil {
 			customObj, err := MarshalCustomObject(info, context.Name)
 			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{"cluster": context.Name},
+				logger.Log(logger.LevelError, map[string]string{logFieldCluster: context.Name},
 					err, "marshaling custom object")
 
 				return "", err
