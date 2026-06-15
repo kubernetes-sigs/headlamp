@@ -225,7 +225,7 @@ export function getPercentStr(value: number, total: number) {
     return null;
   }
   const percentage = (value / total) * 100;
-  const decimals = percentage % 10 > 0 ? 1 : 0;
+  const decimals = percentage % 1 > 0 ? 1 : 0;
   return `${percentage.toFixed(decimals)} %`;
 }
 

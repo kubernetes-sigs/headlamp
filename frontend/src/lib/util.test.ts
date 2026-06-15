@@ -18,6 +18,7 @@ import {
   combineClusterListErrors,
   flattenClusterListItems,
   formatDuration,
+  getPercentStr,
   normalizeUnit,
   timeAgo,
 } from './util';
@@ -316,5 +317,27 @@ describe('normalizeUnit', () => {
     it('shows plural cores', () => {
       expect(normalizeUnit('cpu', '2')).toBe('2 cores');
     });
+  });
+});
+
+describe('getPercentStr', () => {
+  it('returns null when total is zero', () => {
+    expect(getPercentStr(5, 0)).toBeNull();
+  });
+
+  it('drops the decimal for whole-number percentages', () => {
+    expect(getPercentStr(5, 100)).toBe('5 %');
+    expect(getPercentStr(30, 100)).toBe('30 %');
+    expect(getPercentStr(100, 100)).toBe('100 %');
+    expect(getPercentStr(0, 100)).toBe('0 %');
+  });
+
+  it('keeps one decimal for fractional percentages', () => {
+    expect(getPercentStr(1, 3)).toBe('33.3 %');
+    expect(getPercentStr(1, 8)).toBe('12.5 %');
+  });
+
+  it('rounds to one decimal', () => {
+    expect(getPercentStr(2, 3)).toBe('66.7 %');
   });
 });
