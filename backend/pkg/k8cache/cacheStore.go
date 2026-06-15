@@ -52,8 +52,8 @@ func kubernetesAPIPathIndex(parts []string) int {
 	return -1
 }
 
-// IsKubernetesResourceAPIPath returns true when path points to a Kubernetes
-// resource API endpoint that can be keyed by the cache layer.
+// IsKubernetesResourceAPIPath returns true when path targets a Kubernetes API endpoint
+// under /api or /apis (either directly, or proxied via /clusters/{name}/...).
 func IsKubernetesResourceAPIPath(path string) bool {
 	path = strings.TrimRight(path, "/")
 	parts := strings.Split(path, "/")
