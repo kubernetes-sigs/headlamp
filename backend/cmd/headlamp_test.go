@@ -2328,6 +2328,68 @@ func TestCacheMiddleware_BypassesNonKubernetesAPIPaths(t *testing.T) {
 	}
 }
 
+func TestCacheMiddleware_CachesResourceNamedVersion(t *testing.T) {
+	oldCache := k8sResponseCache
+	k8sResponseCache = cache.New[string]()
+	t.Cleanup(func() { k8sResponseCache = oldCache })
+
+	fakeK8s := newFakeK8sServer(true)
+	defer fakeK8s.Close()
+
+	c := newHeadlampConfig(fakeK8s, t.Name())
+
+	proxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		req, err := http.NewRequestWithContext(r.Context(), http.MethodGet, fakeK8s.URL+r.URL.Path, nil) //nolint:gosec
+		if err != nil {
+			http.Error(w, "failed to create request", http.StatusInternalServerError)
+			return
+		}
+
+		resp, err := http.DefaultClient.Do(req) //nolint:gosec
+		if err != nil {
+			http.Error(w, "proxy error", http.StatusInternalServerError)
+			return
+		}
+
+		defer func() { _ = resp.Body.Close() }()
+
+		_, err = io.Copy(w, resp.Body)
+		assert.NoError(t, err)
+	})
+
+	router := mux.NewRouter()
+	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(
+		CacheMiddleWare(c)(proxyHandler),
+	)
+
+	ts := httptest.NewServer(router)
+	defer ts.Close()
+
+	resourceURL := ts.URL + "/clusters/test/api/v1/namespaces/ns/configmaps/version"
+	expectedResponse := `{"kind":"List","apiVersion":"v1","items":[{"metadata":{"name":"resource-test"}}]}`
+
+	resp1, err := httpRequestWithContext(context.Background(), resourceURL, http.MethodGet)
+	require.NoError(t, err)
+	defer func() { _ = resp1.Body.Close() }()
+
+	resp1String, err := stringResponse(resp1)
+	require.NoError(t, err)
+
+	resp2, err := httpRequestWithContext(context.Background(), resourceURL, http.MethodGet)
+	require.NoError(t, err)
+	defer func() { _ = resp2.Body.Close() }()
+
+	resp2String, err := stringResponse(resp2)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusOK, resp1.StatusCode)
+	assert.Equal(t, expectedResponse, resp1String)
+	assert.Equal(t, "", resp1.Header.Get("X-HEADLAMP-CACHE"))
+	assert.Equal(t, http.StatusOK, resp2.StatusCode)
+	assert.Equal(t, expectedResponse, resp2String)
+	assert.Equal(t, "true", resp2.Header.Get("X-HEADLAMP-CACHE"))
+}
+
 // TestCacheMiddleware_CacheHitAndCacheMiss test whether the k8s is storing into the cache
 // and returns the data if the data is present in the cache.
 func TestCacheMiddleware_CacheHitAndCacheMiss(t *testing.T) {
