@@ -83,14 +83,14 @@ func TestCreateFullPathDoesNotTruncateExistingFile(t *testing.T) {
 
 		// Create the file with some content
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), defaultNewConfigFolderMode))
-		require.NoError(t, os.WriteFile(path, []byte("existing content"), defaultNewConfigFileMode))
+		require.NoError(t, os.WriteFile(path, []byte("existing content"), defaultNewConfigFileMode)) //nolint:gosec
 
 		// Call createFullPath again - it should not truncate the file
 		err := createFullPath(path)
 		require.NoError(t, err)
 
 		// Verify the content is still there
-		content, err := os.ReadFile(path)
+		content, err := os.ReadFile(path) //nolint:gosec
 		require.NoError(t, err)
 		assert.Equal(t, "existing content", string(content))
 	})
