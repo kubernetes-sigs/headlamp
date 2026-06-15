@@ -1816,552 +1816,543 @@ function extractI18n(packageFolder, newLocale) {
 // const headlampPluginBin = fs.realpathSync(process.argv[1]);
 // console.log('headlampPluginBin path:', headlampPluginBin);
 
-if (require.main === module)
-  yargs(process.argv.slice(2))
-    .command(
-      'build [package]',
-      'Build the plugin, or folder of plugins. <package> defaults to current working directory.',
-      yargs => {
-        yargs.positional('package', {
-          describe: 'Package or folder of packages to build',
+yargs(process.argv.slice(2))
+  .command(
+    'build [package]',
+    'Build the plugin, or folder of plugins. <package> defaults to current working directory.',
+    yargs => {
+      yargs.positional('package', {
+        describe: 'Package or folder of packages to build',
+        type: 'string',
+        default: '.',
+      });
+    },
+    async argv => {
+      // @ts-ignore
+      process.exitCode = await build(argv.package);
+    }
+  )
+  .command('start', 'Watch for changes and build plugin.', {}, async () => {
+    process.exitCode = await start();
+  })
+  .command(
+    'create <name>',
+    'Create a new plugin folder.',
+    yargs => {
+      yargs
+        .positional('name', {
+          describe: 'Name of package',
           type: 'string',
-          default: '.',
-        });
-      },
-      async argv => {
-        // @ts-ignore
-        process.exitCode = await build(argv.package);
-      }
-    )
-    .command('start', 'Watch for changes and build plugin.', {}, async () => {
-      process.exitCode = await start();
-    })
-    .command(
-      'create <name>',
-      'Create a new plugin folder.',
-      yargs => {
-        yargs
-          .positional('name', {
-            describe: 'Name of package',
-            type: 'string',
-          })
-          .option('link', {
-            describe:
-              'For development of headlamp-plugin itself, so it uses npm link @kinvolk/headlamp-plugin.',
-            type: 'boolean',
-          })
-          .option('noinstall', {
-            describe: 'Skip installing dependencies with npm ci',
-            type: 'boolean',
-          });
-      },
-      argv => {
-        // @ts-ignore
-        process.exitCode = create(argv.name, argv.link, argv.noinstall);
-      }
-    )
-    .command(
-      'i18n [package] [locale]',
-      'Extract translatable strings from plugin source code. Optionally add a new locale. Use --setup to configure i18n for a package. <package> defaults to current working directory.',
-      yargs => {
-        yargs
-          .positional('package', {
-            describe:
-              'Package to extract translatable strings from (or package to setup with --setup)',
-            type: 'string',
-            default: '.',
-          })
-          .positional('locale', {
-            describe: 'New locale to add to the plugin (e.g., es, fr, pt-BR)',
-            type: 'string',
-          })
-          .option('setup', {
-            describe:
-              'Set up i18n for the package or folder of packages instead of extracting strings',
-            type: 'boolean',
-          })
-          .example('headlamp-plugin i18n', 'Extract strings from current directory')
-          .example('headlamp-plugin i18n . es', 'Add Spanish locale and extract strings')
-          .example('headlamp-plugin i18n my-plugin pt-BR', 'Add Brazilian Portuguese to my-plugin')
-          .example('headlamp-plugin i18n --setup', 'Set up i18n in the current package');
-      },
-      argv => {
-        // If --setup flag is provided, run setupI18n and return
-        if (argv.setup) {
-          // @ts-ignore
-          process.exitCode = setupI18n(argv.package);
-          return;
-        }
-
-        // Handle the case where user runs "npm run i18n -- pt"
-        // In this case, "pt" gets passed as the package parameter instead of locale
-        let packageFolder = argv.package;
-        let newLocale = argv.locale;
-
-        // If package looks like a locale code and locale is undefined,
-        // assume they meant to add a locale to the current directory
-        if (!newLocale && packageFolder !== '.' && /^[a-z]{2}(-[A-Z]{2})?$/.test(packageFolder)) {
-          newLocale = packageFolder;
-          packageFolder = '.';
-        }
-
-        // @ts-ignore
-        process.exitCode = extractI18n(packageFolder, newLocale);
-      }
-    )
-    .command(
-      'extract <pluginPackages> <outputPlugins>',
-      'Copies folders of packages from pluginPackages/packageName/dist/main.js ' +
-        'to outputPlugins/packageName/main.js.',
-      yargs => {
-        yargs.positional('pluginPackages', {
+        })
+        .option('link', {
           describe:
-            'A folder of plugin packages that have been built with dist/main.js in them.' +
-            'Can also be a single package folder.',
-          type: 'string',
+            'For development of headlamp-plugin itself, so it uses npm link @kinvolk/headlamp-plugin.',
+          type: 'boolean',
+        })
+        .option('noinstall', {
+          describe: 'Skip installing dependencies with npm ci',
+          type: 'boolean',
         });
-        yargs.positional('outputPlugins', {
+    },
+    argv => {
+      // @ts-ignore
+      process.exitCode = create(argv.name, argv.link, argv.noinstall);
+    }
+  )
+  .command(
+    'i18n [package] [locale]',
+    'Extract translatable strings from plugin source code. Optionally add a new locale. Use --setup to configure i18n for a package. <package> defaults to current working directory.',
+    yargs => {
+      yargs
+        .positional('package', {
           describe:
-            'A plugins folder (eg. ".plugins") to extract plugins to. ' +
-            'The output is a series of packageName/main.js. ' +
-            'Creates this folder if it does not exist.',
+            'Package to extract translatable strings from (or package to setup with --setup)',
           type: 'string',
-        });
-      },
-      argv => {
+          default: '.',
+        })
+        .positional('locale', {
+          describe: 'New locale to add to the plugin (e.g., es, fr, pt-BR)',
+          type: 'string',
+        })
+        .option('setup', {
+          describe:
+            'Set up i18n for the package or folder of packages instead of extracting strings',
+          type: 'boolean',
+        })
+        .example('headlamp-plugin i18n', 'Extract strings from current directory')
+        .example('headlamp-plugin i18n . es', 'Add Spanish locale and extract strings')
+        .example('headlamp-plugin i18n my-plugin pt-BR', 'Add Brazilian Portuguese to my-plugin')
+        .example('headlamp-plugin i18n --setup', 'Set up i18n in the current package');
+    },
+    argv => {
+      // If --setup flag is provided, run setupI18n and return
+      if (argv.setup) {
         // @ts-ignore
-        process.exitCode = extract(argv.pluginPackages, argv.outputPlugins);
+        process.exitCode = setupI18n(argv.package);
+        return;
       }
-    )
-    .command(
-      'package [pluginPath] [outputDir]',
-      'Creates a tarball of the plugin package in the format Headlamp expects.',
-      yargs => {
-        yargs.positional('pluginPath', {
-          describe:
-            'A folder of a plugin package that have been built with dist/main.js in it.' +
-            ' Defaults to current working directory.',
-          type: 'string',
-        });
-        yargs.positional('outputDir', {
-          describe:
-            'The destination folder in which to create the archive.' +
-            'Creates this folder if it does not exist.',
-          type: 'string',
-        });
-      },
-      async argv => {
-        let pluginPath = argv.pluginPath;
-        if (!pluginPath) {
-          pluginPath = process.cwd();
-        }
 
-        let outputDir = argv.outputDir;
-        if (!outputDir) {
-          outputDir = process.cwd();
-        }
+      // Handle the case where user runs "npm run i18n -- pt"
+      // In this case, "pt" gets passed as the package parameter instead of locale
+      let packageFolder = argv.package;
+      let newLocale = argv.locale;
 
-        process.exitCode = await createArchive(pluginPath, outputDir);
+      // If package looks like a locale code and locale is undefined,
+      // assume they meant to add a locale to the current directory
+      if (!newLocale && packageFolder !== '.' && /^[a-z]{2}(-[A-Z]{2})?$/.test(packageFolder)) {
+        newLocale = packageFolder;
+        packageFolder = '.';
       }
-    )
-    .command(
-      'format [package]',
-      'format the plugin code with prettier. <package> defaults to current working directory.' +
-        ' Can also be a folder of packages.',
-      yargs => {
-        yargs
-          .positional('package', {
-            describe: 'Package to code format',
-            type: 'string',
-            default: '.',
-          })
-          .option('check', {
-            describe: 'Check the formatting without changing files',
-            type: 'boolean',
-          });
-      },
-      argv => {
-        // @ts-ignore
-        process.exitCode = format(argv.package, argv.check);
+
+      // @ts-ignore
+      process.exitCode = extractI18n(packageFolder, newLocale);
+    }
+  )
+  .command(
+    'extract <pluginPackages> <outputPlugins>',
+    'Copies folders of packages from pluginPackages/packageName/dist/main.js ' +
+      'to outputPlugins/packageName/main.js.',
+    yargs => {
+      yargs.positional('pluginPackages', {
+        describe:
+          'A folder of plugin packages that have been built with dist/main.js in them.' +
+          'Can also be a single package folder.',
+        type: 'string',
+      });
+      yargs.positional('outputPlugins', {
+        describe:
+          'A plugins folder (eg. ".plugins") to extract plugins to. ' +
+          'The output is a series of packageName/main.js. ' +
+          'Creates this folder if it does not exist.',
+        type: 'string',
+      });
+    },
+    argv => {
+      // @ts-ignore
+      process.exitCode = extract(argv.pluginPackages, argv.outputPlugins);
+    }
+  )
+  .command(
+    'package [pluginPath] [outputDir]',
+    'Creates a tarball of the plugin package in the format Headlamp expects.',
+    yargs => {
+      yargs.positional('pluginPath', {
+        describe:
+          'A folder of a plugin package that have been built with dist/main.js in it.' +
+          ' Defaults to current working directory.',
+        type: 'string',
+      });
+      yargs.positional('outputDir', {
+        describe:
+          'The destination folder in which to create the archive.' +
+          'Creates this folder if it does not exist.',
+        type: 'string',
+      });
+    },
+    async argv => {
+      let pluginPath = argv.pluginPath;
+      if (!pluginPath) {
+        pluginPath = process.cwd();
       }
-    )
-    .command(
-      'lint [package]',
-      'Lint the plugin for coding issues with eslint. ' +
-        '<package> defaults to current working directory.' +
-        ' Can also be a folder of packages.',
-      yargs => {
-        yargs
-          .positional('package', {
-            describe: 'Package to lint',
-            type: 'string',
-            default: '.',
-          })
-          .option('fix', {
-            describe: 'Automatically fix problems',
-            type: 'boolean',
-          });
-      },
-      argv => {
-        // @ts-ignore
-        process.exitCode = lint(argv.package, argv.fix);
+
+      let outputDir = argv.outputDir;
+      if (!outputDir) {
+        outputDir = process.cwd();
       }
-    )
-    .command(
-      'tsc [package]',
-      'Type check the plugin for coding issues with tsc. ' +
-        '<package> defaults to current working directory.' +
-        ' Can also be a folder of packages.',
-      yargs => {
-        yargs.positional('package', {
-          describe: 'Package to type check',
+
+      process.exitCode = await createArchive(pluginPath, outputDir);
+    }
+  )
+  .command(
+    'format [package]',
+    'format the plugin code with prettier. <package> defaults to current working directory.' +
+      ' Can also be a folder of packages.',
+    yargs => {
+      yargs
+        .positional('package', {
+          describe: 'Package to code format',
           type: 'string',
           default: '.',
+        })
+        .option('check', {
+          describe: 'Check the formatting without changing files',
+          type: 'boolean',
         });
-      },
-      argv => {
-        // @ts-ignore
-        process.exitCode = tsc(argv.package);
-      }
-    )
-    .command(
-      'storybook [package]',
-      'Start storybook. <package> defaults to current working directory.',
-      yargs => {
-        yargs.positional('package', {
-          describe: 'Package to start storybook for',
+    },
+    argv => {
+      // @ts-ignore
+      process.exitCode = format(argv.package, argv.check);
+    }
+  )
+  .command(
+    'lint [package]',
+    'Lint the plugin for coding issues with eslint. ' +
+      '<package> defaults to current working directory.' +
+      ' Can also be a folder of packages.',
+    yargs => {
+      yargs
+        .positional('package', {
+          describe: 'Package to lint',
           type: 'string',
           default: '.',
+        })
+        .option('fix', {
+          describe: 'Automatically fix problems',
+          type: 'boolean',
         });
-      },
-      argv => {
-        // @ts-ignore
-        process.exitCode = storybook(argv.package);
-      }
-    )
-    .command(
-      'storybook-build [package]',
-      'Build static storybook. <package> defaults to current working directory.' +
-        ' Can also be a folder of packages.',
-      yargs => {
-        yargs.positional('package', {
-          describe: 'Package to build storybook for',
+    },
+    argv => {
+      // @ts-ignore
+      process.exitCode = lint(argv.package, argv.fix);
+    }
+  )
+  .command(
+    'tsc [package]',
+    'Type check the plugin for coding issues with tsc. ' +
+      '<package> defaults to current working directory.' +
+      ' Can also be a folder of packages.',
+    yargs => {
+      yargs.positional('package', {
+        describe: 'Package to type check',
+        type: 'string',
+        default: '.',
+      });
+    },
+    argv => {
+      // @ts-ignore
+      process.exitCode = tsc(argv.package);
+    }
+  )
+  .command(
+    'storybook [package]',
+    'Start storybook. <package> defaults to current working directory.',
+    yargs => {
+      yargs.positional('package', {
+        describe: 'Package to start storybook for',
+        type: 'string',
+        default: '.',
+      });
+    },
+    argv => {
+      // @ts-ignore
+      process.exitCode = storybook(argv.package);
+    }
+  )
+  .command(
+    'storybook-build [package]',
+    'Build static storybook. <package> defaults to current working directory.' +
+      ' Can also be a folder of packages.',
+    yargs => {
+      yargs.positional('package', {
+        describe: 'Package to build storybook for',
+        type: 'string',
+        default: '.',
+      });
+    },
+    argv => {
+      // @ts-ignore
+      process.exitCode = storybook_build(argv.package);
+    }
+  )
+  .command(
+    'upgrade [package]',
+    'Upgrade the plugin to latest headlamp-plugin; ' +
+      'upgrades headlamp-plugin and audits packages, formats, lints, type checks.' +
+      '<package> defaults to current working directory. Can also be a folder of packages.',
+    yargs => {
+      yargs
+        .positional('package', {
+          describe: 'Package to upgrade',
           type: 'string',
           default: '.',
-        });
-      },
-      argv => {
-        // @ts-ignore
-        process.exitCode = storybook_build(argv.package);
-      }
-    )
-    .command(
-      'upgrade [package]',
-      'Upgrade the plugin to latest headlamp-plugin; ' +
-        'upgrades headlamp-plugin and audits packages, formats, lints, type checks.' +
-        '<package> defaults to current working directory. Can also be a folder of packages.',
-      yargs => {
-        yargs
-          .positional('package', {
-            describe: 'Package to upgrade',
-            type: 'string',
-            default: '.',
-          })
-          .option('skip-package-updates', {
-            describe:
-              'For development of headlamp-plugin itself, so it does not do package updates.',
-            type: 'boolean',
-          })
-          .option('headlamp-plugin-version', {
-            describe:
-              'Use a specific headlamp-plugin-version when upgrading packages. Defaults to "latest".',
-            type: 'string',
-          });
-      },
-      argv => {
-        // @ts-ignore
-        process.exitCode = upgrade(
-          argv.package,
-          argv.skipPackageUpdates,
-          argv.headlampPluginVersion
-        );
-      }
-    )
-    .command(
-      'test [package]',
-      'Test. <package> defaults to current working directory.' +
-        ' Can also be a folder of packages.',
-      yargs => {
-        yargs.positional('package', {
-          describe: 'Package to test',
+        })
+        .option('skip-package-updates', {
+          describe: 'For development of headlamp-plugin itself, so it does not do package updates.',
+          type: 'boolean',
+        })
+        .option('headlamp-plugin-version', {
+          describe:
+            'Use a specific headlamp-plugin-version when upgrading packages. Defaults to "latest".',
           type: 'string',
-          default: '.',
         });
-      },
-      argv => {
-        // @ts-ignore
-        process.exitCode = test(argv.package);
-      }
-    )
-    .command(
-      'install [URL]',
-      'Install plugin(s) from a configuration file or a plugin artifact Hub URL',
-      yargs => {
-        return yargs
-          .positional('URL', {
-            describe: 'URL of the plugin to install',
-            type: 'string',
-          })
-          .option('config', {
-            alias: 'c',
-            describe: 'Path to plugin configuration file',
-            type: 'string',
-          })
-          .option('folderName', {
-            describe: 'Name of the folder to install the plugin into',
-            type: 'string',
-          })
-          .option('headlampVersion', {
-            describe: 'Version of headlamp to install the plugin into',
-            type: 'string',
-          })
-          .option('quiet', {
-            alias: 'q',
-            describe: 'Do not print logs',
-            type: 'boolean',
-          })
-          .option('watch', {
-            alias: 'w',
-            describe: 'Watch config file for changes and automatically reinstall plugins',
-            type: 'boolean',
-          })
-          .check(argv => {
-            if (!argv.URL && !argv.config) {
-              throw new Error('Either URL or --config must be specified');
-            }
-            if (argv.URL && argv.config) {
-              throw new Error('Cannot specify both URL and --config');
-            }
-            if (argv.watch && !argv.config) {
-              throw new Error('Watch option can only be used with --config');
-            }
-            return true;
-          });
-      },
-      async argv => {
-        const { URL, config, folderName, headlampVersion, quiet, watch } = argv;
-        try {
-          const progressCallback = quiet
-            ? () => {}
-            : data => {
-                const { type = 'info', message, raise = true } = data;
-                if (config && !URL) {
-                  // bulk installation
-                  let prefix = '';
-                  if (data.current || data.total || data.plugin) {
-                    prefix = `${data.current} of ${data.total} (${data.plugin}): `;
-                  }
-                  if (type === 'info' || type === 'success') {
-                    console.log(`${prefix}${type}: ${message}`);
-                  } else if (type === 'error' && raise) {
-                    throw new Error(message);
-                  } else {
-                    console.error(`${prefix}${type}: ${message}`);
-                  }
+    },
+    argv => {
+      // @ts-ignore
+      process.exitCode = upgrade(argv.package, argv.skipPackageUpdates, argv.headlampPluginVersion);
+    }
+  )
+  .command(
+    'test [package]',
+    'Test. <package> defaults to current working directory.' + ' Can also be a folder of packages.',
+    yargs => {
+      yargs.positional('package', {
+        describe: 'Package to test',
+        type: 'string',
+        default: '.',
+      });
+    },
+    argv => {
+      // @ts-ignore
+      process.exitCode = test(argv.package);
+    }
+  )
+  .command(
+    'install [URL]',
+    'Install plugin(s) from a configuration file or a plugin artifact Hub URL',
+    yargs => {
+      return yargs
+        .positional('URL', {
+          describe: 'URL of the plugin to install',
+          type: 'string',
+        })
+        .option('config', {
+          alias: 'c',
+          describe: 'Path to plugin configuration file',
+          type: 'string',
+        })
+        .option('folderName', {
+          describe: 'Name of the folder to install the plugin into',
+          type: 'string',
+        })
+        .option('headlampVersion', {
+          describe: 'Version of headlamp to install the plugin into',
+          type: 'string',
+        })
+        .option('quiet', {
+          alias: 'q',
+          describe: 'Do not print logs',
+          type: 'boolean',
+        })
+        .option('watch', {
+          alias: 'w',
+          describe: 'Watch config file for changes and automatically reinstall plugins',
+          type: 'boolean',
+        })
+        .check(argv => {
+          if (!argv.URL && !argv.config) {
+            throw new Error('Either URL or --config must be specified');
+          }
+          if (argv.URL && argv.config) {
+            throw new Error('Cannot specify both URL and --config');
+          }
+          if (argv.watch && !argv.config) {
+            throw new Error('Watch option can only be used with --config');
+          }
+          return true;
+        });
+    },
+    async argv => {
+      const { URL, config, folderName, headlampVersion, quiet, watch } = argv;
+      try {
+        const progressCallback = quiet
+          ? () => {}
+          : data => {
+              const { type = 'info', message, raise = true } = data;
+              if (config && !URL) {
+                // bulk installation
+                let prefix = '';
+                if (data.current || data.total || data.plugin) {
+                  prefix = `${data.current} of ${data.total} (${data.plugin}): `;
+                }
+                if (type === 'info' || type === 'success') {
+                  console.log(`${prefix}${type}: ${message}`);
+                } else if (type === 'error' && raise) {
+                  throw new Error(message);
                 } else {
-                  if (type === 'error' || type === 'success') {
-                    console.error(`${type}: ${message}`);
-                  }
+                  console.error(`${prefix}${type}: ${message}`);
                 }
-              };
-
-          /**
-           * @param {string} configPath
-           */
-          async function installFromConfig(configPath) {
-            const installer = new MultiPluginManager(folderName, headlampVersion, progressCallback);
-            const result = await installer.installFromConfig(configPath);
-            if (result.failed > 0) {
-              throw new Error(`${result.failed} plugins failed to install`);
-            }
-          }
-
-          if (URL) {
-            // Single plugin installation
-            try {
-              await PluginManager.install(URL, folderName, headlampVersion, progressCallback);
-            } catch (e) {
-              console.error(e.message);
-              process.exit(1); // Exit with error status
-            }
-          } else if (config) {
-            // Bulk installation from config
-            try {
-              await installFromConfig(config);
-            } catch (error) {
-              console.error('Installation failed', {
-                error: error.message,
-                stack: error.stack,
-              });
-            }
-
-            if (watch) {
-              console.log(`Watching ${config} for changes...`);
-              fs.watch(config, async eventType => {
-                if (eventType === 'change') {
-                  console.log(`Config file changed, reinstalling plugins...`);
-                  try {
-                    await installFromConfig(config);
-                    console.log('Plugins reinstalled successfully');
-                  } catch (error) {
-                    console.error('Installation failed', {
-                      error: error.message,
-                      stack: error.stack,
-                    });
-                  }
+              } else {
+                if (type === 'error' || type === 'success') {
+                  console.error(`${type}: ${message}`);
                 }
-              });
+              }
+            };
 
-              // Keep the process running
-              process.stdin.resume();
-
-              // Handle graceful shutdown
-              process.on('SIGINT', () => {
-                console.log('\nStopping config file watch');
-                process.exit(0);
-              });
-            }
+        /**
+         * @param {string} configPath
+         */
+        async function installFromConfig(configPath) {
+          const installer = new MultiPluginManager(folderName, headlampVersion, progressCallback);
+          const result = await installer.installFromConfig(configPath);
+          if (result.failed > 0) {
+            throw new Error(`${result.failed} plugins failed to install`);
           }
-        } catch (error) {
-          console.error('Installation failed', {
-            error: error.message,
-            stack: error.stack,
-          });
-          process.exit(1);
         }
-      }
-    )
-    .command(
-      'update <pluginName>',
-      'Update a plugin to the latest version',
-      yargs => {
-        yargs
-          .positional('pluginName', {
-            describe: 'Name of the plugin to update',
-            type: 'string',
-          })
-          .positional('folderName', {
-            describe: 'Name of the folder that contains the plugin',
-            type: 'string',
-          })
-          .positional('headlampVersion', {
-            describe: 'Version of headlamp to update the plugin into',
-            type: 'string',
-          })
-          .option('quiet', {
-            alias: 'q',
-            describe: 'Do not print logs',
-            type: 'boolean',
-          });
-      },
-      async argv => {
-        const { pluginName, folderName, headlampVersion, quiet } = argv;
-        const progressCallback = quiet
-          ? null
-          : data => {
-              if (data.type === 'error' || data.type === 'success') {
-                console.error(data.type, ':', data.message);
-              }
-            }; // Use console.log for logs if not in quiet mode
-        try {
-          await PluginManager.update(pluginName, folderName, headlampVersion, progressCallback);
-        } catch (e) {
-          console.error(e.message);
-          process.exit(1); // Exit with error status
-        }
-      }
-    )
-    .command(
-      'uninstall <pluginName>',
-      'Uninstall a plugin',
-      yargs => {
-        yargs
-          .positional('pluginName', {
-            describe: 'Name of the plugin to uninstall',
-            type: 'string',
-          })
-          .option('folderName', {
-            describe: 'Name of the folder that contains the plugin',
-            type: 'string',
-          })
-          .option('quiet', {
-            alias: 'q',
-            describe: 'Do not print logs',
-            type: 'boolean',
-          });
-      },
-      async argv => {
-        const { pluginName, folderName, quiet } = argv;
-        const progressCallback = quiet
-          ? null
-          : data => {
-              if (data.type === 'error' || data.type === 'success') {
-                console.error(data.type, ':', data.message);
-              }
-            }; // Use console.log for logs if not in quiet mode
-        try {
-          await PluginManager.uninstall(pluginName, folderName, progressCallback);
-        } catch (e) {
-          console.error(e.message);
-          process.exit(1); // Exit with error status
-        }
-      }
-    )
-    .command(
-      'list',
-      'List installed plugins',
-      yargs => {
-        yargs
-          .option('folderName', {
-            describe: 'Name of the folder that contains the plugins',
-            type: 'string',
-          })
-          .option('json', {
-            alias: 'j',
-            describe: 'Output in JSON format',
-            type: 'boolean',
-          });
-      },
-      async argv => {
-        const { folderName, json } = argv;
-        const progressCallback = data => {
-          if (json) {
-            console.log(JSON.stringify(data.data));
-          } else {
-            // display table
-            const rows = [['Name', 'Version', 'Folder Name', 'Repo', 'Author']];
-            data.data.forEach(plugin => {
-              rows.push([
-                plugin.pluginName,
-                plugin.pluginVersion,
-                plugin.folderName,
-                plugin.repoName,
-                plugin.author,
-              ]);
+
+        if (URL) {
+          // Single plugin installation
+          try {
+            await PluginManager.install(URL, folderName, headlampVersion, progressCallback);
+          } catch (e) {
+            console.error(e.message);
+            process.exit(1); // Exit with error status
+          }
+        } else if (config) {
+          // Bulk installation from config
+          try {
+            await installFromConfig(config);
+          } catch (error) {
+            console.error('Installation failed', {
+              error: error.message,
+              stack: error.stack,
             });
-            console.log(table(rows));
           }
-        };
-        try {
-          await PluginManager.list(folderName, progressCallback);
-        } catch (e) {
-          console.error(e.message);
-          process.exit(1); // Exit with error status
-        }
-      }
-    )
-    .demandCommand(1, '')
-    .strict()
-    .help().argv;
 
-module.exports = { brotliCompressDist };
+          if (watch) {
+            console.log(`Watching ${config} for changes...`);
+            fs.watch(config, async eventType => {
+              if (eventType === 'change') {
+                console.log(`Config file changed, reinstalling plugins...`);
+                try {
+                  await installFromConfig(config);
+                  console.log('Plugins reinstalled successfully');
+                } catch (error) {
+                  console.error('Installation failed', {
+                    error: error.message,
+                    stack: error.stack,
+                  });
+                }
+              }
+            });
+
+            // Keep the process running
+            process.stdin.resume();
+
+            // Handle graceful shutdown
+            process.on('SIGINT', () => {
+              console.log('\nStopping config file watch');
+              process.exit(0);
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Installation failed', {
+          error: error.message,
+          stack: error.stack,
+        });
+        process.exit(1);
+      }
+    }
+  )
+  .command(
+    'update <pluginName>',
+    'Update a plugin to the latest version',
+    yargs => {
+      yargs
+        .positional('pluginName', {
+          describe: 'Name of the plugin to update',
+          type: 'string',
+        })
+        .positional('folderName', {
+          describe: 'Name of the folder that contains the plugin',
+          type: 'string',
+        })
+        .positional('headlampVersion', {
+          describe: 'Version of headlamp to update the plugin into',
+          type: 'string',
+        })
+        .option('quiet', {
+          alias: 'q',
+          describe: 'Do not print logs',
+          type: 'boolean',
+        });
+    },
+    async argv => {
+      const { pluginName, folderName, headlampVersion, quiet } = argv;
+      const progressCallback = quiet
+        ? null
+        : data => {
+            if (data.type === 'error' || data.type === 'success') {
+              console.error(data.type, ':', data.message);
+            }
+          }; // Use console.log for logs if not in quiet mode
+      try {
+        await PluginManager.update(pluginName, folderName, headlampVersion, progressCallback);
+      } catch (e) {
+        console.error(e.message);
+        process.exit(1); // Exit with error status
+      }
+    }
+  )
+  .command(
+    'uninstall <pluginName>',
+    'Uninstall a plugin',
+    yargs => {
+      yargs
+        .positional('pluginName', {
+          describe: 'Name of the plugin to uninstall',
+          type: 'string',
+        })
+        .option('folderName', {
+          describe: 'Name of the folder that contains the plugin',
+          type: 'string',
+        })
+        .option('quiet', {
+          alias: 'q',
+          describe: 'Do not print logs',
+          type: 'boolean',
+        });
+    },
+    async argv => {
+      const { pluginName, folderName, quiet } = argv;
+      const progressCallback = quiet
+        ? null
+        : data => {
+            if (data.type === 'error' || data.type === 'success') {
+              console.error(data.type, ':', data.message);
+            }
+          }; // Use console.log for logs if not in quiet mode
+      try {
+        await PluginManager.uninstall(pluginName, folderName, progressCallback);
+      } catch (e) {
+        console.error(e.message);
+        process.exit(1); // Exit with error status
+      }
+    }
+  )
+  .command(
+    'list',
+    'List installed plugins',
+    yargs => {
+      yargs
+        .option('folderName', {
+          describe: 'Name of the folder that contains the plugins',
+          type: 'string',
+        })
+        .option('json', {
+          alias: 'j',
+          describe: 'Output in JSON format',
+          type: 'boolean',
+        });
+    },
+    async argv => {
+      const { folderName, json } = argv;
+      const progressCallback = data => {
+        if (json) {
+          console.log(JSON.stringify(data.data));
+        } else {
+          // display table
+          const rows = [['Name', 'Version', 'Folder Name', 'Repo', 'Author']];
+          data.data.forEach(plugin => {
+            rows.push([
+              plugin.pluginName,
+              plugin.pluginVersion,
+              plugin.folderName,
+              plugin.repoName,
+              plugin.author,
+            ]);
+          });
+          console.log(table(rows));
+        }
+      };
+      try {
+        await PluginManager.list(folderName, progressCallback);
+      } catch (e) {
+        console.error(e.message);
+        process.exit(1); // Exit with error status
+      }
+    }
+  )
+  .demandCommand(1, '')
+  .strict()
+  .help().argv;
