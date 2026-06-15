@@ -372,12 +372,14 @@ export function isEqualClusterConfigs(
  * if the present stored config is different from the fetched one.
  */
 export async function fetchStatelessClusterKubeConfigs(dispatch: any) {
-  const config = await getStatelessClusterKubeConfigs();
+  const kubeconfigs = await getStatelessClusterKubeConfigs();
   const statelessClusters = store.getState().config.statelessClusters;
   const headers = addBackstageAuthHeaders(JSON_HEADERS);
   const clusterReq = {
-    kubeconfigs: config,
+    kubeconfigs,
   };
+
+  if (!kubeconfigs || kubeconfigs.length === 0) return;
 
   // Parses statelessCluster config
   request(

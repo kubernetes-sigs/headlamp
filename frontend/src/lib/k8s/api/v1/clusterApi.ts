@@ -145,7 +145,7 @@ export async function setCluster(clusterReq: ClusterRequest) {
       '/parseKubeConfig',
       {
         method: 'POST',
-        body: JSON.stringify(clusterReq),
+        body: JSON.stringify({ kubeconfigs: [kubeconfig] }),
         headers: {
           ...headers,
         },
