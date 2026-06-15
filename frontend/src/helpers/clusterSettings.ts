@@ -68,6 +68,18 @@ export function loadClusterSettings(clusterName: string): ClusterSettings {
   if (!clusterName) {
     return {};
   }
-  const settings = JSON.parse(localStorage.getItem(`cluster_settings.${clusterName}`) || '{}');
-  return settings;
+
+  const settingsKey = `cluster_settings.${clusterName}`;
+  const storedSettings = localStorage.getItem(settingsKey);
+  if (!storedSettings) {
+    return {};
+  }
+
+  try {
+    const settings = JSON.parse(storedSettings);
+    return settings;
+  } catch {
+    localStorage.removeItem(settingsKey);
+    return {};
+  }
 }
