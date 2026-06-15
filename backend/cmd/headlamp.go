@@ -323,7 +323,8 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 	addPluginListRoute(config, r)
 
 	// Serve development plugins
-	pluginHandler := http.StripPrefix(config.BaseURL+"/plugins/", http.FileServer(http.Dir(config.PluginDir)))
+	pluginHandler := http.StripPrefix(config.BaseURL+"/plugins/",
+		spa.BrotliSidecars(config.PluginDir, http.FileServer(http.Dir(config.PluginDir))))
 	// If we're running locally, then do not cache the plugins. This ensures that reloading them (development,
 	// update) will actually get the new content.
 	if !config.UseInCluster {
@@ -335,7 +336,7 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 	// Serve user-installed plugins
 	if config.UserPluginDir != "" {
 		userPluginsHandler := http.StripPrefix(config.BaseURL+"/user-plugins/",
-			http.FileServer(http.Dir(config.UserPluginDir)))
+			spa.BrotliSidecars(config.UserPluginDir, http.FileServer(http.Dir(config.UserPluginDir))))
 		if !config.UseInCluster {
 			userPluginsHandler = serveWithNoCacheHeader(userPluginsHandler)
 		}
@@ -346,7 +347,7 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 	// Serve shipped/static plugins
 	if config.StaticPluginDir != "" {
 		staticPluginsHandler := http.StripPrefix(config.BaseURL+"/static-plugins/",
-			http.FileServer(http.Dir(config.StaticPluginDir)))
+			spa.BrotliSidecars(config.StaticPluginDir, http.FileServer(http.Dir(config.StaticPluginDir))))
 		r.PathPrefix("/static-plugins/").Handler(staticPluginsHandler)
 	}
 }

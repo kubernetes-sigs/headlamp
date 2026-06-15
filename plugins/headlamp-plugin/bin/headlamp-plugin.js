@@ -830,7 +830,20 @@ async function brotliCompressDist(dir) {
   if (!fs.existsSync(dir)) return;
 
   for (const file of walk(dir)) {
-    if (file.endsWith('.br') || file.endsWith('.gz')) continue;
+    if (file.endsWith('.br')) {
+      const original = file.slice(0, -3);
+      if (!fs.existsSync(original)) {
+        // Remove orphan sidecar so stale bytes are never served.
+        try {
+          fs.unlinkSync(file);
+        } catch (e) {
+          if (e.code !== 'ENOENT') throw e;
+        }
+      }
+      continue;
+    }
+
+    if (file.endsWith('.gz')) continue;
 
     const sidecar = file + '.br';
     const ext = path.extname(file).toLowerCase();
@@ -853,7 +866,15 @@ async function brotliCompressDist(dir) {
       },
     });
 
-    if (br.length < data.length) {
+    // Keep sidecars only when beneficial, except for dist/main.js.
+    //
+    // We always emit main.js.br so plugin bundles have a predictable
+    // precompressed entrypoint: backend/plugin loading paths and CI packaging
+    // checks expect this sidecar to exist even for very small bundles where
+    // brotli might not reduce size.
+    const shouldKeep = br.length < data.length || path.basename(file) === 'main.js';
+
+    if (shouldKeep) {
       fs.writeFileSync(sidecar, br);
     } else {
       try {
@@ -883,6 +904,8 @@ async function build(packageFolder) {
     if (!fs.existsSync(path.join(folder, 'package.json'))) {
       return false;
     }
+
+    const distDir = path.resolve(folder, 'dist');
 
     process.chdir(folder);
 
@@ -920,7 +943,7 @@ async function build(packageFolder) {
 
       // Brotli-compress all compressible files in dist/ so the Headlamp backend
       // can serve .br sidecars without on-the-fly compression.
-      await brotliCompressDist(path.join(folder, 'dist'));
+      await brotliCompressDist(distDir);
 
       console.log(`Finished building "${folder}" for production.`);
     } catch (e) {
