@@ -484,6 +484,8 @@ describe('PodLogViewer prettifyLogs persistence', () => {
 
     const mockItem = {
       getName: () => 'test-pod',
+      cluster: 'main',
+      metadata: { namespace: 'default', name: 'test-pod' },
       spec: {
         containers: [{ name: 'nginx' }],
         initContainers: [],
@@ -522,6 +524,8 @@ describe('PodLogViewer prettifyLogs persistence', () => {
 
     const mockItem = {
       getName: () => 'test-pod',
+      cluster: 'main',
+      metadata: { namespace: 'default', name: 'test-pod' },
       spec: {
         containers: [{ name: 'nginx' }],
         initContainers: [],

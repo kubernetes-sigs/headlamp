@@ -47,11 +47,11 @@ import {
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
 import { Activity } from '../../activity/Activity';
+import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import ActionButton from '../ActionButton';
 import { LogViewer } from '../LogViewer';
 import { LightTooltip } from '../Tooltip';
 import { ALL_SEVERITIES, filterLogsBySeverity, LogSeverity } from './logSeverityFilter';
-
 // Component props interface
 interface LogsButtonProps {
   item: KubeObject | null;
@@ -102,7 +102,8 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
   const [showTimestamps, setShowTimestamps] = useState<boolean>(true);
   const [follow, setFollow] = useState<boolean>(true);
-  const [lines, setLines] = useState<number>(100);
+  const [lines, _setLines] = useLocalStorageState<number>('headlamp.logs.lines', 100);
+  const setLines = (value: number | string) => _setLines(() => Number(value));
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showReconnectButton, setShowReconnectButton] = useState(false);
   const [selectedSeverities, setSelectedSeverities] = useState<LogSeverity[]>(() => {
