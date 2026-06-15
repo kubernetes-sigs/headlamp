@@ -124,3 +124,39 @@ func testFileNotFoundUsesIndexContentType(t *testing.T, testHTML string) {
 	assert.Contains(t, rr.Header().Get("Content-Type"), "text/html")
 	assert.Contains(t, rr.Body.String(), "__baseUrl__ = '/headlamp';")
 }
+
+// TestEmbeddedSpaHandlerTraversal verifies that the embedded handler rejects
+// paths containing ".." components or backslashes with 400, consistent with
+// the on-disk spaHandler.
+func TestEmbeddedSpaHandlerTraversal(t *testing.T) {
+	testHTML := getTestHTML()
+
+	files := map[string]*fstest.MapFile{
+		"static/index.html": {Data: []byte(testHTML)},
+	}
+
+	handler := spa.NewEmbeddedHandler(createTestFS(files), "index.html", "/headlamp")
+
+	tests := []struct {
+		name string
+		path string
+	}{
+		{"dotdot escape", "/headlamp/../../etc/passwd"},
+		{"dotdot in segment", "/headlamp/../secret"},
+		{"backslash in path", `/headlamp\..\secret`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req, err := http.NewRequestWithContext(
+				context.Background(), "GET", tt.path, nil)
+			require.NoError(t, err)
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusBadRequest, rr.Code,
+				"path %q should be rejected with 400", tt.path)
+		})
+	}
+}

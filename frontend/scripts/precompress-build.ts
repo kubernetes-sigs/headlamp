@@ -76,28 +76,53 @@ function shouldCompress(file: string, size: number): boolean {
   return COMPRESSIBLE.has(path.extname(file).toLowerCase());
 }
 
-if (!fs.existsSync(BUILD_DIR)) {
-  console.error(`precompress-build: build dir not found: ${BUILD_DIR}`);
-  process.exit(1);
-}
+type PrecompressResult = {
+  count: number;
+  skipped: number;
+  rawTotal: number;
+  brTotal: number;
+  orphanRemoved: number;
+};
 
-// Collect eligible files up-front so we can fan out in parallel.
-// Files that are no longer eligible have any stale sidecar removed immediately
-// so incremental rebuilds can't serve mismatched bytes.
-const files: string[] = [];
-for (const file of walk(BUILD_DIR)) {
-  if (file.endsWith('.br') || file.endsWith('.gz')) continue;
-  const { size } = fs.statSync(file);
-  if (shouldCompress(file, size)) {
-    files.push(file);
-  } else {
-    fs.rmSync(file + '.br', { force: true }); // remove stale sidecar if present
+type ProcessFileResult = { raw: number; br: number; kept: boolean };
+
+type RunPrecompressBuildOptions = {
+  maxConcurrency?: number;
+  processFileFn?: (file: string) => Promise<ProcessFileResult>;
+};
+
+const DEFAULT_MAX_CONCURRENCY = 4;
+
+function collectBuildFiles(buildDir: string): { files: string[]; orphanRemoved: number } {
+  const files: string[] = [];
+  let orphanRemoved = 0;
+
+  for (const file of walk(buildDir)) {
+    // Remove orphan .br sidecars when the original file no longer exists.
+    if (file.endsWith('.br')) {
+      const original = file.slice(0, -3);
+      if (!fs.existsSync(original)) {
+        fs.rmSync(file, { force: true });
+        orphanRemoved++;
+      }
+      continue;
+    }
+
+    if (file.endsWith('.gz')) continue;
+
+    const { size } = fs.statSync(file);
+    if (shouldCompress(file, size)) {
+      files.push(file);
+    } else {
+      // Remove stale sidecar if present.
+      fs.rmSync(file + '.br', { force: true });
+    }
   }
+
+  return { files, orphanRemoved };
 }
 
-async function processFile(
-  file: string
-): Promise<{ raw: number; br: number; kept: boolean }> {
+async function processFile(file: string): Promise<ProcessFileResult> {
   const data = await fs.promises.readFile(file);
   const compressed = await brotliCompress(data, {
     params: {
@@ -118,17 +143,75 @@ async function processFile(
   return { raw: 0, br: 0, kept: false };
 }
 
-// zlib.brotliCompress runs on the libuv thread pool (UV_THREADPOOL_SIZE,
-// default 4), so Promise.all gives real parallel compression.
-const results = await Promise.all(files.map(processFile));
+function normalizedConcurrency(maxConcurrency?: number): number {
+  if (!Number.isInteger(maxConcurrency) || !maxConcurrency || maxConcurrency < 1) {
+    return DEFAULT_MAX_CONCURRENCY;
+  }
 
-let rawTotal = 0;
-let brTotal = 0;
-let count = 0;
-let skipped = 0;
-for (const r of results) {
-  if (r.kept) { rawTotal += r.raw; brTotal += r.br; count++; }
-  else { skipped++; }
+  return maxConcurrency;
+}
+
+async function mapWithConcurrency<T, R>(
+  items: T[],
+  maxConcurrency: number,
+  worker: (item: T) => Promise<R>
+): Promise<R[]> {
+  if (items.length === 0) {
+    return [];
+  }
+
+  const results: R[] = new Array(items.length);
+  let next = 0;
+
+  async function runWorker(): Promise<void> {
+    while (true) {
+      const current = next;
+      next++;
+      if (current >= items.length) {
+        return;
+      }
+
+      results[current] = await worker(items[current]);
+    }
+  }
+
+  const workerCount = Math.min(maxConcurrency, items.length);
+  await Promise.all(Array.from({ length: workerCount }, () => runWorker()));
+
+  return results;
+}
+
+export async function runPrecompressBuild(
+  buildDir: string,
+  options: RunPrecompressBuildOptions = {}
+): Promise<PrecompressResult> {
+  if (!fs.existsSync(buildDir)) {
+    throw new Error(`precompress-build: build dir not found: ${buildDir}`);
+  }
+
+  const { files, orphanRemoved } = collectBuildFiles(buildDir);
+  const maxConcurrency = normalizedConcurrency(options.maxConcurrency);
+  const processFileFn = options.processFileFn ?? processFile;
+
+  // Keep read/compress concurrency bounded to avoid large memory spikes when
+  // many big assets are processed in one build.
+  const results = await mapWithConcurrency(files, maxConcurrency, processFileFn);
+
+  let rawTotal = 0;
+  let brTotal = 0;
+  let count = 0;
+  let skipped = 0;
+  for (const r of results) {
+    if (r.kept) {
+      rawTotal += r.raw;
+      brTotal += r.br;
+      count++;
+    } else {
+      skipped++;
+    }
+  }
+
+  return { count, skipped, rawTotal, brTotal, orphanRemoved };
 }
 
 const fmt = (b: number): string => {
@@ -136,8 +219,15 @@ const fmt = (b: number): string => {
   if (b >= 1024) return (b / 1024).toFixed(1) + ' KB';
   return b + ' B';
 };
-const ratio = rawTotal > 0 ? ((1 - brTotal / rawTotal) * 100).toFixed(1) : '0';
-console.log(
-  `precompress-build: ${count} files compressed (${skipped} skipped), ` +
-  `raw ${fmt(rawTotal)} -> br ${fmt(brTotal)} (-${ratio}%)`
-);
+if (process.argv[1] && ['precompress-build.ts', 'precompress-build.js'].includes(path.basename(process.argv[1]))) {
+  const result = await runPrecompressBuild(BUILD_DIR);
+  const ratio = result.rawTotal > 0
+    ? ((1 - result.brTotal / result.rawTotal) * 100).toFixed(1)
+    : '0';
+
+  console.log(
+    `precompress-build: ${result.count} files compressed (${result.skipped} skipped), ` +
+    `${result.orphanRemoved} orphan .br removed, ` +
+    `raw ${fmt(result.rawTotal)} -> br ${fmt(result.brTotal)} (-${ratio}%)`
+  );
+}
