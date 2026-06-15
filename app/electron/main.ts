@@ -40,6 +40,10 @@ import path from 'path';
 import url from 'url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import {
+  filterCurrentUserHeadlampProcesses,
+  isHeadlampProcessOnPort,
+} from './headlampServerProcess';
 import i18n from './i18next.config';
 import MCPClient from './mcp/MCPClient';
 import {
@@ -1268,11 +1272,12 @@ function menusToTemplate(mainWindow: BrowserWindow | null, menusFromPlugins: App
 
 async function getRunningHeadlampPIDs() {
   const processes = await find_process('name', 'headlamp-server.*');
-  if (processes.length === 0) {
+  const currentUserProcesses = await filterCurrentUserHeadlampProcesses(processes);
+  if (currentUserProcesses.length === 0) {
     return null;
   }
 
-  return processes.map(pInfo => pInfo.pid);
+  return currentUserProcesses.map(pInfo => pInfo.pid);
 }
 
 /**
@@ -1282,31 +1287,15 @@ async function getRunningHeadlampPIDs() {
 async function getHeadlampPIDsOnPort(port: number): Promise<number[] | null> {
   try {
     // Get all Headlamp processes
-    const headlampProcesses = await find_process('name', 'headlamp-server');
+    const headlampProcesses = await filterCurrentUserHeadlampProcesses(
+      await find_process('name', 'headlamp-server')
+    );
     if (headlampProcesses.length === 0) {
       return null;
     }
 
     // Parse command line arguments to find which Headlamp process is using this port
-    const headlampOnPort = headlampProcesses.filter(p => {
-      if (!p.cmd) return false;
-
-      // Look for --port=XXXX or --port XXXX in the command line
-      const portRegex = /--port[=\s]+(\d+)/;
-      const match = p.cmd.match(portRegex);
-
-      if (match && match[1]) {
-        const processPort = parseInt(match[1], 10);
-        return processPort === port;
-      }
-
-      // If no port specified, Headlamp uses default port 4466
-      if (port === 4466 && !p.cmd.includes('--port')) {
-        return true;
-      }
-
-      return false;
-    });
+    const headlampOnPort = headlampProcesses.filter(p => isHeadlampProcessOnPort(p, port));
 
     if (headlampOnPort.length === 0) {
       return null;
