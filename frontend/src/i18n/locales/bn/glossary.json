@@ -234,6 +234,8 @@
   "Node Port": "নোড পোর্ট",
   "App Protocol": "অ্যাপ প্রোটোকল",
   "Services": "সার্ভিস",
+  "No role bindings reference this service account.": "",
+  "Unable to list the role bindings for this service account.": "",
   "Image Pull Secrets": "ইমেজ পুল সিক্রেট",
   "Automount Service Account Token": "সার্ভিস অ্যাকাউন্ট টোকেন স্বয়ংক্রিয় মাউন্ট",
   "Map": "মানচিত্র",

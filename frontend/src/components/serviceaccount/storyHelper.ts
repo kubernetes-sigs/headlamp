@@ -16,6 +16,43 @@
 
 import { KubeServiceAccount } from '../../lib/k8s/serviceAccount';
 
+export const BASE_SERVICE_ACCOUNT: KubeServiceAccount = {
+  apiVersion: 'v1',
+  kind: 'ServiceAccount',
+  metadata: {
+    creationTimestamp: '2023-04-27T20:31:27Z',
+    name: 'my-sa',
+    namespace: 'default',
+    resourceVersion: '1234',
+    uid: 'abc-1234',
+  },
+  secrets: [
+    {
+      apiVersion: 'v1',
+      fieldPath: '',
+      kind: 'Secret',
+      name: 'my-sa-token',
+      namespace: 'default',
+      uid: 'secret-uid-1234',
+    },
+  ],
+  imagePullSecrets: [{ name: 'my-registry-secret' }],
+  automountServiceAccountToken: true,
+};
+
+export const BASE_EMPTY_SERVICE_ACCOUNT: KubeServiceAccount = {
+  apiVersion: 'v1',
+  kind: 'ServiceAccount',
+  metadata: {
+    creationTimestamp: '2023-04-27T20:31:27Z',
+    name: 'my-sa',
+    namespace: 'default',
+    resourceVersion: '1234',
+    uid: 'abc-1234',
+  },
+  secrets: [],
+};
+
 const creationTimestamp = new Date('2022-01-01').toISOString();
 
 export const SERVICE_ACCOUNT_DUMMY_DATA: KubeServiceAccount[] = [
