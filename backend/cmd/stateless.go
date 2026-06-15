@@ -117,6 +117,8 @@ func (c *HeadlampConfig) handleStatelessReq(r *http.Request, kubeConfig string) 
 	}
 
 	for _, context := range contexts {
+		contextName := context.Name
+
 		info := context.KubeContext.Extensions["headlamp_info"]
 		if info != nil {
 			customObj, err := MarshalCustomObject(info, context.Name)
@@ -127,11 +129,12 @@ func (c *HeadlampConfig) handleStatelessReq(r *http.Request, kubeConfig string) 
 				return "", err
 			}
 
-			// Check if the CustomName field is present
 			if customObj.CustomName != "" {
-				key = customObj.CustomName + userID
+				contextName = customObj.CustomName
 			}
-		} else if context.Name != clusterName {
+		}
+
+		if contextName != clusterName {
 			// Skip contexts that don't match the requested cluster name
 			continue
 		}
@@ -141,7 +144,7 @@ func (c *HeadlampConfig) handleStatelessReq(r *http.Request, kubeConfig string) 
 			return "", err
 		}
 
-		contextKey = key
+		contextKey = contextName + userID
 	}
 
 	return contextKey, nil
