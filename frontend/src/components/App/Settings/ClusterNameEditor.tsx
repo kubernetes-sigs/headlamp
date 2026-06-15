@@ -15,6 +15,7 @@
  */
 
 import { Box, TextField, Typography } from '@mui/material';
+import { keyBy } from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -125,7 +126,9 @@ export function ClusterNameEditor({
                 parseKubeConfig({ kubeconfig: updatedKubeconfig })
                   .then((config: any) => {
                     storeNewClusterName(newClusterName);
-                    dispatch(setStatelessConfig(config));
+                    dispatch(
+                      setStatelessConfig({ statelessClusters: keyBy(config.clusters, 'name') })
+                    );
                   })
                   .catch((err: Error) => {
                     console.error('Error updating cluster name:', err.message);

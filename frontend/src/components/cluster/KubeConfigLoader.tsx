@@ -25,6 +25,7 @@ import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import { styled } from '@mui/system';
 import * as yaml from 'js-yaml';
+import { keyBy } from 'lodash';
 import React, { useEffect, useState } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
@@ -374,7 +375,11 @@ function KubeConfigLoader() {
         setCluster({ kubeconfig: btoa(yaml.dump(selectedClusterConfig)) })
           .then(res => {
             if (res?.clusters?.length > 0) {
-              dispatch(setStatelessConfig(res));
+              dispatch(
+                setStatelessConfig({
+                  statelessClusters: keyBy(res.clusters, 'name'),
+                })
+              );
             }
             setState(Step.Success);
           })
