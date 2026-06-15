@@ -212,8 +212,13 @@ func runWatcher(
 	kContext kubeconfig.Context,
 ) {
 	defer func() {
+		if cancelVal, ok := contextCancel.LoadAndDelete(contextKey); ok {
+			if cancel, ok := cancelVal.(context.CancelFunc); ok {
+				cancel()
+			}
+		}
+
 		watcherRegistry.Delete(contextKey)
-		contextCancel.Delete(contextKey)
 	}()
 
 	logger.Log(logger.LevelInfo, nil, nil, "running runWatcher for watching k8s resource: "+redactContextKey(contextKey))
