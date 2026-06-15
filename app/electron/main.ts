@@ -32,7 +32,6 @@ import { IpcMainEvent, MenuItemConstructorOptions } from 'electron/main';
 import find_process from 'find-process';
 import * as fsPromises from 'fs/promises';
 import * as net from 'net';
-import fs from 'node:fs';
 import { userInfo } from 'node:os';
 import { promisify } from 'node:util';
 import { platform } from 'os';
@@ -54,6 +53,7 @@ import {
 import { addRunCmdConsent, removeRunCmdConsent, runScript, setupRunCmdHandlers } from './runCmd';
 import { cleanupHeadlampTray, createHeadlampTray } from './tray';
 import windowSize from './windowSize';
+import { clampZoom, DEFAULT_ZOOM_FACTOR, loadZoomFactor, saveZoomFactor } from './zoom';
 
 if (process.env.APPIMAGE) {
   app.commandLine.appendSwitch('disable-setuid-sandbox');
@@ -1329,35 +1329,16 @@ function killProcess(pid: number) {
 }
 
 const ZOOM_FILE_PATH = path.join(app.getPath('userData'), 'headlamp-config.json');
-let cachedZoom: number = 1.0;
+let cachedZoom: number = DEFAULT_ZOOM_FACTOR;
 
-function saveZoomFactor(factor: number) {
-  try {
-    fs.writeFileSync(ZOOM_FILE_PATH, JSON.stringify({ zoomFactor: factor }), 'utf-8');
-  } catch (err) {
-    console.error('Failed to save zoom factor:', err);
-  }
-}
-
-async function loadZoomFactor(): Promise<number> {
-  try {
-    const content = await fsPromises.readFile(ZOOM_FILE_PATH, 'utf-8');
-    const { zoomFactor = 1.0 } = JSON.parse(content);
-    return typeof zoomFactor === 'number' ? zoomFactor : 1.0;
-  } catch (err) {
-    console.error('Failed to load zoom factor, defaulting to 1.0:', err);
-    return 1.0;
-  }
-}
-
-// The zoom factor should respect the fixed limits set by Electron.
-function clampZoom(factor: number) {
-  return Math.min(5.0, Math.max(0.25, factor));
+function applyZoom() {
+  mainWindow?.webContents.setZoomFactor(cachedZoom);
 }
 
 function setZoom(factor: number) {
-  cachedZoom = factor;
-  mainWindow?.webContents.setZoomFactor(cachedZoom);
+  cachedZoom = clampZoom(factor);
+  applyZoom();
+  saveZoomFactor(ZOOM_FILE_PATH, cachedZoom);
 }
 
 function adjustZoom(delta: number) {
@@ -1540,6 +1521,9 @@ function startElectron() {
       },
     });
 
+    cachedZoom = await loadZoomFactor(ZOOM_FILE_PATH);
+    applyZoom();
+
     // Load the frontend
     mainWindow.loadURL(startUrl);
 
@@ -1568,14 +1552,16 @@ function startElectron() {
       }
     });
 
-    mainWindow.webContents.on('did-finish-load', async () => {
-      const startZoom = await loadZoomFactor();
-      if (startZoom !== 1.0) {
-        setZoom(startZoom);
-      }
-
+    mainWindow.webContents.on('did-finish-load', () => {
+      applyZoom();
       // Inject the backend port into the window object
       mainWindow?.webContents.executeJavaScript(`window.headlampBackendPort = ${actualPort};`);
+    });
+
+    mainWindow.webContents.on('did-frame-finish-load', (event, isMainFrame) => {
+      if (isMainFrame) {
+        applyZoom();
+      }
     });
 
     mainWindow.webContents.on('dom-ready', () => {
@@ -1820,7 +1806,7 @@ function startElectron() {
     isQuitting = true;
     cleanupHeadlampTray();
     hasTray = false;
-    saveZoomFactor(cachedZoom);
+    saveZoomFactor(ZOOM_FILE_PATH, cachedZoom);
     i18n.off('languageChanged');
     if (mainWindow) {
       mainWindow.removeAllListeners('close');
