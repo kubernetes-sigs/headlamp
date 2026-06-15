@@ -1243,138 +1243,113 @@ func (c *HeadlampConfig) incrementRequestCounter(ctx context.Context) {
 	if c.Metrics != nil {
 		c.Metrics.RequestCounter.Add(ctx, 1,
 			metric.WithAttributes(
-				attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
+				attribute.String("api.route", oidcMiddlewareRoute),
 				attribute.String("status", "start"),
 			))
 	}
 }
 
-func (c *HeadlampConfig) shouldSkipOIDCRefresh(w http.ResponseWriter, r *http.Request, span trace.Span,
-	ctx context.Context, start time.Time, next http.Handler,
-) bool {
-	if !strings.HasPrefix(r.URL.String(), "/clusters/") {
-		c.TelemetryHandler.RecordEvent(span, "Not a cluster request, skipping OIDC refresh")
-		next.ServeHTTP(w, r)
-		c.TelemetryHandler.RecordDuration(ctx, start,
-			attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
-			attribute.String("status", "skipped"))
+// oidcMiddlewareRoute is the api.route attribute value used by the OIDC token
+// refresh middleware for telemetry. It is also the span/operation name.
+const oidcMiddlewareRoute = "OIDCTokenRefreshMiddleware"
 
-		return true
-	}
-
-	return false
-}
-
-func (c *HeadlampConfig) shouldBypassOIDCRefresh(cluster, token string, w http.ResponseWriter, r *http.Request,
-	span trace.Span, ctx context.Context, start time.Time, next http.Handler,
-) bool {
-	if cluster == "" || token == "" {
-		c.TelemetryHandler.RecordEvent(span, "Missing cluster or token, bypassing OIDC refresh")
-		next.ServeHTTP(w, r)
-		c.TelemetryHandler.RecordDuration(ctx, start,
-			attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
-			attribute.String("status", "missing"))
-
-		return true
-	}
-
-	return false
-}
-
-func (c *HeadlampConfig) handleGetContextError(err error, cluster string, w http.ResponseWriter, r *http.Request,
-	span trace.Span, ctx context.Context, start time.Time, next http.Handler,
-) bool {
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
-			err, "failed to get context")
-		c.TelemetryHandler.RecordError(span, err, "Failed to get context")
-		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error", "get_context_failure"))
-		next.ServeHTTP(w, r)
-		c.TelemetryHandler.RecordDuration(ctx, start,
-			attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
-			attribute.String("status", "get_context_failure"))
-
-		return true
-	}
-
-	return false
-}
-
-func (c *HeadlampConfig) handleOIDCAuthConfigError(err error, w http.ResponseWriter, r *http.Request, span trace.Span,
-	ctx context.Context, start time.Time, next http.Handler,
-) bool {
-	if err != nil {
-		c.TelemetryHandler.RecordEvent(span, "OIDC auth not enabled for cluster")
-		next.ServeHTTP(w, r)
-		c.TelemetryHandler.RecordDuration(ctx, start,
-			attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
-			attribute.String("status", "oidc_auth_not_enabled"))
-
-		return true
-	}
-
-	return false
-}
-
-// TODO: moving functions one at a time, this will be relocated
+// TODO: relocate this middleware (and the setTokenFromCookie helper) to the
+// auth package; RefreshAndSetToken already lives there.
 //
 //nolint:funlen
 func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
 		start := time.Now()
+		// status is captured by the deferred RecordDuration below. Each early-return
+		// branch sets it before calling next.ServeHTTP. The happy path leaves it as
+		// "success".
+		status := "success"
 
 		var span trace.Span
 		if c.Telemetry != nil {
-			_, span = telemetry.CreateSpan(ctx, r, "auth", "OIDCTokenRefreshMiddleware")
+			_, span = telemetry.CreateSpan(ctx, r, "auth", oidcMiddlewareRoute)
 
 			c.TelemetryHandler.RecordEvent(span, "Middleware started")
 
 			defer span.End()
 		}
 
+		defer func() {
+			c.TelemetryHandler.RecordDuration(ctx, start,
+				attribute.String("api.route", oidcMiddlewareRoute),
+				attribute.String("status", status))
+		}()
+
 		c.incrementRequestCounter(ctx)
 
 		// skip if not cluster request
-		if c.shouldSkipOIDCRefresh(w, r, span, ctx, start, next) {
+		if !strings.HasPrefix(r.URL.String(), "/clusters/") {
+			c.TelemetryHandler.RecordEvent(span, "Not a cluster request, skipping OIDC refresh")
+
+			status = "skipped"
+
+			next.ServeHTTP(w, r)
+
 			return
 		}
 
 		// parse cluster and token
 		cluster, token := auth.ParseClusterAndToken(r)
-		if c.shouldBypassOIDCRefresh(cluster, token, w, r, span, ctx, start, next) {
+		if cluster == "" || token == "" {
+			c.TelemetryHandler.RecordEvent(span, "Missing cluster or token, bypassing OIDC refresh")
+
+			status = "missing"
+
+			next.ServeHTTP(w, r)
+
 			return
 		}
 
 		// get oidc config
 		kContext, err := c.KubeConfigStore.GetContext(cluster)
-		if c.handleGetContextError(err, cluster, w, r, span, ctx, start, next) {
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
+				err, "failed to get context")
+			c.TelemetryHandler.RecordError(span, err, "Failed to get context")
+			c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error", "get_context_failure"))
+
+			status = "get_context_failure"
+
+			next.ServeHTTP(w, r)
+
 			return
 		}
 
 		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
 			c.TelemetryHandler.RecordEvent(span, "Using service account token, skipping OIDC refresh")
+
+			status = "service_account_token"
+
 			next.ServeHTTP(w, r)
-			c.TelemetryHandler.RecordDuration(ctx, start,
-				attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
-				attribute.String("status", "service_account_token"))
 
 			return
 		}
 
 		// skip if cluster is not using OIDC auth
 		oidcAuthConfig, err := kContext.OidcConfig()
-		if c.handleOIDCAuthConfigError(err, w, r, span, ctx, start, next) {
+		if err != nil {
+			c.TelemetryHandler.RecordEvent(span, "OIDC auth not enabled for cluster")
+
+			status = "oidc_auth_not_enabled"
+
+			next.ServeHTTP(w, r)
+
 			return
 		}
 
 		// skip if token is not about to expire
 		if !auth.IsTokenAboutToExpire(token) {
 			c.TelemetryHandler.RecordEvent(span, "Token not about to expire, skipping refresh")
+
+			status = "token_valid"
+
 			next.ServeHTTP(w, r)
-			c.TelemetryHandler.RecordDuration(ctx, start,
-				attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
-				attribute.String("status", "token_valid"))
 
 			return
 		}
@@ -1398,9 +1373,6 @@ func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Hand
 		})
 
 		next.ServeHTTP(w, r)
-		c.TelemetryHandler.RecordDuration(ctx, start,
-			attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
-			attribute.String("status", "success"))
 	})
 }
 
