@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import ListView from './List';
 import { BASE_CONFIG_MAP, BASE_EMPTY_CONFIG_MAP } from './storyHelper';
 
@@ -38,7 +38,7 @@ export default {
       handlers: {
         storyBase: [],
         story: [
-          http.get('http://localhost:4466/api/v1/configmaps', () =>
+          http.get(`${API_BASE}/api/v1/configmaps`, () =>
             HttpResponse.json({
               kind: 'ConfigMapList',
               items: [BASE_CONFIG_MAP, BASE_EMPTY_CONFIG_MAP],

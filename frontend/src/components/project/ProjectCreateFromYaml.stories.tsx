@@ -18,7 +18,7 @@ import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import reducers from '../../redux/reducers/reducers';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import { CreateNew } from './ProjectCreateFromYaml';
 import { PROJECT_ID_LABEL } from './projectUtils';
 
@@ -84,20 +84,18 @@ Default.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces', () =>
+        http.get(`${API_BASE}/api/v1/namespaces`, () =>
           HttpResponse.json({
             kind: 'NamespaceList',
             items: [],
             metadata: {},
           })
         ),
-        http.get('http://localhost:4466/clusters/cluster-a/api', () =>
+        http.get(`${API_BASE}/clusters/cluster-a/api`, () =>
           HttpResponse.json({ versions: ['v1'] })
         ),
-        http.get('http://localhost:4466/clusters/cluster-a/apis', () =>
-          HttpResponse.json({ groups: [] })
-        ),
-        http.get('http://localhost:4466/clusters/cluster-a/api/v1', () =>
+        http.get(`${API_BASE}/clusters/cluster-a/apis`, () => HttpResponse.json({ groups: [] })),
+        http.get(`${API_BASE}/clusters/cluster-a/api/v1`, () =>
           HttpResponse.json({
             resources: [
               { name: 'pods', singularName: 'pod', namespaced: true, kind: 'Pod', verbs: ['list'] },
@@ -124,7 +122,7 @@ WithExistingProjects.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces', () =>
+        http.get(`${API_BASE}/api/v1/namespaces`, () =>
           HttpResponse.json({
             kind: 'NamespaceList',
             items: [
@@ -154,13 +152,11 @@ WithExistingProjects.parameters = {
             metadata: {},
           })
         ),
-        http.get('http://localhost:4466/clusters/cluster-a/api', () =>
+        http.get(`${API_BASE}/clusters/cluster-a/api`, () =>
           HttpResponse.json({ versions: ['v1'] })
         ),
-        http.get('http://localhost:4466/clusters/cluster-a/apis', () =>
-          HttpResponse.json({ groups: [] })
-        ),
-        http.get('http://localhost:4466/clusters/cluster-a/api/v1', () =>
+        http.get(`${API_BASE}/clusters/cluster-a/apis`, () => HttpResponse.json({ groups: [] })),
+        http.get(`${API_BASE}/clusters/cluster-a/api/v1`, () =>
           HttpResponse.json({
             resources: [
               { name: 'pods', singularName: 'pod', namespaced: true, kind: 'Pod', verbs: ['list'] },

@@ -17,7 +17,7 @@
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import React from 'react';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import Details from './Details';
 
 const serviceMock = {
@@ -290,30 +290,26 @@ Default.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
         ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/services', () =>
-          HttpResponse.error()
-        ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/services/example-service', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/services`, () => HttpResponse.error()),
+        http.get(`${API_BASE}/api/v1/namespaces/default/services/example-service`, () =>
           HttpResponse.json(serviceMock)
         ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/endpoints', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/endpoints`, () =>
           HttpResponse.json({
             kind: 'List',
             items: endpoints,
             metadata: {},
           })
         ),
-        http.get(
-          'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/default/endpointslices',
-          () =>
-            HttpResponse.json({
-              kind: 'List',
-              items: endpointslices,
-              metadata: {},
-            })
+        http.get(`${API_BASE}/apis/discovery.k8s.io/v1/namespaces/default/endpointslices`, () =>
+          HttpResponse.json({
+            kind: 'List',
+            items: endpointslices,
+            metadata: {},
+          })
         ),
       ],
     },
@@ -325,21 +321,16 @@ ErrorWithEndpoints.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
         ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/services', () =>
-          HttpResponse.error()
-        ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/services/example-service', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/services`, () => HttpResponse.error()),
+        http.get(`${API_BASE}/api/v1/namespaces/default/services/example-service`, () =>
           HttpResponse.json(serviceMock)
         ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/endpoints', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/endpoints`, () => HttpResponse.error()),
+        http.get(`${API_BASE}/apis/discovery.k8s.io/v1/namespaces/default/endpointslices`, () =>
           HttpResponse.error()
-        ),
-        http.get(
-          'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/default/endpointslices',
-          () => HttpResponse.error()
         ),
       ],
     },
@@ -351,31 +342,26 @@ WithA8RAnnotations.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
         ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/services', () =>
-          HttpResponse.error()
+        http.get(`${API_BASE}/api/v1/namespaces/default/services`, () => HttpResponse.error()),
+        http.get(`${API_BASE}/api/v1/namespaces/default/services/a8r-annotated-service`, () =>
+          HttpResponse.json(serviceMockWithA8RAnnotations)
         ),
-        http.get(
-          'http://localhost:4466/api/v1/namespaces/default/services/a8r-annotated-service',
-          () => HttpResponse.json(serviceMockWithA8RAnnotations)
-        ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/endpoints', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/endpoints`, () =>
           HttpResponse.json({
             kind: 'List',
             items: endpoints,
             metadata: {},
           })
         ),
-        http.get(
-          'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/default/endpointslices',
-          () =>
-            HttpResponse.json({
-              kind: 'List',
-              items: endpointslices,
-              metadata: {},
-            })
+        http.get(`${API_BASE}/apis/discovery.k8s.io/v1/namespaces/default/endpointslices`, () =>
+          HttpResponse.json({
+            kind: 'List',
+            items: endpointslices,
+            metadata: {},
+          })
         ),
       ],
     },
@@ -388,31 +374,26 @@ WithA8ROwnerOnly.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
         ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/services', () =>
-          HttpResponse.error()
+        http.get(`${API_BASE}/api/v1/namespaces/default/services`, () => HttpResponse.error()),
+        http.get(`${API_BASE}/api/v1/namespaces/default/services/owner-only-service`, () =>
+          HttpResponse.json(serviceMockWithA8ROwnerOnly)
         ),
-        http.get(
-          'http://localhost:4466/api/v1/namespaces/default/services/owner-only-service',
-          () => HttpResponse.json(serviceMockWithA8ROwnerOnly)
-        ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/endpoints', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/endpoints`, () =>
           HttpResponse.json({
             kind: 'List',
             items: endpoints,
             metadata: {},
           })
         ),
-        http.get(
-          'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/default/endpointslices',
-          () =>
-            HttpResponse.json({
-              kind: 'List',
-              items: endpointslices,
-              metadata: {},
-            })
+        http.get(`${API_BASE}/apis/discovery.k8s.io/v1/namespaces/default/endpointslices`, () =>
+          HttpResponse.json({
+            kind: 'List',
+            items: endpointslices,
+            metadata: {},
+          })
         ),
       ],
     },
@@ -421,21 +402,18 @@ WithA8ROwnerOnly.parameters = {
 
 function makeServiceHandlers(name: string, mock: object) {
   return [
-    http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+    http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
       HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
     ),
-    http.get('http://localhost:4466/api/v1/namespaces/default/services', () =>
-      HttpResponse.error()
-    ),
-    http.get(`http://localhost:4466/api/v1/namespaces/default/services/${name}`, () =>
+    http.get(`${API_BASE}/api/v1/namespaces/default/services`, () => HttpResponse.error()),
+    http.get(`${API_BASE}/api/v1/namespaces/default/services/${name}`, () =>
       HttpResponse.json(mock)
     ),
-    http.get('http://localhost:4466/api/v1/namespaces/default/endpoints', () =>
+    http.get(`${API_BASE}/api/v1/namespaces/default/endpoints`, () =>
       HttpResponse.json({ kind: 'List', items: [], metadata: {} })
     ),
-    http.get(
-      'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/default/endpointslices',
-      () => HttpResponse.json({ kind: 'List', items: [], metadata: {} })
+    http.get(`${API_BASE}/apis/discovery.k8s.io/v1/namespaces/default/endpointslices`, () =>
+      HttpResponse.json({ kind: 'List', items: [], metadata: {} })
     ),
   ];
 }

@@ -19,7 +19,7 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { useState } from 'react';
 import reducers from '../../redux/reducers/reducers';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import { NewProjectPopup } from './NewProjectPopup';
 import { PROJECT_ID_LABEL } from './projectUtils';
 
@@ -83,7 +83,7 @@ Default.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces', () =>
+        http.get(`${API_BASE}/api/v1/namespaces`, () =>
           HttpResponse.json({
             kind: 'NamespaceList',
             items: [],
@@ -103,7 +103,7 @@ WithExistingProjects.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces', () =>
+        http.get(`${API_BASE}/api/v1/namespaces`, () =>
           HttpResponse.json({
             kind: 'NamespaceList',
             items: [

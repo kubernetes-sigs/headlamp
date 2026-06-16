@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import HPADetails from './Details';
 
 const mockPDB = {
@@ -81,9 +81,8 @@ export default {
     msw: {
       handlers: {
         storyBase: [
-          http.get(
-            'http://localhost:4466/apis/policy/v1/namespaces/my-namespace/poddisruptionbudgets',
-            () => HttpResponse.error()
+          http.get(`${API_BASE}/apis/policy/v1/namespaces/my-namespace/poddisruptionbudgets`, () =>
+            HttpResponse.error()
           ),
         ],
       },
@@ -101,7 +100,7 @@ Default.parameters = {
     handlers: {
       story: [
         http.get(
-          'http://localhost:4466/apis/policy/v1/namespaces/my-namespace/poddisruptionbudgets/my-endpoint',
+          `${API_BASE}/apis/policy/v1/namespaces/my-namespace/poddisruptionbudgets/my-endpoint`,
           () => HttpResponse.json(mockPDB)
         ),
       ],
@@ -115,7 +114,7 @@ Error.parameters = {
     handlers: {
       story: [
         http.get(
-          'http://localhost:4466/apis/policy/v1/namespaces/my-namespace/poddisruptionbudgets/my-endpoint',
+          `${API_BASE}/apis/policy/v1/namespaces/my-namespace/poddisruptionbudgets/my-endpoint`,
           () => HttpResponse.error()
         ),
       ],

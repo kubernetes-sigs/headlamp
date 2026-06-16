@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import { NetworkPolicyList } from './List';
 import { NETWORK_POLICY_ITEMS } from './storyHelper';
 
@@ -44,7 +44,7 @@ Items.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/apis/networking.k8s.io/v1/networkpolicies', () =>
+        http.get(`${API_BASE}/apis/networking.k8s.io/v1/networkpolicies`, () =>
           HttpResponse.json({
             kind: 'NetworkPolicyList',
             items: NETWORK_POLICY_ITEMS,

@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import { LeaseList } from './List';
 import { LEASE_DUMMY_DATA } from './storyHelper';
 
@@ -39,7 +39,7 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get('http://localhost:4466/apis/coordination.k8s.io/v1/leases', () =>
+          http.get(`${API_BASE}/apis/coordination.k8s.io/v1/leases`, () =>
             HttpResponse.json({
               kind: 'LeaseList',
               metadata: {},

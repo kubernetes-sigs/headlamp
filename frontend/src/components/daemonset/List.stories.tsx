@@ -17,7 +17,7 @@
 import Container from '@mui/material/Container';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import List from './List';
 import { DAEMONSET_DUMMY_LIST } from './storyHelper';
 
@@ -40,7 +40,7 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get('http://localhost:4466/apis/apps/v1/daemonsets', () =>
+          http.get(`${API_BASE}/apis/apps/v1/daemonsets`, () =>
             HttpResponse.json({
               kind: 'DaemonSetList',
               items: objList,
@@ -68,9 +68,7 @@ Loading.parameters = {
   storyshots: { disable: true },
   msw: {
     handlers: {
-      story: [
-        http.get('http://localhost:4466/apis/apps/v1/daemonsets', () => new Promise(() => {})),
-      ],
+      story: [http.get(`${API_BASE}/apis/apps/v1/daemonsets`, () => new Promise(() => {}))],
     },
   },
 };
@@ -80,7 +78,7 @@ Empty.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/apis/apps/v1/daemonsets', () =>
+        http.get(`${API_BASE}/apis/apps/v1/daemonsets`, () =>
           HttpResponse.json({
             kind: 'DaemonSetList',
             items: [],
@@ -96,9 +94,7 @@ export const Error = Template.bind({});
 Error.parameters = {
   msw: {
     handlers: {
-      story: [
-        http.get('http://localhost:4466/apis/apps/v1/daemonsets', () => HttpResponse.error()),
-      ],
+      story: [http.get(`${API_BASE}/apis/apps/v1/daemonsets`, () => HttpResponse.error())],
     },
   },
 };
@@ -108,7 +104,7 @@ LongName.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/apis/apps/v1/daemonsets', () =>
+        http.get(`${API_BASE}/apis/apps/v1/daemonsets`, () =>
           HttpResponse.json({
             kind: 'DaemonSetList',
             items: [

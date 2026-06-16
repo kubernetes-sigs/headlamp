@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import EndpointSliceList from './List';
 
 const list = [
@@ -68,7 +68,7 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get('http://localhost:4466/apis/discovery.k8s.io/v1/endpointslices', () =>
+          http.get(`${API_BASE}/apis/discovery.k8s.io/v1/endpointslices`, () =>
             HttpResponse.json({
               kind: 'EndpointSliceList',
               items: list,

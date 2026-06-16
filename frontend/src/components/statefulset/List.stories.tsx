@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import StatefulSetList from './List';
 
 const mockStatefulSets = [
@@ -120,7 +120,7 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get('http://localhost:4466/apis/apps/v1/statefulsets', () => {
+          http.get(`${API_BASE}/apis/apps/v1/statefulsets`, () => {
             return HttpResponse.json({
               kind: 'StatefulSetList',
               apiVersion: 'apps/v1',
@@ -145,7 +145,7 @@ EmptyList.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/apis/apps/v1/statefulsets', () => {
+        http.get(`${API_BASE}/apis/apps/v1/statefulsets`, () => {
           return HttpResponse.json({
             kind: 'StatefulSetList',
             apiVersion: 'apps/v1',
@@ -165,7 +165,7 @@ SingleItem.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/apis/apps/v1/statefulsets', () => {
+        http.get(`${API_BASE}/apis/apps/v1/statefulsets`, () => {
           return HttpResponse.json({
             kind: 'StatefulSetList',
             apiVersion: 'apps/v1',
@@ -185,7 +185,7 @@ WithNotReadyReplicas.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/apis/apps/v1/statefulsets', () => {
+        http.get(`${API_BASE}/apis/apps/v1/statefulsets`, () => {
           return HttpResponse.json({
             kind: 'StatefulSetList',
             apiVersion: 'apps/v1',

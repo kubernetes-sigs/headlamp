@@ -18,18 +18,18 @@ import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import PodDetails from './Details';
 import { podList } from './storyHelper';
 
 const CLUSTER_NAME = 'default';
 const NAMESPACE = 'default';
 const MOCK_PATH = `/c/${CLUSTER_NAME}/namespace/${NAMESPACE}/name/pod`;
-const API_BASE = `http://localhost:4466/clusters/${CLUSTER_NAME}/api/v1/namespaces/${NAMESPACE}`;
-const PODS_URL = `${API_BASE}/pods`;
-const PODS_URL_NO_CLUSTER = `http://localhost:4466/api/v1/namespaces/${NAMESPACE}/pods`;
-const EVENTS_URL = `${API_BASE}/events`;
-const AUTH_URL = `http://localhost:4466/clusters/${CLUSTER_NAME}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`;
+const NS_API_BASE = `${API_BASE}/clusters/${CLUSTER_NAME}/api/v1/namespaces/${NAMESPACE}`;
+const PODS_URL = `${NS_API_BASE}/pods`;
+const PODS_URL_NO_CLUSTER = `${NS_API_BASE}/api/v1/namespaces/${NAMESPACE}/pods`;
+const EVENTS_URL = `${NS_API_BASE}/events`;
+const AUTH_URL = `${NS_API_BASE}/clusters/${CLUSTER_NAME}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`;
 
 // Store the initial path at module scope, so we can always restore to it
 const INITIAL_PATH = window.location.pathname;

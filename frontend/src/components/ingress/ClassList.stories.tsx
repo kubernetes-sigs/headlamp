@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import ListView from './ClassList';
 import { RESOURCE_DEFAULT_INGRESS_CLASS, RESOURCE_INGRESS_CLASS } from './storyHelper';
 
@@ -37,7 +37,7 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get('http://localhost:4466/apis/networking.k8s.io/v1/ingressclasses', () =>
+          http.get(`${API_BASE}/apis/networking.k8s.io/v1/ingressclasses`, () =>
             HttpResponse.json({
               kind: 'IngressClassList',
               metadata: {},

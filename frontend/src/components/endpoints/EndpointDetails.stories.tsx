@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import EndpointDetails from './Details';
 
 export default {
@@ -27,12 +27,10 @@ export default {
     msw: {
       handlers: {
         storyBase: [
-          http.get('http://localhost:4466/api/v1/namespaces/my-namespace/endpoints', () =>
+          http.get(`${API_BASE}/api/v1/namespaces/my-namespace/endpoints`, () =>
             HttpResponse.error()
           ),
-          http.get('http://localhost:4466/api/v1/namespaces/my-namespace/events', () =>
-            HttpResponse.error()
-          ),
+          http.get(`${API_BASE}/api/v1/namespaces/my-namespace/events`, () => HttpResponse.error()),
         ],
       },
     },
@@ -52,7 +50,7 @@ Default.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/my-namespace/endpoints/my-endpoint', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/my-namespace/endpoints/my-endpoint`, () =>
           HttpResponse.json({
             kind: 'Endpoints',
             apiVersion: 'v1',
@@ -113,7 +111,7 @@ Error.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/my-namespace/endpoints/my-endpoint', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/my-namespace/endpoints/my-endpoint`, () =>
           HttpResponse.error()
         ),
       ],

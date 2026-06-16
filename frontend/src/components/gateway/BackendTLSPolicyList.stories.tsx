@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import BackendTLSPolicyList from './BackendTLSPolicyList';
 import { DEFAULT_BACKEND_TLS_POLICY } from './storyHelper';
 
@@ -35,15 +35,13 @@ export default {
       handlers: {
         storyBase: [],
         story: [
-          http.get(
-            'http://localhost:4466/apis/gateway.networking.k8s.io/v1alpha3/backendtlspolicies',
-            () =>
-              HttpResponse.json({
-                kind: 'BackendTLSPolicyList',
-                apiVersion: 'gateway.networking.k8s.io/v1alpha3',
-                metadata: {},
-                items: [DEFAULT_BACKEND_TLS_POLICY],
-              })
+          http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1alpha3/backendtlspolicies`, () =>
+            HttpResponse.json({
+              kind: 'BackendTLSPolicyList',
+              apiVersion: 'gateway.networking.k8s.io/v1alpha3',
+              metadata: {},
+              items: [DEFAULT_BACKEND_TLS_POLICY],
+            })
           ),
         ],
       },

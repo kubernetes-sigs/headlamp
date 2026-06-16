@@ -25,7 +25,7 @@ import Deployment from '../../../lib/k8s/deployment';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import StatefulSet from '../../../lib/k8s/statefulSet';
-import { TestContext } from '../../../test';
+import { API_BASE, TestContext } from '../../../test';
 import ActionsNotifier from '../ActionsNotifier';
 import ResourceTableMultiActions from './ResourceTableMultiActions';
 
@@ -47,12 +47,11 @@ export default {
       handlers: {
         story: [
           http.post(
-            'http://localhost:4466/clusters/local/apis/authorization.k8s.io/v1/selfsubjectaccessreviews',
+            `${API_BASE}/clusters/local/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`,
             () => HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
           ),
-          http.post(
-            'http://localhost:4466/apis/authorization.k8s.io/v1/selfsubjectaccessreviews',
-            () => HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
+          http.post(`${API_BASE}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, () =>
+            HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
           ),
         ],
       },

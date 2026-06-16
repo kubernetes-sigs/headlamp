@@ -17,7 +17,7 @@
 import Container from '@mui/material/Container';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import List from './List';
 import { NODE_DUMMY_DATA, NODE_DUMMY_DATA_NO_POOLS } from './storyHelper';
 
@@ -38,7 +38,7 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get('http://localhost:4466/api/v1/nodes', () =>
+          http.get(`${API_BASE}/api/v1/nodes`, () =>
             HttpResponse.json({
               kind: 'NodeList',
               apiVersion: 'v1',
@@ -72,7 +72,7 @@ NoNodePools.parameters = {
     handlers: {
       base: null,
       story: [
-        http.get('http://localhost:4466/api/v1/nodes', () =>
+        http.get(`${API_BASE}/api/v1/nodes`, () =>
           HttpResponse.json({
             kind: 'NodeList',
             apiVersion: 'v1',
@@ -80,11 +80,10 @@ NoNodePools.parameters = {
             items: NODE_DUMMY_DATA_NO_POOLS,
           })
         ),
-        http.post(
-          'http://localhost:4466/apis/authorization.k8s.io/v1/selfsubjectaccessreviews',
-          () => HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
+        http.post(`${API_BASE}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, () =>
+          HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
         ),
-        http.get('http://localhost:4466/apis/metrics.k8s.io/v1beta1/nodes', () =>
+        http.get(`${API_BASE}/apis/metrics.k8s.io/v1beta1/nodes`, () =>
           HttpResponse.json({
             apiVersion: 'metrics.k8s.io/v1beta1',
             kind: 'NodeMetricsList',

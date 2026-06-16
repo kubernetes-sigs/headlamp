@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import Details from './Details';
 import { BASE_CONFIG_MAP, BASE_EMPTY_CONFIG_MAP } from './storyHelper';
 
@@ -37,8 +37,8 @@ export default {
     msw: {
       handlers: {
         storyBase: [
-          http.get('http://localhost:4466/api/v1/configmaps', () => HttpResponse.error()),
-          http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+          http.get(`${API_BASE}/api/v1/configmaps`, () => HttpResponse.error()),
+          http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
             HttpResponse.json({
               kind: 'EventList',
               items: [],
@@ -60,9 +60,7 @@ WithBase.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/configmaps/my-cm', () =>
-          HttpResponse.json(BASE_CONFIG_MAP)
-        ),
+        http.get(`${API_BASE}/api/v1/configmaps/my-cm`, () => HttpResponse.json(BASE_CONFIG_MAP)),
       ],
     },
   },
@@ -73,7 +71,7 @@ Empty.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/configmaps/my-cm', () =>
+        http.get(`${API_BASE}/api/v1/configmaps/my-cm`, () =>
           HttpResponse.json(BASE_EMPTY_CONFIG_MAP)
         ),
       ],

@@ -22,7 +22,7 @@ import React from 'react';
 import { Provider } from 'react-redux';
 import { BrowserRouter, Route } from 'react-router-dom';
 import { initialState as configInitialState } from '../../redux/configSlice';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import NavigationTabs from './NavigationTabs';
 import {
   DefaultSidebars,
@@ -159,23 +159,19 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions',
-            () =>
-              HttpResponse.json({
-                kind: 'List',
-                items: [],
-                metadata: {},
-              })
+          http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions`, () =>
+            HttpResponse.json({
+              kind: 'List',
+              items: [],
+              metadata: {},
+            })
           ),
-          http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
-            () =>
-              HttpResponse.json({
-                kind: 'List',
-                items: [],
-                metadata: {},
-              })
+          http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions`, () =>
+            HttpResponse.json({
+              kind: 'List',
+              items: [],
+              metadata: {},
+            })
           ),
         ],
       },

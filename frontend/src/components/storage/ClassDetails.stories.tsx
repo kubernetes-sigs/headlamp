@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import Details from './ClassDetails';
 import { BASE_SC } from './storyHelper';
 
@@ -44,12 +44,10 @@ Base.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/apis/storage.k8s.io/v1/storageclasses/my-sc', () =>
+        http.get(`${API_BASE}/apis/storage.k8s.io/v1/storageclasses/my-sc`, () =>
           HttpResponse.json(BASE_SC)
         ),
-        http.get('http://localhost:4466/apis/storage.k8s.io/v1/storageclasses', () =>
-          HttpResponse.error()
-        ),
+        http.get(`${API_BASE}/apis/storage.k8s.io/v1/storageclasses`, () => HttpResponse.error()),
       ],
     },
   },

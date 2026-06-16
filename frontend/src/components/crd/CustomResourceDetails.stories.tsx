@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import { CustomResourceDetails, CustomResourceDetailsProps } from './CustomResourceDetails';
 import { mockCRD, mockCRList } from './storyHelper';
 
@@ -28,63 +28,58 @@ export default {
     msw: {
       handlers: {
         storyBase: [
-          http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
-            () =>
-              HttpResponse.json(
-                {
-                  kind: 'Status',
-                  apiVersion: 'v1',
-                  status: 'Failure',
-                  message:
-                    'the server could not find the requested resource for /apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
-                  reason: 'NotFound',
-                  code: 404,
-                },
-                { status: 404 }
-              )
+          http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions`, () =>
+            HttpResponse.json(
+              {
+                kind: 'Status',
+                apiVersion: 'v1',
+                status: 'Failure',
+                message:
+                  'the server could not find the requested resource for /apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
+                reason: 'NotFound',
+                code: 404,
+              },
+              { status: 404 }
+            )
           ),
           http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions/mydefinition.phonyresources.io',
+            `${API_BASE}/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions/mydefinition.phonyresources.io`,
             () => HttpResponse.error()
           ),
           http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions/error.crd.io',
+            `${API_BASE}/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions/error.crd.io`,
             () => HttpResponse.error()
           ),
           http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions/loadingcrd',
+            `${API_BASE}/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions/loadingcrd`,
             () => HttpResponse.error()
           ),
-          http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions',
-            () => HttpResponse.json({})
+          http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions`, () =>
+            HttpResponse.json({})
           ),
           http.get(
-            'http://localhost:4466/apis/my.phonyresources.io/v1/namespaces/mynamespace/mycustomresources/mycustomresource',
+            `${API_BASE}/apis/my.phonyresources.io/v1/namespaces/mynamespace/mycustomresources/mycustomresource`,
             () => HttpResponse.json(mockCRList[0])
           ),
           http.get(
-            'http://localhost:4466/apis/my.phonyresources.io/v1/namespaces/mynamespace/mycustomresources',
+            `${API_BASE}/apis/my.phonyresources.io/v1/namespaces/mynamespace/mycustomresources`,
             () => HttpResponse.json({})
           ),
           http.get(
-            'http://localhost:4466/apis/my.phonyresources.io/v1/mycustomresources/nonexistentcustomresource',
+            `${API_BASE}/apis/my.phonyresources.io/v1/mycustomresources/nonexistentcustomresource`,
             () => HttpResponse.error()
           ),
           http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions/error.crd.io',
+            `${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions/error.crd.io`,
             () => HttpResponse.error()
           ),
           http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions/mydefinition.phonyresources.io',
+            `${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions/mydefinition.phonyresources.io`,
             () => HttpResponse.json(mockCRD)
           ),
-          http.get('http://localhost:4466/api/v1/namespaces/mynamespace/events', () =>
-            HttpResponse.error()
-          ),
+          http.get(`${API_BASE}/api/v1/namespaces/mynamespace/events`, () => HttpResponse.error()),
           http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions/loadingcrd',
+            `${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions/loadingcrd`,
             () => HttpResponse.json(null)
           ),
         ],

@@ -21,6 +21,7 @@ import React from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { getTestDate } from '../../../helpers/testHelpers';
+import { API_BASE } from '../../../test';
 import Notifications from './Notifications';
 import { Notification } from './notificationsSlice';
 
@@ -67,15 +68,11 @@ export default {
     msw: {
       handlers: {
         storyBase: [
-          http.get('http://localhost:4466/clusters/staging-cluster/api/v1/events', () =>
+          http.get(`${API_BASE}/clusters/staging-cluster/api/v1/events`, () =>
             HttpResponse.error()
           ),
-          http.get('http://localhost:4466/clusters/dev-cluster/api/v1/events', () =>
-            HttpResponse.error()
-          ),
-          http.get('http://localhost:4466/clusters/prod-cluster/api/v1/events', () =>
-            HttpResponse.error()
-          ),
+          http.get(`${API_BASE}/clusters/dev-cluster/api/v1/events`, () => HttpResponse.error()),
+          http.get(`${API_BASE}/clusters/prod-cluster/api/v1/events`, () => HttpResponse.error()),
         ],
       },
     },

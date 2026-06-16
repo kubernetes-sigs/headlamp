@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import HTTPRouteDetails from './HTTPRouteDetails';
 import { DEFAULT_HTTP_ROUTE, EMPTY_HTTP_ROUTE } from './storyHelper';
 
@@ -38,26 +38,25 @@ export default {
       handlers: {
         story: [],
         storyBase: [
-          http.get('http://localhost:4466/apis/gateway.networking.k8s.io/v1/httproutes', () =>
+          http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1/httproutes`, () =>
             HttpResponse.json({})
           ),
-          http.get('http://localhost:4466/apis/gateway.networking.k8s.io/v1beta1/httproutes', () =>
+          http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1beta1/httproutes`, () =>
             HttpResponse.error()
           ),
           http.get(
-            'http://localhost:4466/apis/gateway.networking.k8s.io/v1beta1/httproutes/default-httproute',
+            `${API_BASE}/apis/gateway.networking.k8s.io/v1beta1/httproutes/default-httproute`,
             () => HttpResponse.error()
           ),
-          http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+          http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
             HttpResponse.json({
               kind: 'EventList',
               items: [],
               metadata: {},
             })
           ),
-          http.post(
-            'http://localhost:4466/apis/authorization.k8s.io/v1/selfsubjectaccessreviews',
-            () => HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
+          http.post(`${API_BASE}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, () =>
+            HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
           ),
         ],
       },
@@ -77,9 +76,8 @@ Basic.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get(
-          'http://localhost:4466/apis/gateway.networking.k8s.io/v1/httproutes/default-httproute',
-          () => HttpResponse.json(DEFAULT_HTTP_ROUTE)
+        http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1/httproutes/default-httproute`, () =>
+          HttpResponse.json(DEFAULT_HTTP_ROUTE)
         ),
       ],
     },
@@ -94,9 +92,8 @@ Empty.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get(
-          'http://localhost:4466/apis/gateway.networking.k8s.io/v1/httproutes/default-httproute',
-          () => HttpResponse.json(EMPTY_HTTP_ROUTE)
+        http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1/httproutes/default-httproute`, () =>
+          HttpResponse.json(EMPTY_HTTP_ROUTE)
         ),
       ],
     },
