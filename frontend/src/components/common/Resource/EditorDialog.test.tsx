@@ -347,6 +347,94 @@ describe('EditorDialog', () => {
     expect(updatedEditor.value).not.toContain('value1');
   });
 
+  it('calls onBaselineAccepted with the latest server version when Undo discards a conflicting edit', () => {
+    const onBaselineAccepted = vi.fn();
+    const initialItem = {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: { name: 'my-config', resourceVersion: '1' },
+    };
+
+    const { rerender } = render(
+      <TestContext>
+        <EditorDialog
+          open
+          keepMounted
+          noDialog
+          item={initialItem}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+          onBaselineAccepted={onBaselineAccepted}
+        />
+      </TestContext>
+    );
+
+    const editor = screen.getByRole('textbox', { name: /code$/i });
+    fireEvent.change(editor, { target: { value: 'user-edited-content' } });
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const externallyModifiedItem = {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: { name: 'my-config', resourceVersion: '2' },
+    };
+
+    // Re-render with updated resourceVersion simulating an external modification.
+    act(() => {
+      rerender(
+        <TestContext>
+          <EditorDialog
+            open
+            keepMounted
+            noDialog
+            item={externallyModifiedItem}
+            onClose={vi.fn()}
+            onSave={vi.fn()}
+            onBaselineAccepted={onBaselineAccepted}
+          />
+        </TestContext>
+      );
+    });
+
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    // Not yet — the user's edits are still being preserved, nothing has been accepted.
+    expect(onBaselineAccepted).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+
+    // Undo discards the user's edit in favour of the latest server version — the
+    // save-baseline owner must rebase onto that same version, not the stale one it
+    // launched with, so a subsequent edit + save doesn't replay the external change.
+    expect(onBaselineAccepted).toHaveBeenCalledTimes(1);
+    expect(onBaselineAccepted).toHaveBeenCalledWith(externallyModifiedItem);
+
+    // A second Undo click (e.g. on a fresh unrelated edit) must not re-fire it.
+    fireEvent.change(screen.getByRole('textbox', { name: /code$/i }), {
+      target: { value: 'another-edit' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+    expect(onBaselineAccepted).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call onBaselineAccepted when Undo discards a plain edit with no external conflict', () => {
+    const onBaselineAccepted = vi.fn();
+    renderEditorDialog({ onSave: vi.fn(), onBaselineAccepted });
+
+    const editor = screen.getByRole('textbox', { name: /code$/i });
+    fireEvent.change(editor, { target: { value: 'just my own edit, no conflict involved' } });
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+
+    expect(onBaselineAccepted).not.toHaveBeenCalled();
+  });
+
   it('clears the warning when the server-side change matches what the user already typed', () => {
     const initialItem = {
       apiVersion: 'v1',

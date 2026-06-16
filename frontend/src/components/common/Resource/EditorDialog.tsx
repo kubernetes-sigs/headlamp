@@ -90,6 +90,12 @@ export interface EditorDialogProps extends DialogProps {
   cluster?: string;
   /** When true, the Apply button is disabled due to form validation errors. */
   formInvalid?: boolean;
+  /** Called when the user accepts/discards an external-modification conflict via
+   *  "Undo Changes", with the server object the editor is rebased onto. Callers that
+   *  compute their own save-time JSON Patch (rather than relying on `onSave`'s object
+   *  wholesale) should use this to rebase their patch baseline in lockstep — otherwise
+   *  a patch computed against the pre-conflict baseline can replay the external change. */
+  onBaselineAccepted?: (item: KubeObjectInterface) => void;
 }
 
 export default function EditorDialog(props: EditorDialogProps) {
@@ -109,6 +115,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     treatItemChangesAsEdits,
     cluster,
     formInvalid,
+    onBaselineAccepted,
     ...other
   } = props;
   const editorOptions = {
@@ -125,6 +132,10 @@ export default function EditorDialog(props: EditorDialogProps) {
   const previousVersionRef = React.useRef(
     isKubeObjectIsh(item) ? item?.metadata?.resourceVersion || '' : ''
   );
+  // The server object `originalCodeRef` was last rebased onto, so Undo can hand the
+  // same version to the save-baseline owner (see `onBaselineAccepted`). Only Undo
+  // consumes this — plain edits never rebase the save baseline while they're unsaved.
+  const pendingBaselineItemRef = React.useRef<KubeObjectInterface | null>(null);
   const [error, setError] = React.useState('');
   const [resourceModifiedWarning, setResourceModifiedWarning] = React.useState(false);
   const [docSpecs, setDocSpecs] = React.useState<
@@ -225,6 +236,7 @@ export default function EditorDialog(props: EditorDialogProps) {
         // Update the baseline so "Undo Changes" restores to the latest server
         // version rather than the stale version the editor was opened with.
         originalCodeRef.current = { code: itemCode, format };
+        pendingBaselineItemRef.current = clonedItem as KubeObjectInterface;
         if (newVersion !== '') {
           previousVersionRef.current = newVersion;
         }
@@ -476,6 +488,13 @@ export default function EditorDialog(props: EditorDialogProps) {
       }
     }
     setResourceModifiedWarning(false);
+    // The user is discarding their edits in favour of whatever server version
+    // originalCodeRef was last rebased onto — let the save-baseline owner rebase too,
+    // so a subsequent edit + save diffs against this version rather than the stale one.
+    if (pendingBaselineItemRef.current) {
+      onBaselineAccepted?.(pendingBaselineItemRef.current);
+      pendingBaselineItemRef.current = null;
+    }
   }
 
   const applyFunc = async (
