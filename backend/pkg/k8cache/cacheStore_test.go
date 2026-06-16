@@ -349,30 +349,45 @@ func TestExtractNamespace(t *testing.T) {
 	}
 }
 
-func TestIsKubernetesResourceAPIPath(t *testing.T) {
+func TestIsKubernetesAPIPath(t *testing.T) {
 	tests := []struct {
 		name     string
 		path     string
 		expected bool
 	}{
 		{
-			name:     "proxied core api path",
+			name:     "proxied core resource path",
 			path:     "/clusters/kind-kind/api/v1/pods",
 			expected: true,
 		},
 		{
-			name:     "proxied named api path",
+			name:     "proxied named resource path",
 			path:     "/clusters/kind-kind/apis/apps/v1/deployments",
 			expected: true,
 		},
 		{
-			name:     "direct core api path",
+			name:     "direct core resource path",
 			path:     "/api/v1/pods",
 			expected: true,
 		},
 		{
-			name:     "direct named api path",
+			name:     "direct named resource path",
 			path:     "/apis/apps/v1/deployments",
+			expected: true,
+		},
+		{
+			name:     "direct core api root",
+			path:     "/api",
+			expected: true,
+		},
+		{
+			name:     "proxied named api root with trailing slash",
+			path:     "/clusters/kind-kind/apis/",
+			expected: true,
+		},
+		{
+			name:     "proxied discovery path",
+			path:     "/clusters/kind-kind/api/",
 			expected: true,
 		},
 		{
@@ -389,7 +404,7 @@ func TestIsKubernetesResourceAPIPath(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			assert.Equal(t, tc.expected, k8cache.IsKubernetesResourceAPIPath(tc.path))
+			assert.Equal(t, tc.expected, k8cache.IsKubernetesAPIPath(tc.path))
 		})
 	}
 }

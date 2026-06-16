@@ -299,7 +299,7 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 		return
 	}
 
-	if !k8cache.IsKubernetesResourceAPIPath(r.URL.Path) || isSelfSubjectReviewAPIPath(r.URL.Path) {
+	if !k8cache.IsKubernetesAPIPath(r.URL.Path) || isSelfSubjectReviewAPIPath(r.URL.Path) {
 		next.ServeHTTP(w, r)
 		return
 	}
