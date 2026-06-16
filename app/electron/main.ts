@@ -40,6 +40,11 @@ import path from 'path';
 import url from 'url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import {
+  filterCurrentUserHeadlampProcesses,
+  type HeadlampProcessInfo,
+  isHeadlampProcessOnPort,
+} from './headlampServerProcess';
 import i18n from './i18next.config';
 import MCPClient from './mcp/MCPClient';
 import {
@@ -739,10 +744,17 @@ async function isPortAvailable(port: number): Promise<boolean> {
  * @returns Available port number, or throws if no port found after MAX_PORT_ATTEMPTS
  */
 async function findAvailablePort(startPort: number): Promise<number> {
+  let headlampProcesses: HeadlampProcessInfo[] = [];
+  try {
+    headlampProcesses = await getCurrentUserHeadlampProcesses();
+  } catch (error) {
+    console.error('Error getting Headlamp processes:', error);
+  }
+
   for (let i = 0; i < MAX_PORT_ATTEMPTS; i++) {
     const port = startPort + i;
     // Skip ports already used by another Headlamp instance.
-    const headlampPIDs = await getHeadlampPIDsOnPort(port);
+    const headlampPIDs = await getHeadlampPIDsOnPort(port, headlampProcesses);
     if (headlampPIDs && headlampPIDs.length > 0) {
       console.info(
         `Port ${port} is occupied by Headlamp process(es) ${headlampPIDs.join(
@@ -1281,46 +1293,37 @@ function menusToTemplate(mainWindow: BrowserWindow | null, menusFromPlugins: App
 }
 
 async function getRunningHeadlampPIDs() {
-  const processes = await find_process('name', 'headlamp-server.*');
-  if (processes.length === 0) {
+  const currentUserProcesses = await getCurrentUserHeadlampProcesses('headlamp-server.*');
+  if (currentUserProcesses.length === 0) {
     return null;
   }
 
-  return processes.map(pInfo => pInfo.pid);
+  return currentUserProcesses.map(pInfo => pInfo.pid);
+}
+
+async function getCurrentUserHeadlampProcesses(
+  processName = 'headlamp-server'
+): Promise<HeadlampProcessInfo[]> {
+  return filterCurrentUserHeadlampProcesses(await find_process('name', processName));
 }
 
 /**
  * Check if a specific port is occupied by a Headlamp process
  * @returns Array of Headlamp PIDs using the port, or null if port is free or used by another process
  */
-async function getHeadlampPIDsOnPort(port: number): Promise<number[] | null> {
+async function getHeadlampPIDsOnPort(
+  port: number,
+  headlampProcesses?: HeadlampProcessInfo[]
+): Promise<number[] | null> {
   try {
     // Get all Headlamp processes
-    const headlampProcesses = await find_process('name', 'headlamp-server');
-    if (headlampProcesses.length === 0) {
+    const processes = headlampProcesses ?? (await getCurrentUserHeadlampProcesses());
+    if (processes.length === 0) {
       return null;
     }
 
     // Parse command line arguments to find which Headlamp process is using this port
-    const headlampOnPort = headlampProcesses.filter(p => {
-      if (!p.cmd) return false;
-
-      // Look for --port=XXXX or --port XXXX in the command line
-      const portRegex = /--port[=\s]+(\d+)/;
-      const match = p.cmd.match(portRegex);
-
-      if (match && match[1]) {
-        const processPort = parseInt(match[1], 10);
-        return processPort === port;
-      }
-
-      // If no port specified, Headlamp uses default port 4466
-      if (port === 4466 && !p.cmd.includes('--port')) {
-        return true;
-      }
-
-      return false;
-    });
+    const headlampOnPort = processes.filter(p => isHeadlampProcessOnPort(p, port));
 
     if (headlampOnPort.length === 0) {
       return null;
