@@ -160,9 +160,9 @@ function makeKubeObjectResults(
  * The default results include Kubernetes objects, clusters, app pages, namespace filters,
  * theme switching, keyboard shortcut settings, and advanced search suggestions.
  *
- * @param props.maxWidth - The maximum width of the results list.
- * @param props.defaultValue - The initial search query to display in the search field.
- * @param props.onBlur - Callback called when the search field loses focus.
+ * @param maxWidth - The maximum width of the results list.
+ * @param defaultValue - The initial search query to display in the search field.
+ * @param onBlur - Callback called when the search field loses focus.
  */
 export function GlobalSearchContent({
   maxWidth,
