@@ -15,11 +15,10 @@
  */
 
 import _ from 'lodash';
-import React, { useContext, useMemo } from 'react';
-import { useHistory, useLocation } from 'react-router-dom';
+import React, { useMemo } from 'react';
 import { ConfigState } from '../../redux/configSlice';
 import { useTypedSelector } from '../../redux/hooks';
-import { getCluster, getSelectedClusters } from '../cluster';
+import { getCluster } from '../cluster';
 import { clusterRequest } from './api/v1/clusterRequests';
 import { ApiError } from './api/v2/ApiError';
 import { Cluster, LabelSelector, StringDict } from './cluster';
@@ -58,7 +57,6 @@ import Role from './role';
 import RoleBinding from './roleBinding';
 import { RuntimeClass } from './runtime';
 import Secret from './secret';
-import { SelectedClustersContext } from './SelectedClustersContext';
 import Service from './service';
 import ServiceAccount from './serviceAccount';
 import StatefulSet from './statefulSet';
@@ -135,53 +133,8 @@ export function useClustersConf(): ConfigState['allClusters'] {
   );
 }
 
-/**
- * Get the currently selected cluster name.
- *
- * If more than one cluster is selected it will return:
- *  - On details pages: the cluster of the currently viewed resource
- *  - On any other page: one of the selected clusters
- *
- * To get all currently selected clusters please use {@link useSelectedClusters}
- *
- * @returns currently selected cluster
- */
-export function useCluster() {
-  const history = useHistory();
-
-  const [cluster, setCluster] = React.useState(getCluster());
-
-  React.useEffect(() => {
-    // Listen to route changes
-    return history.listen(() => {
-      const newCluster = getCluster(history.location.pathname);
-      // Update the state only when the cluster changes
-      setCluster(currentCluster => (newCluster !== currentCluster ? newCluster : currentCluster));
-    });
-  }, [history]);
-
-  return cluster;
-}
-
-/**
- * Get a list of selected clusters. Updates when the cluster changes.
- *
- * @returns list of selected clusters. if no clusters are selected, an empty list is returned.
- */
-export function useSelectedClusters(): string[] {
-  const clusterInURL = useCluster();
-  const location = useLocation();
-  const maybeSelectedClusters = useContext(SelectedClustersContext);
-
-  const clusterGroup = React.useMemo(() => {
-    return getSelectedClusters([], location.pathname);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [clusterInURL, location.pathname]);
-
-  return maybeSelectedClusters && maybeSelectedClusters.length > 0
-    ? maybeSelectedClusters
-    : clusterGroup;
-}
+export { useCluster, useConnectApi, useSelectedClusters } from './api/v1/hooks';
+export type { CancellablePromise } from './api/v1/hooks';
 
 /**
  * Gets the version of the cluster given by the parameter.
@@ -191,35 +144,6 @@ export function useSelectedClusters(): string[] {
  */
 export function getVersion(clusterName: string = ''): Promise<StringDict> {
   return clusterRequest('/version', { cluster: clusterName || getCluster() });
-}
-
-export type CancellablePromise = Promise<() => void>;
-
-/**
- * Hook to manage multiple cancellable API calls tied to the active cluster.
- *
- * @param apiCalls - functions returning cancellable promises for API calls.
- */
-export function useConnectApi(...apiCalls: (() => CancellablePromise)[]) {
-  // Use the location to make sure the API calls are changed, as they may depend on the cluster
-  // (defined in the URL ATM).
-  const cluster = useCluster();
-
-  React.useEffect(
-    () => {
-      const cancellables = apiCalls.map(func => func());
-
-      return function cleanup() {
-        for (const cancellablePromise of cancellables) {
-          cancellablePromise.then(cancellable => cancellable());
-        }
-      };
-    },
-    // If we add the apiCalls to the dependency list, then it actually
-    // results in undesired reloads.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [cluster]
-  );
 }
 
 /**
