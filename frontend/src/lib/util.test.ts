@@ -16,6 +16,7 @@
 
 import {
   combineClusterListErrors,
+  compareUnits,
   flattenClusterListItems,
   formatDuration,
   getPercentStr,
@@ -342,5 +343,46 @@ describe('normalizeUnit', () => {
     it('shows plural cores', () => {
       expect(normalizeUnit('cpu', '2')).toBe('2 cores');
     });
+  });
+});
+
+describe('compareUnits', () => {
+  it('compares identical values', () => {
+    expect(compareUnits('500m', '500m')).toBe(true);
+  });
+
+  it('ignores whitespace differences', () => {
+    expect(compareUnits('  500 m  ', '500m')).toBe(true);
+    expect(compareUnits('500m', ' 500m ')).toBe(true);
+  });
+
+  it('ignores case differences', () => {
+    expect(compareUnits('500Mi', '500mi')).toBe(true);
+    expect(compareUnits('2ki', '2Ki')).toBe(true);
+  });
+
+  it('treats normalized formatting as equal when numeric value matches', () => {
+    expect(compareUnits('1k', normalizeUnit('memory', '1k'))).toBe(true);
+  });
+
+  it('returns true for matching decimal/fractional numbers', () => {
+    expect(compareUnits('1.5', '1.50')).toBe(true);
+    expect(compareUnits('2.3Mi', '2.3')).toBe(true);
+  });
+
+  it('returns false for mismatched decimal/fractional values', () => {
+    expect(compareUnits('1.5Gi', '1.61 GB')).toBe(false);
+    expect(compareUnits('2.3', '2.4')).toBe(false);
+  });
+
+  it('returns false for mismatched parsed values', () => {
+    expect(compareUnits('500m', '250m')).toBe(false);
+    expect(compareUnits('1Ki', '2Ki')).toBe(false);
+  });
+
+  it('returns false when either value does not start with a number (NaN cases)', () => {
+    expect(compareUnits('abc', '1')).toBe(false);
+    expect(compareUnits('1', 'abc')).toBe(false);
+    expect(compareUnits('', '')).toBe(false);
   });
 });

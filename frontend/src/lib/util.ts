@@ -470,14 +470,16 @@ export function useURLState<T extends string | number | undefined = string>(
   return [value, setValue] as [T, React.Dispatch<React.SetStateAction<T>>];
 }
 
-// compareUnits compares two units and returns true if they are equal
+// compareUnits compares the parsed numeric portion of two quantities (ignoring unit suffixes) and returns true if they are equal.
 export function compareUnits(quantity1: string, quantity2: string) {
   // strip whitespace and convert to lowercase
   const qty1 = quantity1.replace(/\s/g, '').toLowerCase();
   const qty2 = quantity2.replace(/\s/g, '').toLowerCase();
 
-  // compare numbers
-  return parseInt(qty1) === parseInt(qty2);
+  // Compare the parsed numeric portion only (unit suffix is ignored).
+  const n1 = Number.parseFloat(qty1);
+  const n2 = Number.parseFloat(qty2);
+  return !Number.isNaN(n1) && !Number.isNaN(n2) && n1 === n2;
 }
 
 export function normalizeUnit(resourceType: string, quantity: string) {
