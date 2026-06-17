@@ -322,6 +322,12 @@ func TestExtractNamespace(t *testing.T) {
 			kind:       "services",
 		},
 		{
+			name:       "valid namespaced resource with multiple trailing slashes",
+			urlPath:    url.URL{Path: "/api/v1/namespaces/dev/services//"},
+			namespaces: "dev",
+			kind:       "services",
+		},
+		{
 			name:       "internal cluster URL without API group",
 			urlPath:    url.URL{Path: "/clusters/production-cluster"},
 			namespaces: "",

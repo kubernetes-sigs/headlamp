@@ -135,7 +135,7 @@ func ExtractNamespace(rawURL string) (string, string) {
 		rawURL = rawURL[:idx]
 	}
 
-	rawURL = strings.TrimSuffix(rawURL, "/")
+	rawURL = strings.TrimRight(rawURL, "/")
 
 	var namespace, kind string
 
