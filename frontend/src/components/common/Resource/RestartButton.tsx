@@ -46,20 +46,23 @@ interface RestartButtonProps {
 }
 
 export function RestartButton(props: RestartButtonProps) {
-  const dispatch: AppDispatch = useDispatch();
   const { item, buttonStyle, afterConfirm } = props;
 
   if (!item || !isRestartableResource(item)) {
     return null;
   }
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
+  return <RestartButtonInner item={item} buttonStyle={buttonStyle} afterConfirm={afterConfirm} />;
+}
+
+function RestartButtonInner(
+  props: { item: RestartableResource } & Omit<RestartButtonProps, 'item'>
+) {
+  const dispatch: AppDispatch = useDispatch();
+  const { item, buttonStyle, afterConfirm } = props;
   const [openDialog, setOpenDialog] = useState(false);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const location = useLocation();
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const { t } = useTranslation(['translation']);
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const dispatchRestartEvent = useEventCallback(HeadlampEventType.RESTART_RESOURCE);
 
   async function restartResource() {
