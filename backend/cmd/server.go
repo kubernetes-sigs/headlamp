@@ -44,11 +44,6 @@ import (
 
 var k8sResponseCache = cache.New[string]()
 
-const (
-	selfSubjectAccessReviewsPathSuffix = "/apis/authorization.k8s.io/v1/selfsubjectaccessreviews"
-	selfSubjectRulesReviewsPathSuffix  = "/apis/authorization.k8s.io/v1/selfsubjectrulesreviews"
-)
-
 func main() {
 	if len(os.Args) == 2 && os.Args[1] == "list-plugins" {
 		runListPlugins()
@@ -287,19 +282,12 @@ func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 	}
 }
 
-func isSelfSubjectReviewAPIPath(urlPath string) bool {
-	urlPath = strings.TrimRight(urlPath, "/")
-
-	return strings.HasSuffix(urlPath, selfSubjectAccessReviewsPathSuffix) ||
-		strings.HasSuffix(urlPath, selfSubjectRulesReviewsPathSuffix)
-}
-
 func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.ResponseWriter, r *http.Request) {
 	if k8cache.SkipWebSocket(r, next, w) {
 		return
 	}
 
-	if !k8cache.IsKubernetesAPIPath(r.URL.Path) || isSelfSubjectReviewAPIPath(r.URL.Path) {
+	if !k8cache.IsKubernetesAPIPath(r.URL.Path) || k8cache.IsSelfSubjectReviewAPIPath(r.URL.Path) {
 		next.ServeHTTP(w, r)
 		return
 	}
