@@ -406,6 +406,10 @@
           "type": "integer",
           "description": "Kubernetes Service port"
         },
+        "appProtocol": {
+          "type": ["string", "null"],
+          "description": "Kubernetes Service port appProtocol (for the main http port)"
+        },
         "clusterIP": {
           "type": "string",
           "description": "Kubernetes Service clusterIP"
