@@ -63,6 +63,7 @@ type Config struct {
 	SessionTTL             int    `koanf:"session-ttl"`
 	PodDebugImage          string `koanf:"pod-debug-image"`
 	NodeShellImage         string `koanf:"node-shell-image"`
+	NodeShellNamespace     string `koanf:"node-shell-namespace"`
 	ProxyURLs              string `koanf:"proxy-urls"`
 
 	ClusterInventoryProviderFile          string        `koanf:"cluster-inventory-provider-file"`
@@ -561,6 +562,7 @@ func addGeneralFlags(f *flag.FlagSet) {
 		"(Default: 86400/24h, Min: 1 , Max: 31536000/1yr )")
 	f.String("pod-debug-image", "", "Default image to use when creating pod debug containers")
 	f.String("node-shell-image", "", "Default image to use when creating node shell pods")
+	f.String("node-shell-namespace", "", "Default namespace to use when creating node shell pods")
 	f.String("listen-addr", "", "Address to listen on; default is empty, which means listening to any address")
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")

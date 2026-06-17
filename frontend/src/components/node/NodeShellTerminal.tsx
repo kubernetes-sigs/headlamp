@@ -112,9 +112,10 @@ async function shell(item: Node, onExec: StreamResultsCb) {
 
   const clusterSettings = loadClusterSettings(cluster);
   const config = clusterSettings.nodeShellTerminal;
+  const defaultNamespace = store.getState().config.defaultNodeShellNamespace;
   const defaultImage = store.getState().config.defaultNodeShellImage;
   const linuxImage = config?.linuxImage || defaultImage || DEFAULT_NODE_SHELL_LINUX_IMAGE;
-  const namespace = config?.namespace || DEFAULT_NODE_SHELL_NAMESPACE;
+  const namespace = config?.namespace || defaultNamespace || DEFAULT_NODE_SHELL_NAMESPACE;
   const podName = `node-debugger-${item.getName()}-${uniqueString()}`;
   const kubePod = shellPod(podName, namespace, item.getName(), linuxImage);
   try {

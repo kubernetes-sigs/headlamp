@@ -188,6 +188,10 @@
           "type": "string",
           "description": "Default image to use when creating node shell pods"
         },
+        "nodeShellNamespace": {
+          "type": "string",
+          "description": "Default namespace to use when creating node shell pods"
+        },
         "unsafeUseServiceAccountToken": {
           "type": "boolean",
           "description": "UNSAFE: authenticate every user as the pod's service account in-cluster mode"

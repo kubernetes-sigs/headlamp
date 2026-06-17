@@ -129,6 +129,8 @@ config:
   podDebugImage: ""
   # -- Default image to use when creating node shell pods. If empty, Headlamp uses its built-in default.
   nodeShellImage: ""
+  # -- Default namespace to use when creating node shell pods. If empty, Headlamp uses its built-in default.
+  nodeShellNamespace: ""
   # tlsCertPath: "/headlamp-cert/headlamp-ca.crt"
   # tlsKeyPath: "/headlamp-cert/headlamp-tls.key"
   clusterInventory:

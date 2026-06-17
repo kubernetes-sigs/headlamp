@@ -197,6 +197,28 @@ func TestGetConfigIncludesDefaultNodeShellImage(t *testing.T) {
 	assert.Equal(t, "registry.example.com/shell:latest", config.DefaultNodeShellImage)
 }
 
+func TestGetConfigIncludesDefaultNodeShellNamespace(t *testing.T) {
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore:    kubeconfig.NewContextStore(),
+				NodeShellNamespace: "custom-ns",
+			},
+		},
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil)
+	recorder := httptest.NewRecorder()
+
+	c.getConfig(recorder, req)
+
+	var config clientConfig
+
+	err := json.Unmarshal(recorder.Body.Bytes(), &config)
+	require.NoError(t, err)
+	assert.Equal(t, "custom-ns", config.DefaultNodeShellNamespace)
+}
+
 //nolint:gocognit,funlen
 func TestDynamicClusters(t *testing.T) {
 	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != "true" {

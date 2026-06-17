@@ -102,6 +102,35 @@ describe('configSlice', () => {
     expect(nextState.defaultNodeShellImage).toBe('');
   });
 
+  it('should handle setConfig with defaultNodeShellNamespace', () => {
+    const clusters: ConfigState['clusters'] = {
+      'cluster-1': { name: 'cluster-1' } as Cluster,
+    };
+    const nextState = configReducer(
+      initialState,
+      setConfig({
+        clusters,
+        defaultNodeShellNamespace: 'custom-ns',
+      })
+    );
+
+    expect(nextState.defaultNodeShellNamespace).toBe('custom-ns');
+  });
+
+  it('should handle clearing defaultNodeShellNamespace', () => {
+    const state = {
+      ...initialState,
+      defaultNodeShellNamespace: 'custom-ns',
+    };
+
+    const nextState = configReducer(
+      state,
+      setConfig({ clusters: {}, defaultNodeShellNamespace: '' })
+    );
+
+    expect(nextState.defaultNodeShellNamespace).toBe('');
+  });
+
   it('should preserve isDynamicClusterEnabled when setConfig is called without it', () => {
     let state = configReducer(
       initialState,

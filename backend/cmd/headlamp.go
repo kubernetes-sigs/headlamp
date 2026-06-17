@@ -168,14 +168,15 @@ const (
 )
 
 type clientConfig struct {
-	Clusters                []Cluster `json:"clusters"`
-	IsDynamicClusterEnabled bool      `json:"isDynamicClusterEnabled"`
-	AllowKubeconfigChanges  bool      `json:"allowKubeconfigChanges"`
-	DefaultPodDebugImage    string    `json:"defaultPodDebugImage"`
-	DefaultNodeShellImage   string    `json:"defaultNodeShellImage"`
-	DefaultLightTheme       string    `json:"defaultLightTheme,omitempty"`
-	DefaultDarkTheme        string    `json:"defaultDarkTheme,omitempty"`
-	ForceTheme              string    `json:"forceTheme,omitempty"`
+	Clusters                  []Cluster `json:"clusters"`
+	IsDynamicClusterEnabled   bool      `json:"isDynamicClusterEnabled"`
+	AllowKubeconfigChanges    bool      `json:"allowKubeconfigChanges"`
+	DefaultPodDebugImage      string    `json:"defaultPodDebugImage"`
+	DefaultNodeShellImage     string    `json:"defaultNodeShellImage"`
+	DefaultNodeShellNamespace string    `json:"defaultNodeShellNamespace"`
+	DefaultLightTheme         string    `json:"defaultLightTheme,omitempty"`
+	DefaultDarkTheme          string    `json:"defaultDarkTheme,omitempty"`
+	ForceTheme                string    `json:"forceTheme,omitempty"`
 }
 
 type OauthConfig struct {
@@ -2233,14 +2234,15 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	clientConfig := clientConfig{
-		Clusters:                c.getClusters(),
-		IsDynamicClusterEnabled: c.EnableDynamicClusters,
-		AllowKubeconfigChanges:  c.AllowKubeconfigChanges,
-		DefaultPodDebugImage:    c.PodDebugImage,
-		DefaultNodeShellImage:   c.NodeShellImage,
-		DefaultLightTheme:       c.DefaultLightTheme,
-		DefaultDarkTheme:        c.DefaultDarkTheme,
-		ForceTheme:              c.ForceTheme,
+		Clusters:                  c.getClusters(),
+		IsDynamicClusterEnabled:   c.EnableDynamicClusters,
+		AllowKubeconfigChanges:    c.AllowKubeconfigChanges,
+		DefaultPodDebugImage:      c.PodDebugImage,
+		DefaultNodeShellImage:     c.NodeShellImage,
+		DefaultNodeShellNamespace: c.NodeShellNamespace,
+		DefaultLightTheme:         c.DefaultLightTheme,
+		DefaultDarkTheme:          c.DefaultDarkTheme,
+		ForceTheme:                c.ForceTheme,
 	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {

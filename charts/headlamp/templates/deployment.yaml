@@ -272,6 +272,9 @@ spec:
             {{- with .Values.config.nodeShellImage }}
             - "-node-shell-image={{ . }}"
             {{- end }}
+            {{- with .Values.config.nodeShellNamespace }}
+            - "-node-shell-namespace={{ . }}"
+            {{- end }}
             {{- if and .Values.config.inCluster .Values.config.unsafeUseServiceAccountToken }}
             - "-unsafe-use-service-account-token"
             {{- end }}
