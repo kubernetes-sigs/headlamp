@@ -233,9 +233,13 @@ const useGetCRToOwnerRelations = () => {
   return useMemo(() => {
     if (!crds) return [];
 
-    return crds.map(crd => {
-      const CRClass = crd.makeCRClass(); // or makeCRClass(crd)
-      return makeOwnerRelationReversed(CRClass);
+    return crds.flatMap(crd => {
+      const CRClass = crd.makeCRClassOrNull();
+      if (!CRClass) {
+        // CRD with incomplete spec; skip it (#4824).
+        return [];
+      }
+      return [makeOwnerRelationReversed(CRClass)];
     });
   }, [crds]);
 };

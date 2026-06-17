@@ -66,7 +66,7 @@ export default function CustomResourceDefinitionDetails(props: {
                 }}
                 activeCluster={item.cluster}
               >
-                {item.spec.names.kind}
+                {item.spec?.names?.kind ?? item.metadata.name}
               </Link>
             ),
           },
@@ -84,7 +84,7 @@ export default function CustomResourceDefinitionDetails(props: {
             section: (
               <SectionBox title={t('translation|Accepted Names')}>
                 <SimpleTable
-                  data={[item.spec.names]}
+                  data={item.spec?.names ? [item.spec.names] : []}
                   columns={[
                     {
                       label: t('Plural'),

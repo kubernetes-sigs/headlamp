@@ -16,6 +16,12 @@
 
 import { ResourceClasses } from '.';
 import { apiFactory, apiFactoryWithNamespace } from './api/v1/factories';
+import {
+  describeMissingField,
+  resolveCRDApiGroup,
+  selectMainAPIGroup,
+  validateCRDSpec,
+} from './crdSpec';
 import type { KubeObjectClass, KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 
@@ -88,47 +94,107 @@ class CustomResourceDefinition extends KubeObject<KubeCRD> {
     return this.jsonData.status;
   }
 
+  /**
+   * Returns the CRD's plural name. Falls back to `''` when the spec hasn't
+   * fully arrived yet (#4824) to preserve backward compatibility with callers
+   * that treat it as a required `string`. For an explicit "incomplete CRD"
+   * signal, prefer `getMainAPIGroupOrNull()` which returns `null` in that case.
+   */
   get plural(): string {
-    return this.spec.names.plural;
+    return this.spec?.names?.plural ?? '';
   }
 
+  /**
+   * Returns [group, version, plural] for this CRD. Preserves the original
+   * non-nullable signature for plugin/library consumers; returns `['', '', '']`
+   * when the spec is incomplete. New callers should prefer
+   * `getMainAPIGroupOrNull()` which signals the incomplete state explicitly.
+   */
   getMainAPIGroup(): [string, string, string] {
-    const group = this.spec.group;
-    let version = this.spec.version;
-    const name = this.spec.names.plural as string;
+    return selectMainAPIGroup(this.spec) ?? ['', '', ''];
+  }
 
-    // Assign the 1st storage version if no version is specified,
-    // or the 1st served version if no storage version is specified.
-    if (!version && this.spec.versions.length > 0) {
-      for (const versionItem of this.spec.versions) {
-        if (!!versionItem.storage) {
-          version = versionItem.name;
-          break;
-        } else if (!version) {
-          version = versionItem.name;
-        }
-      }
-    }
-
-    return [group, version, name];
+  /**
+   * Returns [group, version, plural] for this CRD, or `null` when the spec is
+   * incomplete (missing group, plural, or any usable version). Use this in
+   * preference to `getMainAPIGroup()` when the caller needs to distinguish
+   * "incomplete CRD" from a CRD that genuinely has empty fields (#4824).
+   */
+  getMainAPIGroupOrNull(): [string, string, string] | null {
+    return selectMainAPIGroup(this.spec);
   }
 
   get isNamespacedScope(): boolean {
-    return this.spec.scope === 'Namespaced';
+    return this.spec?.scope === 'Namespaced';
   }
 
+  /**
+   * Constructs the dynamic class for this CRD's custom resources. Preserves
+   * the original non-nullable signature for plugin/library consumers; throws
+   * a clear error when the spec is incomplete so callers see the same kind of
+   * failure they'd see before #4824 instead of an unexpected `null`.
+   * New callers should prefer `makeCRClassOrNull()`, which signals the
+   * incomplete state without throwing.
+   */
   makeCRClass(): typeof KubeObject<KubeCRD> {
-    const apiInfo: CRClassArgs['apiInfo'] = (this.jsonData as KubeCRD).spec.versions.map(
-      versionInfo => ({ group: this.spec.group, version: versionInfo.name })
-    );
+    const spec = (this.jsonData as KubeCRD)?.spec;
+    const validation = validateCRDSpec(spec);
+    if (!validation.ok || !spec) {
+      // Defensive fallback in case `validation.missing` is somehow empty
+      // (e.g. a future change to `validateCRDSpec` skips the per-field
+      // pushes for an `undefined` spec): an empty list in the rendered
+      // message reads as a bug, so substitute a generic description.
+      const issues =
+        validation.missing.length === 0
+          ? 'spec is missing'
+          : validation.missing.map(describeMissingField).join(', ');
+      throw new Error(
+        `CustomResourceDefinition "${
+          this.metadata?.name ?? '<unknown>'
+        }" has an incomplete spec (missing or invalid: ${issues}). ` +
+          `Use makeCRClassOrNull() if a null return is expected.`
+      );
+    }
+    return this.buildCRClass(spec, validation.usableVersions);
+  }
+
+  /**
+   * Same construction logic as `makeCRClass()` but returns `null` instead of
+   * throwing when the CRD spec is incomplete. Prefer this in any code path
+   * that wants to render a non-error UI state for partially-loaded or
+   * malformed CRDs (#4824). Pure: no logging side effect, safe to call from
+   * render paths (`useMemo`, etc).
+   */
+  makeCRClassOrNull(): typeof KubeObject<KubeCRD> | null {
+    const spec = (this.jsonData as KubeCRD)?.spec;
+    const validation = validateCRDSpec(spec);
+    if (!validation.ok || !spec) {
+      return null;
+    }
+    return this.buildCRClass(spec, validation.usableVersions);
+  }
+
+  /**
+   * Internal: constructs the dynamic class from an already-validated spec.
+   * Both `makeCRClass()` and `makeCRClassOrNull()` validate once and route
+   * through this helper, so the construction logic isn't duplicated and
+   * validation isn't repeated on the error path.
+   */
+  private buildCRClass(
+    spec: KubeCRD['spec'],
+    usableVersions: ReturnType<typeof validateCRDSpec>['usableVersions']
+  ): typeof KubeObject<KubeCRD> {
+    const apiInfo: CRClassArgs['apiInfo'] = usableVersions.length
+      ? usableVersions.map(versionInfo => ({ group: spec.group, version: versionInfo.name }))
+      : [{ group: spec.group, version: spec.version }];
 
     return makeCustomResourceClass({
       apiInfo,
-      isNamespaced: this.spec.scope === 'Namespaced',
-      singularName: this.spec.names.singular,
-      pluralName: this.spec.names.plural,
+      isNamespaced: spec.scope === 'Namespaced',
+      singularName: spec.names.singular || spec.names.kind.toLowerCase(),
+      pluralName: spec.names.plural,
       customResourceDefinition: this,
-      kind: this.spec.names.kind,
+      kind: spec.names.kind,
     });
   }
 
@@ -199,8 +265,9 @@ export function makeCustomResourceClass(
       // otherwise fall back to the first apiInfo entry
       let group: string;
       let version: string;
-      if (crClassArgs.customResourceDefinition) {
-        [group, version] = crClassArgs.customResourceDefinition.getMainAPIGroup();
+      const apiGroup = resolveCRDApiGroup(crClassArgs.customResourceDefinition);
+      if (apiGroup) {
+        [group, version] = apiGroup;
       } else {
         if (!apiInfoArgs.length) {
           throw new Error(

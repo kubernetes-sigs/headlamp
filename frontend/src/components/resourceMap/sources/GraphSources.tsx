@@ -26,6 +26,7 @@ import {
   useState,
 } from 'react';
 import { KubeObject } from '../../../lib/k8s/cluster';
+import { resolveCRDApiGroup } from '../../../lib/k8s/crdSpec';
 import {
   deduplicateGraphEdges,
   deduplicateGraphElements,
@@ -104,9 +105,9 @@ export const kubeOwnersEdgesReversed = (obj: KubeObject): GraphEdge[] => {
  * Create an object from any Kube object
  */
 export const makeKubeObjectNode = (obj: KubeObject): GraphNode => {
-  const crd = (obj.constructor as any)?.customResourceDefinition;
-  if (crd && typeof crd.getMainAPIGroup === 'function') {
-    const [group, , plural] = crd.getMainAPIGroup();
+  const apiGroup = resolveCRDApiGroup((obj.constructor as any)?.customResourceDefinition);
+  if (apiGroup) {
+    const [group, , plural] = apiGroup;
     return {
       id: obj.metadata.uid,
       kubeObject: obj,
