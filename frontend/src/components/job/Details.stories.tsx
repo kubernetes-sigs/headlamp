@@ -20,7 +20,12 @@ import { TestContext } from '../../test';
 import Details from './Details';
 import { JOB_COMPLETE, JOB_RUNNING } from './storyHelper';
 
-const emptyList = { kind: 'List', apiVersion: 'v1', metadata: {}, items: [] };
+const emptyList = (kind: string, apiVersion: string) => ({
+  kind,
+  apiVersion,
+  metadata: {},
+  items: [],
+});
 
 const podMetricsList = {
   kind: 'PodMetricsList',
@@ -32,19 +37,20 @@ const podMetricsList = {
 // Jobs are namespaced, so the owned pods, pod metrics and events the details
 // view pulls in are all queried under the job's namespace. The job collection
 // path is also handled because the details view fires a watch on it in addition
-// to the get-by-name request.
+// to the get-by-name request. Each list handler returns its proper Kubernetes
+// list kind so the mocked responses match the real API shape.
 const commonHandlers = [
   http.get('http://localhost:4466/apis/batch/v1/namespaces/default/jobs', () =>
-    HttpResponse.json(emptyList)
+    HttpResponse.json(emptyList('JobList', 'batch/v1'))
   ),
   http.get('http://localhost:4466/api/v1/namespaces/default/pods', () =>
-    HttpResponse.json(emptyList)
+    HttpResponse.json(emptyList('PodList', 'v1'))
   ),
   http.get('http://localhost:4466/apis/metrics.k8s.io/v1beta1/namespaces/default/pods', () =>
     HttpResponse.json(podMetricsList)
   ),
   http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
-    HttpResponse.json(emptyList)
+    HttpResponse.json(emptyList('EventList', 'v1'))
   ),
 ];
 
