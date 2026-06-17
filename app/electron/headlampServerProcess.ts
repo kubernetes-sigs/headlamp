@@ -21,20 +21,50 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 const DEFAULT_OWNER_LOOKUP_CONCURRENCY = 8;
 
+/**
+ * Information about a running Headlamp server process.
+ */
 export interface HeadlampProcessInfo {
+  /** The operating-system process identifier. */
   pid: number;
+  /** The full command line used to start the process, if available. */
   cmd?: string;
 }
 
+/**
+ * A parsed Windows user account consisting of an optional domain and a username.
+ */
 interface WindowsUser {
+  /** The SAM-compatible username (lower-cased, trimmed). */
   username: string;
+  /** The Windows domain or machine name (lower-cased, trimmed), if present. */
   domain?: string;
 }
 
+/**
+ * Normalises a single component of a Windows account string by trimming
+ * surrounding whitespace and converting to lower-case.
+ *
+ * @param value - The raw account component to normalise, or `undefined`.
+ * @returns The normalised string; an empty string when `value` is falsy.
+ */
 function normalizeAccountPart(value?: string): string {
   return (value || '').trim().toLowerCase();
 }
 
+/**
+ * Parses a Windows account string of the form `[DOMAIN\]username` into its
+ * constituent parts.
+ *
+ * Both back-slash (`\`) and forward-slash (`/`) are accepted as the
+ * domain–username separator.  Only the *last* separator is used, so accounts
+ * whose domain portion itself contains a separator are handled correctly.
+ *
+ * @param account - The raw account string to parse (e.g. `"CORP\alice"` or
+ *   `"alice"`).
+ * @returns A {@link WindowsUser} object with normalised `username` and,
+ *   when present, `domain` fields.
+ */
 function parseWindowsAccount(account: string): WindowsUser {
   const normalizedAccount = account.trim().replaceAll('/', '\\');
   const separatorIndex = normalizedAccount.lastIndexOf('\\');
@@ -51,6 +81,16 @@ function parseWindowsAccount(account: string): WindowsUser {
   };
 }
 
+/**
+ * Returns the Windows user account that is running the current process.
+ *
+ * The domain is taken from the `USERDOMAIN` environment variable (if set).
+ * The username is taken from the `USERNAME` environment variable, falling back
+ * to {@link https://nodejs.org/api/os.html#osuserinfooptions | `os.userInfo()`}
+ * when the environment variable is absent.
+ *
+ * @returns A {@link WindowsUser} with normalised `domain` and `username` fields.
+ */
 export function getCurrentWindowsUser(): WindowsUser {
   return {
     domain: normalizeAccountPart(process.env.USERDOMAIN),
@@ -58,6 +98,22 @@ export function getCurrentWindowsUser(): WindowsUser {
   };
 }
 
+/**
+ * Determines whether a Windows process owner string refers to the supplied
+ * current user.
+ *
+ * Matching rules:
+ * - An empty or whitespace-only `owner` string is never considered a match.
+ * - Usernames must match exactly (case-insensitive, after normalisation).
+ * - Domains are optional on either side; a mismatch is only flagged when
+ *   *both* sides supply a domain and they differ.
+ *
+ * @param owner - The raw owner string returned by `Win32_Process.GetOwner`
+ *   (e.g. `"CORP\\alice"`).
+ * @param currentUser - The current user to compare against, as returned by
+ *   {@link getCurrentWindowsUser}.
+ * @returns `true` when `owner` refers to `currentUser`; `false` otherwise.
+ */
 export function isWindowsProcessOwnerCurrentUser(owner: string, currentUser: WindowsUser): boolean {
   if (!owner.trim()) {
     return false;
@@ -81,6 +137,20 @@ export function isWindowsProcessOwnerCurrentUser(owner: string, currentUser: Win
   return processOwner.domain === currentUser.domain;
 }
 
+/**
+ * Queries the owner of a Windows process by its PID using PowerShell and the
+ * WMI `Win32_Process` CIM class.
+ *
+ * The function shells out to `powershell.exe` and is therefore only meaningful
+ * on Windows.  Errors (e.g. access-denied, process not found) are swallowed
+ * and produce a `null` return value so that the caller can decide how to
+ * proceed.
+ *
+ * @param pid - The process identifier to query.
+ * @returns A promise that resolves to a `"DOMAIN\\username"` string when the
+ *   owner can be determined, or `null` on failure or when the process no
+ *   longer exists.
+ */
 export async function getWindowsProcessOwner(pid: number): Promise<string | null> {
   try {
     const command = [
@@ -104,6 +174,31 @@ export async function getWindowsProcessOwner(pid: number): Promise<string | null
   }
 }
 
+/**
+ * Filters a list of Headlamp processes to only those owned by the current
+ * Windows user.
+ *
+ * On non-Windows platforms the full `processes` array is returned unchanged
+ * because process-isolation by owner is not required.
+ *
+ * Owner lookups are performed concurrently up to `ownerLookupConcurrency`
+ * simultaneous requests (default: {@link DEFAULT_OWNER_LOOKUP_CONCURRENCY})
+ * to balance speed against system load.
+ *
+ * @param processes - The full list of candidate {@link HeadlampProcessInfo}
+ *   objects to filter.
+ * @param options - Optional overrides for testability and platform behaviour.
+ * @param options.currentUser - The user to match against; defaults to
+ *   {@link getCurrentWindowsUser}.
+ * @param options.getProcessOwner - A function to resolve the owner of a PID;
+ *   defaults to {@link getWindowsProcessOwner}.
+ * @param options.ownerLookupConcurrency - Maximum number of concurrent owner
+ *   lookups; defaults to {@link DEFAULT_OWNER_LOOKUP_CONCURRENCY}.
+ * @param options.platform - The platform string to act upon; defaults to
+ *   `process.platform`.
+ * @returns A promise that resolves to the subset of `processes` owned by the
+ *   current user, or the full `processes` array on non-Windows platforms.
+ */
 export async function filterCurrentUserHeadlampProcesses(
   processes: HeadlampProcessInfo[],
   options: {
@@ -141,6 +236,22 @@ export async function filterCurrentUserHeadlampProcesses(
   }
 }
 
+/**
+ * Maps over an array of items concurrently, resolving up to `concurrency`
+ * promises at a time.
+ *
+ * Items are processed in index order; results are stored at their original
+ * positions so the output array length and order always match the input.
+ *
+ * @typeParam T - The type of each input item.
+ * @typeParam TResult - The type of each mapped result.
+ * @param items - The array of items to process.
+ * @param concurrency - The maximum number of concurrent `mapper` invocations.
+ *   Must be a positive integer; values ≤ 0 are treated as 1 by the caller.
+ * @param mapper - An async function applied to each item.
+ * @returns A promise that resolves to an array of results in the same order as
+ *   `items`.
+ */
 async function mapWithConcurrency<T, TResult>(
   items: T[],
   concurrency: number,
@@ -160,6 +271,20 @@ async function mapWithConcurrency<T, TResult>(
   return results;
 }
 
+/**
+ * Checks whether a Headlamp process is listening on a specific port by
+ * inspecting its command line.
+ *
+ * The function looks for a `--port=<n>` or `--port <n>` argument in the
+ * process's command line.  When no `--port` argument is present the process is
+ * assumed to be using the default port `4466`.
+ *
+ * @param processInfo - The {@link HeadlampProcessInfo} whose command line will
+ *   be inspected.
+ * @param port - The port number to test for.
+ * @returns `true` when the process appears to be bound to `port`; `false`
+ *   when the command line is unavailable or the port does not match.
+ */
 export function isHeadlampProcessOnPort(processInfo: HeadlampProcessInfo, port: number): boolean {
   const commandLine = processInfo.cmd;
   if (!commandLine) {
