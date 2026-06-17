@@ -135,9 +135,10 @@ const ContextUpdateCacheTTL = 20 * time.Second // seconds
 const JWTExpirationTTL = 10 * time.Second // seconds
 
 // OidcStateTTL is the maximum time an OIDC state token is kept in memory
-// waiting for the callback. Entries that are never completed (e.g. the user
-// closed the tab) are evicted after this duration to prevent unbounded growth.
-const OidcStateTTL = 10 * time.Minute
+// waiting for the callback. Entries that are never completed are evicted after
+// this duration to prevent unbounded growth while still allowing slow/manual
+// login flows enough time to complete.
+const OidcStateTTL = 60 * time.Minute
 
 const (
 	// serverReadHeaderTimeout is the maximum time to read the request headers.
