@@ -39,10 +39,26 @@ func TestIsAuthBypassUR(t *testing.T) {
 		{"Resource named healthz", "/clusters/kind/api/v1/namespaces/ns/configmaps/healthz", true},
 		{"Direct selfsubjectrulesreviews endpoint", "/apis/authorization.k8s.io/v1/selfsubjectrulesreviews", false},
 		{"Direct selfsubjectaccessreviews endpoint", "/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", false},
-		{"Proxied selfsubjectrulesreviews endpoint", "/clusters/kind/apis/authorization.k8s.io/v1/selfsubjectrulesreviews", false},
-		{"Proxied selfsubjectaccessreviews endpoint", "/clusters/kind/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", false},
-		{"Resource named selfsubjectrulesreviews", "/clusters/kind/api/v1/namespaces/ns/configmaps/selfsubjectrulesreviews", true},
-		{"Resource named selfsubjectaccessreviews", "/clusters/kind/api/v1/namespaces/ns/configmaps/selfsubjectaccessreviews", true},
+		{
+			name:     "Proxied selfsubjectrulesreviews endpoint",
+			urlPath:  "/clusters/kind/apis/authorization.k8s.io/v1/selfsubjectrulesreviews",
+			expected: false,
+		},
+		{
+			name:     "Proxied selfsubjectaccessreviews endpoint",
+			urlPath:  "/clusters/kind/apis/authorization.k8s.io/v1/selfsubjectaccessreviews",
+			expected: false,
+		},
+		{
+			name:     "Resource named selfsubjectrulesreviews",
+			urlPath:  "/clusters/kind/api/v1/namespaces/ns/configmaps/selfsubjectrulesreviews",
+			expected: true,
+		},
+		{
+			name:     "Resource named selfsubjectaccessreviews",
+			urlPath:  "/clusters/kind/api/v1/namespaces/ns/configmaps/selfsubjectaccessreviews",
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {

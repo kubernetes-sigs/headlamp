@@ -620,6 +620,7 @@ func TestHandleNonGETCacheInvalidation_PostOnResourceNamedVersion(t *testing.T) 
 	called := 0
 	next := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		called++
+
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"kind":"ConfigMap"}`))
 	})
