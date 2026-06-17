@@ -251,8 +251,11 @@ func createFullPath(p string) error {
 		return err
 	}
 
-	file, err := os.OpenFile(cleanPath, os.O_CREATE|os.O_WRONLY, defaultNewConfigFileMode)
+	file, err := os.OpenFile(cleanPath, os.O_CREATE|os.O_EXCL|os.O_WRONLY, defaultNewConfigFileMode)
 	if err != nil {
+		if errors.Is(err, os.ErrExist) {
+			return nil
+		}
 		return err
 	}
 

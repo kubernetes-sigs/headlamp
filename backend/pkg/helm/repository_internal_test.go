@@ -94,4 +94,22 @@ func TestCreateFullPathDoesNotTruncateExistingFile(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, "existing content", string(content))
 	})
+
+	t.Run("uses_o_excl_and_returns_nil_on_eexist", func(t *testing.T) {
+		tmpDir := t.TempDir()
+		path := filepath.Join(tmpDir, "repos", "test.yaml")
+
+		// Create the file first
+		require.NoError(t, os.MkdirAll(filepath.Dir(path), defaultNewConfigFolderMode))
+		require.NoError(t, os.WriteFile(path, []byte("existing content"), defaultNewConfigFileMode)) //nolint:gosec
+
+		// Call createFullPath - it should return nil without opening the file
+		err := createFullPath(path)
+		require.NoError(t, err)
+
+		// Verify the content is still there (file was never opened for write)
+		content, err := os.ReadFile(path) //nolint:gosec
+		require.NoError(t, err)
+		assert.Equal(t, "existing content", string(content))
+	})
 }
