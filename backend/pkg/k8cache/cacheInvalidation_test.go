@@ -26,6 +26,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -564,8 +565,8 @@ func TestHandleNonGETCacheInvalidation_GETSkipped(t *testing.T) {
 }
 
 // TestHandleNonGETCacheInvalidation_BypassURLExcluded verifies that a POST
-// on a URL containing "/selfsubjectrulesreviews" is NOT invalidated because
-// IsAuthBypassURL returns false for those paths — the function returns nil.
+// on a selfsubjectrulesreviews authorization endpoint is NOT invalidated because
+// IsAuthBypassURL returns false for that path — the function returns nil.
 func TestHandleNonGETCacheInvalidation_BypassURLExcluded(t *testing.T) {
 	mockCache := NewMockCache()
 	called := false
@@ -576,7 +577,7 @@ func TestHandleNonGETCacheInvalidation_BypassURLExcluded(t *testing.T) {
 	})
 
 	w := httptest.NewRecorder()
-	targetURL := &url.URL{Path: "/clusters/kind/api/v1/selfsubjectrulesreviews"}
+	targetURL := &url.URL{Path: "/clusters/kind/apis/authorization.k8s.io/v1/selfsubjectrulesreviews"}
 	r := httptest.NewRequestWithContext(
 		context.Background(), http.MethodPost, targetURL.String(), nil,
 	)
@@ -609,6 +610,35 @@ func TestHandleNonGETCacheInvalidation_PostOnNormalURL(t *testing.T) {
 	// IsAuthBypassURL("/…/pods") == true → full invalidation → ErrHandled.
 	err := k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
 	assert.ErrorIs(t, err, k8cache.ErrHandled)
+}
+
+func TestHandleNonGETCacheInvalidation_PostOnResourceNamedVersion(t *testing.T) {
+	mockCache := NewMockCache()
+	cacheKey := "+version+ns+ctx"
+	require.NoError(t, mockCache.Set(context.Background(), cacheKey, `{"body":"stale"}`))
+
+	called := 0
+	next := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		called++
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"ConfigMap"}`))
+	})
+
+	w := httptest.NewRecorder()
+	targetURL := &url.URL{Path: "/clusters/kind/api/v1/namespaces/ns/configmaps/version"}
+	r := httptest.NewRequestWithContext(
+		context.Background(), http.MethodPost, targetURL.String(), nil,
+	)
+	r.URL = targetURL
+
+	err := k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
+	assert.ErrorIs(t, err, k8cache.ErrHandled)
+	assert.Equal(t, 2, called, "original POST and fresh GET should both be forwarded")
+
+	cachedValue, err := mockCache.Get(context.Background(), cacheKey)
+	require.NoError(t, err)
+	assert.Contains(t, cachedValue, "ConfigMap")
+	assert.NotContains(t, cachedValue, "stale")
 }
 
 func TestSyncWatchers(t *testing.T) {

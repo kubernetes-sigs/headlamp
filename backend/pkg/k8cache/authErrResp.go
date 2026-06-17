@@ -31,12 +31,41 @@ type AuthErrResponse struct {
 }
 
 // IsAuthBypassURL returns true if the given URL path should be checked for authorization errors,
-// excluding known public or health-check endpoints.
+// excluding known public, health-check, or self-subject review endpoints.
 func IsAuthBypassURL(urlPath string) bool {
-	return !strings.Contains(urlPath, "/version") &&
-		!strings.Contains(urlPath, "/healthz") &&
-		!strings.Contains(urlPath, "/selfsubjectrulesreviews") &&
-		!strings.Contains(urlPath, "/selfsubjectaccessreviews")
+	urlPath = strings.TrimRight(urlPath, "/")
+
+	if isDirectOrProxiedEndpoint(urlPath, "version") ||
+		isDirectOrProxiedEndpoint(urlPath, "healthz") ||
+		IsSelfSubjectReviewAPIPath(urlPath) {
+		return false
+	}
+
+	return true
+}
+
+// IsSelfSubjectReviewAPIPath returns true when path targets a self-subject review API endpoint
+// under /apis/authorization.k8s.io/v1 (either directly, or proxied via /clusters/{name}/...).
+func IsSelfSubjectReviewAPIPath(urlPath string) bool {
+	urlPath = strings.TrimRight(urlPath, "/")
+
+	return isDirectOrProxiedAPIEndpoint(urlPath, "authorization.k8s.io", "v1", "selfsubjectaccessreviews") ||
+		isDirectOrProxiedAPIEndpoint(urlPath, "authorization.k8s.io", "v1", "selfsubjectrulesreviews")
+}
+
+func isDirectOrProxiedEndpoint(urlPath, endpoint string) bool {
+	parts := strings.Split(urlPath, "/")
+
+	return len(parts) == 2 && parts[1] == endpoint ||
+		len(parts) == 4 && parts[1] == "clusters" && parts[3] == endpoint
+}
+
+func isDirectOrProxiedAPIEndpoint(urlPath, group, version, endpoint string) bool {
+	parts := strings.Split(urlPath, "/")
+
+	return len(parts) == 5 && parts[1] == "apis" && parts[2] == group && parts[3] == version && parts[4] == endpoint ||
+		len(parts) == 7 && parts[1] == "clusters" && parts[3] == "apis" && parts[4] == group &&
+			parts[5] == version && parts[6] == endpoint
 }
 
 // ReturnAuthErrorResponse return the AuthErrorResponse if the user is not Authorized
