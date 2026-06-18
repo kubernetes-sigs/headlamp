@@ -82,11 +82,11 @@ function ViewButton({ item, buttonStyle, initialToggle }: ViewButtonProps) {
     });
   };
 
+  const initialToggleRef = React.useRef(initialToggle);
   useEffect(() => {
-    if (initialToggle) {
+    if (initialToggleRef.current) {
       launchActivity();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
