@@ -103,7 +103,14 @@ func TestCreateFullPathDoesNotTruncateExistingFile(t *testing.T) {
 		require.NoError(t, os.MkdirAll(filepath.Dir(path), defaultNewConfigFolderMode))
 		require.NoError(t, os.WriteFile(path, []byte("existing content"), defaultNewConfigFileMode)) //nolint:gosec
 
-		// Call createFullPath - it should return nil without opening the file
+		// Make the file read-only so that any attempt to open it for write fails
+		require.NoError(t, os.Chmod(path, 0o444))
+		// Restore permissions after the test so t.TempDir() cleanup can remove it
+		t.Cleanup(func() {
+			_ = os.Chmod(path, defaultNewConfigFileMode)
+		})
+
+		// Call createFullPath - with O_EXCL it should return nil without opening the file
 		err := createFullPath(path)
 		require.NoError(t, err)
 
