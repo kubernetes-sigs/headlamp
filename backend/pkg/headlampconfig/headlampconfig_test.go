@@ -85,7 +85,7 @@ func TestHeadlampConfigZeroValues(t *testing.T) {
 
 func TestHeadlampConfigConstruction(t *testing.T) {
 	cfg := &headlampconfig.HeadlampConfig{
-		HeadlampCFG: &headlampconfig.HeadlampCFG{
+		HeadlampCFG: &headlampconfig.HeadlampCFG{ // #nosec G101
 			UseInCluster:                 true,
 			InClusterContextName:         "my-cluster",
 			ListenAddr:                   "0.0.0.0",
@@ -133,8 +133,8 @@ func TestHeadlampConfigConstruction(t *testing.T) {
 	assert.Equal(t, true, cfg.UseInCluster)
 	assert.Equal(t, "my-cluster", cfg.InClusterContextName)
 	assert.Equal(t, "0.0.0.0", cfg.ListenAddr)
-	assert.Equal(t, uint(4466), cfg.HeadlampCFG.Port)
-	assert.Equal(t, "/headlamp", cfg.HeadlampCFG.BaseURL)
+	assert.Equal(t, uint(4466), cfg.Port)
+	assert.Equal(t, "/headlamp", cfg.BaseURL)
 	assert.Equal(t, "my-client", cfg.OidcClientID)
 	assert.Equal(t, true, cfg.ProxyAuthEnabled)
 	assert.Equal(t, "X-User", cfg.ProxyAuthUsernameHeader)
