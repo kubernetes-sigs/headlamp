@@ -92,9 +92,18 @@ function parseWindowsAccount(account: string): WindowsUser {
  * @returns A {@link WindowsUser} with normalised `domain` and `username` fields.
  */
 export function getCurrentWindowsUser(): WindowsUser {
+  let username = process.env.USERNAME;
+  if (!username) {
+    try {
+      username = userInfo().username;
+    } catch {
+      username = '';
+    }
+  }
+
   return {
-    domain: normalizeAccountPart(process.env.USERDOMAIN),
-    username: normalizeAccountPart(process.env.USERNAME || userInfo().username),
+    domain: normalizeAccountPart(process.env.USERDOMAIN) || undefined,
+    username: normalizeAccountPart(username),
   };
 }
 
@@ -105,8 +114,9 @@ export function getCurrentWindowsUser(): WindowsUser {
  * Matching rules:
  * - An empty or whitespace-only `owner` string is never considered a match.
  * - Usernames must match exactly (case-insensitive, after normalisation).
- * - Domains are optional on either side; a mismatch is only flagged when
- *   *both* sides supply a domain and they differ.
+ * - If the owner includes a domain but the current user's domain is missing,
+ *   the owner is treated as non-matching.
+ * - If both sides supply a domain, they must match (case-insensitive).
  *
  * @param owner - The raw owner string returned by `Win32_Process.GetOwner`
  *   (e.g. `"CORP\\alice"`).
