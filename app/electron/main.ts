@@ -753,7 +753,7 @@ async function findAvailablePort(startPort: number): Promise<number> {
 
   for (let i = 0; i < MAX_PORT_ATTEMPTS; i++) {
     const port = startPort + i;
-    // Skip ports already used by another Headlamp instance.
+    // Skip ports already used by a Headlamp instance owned by the current OS user.
     const headlampPIDs = await getHeadlampPIDsOnPort(port, headlampProcesses);
     if (headlampPIDs && headlampPIDs.length > 0) {
       console.info(
