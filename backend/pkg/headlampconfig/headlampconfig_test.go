@@ -69,6 +69,8 @@ func TestHeadlampConfigZeroValues(t *testing.T) {
 	assert.Nil(t, cfg.OidcScopes)
 	assert.Nil(t, cfg.Cache)
 	assert.Nil(t, cfg.Multiplexer)
+	assert.Equal(t, headlampconfig.HeadlampConfig{}.TelemetryConfig, cfg.TelemetryConfig)
+	assert.Nil(t, cfg.TelemetryHandler)
 	assert.Equal(t, "", cfg.MeUsernamePaths)
 	assert.Equal(t, "", cfg.MeEmailPaths)
 	assert.Equal(t, "", cfg.MeGroupsPaths)
@@ -146,7 +148,7 @@ func TestHeadlampConfigEmbedsHeadlampCFG(t *testing.T) {
 	assert.Equal(t, "/test", cfg.BaseURL)
 }
 
-func TestHeadlampConfigWithNilHeadlampCFG(t *testing.T) {
+func TestHeadlampConfigAllowsNilHeadlampCFG(t *testing.T) {
 	cfg := headlampconfig.HeadlampConfig{HeadlampCFG: nil}
 
 	assert.Nil(t, cfg.HeadlampCFG)
