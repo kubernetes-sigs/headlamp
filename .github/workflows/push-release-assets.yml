@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # need to write to releases and download artifacts
+      actions: read
     steps:
       - name: Checkout code
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -67,11 +68,19 @@ jobs:
             if [ -n "$run_id" ]; then
               RUN_SHA=$(gh run view "$run_id" --repo "${{ github.repository }}" --json headSha -q .headSha)
 
+              if [ -z "$RUN_SHA" ]; then
+                echo "Error: Could not determine SHA for workflow run ID $run_id."
+                exit 1
+              fi
+
               echo "Run ID: $run_id"
               echo "Run SHA: $RUN_SHA"
 
               if [ "$EXPECTED_SHA" != "$RUN_SHA" ]; then
-                echo "Workflow run SHA does not match release tag SHA!"
+                echo "Error: Workflow run SHA mismatch!"
+                echo "  Run ID:      $run_id"
+                echo "  Run SHA:     $RUN_SHA"
+                echo "  Expected:    $EXPECTED_SHA (from tag $TAG_NAME)"
                 exit 1
               fi
             fi
