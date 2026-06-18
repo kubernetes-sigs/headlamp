@@ -155,24 +155,24 @@ function makeKubeObjectResults(
   );
 }
 
+interface GlobalSearchContentProps {
+  /** The maximum width of the results list. */
+  maxWidth: number;
+  /** The initial search query to display in the search field. */
+  defaultValue: string;
+  /** Callback called when the search field loses focus. */
+  onBlur: () => void;
+}
+
 /**
  * The `GlobalSearchContent` component provides the search field and results list for global search.
  * The default results include Kubernetes objects, clusters, app pages, namespace filters,
  * theme switching, keyboard shortcut settings, and advanced search suggestions.
  *
- * @param maxWidth - The maximum width of the results list.
- * @param defaultValue - The initial search query to display in the search field.
- * @param onBlur - Callback called when the search field loses focus.
+ * @param props - The component props.
  */
-export function GlobalSearchContent({
-  maxWidth,
-  defaultValue,
-  onBlur,
-}: {
-  maxWidth: number;
-  defaultValue: string;
-  onBlur: () => void;
-}) {
+export function GlobalSearchContent(props: GlobalSearchContentProps) {
+  const { maxWidth, defaultValue, onBlur } = props;
   const { t } = useTranslation();
   const history = useHistory();
   const dispatch = useDispatch();
