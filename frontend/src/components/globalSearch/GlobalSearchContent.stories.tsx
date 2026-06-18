@@ -43,21 +43,6 @@ const sampleCluster: Cluster = {
   auth_type: '',
 };
 
-const store = configureStore({
-  reducer: reducers,
-  preloadedState: {
-    config: {
-      ...configInitialState,
-      clusters: {
-        [sampleCluster.name]: sampleCluster,
-      },
-      allClusters: {
-        [sampleCluster.name]: sampleCluster,
-      },
-    },
-  },
-});
-
 const recentSearchItemsKey = 'search-recent-items';
 const sampleClusterApiBase = `http://localhost:4466/clusters/${sampleCluster.name}`;
 
@@ -150,6 +135,21 @@ const meta: Meta<typeof GlobalSearchContent> = {
   decorators: [
     Story => {
       localStorage.removeItem(recentSearchItemsKey);
+
+      const store = configureStore({
+        reducer: reducers,
+        preloadedState: {
+          config: {
+            ...configInitialState,
+            clusters: {
+              [sampleCluster.name]: sampleCluster,
+            },
+            allClusters: {
+              [sampleCluster.name]: sampleCluster,
+            },
+          },
+        },
+      });
 
       const queryClient = new QueryClient({
         defaultOptions: {
