@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIsAuthBypassUR(t *testing.T) {
+func TestIsAuthBypassURL(t *testing.T) {
 	tests := []struct {
 		name     string
 		urlPath  string
@@ -37,8 +37,8 @@ func TestIsAuthBypassUR(t *testing.T) {
 		{"Proxied healthz endpoint", "/clusters/kind/healthz", false},
 		{"Resource named version", "/clusters/kind/api/v1/namespaces/ns/configmaps/version", true},
 		{"Resource named healthz", "/clusters/kind/api/v1/namespaces/ns/configmaps/healthz", true},
-		{"Direct selfsubjectrulesreviews endpoint", "/apis/authorization.k8s.io/v1/selfsubjectrulesreviews", false},
-		{"Direct selfsubjectaccessreviews endpoint", "/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", false},
+		{"Direct selfsubjectrulesreviews v1 endpoint", "/apis/authorization.k8s.io/v1/selfsubjectrulesreviews", false},
+		{"Direct selfsubjectaccessreviews v1 endpoint", "/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", false},
 		{
 			name:     "Proxied selfsubjectrulesreviews endpoint",
 			urlPath:  "/clusters/kind/apis/authorization.k8s.io/v1/selfsubjectrulesreviews",
@@ -57,6 +57,42 @@ func TestIsAuthBypassUR(t *testing.T) {
 		{
 			name:     "Resource named selfsubjectaccessreviews",
 			urlPath:  "/clusters/kind/api/v1/namespaces/ns/configmaps/selfsubjectaccessreviews",
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := k8cache.IsAuthBypassURL(tt.urlPath)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestIsAuthBypassURLSelfSubjectReviewVersions(t *testing.T) {
+	tests := []struct {
+		name     string
+		urlPath  string
+		expected bool
+	}{
+		{
+			name:     "v1beta1 access review",
+			urlPath:  "/apis/authorization.k8s.io/v1beta1/selfsubjectaccessreviews",
+			expected: false,
+		},
+		{
+			name:     "future access review version",
+			urlPath:  "/apis/authorization.k8s.io/v2/selfsubjectaccessreviews",
+			expected: false,
+		},
+		{
+			name:     "proxied future rules review version",
+			urlPath:  "/clusters/kind/apis/authorization.k8s.io/v2/selfsubjectrulesreviews",
+			expected: false,
+		},
+		{
+			name:     "different API group",
+			urlPath:  "/apis/apps/v1/selfsubjectaccessreviews",
 			expected: true,
 		},
 	}

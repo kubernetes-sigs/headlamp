@@ -2524,9 +2524,8 @@ func TestProcessTokenProtocol(t *testing.T) {
 	}
 }
 
-// newFakeK8sServer create a mock k8s server for testing purpose,
-// this would help to test Caching Machanism without making request
-// to the k8s server.
+// newFakeK8sServer creates a mock Kubernetes API server for testing the cache
+// mechanism without making requests to a real Kubernetes server.
 const fakeK8sResourceListResponse = `{"kind":"List","apiVersion":"v1","items":[{"metadata":{"name":"resource-test"}}]}`
 
 func newFakeK8sServer(authAllowed bool) *httptest.Server {

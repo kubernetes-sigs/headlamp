@@ -614,7 +614,9 @@ func TestHandleNonGETCacheInvalidation_PostOnNormalURL(t *testing.T) {
 
 func TestHandleNonGETCacheInvalidation_PostOnResourceNamedVersion(t *testing.T) {
 	mockCache := NewMockCache()
-	cacheKey := "+version+ns+ctx"
+	targetURL := &url.URL{Path: "/clusters/kind/api/v1/namespaces/ns/configmaps/version"}
+	cacheKey, err := k8cache.GenerateKey(targetURL, "ctx")
+	require.NoError(t, err)
 	require.NoError(t, mockCache.Set(context.Background(), cacheKey, `{"body":"stale"}`))
 
 	called := 0
@@ -626,13 +628,12 @@ func TestHandleNonGETCacheInvalidation_PostOnResourceNamedVersion(t *testing.T) 
 	})
 
 	w := httptest.NewRecorder()
-	targetURL := &url.URL{Path: "/clusters/kind/api/v1/namespaces/ns/configmaps/version"}
 	r := httptest.NewRequestWithContext(
 		context.Background(), http.MethodPost, targetURL.String(), nil,
 	)
 	r.URL = targetURL
 
-	err := k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
+	err = k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
 	assert.ErrorIs(t, err, k8cache.ErrHandled)
 	assert.Equal(t, 2, called, "original POST and fresh GET should both be forwarded")
 
