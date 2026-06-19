@@ -17,12 +17,15 @@ limitations under the License.
 package logger_test
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/rs/zerolog"
+	zlog "github.com/rs/zerolog/log"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,8 +38,6 @@ func MockLog(level uint, str map[string]string, err interface{}, msg string) {
 }
 
 func TestLog(t *testing.T) {
-	t.Parallel()
-
 	// Replace the actual logging function with the mock one
 	originalLogFunc := logger.SetLogFunc(MockLog)
 	defer logger.SetLogFunc(originalLogFunc)
@@ -84,6 +85,74 @@ func TestLog(t *testing.T) {
 
 		// Reset capturedLogs for the next test case
 		capturedLogs = nil
+	}
+}
+
+func TestLogErrorTypes(t *testing.T) {
+	var buf bytes.Buffer
+
+	origZerolog := zlog.Logger
+	zlog.Logger = zerolog.New(&buf)
+	t.Cleanup(func() { zlog.Logger = origZerolog })
+
+	// Reset to default log function (which is the internal `log` function)
+	origLogFunc := logger.SetLogFunc(nil)
+	t.Cleanup(func() { logger.SetLogFunc(origLogFunc) })
+
+	testErrorCases := []struct {
+		name    string
+		err     interface{}
+		wantErr func(t *testing.T, raw map[string]interface{})
+	}{
+		{
+			name: "error type",
+			err:  fmt.Errorf("test error"),
+			wantErr: func(t *testing.T, raw map[string]interface{}) {
+				require.Equal(t, "test error", raw["error"])
+			},
+		},
+		{
+			name: "error slice",
+			err:  []error{fmt.Errorf("error1"), fmt.Errorf("error2")},
+			wantErr: func(t *testing.T, raw map[string]interface{}) {
+				require.Equal(t, []interface{}{"error1", "error2"}, raw["error"])
+			},
+		},
+		{
+			name: "int error code",
+			err:  500,
+			wantErr: func(t *testing.T, raw map[string]interface{}) {
+				require.Equal(t, float64(500), raw["error"])
+			},
+		},
+		{
+			name: "string error",
+			err:  "error message",
+			wantErr: func(t *testing.T, raw map[string]interface{}) {
+				require.Equal(t, "error message", raw["error"])
+			},
+		},
+		{
+			name: "interface error",
+			err:  struct{ Msg string }{Msg: "custom"},
+			wantErr: func(t *testing.T, raw map[string]interface{}) {
+				require.Equal(t, map[string]interface{}{"Msg": "custom"}, raw["error"])
+			},
+		},
+	}
+
+	for _, tt := range testErrorCases {
+		t.Run(tt.name, func(t *testing.T) {
+			buf.Reset()
+
+			logger.Log(logger.LevelError, nil, tt.err, "test")
+
+			var raw map[string]interface{}
+			require.NoError(t, json.Unmarshal(buf.Bytes(), &raw))
+			require.Equal(t, "error", raw["level"])
+			require.Equal(t, "test", raw["message"])
+			tt.wantErr(t, raw)
+		})
 	}
 }
 
