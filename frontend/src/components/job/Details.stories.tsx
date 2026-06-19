@@ -55,7 +55,7 @@ const commonHandlers = [
 ];
 
 export default {
-  title: 'job/JobDetailsView',
+  title: 'Job/JobDetailsView',
   component: Details,
   argTypes: {},
   decorators: [
