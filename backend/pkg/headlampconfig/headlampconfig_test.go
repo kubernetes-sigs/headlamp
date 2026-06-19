@@ -99,7 +99,7 @@ func TestHeadlampConfigZeroValues(t *testing.T) {
 	assert.Nil(t, cfg.ServerCtx)
 }
 
-func TestHeadlampConfigConstruction(t *testing.T) {
+func TestHeadlampConfigConstruction(t *testing.T) { //nolint:funlen
 	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG: &headlampconfig.HeadlampCFG{
 			UseInCluster:                 true,
@@ -122,7 +122,7 @@ func TestHeadlampConfigConstruction(t *testing.T) {
 			DefaultDarkTheme:             "dark",
 			ForceTheme:                   "",
 			UnsafeUseServiceAccountToken: true,
-			ServiceAccountTokenPath:      "/var/run/secrets/token",
+			ServiceAccountTokenPath:      "/custom/token/path",
 			EnableClusterInventory:       true,
 			ClusterInventoryProviderFile: "/etc/provider.yaml",
 		},
@@ -168,7 +168,7 @@ func TestHeadlampConfigConstruction(t *testing.T) {
 	assert.Equal(t, "light", cfg.DefaultLightTheme)
 	assert.Equal(t, "dark", cfg.DefaultDarkTheme)
 	assert.True(t, cfg.UnsafeUseServiceAccountToken)
-	assert.Equal(t, "/var/run/secrets/token", cfg.ServiceAccountTokenPath)
+	assert.Equal(t, "/custom/token/path", cfg.ServiceAccountTokenPath)
 	assert.True(t, cfg.EnableClusterInventory)
 	assert.Equal(t, "/etc/provider.yaml", cfg.ClusterInventoryProviderFile)
 	assert.Equal(t, "my-secret", cfg.OidcClientSecret)
@@ -215,7 +215,7 @@ func TestWebSocketMultiplexerInConfig(t *testing.T) {
 	assert.NotNil(t, cfg.Multiplexer)
 }
 
-func TestBuildHeadlampCFGPattern(t *testing.T) {
+func TestBuildHeadlampCFGPattern(t *testing.T) { //nolint:funlen
 	cfg := &headlampconfig.HeadlampCFG{
 		UseInCluster:                          true,
 		InClusterContextName:                  "in-cluster",
