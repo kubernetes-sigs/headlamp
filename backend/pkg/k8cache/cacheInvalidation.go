@@ -116,8 +116,8 @@ func SkipWebSocket(r *http.Request, next http.Handler, w http.ResponseWriter) bo
 	return false
 }
 
-// returnGVRList returns list+watch GroupVersionResources filtered to important kinds
-// used for cache invalidation watchers.
+// returnGVRList returns list+watch GroupVersionResources filtered to an allowlisted set of
+// API resource names (e.g. pods, deployments) used for cache invalidation watchers.
 func returnGVRList(apiResourceLists []*metav1.APIResourceList) []schema.GroupVersionResource {
 	skipKinds := map[string]bool{
 		"Lease": true,
