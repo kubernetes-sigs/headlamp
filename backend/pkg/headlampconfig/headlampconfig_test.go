@@ -146,13 +146,13 @@ func TestHeadlampConfigConstruction(t *testing.T) {
 		ProxyAuthTokenHeader:    "X-Token",
 	}
 
-	assert.Equal(t, true, cfg.UseInCluster)
+	assert.True(t, cfg.UseInCluster)
 	assert.Equal(t, "my-cluster", cfg.InClusterContextName)
 	assert.Equal(t, "0.0.0.0", cfg.ListenAddr)
 	assert.Equal(t, uint(4466), cfg.Port)
 	assert.Equal(t, "/headlamp", cfg.BaseURL)
 	assert.Equal(t, "my-client", cfg.OidcClientID)
-	assert.Equal(t, true, cfg.ProxyAuthEnabled)
+	assert.True(t, cfg.ProxyAuthEnabled)
 	assert.Equal(t, "X-User", cfg.ProxyAuthUsernameHeader)
 	assert.True(t, cfg.CacheEnabled)
 	assert.True(t, cfg.DevMode)
@@ -196,7 +196,7 @@ func TestHeadlampConfigEmbedsHeadlampCFG(t *testing.T) {
 	assert.Equal(t, "/test", cfg.BaseURL)
 }
 
-func TestHeadlampConfigAllowsNilHeadlampCFG(t *testing.T) {
+func TestHeadlampConfigPanicsOnNilHeadlampCFG(t *testing.T) {
 	cfg := headlampconfig.HeadlampConfig{HeadlampCFG: nil}
 
 	assert.Nil(t, cfg.HeadlampCFG)
@@ -263,6 +263,8 @@ func TestBuildHeadlampCFGPattern(t *testing.T) {
 	assert.True(t, cfg.AllowKubeconfigChanges)
 	assert.True(t, cfg.CacheEnabled)
 	assert.True(t, cfg.DevMode)
+	assert.False(t, cfg.Insecure)
+	assert.False(t, cfg.UnsafeUseServiceAccountToken)
 	assert.Equal(t, "/app/frontend", cfg.StaticDir)
 	assert.Equal(t, "/app/plugins", cfg.PluginDir)
 	assert.Equal(t, "/app/user-plugins", cfg.UserPluginDir)
