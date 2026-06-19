@@ -1,15 +1,34 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
 import { defineConfig } from '@rsbuild/core';
+import { pluginNodePolyfill } from '@rsbuild/plugin-node-polyfill';
 import { pluginReact } from '@rsbuild/plugin-react';
 import { pluginSvgr } from '@rsbuild/plugin-svgr';
-import { pluginNodePolyfill } from '@rsbuild/plugin-node-polyfill';
 
 // Dynamically inject REACT_APP_ environment variables
 const reactAppEnvVars = Object.entries(process.env)
   .filter(([key, value]) => key.startsWith('REACT_APP_') && value !== undefined)
-  .reduce((env, [key, value]) => {
-    env[`import.meta.env.${key}`] = JSON.stringify(value);
-    return env;
-  }, { 'import.meta.env': '{}' });
+  .reduce(
+    (env, [key, value]) => {
+      env[`import.meta.env.${key}`] = JSON.stringify(value);
+      return env;
+    },
+    { 'import.meta.env': '{}' }
+  );
 
 // Use environment variable for backend port, defaulting to 4466
 const backendPort = process.env.HEADLAMP_PORT || '4466';
@@ -44,7 +63,7 @@ export default defineConfig({
           '/clusters',
           '/plugins',
           '/config',
-          '/auth',
+          '/auth/',
           '/oidc',
           '/oidc-callback',
           '/externalproxy',
@@ -138,7 +157,7 @@ export default defineConfig({
     pluginReact({
       swcReactOptions: {
         throwIfNamespace: false,
-      }
+      },
     }),
     pluginSvgr({
       svgrOptions: {
