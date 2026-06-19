@@ -32,6 +32,7 @@ import { IpcMainEvent, MenuItemConstructorOptions } from 'electron/main';
 import find_process from 'find-process';
 import * as fsPromises from 'fs/promises';
 import * as net from 'net';
+import fs from 'node:fs';
 import { userInfo } from 'node:os';
 import { promisify } from 'node:util';
 import { platform } from 'os';
@@ -1338,40 +1339,73 @@ function agentLog(
   hypothesisId: string
 ) {
   // #region agent log
+  const payload = {
+    sessionId: '967f25',
+    location,
+    message,
+    data,
+    hypothesisId,
+    timestamp: Date.now(),
+  };
+  const line = `${JSON.stringify(payload)}\n`;
+  for (const logPath of [
+    path.resolve(process.cwd(), 'debug-967f25.log'),
+    path.resolve(process.cwd(), '..', 'debug-967f25.log'),
+  ]) {
+    try {
+      fs.appendFileSync(logPath, line);
+      break;
+    } catch {
+      // try next candidate path
+    }
+  }
   fetch('http://127.0.0.1:7898/ingest/0bd29ddb-f502-4205-8df3-5aef857b311e', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '967f25' },
-    body: JSON.stringify({
-      sessionId: '967f25',
-      location,
-      message,
-      data,
-      hypothesisId,
-      timestamp: Date.now(),
-    }),
+    body: JSON.stringify(payload),
   }).catch(() => {});
   // #endregion
 }
 
-function applyZoom(source = 'unknown') {
+function applyZoom(source = 'unknown', forceRefresh = false) {
   if (!mainWindow?.webContents) {
     return;
   }
 
-  const before = mainWindow.webContents.getZoomFactor();
-  mainWindow.webContents.setZoomFactor(cachedZoom);
-  const after = mainWindow.webContents.getZoomFactor();
+  const wc = mainWindow.webContents;
+  const before = wc.getZoomFactor();
+  const needsRefresh =
+    forceRefresh ||
+    source.includes('route') ||
+    source.includes('navigate') ||
+    source.includes('focus') ||
+    source.includes('show');
+
+  // getZoomFactor can match cachedZoom while new SPA content still renders unscaled.
+  if (needsRefresh && cachedZoom !== DEFAULT_ZOOM_FACTOR) {
+    wc.setZoomFactor(cachedZoom + 0.001);
+  }
+  wc.setZoomFactor(cachedZoom);
+  const after = wc.getZoomFactor();
   agentLog(
     'main.ts:applyZoom',
     'applyZoom',
-    { source, cachedZoom, before, after },
-    before !== after || before !== cachedZoom ? 'H1' : 'H3'
+    { source, cachedZoom, before, after, forceRefresh, needsRefresh },
+    before !== cachedZoom ? 'H1' : needsRefresh ? 'H2' : 'H3'
   );
 }
 
-function scheduleApplyZoom(source: string) {
-  applyZoom(source);
-  setImmediate(() => applyZoom(`${source}:deferred`));
+function scheduleApplyZoom(source: string, forceRefresh = false) {
+  applyZoom(source, forceRefresh);
+  setImmediate(() => {
+    applyZoom(`${source}:deferred`, forceRefresh);
+    mainWindow?.webContents
+      .executeJavaScript(
+        'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))'
+      )
+      .then(() => applyZoom(`${source}:after-paint`, forceRefresh))
+      .catch(() => {});
+  });
 }
 
 function setZoom(factor: number) {
@@ -1611,7 +1645,7 @@ function startElectron() {
       const actual = mainWindow?.webContents.getZoomFactor() ?? DEFAULT_ZOOM_FACTOR;
       agentLog('main.ts:zoom-changed', 'zoom-changed', { cachedZoom, actual, zoomDirection }, 'H4');
       if (Math.abs(actual - cachedZoom) > 0.001) {
-        scheduleApplyZoom('zoom-changed:correct');
+        scheduleApplyZoom('zoom-changed:correct', true);
       }
     });
 
@@ -1711,6 +1745,10 @@ function startElectron() {
     i18n.on('languageChanged', () => {
       updateMenuLabels(currentMenu);
       setMenu(mainWindow, currentMenu);
+    });
+
+    ipcMain.on('route-changed', () => {
+      scheduleApplyZoom('route-changed', true);
     });
 
     ipcMain.on('appConfig', () => {

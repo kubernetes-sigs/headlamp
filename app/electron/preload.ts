@@ -33,6 +33,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'open-plugin-folder',
       'request-backend-port',
       'cluster-changed',
+      'route-changed',
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);

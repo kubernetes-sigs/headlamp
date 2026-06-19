@@ -111,6 +111,27 @@ const QueryParamRedirect = () => {
 
   return null;
 };
+
+/** Notify Electron main process after React paints a new route (issue #3948). */
+function RouteZoomSync() {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!isElectron() || !window.desktopApi) {
+      return;
+    }
+
+    const route = `${location.pathname}${location.search}${location.hash}`;
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        window.desktopApi?.send('route-changed', route);
+      });
+    });
+  }, [location.pathname, location.search, location.hash]);
+
+  return null;
+}
+
 const Router = ({ children }: React.PropsWithChildren<{}>) =>
   isElectron() ? (
     <HashRouter>{children}</HashRouter>
@@ -142,6 +163,7 @@ export default function AppContainer() {
       />
       <Router>
         <PreviousRouteProvider>
+          <RouteZoomSync />
           <MonacoEditorLoaderInitializer>
             <Plugins />
             <Layout />
