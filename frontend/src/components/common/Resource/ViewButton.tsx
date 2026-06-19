@@ -15,7 +15,7 @@
  */
 
 import { Icon } from '@iconify/react';
-import React, { useEffect } from 'react';
+import React, { useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { KubeObject } from '../../../lib/k8s/cluster';
 import { Activity } from '../../activity/Activity';
@@ -36,7 +36,7 @@ function ViewButton({ item, buttonStyle, initialToggle }: ViewButtonProps) {
   const activityId = 'yaml-' + item.metadata.uid;
   const launchRequestRef = React.useRef(0);
 
-  const launchActivity = async () => {
+  const launchActivity = useCallback(async () => {
     const requestId = ++launchRequestRef.current;
     let editorItem = item;
     try {
@@ -80,14 +80,18 @@ function ViewButton({ item, buttonStyle, initialToggle }: ViewButtonProps) {
         />
       ),
     });
-  };
+  }, [activityId, item]);
 
   const initialToggleRef = React.useRef(initialToggle);
-  useEffect(() => {
-    if (initialToggleRef.current) {
-      launchActivity();
-    }
-  }, []);
+
+useEffect(() => {
+  if (!initialToggleRef.current) {
+    return;
+  }
+
+  initialToggleRef.current = false;
+  launchActivity();
+}, [launchActivity]);
 
   return (
     <>
