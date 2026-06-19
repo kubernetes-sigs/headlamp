@@ -27,9 +27,9 @@ const NAMESPACE = 'default';
 const MOCK_PATH = `/c/${CLUSTER_NAME}/namespace/${NAMESPACE}/name/pod`;
 const NS_API_BASE = `${API_BASE}/clusters/${CLUSTER_NAME}/api/v1/namespaces/${NAMESPACE}`;
 const PODS_URL = `${NS_API_BASE}/pods`;
-const PODS_URL_NO_CLUSTER = `${NS_API_BASE}/api/v1/namespaces/${NAMESPACE}/pods`;
+const PODS_URL_NO_CLUSTER = `${API_BASE}/api/v1/namespaces/${NAMESPACE}/pods`;
 const EVENTS_URL = `${NS_API_BASE}/events`;
-const AUTH_URL = `${NS_API_BASE}/clusters/${CLUSTER_NAME}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`;
+const AUTH_URL = `${API_BASE}/clusters/${CLUSTER_NAME}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`;
 
 // Store the initial path at module scope, so we can always restore to it
 const INITIAL_PATH = window.location.pathname;
