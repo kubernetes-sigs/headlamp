@@ -1331,13 +1331,52 @@ function killProcess(pid: number) {
 const ZOOM_FILE_PATH = path.join(app.getPath('userData'), 'headlamp-config.json');
 let cachedZoom: number = DEFAULT_ZOOM_FACTOR;
 
-function applyZoom() {
-  mainWindow?.webContents.setZoomFactor(cachedZoom);
+function agentLog(
+  location: string,
+  message: string,
+  data: Record<string, unknown>,
+  hypothesisId: string
+) {
+  // #region agent log
+  fetch('http://127.0.0.1:7898/ingest/0bd29ddb-f502-4205-8df3-5aef857b311e', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '967f25' },
+    body: JSON.stringify({
+      sessionId: '967f25',
+      location,
+      message,
+      data,
+      hypothesisId,
+      timestamp: Date.now(),
+    }),
+  }).catch(() => {});
+  // #endregion
+}
+
+function applyZoom(source = 'unknown') {
+  if (!mainWindow?.webContents) {
+    return;
+  }
+
+  const before = mainWindow.webContents.getZoomFactor();
+  mainWindow.webContents.setZoomFactor(cachedZoom);
+  const after = mainWindow.webContents.getZoomFactor();
+  agentLog(
+    'main.ts:applyZoom',
+    'applyZoom',
+    { source, cachedZoom, before, after },
+    before !== after || before !== cachedZoom ? 'H1' : 'H3'
+  );
+}
+
+function scheduleApplyZoom(source: string) {
+  applyZoom(source);
+  setImmediate(() => applyZoom(`${source}:deferred`));
 }
 
 function setZoom(factor: number) {
   cachedZoom = clampZoom(factor);
-  applyZoom();
+  applyZoom('setZoom');
   saveZoomFactor(ZOOM_FILE_PATH, cachedZoom);
 }
 
@@ -1521,7 +1560,7 @@ function startElectron() {
     });
 
     cachedZoom = await loadZoomFactor(ZOOM_FILE_PATH);
-    applyZoom();
+    applyZoom('createWindow:load');
 
     // Load the frontend
     mainWindow.loadURL(startUrl);
@@ -1552,20 +1591,33 @@ function startElectron() {
     });
 
     mainWindow.webContents.on('did-finish-load', () => {
-      applyZoom();
+      scheduleApplyZoom('did-finish-load');
       // Inject the backend port into the window object
       mainWindow?.webContents.executeJavaScript(`window.headlampBackendPort = ${actualPort};`);
     });
 
     mainWindow.webContents.on('did-frame-finish-load', (event, isMainFrame) => {
       if (isMainFrame) {
-        applyZoom();
+        scheduleApplyZoom('did-frame-finish-load');
+      }
+    });
+
+    // React Router navigates in-page without a full reload (issue #3948).
+    mainWindow.webContents.on('did-navigate-in-page', () => {
+      scheduleApplyZoom('did-navigate-in-page');
+    });
+
+    mainWindow.webContents.on('zoom-changed', (_event, zoomDirection) => {
+      const actual = mainWindow?.webContents.getZoomFactor() ?? DEFAULT_ZOOM_FACTOR;
+      agentLog('main.ts:zoom-changed', 'zoom-changed', { cachedZoom, actual, zoomDirection }, 'H4');
+      if (Math.abs(actual - cachedZoom) > 0.001) {
+        scheduleApplyZoom('zoom-changed:correct');
       }
     });
 
     // Electron can visually reset zoom after SPA navigation or when the window regains focus.
-    mainWindow.on('focus', applyZoom);
-    mainWindow.on('show', applyZoom);
+    mainWindow.on('focus', () => scheduleApplyZoom('focus'));
+    mainWindow.on('show', () => scheduleApplyZoom('show'));
 
     mainWindow.webContents.on('dom-ready', () => {
       const defaultMenu = getDefaultAppMenu();
