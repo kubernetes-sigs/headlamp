@@ -618,7 +618,19 @@
                   </h2>
                   <div
                     class="MuiBox-root css-ldp2l3"
-                  />
+                  >
+                    <button
+                      aria-label="Events lifetime information"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ai5t7w-MuiButtonBase-root-MuiIconButton-root"
+                      data-mui-internal-clone-element="true"
+                      tabindex="0"
+                      type="button"
+                    >
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
