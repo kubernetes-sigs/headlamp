@@ -31,8 +31,30 @@ class Namespace extends KubeObject<KubeNamespace> {
   static apiVersion = 'v1';
   static isNamespaced = false;
 
+  /**
+   * Namespaces reserved by Kubernetes whose deletion can break the cluster.
+   * @see https://kubernetes.io/docs/concepts/overview/working-with-objects/namespaces/
+   */
+  static readonly PROTECTED_NAMESPACES: ReadonlyArray<string> = [
+    'kube-system',
+    'kube-node-lease',
+    'kube-public',
+    'default',
+  ];
+
   get status() {
     return this.jsonData.status;
+  }
+
+  /**
+   * Whether this is a Kubernetes system namespace that should not be deleted casually.
+   * Matches against the `kubernetes.io/metadata.name` label (set automatically by the
+   * API server), falling back to the object's name.
+   * @returns true if the namespace is protected, false otherwise.
+   */
+  isProtected(): boolean {
+    const name = this.metadata.labels?.['kubernetes.io/metadata.name'] ?? this.metadata.name;
+    return Namespace.PROTECTED_NAMESPACES.includes(name);
   }
 
   /**
