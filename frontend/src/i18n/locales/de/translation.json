@@ -276,6 +276,8 @@
   "Failed to copy to clipboard": "",
   "Copy": "",
   "Open Issue on GitHub": "",
+  "Kubernetes events have a lifetime of 1 hour by default. This duration may vary depending on your cluster's configuration.": "Standardmäßig werden Kubernetes-Events eine Stunde lang aufbewahrt. Je nach Cluster-Konfiguration kann diese Zeitspanne abweichen.",
+  "Events lifetime information": "Informationen zur Lebensdauer von Events",
   "Find": "",
   "Download": "",
   "Reconnect": "",

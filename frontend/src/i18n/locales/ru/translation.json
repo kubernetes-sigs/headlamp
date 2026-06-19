@@ -278,6 +278,8 @@
   "Failed to copy to clipboard": "Не удалось скопировать в буфер обмена",
   "Copy": "Копировать",
   "Open Issue on GitHub": "Открыть задачу на GitHub",
+  "Kubernetes events have a lifetime of 1 hour by default. This duration may vary depending on your cluster's configuration.": "",
+  "Events lifetime information": "",
   "Find": "Найти",
   "Download": "Скачать",
   "Reconnect": "Переподключиться",
