@@ -28,6 +28,7 @@ import { useFilterFunc } from '../../lib/util';
 import { useNamespaces } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { OverviewChart } from '../../redux/overviewChartsSlice';
+import EventsLifetimeInfo from '../common/EventsLifetimeInfo';
 import { DateLabel } from '../common/Label';
 import { StatusLabel } from '../common/Label';
 import Link from '../common/Link';
@@ -178,6 +179,7 @@ function EventsSection() {
       headerProps={{
         noNamespaceFilter: false,
         titleSideActions: [
+          <EventsLifetimeInfo key="event-lifetime-info" />,
           <FormControlLabel
             checked={isWarningEventSwitchChecked}
             label={t('Only warnings ({{ numWarnings }})', { numWarnings })}
