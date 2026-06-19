@@ -478,14 +478,14 @@ type ContextLoadError struct {
 func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []ContextLoadError, error) {
 	data, err := os.ReadFile(kubeConfigPath) //nolint:gosec
 	if err != nil {
-		return nil, nil, fmt.Errorf("error reading kubeconfig file: %v", err)
+		return nil, nil, fmt.Errorf("error reading kubeconfig file: %w", err)
 	}
 
 	skipProxySetup := source != KubeConfig
 
 	contexts, contextErrors, err := loadContextsFromData(data, source, skipProxySetup)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error loading contexts from file: %v", err)
+		return nil, nil, fmt.Errorf("error loading contexts from file: %w", err)
 	}
 
 	// add the KubeConfigPath to each context
@@ -505,7 +505,7 @@ func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []Conte
 func LoadContextsFromBase64String(kubeConfig string, source int) ([]Context, []ContextLoadError, error) {
 	kubeConfigByte, err := base64.StdEncoding.DecodeString(kubeConfig)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error decoding base64 kubeconfig: %v", err)
+		return nil, nil, fmt.Errorf("error decoding base64 kubeconfig: %w", err)
 	}
 
 	skipProxySetup := source != KubeConfig
@@ -1184,7 +1184,7 @@ func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, s
 
 	kubeConfigContexts, contextErrors, err := LoadContextsFromMultipleFiles(kubeConfigs, source)
 	if err != nil {
-		return fmt.Errorf("error loading kubeconfig files: %v", err)
+		return fmt.Errorf("error loading kubeconfig files: %w", err)
 	}
 
 	// if pass the shouldBeSkippedFunc=nil, it works like before
@@ -1207,7 +1207,7 @@ func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, s
 	}
 
 	for _, contextError := range contextErrors {
-		errs = append(errs, fmt.Errorf("error in context %s: %v", contextError.ContextName, contextError.Error))
+		errs = append(errs, fmt.Errorf("error in context %s: %w", contextError.ContextName, contextError.Error))
 	}
 
 	return errors.Join(errs...)

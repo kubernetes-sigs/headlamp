@@ -494,7 +494,7 @@ func MakeHeadlampKubeConfigsDir() (string, error) {
 		return filepath.Dir(ex), nil
 	}
 
-	return "", fmt.Errorf("failed to get default kubeconfig persistence directory: %v", err)
+	return "", fmt.Errorf("failed to get default kubeconfig persistence directory: %w", err)
 }
 
 func DefaultHeadlampKubeConfigFile() (string, error) {

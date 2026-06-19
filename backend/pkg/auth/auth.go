@@ -192,7 +192,7 @@ func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 	// get refresh token
 	refreshToken, err := cache.Get(ctx, oidcKeyPrefix+token)
 	if err != nil {
-		return nil, fmt.Errorf("getting refresh token: %v", err)
+		return nil, fmt.Errorf("getting refresh token: %w", err)
 	}
 
 	rToken, ok := refreshToken.(string)
@@ -217,7 +217,7 @@ func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 
 	// update the refresh token in the cache
 	if err := CacheRefreshedToken(newToken, tokenType, token, rToken, cache); err != nil {
-		return nil, fmt.Errorf("caching refreshed token: %v", err)
+		return nil, fmt.Errorf("caching refreshed token: %w", err)
 	}
 
 	return newToken, nil

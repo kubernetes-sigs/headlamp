@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -297,7 +298,7 @@ func setupShutdownFunction(t *Telemetry) {
 
 		// Return both errors if both occur
 		if err1 != nil && err2 != nil {
-			return fmt.Errorf("multiple shutdown errors: tracer: %w; meter: %v", err1, err2)
+			return errors.Join(fmt.Errorf("tracer shutdown error: %w", err1), fmt.Errorf("meter shutdown error: %w", err2))
 		}
 
 		if err1 != nil {

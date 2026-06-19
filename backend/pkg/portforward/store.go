@@ -112,7 +112,7 @@ func getPortForwardList(cache cache.Cache[interface{}], cluster string) []portFo
 func getPortForwardByID(cache cache.Cache[interface{}], cluster string, id string) (portForward, error) {
 	cacheValue, err := cache.Get(context.Background(), storeKeyPrefix+cluster+id)
 	if err != nil {
-		return portForward{}, fmt.Errorf("failed to get portforward from cache: %v", err)
+		return portForward{}, fmt.Errorf("failed to get portforward from cache: %w", err)
 	}
 
 	pf, ok := cacheValue.(portForward)

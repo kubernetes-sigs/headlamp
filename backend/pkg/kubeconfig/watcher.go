@@ -126,13 +126,13 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 	// First read all kubeconfig files to get new contexts
 	newContexts, _, err := LoadContextsFromMultipleFiles(paths, source)
 	if err != nil {
-		return fmt.Errorf("error reading kubeconfig files: %v", err)
+		return fmt.Errorf("error reading kubeconfig files: %w", err)
 	}
 
 	// Get existing contexts from store
 	existingContexts, err := kubeConfigStore.GetContexts()
 	if err != nil {
-		return fmt.Errorf("error getting existing contexts: %v", err)
+		return fmt.Errorf("error getting existing contexts: %w", err)
 	}
 
 	// Find and remove contexts that no longer exist in the kubeconfig
@@ -164,7 +164,7 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 	// Now load and store the new configurations
 	err = LoadAndStoreKubeConfigs(kubeConfigStore, paths, source, ignoreFunc)
 	if err != nil {
-		return fmt.Errorf("error loading kubeconfig files: %v", err)
+		return fmt.Errorf("error loading kubeconfig files: %w", err)
 	}
 
 	return nil
