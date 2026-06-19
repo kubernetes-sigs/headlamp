@@ -200,10 +200,7 @@ type mockMultiplexer struct{}
 
 func (m *mockMultiplexer) HandleClientWebSocket(_ http.ResponseWriter, _ *http.Request) {}
 
-func TestWebSocketMultiplexerInterface(t *testing.T) {
-	var m headlampconfig.WebSocketMultiplexer = &mockMultiplexer{}
-	assert.NotNil(t, m)
-}
+var _ headlampconfig.WebSocketMultiplexer = (*mockMultiplexer)(nil)
 
 func TestWebSocketMultiplexerInConfig(t *testing.T) {
 	mux := &mockMultiplexer{}
@@ -303,6 +300,8 @@ func TestCreateHeadlampConfigPattern(t *testing.T) {
 	assert.Equal(t, "test-client", cfg.OidcClientID)
 	assert.Equal(t, "validator-client", cfg.OidcValidatorClientID)
 	assert.Equal(t, "https://accounts.example.com", cfg.OidcIdpIssuerURL)
+	assert.Equal(t, "https://headlamp/oidc-callback", cfg.OidcCallbackURL)
+	assert.Equal(t, []string{"openid", "email"}, cfg.OidcScopes)
 	assert.True(t, cfg.OidcUsePKCE)
 	assert.False(t, cfg.OidcUseAccessToken)
 	assert.False(t, cfg.ProxyAuthEnabled)
