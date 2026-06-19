@@ -196,6 +196,13 @@ func TestHeadlampConfigEmbedsHeadlampCFG(t *testing.T) {
 	assert.Equal(t, "/test", cfg.BaseURL)
 }
 
+func TestHeadlampConfigAllowsNilHeadlampCFG(t *testing.T) {
+	cfg := headlampconfig.HeadlampConfig{HeadlampCFG: nil}
+
+	assert.Nil(t, cfg.HeadlampCFG)
+	assert.Panics(t, func() { _ = cfg.Port })
+}
+
 type mockMultiplexer struct{}
 
 func (m *mockMultiplexer) HandleClientWebSocket(_ http.ResponseWriter, _ *http.Request) {}
