@@ -18,6 +18,7 @@ import MenuList from '@mui/material/MenuList';
 import { Meta, StoryFn } from '@storybook/react';
 import { getTestDate } from '../../../helpers/testHelpers';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
+import Namespace from '../../../lib/k8s/namespace';
 import { TestContext } from '../../../test';
 import DeleteButton from './DeleteButton';
 
@@ -48,6 +49,22 @@ const createMockItem = (name: string, namespace: string = 'default', kind: strin
     getListLink: () => `/${kind.toLowerCase()}s`,
     _class: () => ({ apiName: kind.toLowerCase() + 's', apiVersion: 'v1' }),
   } as unknown as KubeObject);
+
+const createMockNamespace = (name: string) => {
+  const ns = new Namespace({
+    kind: 'Namespace',
+    apiVersion: 'v1',
+    metadata: {
+      uid: `uid-${name}`,
+      name,
+      creationTimestamp: getTestDate().toISOString(),
+    },
+    status: { phase: 'Active' },
+  });
+  ns.getAuthorization = async () => ({ status: { allowed: true, reason: '' } });
+  ns.delete = async () => undefined;
+  return ns as unknown as KubeObject;
+};
 
 const Template: StoryFn<typeof DeleteButton> = args => <DeleteButton {...args} />;
 
@@ -84,6 +101,32 @@ PodEvict.parameters = {
     description: {
       story:
         'When the item is a Pod, demonstrates the Pod-specific delete path. The button shows "Evict" instead of "Delete" when the useEvict cluster setting is enabled.',
+    },
+  },
+};
+
+export const ProtectedNamespace = Template.bind({});
+ProtectedNamespace.args = {
+  item: createMockNamespace('kube-system'),
+};
+ProtectedNamespace.parameters = {
+  docs: {
+    description: {
+      story:
+        'For a protected (system) namespace, the confirm dialog shows a warning and the ' +
+        'user must type the namespace name to enable the Delete button.',
+    },
+  },
+};
+
+export const NonProtectedNamespace = Template.bind({});
+NonProtectedNamespace.args = {
+  item: createMockNamespace('my-app'),
+};
+NonProtectedNamespace.parameters = {
+  docs: {
+    description: {
+      story: 'A regular namespace keeps the standard single-confirmation delete flow.',
     },
   },
 };
