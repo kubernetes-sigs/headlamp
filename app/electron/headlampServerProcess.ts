@@ -170,8 +170,11 @@ export async function getWindowsProcessOwner(pid: number): Promise<string | null
       'if ($owner.ReturnValue -eq 0) { Write-Output "$($owner.Domain)\\$($owner.User)" }',
     ].join('; ');
 
+    const powershellExe =
+      `${process.env.SystemRoot ?? 'C:\\Windows'}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`;
+
     const { stdout } = await execFileAsync(
-      'powershell.exe',
+      powershellExe,
       ['-NoProfile', '-NonInteractive', '-Command', command],
       { windowsHide: true }
     );
