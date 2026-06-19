@@ -88,15 +88,17 @@ func TestLog(t *testing.T) {
 	}
 }
 
-func TestLogErrorTypes(t *testing.T) {
+func TestLogErrorTypes(t *testing.T) { //nolint:funlen
 	var buf bytes.Buffer
 
 	origZerolog := zlog.Logger
 	zlog.Logger = zerolog.New(&buf)
+
 	t.Cleanup(func() { zlog.Logger = origZerolog })
 
 	// Reset to default log function (which is the internal `log` function)
 	origLogFunc := logger.SetLogFunc(nil)
+
 	t.Cleanup(func() { logger.SetLogFunc(origLogFunc) })
 
 	testErrorCases := []struct {
