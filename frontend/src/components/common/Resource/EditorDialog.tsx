@@ -266,7 +266,7 @@ export default function EditorDialog(props: EditorDialogProps) {
           const reason = (err as any)?.reason;
 
           if (mark && typeof mark.line === 'number' && typeof mark.column === 'number') {
-            monacoRef.current.editor.setModelMarkers(model, 'yaml', [
+            monacoRef.current.editor.setModelMarkers(model, 'headlamp-yaml-parse', [
               {
                 startLineNumber: mark.line + 1,
                 startColumn: mark.column + 1,
@@ -277,7 +277,7 @@ export default function EditorDialog(props: EditorDialogProps) {
               },
             ]);
           } else {
-            monacoRef.current.editor.setModelMarkers(model, 'yaml', []);
+            monacoRef.current.editor.setModelMarkers(model, 'headlamp-yaml-parse', []);
           }
         }
       }
@@ -364,7 +364,7 @@ export default function EditorDialog(props: EditorDialogProps) {
       const model =
         typeof editorRef.current.getModel === 'function' ? editorRef.current.getModel() : null;
       if (model) {
-        monacoRef.current.editor.setModelMarkers(model, 'yaml', []);
+        monacoRef.current.editor.setModelMarkers(model, 'headlamp-yaml-parse', []);
       }
     }
   }
