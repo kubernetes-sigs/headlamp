@@ -121,7 +121,7 @@ export default function CustomResourceDefinitionDetails(props: {
                     },
                     {
                       label: t('Served'),
-                      getter: version => version.storage.toString(),
+                      getter: version => version.served.toString(),
                     },
                     {
                       label: t('Storage'),
