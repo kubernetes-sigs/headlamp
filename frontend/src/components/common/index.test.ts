@@ -28,6 +28,7 @@ const avoidCheck = [
   'AlertNotification',
   'ErrorBoundary',
   'DropZoneBox',
+  'EventsLifetimeInfo',
   // Internal helper used by the LogViewer/Terminal components. Plugins that
   // want to override terminal colors should set the `terminal` field on the
   // AppTheme they pass to `registerAppTheme(...)` instead.
