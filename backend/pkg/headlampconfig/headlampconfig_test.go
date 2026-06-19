@@ -85,7 +85,7 @@ func TestHeadlampConfigZeroValues(t *testing.T) {
 
 func TestHeadlampConfigConstruction(t *testing.T) {
 	cfg := &headlampconfig.HeadlampConfig{
-		HeadlampCFG: &headlampconfig.HeadlampCFG{ // #nosec G101
+		HeadlampCFG: &headlampconfig.HeadlampCFG{
 			UseInCluster:                 true,
 			InClusterContextName:         "my-cluster",
 			ListenAddr:                   "0.0.0.0",
