@@ -14,14 +14,18 @@
  * limitations under the License.
  */
 
+import Alert from '@mui/material/Alert';
 import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Grid from '@mui/material/Grid';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
+import Namespace from '../../../lib/k8s/namespace';
 import Pod from '../../../lib/k8s/pod';
 import { CallbackActionOptions, clusterAction } from '../../../redux/clusterActionSlice';
 import {
@@ -49,6 +53,8 @@ export default function DeleteButton(props: DeleteButtonProps) {
   const { item, options, buttonStyle, afterConfirm } = props;
   const [openAlert, setOpenAlert] = React.useState(false);
   const [forceDelete, setForceDelete] = React.useState(false);
+  // For protected (system) namespaces the user must type the name to confirm deletion.
+  const [confirmInput, setConfirmInput] = React.useState('');
   const location = useLocation();
   const { t } = useTranslation(['translation']);
   const dispatchDeleteEvent = useEventCallback(HeadlampEventType.DELETE_RESOURCE);
@@ -90,6 +96,14 @@ export default function DeleteButton(props: DeleteButtonProps) {
     return null;
   }
 
+  // System namespaces require an extra type-to-confirm step before they can be deleted.
+  const isProtectedNamespace =
+    item.kind === Namespace.kind &&
+    typeof (item as any).isProtected === 'function' &&
+    (item as any).isProtected();
+  // Use the same label-or-name value that isProtected() checks so the confirmation prompt matches.
+  const namespaceName = item.metadata.labels?.['kubernetes.io/metadata.name'] ?? item.metadata.name;
+
   return (
     <AuthVisible
       item={item}
@@ -106,6 +120,7 @@ export default function DeleteButton(props: DeleteButtonProps) {
         }
         buttonStyle={buttonStyle}
         onClick={() => {
+          setConfirmInput('');
           setOpenAlert(true);
         }}
         icon="mdi:delete"
@@ -144,9 +159,45 @@ export default function DeleteButton(props: DeleteButtonProps) {
                 />
               </Grid>
             )}
+            {isProtectedNamespace && (
+              <>
+                <Grid item sx={{ mt: 2 }}>
+                  <Alert
+                    severity="warning"
+                    variant="outlined"
+                    sx={theme => ({
+                      color: theme.palette.warning.main,
+                      borderColor: theme.palette.warning.main,
+                      '& .MuiAlert-icon': { color: theme.palette.warning.main },
+                      '& .MuiAlert-message': { fontSize: '0.95rem', fontWeight: 600 },
+                    })}
+                  >
+                    {t(
+                      'translation|This is a system namespace. Deleting it may break your cluster.'
+                    )}
+                  </Alert>
+                </Grid>
+                <Grid item sx={{ mt: 2.5 }}>
+                  <Typography variant="body1" sx={{ mb: 1.5 }}>
+                    {t('translation|To confirm, type {{ name }} in the field below.', {
+                      name: namespaceName,
+                    })}
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    autoComplete="off"
+                    value={confirmInput}
+                    onChange={event => setConfirmInput(event.target.value)}
+                    placeholder={namespaceName}
+                    inputProps={{ 'aria-label': t('translation|Namespace name') }}
+                  />
+                </Grid>
+              </>
+            )}
           </Grid>
         }
         handleClose={() => setOpenAlert(false)}
+        confirmButtonDisabled={isProtectedNamespace && confirmInput.trim() !== namespaceName}
         cancelLabel={t('Cancel')}
         confirmLabel={settingsObj.useEvict && item.kind === 'Pod' ? t('Evict') : t('Delete')}
         onConfirm={() => {
