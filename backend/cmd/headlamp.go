@@ -653,24 +653,49 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	// Setup port forwarding handlers.
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
+		contextKey, err := config.getContextKeyForRequest(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
 		portforward.StartPortForward(
 			config.KubeConfigStore,
 			config.Cache,
 			config.shouldUseUnsafeServiceAccountToken(),
+			contextKey,
 			w,
 			r,
 		)
 	}).Methods("POST")
 
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
-		portforward.StopOrDeletePortForward(config.Cache, w, r)
+		contextKey, err := config.getContextKeyForRequest(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		portforward.StopOrDeletePortForward(config.Cache, contextKey, w, r)
 	}).Methods("DELETE")
 
 	r.HandleFunc("/clusters/{clusterName}/portforward/list", func(w http.ResponseWriter, r *http.Request) {
-		portforward.GetPortForwards(config.Cache, w, r)
+		contextKey, err := config.getContextKeyForRequest(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		portforward.GetPortForwards(config.Cache, contextKey, w, r)
 	})
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
-		portforward.GetPortForwardByID(config.Cache, w, r)
+		contextKey, err := config.getContextKeyForRequest(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		portforward.GetPortForwardByID(config.Cache, contextKey, w, r)
 	}).Methods("GET")
 
 	// Expose user info so the frontend can show the current user in the top bar using the per-cluster auth cookie.
