@@ -25,6 +25,18 @@ import { SectionBox } from '@kinvolk/headlamp-plugin/lib/CommonComponents';
 import Typography from '@mui/material/Typography';
 import React from 'react';
 
+// A non-clickable section header in the sidebar.
+registerSidebarEntry({
+  parent: null,
+  name: 'feedback-section',
+  label: 'Feedback Tools',
+  entryType: 'subheader',
+  sx: {
+    fontSize: '0.8rem',
+    textTransform: 'none',
+  },
+});
+
 // A top level item in the sidebar.
 // The sidebar link URL is: /c/mycluster/feedback
 registerSidebarEntry({

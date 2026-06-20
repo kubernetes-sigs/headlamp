@@ -15,8 +15,12 @@
  */
 
 import Collapse from '@mui/material/Collapse';
+import Divider from '@mui/material/Divider';
 import List from '@mui/material/List';
-import { ListItemProps } from '@mui/material/ListItem';
+import ListItem, { type ListItemProps } from '@mui/material/ListItem';
+import ListSubheader from '@mui/material/ListSubheader';
+import type { SxProps, Theme } from '@mui/material/styles';
+import { alpha } from '@mui/material/styles';
 import React, { memo } from 'react';
 import { generatePath } from 'react-router';
 import { formatClusterPathParam, getClusterPrefixedPath } from '../../lib/cluster';
@@ -82,9 +86,85 @@ const SidebarItemBase = memo((props: SidebarItemProps & { clusters?: string[] })
     hide,
     tabIndex,
     isCR,
+    entryType = 'link',
+    sx,
     clusters = [],
     ...other
   } = props;
+
+  if (hide) {
+    return null;
+  }
+
+  if (entryType === 'subheader') {
+    const sidebarColor = (theme: Theme) =>
+      theme.palette.sidebar.color ??
+      theme.palette.getContrastText(theme.palette.sidebar.background);
+
+    if (!fullWidth) {
+      return (
+        <Divider
+          component="li"
+          sx={theme => ({
+            borderColor: alpha(sidebarColor(theme), 0.15),
+            listStyle: 'none',
+            margin: theme.spacing(1, 2),
+          })}
+        />
+      );
+    }
+
+    const subheaderSx: SxProps<Theme> = [
+      theme => ({
+        backgroundColor: 'transparent',
+        color: alpha(sidebarColor(theme), 0.6),
+        fontSize: '0.75rem',
+        fontWeight: 700,
+        letterSpacing: '0.05em',
+        lineHeight: 1.5,
+        minHeight: 0,
+        overflow: 'hidden',
+        padding: theme.spacing(1.5, 2, 0.5),
+        textOverflow: 'ellipsis',
+        textTransform: 'uppercase',
+        whiteSpace: 'nowrap',
+      }),
+      ...(sx ? (Array.isArray(sx) ? sx : [sx]) : []),
+    ];
+
+    return (
+      <React.Fragment>
+        <ListSubheader disableSticky sx={subheaderSx}>
+          {label}
+        </ListSubheader>
+        {subList.length > 0 && (
+          <List
+            component="ul"
+            disablePadding
+            sx={{
+              '& .MuiListItem-root': {
+                fontSize: '.875rem',
+                paddingTop: '2px',
+                paddingBottom: '2px',
+              },
+            }}
+          >
+            {subList.map((item: SidebarItemProps) => (
+              <SidebarItem
+                key={item.name}
+                isSelected={item.isSelected}
+                fullWidth={fullWidth}
+                search={search}
+                tabIndex={tabIndex}
+                {...item}
+              />
+            ))}
+          </List>
+        )}
+      </React.Fragment>
+    );
+  }
+
   let fullURL = url;
   if (fullURL && useClusterURL && clusters.length && !fullURL.startsWith('http')) {
     fullURL = generatePath(getClusterPrefixedPath(url), {
@@ -96,7 +176,7 @@ const SidebarItemBase = memo((props: SidebarItemProps & { clusters?: string[] })
     fullURL = getFullURLOnRoute(name, isCR, subList);
   }
 
-  return hide ? null : (
+  return (
     <React.Fragment>
       <ListItemLink
         selected={isSelected}

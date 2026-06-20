@@ -15,6 +15,8 @@
  */
 
 import { IconProps } from '@iconify/react';
+import type { SxProps, Theme } from '@mui/material/styles';
+import type { Draft } from '@reduxjs/toolkit';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import React from 'react';
 
@@ -60,6 +62,14 @@ export interface SidebarEntry {
   /** The sidebar to display this item in. If not specified, it will be displayed in the default sidebar.
    */
   sidebar?: DefaultSidebars | string;
+  /**
+   * The type of sidebar entry to render. Defaults to a clickable link item.
+   */
+  entryType?: 'link' | 'subheader';
+  /**
+   * Custom style overrides for subheader entries.
+   */
+  sx?: SxProps<Theme>;
 }
 
 export interface SidebarState {
@@ -176,7 +186,7 @@ const sidebarSlice = createSlice({
      * Sets an item in the sidebar.
      */
     setSidebarItem(state, action: PayloadAction<SidebarEntry>) {
-      state.entries[action.payload.name] = action.payload;
+      state.entries[action.payload.name] = action.payload as Draft<SidebarEntry>;
     },
 
     /**
