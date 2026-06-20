@@ -34,7 +34,8 @@ const DontDeleteMe = App;
 describe('useSidebarItems', () => {
   const mockStore = (
     customSidebarEntries: { [name: string]: SidebarEntry },
-    customSidebarFilters: ((entry: SidebarEntry) => SidebarEntry | null)[]
+    customSidebarFilters: ((entry: SidebarEntry) => SidebarEntry | null)[],
+    customHomeSidebarFilters: ((entry: SidebarEntry) => SidebarEntry | null)[] = []
   ) => {
     return configureStore({
       reducer: reducers,
@@ -42,6 +43,7 @@ describe('useSidebarItems', () => {
         sidebar: {
           entries: customSidebarEntries,
           filters: customSidebarFilters,
+          homeFilters: customHomeSidebarFilters,
           selected: { item: null, sidebar: DefaultSidebars.IN_CLUSTER },
           isVisible: true,
         },
@@ -202,5 +204,24 @@ describe('useSidebarItems', () => {
     if (clusterItem?.subtitle && typeof clusterItem.subtitle !== 'string') {
       expect(React.isValidElement(clusterItem.subtitle)).toBe(true);
     }
+  });
+
+  it('should apply customHomeSidebarFilters to the HOME sidebar', () => {
+    const homeFilters = [
+      (entry: SidebarEntry) =>
+        entry.name === 'settings' || entry.name === 'notifications' ? null : entry,
+    ];
+
+    const store = mockStore({}, [], homeFilters);
+    const { result } = renderHook(() => useSidebarItems(DefaultSidebars.HOME), {
+      wrapper: wrapper(store),
+    });
+
+    // Check that settings and notifications are removed
+    expect(result.current.find(it => it.name === 'settings')).toBeUndefined();
+    expect(result.current.find(it => it.name === 'notifications')).toBeUndefined();
+
+    // Check that home is still present
+    expect(result.current.find(it => it.name === 'home')).toBeDefined();
   });
 });

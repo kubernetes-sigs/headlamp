@@ -87,9 +87,13 @@ export interface SidebarState {
    */
   entries: { [propName: string]: SidebarEntry };
   /**
-   * Filters to apply to the sidebar entries.
+   * Filters to apply to the IN_CLUSTER sidebar entries.
    */
   filters: ((entry: SidebarEntry) => SidebarEntry | null)[];
+  /**
+   * Filters to apply to the HOME sidebar entries.
+   */
+  homeFilters: ((entry: SidebarEntry) => SidebarEntry | null)[];
 }
 
 export function setInitialSidebarOpen() {
@@ -143,6 +147,7 @@ export const initialState: SidebarState = {
   ...setInitialSidebarOpen(),
   entries: {},
   filters: [],
+  homeFilters: [],
 };
 
 const sidebarSlice = createSlice({
@@ -175,13 +180,23 @@ const sidebarSlice = createSlice({
     },
 
     /**
-     * Sets a filter for sidebar items.
+     * Sets a filter for IN_CLUSTER sidebar items.
      */
     setSidebarItemFilter(
       state,
       action: PayloadAction<(entry: SidebarEntry) => SidebarEntry | null>
     ) {
       state.filters.push(action.payload);
+    },
+
+    /**
+     * Sets a filter for HOME sidebar items.
+     */
+    setHomeSidebarItemFilter(
+      state,
+      action: PayloadAction<(entry: SidebarEntry) => SidebarEntry | null>
+    ) {
+      state.homeFilters.push(action.payload);
     },
 
     /**
@@ -200,6 +215,7 @@ export const {
   setSidebarVisible,
   setSidebarItem,
   setSidebarItemFilter,
+  setHomeSidebarItemFilter,
   setWhetherSidebarOpen,
 } = sidebarSlice.actions;
 

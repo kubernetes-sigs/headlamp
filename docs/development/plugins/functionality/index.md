@@ -138,14 +138,17 @@ Show a component in the main area at a given URL with
 
 Add items to the left sidebar with
 [registerSidebarEntry](../../api/plugin/registry/functions/registersidebarentry).
-Remove items with
+Filter items with
 [registerSidebarEntryFilter](../../api/plugin/registry/functions/registersidebarentryfilter).
+Filter items from the home (non-cluster) sidebar with
+[registerHomeSidebarEntryFilter](../../api/plugin/registry/functions/registerhomesidebarentryfilter).
 
 ![screenshot of the sidebar being changed](../images/sidebar.png)
 
 - Example plugin: [How To add items to the sidebar](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/sidebar)
 - API reference: [registerSidebarEntry](../../api/plugin/registry/functions/registersidebarentry)
 - API reference: [registerSidebarEntryFilter](../../api/plugin/registry/functions/registersidebarentryfilter)
+- API reference: [registerHomeSidebarEntryFilter](../../api/plugin/registry/functions/registerhomesidebarentryfilter)
 
 ### Tables
 

@@ -36,7 +36,11 @@ import {
 import { GraphSource } from '../components/resourceMap/graph/graphModel';
 import { Glance, graphViewSlice, IconDefinition } from '../components/resourceMap/graphViewSlice';
 import { DefaultSidebars, SidebarEntryProps } from '../components/Sidebar';
-import { setSidebarItem, setSidebarItemFilter } from '../components/Sidebar/sidebarSlice';
+import {
+  setHomeSidebarItemFilter,
+  setSidebarItem,
+  setSidebarItemFilter,
+} from '../components/Sidebar/sidebarSlice';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
 import { AppTheme } from '../lib/AppTheme';
 import type { ApiResource } from '../lib/k8s/api/v2/ApiResource';
@@ -357,9 +361,9 @@ export function registerKubeObjectGlance(glance: Glance) {
 }
 
 /**
- * Remove sidebar menu items.
+ * Filter or modify IN_CLUSTER sidebar menu items.
  *
- * @param filterFunc - a function for filtering sidebar entries.
+ * @param filterFunc - a function for filtering or modifying IN_CLUSTER sidebar entries. Return null to remove the entry, or the (optionally modified) entry to keep it.
  *
  * @example
  *
@@ -376,9 +380,28 @@ export function registerSidebarEntryFilter(
 }
 
 /**
- * Remove routes.
+ * Filter HOME sidebar menu items (return null to remove, or return a modified entry to update it).
  *
- * @param filterFunc - a function for filtering routes.
+ * @param filterFunc - a function for filtering or modifying HOME sidebar entries. Return null to remove the entry, or the (optionally modified) entry to keep it.
+ *
+ * @example
+ *
+ * ```tsx
+ * import { registerHomeSidebarEntryFilter } from '@kinvolk/headlamp-plugin/lib';
+ *
+ * registerHomeSidebarEntryFilter(entry => (entry.name === 'settings' ? null : entry));
+ * ```
+ */
+export function registerHomeSidebarEntryFilter(
+  filterFunc: (entry: SidebarEntryProps) => SidebarEntryProps | null
+) {
+  store.dispatch(setHomeSidebarItemFilter(filterFunc));
+}
+
+/**
+ * Filter or modify routes.
+ *
+ * @param filterFunc - a function for filtering or modifying routes. Return null to remove the route, or the (optionally modified) route to keep it.
  *
  * @example
  *

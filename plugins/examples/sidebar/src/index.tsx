@@ -15,6 +15,7 @@
  */
 
 import {
+  registerHomeSidebarEntryFilter,
   registerRoute,
   registerRouteFilter,
   registerSidebarEntry,
@@ -222,3 +223,6 @@ registerRouteFilter(route => (route.path === '/workloads' ? null : route));
 registerSidebarEntryFilter(entry => (entry.name === 'namespaces' ? null : entry));
 // Remove "/namespaces" route
 registerRouteFilter(route => (route.path === '/namespaces' ? null : route));
+
+// Remove "settings" from the HOME sidebar
+registerHomeSidebarEntryFilter(entry => (entry.name === 'settings' ? null : entry));

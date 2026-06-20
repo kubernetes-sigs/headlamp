@@ -24,7 +24,7 @@ import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import CRD from '../../lib/k8s/crd';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
-import { DefaultSidebars, SidebarItemProps } from '.';
+import { DefaultSidebars, SidebarEntryProps, SidebarItemProps } from '.';
 import ClusterBadge from './ClusterBadge';
 
 /** Iterates over every entry in the list, including children */
@@ -57,6 +57,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   const settings = useTypedSelector(state => state.config.settings);
   const customSidebarEntries = useTypedSelector(state => state.sidebar.entries);
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
+  const customHomeSidebarFilters = useTypedSelector(state => state.sidebar.homeFilters);
   const shouldShowHomeItem = isElectron() || Object.keys(clusters).length !== 1;
   const selectedClusters = useSelectedClusters();
   const allClustersConf = useClustersConf();
@@ -494,21 +495,41 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
 
     const sidebars = Object.fromEntries(sidebarsList.map(item => [item.name, item.subList]));
 
+    const filterSublist = (
+      item: SidebarItemProps,
+      filter: (entry: SidebarEntryProps) => SidebarEntryProps | null
+    ): SidebarItemProps | null => {
+      const filtered = filter(item);
+      if (!filtered) {
+        return null;
+      }
+
+      const newItem = { ...item, ...filtered };
+
+      if (newItem.subList) {
+        newItem.subList = newItem.subList
+          .map(it => filterSublist(it, filter))
+          .filter((it): it is SidebarItemProps => it !== null);
+      }
+
+      return newItem;
+    };
+
     // Filter in-cluster sidebar
     if (customSidebarFilters.length > 0) {
-      const filterSublist = (item: SidebarItemProps, filter: any) => {
-        if (item.subList) {
-          item.subList = item.subList.filter(it => filter(it));
-          item.subList = item.subList.map(it => filterSublist(it, filter));
-        }
-
-        return item;
-      };
-
       customSidebarFilters.forEach(customFilter => {
-        sidebars[DefaultSidebars.IN_CLUSTER] = sidebars[DefaultSidebars.IN_CLUSTER]!.filter(it =>
-          customFilter(it)
-        ).map(it => filterSublist(it, customFilter));
+        sidebars[DefaultSidebars.IN_CLUSTER] = sidebars[DefaultSidebars.IN_CLUSTER]!.map(it =>
+          filterSublist(it, customFilter)
+        ).filter((it): it is SidebarItemProps => it !== null);
+      });
+    }
+
+    // Filter home sidebar
+    if (customHomeSidebarFilters.length > 0) {
+      customHomeSidebarFilters.forEach(customFilter => {
+        sidebars[DefaultSidebars.HOME] = sidebars[DefaultSidebars.HOME]!.map(it =>
+          filterSublist(it, customFilter)
+        ).filter((it): it is SidebarItemProps => it !== null);
       });
     }
 
@@ -517,6 +538,8 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   }, [
     customSidebarEntries,
     shouldShowHomeItem,
+    customSidebarFilters,
+    customHomeSidebarFilters,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     Object.keys(clusters).join(','),
     // eslint-disable-next-line react-hooks/exhaustive-deps

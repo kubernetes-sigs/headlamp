@@ -561,6 +561,36 @@ registerHeadlampEventCallback((event: HeadlampEvent) => {
 
 ___
 
+### registerHomeSidebarEntryFilter
+
+▸ **registerHomeSidebarEntryFilter**(`filterFunc`): `void`
+
+Filter HOME sidebar menu items (return null to remove, or return a modified entry to update it).
+
+**`example`**
+
+```tsx
+import { registerHomeSidebarEntryFilter } from '@kinvolk/headlamp-plugin/lib';
+
+registerHomeSidebarEntryFilter(entry => (entry.name === 'settings' ? null : entry));
+```
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `filterFunc` | (`entry`: [`SidebarEntryProps`](../interfaces/plugin_registry.SidebarEntryProps.md)) => ``null`` \| [`SidebarEntryProps`](../interfaces/plugin_registry.SidebarEntryProps.md) | a function for filtering HOME sidebar entries. |
+
+#### Returns
+
+`void`
+
+#### Defined in
+
+[plugin/registry.tsx:395](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L395)
+
+___
+
 ### registerPluginSettings
 
 ▸ **registerPluginSettings**(`name`, `component`, `displaySaveButton?`): `void`
@@ -803,7 +833,7 @@ ___
 
 ▸ **registerSidebarEntryFilter**(`filterFunc`): `void`
 
-Remove sidebar menu items.
+Filter IN_CLUSTER sidebar menu items (return null to remove, or return a modified entry to update it).
 
 **`example`**
 
@@ -817,7 +847,7 @@ registerSidebarEntryFilter(entry => (entry.name === 'workloads' ? null : entry))
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `filterFunc` | (`entry`: [`SidebarEntryProps`](../interfaces/plugin_registry.SidebarEntryProps.md)) => ``null`` \| [`SidebarEntryProps`](../interfaces/plugin_registry.SidebarEntryProps.md) | a function for filtering sidebar entries. |
+| `filterFunc` | (`entry`: [`SidebarEntryProps`](../interfaces/plugin_registry.SidebarEntryProps.md)) => ``null`` \| [`SidebarEntryProps`](../interfaces/plugin_registry.SidebarEntryProps.md) | a function for filtering IN_CLUSTER sidebar entries. |
 
 #### Returns
 
@@ -825,7 +855,7 @@ registerSidebarEntryFilter(entry => (entry.name === 'workloads' ? null : entry))
 
 #### Defined in
 
-[plugin/registry.tsx:277](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L277)
+[plugin/registry.tsx:376](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L376)
 
 ___
 

@@ -18,6 +18,7 @@ import { vi } from 'vitest';
 import sidebarReducer, {
   DefaultSidebars,
   initialState,
+  setHomeSidebarItemFilter,
   setInitialSidebarOpen,
   setSidebarItem,
   setSidebarItemFilter,
@@ -74,6 +75,14 @@ describe('sidebarSlice', () => {
       const filter = (entry: SidebarEntry) => (entry.name === 'Filtered' ? null : entry);
       const state: SidebarState = sidebarReducer(initialState, setSidebarItemFilter(filter));
       expect(state.filters).toContain(filter);
+    });
+  });
+
+  describe('setHomeSidebarItemFilter', () => {
+    it('should handle adding a new filter to the HOME sidebar', () => {
+      const filter = (entry: SidebarEntry) => (entry.name === 'Filtered' ? null : entry);
+      const state: SidebarState = sidebarReducer(initialState, setHomeSidebarItemFilter(filter));
+      expect(state.homeFilters).toContain(filter);
     });
   });
 
