@@ -16,9 +16,9 @@
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Chip from '@mui/material/Chip';
+import Chip, { ChipProps } from '@mui/material/Chip';
 import Link from '@mui/material/Link';
-import { useTheme } from '@mui/material/styles';
+import { SxProps, Theme, useTheme } from '@mui/material/styles';
 import { SwitchProps } from '@mui/material/Switch';
 import Switch from '@mui/material/Switch';
 import Tooltip from '@mui/material/Tooltip';
@@ -298,7 +298,10 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
               header: t('translation|Type'),
               accessorFn: (plugin: PluginInfo) => plugin.type || 'unknown',
               Cell: ({ row: { original: plugin } }: { row: MRT_Row<PluginInfo> }) => {
-                const typeLabels: Record<string, { label: string; color: any }> = {
+                const typeLabels: Record<
+                  string,
+                  { label: string; color: ChipProps['color']; sx?: SxProps<Theme> }
+                > = {
                   development: {
                     label: t('translation|Development'),
                     color: 'primary',
@@ -306,6 +309,13 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
                   user: {
                     label: t('translation|User-installed'),
                     color: 'info',
+                    // info.main is a light blue whose default white text only
+                    // reaches 3.85:1. Use dark text so the chip meets the WCAG
+                    // AA 4.5:1 minimum (5.44:1 on light, 9.1:1 on dark themes).
+                    sx: (theme: Theme) => ({
+                      backgroundColor: theme.palette.info.main,
+                      color: theme.palette.common.black,
+                    }),
                   },
                   shipped: {
                     label: t('translation|Shipped'),
@@ -313,7 +323,14 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
                   },
                 };
                 const typeInfo = typeLabels[plugin.type || 'shipped'];
-                return <Chip label={typeInfo.label} size="small" color={typeInfo.color} />;
+                return (
+                  <Chip
+                    label={typeInfo.label}
+                    size="small"
+                    color={typeInfo.color}
+                    sx={typeInfo.sx}
+                  />
+                );
               },
             },
             {
