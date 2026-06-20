@@ -117,7 +117,7 @@ const SidebarItemBase = memo((props: SidebarItemProps & { clusters?: string[] })
     const subheaderSx: SxProps<Theme> = [
       theme => ({
         backgroundColor: 'transparent',
-        color: alpha(sidebarColor(theme), 0.6),
+        color: sidebarColor(theme),
         fontSize: '0.75rem',
         fontWeight: 700,
         letterSpacing: '0.05em',
