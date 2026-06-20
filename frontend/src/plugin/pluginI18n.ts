@@ -73,6 +73,27 @@ async function loadPluginTranslations(
 }
 
 /**
+ * Lazily load a single locale's translations into an existing plugin instance.
+ * Used when the active language changes, so a locale is only fetched the first
+ * time it is actually needed instead of all locales being fetched up front
+ * (see #4854).
+ */
+async function ensurePluginLocaleLoaded(
+  instance: i18n,
+  pluginName: string,
+  pluginPath: string,
+  locale: string
+): Promise<void> {
+  if (instance.hasResourceBundle(locale, pluginName)) {
+    return;
+  }
+  const translations = await loadPluginTranslations(pluginPath, locale);
+  if (Object.keys(translations).length > 0) {
+    instance.addResourceBundle(locale, pluginName, translations);
+  }
+}
+
+/**
  * Create or get an i18next instance for a plugin
  * Uses hard defaults: namespace = plugin name, loads from plugin path
  */
@@ -87,12 +108,23 @@ async function getPluginI18nInstance(
 
   const instance = createInstance();
 
-  // Use supported locales from package.json or fall back to common locales
-  const locales = supportedLocales || ['en', 'es', 'fr', 'de', 'pt', 'it', 'zh', 'ko', 'ja'];
+  // Only consider the locales a plugin explicitly declares via `headlamp.i18n`
+  // in package.json. Without a declaration there are no translation files to
+  // load, so probing for them would only generate 404s (see #4854).
+  const locales = supportedLocales ?? [];
+
+  // Eagerly load only the locale the user is actually viewing (plus the English
+  // fallback). Previously every declared locale was fetched up front, so a plugin
+  // declaring many locales whose files are missing from the image produced a 404
+  // per locale on every load - enough to trip rate limiters like CrowdSec (#4854).
+  // Other locales are loaded lazily when the language changes.
+  const currentLanguage = i18next.language || 'en';
+  const initialLocales = [...new Set([currentLanguage, 'en'])].filter(locale =>
+    locales.includes(locale)
+  );
   const resources: Record<string, Record<string, Record<string, string>>> = {};
 
-  // Load translations for each locale that exists
-  for (const locale of locales) {
+  for (const locale of initialLocales) {
     const translations = await loadPluginTranslations(pluginPath, locale);
     if (Object.keys(translations).length > 0) {
       resources[locale] = {
@@ -233,8 +265,17 @@ export function useTranslation(pluginNameParam?: string): UseTranslationResult {
           return;
         }
 
-        // Initialize plugin i18n instance
+        // Only initialize an i18n instance for plugins that explicitly declare
+        // their supported locales via `headlamp.i18n` in package.json. Plugins
+        // without a declaration have no translation files, so probing for them
+        // produces a flood of 404s (see #4854). For those, leave `instance` null
+        // so `t()` falls back to returning the original string keys.
         const supportedLocales = pluginSupportedLocales[currentPluginName];
+        if (!supportedLocales?.length) {
+          setReady(true);
+          return;
+        }
+
         const pluginInstance = await getPluginI18nInstance(
           currentPluginName,
           pluginPath,
@@ -251,12 +292,22 @@ export function useTranslation(pluginNameParam?: string): UseTranslationResult {
     initializeTranslations();
   }, [pluginName]);
 
-  // Sync language changes from main i18n
+  // Sync language changes from main i18n, loading the target locale on demand.
   useEffect(() => {
-    if (instance && mainI18n?.language !== instance.language) {
-      instance.changeLanguage(mainI18n.language);
+    const targetLanguage = mainI18n?.language;
+    if (!instance || !pluginName || !targetLanguage || targetLanguage === instance.language) {
+      return;
     }
-  }, [mainI18n?.language, instance]);
+
+    const pluginPath = pluginPaths[pluginName];
+    const supportedLocales = pluginSupportedLocales[pluginName];
+    (async () => {
+      if (pluginPath && supportedLocales?.includes(targetLanguage)) {
+        await ensurePluginLocaleLoaded(instance, pluginName, pluginPath, targetLanguage);
+      }
+      await instance.changeLanguage(targetLanguage);
+    })();
+  }, [mainI18n?.language, instance, pluginName]);
 
   // Translation function
   const t = (key: string, options?: TOptions) => {
@@ -292,12 +343,21 @@ export function getPluginTranslationsInfo(): PluginI18nInfo[] {
 }
 
 /**
- * Change language for all plugin instances
+ * Change language for all plugin instances, loading the target locale on demand
+ * so locales are only fetched when actually used rather than all up front (#4854).
  */
-export function changePluginLanguage(language: string) {
-  Object.values(pluginI18nInstances).forEach(instance => {
-    instance.changeLanguage(language);
-  });
+export async function changePluginLanguage(language: string): Promise<void> {
+  await Promise.all(
+    Object.keys(pluginI18nInstances).map(async pluginName => {
+      const instance = pluginI18nInstances[pluginName];
+      const pluginPath = pluginPaths[pluginName];
+      const supportedLocales = pluginSupportedLocales[pluginName];
+      if (pluginPath && supportedLocales?.includes(language)) {
+        await ensurePluginLocaleLoaded(instance, pluginName, pluginPath, language);
+      }
+      await instance.changeLanguage(language);
+    })
+  );
 }
 
 /**
