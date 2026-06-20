@@ -868,7 +868,7 @@
   "Service: {{namespace}}/{{name}}": "الخدمة: {{namespace}}/{{name}}",
   "Path: {{ path }}:{{ port }}": "المسار: {{ path }}:{{ port }}",
   "Operations": "العمليات",
-  "0 Running": "0 قيد التشغيل",
+  "Other": "",
   "Ready//context:replicas": "جاهز",
   "Up to date//context:replicas": "محدّث",
   "Available//context:replicas": "متاح",

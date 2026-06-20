@@ -840,7 +840,7 @@
   "Service: {{namespace}}/{{name}}": "سروس: {{namespace}}/{{name}}",
   "Path: {{ path }}:{{ port }}": "پاتھ: {{ path }}:{{ port }}",
   "Operations": "عملیات",
-  "0 Running": "0 چل رہے ہیں",
+  "Other": "",
   "Ready//context:replicas": "تیار",
   "Up to date//context:replicas": "تازہ ترین",
   "Available//context:replicas": "دستیاب",

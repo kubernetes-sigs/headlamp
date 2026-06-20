@@ -840,7 +840,7 @@
   "Service: {{namespace}}/{{name}}": "Service: {{namespace}}/{{name}}",
   "Path: {{ path }}:{{ port }}": "Path: {{ path }}:{{ port }}",
   "Operations": "Operations",
-  "0 Running": "0 Running",
+  "Other": "Other",
   "Ready//context:replicas": "Ready",
   "Up to date//context:replicas": "Up to date",
   "Available//context:replicas": "Available",

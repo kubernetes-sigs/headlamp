@@ -21,6 +21,23 @@ import { stream } from './api/v1/streamingApi';
 import type { KubeCondition, KubeContainer, KubeContainerStatus, Time } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
+import type { WorkloadHealthCategory } from './Workload';
+
+/** Container waiting/terminated reasons that represent a genuine failure rather than normal startup. */
+const POD_FAILED_CONTAINER_REASONS = [
+  'CrashLoopBackOff',
+  'ImagePullBackOff',
+  'ErrImagePull',
+  'ErrImageNeverPull',
+  'InvalidImageName',
+  'CreateContainerError',
+  'CreateContainerConfigError',
+  'RunContainerError',
+  'OOMKilled',
+  'Error',
+  'ContainerCannotRun',
+  'DeadlineExceeded',
+];
 
 export interface KubeVolume {
   name: string;
@@ -530,6 +547,58 @@ class Pod extends KubeObject<KubePod> {
 
     return newDetails;
   }
+
+  /**
+   * Classifies the pod into a coarse health category for the Workloads overview
+   * chart. Pods have no replica fields, so the replica-mismatch logic used for
+   * other workloads can't apply. This relies on the same signals the Pods list
+   * shows (phase, readiness, container state, deletionTimestamp) so the chart
+   * and the list can't disagree. Terminating and Pending pods are treated as
+   * transitional rather than failures.
+   */
+  getHealth(): WorkloadHealthCategory {
+    // A lost node is reported as Unknown (unhealthy), matching getDetailedStatus.
+    if (this.metadata.deletionTimestamp) {
+      return this.status?.reason === 'NodeLost' ? 'failed' : 'transitional';
+    }
+
+    const phase = this.status?.phase;
+    if (phase === 'Succeeded') {
+      return 'healthy';
+    }
+
+    const containerStatuses = [
+      ...(this.status?.containerStatuses || []),
+      ...(this.status?.initContainerStatuses || []),
+    ];
+    // Failures surface either as a waiting reason (CrashLoopBackOff, ImagePull…)
+    // or as the current terminated reason (Error, OOMKilled…). lastState is
+    // intentionally ignored so a container that already recovered isn't flagged.
+    const hasFailingContainer = containerStatuses.some(cs => {
+      const reason = cs.state?.waiting?.reason || cs.state?.terminated?.reason;
+      return !!reason && POD_FAILED_CONTAINER_REASONS.includes(reason);
+    });
+    if (phase === 'Failed' || hasFailingContainer) {
+      return 'failed';
+    }
+
+    // Pending without a failing container is still starting up (scheduling,
+    // ContainerCreating, PodInitializing, …).
+    if (phase === 'Pending') {
+      return 'transitional';
+    }
+
+    const isReady = (this.status?.conditions || []).some(
+      condition => condition.type === 'Ready' && condition.status === 'True'
+    );
+    if (phase === 'Running') {
+      return isReady ? 'healthy' : 'degraded';
+    }
+
+    // Unknown / NodeLost and anything else we can't place is treated as failed.
+    return 'failed';
+  }
+
   static getBaseObject(): KubePod {
     const baseObject = super.getBaseObject() as KubePod;
     baseObject.metadata = {

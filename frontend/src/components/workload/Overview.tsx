@@ -135,6 +135,7 @@ export default function Overview() {
                 title={<ChartLink workload={workload} />}
                 partialLabel={t('translation|Failed')}
                 totalLabel={t('translation|Running')}
+                categorize={workload === Pod ? item => (item as Pod).getHealth() : undefined}
               />
             </Grid>
           ))}

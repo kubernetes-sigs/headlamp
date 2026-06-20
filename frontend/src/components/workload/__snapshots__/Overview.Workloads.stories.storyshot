@@ -51,7 +51,12 @@
                           <p
                             class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
                           >
-                            2 Running
+                            1 Running
+                            <span
+                              class="MuiBox-root css-172fsqw"
+                            >
+                              1 Other
+                            </span>
                           </p>
                         </div>
                         <div
@@ -96,31 +101,63 @@
                                   <g
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
+                                  >
+                                    <path
+                                      aria-label="50 %"
+                                      class="recharts-sector"
+                                      cx="61"
+                                      cy="61"
+                                      d="M 61,16.199999999999996
+    A 44.800000000000004,44.800000000000004,0,
+    0,1,
+    61,105.80000000000001
+  L 61,94.80000000000001
+            A 33.800000000000004,33.800000000000004,0,
+            0,0,
+            61,27.199999999999996 Z"
+                                      fill="#2e7d32"
+                                      name="healthy"
+                                      role="img"
+                                      stroke="#e0e0e0"
+                                      tabindex="-1"
+                                    />
+                                  </g>
+                                  <g
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
                                   />
                                   <g
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
                                   >
                                     <path
-                                      aria-label="100 %"
+                                      aria-label="50 %"
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
-                                      d="M 61,16.199999999999996
+                                      d="M 61,105.80000000000001
     A 44.800000000000004,44.800000000000004,0,
-    1,1,
-    60.99921809249515,16.20000000682343
-  L 60.999410078712856,27.200000005148027
+    0,1,
+    60.99999999999999,16.199999999999996
+  L 60.99999999999999,27.199999999999996
             A 33.800000000000004,33.800000000000004,0,
-            1,0,
-            61,27.199999999999996 Z"
-                                      fill="#000"
-                                      name="total"
+            0,0,
+            61,94.80000000000001 Z"
+                                      fill="#9e9e9e"
+                                      name="transitional"
                                       role="img"
                                       stroke="#e0e0e0"
                                       tabindex="-1"
                                     />
                                   </g>
+                                  <g
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
+                                  />
+                                  <g
+                                    class="recharts-layer recharts-pie-sector"
+                                    tabindex="-1"
+                                  />
                                   <text
                                     class="recharts-text recharts-label"
                                     fill="#808080"
@@ -134,7 +171,7 @@
                                       dy="0.355em"
                                       x="61"
                                     >
-                                      100 %
+                                      50 %
                                     </tspan>
                                   </text>
                                 </g>

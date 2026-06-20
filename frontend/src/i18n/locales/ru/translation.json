@@ -854,7 +854,7 @@
   "Service: {{namespace}}/{{name}}": "Сервис: {{namespace}}/{{name}}",
   "Path: {{ path }}:{{ port }}": "Путь: {{ path }}:{{ port }}",
   "Operations": "Операции",
-  "0 Running": "0 работает",
+  "Other": "",
   "Ready//context:replicas": "Готовые",
   "Up to date//context:replicas": "Актуальные",
   "Available//context:replicas": "Доступные",

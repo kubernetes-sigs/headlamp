@@ -847,7 +847,7 @@
   "Service: {{namespace}}/{{name}}": "",
   "Path: {{ path }}:{{ port }}": "",
   "Operations": "",
-  "0 Running": "",
+  "Other": "",
   "Ready//context:replicas": "",
   "Up to date//context:replicas": "",
   "Available//context:replicas": "",

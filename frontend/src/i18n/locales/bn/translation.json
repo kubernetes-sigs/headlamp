@@ -840,7 +840,7 @@
   "Service: {{namespace}}/{{name}}": "পরিষেবা: {{namespace}}/{{name}}",
   "Path: {{ path }}:{{ port }}": "পথ: {{ path }}:{{ port }}",
   "Operations": "Operations",
-  "0 Running": "0 চলমান",
+  "Other": "",
   "Ready//context:replicas": "প্রস্তুত:replicas",
   "Up to date//context:replicas": "Up to date:replicas",
   "Available//context:replicas": "Available:replicas",
