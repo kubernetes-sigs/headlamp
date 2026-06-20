@@ -110,6 +110,7 @@ export default function Permissions() {
     [resourcesQuery.data]
   );
   const isLoading = userInfoQuery.isLoading || resourcesQuery.isLoading || rulesQuery.isLoading;
+  const hasError = userInfoQuery.isError || resourcesQuery.isError || rulesQuery.isError;
   const userInfo = userInfoQuery.data;
   const rulesStatus = rulesQuery.data?.status;
 
@@ -160,7 +161,7 @@ export default function Permissions() {
               labelId="permissions-namespace-label"
               label={t('glossary|Namespace')}
               value={namespace}
-              onChange={event => setNamespace(event.target.value)}
+              onChange={event => setNamespace(event.target.value as string)}
             >
               {namespaceNames.length === 0 && <MenuItem value={namespace}>{namespace}</MenuItem>}
               {namespaceNames.map(namespaceName => (
@@ -193,7 +194,11 @@ export default function Permissions() {
           </Alert>
         ) : null}
 
-        {isLoading ? (
+        {hasError ? (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {t('translation|Some resources failed to load')}
+          </Alert>
+        ) : isLoading ? (
           <Box display="flex" justifyContent="center" py={4}>
             <CircularProgress />
           </Box>

@@ -25,10 +25,10 @@ import type { AuthRequestResourceAttrs } from '../../../lib/k8s/KubeObject';
 import type { ButtonStyle } from '../ActionButton';
 import type { AuthVisibleResult } from './AuthVisible';
 
-function formatAuthRequest(attrs: AuthRequestResourceAttrs) {
+function formatAuthRequest(attrs: AuthRequestResourceAttrs, namespaceLabel: string) {
   const api = [attrs.group, attrs.version].filter(Boolean).join('/') || attrs.version || 'v1';
   const resource = attrs.subresource ? `${attrs.resource}/${attrs.subresource}` : attrs.resource;
-  const namespace = attrs.namespace ? ` in namespace ${attrs.namespace}` : '';
+  const namespace = attrs.namespace ? ` (${namespaceLabel}: ${attrs.namespace})` : '';
 
   return `${attrs.verb} ${api} ${resource}${namespace}`;
 }
@@ -42,23 +42,28 @@ export default function PermissionDeniedAction({
   label: string;
   buttonStyle?: ButtonStyle;
 }) {
-  const { t } = useTranslation(['translation']);
+  const { t } = useTranslation(['translation', 'glossary']);
   const title = t("translation|Why can't I do this?");
   const detail =
     result.reason ||
     result.evaluationError ||
     t('translation|Kubernetes denied this SelfSubjectAccessReview.');
-  const tooltip = `${title} ${formatAuthRequest(result.resourceAttributes)}. ${detail}`;
+  const tooltip = `${title} ${formatAuthRequest(
+    result.resourceAttributes,
+    t('glossary|Namespace')
+  )}. ${detail}`;
 
   if (buttonStyle === 'menu') {
     return (
       <Tooltip title={tooltip}>
-        <MenuItem sx={{ color: 'text.secondary' }}>
-          <ListItemIcon>
-            <Icon icon="mdi:shield-alert" />
-          </ListItemIcon>
-          <ListItemText primary={label} secondary={title} />
-        </MenuItem>
+        <span>
+          <MenuItem disabled sx={{ color: 'text.secondary' }}>
+            <ListItemIcon>
+              <Icon icon="mdi:shield-alert" />
+            </ListItemIcon>
+            <ListItemText primary={label} secondary={title} />
+          </MenuItem>
+        </span>
       </Tooltip>
     );
   }
