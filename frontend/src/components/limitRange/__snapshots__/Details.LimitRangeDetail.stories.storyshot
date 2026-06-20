@@ -293,6 +293,33 @@
                         </div>
                       </div>
                     </div>
+                    <div
+                      class="MuiBox-root css-1ynyhby"
+                    >
+                      <h6
+                        class="MuiTypography-root MuiTypography-h6 css-k6p83p-MuiTypography-root"
+                      >
+                        Max Limit/Request Ratio
+                      </h6>
+                      <div
+                        class="MuiBox-root css-0"
+                      >
+                        <div
+                          class="MuiBox-root css-yi3mkw"
+                        >
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            cpu: 2
+                          </p>
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            memory: 1.5
+                          </p>
+                        </div>
+                      </div>
+                    </div>
                   </dd>
                 </dl>
               </div>

@@ -55,6 +55,14 @@ export function LimitRangeDetails(props: { name?: string; namespace?: string; cl
                   <Typography variant="h6">{t('translation|Min')}</Typography>
                   <MetadataDictGrid dict={item?.jsonData?.spec?.limits?.[0]?.min} />
                 </Box>
+                {item?.jsonData?.spec?.limits?.[0]?.maxLimitRequestRatio && (
+                  <Box m={1}>
+                    <Typography variant="h6">{t('translation|Max Limit/Request Ratio')}</Typography>
+                    <MetadataDictGrid
+                      dict={item?.jsonData?.spec?.limits?.[0]?.maxLimitRequestRatio}
+                    />
+                  </Box>
+                )}
               </>
             ),
           },

@@ -649,6 +649,7 @@
   "Default Request": "ڈیفالٹ درخواست",
   "Max": "زیادہ سے زیادہ",
   "Min": "کم سے کم",
+  "Max Limit/Request Ratio": "",
   "A namespace with this name already exists.": "اس نام کا نیم اسپیس پہلے سے موجود ہے",
   "Namespaces must be under 64 characters.": "نیم اسپیس 64 حروف سے کم ہونا چاہیے",
   "Create Namespace": "نیم اسپیس بنائیں",
