@@ -139,6 +139,7 @@ func getFreePort() (int, error) {
 //nolint:funlen
 func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache[interface{}],
 	unsafeUseServiceAccountToken bool,
+	contextKey string,
 	w http.ResponseWriter, r *http.Request,
 ) {
 	var p portForwardRequest
@@ -205,9 +206,9 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		p.Port = strconv.Itoa(freePort)
 	}
 
-	kContext, err := kubeConfigStore.GetContext(clusterName)
+	kContext, err := kubeConfigStore.GetContext(contextKey)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
+		logger.Log(logger.LevelError, map[string]string{"cluster": contextKey},
 			err, "getting kubeconfig context")
 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -220,7 +221,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		token, _ = auth.GetTokenFromCookie(r, requestClusterName)
 	}
 
-	err = startPortForward(kContext, cache, p, token, clusterName, requestClusterName)
+	err = startPortForward(kContext, cache, p, token, contextKey, requestClusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting portforward")
 
@@ -701,7 +702,9 @@ func (r *stopOrDeletePortForwardRequest) Validate() error {
 }
 
 // StopOrDeletePortForward handles stop or delete port forward request.
-func StopOrDeletePortForward(cache cache.Cache[interface{}], w http.ResponseWriter, r *http.Request) {
+func StopOrDeletePortForward(cache cache.Cache[interface{}], contextKey string,
+	w http.ResponseWriter, r *http.Request,
+) {
 	var p stopOrDeletePortForwardRequest
 
 	err := json.NewDecoder(r.Body).Decode(&p)
@@ -719,14 +722,7 @@ func StopOrDeletePortForward(cache cache.Cache[interface{}], w http.ResponseWrit
 		return
 	}
 
-	userID := r.Header.Get("X-HEADLAMP-USER-ID")
-	clusterName := mux.Vars(r)["clusterName"]
-
-	if userID != "" {
-		clusterName += userID
-	}
-
-	err = stopOrDeletePortForward(cache, clusterName, p.ID, p.StopOrDelete)
+	err = stopOrDeletePortForward(cache, contextKey, p.ID, p.StopOrDelete)
 	if err == nil {
 		if _, err := w.Write([]byte("stopped")); err != nil {
 			logger.Log(logger.LevelError, nil, err, "writing response")
@@ -740,7 +736,9 @@ func StopOrDeletePortForward(cache cache.Cache[interface{}], w http.ResponseWrit
 }
 
 // GetPortForwards handles get port forwards request.
-func GetPortForwards(cache cache.Cache[interface{}], w http.ResponseWriter, r *http.Request) {
+func GetPortForwards(cache cache.Cache[interface{}], contextKey string,
+	w http.ResponseWriter, r *http.Request,
+) {
 	cluster := mux.Vars(r)["clusterName"]
 	if cluster == "" {
 		logger.Log(logger.LevelError, nil, errors.New("cluster is required"), "getting portforwards")
@@ -749,14 +747,7 @@ func GetPortForwards(cache cache.Cache[interface{}], w http.ResponseWriter, r *h
 		return
 	}
 
-	userID := r.Header.Get("X-HEADLAMP-USER-ID")
-	clusterName := cluster
-
-	if userID != "" {
-		clusterName = cluster + userID
-	}
-
-	ports := getPortForwardList(cache, clusterName)
+	ports := getPortForwardList(cache, contextKey)
 
 	w.Header().Set("Content-Type", "application/json")
 
@@ -769,7 +760,9 @@ func GetPortForwards(cache cache.Cache[interface{}], w http.ResponseWriter, r *h
 }
 
 // GetPortForwardByID handles get port forward by id request.
-func GetPortForwardByID(cache cache.Cache[interface{}], w http.ResponseWriter, r *http.Request) {
+func GetPortForwardByID(cache cache.Cache[interface{}], contextKey string,
+	w http.ResponseWriter, r *http.Request,
+) {
 	cluster := mux.Vars(r)["clusterName"]
 	if cluster == "" {
 		logger.Log(logger.LevelError, nil, errors.New("cluster is required"), "getting portforward by id")
@@ -786,14 +779,7 @@ func GetPortForwardByID(cache cache.Cache[interface{}], w http.ResponseWriter, r
 		return
 	}
 
-	userID := r.Header.Get("X-HEADLAMP-USER-ID")
-	clusterName := cluster
-
-	if userID != "" {
-		clusterName = cluster + userID
-	}
-
-	p, err := getPortForwardByID(cache, clusterName, id)
+	p, err := getPortForwardByID(cache, contextKey, id)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "getting portforward by id")
 		http.Error(w, "no portforward running with id "+id, http.StatusNotFound)
@@ -813,7 +799,7 @@ func GetPortForwardByID(cache cache.Cache[interface{}], w http.ResponseWriter, r
 		ID:        p.ID,
 		Pod:       p.Pod,
 		Namespace: p.Namespace,
-		Cluster:   p.Cluster,
+		Cluster:   cluster,
 		Service:   p.Service,
 	}
 
