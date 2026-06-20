@@ -68,6 +68,34 @@ export function loadClusterSettings(clusterName: string): ClusterSettings {
   if (!clusterName) {
     return {};
   }
-  const settings = JSON.parse(localStorage.getItem(`cluster_settings.${clusterName}`) || '{}');
-  return settings;
+
+  const settingsKey = `cluster_settings.${clusterName}`;
+  const storedSettings = localStorage.getItem(settingsKey);
+  if (storedSettings === null) {
+    return {};
+  }
+
+  try {
+    const settings = JSON.parse(storedSettings);
+    if (!settings || typeof settings !== 'object' || Array.isArray(settings)) {
+      localStorage.removeItem(settingsKey);
+      return {};
+    }
+
+    if (
+      (settings.allowedNamespaces !== undefined &&
+        (!Array.isArray(settings.allowedNamespaces) ||
+          !settings.allowedNamespaces.every((ns: unknown) => typeof ns === 'string'))) ||
+      (settings.defaultNamespace !== undefined && typeof settings.defaultNamespace !== 'string') ||
+      (settings.currentName !== undefined && typeof settings.currentName !== 'string')
+    ) {
+      localStorage.removeItem(settingsKey);
+      return {};
+    }
+
+    return settings;
+  } catch {
+    localStorage.removeItem(settingsKey);
+    return {};
+  }
 }

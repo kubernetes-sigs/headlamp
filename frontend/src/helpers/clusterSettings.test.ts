@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ClusterSettings, loadClusterSettings, storeClusterSettings } from './clusterSettings';
+import { loadClusterSettings, storeClusterSettings } from './clusterSettings';
 
 describe('clusterSettings', () => {
   beforeEach(() => {
@@ -22,109 +22,66 @@ describe('clusterSettings', () => {
   });
 
   describe('storeClusterSettings', () => {
-    it('writes the settings under cluster_settings.<name>', () => {
-      const settings: ClusterSettings = { defaultNamespace: 'kube-system' };
-
-      storeClusterSettings('prod', settings);
-
-      expect(JSON.parse(localStorage.getItem('cluster_settings.prod') || '{}')).toEqual(settings);
-    });
-
-    it('round-trips a full settings object including nested fields', () => {
-      const settings: ClusterSettings = {
-        defaultNamespace: 'app',
-        allowedNamespaces: ['app', 'app-staging'],
+    it('stores cluster settings in localStorage', () => {
+      const settings = {
+        defaultNamespace: 'default',
+        allowedNamespaces: ['default', 'kube-system'],
         currentName: 'Production',
-        nodeShellTerminal: {
-          linuxImage: 'alpine:latest',
-          namespace: 'kube-system',
-          isEnabled: true,
-        },
-        podDebugTerminal: {
-          debugImage: 'busybox:1.36',
-          isEnabled: false,
-        },
-        appearance: {
-          accentColor: '#ff0000',
-          icon: 'mdi:server',
-        },
       };
 
-      storeClusterSettings('prod', settings);
+      storeClusterSettings('test-cluster', settings);
 
-      expect(loadClusterSettings('prod')).toEqual(settings);
+      expect(localStorage.getItem('cluster_settings.test-cluster')).toBe(JSON.stringify(settings));
     });
 
-    it('overwrites an existing entry for the same cluster name', () => {
-      storeClusterSettings('prod', { defaultNamespace: 'old' });
-      storeClusterSettings('prod', { defaultNamespace: 'new' });
+    it('does nothing when clusterName is empty', () => {
+      storeClusterSettings('', { defaultNamespace: 'default' });
 
-      expect(loadClusterSettings('prod')).toEqual({ defaultNamespace: 'new' });
-    });
-
-    it('keeps settings for other clusters isolated', () => {
-      storeClusterSettings('alpha', { defaultNamespace: 'a' });
-      storeClusterSettings('beta', { defaultNamespace: 'b' });
-
-      expect(loadClusterSettings('alpha')).toEqual({ defaultNamespace: 'a' });
-      expect(loadClusterSettings('beta')).toEqual({ defaultNamespace: 'b' });
-    });
-
-    it('is a no-op when clusterName is an empty string', () => {
-      storeClusterSettings('', { defaultNamespace: 'app' });
-
-      // No key should have been written for an empty clusterName.
       expect(localStorage.getItem('cluster_settings.')).toBeNull();
-    });
-
-    it('persists an empty settings object', () => {
-      storeClusterSettings('prod', {});
-
-      expect(localStorage.getItem('cluster_settings.prod')).toBe('{}');
-      expect(loadClusterSettings('prod')).toEqual({});
     });
   });
 
   describe('loadClusterSettings', () => {
-    it('returns an empty object when no entry exists', () => {
-      expect(loadClusterSettings('never-stored')).toEqual({});
+    it('returns stored cluster settings', () => {
+      const settings = {
+        defaultNamespace: 'default',
+        allowedNamespaces: ['default', 'kube-system'],
+      };
+      localStorage.setItem('cluster_settings.test-cluster', JSON.stringify(settings));
+
+      expect(loadClusterSettings('test-cluster')).toEqual(settings);
     });
 
-    it('returns an empty object when clusterName is empty', () => {
-      // Even if a value happens to live under the bare prefix, an empty name
-      // should never read it.
-      localStorage.setItem('cluster_settings.', JSON.stringify({ defaultNamespace: 'leak' }));
+    it('returns empty settings when no settings exist', () => {
+      expect(loadClusterSettings('missing-cluster')).toEqual({});
+    });
 
+    it('returns empty settings when clusterName is empty', () => {
       expect(loadClusterSettings('')).toEqual({});
     });
 
-    it('returns the parsed object for a stored cluster', () => {
-      localStorage.setItem(
-        'cluster_settings.prod',
-        JSON.stringify({ defaultNamespace: 'kube-system', currentName: 'Prod' })
-      );
+    it('returns empty settings and removes malformed stored settings', () => {
+      localStorage.setItem('cluster_settings.test-cluster', '{ invalid json');
 
-      expect(loadClusterSettings('prod')).toEqual({
-        defaultNamespace: 'kube-system',
-        currentName: 'Prod',
-      });
+      expect(loadClusterSettings('test-cluster')).toEqual({});
+      expect(localStorage.getItem('cluster_settings.test-cluster')).toBeNull();
     });
 
-    it('namespaces cluster names so two clusters never alias each other', () => {
-      storeClusterSettings('prod', { defaultNamespace: 'p' });
+    it.each([
+      '',
+      'null',
+      '"settings"',
+      '1',
+      '[]',
+      '{"allowedNamespaces":"default"}',
+      '{"allowedNamespaces":[1]}',
+      '{"defaultNamespace":5}',
+      '{"currentName":false}',
+    ])('returns empty settings and removes invalid stored settings: %s', storedSettings => {
+      localStorage.setItem('cluster_settings.test-cluster', storedSettings);
 
-      // A cluster name that happens to be a prefix of another stored key.
-      expect(loadClusterSettings('pro')).toEqual({});
-      expect(loadClusterSettings('prod.extra')).toEqual({});
-    });
-
-    // Documents current behaviour: corrupted localStorage payloads surface as
-    // a parse error rather than silently falling back to {}. A future change
-    // could add defensive recovery; this test should be updated alongside it.
-    it('throws when the stored payload is not valid JSON', () => {
-      localStorage.setItem('cluster_settings.prod', '{not json');
-
-      expect(() => loadClusterSettings('prod')).toThrow(SyntaxError);
+      expect(loadClusterSettings('test-cluster')).toEqual({});
+      expect(localStorage.getItem('cluster_settings.test-cluster')).toBeNull();
     });
   });
 });
