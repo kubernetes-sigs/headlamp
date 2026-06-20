@@ -18,7 +18,7 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { TestContext } from '../../test';
 import { LimitRangeDetails } from './Details';
-import { LIMIT_RANGE_DUMMY_DATA } from './storyHelper';
+import { LIMIT_RANGE_DUMMY_DATA, LIMIT_RANGE_NO_RATIO_DUMMY_DATA } from './storyHelper';
 
 export default {
   title: 'LimitRange/DetailsView',
@@ -46,6 +46,29 @@ LimitRangeDetail.parameters = {
       story: [
         http.get('http://localhost:4466/api/v1/limitranges/my-lr', () =>
           HttpResponse.json(LIMIT_RANGE_DUMMY_DATA[0])
+        ),
+        http.get('http://localhost:4466/api/v1/limitranges', () => HttpResponse.error()),
+        http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+          HttpResponse.json({
+            kind: 'EventList',
+            items: [],
+            metadata: {},
+          })
+        ),
+      ],
+    },
+  },
+};
+
+// Verifies the "Max Limit/Request Ratio" section is omitted when the
+// LimitRange does not define maxLimitRequestRatio.
+export const LimitRangeDetailWithoutRatio = Template.bind({});
+LimitRangeDetailWithoutRatio.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/api/v1/limitranges/my-lr', () =>
+          HttpResponse.json(LIMIT_RANGE_NO_RATIO_DUMMY_DATA[0])
         ),
         http.get('http://localhost:4466/api/v1/limitranges', () => HttpResponse.error()),
         http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>

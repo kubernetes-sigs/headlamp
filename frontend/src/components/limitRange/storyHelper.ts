@@ -45,6 +45,33 @@ export const LIMIT_RANGE_DUMMY_DATA = [
             cpu: '10m',
             memory: '4Mi',
           },
+          maxLimitRequestRatio: {
+            cpu: '2',
+            memory: '4',
+          },
+          type: 'Container',
+        },
+      ],
+    },
+  },
+];
+
+// A LimitRange without maxLimitRequestRatio, used to verify that the section is
+// only rendered when the field is present.
+export const LIMIT_RANGE_NO_RATIO_DUMMY_DATA = [
+  {
+    ...LIMIT_RANGE_DUMMY_DATA[0],
+    metadata: {
+      ...LIMIT_RANGE_DUMMY_DATA[0].metadata,
+      name: 'limit-range-no-ratio',
+    },
+    spec: {
+      limits: [
+        {
+          default: { cpu: '100m', memory: '128Mi' },
+          defaultRequest: { cpu: '50m', memory: '64Mi' },
+          max: { cpu: '500m', memory: '1Gi' },
+          min: { cpu: '10m', memory: '4Mi' },
           type: 'Container',
         },
       ],

@@ -647,6 +647,7 @@
   "Default Request": "Запрос по умолчанию",
   "Max": "Макс",
   "Min": "Мин",
+  "Max Limit/Request Ratio": "",
   "A namespace with this name already exists.": "Пространство имён с таким именем уже существует.",
   "Namespaces must be under 64 characters.": "Пространства имён должны содержать менее 64 символов.",
   "Create Namespace": "Создать пространство имён",

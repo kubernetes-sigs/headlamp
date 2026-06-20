@@ -637,6 +637,7 @@
   "Default Request": "Default অনুরোধ",
   "Max": "সর্বোচ্চ",
   "Min": "সর্বনিম্ন",
+  "Max Limit/Request Ratio": "",
   "A namespace with this name already exists.": "এই নাম সহ একটি namespace ইতিমধ্যে বিদ্যমান।",
   "Namespaces must be under 64 characters.": "namespace গুলি অবশ্যই 64 টি অক্ষরের অধীনে থাকতে হবে।",
   "Create Namespace": "namespace Create করুন",

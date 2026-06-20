@@ -47,7 +47,7 @@
                 <h1
                   class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
                 >
-                  LimitRange: limit-range
+                  LimitRange: limit-range-no-ratio
                 </h1>
                 <div
                   class="MuiBox-root css-ldp2l3"
@@ -145,7 +145,7 @@
                     <span
                       class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
                     >
-                      limit-range
+                      limit-range-no-ratio
                     </span>
                   </dd>
                   <dt
@@ -289,33 +289,6 @@
                             class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                           >
                             memory: 4Mi
-                          </p>
-                        </div>
-                      </div>
-                    </div>
-                    <div
-                      class="MuiBox-root css-1ynyhby"
-                    >
-                      <h6
-                        class="MuiTypography-root MuiTypography-h6 css-k6p83p-MuiTypography-root"
-                      >
-                        Max Limit/Request Ratio
-                      </h6>
-                      <div
-                        class="MuiBox-root css-0"
-                      >
-                        <div
-                          class="MuiBox-root css-yi3mkw"
-                        >
-                          <p
-                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                          >
-                            cpu: 2
-                          </p>
-                          <p
-                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                          >
-                            memory: 4
                           </p>
                         </div>
                       </div>

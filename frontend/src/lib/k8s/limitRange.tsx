@@ -35,6 +35,10 @@ export interface LimitRangeSpec {
       cpu: string;
       memory: string;
     };
+    maxLimitRequestRatio?: {
+      cpu: string;
+      memory: string;
+    };
     type: string;
   }[];
 }
@@ -67,6 +71,10 @@ export class LimitRange extends KubeObject<KubeLimitRange> {
             memory: '',
           },
           min: {
+            cpu: '',
+            memory: '',
+          },
+          maxLimitRequestRatio: {
             cpu: '',
             memory: '',
           },

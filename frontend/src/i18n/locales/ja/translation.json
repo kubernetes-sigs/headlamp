@@ -632,6 +632,7 @@
   "Default Request": "",
   "Max": "",
   "Min": "",
+  "Max Limit/Request Ratio": "",
   "A namespace with this name already exists.": "",
   "Namespaces must be under 64 characters.": "",
   "Create Namespace": "",
