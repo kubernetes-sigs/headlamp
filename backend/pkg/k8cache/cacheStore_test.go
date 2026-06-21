@@ -497,6 +497,23 @@ func TestGenerateKey(t *testing.T) {
 			expectedKey: "",
 			expectedErr: errors.New("invalid url format"),
 		},
+		{
+			name:        "context key containing a literal plus is escaped, not treated as delimiter",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/apps/v1/namespaces/default/deployments"},
+			contextKey:  "prod+cluster",
+			expectedKey: "apps+deployments+default+prod%2Bcluster",
+			expectedErr: nil,
+		},
+		{
+			// Regression: ensures the escape is injective. If "%" weren't
+			// escaped first, this input would collide with "prod+cluster"
+			// above and both would produce the same cache key.
+			name:        "context key containing a literal percent sequence does not collide with the plus-escaped form",
+			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/apps/v1/namespaces/default/deployments"},
+			contextKey:  "prod%2Bcluster",
+			expectedKey: "apps+deployments+default+prod%252Bcluster",
+			expectedErr: nil,
+		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
