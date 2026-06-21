@@ -22,7 +22,6 @@ package k8cache
 import (
 	"context"
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -342,7 +341,7 @@ func handleKeyGenerationAndDeletion(obj interface{}, gvr schema.GroupVersionReso
 	}
 
 	namespace := unstructuredObj.GetNamespace()
-	key := fmt.Sprintf("%s+%s+%s+%s", gvr.Group, gvr.Resource, namespace, contextKey)
+	key := buildCacheKey(gvr.Group, gvr.Resource, namespace, contextKey)
 
 	logger.Log(logger.LevelInfo, nil, nil, redactCacheKey(key)+" will be deleted from the cache")
 

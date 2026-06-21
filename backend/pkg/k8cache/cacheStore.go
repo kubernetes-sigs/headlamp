@@ -162,6 +162,40 @@ func ExtractNamespace(rawURL string) (string, string) {
 	return namespace, kind
 }
 
+// buildCacheKey joins apiGroup, kind, namespace, and contextID into a single
+// cache key using "+" as the delimiter. Each field is percent-escaped so
+// that the only "+" characters left in the key are the delimiters
+// themselves and the encoding round-trips uniquely back to its inputs.
+// This matters most for the context field, since kubeconfig context names
+// are not restricted by Kubernetes naming rules and may legitimately
+// contain "+" (or "%").
+//
+// This function is the single source of truth for constructing cache keys.
+// Any code that parses or otherwise manipulates the key format (e.g. the
+// namespace stripping in cache invalidation) must stay consistent with this
+// encoding to avoid the two sides silently drifting out of sync.
+func buildCacheKey(apiGroup, kind, namespace, contextID string) string {
+	// Escape "%" first, then "+". This order matters: it makes the encoding
+	// injective, so e.g. "prod+cluster" -> "prod%2Bcluster" and the literal
+	// string "prod%2Bcluster" -> "prod%252Bcluster" never collide. Reversing
+	// the order (or skipping "%") would map both inputs to the same key and
+	// reintroduce the collision class this function exists to prevent.
+	escape := func(s string) string {
+		s = strings.ReplaceAll(s, "%", "%25")
+		s = strings.ReplaceAll(s, "+", "%2B")
+
+		return s
+	}
+
+	return fmt.Sprintf(
+		"%s+%s+%s+%s",
+		escape(apiGroup),
+		escape(kind),
+		escape(namespace),
+		escape(contextID),
+	)
+}
+
 // GenerateKey function helps to generate a unique key based on the request from the client
 // The function accepts url( which includes all the information of request ) and contextID which
 // helps to differentiate in multiple contexts.
@@ -179,10 +213,7 @@ func GenerateKey(url *url.URL, contextID string) (string, error) {
 		Context:   contextID,
 	}
 
-	// Create a stable representation
-	raw := fmt.Sprintf("%s+%s+%s+%s", apiGroup, k.Kind, k.Namespace, k.Context)
-
-	return raw, nil
+	return buildCacheKey(apiGroup, k.Kind, k.Namespace, k.Context), nil
 }
 
 // SetHeader function help to serve response from cache to ensure the client
