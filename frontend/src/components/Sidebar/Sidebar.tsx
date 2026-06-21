@@ -137,6 +137,7 @@ const DefaultLinkArea = memo((props: { sidebarName: string; isOpen: boolean }) =
         alignItems="center"
         flexDirection={isOpen ? 'row' : 'column'}
         p={1}
+        sx={{ marginBottom: '40px' }}
       >
         <Box>{isElectron() && <AddClusterButton />}</Box>
         <Box>
@@ -155,6 +156,7 @@ const DefaultLinkArea = memo((props: { sidebarName: string; isOpen: boolean }) =
         alignItems="center"
         flexDirection={isOpen ? 'row' : 'column'}
         p={1}
+        sx={{ marginBottom: '40px' }}
       >
         <Box>
           <VersionButton />
