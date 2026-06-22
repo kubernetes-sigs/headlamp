@@ -383,6 +383,8 @@ export function useClustersVersion(clusters: Cluster[]) {
   }, [versions]);
 }
 
+export { useKubeList, useKubeGet, useKubeApiList, useKubeApiGet } from './KubeObject';
+
 // Other exports that can be used by plugins:
 export * as cluster from './cluster';
 export * as clusterRole from './clusterRole';
