@@ -262,6 +262,18 @@
           "type": "string",
           "description": "Directory to load plugins from"
         },
+        "staticPlugins": {
+          "type": "object",
+          "description": "Bundled (static) plugins shipped in the Headlamp image, such as the Prometheus plugin",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Serve the bundled static plugins. Set to false to disable them (e.g. the \"Show Prometheus metrics\" button)",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
          "tlsCertPath": {
           "type": "string",
           "description": "Path of certificate file for TLS"

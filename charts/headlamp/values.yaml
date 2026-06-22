@@ -123,6 +123,13 @@ config:
 
   # -- directory to look for plugins
   pluginsDir: "/headlamp/plugins"
+  # Bundled (static) plugins that ship inside the Headlamp image, such as the
+  # Prometheus plugin (the "Show Prometheus metrics" UI).
+  staticPlugins:
+    # -- Serve the bundled static plugins. Set to false to disable them (e.g. to
+    # hide the "Show Prometheus metrics" button) without relying on internal
+    # image paths; this sets HEADLAMP_STATIC_PLUGINS_DIR to an empty string so the backend skips them.
+    enabled: true
   enableHelm: false
   watchPlugins: false
   # -- Default image to use when creating pod debug containers. If empty, Headlamp uses its built-in default.

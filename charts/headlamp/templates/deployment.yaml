@@ -1,6 +1,12 @@
 {{- $oidc := .Values.config.oidc }}
 {{- $env := .Values.env }}
 
+{{- /* Disable the bundled static plugins (e.g. Prometheus) by clearing
+       HEADLAMP_STATIC_PLUGINS_DIR. `hasKey` guards against false being treated
+       as empty by `default`, and an unset value defaults to serving them. */}}
+{{- $staticPlugins := .Values.config.staticPlugins | default dict }}
+{{- $staticPluginsDisabled := and (hasKey $staticPlugins "enabled") (not $staticPlugins.enabled) }}
+
 {{- $clientID := "" }}
 {{- $clientSecret := "" }}
 {{- $issuerURL := "" }}
@@ -114,15 +120,21 @@ spec:
             {{- end }}
           image: "{{ .Values.image.registry}}/{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{ if or $oidc .Values.env }}
+          {{ if or $oidc .Values.env $staticPluginsDisabled }}
           {{- if $oidc.externalSecret.enabled }}
           # Check if externalSecret is enabled
           envFrom:
           - secretRef:
               name: {{ $oidc.externalSecret.name }}
-          {{- if .Values.env }}
+          {{- if or .Values.env $staticPluginsDisabled }}
           env:
-            {{- toYaml .Values.env | nindent 12 }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- if $staticPluginsDisabled }}
+            - name: HEADLAMP_STATIC_PLUGINS_DIR
+              value: ""
+            {{- end }}
           {{- end }}
           {{- else }}
           env:
@@ -241,6 +253,10 @@ spec:
             {{- end }}
             {{- if .Values.env }}
             {{- toYaml .Values.env | nindent 12 }}
+            {{- end }}
+            {{- if $staticPluginsDisabled }}
+            - name: HEADLAMP_STATIC_PLUGINS_DIR
+              value: ""
             {{- end }}
           {{- end }}
           {{- end }}

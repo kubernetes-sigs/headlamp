@@ -133,6 +133,7 @@ config:
 | config.unsafeUseServiceAccountToken | bool | `false` | UNSAFE: authenticate every user as the pod's service account when running in-cluster. Only safe behind an auth proxy |
 | config.serviceAccountTokenPath | string | `""` | Path to the service account token file. Used only when `unsafeUseServiceAccountToken` is true |
 | config.pluginsDir  | string | `"/headlamp/plugins"` | Directory to load Headlamp plugins from                                   |
+| config.staticPlugins.enabled | bool | `true` | Serve the bundled static plugins shipped in the image (e.g. the Prometheus "Show Prometheus metrics" plugin). Set to false to disable them |
 | config.enableHelm  | bool   | `false`               | Enable Helm operations like install, upgrade and uninstall of Helm charts |
 | config.podDebugImage | string | `""`                | Default image to use when creating pod debug containers                    |
 | config.nodeShellImage | string | `""`               | Default image to use when creating node shell pods                         |
