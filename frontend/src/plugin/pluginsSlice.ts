@@ -131,11 +131,21 @@ export interface PluginsState {
   /** Information stored by settings about plugins. */
   pluginSettings: PluginInfo[];
 }
+// Load from local storage, falling back to empty if missing or invalid.
+function loadPluginSettings(): PluginInfo[] {
+  try {
+    return JSON.parse(localStorage.getItem('headlampPluginSettings') || '[]');
+  } catch (error) {
+    console.error('Failed to parse stored plugin settings, falling back to empty:', error);
+    return [];
+  }
+}
+
 const initialState: PluginsState = {
   /** Once the plugins have been fetched and executed. */
   loaded: false,
   /** If plugin settings are saved use those. */
-  pluginSettings: JSON.parse(localStorage.getItem('headlampPluginSettings') || '[]'),
+  pluginSettings: loadPluginSettings(),
 };
 
 export const pluginsSlice = createSlice({

@@ -28,8 +28,17 @@ export interface PluginConfigState {
 // Key used for local storage to persist plugin configurations.
 const PLUGIN_CONFIG_KEY = 'pluginConfigs';
 
-// Initial state is loaded from local storage, or an empty object if nothing is stored.
-const initialState: PluginConfigState = JSON.parse(localStorage.getItem(PLUGIN_CONFIG_KEY) || '{}');
+// Load from local storage, falling back to empty if missing or invalid.
+function loadInitialState(): PluginConfigState {
+  try {
+    return JSON.parse(localStorage.getItem(PLUGIN_CONFIG_KEY) || '{}');
+  } catch (error) {
+    console.error('Failed to parse stored plugin configs, falling back to empty:', error);
+    return {};
+  }
+}
+
+const initialState: PluginConfigState = loadInitialState();
 
 const DEBOUNCE_DELAY = 500; // ms
 
