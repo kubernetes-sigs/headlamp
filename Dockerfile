@@ -26,7 +26,7 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
     --mount=type=cache,target=/go/pkg/mod \
     cd ./backend && go build -o ./headlamp-server ./cmd/
 
-FROM --platform=${BUILDPLATFORM} node:22@sha256:1031993481795705055273f2eef0c24597abdcb277d6e058c82f78cbbdef92a6 AS frontend-build
+FROM --platform=${BUILDPLATFORM} node:22@sha256:e0d149b4727ac0c20d9774e801e423d7a946a0bffced886f42cfe9cd3c67820a AS frontend-build
 
 # We need .git and app/ in order to get the version and git version for the frontend/.env file
 # that's generated when building the frontend.
