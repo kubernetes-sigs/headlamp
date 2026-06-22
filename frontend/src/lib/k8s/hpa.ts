@@ -209,9 +209,10 @@ class HPA extends KubeObject<KubeHPA> {
 
   metrics(t: Function): HPAMetrics[] {
     const metrics: HPAMetrics[] = [];
-    for (let iter = 0; iter < this.spec.metrics.length; iter++) {
-      const spec = this.spec.metrics[iter];
-      const status = this.status.currentMetrics?.[iter];
+    const specMetrics = this.spec?.metrics || [];
+    for (let iter = 0; iter < specMetrics.length; iter++) {
+      const spec = specMetrics[iter];
+      const status = this.status?.currentMetrics?.[iter];
       switch (spec.type) {
         case 'External':
           {
@@ -221,11 +222,10 @@ class HPA extends KubeObject<KubeHPA> {
                   ? metricValueStatus(status.external.current, t)
                   : t('translation|<unknown>')
               }/${metricTargetValue(spec.external.target)}`;
-              const definition = `"${spec.external.metric.name}" ${defineMetricTarget(
-                spec.external.target
-              )}`;
+              const metricName = spec.external.metric?.name || t('translation|<unknown>');
+              const definition = `"${metricName}" ${defineMetricTarget(spec.external.target)}`;
               metrics.push({
-                name: spec.external.metric.name,
+                name: metricName,
                 definition,
                 value,
                 shortValue: value,
@@ -241,17 +241,18 @@ class HPA extends KubeObject<KubeHPA> {
                   ? metricValueStatus(status.object.current, t)
                   : t('translation|<unknown>')
               }/${metricTargetValue(spec.object.target)}`;
+              const metricName = spec.object.metric?.name || t('translation|<unknown>');
               const definition = t(
                 'translation|"{{metricName}}" on {{objectKind}}/{{objectName}} {{metricTarget}}',
                 {
-                  metricName: spec.object.metric.name,
-                  objectKind: spec.object.describedObject.kind,
-                  objectName: spec.object.describedObject.name,
+                  metricName,
+                  objectKind: spec.object.describedObject?.kind || t('translation|<unknown>'),
+                  objectName: spec.object.describedObject?.name || t('translation|<unknown>'),
                   metricTarget: defineMetricTarget(spec.object.target),
                 }
               );
               metrics.push({
-                name: spec.object.metric.name,
+                name: metricName,
                 definition,
                 value,
                 shortValue: value,
@@ -267,11 +268,12 @@ class HPA extends KubeObject<KubeHPA> {
                   ? metricValueStatus(status.pods.current, t)
                   : t('translation|<unknown>')
               }/${metricTargetValue(spec.pods.target)}`;
+              const metricName = spec.pods.metric?.name || t('translation|<unknown>');
               const definition = t('translation|"{{metricName}}" on pods', {
-                metricName: spec.pods.metric.name,
+                metricName,
               });
               metrics.push({
-                name: spec.pods.metric.name,
+                name: metricName,
                 definition,
                 value,
                 shortValue: value,

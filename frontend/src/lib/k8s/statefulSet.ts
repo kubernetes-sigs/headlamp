@@ -122,7 +122,7 @@ class StatefulSet extends KubeObject<KubeStatefulSet> {
           namespace: this.getNamespace(),
           cluster: this.cluster,
           queryParams: {
-            labelSelector: this.spec.selector.matchLabels
+            labelSelector: this.spec?.selector?.matchLabels
               ? Object.entries(this.spec.selector.matchLabels)
                   .map(([k, v]) => `${k}=${v}`)
                   .join(',')

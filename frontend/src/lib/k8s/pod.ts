@@ -411,7 +411,7 @@ class Pod extends KubeObject<KubePod> {
     let lastRestartDate = new Date(0);
     let lastRestartableInitContainerRestartDate = new Date(0);
 
-    let reason = this.status.reason || this.status.phase;
+    let reason = this.status?.reason || this.status?.phase;
 
     const initContainers: Record<string, KubeContainer> = {};
     let totalContainers = (this.spec.containers ?? []).length;
@@ -423,12 +423,15 @@ class Pod extends KubeObject<KubePod> {
     }
 
     let initializing = false;
-    for (const i in this.status.initContainerStatuses ?? []) {
+    for (const i in this.status?.initContainerStatuses ?? []) {
       const container = this.status.initContainerStatuses![i];
       restarts += container.restartCount;
       lastRestartDate = this.getLastRestartDate(container, lastRestartDate);
 
-      if (container.lastState.terminated !== null) {
+      if (
+        container.lastState?.terminated !== null &&
+        container.lastState?.terminated !== undefined
+      ) {
         const terminatedDate = container.lastState.terminated?.finishedAt
           ? new Date(container.lastState.terminated?.finishedAt)
           : undefined;
@@ -439,7 +442,10 @@ class Pod extends KubeObject<KubePod> {
 
       if (this.isRestartableInitContainer(initContainers[container.name])) {
         restartableInitContainerRestarts += container.restartCount;
-        if (container.lastState.terminated !== null) {
+        if (
+          container.lastState?.terminated !== null &&
+          container.lastState?.terminated !== undefined
+        ) {
           const terminatedDate = container.lastState.terminated?.finishedAt
             ? new Date(container.lastState.terminated?.finishedAt)
             : undefined;
@@ -488,7 +494,7 @@ class Pod extends KubeObject<KubePod> {
       lastRestartDate = lastRestartableInitContainerRestartDate;
       let hasRunning = false;
       for (let i = (this.status?.containerStatuses?.length || 0) - 1; i >= 0; i--) {
-        const container = this.status?.containerStatuses[i];
+        const container = this.status?.containerStatuses?.[i];
 
         restarts += container.restartCount;
         lastRestartDate = this.getLastRestartDate(container, lastRestartDate);

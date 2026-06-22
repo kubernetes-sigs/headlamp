@@ -89,7 +89,7 @@ class ReplicaSet extends KubeObject<KubeReplicaSet> {
   }
 
   getMatchLabelsList(): string[] {
-    const labels = this.spec.selector.matchLabels || {};
+    const labels = this.spec?.selector?.matchLabels || {};
     return Object.keys(labels).map(key => `${key}=${labels[key]}`);
   }
 }
