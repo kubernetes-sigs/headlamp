@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-import '../../../i18n/config';
+import '../../../../i18n/config';
 import { render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 
 // Avoid pulling the lib/k8s barrel (and its circular ResourceClasses chain) into
 // the test. ContainerTextField does not use Namespace, but CreateResourceForm
 // imports it for NamespaceTextField, which is enough to trigger the cycle.
-vi.mock('../../../lib/k8s/namespace', () => ({
+vi.mock('../../../../lib/k8s/namespace', () => ({
   default: { useList: () => [[], null] },
 }));
 
-const { ContainerTextField } = await import('./CreateResourceForm');
+const { ContainerTextField } = await import('./workloadFields');
 
 function renderContainers(value: unknown) {
   return render(<ContainerTextField value={value as any} onChange={() => {}} />);

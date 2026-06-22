@@ -15,7 +15,7 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
-import { TestContext } from '../../../test';
+import { TestContext } from '../../../../test';
 import CreateResourceForm, { CreateResourceFormProps } from './CreateResourceForm';
 
 export default {
