@@ -856,6 +856,18 @@ export function useKubeApiList<K extends KubeObject>(
     namespaces = getAllowedNamespaces(cluster);
   }
 
+  // Prevent stale results from previous namespace sets from leaking into the aggregated callback.
+  if (namespaces.length === 0) {
+    objsRef.current = {};
+  } else {
+    const allowedKeys = new Set(namespaces.map(ns => ns || ''));
+    for (const key of Object.keys(objsRef.current)) {
+      if (!allowedKeys.has(key)) {
+        delete objsRef.current[key];
+      }
+    }
+  }
+
   if (namespaces.length > 0) {
     // If we have a namespace set, then we have to make an API call for each
     // namespace and then set the objects once we have all of the responses.
