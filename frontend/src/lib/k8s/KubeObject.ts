@@ -24,7 +24,12 @@ import { createRouteURL } from '../router/createRouteURL';
 import { timeAgo } from '../util';
 import { post } from './api/v1/clusterRequests';
 import type { DeleteParameters } from './api/v1/deleteParameters';
-import type { ApiClient, ApiWithNamespaceClient, RecursivePartial } from './api/v1/factories';
+import type {
+  ApiClient,
+  ApiWithNamespaceClient,
+  CancelFunction,
+  RecursivePartial,
+} from './api/v1/factories';
 import { apiFactory, apiFactoryWithNamespace } from './api/v1/factories';
 import { useConnectApi, useSelectedClusters } from './api/v1/hooks';
 import type { QueryParameters } from './api/v1/queryParameters';
@@ -251,28 +256,30 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     return code;
   }
 
-  // @todo: apiList has 'any' return type.
   /**
-   * Returns the API endpoint for this object.
+   * Builds a list request for this object's API endpoint.
    *
    * @param onList - Callback function to be called when the list is retrieved.
    * @param onError - Callback function to be called when an error occurs.
    * @param opts - Options to be passed to the API endpoint.
    *
-   * @returns The API endpoint for this object.
+   * @returns A parameterless function that starts the list request and resolves
+   *          to a {@link CancelFunction} for stopping it.
    */
   static apiList<K extends KubeObject>(
     this: (new (...args: any) => K) & typeof KubeObject<any>,
     onList: (arg: K[]) => void,
     onError?: (err: ApiError, cluster?: string) => void,
     opts?: ApiListSingleNamespaceOptions
-  ) {
+  ): () => Promise<CancelFunction> {
     const createInstance = (item: any): any => this.create(item);
 
     const args: any[] = [(list: any[]) => onList(list.map((item: any) => createInstance(item)))];
 
     if (this.apiEndpoint.isNamespaced) {
-      args.unshift(opts?.namespace || null);
+      // An empty string means "all namespaces" and matches the namespace: string
+      // contract on ApiWithNamespaceClient.list (a falsy value is treated the same).
+      args.unshift(opts?.namespace || '');
     }
 
     args.push(onError);
