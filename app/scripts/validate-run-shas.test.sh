@@ -154,6 +154,16 @@ test_resolve_tag_v_prefix() {
   assert_output_contains "v0.9.0" "$result" "resolve_tag: v-prefix fallback returns v-prefixed name"
 }
 
+ test_resolve_tag_strip_v_prefix() {
+  # v-prefixed tag does not exist; plain tag does.
+  STUB_TAG_EXISTS="0.9.0"
+  local result rc
+  result=$(resolve_tag "v0.9.0")
+  rc=$?
+  assert_exit 0 "$rc" "resolve_tag: strip v-prefix fallback exists"
+  assert_output_contains "0.9.0" "$result" "resolve_tag: strip v-prefix fallback returns plain name"
+ }
+
 test_resolve_tag_missing() {
   STUB_TAG_EXISTS=""
   local result rc
@@ -169,6 +179,7 @@ test_resolve_tag_missing() {
 
 test_resolve_tag_plain
 test_resolve_tag_v_prefix
+test_resolve_tag_strip_v_prefix
 test_resolve_tag_missing
 
 # ---------------------------------------------------------------------------
@@ -258,12 +269,25 @@ test_validate_runs_empty_run_ids() {
   assert_exit 0 "$rc" "validate_runs: all-empty run IDs passes (nothing to validate)"
 }
 
+test_validate_runs_get_run_sha_failure() {
+  # Simulate `gh`/API failure by making get_run_sha return non-zero.
+  get_run_sha() { return 2; }
+  local out rc
+  set +e
+  out=$(validate_runs "deadbeef1234" "v0.9.0" "kubernetes-sigs/headlamp" "444" 2>&1)
+  rc=$?
+  set -e
+  assert_exit 1 "$rc" "validate_runs: get_run_sha failure fails"
+  assert_output_contains "Failed to query SHA" "$out" "validate_runs: get_run_sha failure prints error"
+ }
+
 test_validate_runs_matching_sha
 test_validate_runs_mismatched_sha
 test_validate_runs_empty_run_sha
 test_validate_runs_multiple_run_ids_pass
 test_validate_runs_multiple_run_ids_one_fails
 test_validate_runs_empty_run_ids
+test_validate_runs_get_run_sha_failure
 
 # ---------------------------------------------------------------------------
 # Summary

@@ -41,10 +41,9 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 # resolve_tag
 #
-# Resolves the git tag name for a given release name.  Tries the name as-is
-# first; if that tag does not exist locally, tries with a "v" prefix.
-#
-# Args:
+# Resolves the git tag name for a given release name. Tries the name as-is
+# first; if that tag does not exist locally, tries the alternate form by
+# adding a "v" prefix or stripping a leading "v".# Args:
 #   $1 - release_name (e.g. "0.9.0")
 #
 # Outputs (stdout):
@@ -55,14 +54,20 @@ set -euo pipefail
 # ---------------------------------------------------------------------------
 resolve_tag() {
   local release_name="$1"
-  local tag_name="$release_name"
+  local tag_name
 
-  if git rev-parse "refs/tags/$tag_name" >/dev/null 2>&1; then
-    echo "$tag_name"
+  if git rev-parse "refs/tags/$release_name" >/dev/null 2>&1; then
+    echo "$release_name"
     return 0
   fi
 
-  tag_name="v$release_name"
+# Then try the alternate form (with or without a leading "v").
+  if [[ "$release_name" == v* ]]; then
+    tag_name="${release_name#v}"
+  else
+    tag_name="v$release_name"
+   fi
+
   if git rev-parse "refs/tags/$tag_name" >/dev/null 2>&1; then
     echo "$tag_name"
     return 0
@@ -140,8 +145,10 @@ validate_runs() {
     fi
 
     local run_sha
-    run_sha=$(get_run_sha "$run_id" "$repo")
-
+    if ! run_sha=$(get_run_sha "$run_id" "$repo"); then
+      echo "Error: Failed to query SHA for workflow run ID $run_id." >&2
+      return 1
+    fi
     if [ -z "$run_sha" ]; then
       echo "Error: Could not determine SHA for workflow run ID $run_id." >&2
       return 1
