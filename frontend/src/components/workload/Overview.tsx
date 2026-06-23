@@ -134,7 +134,7 @@ export default function Overview() {
                 workloadData={workloadsData[workload.className] || null}
                 title={<ChartLink workload={workload} />}
                 partialLabel={t('translation|Failed')}
-                totalLabel={t('translation|Running')}
+                totalLabel={workload === Pod ? t('translation|Healthy') : t('translation|Running')}
                 categorize={workload === Pod ? item => (item as Pod).getHealth() : undefined}
               />
             </Grid>
