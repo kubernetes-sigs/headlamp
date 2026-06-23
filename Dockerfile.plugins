@@ -1,5 +1,5 @@
 # Build the plugin
-FROM node:22@sha256:1031993481795705055273f2eef0c24597abdcb277d6e058c82f78cbbdef92a6 as builder
+FROM node:22@sha256:e0d149b4727ac0c20d9774e801e423d7a946a0bffced886f42cfe9cd3c67820a as builder
 
 # Set the working directory
 WORKDIR /headlamp-plugins
@@ -25,7 +25,7 @@ RUN find /headlamp-plugins -mindepth 1 -maxdepth 1 -type d ! -name "headlamp-plu
 RUN find /headlamp-plugins -mindepth 1 -maxdepth 1 -type d ! -name "headlamp-plugin" -exec ./headlamp-plugin/bin/headlamp-plugin.js extract {} /headlamp-plugins/build \;
 
 # Create the final image
-FROM alpine:3.23.4@sha256:5b10f432ef3da1b8d4c7eb6c487f2f5a8f096bc91145e68878dd4a5019afde11
+FROM alpine:3.24.1@sha256:28bd5fe8b56d1bd048e5babf5b10710ebe0bae67db86916198a6eec434943f8b
 
 # Copy the built plugin files from the first stage to /plugins directory
 COPY --from=builder /headlamp-plugins/build/ /plugins/

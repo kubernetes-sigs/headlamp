@@ -23,6 +23,7 @@ import { KubeNodeSummaryStats, nodeSummaryStats } from './api/v2/nodeSummaryApi'
 import type { KubeCondition, KubeMetrics } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
+import { NODE_POOL_LABEL_KEYS } from './nodeConstants';
 
 export interface KubeNode extends KubeObjectInterface {
   status: {
@@ -62,18 +63,6 @@ export interface KubeNode extends KubeObjectInterface {
     [otherProps: string]: any;
   };
 }
-
-/**
- * The exact label keys checked by {@link Node.getNodePool}.
- * Export this so test helpers and stories can strip them without drifting.
- */
-export const NODE_POOL_LABEL_KEYS = [
-  'cloud.google.com/gke-nodepool',
-  'kubernetes.azure.com/agentpool',
-  'eks.amazonaws.com/nodegroup',
-  'kops.k8s.io/instancegroup',
-  'cluster.x-k8s.io/deployment-name',
-] as const;
 
 class Node extends KubeObject<KubeNode> {
   static kind = 'Node';
@@ -169,5 +158,9 @@ class Node extends KubeObject<KubeNode> {
     return '';
   }
 }
+
+// Re-export for plugin compatibility. Import directly from nodeConstants.ts
+// when only the label keys are needed to avoid loading the Node implementation.
+export { NODE_POOL_LABEL_KEYS };
 
 export default Node;

@@ -16,7 +16,7 @@
 
 import { useTranslation } from 'react-i18next';
 import type { RecursivePartial } from '../../lib/k8s/api/v1/factories';
-import type { KubeDeployment } from '../../lib/k8s/deployment';
+import type { KubeReplicaSet } from '../../lib/k8s/replicaSet';
 import CreateResourceForm, {
   FormSection,
   LabelTextField,
@@ -24,31 +24,31 @@ import CreateResourceForm, {
   useSelectorPodTemplate,
 } from '../common/Resource/CreateResourceForm';
 
-/** Draft Deployment being edited. All fields optional but typed against
- *  {@link KubeDeployment} to catch typos.
+/** Draft ReplicaSet being edited. All fields optional but typed against
+ *  {@link KubeReplicaSet} to catch typos.
  *
  *  Convention: `export type XxxDraft = RecursivePartial<KubeXxx>;` */
-export type DeploymentDraft = RecursivePartial<KubeDeployment>;
+export type ReplicaSetDraft = RecursivePartial<KubeReplicaSet>;
 
-/** Props for {@link CreateDeploymentForm}. Standard `{ resource, onChange }`
+/** Props for {@link CreateReplicaSetForm}. Standard `{ resource, onChange }`
  *  used by all create-resource forms. */
-export interface CreateDeploymentFormProps {
-  resource?: DeploymentDraft;
-  onChange: (resource: DeploymentDraft) => void;
+export interface CreateReplicaSetFormProps {
+  resource?: ReplicaSetDraft;
+  onChange: (resource: ReplicaSetDraft) => void;
 }
 
-/** Deployment create form built on {@link CreateResourceForm}. Sections:
- *  metadata, spec (selector + replicas), pod template. Selector entries
- *  show up read-only in the pod template labels; users can add extra
- *  editable labels next to them. */
-export default function CreateDeploymentForm(props: CreateDeploymentFormProps) {
+/** ReplicaSet create form built on {@link CreateResourceForm}. Sections:
+ *  metadata, spec (replicas + minReadySeconds + selector), pod template.
+ *  Selector entries show up read-only in the pod template labels; users
+ *  can add extra editable labels next to them. */
+export default function CreateReplicaSetForm(props: CreateReplicaSetFormProps) {
   const { resource, onChange } = props;
 
   const { t } = useTranslation(['translation', 'glossary']);
 
-  const normalizedResource: DeploymentDraft = resource ?? {};
+  const normalizedResource: ReplicaSetDraft = resource ?? {};
 
-  const { matchLabels, handleMatchLabelsChange } = useSelectorPodTemplate<DeploymentDraft>({
+  const { matchLabels, handleMatchLabelsChange } = useSelectorPodTemplate<ReplicaSetDraft>({
     resource: normalizedResource,
     onChange,
   });
@@ -85,12 +85,23 @@ export default function CreateDeploymentForm(props: CreateDeploymentFormProps) {
           helperText: t('translation|Desired number of pod replicas'),
         },
         {
+          key: 'minReadySeconds',
+          path: 'spec.minReadySeconds',
+          label: t('translation|Min Ready Seconds'),
+          type: 'number' as const,
+          min: 0,
+          inline: true,
+          helperText: t(
+            'translation|Minimum seconds a new pod must run without crashing before being considered available.'
+          ),
+        },
+        {
           key: 'matchLabels',
           path: 'spec.selector.matchLabels',
           label: t('translation|Selector'),
           type: 'labels' as const,
           helperText: t(
-            'translation|Selects which pods belong to this Deployment. Entries are mirrored read-only into the pod template labels below; extra pod-template-only labels can be added there.'
+            'translation|Selects which pods belong to this ReplicaSet. Entries are mirrored read-only into the pod template labels below; extra pod-template-only labels can be added there.'
           ),
           render: ({ value }) => (
             <LabelTextField
