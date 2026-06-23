@@ -45,9 +45,6 @@ export default {
               items: [DEFAULT_GRPC_ROUTE],
             })
           ),
-          http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1/grpcroutes`, () =>
-            HttpResponse.error()
-          ),
           http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1beta1/grpcroutes`, () =>
             HttpResponse.error()
           ),
