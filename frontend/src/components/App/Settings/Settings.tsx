@@ -21,7 +21,6 @@ import { capitalize } from 'lodash';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { isElectron } from '../../../helpers/isElectron';
 import LocaleSelect from '../../../i18n/LocaleSelect/LocaleSelect';
 import { setAppSettings } from '../../../redux/configSlice';
 import { defaultTableRowsPerPageOptions } from '../../../redux/configSlice';
@@ -51,7 +50,6 @@ export default function Settings() {
   );
   const [sortSidebar, setSortSidebar] = useState<boolean>(storedSortSidebar);
   const [useEvict, setUseEvict] = useState<boolean>(storedUseEvict);
-  const [trayIcon, setTrayIcon] = useState<boolean>(true);
   const dispatch = useDispatch();
   const themeName = useTypedSelector(state => state.theme.name);
   const appThemes = useAppThemes();
@@ -84,28 +82,8 @@ export default function Settings() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useEvict]);
 
-  useEffect(() => {
-    if (!isElectron()) {
-      return;
-    }
-
-    const handler = (enabled: boolean) => setTrayIcon(enabled);
-    const unsubscribe = window.desktopApi?.receive('tray-icon', handler);
-    window.desktopApi?.send('request-tray-icon');
-
-    return () => {
-      unsubscribe?.();
-    };
-  }, []);
-
-  function handleTrayIconChange(enabled: boolean) {
-    setTrayIcon(enabled);
-    window.desktopApi?.send('set-tray-icon', enabled);
-  }
-
   const sidebarLabelID = 'sort-sidebar-label';
   const evictLabelID = 'use-evict-label';
-  const trayIconLabelID = 'tray-icon-label';
   const tableRowsLabelID = 'rows-per-page-label';
   const timezoneLabelID = 'timezone-label';
 
@@ -187,24 +165,6 @@ export default function Settings() {
             ),
             nameID: evictLabelID,
           },
-          ...(isElectron()
-            ? [
-                {
-                  name: t('translation|Show system tray icon'),
-                  value: (
-                    <Switch
-                      color="primary"
-                      checked={trayIcon}
-                      onChange={e => handleTrayIconChange(e.target.checked)}
-                      inputProps={{
-                        'aria-labelledby': trayIconLabelID,
-                      }}
-                    />
-                  ),
-                  nameID: trayIconLabelID,
-                },
-              ]
-            : []),
         ]}
       />
       <Box

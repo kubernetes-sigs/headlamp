@@ -129,8 +129,6 @@ config:
   podDebugImage: ""
   # -- Default image to use when creating node shell pods. If empty, Headlamp uses its built-in default.
   nodeShellImage: ""
-  # -- Default namespace to use when creating node shell pods. If empty, Headlamp uses its built-in default.
-  nodeShellNamespace: ""
   # tlsCertPath: "/headlamp-cert/headlamp-ca.crt"
   # tlsKeyPath: "/headlamp-cert/headlamp-tls.key"
   clusterInventory:
@@ -255,8 +253,6 @@ service:
   type: ClusterIP
   # -- Kubernetes Service port
   port: 80
-  # -- Kubernetes Service port appProtocol (for the main http port)
-  appProtocol: null
   # -- Kubernetes Service clusterIP
   clusterIP: ""
   # -- Kubernetes Service loadBalancerIP

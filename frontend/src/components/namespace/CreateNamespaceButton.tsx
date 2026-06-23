@@ -21,7 +21,7 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import TextField from '@mui/material/TextField';
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { getCluster } from '../../lib/cluster';
@@ -35,9 +35,8 @@ import { AuthVisible } from '../common/Resource';
 export default function CreateNamespaceButton() {
   const { t } = useTranslation(['glossary', 'translation']);
   const [namespaceName, setNamespaceName] = useState('');
-  const [isValidNamespaceName, setIsValidNamespaceName] = useState(false);
-  const [nameHelperMessage, setNameHelperMessage] = useState('');
   const [namespaceDialogOpen, setNamespaceDialogOpen] = useState(false);
+  const [namespaceExistsError, setNamespaceExistsError] = useState(false);
   const dispatchCreateEvent = useEventCallback(HeadlampEventType.CREATE_RESOURCE);
   const dispatch: AppDispatch = useDispatch();
 
@@ -63,8 +62,7 @@ export default function CreateNamespaceButton() {
         console.error('Error creating namespace:', error);
         if (statusCode === 409) {
           setNamespaceDialogOpen(true);
-          setIsValidNamespaceName(false);
-          setNameHelperMessage(t('translation|A namespace with this name already exists.'));
+          setNamespaceExistsError(true);
         }
         throw error;
       }
@@ -94,23 +92,19 @@ export default function CreateNamespaceButton() {
     );
   }
 
-  useEffect(() => {
-    const isValidNamespaceFormat = Namespace.isValidNamespaceFormat(namespaceName);
-    setIsValidNamespaceName(isValidNamespaceFormat);
+  const isValidNamespaceFormat = Namespace.isValidNamespaceFormat(namespaceName);
+  const formatHelperMessage = !isValidNamespaceFormat
+    ? namespaceName.length > 63
+      ? t('translation|Namespaces must be under 64 characters.')
+      : t(
+          "translation|Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character."
+        )
+    : '';
 
-    if (!isValidNamespaceFormat) {
-      if (namespaceName.length > 63) {
-        setNameHelperMessage(t('translation|Namespaces must be under 64 characters.'));
-      } else {
-        setNameHelperMessage(
-          t(
-            "translation|Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character."
-          )
-        );
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [namespaceName]);
+  const isValidNamespaceName = isValidNamespaceFormat && !namespaceExistsError;
+  const nameHelperMessage = namespaceExistsError
+    ? t('translation|A namespace with this name already exists.')
+    : formatHelperMessage;
 
   return (
     <AuthVisible item={Namespace} authVerb="create">
@@ -144,7 +138,10 @@ export default function CreateNamespaceButton() {
               }
               fullWidth
               value={namespaceName}
-              onChange={event => setNamespaceName(event.target.value.toLowerCase())}
+              onChange={event => {
+                setNamespaceName(event.target.value.toLowerCase());
+                setNamespaceExistsError(false);
+              }}
               onKeyDown={e => {
                 if (e.key === 'Enter') {
                   e.preventDefault();

@@ -14,9 +14,8 @@
  * limitations under the License.
  */
 
-import type { KubeMetrics } from '../../lib/k8s/cluster';
-import type { KubeNode } from '../../lib/k8s/node';
-import { NODE_POOL_LABEL_KEYS } from '../../lib/k8s/nodeConstants';
+import { KubeMetrics } from '../../lib/k8s/cluster';
+import { KubeNode, NODE_POOL_LABEL_KEYS } from '../../lib/k8s/node';
 
 const creationTimestamp = new Date('2022-01-01').toISOString();
 

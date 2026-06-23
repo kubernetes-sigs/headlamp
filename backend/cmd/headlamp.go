@@ -134,12 +134,6 @@ const ContextUpdateCacheTTL = 20 * time.Second // seconds
 
 const JWTExpirationTTL = 10 * time.Second // seconds
 
-// OidcStateTTL is the maximum time an OIDC state token is kept in memory
-// waiting for the callback. Entries that are never completed are evicted after
-// this duration to prevent unbounded growth while still allowing slow/manual
-// login flows enough time to complete.
-const OidcStateTTL = 60 * time.Minute
-
 const (
 	// serverReadHeaderTimeout is the maximum time to read the request headers.
 	serverReadHeaderTimeout = 10 * time.Second
@@ -174,15 +168,14 @@ const (
 )
 
 type clientConfig struct {
-	Clusters                  []Cluster `json:"clusters"`
-	IsDynamicClusterEnabled   bool      `json:"isDynamicClusterEnabled"`
-	AllowKubeconfigChanges    bool      `json:"allowKubeconfigChanges"`
-	DefaultPodDebugImage      string    `json:"defaultPodDebugImage"`
-	DefaultNodeShellImage     string    `json:"defaultNodeShellImage"`
-	DefaultNodeShellNamespace string    `json:"defaultNodeShellNamespace"`
-	DefaultLightTheme         string    `json:"defaultLightTheme,omitempty"`
-	DefaultDarkTheme          string    `json:"defaultDarkTheme,omitempty"`
-	ForceTheme                string    `json:"forceTheme,omitempty"`
+	Clusters                []Cluster `json:"clusters"`
+	IsDynamicClusterEnabled bool      `json:"isDynamicClusterEnabled"`
+	AllowKubeconfigChanges  bool      `json:"allowKubeconfigChanges"`
+	DefaultPodDebugImage    string    `json:"defaultPodDebugImage"`
+	DefaultNodeShellImage   string    `json:"defaultNodeShellImage"`
+	DefaultLightTheme       string    `json:"defaultLightTheme,omitempty"`
+	DefaultDarkTheme        string    `json:"defaultDarkTheme,omitempty"`
+	ForceTheme              string    `json:"forceTheme,omitempty"`
 }
 
 type OauthConfig struct {
@@ -191,24 +184,6 @@ type OauthConfig struct {
 	Ctx          context.Context
 	CodeVerifier string // PKCE code verifier
 	Cluster      string // cluster context name this is associated with
-	createdAt    time.Time
-}
-
-// evictExpiredOidcStates removes entries from m whose createdAt timestamp is
-// older than ttl. It is called by the background cleanup goroutine in
-// createHeadlampHandler and is also used directly in tests so that both paths
-// exercise the same production logic.
-func evictExpiredOidcStates(m map[string]*OauthConfig, mu *sync.Mutex, ttl time.Duration) {
-	cutoff := time.Now().Add(-ttl)
-
-	mu.Lock()
-	defer mu.Unlock()
-
-	for state, entry := range m {
-		if entry.createdAt.Before(cutoff) {
-			delete(m, state)
-		}
-	}
 }
 
 // returns True if a file exists.
@@ -861,23 +836,6 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		oauthMu         sync.Mutex
 	)
 
-	// Evict OIDC state entries that were never completed (e.g. the user closed
-	// the browser tab before finishing the auth flow). Without this, every
-	// abandoned /oidc request would leak an OauthConfig in memory forever.
-	go func() {
-		ticker := time.NewTicker(OidcStateTTL / 2)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-ctx.Done():
-				return
-			case <-ticker.C:
-				evictExpiredOidcStates(oauthRequestMap, &oauthMu, OidcStateTTL)
-			}
-		}
-	}()
-
 	r.HandleFunc("/oidc", func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
 		cluster := r.URL.Query().Get("cluster")
@@ -980,11 +938,10 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		entry := &OauthConfig{
-			Config:    oauthConfig,
-			Verifier:  verifier,
-			Ctx:       ctx,
-			Cluster:   cluster,
-			createdAt: time.Now(),
+			Config:   oauthConfig,
+			Verifier: verifier,
+			Ctx:      ctx,
+			Cluster:  cluster,
 		}
 
 		var authURL string
@@ -2276,15 +2233,14 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	clientConfig := clientConfig{
-		Clusters:                  c.getClusters(),
-		IsDynamicClusterEnabled:   c.EnableDynamicClusters,
-		AllowKubeconfigChanges:    c.AllowKubeconfigChanges,
-		DefaultPodDebugImage:      c.PodDebugImage,
-		DefaultNodeShellImage:     c.NodeShellImage,
-		DefaultNodeShellNamespace: c.NodeShellNamespace,
-		DefaultLightTheme:         c.DefaultLightTheme,
-		DefaultDarkTheme:          c.DefaultDarkTheme,
-		ForceTheme:                c.ForceTheme,
+		Clusters:                c.getClusters(),
+		IsDynamicClusterEnabled: c.EnableDynamicClusters,
+		AllowKubeconfigChanges:  c.AllowKubeconfigChanges,
+		DefaultPodDebugImage:    c.PodDebugImage,
+		DefaultNodeShellImage:   c.NodeShellImage,
+		DefaultLightTheme:       c.DefaultLightTheme,
+		DefaultDarkTheme:        c.DefaultDarkTheme,
+		ForceTheme:              c.ForceTheme,
 	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {

@@ -51,7 +51,6 @@ const makeStore = () => {
         allowKubeconfigChanges: false,
         defaultPodDebugImage: '',
         defaultNodeShellImage: '',
-        defaultNodeShellNamespace: '',
       },
       projects: {
         headerActions: {},

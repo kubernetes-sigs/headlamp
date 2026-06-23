@@ -53,7 +53,6 @@
     "CreateButton": [Function],
     "CreateDeploymentForm": [Function],
     "CreatePodForm": [Function],
-    "CreateReplicaSetForm": [Function],
     "CreateResourceButton": [Function],
     "CreateResourceForm": [Function],
     "DOCKER_DESKTOP_MAX_PORT": 32000,
@@ -110,7 +109,6 @@
     "PageGrid": [Function],
     "PercentageBar": [Function],
     "PercentageCircle": [Function],
-    "PodLabelsEditor": [Function],
     "PortForward": [Function],
     "PureNamespacesAutocomplete": [Function],
     "RESOURCE_DEFINITIONS": {
@@ -119,10 +117,6 @@
         "form": [Function],
       },
       "Pod": {
-        "class": [Function],
-        "form": [Function],
-      },
-      "ReplicaSet": {
         "class": [Function],
         "form": [Function],
       },
@@ -141,7 +135,6 @@
       "CreateButton": [Function],
       "CreateDeploymentForm": [Function],
       "CreatePodForm": [Function],
-      "CreateReplicaSetForm": [Function],
       "CreateResourceForm": [Function],
       "DOCKER_DESKTOP_MAX_PORT": 32000,
       "DOCKER_DESKTOP_MIN_PORT": 30000,
@@ -177,7 +170,6 @@
       "PORT_FORWARD_RUNNING_STATUS": "Running",
       "PORT_FORWARD_STOP_STATUS": "Stopped",
       "PageGrid": [Function],
-      "PodLabelsEditor": [Function],
       "PortForward": [Function],
       "RESOURCE_DEFINITIONS": {
         "Deployment": {
@@ -185,10 +177,6 @@
           "form": [Function],
         },
         "Pod": {
-          "class": [Function],
-          "form": [Function],
-        },
-        "ReplicaSet": {
           "class": [Function],
           "form": [Function],
         },
@@ -224,7 +212,6 @@
       "labelsToString": [Function],
       "launchWorkloadLogs": [Function],
       "metadataStyles": [Function],
-      "nextLabelRowId": [Function],
       "parseEditorObject": [Function],
       "parseLabelsString": [Function],
       "parseYaml": [Function],
@@ -245,7 +232,6 @@
         "selectors": {},
       },
       "toYamlString": [Function],
-      "useSelectorPodTemplate": [Function],
       "useThrottle": [Function],
     },
     "ResourceLink": [Function],
@@ -298,7 +284,6 @@
     "launchWorkloadLogs": [Function],
     "makeStatusLabel": [Function],
     "metadataStyles": [Function],
-    "nextLabelRowId": [Function],
     "parseEditorObject": [Function],
     "parseLabelsString": [Function],
     "parseYaml": [Function],
@@ -319,7 +304,6 @@
       "selectors": {},
     },
     "toYamlString": [Function],
-    "useSelectorPodTemplate": [Function],
     "useThrottle": [Function],
   },
   "ConfigStore": [Function],

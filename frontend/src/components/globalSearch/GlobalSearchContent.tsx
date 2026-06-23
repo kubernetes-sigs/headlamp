@@ -61,7 +61,6 @@ import { Activity } from '../activity/Activity';
 import { ADVANCED_SEARCH_QUERY_KEY } from '../advancedSearch/AdvancedSearch';
 import { ThemePreview } from '../App/Settings/ThemePreview';
 import { setTheme, useAppThemes } from '../App/themeSlice';
-import { LightTooltip } from '../common/Tooltip';
 import { KubeObjectDetails } from '../resourceMap/details/KubeNodeDetails';
 import { KubeIcon } from '../resourceMap/kubeIcon/KubeIcon';
 import { Delayed } from './Delayed';
@@ -155,24 +154,24 @@ function makeKubeObjectResults(
   );
 }
 
-interface GlobalSearchContentProps {
-  /** The maximum width of the results list. */
-  maxWidth: number;
-  /** The initial search query to display in the search field. */
-  defaultValue: string;
-  /** Callback called when the search field loses focus. */
-  onBlur: () => void;
-}
-
 /**
- * The `GlobalSearchContent` component provides the search field and results list for global search.
- * The default results include Kubernetes objects, clusters, app pages, namespace filters,
- * theme switching, keyboard shortcut settings, and advanced search suggestions.
+ * Global search component
  *
- * @param props - The component props.
+ * Can search:
+ *  - Kubernetes objects
+ *  - Clusters
+ *  - App Pages
+ *  - Custom Actions
  */
-export function GlobalSearchContent(props: GlobalSearchContentProps) {
-  const { maxWidth, defaultValue, onBlur } = props;
+export function GlobalSearchContent({
+  maxWidth,
+  defaultValue,
+  onBlur,
+}: {
+  maxWidth: number;
+  defaultValue: string;
+  onBlur: () => void;
+}) {
   const { t } = useTranslation();
   const history = useHistory();
   const dispatch = useDispatch();
@@ -617,30 +616,29 @@ function SearchRow({
         </Box>
       </Box>
       {option.k8sLabelsMatch && option.k8sLabelsMatch.value && (
-        <LightTooltip title={option.k8sLabelsMatch.value}>
-          <Typography
-            sx={theme => ({
-              color: theme.palette.text.primary,
-              borderRadius: theme.shape.borderRadius + 'px',
-              backgroundColor: theme.palette.background.muted,
-              border: '1px solid',
-              borderColor: theme.palette.divider,
-              fontSize: theme.typography.pxToRem(14),
-              wordBreak: 'break-word',
-              paddingTop: 0.25,
-              paddingBottom: 0.25,
-              paddingLeft: 0.5,
-              paddingRight: 0.5,
-              overflow: 'hidden',
-              whiteSpace: 'nowrap',
-              overflowWrap: 'anywhere',
-              textOverflow: 'ellipsis',
-              maxWidth: '220px',
-            })}
-          >
-            <HighlightText text={option.k8sLabelsMatch.value} match={option.k8sLabelsMatch} />
-          </Typography>
-        </LightTooltip>
+        <Typography
+          title={option.k8sLabelsMatch.value}
+          sx={theme => ({
+            color: theme.palette.text.primary,
+            borderRadius: theme.shape.borderRadius + 'px',
+            backgroundColor: theme.palette.background.muted,
+            border: '1px solid',
+            borderColor: theme.palette.divider,
+            fontSize: theme.typography.pxToRem(14),
+            wordBreak: 'break-word',
+            paddingTop: 0.25,
+            paddingBottom: 0.25,
+            paddingLeft: 0.5,
+            paddingRight: 0.5,
+            overflow: 'hidden',
+            whiteSpace: 'nowrap',
+            overflowWrap: 'anywhere',
+            textOverflow: 'ellipsis',
+            maxWidth: '220px',
+          })}
+        >
+          <HighlightText text={option.k8sLabelsMatch.value} match={option.k8sLabelsMatch} />
+        </Typography>
       )}
     </Box>
   );

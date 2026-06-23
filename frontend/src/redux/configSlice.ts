@@ -64,11 +64,6 @@ export interface ConfigState {
    */
   defaultNodeShellImage: string;
   /**
-   * Default namespace used for node shell pods when no per-cluster override is configured.
-   * An empty string indicates that no default namespace is configured.
-   */
-  defaultNodeShellNamespace: string;
-  /**
    * Theme configuration from the backend server.
    */
   defaultLightTheme?: string;
@@ -168,7 +163,6 @@ export const initialState: ConfigState = {
   allowKubeconfigChanges: false,
   defaultPodDebugImage: '',
   defaultNodeShellImage: '',
-  defaultNodeShellNamespace: '',
   settings: {
     tableRowsPerPageOptions:
       storedSettings.tableRowsPerPageOptions ?? defaultTableRowsPerPageOptions,
@@ -195,7 +189,6 @@ const configSlice = createSlice({
         allowKubeconfigChanges?: boolean;
         defaultPodDebugImage?: string;
         defaultNodeShellImage?: string;
-        defaultNodeShellNamespace?: string;
         defaultLightTheme?: string;
         defaultDarkTheme?: string;
         forceTheme?: string;
@@ -213,9 +206,6 @@ const configSlice = createSlice({
       }
       if (action.payload.defaultNodeShellImage !== undefined) {
         state.defaultNodeShellImage = action.payload.defaultNodeShellImage;
-      }
-      if (action.payload.defaultNodeShellNamespace !== undefined) {
-        state.defaultNodeShellNamespace = action.payload.defaultNodeShellNamespace;
       }
       state.defaultLightTheme = action.payload.defaultLightTheme;
       state.defaultDarkTheme = action.payload.defaultDarkTheme;

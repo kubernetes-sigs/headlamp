@@ -75,7 +75,6 @@ type HeadlampCFG struct {
 	SessionTTL                   int
 	PodDebugImage                string
 	NodeShellImage               string
-	NodeShellNamespace           string
 	OidcUseCookie                bool
 	DefaultLightTheme            string
 	DefaultDarkTheme             string

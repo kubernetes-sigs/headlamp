@@ -40,7 +40,6 @@ import { KubeObject } from '../../../lib/k8s/KubeObject';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import StatefulSet from '../../../lib/k8s/statefulSet';
-import { useId } from '../../../lib/util';
 import {
   EventStatus,
   HeadlampEvent,
@@ -144,7 +143,6 @@ function LogsButtonContent({ item }: LogsButtonProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSeverities]);
   const { t } = useTranslation(['glossary', 'translation']);
-  const selectLabelId = useId('logs-button-');
   const { enqueueSnackbar } = useSnackbar();
 
   const clearLogs = React.useCallback(() => {
@@ -488,10 +486,8 @@ function LogsButtonContent({ item }: LogsButtonProps) {
     >
       {/* Pod selection dropdown */}
       <FormControl sx={{ minWidth: 200 }}>
-        <InputLabel id={`${selectLabelId}-pod-label`}>{t('translation|Select Pod')}</InputLabel>
+        <InputLabel>{t('translation|Select Pod')}</InputLabel>
         <Select
-          labelId={`${selectLabelId}-pod-label`}
-          id={`${selectLabelId}-pod`}
           value={selectedPodIndex}
           onChange={event => {
             setSelectedPodIndex(event.target.value as number | 'all');
@@ -510,12 +506,8 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
       {/* Container selection dropdown */}
       <FormControl sx={{ minWidth: 200 }}>
-        <InputLabel id={`${selectLabelId}-container-label`}>
-          {t('translation|Container')}
-        </InputLabel>
+        <InputLabel>{t('translation|Container')}</InputLabel>
         <Select
-          labelId={`${selectLabelId}-container-label`}
-          id={`${selectLabelId}-container`}
           value={selectedContainer}
           onChange={event => {
             setSelectedContainer(event.target.value);
@@ -537,29 +529,21 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
       {/* Lines selector */}
       <FormControl sx={{ minWidth: 120 }}>
-        <InputLabel id={`${selectLabelId}-lines-label`}>{t('translation|Lines')}</InputLabel>
-        <Select
-          labelId={`${selectLabelId}-lines-label`}
-          id={`${selectLabelId}-lines`}
-          label={t('translation|Lines')}
-          value={lines}
-          onChange={handleLinesChange}
-        >
+        <InputLabel>Lines</InputLabel>
+        <Select value={lines} onChange={handleLinesChange}>
           {[100, 1000, 2500].map(i => (
             <MenuItem key={i} value={i}>
               {i}
             </MenuItem>
           ))}
-          <MenuItem value={-1}>{t('translation|All')}</MenuItem>
+          <MenuItem value={-1}>All</MenuItem>
         </Select>
       </FormControl>
 
       {/* Severity filter dropdown */}
       <FormControl sx={{ minWidth: 140 }}>
-        <InputLabel id={`${selectLabelId}-severity-label`}>{t('translation|Severity')}</InputLabel>
+        <InputLabel>{t('translation|Severity')}</InputLabel>
         <Select
-          labelId={`${selectLabelId}-severity-label`}
-          id={`${selectLabelId}-severity`}
           multiple
           value={selectedSeverities}
           onChange={event => {

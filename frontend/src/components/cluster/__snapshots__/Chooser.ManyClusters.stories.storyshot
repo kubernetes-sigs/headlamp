@@ -182,9 +182,8 @@
                         class="MuiCardContent-root css-d64700-MuiCardContent-root"
                       >
                         <p
-                          aria-label="cluster-1"
                           class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-18vfeyy-MuiTypography-root"
-                          data-mui-internal-clone-element="true"
+                          title="cluster-1"
                         >
                           cluster-1
                         </p>
@@ -219,9 +218,8 @@
                         class="MuiCardContent-root css-d64700-MuiCardContent-root"
                       >
                         <p
-                          aria-label="cluster-2"
                           class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-18vfeyy-MuiTypography-root"
-                          data-mui-internal-clone-element="true"
+                          title="cluster-2"
                         >
                           cluster-2
                         </p>
@@ -247,9 +245,8 @@
                         class="MuiCardContent-root css-d64700-MuiCardContent-root"
                       >
                         <p
-                          aria-label="cluster-3"
                           class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-18vfeyy-MuiTypography-root"
-                          data-mui-internal-clone-element="true"
+                          title="cluster-3"
                         >
                           cluster-3
                         </p>
