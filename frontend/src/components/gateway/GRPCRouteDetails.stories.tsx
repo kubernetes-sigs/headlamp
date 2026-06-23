@@ -48,9 +48,6 @@ export default {
             `${API_BASE}/apis/gateway.networking.k8s.io/v1beta1/grpcroutes/default-grpcroute`,
             () => HttpResponse.error()
           ),
-          http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1/grpcroutes`, () =>
-            HttpResponse.error()
-          ),
           http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
             HttpResponse.json({
               kind: 'EventList',
