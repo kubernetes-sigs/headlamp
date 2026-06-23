@@ -414,8 +414,8 @@ class Pod extends KubeObject<KubePod> {
     let reason = this.status?.reason || this.status?.phase;
 
     const initContainers: Record<string, KubeContainer> = {};
-    let totalContainers = (this.spec.containers ?? []).length;
-    for (const ic of this.spec.initContainers ?? []) {
+    let totalContainers = (this.spec?.containers ?? []).length;
+    for (const ic of this.spec?.initContainers ?? []) {
       initContainers[ic.name] = ic;
       if (this.isRestartableInitContainer(ic)) {
         totalContainers++;

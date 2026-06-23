@@ -82,6 +82,20 @@ describe('Pod class', () => {
     expect(() => pod.getDetailedStatus()).not.toThrow();
   });
 
+  it('does not throw when spec and status are missing', () => {
+    const dataMissingBoth = {
+      apiVersion: 'v1',
+      kind: 'Pod',
+      metadata: {
+        name: 'test-pod-missing-fields',
+        namespace: 'default',
+        resourceVersion: '123',
+      },
+    };
+    const pod = new Pod(dataMissingBoth as any);
+    expect(() => pod.getDetailedStatus()).not.toThrow();
+  });
+
   describe('getHealth', () => {
     const makePod = (status: any, metadata: any = {}) =>
       new Pod({
