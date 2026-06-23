@@ -233,7 +233,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
         console.error('Error fetching pods:', error);
         enqueueSnackbar(
           t('translation|Failed to fetch pods: {{error}}', {
-            error: error instanceof Error ? error.message : t('translation|Unknown error'),
+            error: error instanceof Error ? error.message : t('translation|unknown error'),
           }),
           {
             variant: 'error',
