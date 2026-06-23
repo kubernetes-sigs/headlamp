@@ -58,7 +58,7 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
   function isLinux(item: Node | null): boolean {
     return item?.status?.nodeInfo?.operatingSystem === 'linux';
   }
-  const namepsace = nodeTerminalNamespace(cluster);
+  const namespace = nodeTerminalNamespace(cluster);
   const activityId = 'node-shell-' + item.metadata.uid;
 
   if (!isNodeTerminalEnabled(cluster)) {
@@ -66,8 +66,8 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
   }
   return (
     <>
-      <AuthVisible authVerb="create" item={Pod} namespace={namepsace}>
-        <AuthVisible item={Pod} namespace={namepsace} authVerb="get" subresource="exec">
+      <AuthVisible authVerb="create" item={Pod} namespace={namespace}>
+        <AuthVisible item={Pod} namespace={namespace} authVerb="get" subresource="exec">
           <ActionButton
             description={
               isLinux(item)
@@ -98,15 +98,6 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
           />
         </AuthVisible>
       </AuthVisible>
-      {/* <NodeShellTerminal
-        key="terminal"
-        open={showShell}
-        title={t('Shell: {{ itemName }}', { itemName: item.metadata.name })}
-        item={item}
-        onClose={() => {
-          setShowShell(false);
-        }}
-      /> */}
     </>
   );
 }
