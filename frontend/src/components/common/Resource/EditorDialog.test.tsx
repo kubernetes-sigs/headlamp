@@ -20,6 +20,23 @@ import React from 'react';
 import { TestContext } from '../../../test';
 import EditorDialog from './EditorDialog';
 
+const { mockTextarea, mockEditorInstance } = vi.hoisted(() => {
+  const textarea = document.createElement('textarea');
+  return {
+    mockTextarea: textarea,
+    mockEditorInstance: {
+      getDomNode: () => ({
+        querySelector: (selector: string) => {
+          if (selector === 'textarea') {
+            return textarea;
+          }
+          return null;
+        },
+      }),
+    },
+  };
+});
+
 vi.mock('js-yaml', () => ({
   dump: vi.fn((value: unknown) => JSON.stringify(value, null, 2)),
   loadAll: vi.fn((value: string) => {
@@ -32,7 +49,13 @@ vi.mock('js-yaml', () => ({
 }));
 
 vi.mock('@monaco-editor/react', () => ({
-  Editor: () => null,
+  Editor: ({ onMount }: any) => {
+    React.useEffect(() => {
+      onMount?.(mockEditorInstance, {});
+    }, [onMount]);
+
+    return <div data-testid="mock-monaco-editor" />;
+  },
   DiffEditor: () => null,
 }));
 
@@ -45,16 +68,19 @@ vi.mock('../ConfirmButton', () => ({
     children,
     onConfirm,
     disabled,
-    ariaLabel,
+    'aria-label': ariaLabel,
+    'aria-controls': ariaControls,
   }: {
     children: React.ReactNode;
     onConfirm: () => void;
     disabled?: boolean;
-    ariaLabel?: string;
+    'aria-label'?: string;
+    'aria-controls'?: string;
   }) => (
     <Button
       aria-label={ariaLabel}
       disabled={disabled}
+      aria-controls={ariaControls}
       onClick={() => {
         if (!disabled) {
           onConfirm();
@@ -70,6 +96,7 @@ describe('EditorDialog', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     localStorage.setItem('useSimpleEditor', 'true');
+    mockTextarea.id = '';
   });
 
   afterEach(() => {
@@ -103,7 +130,7 @@ describe('EditorDialog', () => {
 
     expect(screen.getByText('Invalid YAML')).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole('button', { name: /undo changes/i }));
+    fireEvent.click(screen.getByRole('button', { name: /undo/i }));
 
     expect(screen.queryByText('Invalid YAML')).not.toBeInTheDocument();
   });
@@ -114,12 +141,56 @@ describe('EditorDialog', () => {
     const editor = screen.getByRole('textbox', { name: /code$/i });
     fireEvent.change(editor, { target: { value: 'invalid' } });
 
-    fireEvent.click(screen.getByRole('button', { name: /undo changes/i }));
+    fireEvent.click(screen.getByRole('button', { name: /undo/i }));
 
     act(() => {
       vi.advanceTimersByTime(500);
     });
 
     expect(screen.queryByText('Invalid YAML')).not.toBeInTheDocument();
+  });
+
+  it('renders the editor textarea and action buttons with correct id and aria-controls attributes', () => {
+    renderEditorDialog();
+
+    const textarea = screen.getByRole('textbox', { name: /code/i });
+    expect(textarea.id).toMatch(/^editor-textarea-/);
+
+    const textareaId = textarea.id;
+
+    // Under test render, ConfirmButton has aria-label="Undo" which overrides "Undo Changes" as the accessible name
+    const undoButton = screen.getByRole('button', { name: /undo/i });
+    expect(undoButton).toHaveAttribute('aria-controls', textareaId);
+
+    const dryRunButton = screen.getByRole('button', { name: /dry run/i });
+    expect(dryRunButton).toHaveAttribute('aria-controls', textareaId);
+
+    const saveApplyButton = screen.getByRole('button', { name: /save & apply/i });
+    expect(saveApplyButton).toHaveAttribute('aria-controls', textareaId);
+  });
+
+  it('correctly sets textarea ID and aria-controls attributes when using Monaco editor onMount', () => {
+    localStorage.setItem('useSimpleEditor', 'false');
+
+    renderEditorDialog();
+
+    expect(mockTextarea.id).toMatch(/^editor-textarea-/);
+
+    const textareaId = mockTextarea.id;
+
+    expect(screen.getByRole('button', { name: /undo/i })).toHaveAttribute(
+      'aria-controls',
+      textareaId
+    );
+
+    expect(screen.getByRole('button', { name: /dry run/i })).toHaveAttribute(
+      'aria-controls',
+      textareaId
+    );
+
+    expect(screen.getByRole('button', { name: /save & apply/i })).toHaveAttribute(
+      'aria-controls',
+      textareaId
+    );
   });
 });

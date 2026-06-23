@@ -424,9 +424,9 @@ export default function EditorDialog(props: EditorDialogProps) {
   function makeEditor() {
     const language = originalCodeRef.current.format || 'yaml';
     return (
-      <Box height="100%" id={editorId}>
+      <Box height="100%">
         {useSimpleEditor ? (
-          <SimpleEditor language={language} value={code.code} onChange={onChange} />
+          <SimpleEditor id={editorId} language={language} value={code.code} onChange={onChange} />
         ) : (
           <Editor
             language={language}
@@ -435,6 +435,12 @@ export default function EditorDialog(props: EditorDialogProps) {
             options={editorOptions}
             onChange={onChange}
             height="100%"
+            onMount={editor => {
+              const textarea = editor.getDomNode()?.querySelector('textarea');
+              if (textarea && editorId) {
+                textarea.id = editorId;
+              }
+            }}
           />
         )}
       </Box>
@@ -606,7 +612,7 @@ export default function EditorDialog(props: EditorDialogProps) {
             color="secondary"
             variant="contained"
             disabled={originalCodeRef.current.code === code.code || !!error}
-            // @todo: aria-controls should point to the textarea id
+            aria-controls={editorId}
             sx={{ whiteSpace: 'nowrap' }}
           >
             {t('translation|Dry Run')}
@@ -619,7 +625,6 @@ export default function EditorDialog(props: EditorDialogProps) {
             variant="contained"
             disabled={originalCodeRef.current.code === code.code || !!error}
             aria-controls={editorId}
-            // @todo: aria-controls should point to the textarea id
             sx={{ whiteSpace: 'nowrap' }}
           >
             {saveLabel || t('translation|Save & Apply')}
