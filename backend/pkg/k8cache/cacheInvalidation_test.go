@@ -873,7 +873,7 @@ func TestSyncWatchers(t *testing.T) {
 	}
 
 	// Sync with only ctx1 and ctx3 active
-	k8cache.SyncWatchers([]string{"ctx1", "ctx3"})
+	k8cache.SyncWatchers(nil, []string{"ctx1", "ctx3"})
 
 	mu.Lock()
 	defer mu.Unlock()

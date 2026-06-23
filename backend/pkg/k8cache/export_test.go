@@ -161,3 +161,8 @@ func ExportedInvalidateCacheKeysForResourceEvent(
 ) {
 	invalidateCacheKeysForResourceEvent(gvr, namespace, name, contextKey, k8scache)
 }
+
+// ExportedCacheKeyBelongsToContext exposes cacheKeyBelongsToContext for testing.
+func ExportedCacheKeyBelongsToContext(key, contextKey string) bool {
+	return cacheKeyBelongsToContext(key, contextKey)
+}
