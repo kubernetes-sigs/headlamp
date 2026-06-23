@@ -551,6 +551,10 @@
     "useClustersConf": [Function],
     "useClustersVersion": [Function],
     "useConnectApi": [Function],
+    "useKubeApiGet": [Function],
+    "useKubeApiList": [Function],
+    "useKubeGet": [Function],
+    "useKubeList": [Function],
     "useSelectedClusters": [Function],
     "volumeAttributesClass": {
       "default": [Function],

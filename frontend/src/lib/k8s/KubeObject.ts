@@ -17,7 +17,7 @@
 import { JSONPath } from 'jsonpath-plus';
 import cloneDeep from 'lodash/cloneDeep';
 import unset from 'lodash/unset';
-import { useMemo, useState } from 'react';
+import { useMemo, useRef } from 'react';
 import { loadClusterSettings } from '../../helpers/clusterSettings';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../cluster';
 import { createRouteURL } from '../router/createRouteURL';
@@ -301,9 +301,6 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     return this.apiEndpoint.list.bind(null, ...args);
   }
 
-  /**
-   * @deprecated Use the standalone {@link useKubeApiList} hook instead.
-   */
   static useApiList<K extends KubeObject>(
     this: (new (...args: any) => K) & typeof KubeObject<any>,
     onList: (...arg: any[]) => any,
@@ -314,19 +311,6 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     return useKubeApiList<K>(this, onList, onError, opts);
   }
 
-  /**
-   * @deprecated Use the standalone {@link useKubeList} hook instead.
-   *
-   * @example
-   * ```tsx
-   * // Before:
-   * const [pods] = Pod.useList({ namespace: 'default' });
-   *
-   * // After:
-   * import { useKubeList } from '../lib/k8s/KubeObject';
-   * const [pods] = useKubeList(Pod, { namespace: 'default' });
-   * ```
-   */
   static useList<K extends KubeObject>(
     this: (new (...args: any) => K) & typeof KubeObject<any>,
     opts: {
@@ -341,19 +325,6 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     return useKubeList<K>(this, opts);
   }
 
-  /**
-   * @deprecated Use the standalone {@link useKubeGet} hook instead.
-   *
-   * @example
-   * ```tsx
-   * // Before:
-   * const [secret, error] = Secret.useGet(name, namespace);
-   *
-   * // After:
-   * import { useKubeGet } from '../lib/k8s/KubeObject';
-   * const [secret, error] = useKubeGet(Secret, name, namespace);
-   * ```
-   */
   static useGet<K extends KubeObject>(
     this: (new (...args: any) => K) & typeof KubeObject<any>,
     name: string,
@@ -838,8 +809,6 @@ export function useKubeGet<K extends KubeObject>(
 
 /**
  * Hook to get a list of Kubernetes objects via list callback.
- *
- * @deprecated Use `useKubeList` instead.
  */
 export function useKubeApiList<K extends KubeObject>(
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>,
@@ -847,19 +816,14 @@ export function useKubeApiList<K extends KubeObject>(
   onError?: (err: ApiError, cluster?: string) => void,
   opts?: ApiListOptions
 ) {
-  const [objs, setObjs] = useState<{ [key: string]: K[] }>({});
+  const objsRef = useRef<{ [key: string]: K[] }>({});
   const listCallback = onList as (arg: any[]) => void;
 
   function onObjs(namespace: string, objList: K[]) {
-    let newObjs: typeof objs = {};
-    // Set the objects so we have them for the next API response...
-    setObjs(previousObjs => {
-      newObjs = { ...previousObjs, [namespace || '']: objList };
-      return newObjs;
-    });
+    objsRef.current = { ...objsRef.current, [namespace || '']: objList };
 
     let allObjs: K[] = [];
-    Object.values(newObjs).map(currentObjs => {
+    Object.values(objsRef.current).forEach(currentObjs => {
       allObjs = allObjs.concat(currentObjs);
     });
 
@@ -912,8 +876,6 @@ export function useKubeApiList<K extends KubeObject>(
 
 /**
  * Hook to get a single Kubernetes object by name via get callback.
- *
- * @deprecated Use `useKubeGet` instead.
  */
 export function useKubeApiGet<K extends KubeObject>(
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>,
