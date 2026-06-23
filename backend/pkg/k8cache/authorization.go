@@ -120,6 +120,38 @@ func evictExpiredClientsets() {
 	}
 }
 
+// EvictClientsetsForCluster removes cached authorization clientsets for a cluster
+// immediately when its kube context is removed, instead of waiting for TTL expiry.
+func EvictClientsetsForCluster(clusterName string) {
+	if clusterName == "" {
+		return
+	}
+
+	prefix := clusterName + "\x00"
+
+	mu.Lock()
+
+	evicted := 0
+
+	for key := range clientsetCache {
+		if strings.HasPrefix(key, prefix) {
+			delete(clientsetCache, key)
+
+			evicted++
+		}
+	}
+
+	remaining := len(clientsetCache)
+
+	mu.Unlock()
+
+	if evicted > 0 {
+		logger.Log(logger.LevelInfo, nil, nil,
+			fmt.Sprintf("evicted %d clientset(s) for removed cluster %s, %d remaining",
+				evicted, redactContextKey(clusterName), remaining))
+	}
+}
+
 // getCachedClientSet retrieves a clientset from the cache if it's valid and not expired.
 func getCachedClientSet(cacheKey string) (*kubernetes.Clientset, bool) {
 	mu.Lock()

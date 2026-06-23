@@ -175,7 +175,7 @@ func setupKubeConfigStoreWatcher(kubeConfigStore kubeconfig.ContextStore) {
 				return
 			}
 
-			k8cache.SyncWatchers(active)
+			k8cache.SyncWatchers(k8sResponseCache, active)
 		})
 	})
 }
