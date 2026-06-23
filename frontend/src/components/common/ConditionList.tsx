@@ -53,10 +53,10 @@ export interface ConditionListProps {
 /**
  * ConditionList renders a Kubernetes conditions array as a consistent table.
  *
- * The component replaces four separate implementations that existed across
- * Resource.tsx, gateway/ClassList.tsx, gateway/GatewayDetails.tsx, and
- * crd/CustomResourceDetails.tsx. Each of those used different logic to
- * derive the status colour. The rules used here are:
+ * The component is intended to replace several existing condition renderers across the UI,
+ * including common/Resource/Resource.tsx, gateway/ClassList.tsx, gateway/GatewayDetails.tsx, and
+ * crd/CustomResourceDetails.tsx, which currently derive status colour in different ways.
+ * The rules used here are:
  *
  * - status === 'True'  -> 'success'
  * - status === 'False' -> 'error'
