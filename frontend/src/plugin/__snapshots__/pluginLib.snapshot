@@ -345,6 +345,7 @@
     "METADATA": "METADATA",
   },
   "DefaultHeadlampEvents": {
+    "AI_ASSISTANT_OPEN": "headlamp.ai-assistant-open",
     "CREATE_RESOURCE": "headlamp.create-resource",
     "DELETE_RESOURCE": "headlamp.delete-resource",
     "DELETE_RESOURCES": "headlamp.delete-resources",

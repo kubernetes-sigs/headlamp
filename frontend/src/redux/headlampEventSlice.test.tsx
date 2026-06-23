@@ -15,8 +15,13 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
-import eventCallbackReducer, { addEventCallback, eventAction } from './headlampEventSlice';
-import { listenerMiddleware } from './headlampEventSlice';
+import eventCallbackReducer, {
+  addEventCallback,
+  AIAssistantOpenEvent,
+  eventAction,
+  HeadlampEventType,
+  listenerMiddleware,
+} from './headlampEventSlice';
 
 function getStore() {
   return configureStore({
@@ -80,6 +85,80 @@ describe('eventsSlice', () => {
       );
 
       expect(callbackResponses).toEqual([0, 1]);
+    });
+  });
+
+  describe('AI_ASSISTANT_OPEN event', () => {
+    it('should dispatch AI_ASSISTANT_OPEN with prompt only', () => {
+      const received: AIAssistantOpenEvent[] = [];
+      store.dispatch(
+        addEventCallback(event => {
+          if (event.type === HeadlampEventType.AI_ASSISTANT_OPEN) {
+            received.push(event as AIAssistantOpenEvent);
+          }
+        })
+      );
+
+      store.dispatch(
+        eventAction({
+          type: HeadlampEventType.AI_ASSISTANT_OPEN,
+          data: { prompt: 'Why is this pod crashlooping?' },
+        })
+      );
+
+      expect(received).toHaveLength(1);
+      expect(received[0].data.prompt).toBe('Why is this pod crashlooping?');
+      expect(received[0].data.context).toBeUndefined();
+    });
+
+    it('should dispatch AI_ASSISTANT_OPEN with prompt and full context', () => {
+      const received: AIAssistantOpenEvent[] = [];
+      store.dispatch(
+        addEventCallback(event => {
+          if (event.type === HeadlampEventType.AI_ASSISTANT_OPEN) {
+            received.push(event as AIAssistantOpenEvent);
+          }
+        })
+      );
+
+      store.dispatch(
+        eventAction({
+          type: HeadlampEventType.AI_ASSISTANT_OPEN,
+          data: {
+            prompt: 'Explain this finding.',
+            context: {
+              sourcePlugin: 'kubebuddy',
+              cluster: 'prod-cluster',
+              resource: {
+                kind: 'Service',
+                name: 'network-observability',
+                namespace: 'kube-system',
+                apiVersion: 'v1',
+              },
+            },
+          },
+        })
+      );
+
+      expect(received).toHaveLength(1);
+      expect(received[0].data.context?.sourcePlugin).toBe('kubebuddy');
+      expect(received[0].data.context?.resource?.kind).toBe('Service');
+      expect(received[0].data.context?.resource?.namespace).toBe('kube-system');
+    });
+
+    it('should not trigger other event handlers for unrelated event types', () => {
+      const aiReceived: AIAssistantOpenEvent[] = [];
+      store.dispatch(
+        addEventCallback(event => {
+          if (event.type === HeadlampEventType.AI_ASSISTANT_OPEN) {
+            aiReceived.push(event as AIAssistantOpenEvent);
+          }
+        })
+      );
+
+      store.dispatch(eventAction({ type: 'some.other-event', data: {} }));
+
+      expect(aiReceived).toHaveLength(0);
     });
   });
 });

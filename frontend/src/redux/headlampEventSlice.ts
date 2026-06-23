@@ -63,6 +63,8 @@ export enum HeadlampEventType {
   LIST_VIEW = 'headlamp.list-view',
   /** Events related to loading events for a resource. */
   OBJECT_EVENTS = 'headlamp.object-events',
+  /** Event to request the AI Assistant panel to open with an optional prompt and context. */
+  AI_ASSISTANT_OPEN = 'headlamp.ai-assistant-open',
 }
 
 /**
@@ -352,6 +354,28 @@ export interface EventListEvent {
   };
 }
 
+/**
+ * Event fired when a plugin requests the AI Assistant panel to open with a prefilled prompt.
+ */
+export interface AIAssistantOpenEvent extends HeadlampEvent<HeadlampEventType.AI_ASSISTANT_OPEN> {
+  data: {
+    /** The prompt to prefill in the AI Assistant input. */
+    prompt: string;
+    /** Optional context passed to the AI Assistant alongside the prompt. */
+    context?: {
+      sourcePlugin?: string;
+      cluster?: string;
+      resource?: {
+        kind: string;
+        name: string;
+        namespace?: string;
+        apiVersion?: string;
+      };
+      [key: string]: unknown;
+    };
+  };
+}
+
 export type HeadlampEventCallback = (data: HeadlampEvent) => void;
 
 const initialState: {
@@ -451,6 +475,9 @@ export function useEventCallback(
 export function useEventCallback(
   eventInfo: HeadlampEventType.OBJECT_EVENTS
 ): (events: Event[], resource?: KubeObject) => void;
+export function useEventCallback(
+  eventType: HeadlampEventType.AI_ASSISTANT_OPEN
+): (data: EventDataType<AIAssistantOpenEvent>) => void;
 export function useEventCallback(eventType?: HeadlampEventType | string) {
   const dispatch = useDispatch();
 
@@ -521,6 +548,8 @@ export function useEventCallback(eventType?: HeadlampEventType | string) {
       return dispatchDataEventFunc<ResourceDetailsViewLoadedEvent>(HeadlampEventType.DETAILS_VIEW);
     case HeadlampEventType.LIST_VIEW:
       return dispatchDataEventFunc<ResourceListViewLoadedEvent>(HeadlampEventType.LIST_VIEW);
+    case HeadlampEventType.AI_ASSISTANT_OPEN:
+      return dispatchDataEventFunc<AIAssistantOpenEvent>(HeadlampEventType.AI_ASSISTANT_OPEN);
     case HeadlampEventType.OBJECT_EVENTS:
       return (events: Event[], resource?: KubeObject) => {
         dispatch(
