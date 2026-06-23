@@ -207,8 +207,8 @@ func TestStopOrDeletePortForward_MissingID(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	payload := map[string]interface{}{
-		"id":           "",
-		"stopOrDelete": true,
+		"id":     "",
+		"action": "stop",
 	}
 
 	jsonPayload, err := json.Marshal(payload)
@@ -239,8 +239,8 @@ func TestStopOrDeletePortForward_NotFoundInCache(t *testing.T) {
 	w := httptest.NewRecorder()
 
 	payload := map[string]interface{}{
-		"id":           "does-not-exist",
-		"stopOrDelete": true,
+		"id":     "does-not-exist",
+		"action": "delete",
 	}
 
 	jsonPayload, err := json.Marshal(payload)

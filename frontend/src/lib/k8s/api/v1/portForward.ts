@@ -122,21 +122,20 @@ export async function startPortForward(
   });
 }
 
-// @todo: stopOrDelete true is confusing, rename this param to justStop?
 /**
- * Stops or deletes a portforward with the specified details.
+ * Sends a stop or delete action for a portforward to the backend.
  *
- * @param cluster - The cluster to portforward for.
- * @param id - The id to portforward for.
- * @param stopOrDelete - Whether to stop or delete the portforward. True for stop, false for delete.
+ * @param cluster - The cluster the portforward belongs to.
+ * @param id - The id of the portforward.
+ * @param action - Whether to 'stop' (keep it in the list) or 'delete' (remove it).
  *
  * @returns The response from the API.
  * @throws {Error} if the request fails.
  */
-export async function stopOrDeletePortForward(
+async function sendPortForwardAction(
   cluster: string,
   id: string,
-  stopOrDelete: boolean = true
+  action: 'stop' | 'delete'
 ): Promise<string> {
   const kubeconfig = await findKubeconfigByClusterName(cluster);
   const headers = new Headers(addBackstageAuthHeaders(JSON_HEADERS));
@@ -151,16 +150,42 @@ export async function stopOrDeletePortForward(
     headers: headers,
     body: JSON.stringify({
       id,
-      stopOrDelete,
+      action,
     }),
     cluster,
   }).then(async response => {
     const text = await response.text();
     if (!response.ok) {
-      throw new Error(text || 'Error deleting port forward');
+      throw new Error(text || `Error ${action === 'stop' ? 'stopping' : 'deleting'} port forward`);
     }
     return text;
   });
+}
+
+/**
+ * Stops a running portforward, keeping it in the list so it can be restarted.
+ *
+ * @param cluster - The cluster the portforward belongs to.
+ * @param id - The id of the portforward.
+ *
+ * @returns The response from the API.
+ * @throws {Error} if the request fails.
+ */
+export async function stopPortForward(cluster: string, id: string): Promise<string> {
+  return sendPortForwardAction(cluster, id, 'stop');
+}
+
+/**
+ * Deletes a portforward, removing it entirely.
+ *
+ * @param cluster - The cluster the portforward belongs to.
+ * @param id - The id of the portforward.
+ *
+ * @returns The response from the API.
+ * @throws {Error} if the request fails.
+ */
+export async function deletePortForward(cluster: string, id: string): Promise<string> {
+  return sendPortForwardAction(cluster, id, 'delete');
 }
 
 // @todo: needs a return type.

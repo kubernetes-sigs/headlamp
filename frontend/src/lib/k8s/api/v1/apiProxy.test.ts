@@ -997,7 +997,7 @@ describe('apiProxy', () => {
     });
   });
 
-  describe('startPortForward, stopOrDeletePortForward, listPortForward', () => {
+  describe('startPortForward, stopPortForward, listPortForward', () => {
     const containerPort = 8080;
     const service = 'test-service';
     const serviceNamespace = 'default';
@@ -1068,9 +1068,9 @@ describe('apiProxy', () => {
       });
     });
 
-    describe('stopOrDeletePortForward', () => {
-      it('Successfully deletes a port forward', async () => {
-        const response = await apiProxy.stopOrDeletePortForward(clusterName, mockId);
+    describe('stopPortForward', () => {
+      it('Successfully stops a port forward', async () => {
+        const response = await apiProxy.stopPortForward(clusterName, mockId);
         const data = JSON.parse(response);
         expect(data).toEqual(mockStopResponse);
       });

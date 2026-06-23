@@ -656,15 +656,26 @@ func checkIfPodIsRunning(clientset *kubernetes.Clientset, namespace string, pod 
 	return nil
 }
 
+// Actions accepted by the stop/delete port forward handler.
+const (
+	portForwardActionStop   = "stop"
+	portForwardActionDelete = "delete"
+)
+
 // stopOrDeletePortForwardRequest is the payload for stop or delete port forward request handler.
 type stopOrDeletePortForwardRequest struct {
-	ID           string `json:"id"`
-	StopOrDelete bool   `json:"stopOrDelete"`
+	ID     string `json:"id"`
+	Action string `json:"action"`
 }
 
 func (r *stopOrDeletePortForwardRequest) Validate() error {
 	if r.ID == "" {
 		return errors.New("invalid request, id is required")
+	}
+
+	if r.Action != portForwardActionStop && r.Action != portForwardActionDelete {
+		return fmt.Errorf("invalid request, action must be %q or %q",
+			portForwardActionStop, portForwardActionDelete)
 	}
 
 	return nil
@@ -696,17 +707,28 @@ func StopOrDeletePortForward(cache cache.Cache[interface{}], w http.ResponseWrit
 		clusterName += userID
 	}
 
-	err = stopOrDeletePortForward(cache, clusterName, p.ID, p.StopOrDelete)
-	if err == nil {
-		if _, err := w.Write([]byte("stopped")); err != nil {
-			logger.Log(logger.LevelError, nil, err, "writing response")
-			http.Error(w, "failed to write response "+err.Error(), http.StatusInternalServerError)
-		}
+	var actionErr error
+
+	successMsg := "stopped"
+
+	if p.Action == portForwardActionDelete {
+		successMsg = "deleted"
+		actionErr = deletePortForward(cache, clusterName, p.ID)
+	} else {
+		actionErr = stopPortForward(cache, clusterName, p.ID)
+	}
+
+	if actionErr != nil {
+		http.Error(w, fmt.Sprintf("failed to %s port forward: %s", p.Action, actionErr.Error()),
+			http.StatusInternalServerError)
 
 		return
 	}
 
-	http.Error(w, "failed to delete port forward "+err.Error(), http.StatusInternalServerError)
+	if _, err := w.Write([]byte(successMsg)); err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing response")
+		http.Error(w, "failed to write response "+err.Error(), http.StatusInternalServerError)
+	}
 }
 
 // GetPortForwards handles get port forwards request.
