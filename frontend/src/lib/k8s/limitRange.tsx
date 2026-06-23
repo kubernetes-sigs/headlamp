@@ -74,10 +74,6 @@ export class LimitRange extends KubeObject<KubeLimitRange> {
             cpu: '',
             memory: '',
           },
-          maxLimitRequestRatio: {
-            cpu: '',
-            memory: '',
-          },
           type: '',
         },
       ],
