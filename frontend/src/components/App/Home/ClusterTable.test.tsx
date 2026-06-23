@@ -303,6 +303,59 @@ describe('ClusterTable', () => {
       'Insufficient permissions'
     );
   });
+
+  it('shows a Connect action for clusters that are not auto-connected', () => {
+    const cluster = {
+      name: 'spoke-a',
+      auth_type: '',
+      meta_data: { source: 'kubeconfig' },
+    } as Cluster;
+    const onConnectCluster = vi.fn();
+
+    renderWithTheme(
+      <MemoryRouter>
+        <ClusterTable
+          customNameClusters={[cluster]}
+          clusters={{ 'spoke-a': cluster }}
+          versions={{}}
+          errors={{}}
+          warningLabels={{}}
+          connectedClusterNames={new Set()}
+          onConnectCluster={onConnectCluster}
+        />
+      </MemoryRouter>
+    );
+
+    const connectButton = screen.getByRole('button', { name: 'Connect' });
+    expect(connectButton).toBeInTheDocument();
+
+    fireEvent.click(connectButton);
+    expect(onConnectCluster).toHaveBeenCalledWith('spoke-a');
+  });
+
+  it('does not show a Connect action for clusters that are auto-connected', () => {
+    const cluster = {
+      name: 'spoke-a',
+      auth_type: '',
+      meta_data: { source: 'kubeconfig' },
+    } as Cluster;
+
+    renderWithTheme(
+      <MemoryRouter>
+        <ClusterTable
+          customNameClusters={[cluster]}
+          clusters={{ 'spoke-a': cluster }}
+          versions={{}}
+          errors={{ 'spoke-a': null }}
+          warningLabels={{}}
+          connectedClusterNames={new Set(['spoke-a'])}
+          onConnectCluster={vi.fn()}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.queryByRole('button', { name: 'Connect' })).not.toBeInTheDocument();
+  });
 });
 
 describe('ClusterContextMenu', () => {

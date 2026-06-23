@@ -17,6 +17,7 @@
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
 import { useTheme } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
 import {
@@ -29,6 +30,7 @@ import { useTranslation } from 'react-i18next';
 import { generatePath, useHistory } from 'react-router-dom';
 import { getClusterAppearanceFromMeta } from '../../../helpers/clusterAppearance';
 import { isElectron } from '../../../helpers/isElectron';
+import { setRecentCluster } from '../../../helpers/recentClusters';
 import { loadTableSettings, storeTableSettings } from '../../../helpers/tableSettings';
 import { formatClusterPathParam } from '../../../lib/cluster';
 import { useClustersConf, useClustersVersion } from '../../../lib/k8s';
@@ -52,7 +54,7 @@ import {
   STATUS_VARIANTS,
 } from './ClusterInventory';
 import { canSelectCluster } from './clusterStatus';
-import { MULTI_HOME_ENABLED } from './config';
+import { CONNECT_ON_CLUSTER_LINK, MULTI_HOME_ENABLED } from './config';
 import { getCustomClusterNames } from './customClusterNames';
 
 /**
@@ -63,7 +65,19 @@ import { getCustomClusterNames } from './customClusterNames';
  * @param {Object} props - The component props.
  * @param {ApiError|null} [props.error] - The error object if there is an error with the cluster.
  */
-function ClusterStatus({ error, cluster }: { error?: ApiError | null; cluster: Cluster }) {
+function ClusterStatus({
+  error,
+  cluster,
+  isConnected,
+  onConnect,
+}: {
+  error?: ApiError | null;
+  cluster: Cluster;
+  /** Whether the cluster is in the auto-connect set (i.e. being polled). */
+  isConnected: boolean;
+  /** Connect to the cluster on demand so its status is loaded. */
+  onConnect: (clusterName: string) => void;
+}) {
   const { t } = useTranslation(['translation']);
   const theme = useTheme();
   const customStatuses = useTypedSelector(state => state.clusterProvider.clusterStatuses);
@@ -79,6 +93,38 @@ function ClusterStatus({ error, cluster }: { error?: ApiError | null; cluster: C
 
   if (renderedCustomStatus !== null) {
     return renderedCustomStatus;
+  }
+
+  // Not in the auto-connect set and not yet contacted: show an explicit
+  // "not connected" state with a connect action instead of the ambiguous "⋯".
+  if (!isConnected && error === undefined) {
+    return (
+      <LightTooltip title={t('translation|Not connected. Connect to load this cluster.')}>
+        <Box display="flex" alignItems="center" justifyContent="center" width="fit-content">
+          <Icon icon="mdi:cloud-off-outline" width={16} color={theme.palette.text.secondary} />
+          <Button
+            size="small"
+            onClick={() => onConnect(cluster.name)}
+            sx={{ ml: 0.5, textTransform: 'none' }}
+          >
+            {t('translation|Connect')}
+          </Button>
+        </Box>
+      </LightTooltip>
+    );
+  }
+
+  // Connected but no response yet: show a connecting indicator rather than the
+  // ambiguous "⋯".
+  if (isConnected && error === undefined) {
+    return (
+      <Box display="flex" alignItems="center" justifyContent="center" width="fit-content">
+        <CircularProgress size={14} />
+        <Typography variant="body2" sx={{ ml: 1, color: theme.palette.text.secondary }}>
+          {t('translation|Connecting…')}
+        </Typography>
+      </Box>
+    );
   }
 
   const { kind, text, condition } = getClusterStatusInfo(cluster, error, t);
@@ -120,6 +166,13 @@ export interface ClusterTableProps {
   clusters: ReturnType<typeof useClustersConf>;
   /** Warnings for each cluster. */
   warningLabels: { [cluster: string]: string };
+  /**
+   * Names of clusters that are currently being connected to / polled. When
+   * omitted, all clusters are treated as connected (no "Not connected" state).
+   */
+  connectedClusterNames?: Set<string>;
+  /** Connect to a cluster on demand (adds it to the auto-connect set). */
+  onConnectCluster?: (clusterName: string) => void;
 }
 
 /**
@@ -133,9 +186,14 @@ export default function ClusterTable({
   errors,
   clusters,
   warningLabels,
+  connectedClusterNames,
+  onConnectCluster,
 }: ClusterTableProps) {
   const history = useHistory();
   const { t } = useTranslation(['translation']);
+
+  const isClusterConnected = (clusterName: string) =>
+    connectedClusterNames ? connectedClusterNames.has(clusterName) : true;
 
   const [columnVisibility, setColumnVisibility] = useState<MRT_VisibilityState>(() => {
     const visibility: Record<string, boolean> = {};
@@ -260,7 +318,18 @@ export default function ClusterTable({
             const appearance = getClusterAppearanceFromMeta(original.name);
             return (
               <LightTooltip title={original.name}>
-                <span>
+                {/* Record as recently-used on open so it auto-connects on return.
+                    onClickCapture on the wrapper keeps the Link's native
+                    navigation (and works for keyboard activation) while the Link
+                    would disable navigation if given an onClick. */}
+                <span
+                  onClickCapture={() => {
+                    setRecentCluster(original.name);
+                    if (CONNECT_ON_CLUSTER_LINK) {
+                      onConnectCluster?.(original.name);
+                    }
+                  }}
+                >
                   <Link routeName="cluster" params={{ cluster: original.name }}>
                     <ClusterBadge
                       name={original.name}
@@ -284,20 +353,34 @@ export default function ClusterTable({
         {
           id: 'status',
           header: t('Status'),
-          accessorFn: cluster => getClusterStatusAccessor(cluster, errors[cluster?.name], t),
+          accessorFn: cluster =>
+            // When the cluster is not yet connected (no polling), the cell shows
+            // "Not connected". Match the accessor so sorting/filtering is consistent.
+            !isClusterConnected(cluster?.name) && errors[cluster?.name] === undefined
+              ? t('translation|Not connected')
+              : getClusterStatusAccessor(cluster, errors[cluster?.name], t),
           Cell: ({ row: { original } }) => (
-            <ClusterStatus error={errors[original.name]} cluster={original} />
+            <ClusterStatus
+              error={errors[original.name]}
+              cluster={original}
+              isConnected={isClusterConnected(original.name)}
+              onConnect={onConnectCluster ?? (() => {})}
+            />
           ),
         },
         {
           id: 'warnings',
           header: t('Warnings'),
-          accessorFn: cluster => warningLabels[cluster?.name],
+          // Warnings track connection status: list them for connected clusters
+          // (⋯ while loading), blank for clusters that aren't connected.
+          accessorFn: cluster =>
+            isClusterConnected(cluster?.name) ? warningLabels[cluster?.name] ?? '⋯' : '',
         },
         {
           id: 'version',
           header: t('glossary|Kubernetes Version'),
-          accessorFn: ({ name }) => versions[name]?.gitVersion || '⋯',
+          accessorFn: ({ name }) =>
+            isClusterConnected(name) ? versions[name]?.gitVersion || '⋯' : '',
         },
         {
           id: 'actions',
@@ -343,11 +426,14 @@ export default function ClusterTable({
             marginLeft: 1,
           }}
           onClick={() => {
+            const selectedClusterNames = table
+              .getSelectedRowModel()
+              .rows.map(it => it.original.name);
+            // Opening clusters counts as using them; record as recently-used.
+            selectedClusterNames.forEach(name => setRecentCluster(name));
             history.push({
               pathname: generatePath(getClusterPrefixedPath(), {
-                cluster: formatClusterPathParam(
-                  table.getSelectedRowModel().rows.map(it => it.original.name)
-                ),
+                cluster: formatClusterPathParam(selectedClusterNames),
               }),
             });
           }}

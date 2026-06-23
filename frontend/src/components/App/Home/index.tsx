@@ -21,6 +21,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHistory } from 'react-router-dom';
 import { setupBackstageMessageReceiver } from '../../../helpers/backstageMessageReceiver';
+import { useAutoConnectClusters } from '../../../helpers/clusterAutoConnect';
 import { isBackstage } from '../../../helpers/isBackstage';
 import { isElectron } from '../../../helpers/isElectron';
 import { useClustersConf, useClustersVersion } from '../../../lib/k8s';
@@ -48,7 +49,15 @@ export default function Home() {
   return (
     <HomeComponent
       clusters={clusters}
-      key={'home-component-' + Object.keys(clusters || {}).join('')}
+      // Key forces a remount when the cluster list changes so HomeComponent
+      // re-evaluates which clusters to connect. On-demand connected clusters
+      // are preserved across remounts via sessionStorage in useAutoConnectClusters.
+      key={
+        'home-component-' +
+        Object.keys(clusters || {})
+          .sort()
+          .join(',')
+      }
     />
   );
 }
@@ -60,6 +69,9 @@ interface HomeComponentProps {
 const maxWarnings = 50;
 
 function renderWarningsText(warnings: ReturnType<typeof useEventWarningList>, clusterName: string) {
+  // Returns '⋯' for both "not fetched yet" (warnings[clusterName] === undefined)
+  // and "query error". Callers that need to distinguish the two cases must check
+  // warnings[clusterName] directly.
   const numWarnings = warnings[clusterName]?.error
     ? -1
     : warnings[clusterName]?.warnings?.length ?? -1;
@@ -81,7 +93,17 @@ function useWarningSettingsPerCluster(clusterNames: string[]) {
     setWarningLabels(currentWarningLabels => {
       const newWarningLabels: { [cluster: string]: string } = {};
       for (const cluster of clusterNames) {
-        newWarningLabels[cluster] = renderWarningsText(warningsMap, cluster);
+        // Keep the last known count while the warnings query has no result yet
+        // ('⋯' means loading or error), e.g. when it re-initialises as another
+        // cluster connects, so connecting a cluster doesn't blank a loaded one.
+        const newLabel = renderWarningsText(warningsMap, cluster);
+        const previousLabel = currentWarningLabels[cluster];
+        // Preserve the previous count only while loading (no result yet), so
+        // connecting a cluster doesn't blank an already-loaded one. On error,
+        // show '⋯' rather than leaving a stale count.
+        const isLoading = warningsMap[cluster] === undefined;
+        const preserve = newLabel === '⋯' && isLoading && previousLabel !== undefined;
+        newWarningLabels[cluster] = preserve ? previousLabel : newLabel;
       }
       if (!isEqual(newWarningLabels, currentWarningLabels)) {
         return newWarningLabels;
@@ -103,11 +125,28 @@ function HomeComponent(props: HomeComponentProps) {
     getCustomClusterNames(clusters)
   );
   const { t } = useTranslation(['translation', 'glossary']);
-  const [versions, errors] = useClustersVersion(Object.values(clusters || {}));
-  const clusterNames = React.useMemo(
+  // Only poll versions/warnings for auto-connect clusters (recently-used by
+  // default, plus any connected on demand) to avoid a credential/exec process
+  // per cluster on load.
+  const allClusterNames = React.useMemo(
     () => Object.values(customNameClusters).map(c => c.name),
     [customNameClusters]
   );
+  const { connect: handleConnectCluster, connectedClusters } =
+    useAutoConnectClusters(allClusterNames);
+
+  const autoConnectClusters = React.useMemo(
+    () => Object.values(clusters || {}).filter(c => connectedClusters.has(c.name)),
+    [clusters, connectedClusters]
+  );
+
+  const [versions, errors] = useClustersVersion(autoConnectClusters);
+
+  const clusterNames = React.useMemo(
+    () => allClusterNames.filter(name => connectedClusters.has(name)),
+    [allClusterNames, connectedClusters]
+  );
+
   const warningLabels = useWarningSettingsPerCluster(clusterNames);
 
   React.useEffect(() => {
@@ -138,10 +177,20 @@ function HomeComponent(props: HomeComponentProps) {
           errors={errors}
           warningLabels={warningLabels}
           clusters={clusters}
+          connectedClusterNames={connectedClusters}
+          onConnectCluster={handleConnectCluster}
         />
       </>
     ),
-    [customNameClusters, errors, versions, warningLabels, clusters]
+    [
+      customNameClusters,
+      errors,
+      versions,
+      warningLabels,
+      clusters,
+      connectedClusters,
+      handleConnectCluster,
+    ]
   );
 
   return (

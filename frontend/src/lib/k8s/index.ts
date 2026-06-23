@@ -298,7 +298,7 @@ export function useClustersVersion(clusters: Cluster[]) {
       .map(c => c.name)
       .sort();
     const sortedClusterNames = [...clusterNames].sort();
-    if (_.isEqual(sortedClusterNames, clusterNames)) {
+    if (_.isEqual(sortedClusterNames, newClusterNames)) {
       return;
     }
 
