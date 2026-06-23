@@ -36,55 +36,18 @@ jobs:
 
       - name: Create artifacts directory
         run: mkdir -p ./artifacts
-
-      - name: Validate workflow run SHAs
+        
+      # Ensure workflow runs used to generate release artifacts were executed
+      # from the same commit as the release tag. See app/scripts/validate-run-shas.sh.
+      - name: Validate workflow run SHAs match release tag
         if: ${{ inputs.run_ids != '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Ensure tags are available
-          git fetch --tags --force origin
-
-          RELEASE_NAME="${{ inputs.release_name }}"
-          TAG_NAME="$RELEASE_NAME"
-
-          if ! git rev-parse "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
-            TAG_NAME="v$RELEASE_NAME"
-            if ! git rev-parse "refs/tags/$TAG_NAME" >/dev/null 2>&1; then
-              echo "Error: Tag '$RELEASE_NAME' or 'v$RELEASE_NAME' not found."
-              exit 1
-            fi
-          fi
-
-          EXPECTED_SHA=$(git rev-list -n 1 "refs/tags/$TAG_NAME")
-
-          echo "Expected release SHA: $EXPECTED_SHA (from tag $TAG_NAME)"
-
-          IFS=',' read -ra RUN_IDS <<< "${{ inputs.run_ids }}"
-
-          for run_id in "${RUN_IDS[@]}"; do
-            run_id=$(echo "$run_id" | xargs)
-
-            if [ -n "$run_id" ]; then
-              RUN_SHA=$(gh run view "$run_id" --repo "${{ github.repository }}" --json headSha -q .headSha)
-
-              if [ -z "$RUN_SHA" ]; then
-                echo "Error: Could not determine SHA for workflow run ID $run_id."
-                exit 1
-              fi
-
-              echo "Run ID: $run_id"
-              echo "Run SHA: $RUN_SHA"
-
-              if [ "$EXPECTED_SHA" != "$RUN_SHA" ]; then
-                echo "Error: Workflow run SHA mismatch!"
-                echo "  Run ID:      $run_id"
-                echo "  Run SHA:     $RUN_SHA"
-                echo "  Expected:    $EXPECTED_SHA (from tag $TAG_NAME)"
-                exit 1
-              fi
-            fi
-          done
+          bash app/scripts/validate-run-shas.sh \
+            "${{ inputs.release_name }}" \
+            "${{ github.repository }}" \
+            "${{ inputs.run_ids }}"
 
       - name: Download artifacts from workflow runs
         if: ${{ inputs.run_ids != '' }}
