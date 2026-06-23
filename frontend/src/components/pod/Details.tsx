@@ -683,7 +683,7 @@ export default function PodDetails(props: PodDetailsProps) {
       extraInfo = [
         {
           name: t('State'),
-          value: makePodStatusLabel(item, false),
+          value: makePodStatusLabel(item, false, t),
         },
         {
           name: t('Node'),

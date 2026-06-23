@@ -17,6 +17,7 @@
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Fade from '@mui/material/Fade';
+import { TFunction } from 'i18next';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { ApiError } from '../../lib/k8s/api/v2/ApiError';
@@ -24,7 +25,7 @@ import { KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
 import { METRIC_REFETCH_INTERVAL_MS, PodMetrics } from '../../lib/k8s/PodMetrics';
 import { parseCpu, parseRam, unparseCpu, unparseRam } from '../../lib/units';
-import { timeAgo } from '../../lib/util';
+import { localeDate, timeAgo } from '../../lib/util';
 import { useNamespaces } from '../../redux/filterSlice';
 import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { CreateResourceButton } from '../common';
@@ -55,13 +56,13 @@ function getPodStatus(pod: Pod) {
   return status;
 }
 
-export function makePodStatusLabel(pod: Pod, showContainerStatus: boolean = true) {
+export function makePodStatusLabel(pod: Pod, showContainerStatus: boolean, t: TFunction) {
   const status = getPodStatus(pod);
   const { reason, message: tooltip } = pod.getDetailedStatus();
 
   const containerStatuses = pod.status?.containerStatuses || [];
   const containerIndicators = containerStatuses.map((cs, index) => {
-    const { color, tooltip } = getContainerDisplayStatus(cs);
+    const { color, tooltip } = getContainerDisplayStatus(cs, t);
     return (
       <LightTooltip
         title={tooltip}
@@ -128,51 +129,59 @@ function getReadinessGatesStatus(pods: Pod) {
   return readinessGatesMap;
 }
 
-function getContainerDisplayStatus(container: KubeContainerStatus) {
+function getContainerDisplayStatus(container: KubeContainerStatus, t: TFunction) {
   const state = container.state || {};
   let color = 'grey';
   let label = '';
-  const tooltipLines: string[] = [`Name: ${container.name}`];
+  const tooltipLines: string[] = [t('translation|Name: {{ name }}', { name: container.name })];
 
   if (state.waiting) {
     color = 'orange';
-    label = 'Waiting';
+    label = t('translation|Waiting');
     if (state.waiting.reason) {
-      tooltipLines.push(`Reason: ${state.waiting.reason}`);
+      tooltipLines.push(t('translation|Reason: {{ reason }}', { reason: state.waiting.reason }));
     }
   } else if (state.terminated) {
     color = 'green';
-    label = 'Terminated';
+    label = t('translation|Terminated');
     if (state.terminated.reason === 'Error') {
       color = 'red';
     }
     if (state.terminated.reason) {
-      tooltipLines.push(`Reason: ${state.terminated.reason}`);
+      tooltipLines.push(t('translation|Reason: {{ reason }}', { reason: state.terminated.reason }));
     }
     if (state.terminated.exitCode !== undefined) {
-      tooltipLines.push(`Exit Code: ${state.terminated.exitCode}`);
+      tooltipLines.push(
+        t('translation|Exit Code: {{ code }}', { code: state.terminated.exitCode })
+      );
     }
     if (state.terminated.startedAt) {
-      tooltipLines.push(`Started: ${new Date(state.terminated.startedAt).toLocaleString()}`);
+      tooltipLines.push(
+        t('translation|Started: {{ date }}', { date: localeDate(state.terminated.startedAt) })
+      );
     }
     if (state.terminated.finishedAt) {
-      tooltipLines.push(`Finished: ${new Date(state.terminated.finishedAt).toLocaleString()}`);
+      tooltipLines.push(
+        t('translation|Finished: {{ date }}', { date: localeDate(state.terminated.finishedAt) })
+      );
     }
     if (container.restartCount > 0) {
-      tooltipLines.push(`Restarts: ${container.restartCount}`);
+      tooltipLines.push(t('translation|Restarts: {{ count }}', { count: container.restartCount }));
     }
   } else if (state.running) {
     color = 'green';
-    label = 'Running';
+    label = t('translation|Running');
     if (state.running.startedAt) {
-      tooltipLines.push(`Started: ${new Date(state.running.startedAt).toLocaleString()}`);
+      tooltipLines.push(
+        t('translation|Started: {{ date }}', { date: localeDate(state.running.startedAt) })
+      );
     }
     if (container.restartCount > 0) {
-      tooltipLines.push(`Restarts: ${container.restartCount}`);
+      tooltipLines.push(t('translation|Restarts: {{ count }}', { count: container.restartCount }));
     }
   }
 
-  tooltipLines.splice(1, 0, `Status: ${label}`);
+  tooltipLines.splice(1, 0, t('translation|Status: {{ status }}', { status: label }));
 
   return {
     color,
@@ -286,7 +295,7 @@ export function PodListRenderer(props: PodListProps) {
             const phase = pod.status?.phase || '';
             return `${phase}:${status.reason}:${readyCondition?.status ?? ''}`;
           },
-          render: makePodStatusLabel,
+          render: pod => makePodStatusLabel(pod, true, t),
         },
         ...(metrics?.length
           ? [
