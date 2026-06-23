@@ -131,8 +131,11 @@ export interface PluginsState {
   /** Information stored by settings about plugins. */
   pluginSettings: PluginInfo[];
 }
-// Load from local storage, falling back to empty if missing or invalid.
+// Load from local storage, falling back to empty if unavailable, missing or invalid.
 function loadPluginSettings(): PluginInfo[] {
+  if (typeof localStorage === 'undefined') {
+    return [];
+  }
   try {
     return JSON.parse(localStorage.getItem('headlampPluginSettings') || '[]');
   } catch (error) {
