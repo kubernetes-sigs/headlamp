@@ -138,28 +138,35 @@ const SidebarItemBase = memo((props: SidebarItemProps & { clusters?: string[] })
           {label}
         </ListSubheader>
         {subList.length > 0 && (
-          <List
-            component="ul"
-            disablePadding
+          <ListItem
             sx={{
-              '& .MuiListItem-root': {
-                fontSize: '.875rem',
-                paddingTop: '2px',
-                paddingBottom: '2px',
-              },
+              display: 'block',
+              padding: 0,
             }}
           >
-            {subList.map((item: SidebarItemProps) => (
-              <SidebarItem
-                key={item.name}
-                isSelected={item.isSelected}
-                fullWidth={fullWidth}
-                search={search}
-                tabIndex={tabIndex}
-                {...item}
-              />
-            ))}
-          </List>
+            <List
+              component="ul"
+              disablePadding
+              sx={{
+                '& .MuiListItem-root': {
+                  fontSize: '.875rem',
+                  paddingTop: '2px',
+                  paddingBottom: '2px',
+                },
+              }}
+            >
+              {subList.map((item: SidebarItemProps) => (
+                <SidebarItem
+                  key={item.name}
+                  isSelected={item.isSelected}
+                  fullWidth={fullWidth}
+                  search={search}
+                  tabIndex={tabIndex}
+                  {...item}
+                />
+              ))}
+            </List>
+          </ListItem>
         )}
       </React.Fragment>
     );

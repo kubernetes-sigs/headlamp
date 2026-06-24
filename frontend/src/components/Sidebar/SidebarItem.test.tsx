@@ -69,6 +69,25 @@ describe('SidebarItem', () => {
     expect(container.querySelector('.MuiDivider-root')).toBeInTheDocument();
   });
 
+  it('wraps subheader child lists in list items', () => {
+    const { container } = renderSidebarItem({
+      name: 'plugin-section',
+      label: 'Plugin Section',
+      entryType: 'subheader',
+      subList: [
+        {
+          name: 'plugin-child',
+          label: 'Plugin Child',
+          url: '/plugin-child',
+        },
+      ],
+    });
+    const rootList = container.querySelector('ul');
+
+    expect(screen.getByRole('button', { name: /plugin child/i })).toBeInTheDocument();
+    expect(Array.from(rootList?.children ?? []).map(child => child.tagName)).toEqual(['LI', 'LI']);
+  });
+
   it('does not render hidden subheader entries', () => {
     const { container } = renderSidebarItem({
       name: 'plugin-section',
