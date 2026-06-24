@@ -124,6 +124,14 @@ export default function Overview() {
     return <Link routeName={workload.pluralName}>{workloadLabel[workload.className]}</Link>;
   }
 
+  // Jobs/CronJobs/JobSets have no replica fields either (like Pods), so they
+  // classify health per item instead of by replica match.
+  const jobHealth: { [className: string]: (item: Workload) => ReturnType<Job['getHealth']> } = {
+    [Job.className]: item => (item as Job).getHealth(),
+    [CronJob.className]: item => (item as CronJob).getHealth(),
+    [JobSet.className]: item => (item as JobSet).getHealth(),
+  };
+
   return (
     <PageGrid>
       <SectionBox py={2} mt={1}>
@@ -134,8 +142,16 @@ export default function Overview() {
                 workloadData={workloadsData[workload.className] || null}
                 title={<ChartLink workload={workload} />}
                 partialLabel={t('translation|Failed')}
-                totalLabel={workload === Pod ? t('translation|Healthy') : t('translation|Running')}
-                categorize={workload === Pod ? item => (item as Pod).getHealth() : undefined}
+                totalLabel={
+                  workload === Pod || jobHealth[workload.className]
+                    ? t('translation|Healthy')
+                    : t('translation|Running')
+                }
+                categorize={
+                  workload === Pod
+                    ? item => (item as Pod).getHealth()
+                    : jobHealth[workload.className]
+                }
               />
             </Grid>
           ))}
