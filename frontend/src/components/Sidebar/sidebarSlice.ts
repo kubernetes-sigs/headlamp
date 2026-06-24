@@ -16,8 +16,8 @@
 
 import { IconProps } from '@iconify/react';
 import type { SxProps, Theme } from '@mui/material/styles';
-import type { Draft } from '@reduxjs/toolkit';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import type { Draft } from 'immer';
 import React from 'react';
 
 export enum DefaultSidebars {
