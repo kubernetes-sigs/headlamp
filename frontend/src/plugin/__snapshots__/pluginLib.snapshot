@@ -488,6 +488,8 @@
         "cluster.x-k8s.io/deployment-name",
       ],
       "default": [Function],
+      "useNodeMetrics": [Function],
+      "useNodeSummaryStats": [Function],
     },
     "persistentVolume": {
       "PV_SOURCE_TYPES": [
