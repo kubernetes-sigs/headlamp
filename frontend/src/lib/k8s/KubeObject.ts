@@ -749,7 +749,6 @@ export function useKubeList<K extends KubeObject>(
     refetchInterval?: number;
   } & QueryParameters = {}
 ) {
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const fallbackClusters = useSelectedClusters();
 
   // Create requests for each cluster and namespace
@@ -774,7 +773,6 @@ export function useKubeList<K extends KubeObject>(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cluster, clusters, fallbackClusters, namespace, kubeObjectClass.isNamespaced]);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const result = useKubeObjectList<K>({
     queryParams: queryParams,
     kubeObjectClass: kubeObjectClass,
@@ -800,7 +798,6 @@ export function useKubeGet<K extends KubeObject>(
     cluster?: string;
   }
 ) {
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   return useKubeObject<K>({
     kubeObjectClass: kubeObjectClass,
     name: name,
@@ -856,18 +853,6 @@ export function useKubeApiList<K extends KubeObject>(
     namespaces = getAllowedNamespaces(cluster);
   }
 
-  // Prevent stale results from previous namespace sets from leaking into the aggregated callback.
-  if (namespaces.length === 0) {
-    objsRef.current = {};
-  } else {
-    const allowedKeys = new Set(namespaces.map(ns => ns || ''));
-    for (const key of Object.keys(objsRef.current)) {
-      if (!allowedKeys.has(key)) {
-        delete objsRef.current[key];
-      }
-    }
-  }
-
   if (namespaces.length > 0) {
     // If we have a namespace set, then we have to make an API call for each
     // namespace and then set the objects once we have all of the responses.
@@ -887,7 +872,6 @@ export function useKubeApiList<K extends KubeObject>(
     listCalls.push(kubeObjectClass.apiList(listCallback, onError, { queryParams, cluster }));
   }
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useConnectApi(...listCalls);
 }
 
@@ -908,6 +892,5 @@ export function useKubeApiGet<K extends KubeObject>(
   // We do the type conversion here because we want to be able to use hooks that may not have
   // the exact signature as get callbacks.
   const getCallback = onGet as (item: K) => void;
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   useConnectApi(kubeObjectClass.apiGet(getCallback, name, namespace, onError, opts));
 }
