@@ -17,7 +17,6 @@
 import Box from '@mui/material/Box';
 import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
-import { capitalize } from 'lodash';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -262,7 +261,7 @@ export default function Settings() {
                 onClick={() => !forceTheme && dispatch(setTheme(it.name))}
               >
                 <ThemePreview theme={it} size={110} />
-                <Box sx={{ mt: 1 }}>{capitalize(it.name)}</Box>
+                <Box sx={{ mt: 1 }}>{it.name}</Box>
               </Box>
             ))}
           </Box>

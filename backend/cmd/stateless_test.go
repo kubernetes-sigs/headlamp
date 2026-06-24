@@ -427,3 +427,12 @@ func TestWebsocketConnContextKey(t *testing.T) {
 		})
 	}
 }
+
+func TestMarshalCustomObject_InvalidJSON(t *testing.T) {
+	mockInfo := &runtime.Unknown{
+		Raw: []byte(`{invalid-json`),
+	}
+
+	_, err := MarshalCustomObject(mockInfo, "test-context")
+	assert.Error(t, err)
+}

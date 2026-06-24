@@ -366,8 +366,8 @@ export const listenerMiddleware =
   createListenerMiddleware<Pick<RootState, 'eventCallbackReducer'>>();
 listenerMiddleware.startListening({
   actionCreator: eventAction,
-  effect: async (action, listernerApi) => {
-    const trackerFuncs = listernerApi.getState()?.eventCallbackReducer?.trackerFuncs;
+  effect: async (action, listenerApi) => {
+    const trackerFuncs = listenerApi.getState()?.eventCallbackReducer?.trackerFuncs;
     for (const trackerFunc of trackerFuncs) {
       try {
         trackerFunc(action.payload);
