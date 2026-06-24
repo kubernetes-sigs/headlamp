@@ -28,7 +28,6 @@ import ReplicaSet from '../../../lib/k8s/replicaSet';
 import Service from '../../../lib/k8s/service';
 import StatefulSet from '../../../lib/k8s/statefulSet';
 import { DateLabel } from '../../common/Label';
-import { LightTooltip } from '../../common/Tooltip';
 import { DeploymentGlance } from './DeploymentGlance';
 import { EndpointsGlance } from './EndpointsGlance';
 import { HorizontalPodAutoscalerGlance } from './HorizontalPodAutoscalerGlance';
@@ -91,17 +90,16 @@ export const KubeObjectGlance = memo(({ resource }: { resource: KubeObject }) =>
             width="100%"
             key={it.message + it.lastOccurrence}
           >
-            <LightTooltip title={it.message}>
-              <Box
-                whiteSpace="nowrap"
-                overflow="hidden"
-                textOverflow="ellipsis"
-                mr="auto"
-                maxWidth="300px"
-              >
-                {it.message}
-              </Box>
-            </LightTooltip>
+            <Box
+              whiteSpace="nowrap"
+              overflow="hidden"
+              textOverflow="ellipsis"
+              mr="auto"
+              maxWidth="300px"
+              title={it.message}
+            >
+              {it.message}
+            </Box>
             <DateLabel date={it.lastOccurrence} format="mini" />
           </Box>
         ))}

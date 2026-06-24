@@ -65,13 +65,6 @@ const (
 	clusterExecConfigExtensionKey = "client.authentication.k8s.io/exec"
 )
 
-// Structured-log field names that recur across many log sites.
-const (
-	logFieldRoot           = "root"
-	logFieldClusterProfile = "clusterprofile"
-	logFieldServer         = "server"
-)
-
 // Options controls Cluster Inventory discovery.
 type Options struct {
 	// Store is the Headlamp context store that receives discovered contexts.
@@ -337,7 +330,7 @@ func (r *Runner) newRootInformer(
 ) (*rootInformer, bool) {
 	client, err := r.clientForConfig(rest.CopyConfig(config))
 	if err != nil {
-		logger.Log(logger.LevelWarn, map[string]string{logFieldRoot: rootID, logFieldServer: config.Host}, err,
+		logger.Log(logger.LevelWarn, map[string]string{"root": rootID, "server": config.Host}, err,
 			"cluster-inventory: failed to create client")
 
 		return nil, false
@@ -368,7 +361,7 @@ func (r *Runner) newRootInformer(
 	})
 	if err != nil {
 		cancel()
-		logger.Log(logger.LevelWarn, map[string]string{logFieldRoot: rootID, logFieldServer: config.Host}, err,
+		logger.Log(logger.LevelWarn, map[string]string{"root": rootID, "server": config.Host}, err,
 			"cluster-inventory: failed to add ClusterProfile event handler")
 
 		return nil, false
@@ -378,7 +371,7 @@ func (r *Runner) newRootInformer(
 		r.handleRootWatchError(state, err)
 	}); err != nil {
 		cancel()
-		logger.Log(logger.LevelWarn, map[string]string{logFieldRoot: rootID, logFieldServer: config.Host}, err,
+		logger.Log(logger.LevelWarn, map[string]string{"root": rootID, "server": config.Host}, err,
 			"cluster-inventory: failed to set ClusterProfile watch error handler")
 
 		return nil, false
@@ -441,7 +434,7 @@ func (r *Runner) runRootInformer(state *rootState, factory externalversions.Shar
 func (r *Runner) handleClusterProfileUpsert(state *rootState, obj interface{}) {
 	cp, ok := clusterProfileFromObject(obj)
 	if !ok {
-		logger.Log(logger.LevelWarn, map[string]string{logFieldRoot: state.rootID}, nil,
+		logger.Log(logger.LevelWarn, map[string]string{"root": state.rootID}, nil,
 			"cluster-inventory: ignored non-ClusterProfile informer event")
 
 		return
@@ -465,7 +458,7 @@ func (r *Runner) handleClusterProfileUpsert(state *rootState, obj interface{}) {
 func (r *Runner) handleClusterProfileDelete(state *rootState, obj interface{}) {
 	cp, ok := clusterProfileFromObject(obj)
 	if !ok {
-		logger.Log(logger.LevelWarn, map[string]string{logFieldRoot: state.rootID}, nil,
+		logger.Log(logger.LevelWarn, map[string]string{"root": state.rootID}, nil,
 			"cluster-inventory: ignored non-ClusterProfile delete event")
 
 		return
@@ -479,13 +472,13 @@ func (r *Runner) handleClusterProfileDelete(state *rootState, obj interface{}) {
 func (r *Runner) handleRootWatchError(state *rootState, err error) {
 	if isNoCRDError(err) {
 		r.markRootNoCRD(state)
-		logger.Log(logger.LevelInfo, map[string]string{logFieldRoot: state.rootID, logFieldServer: state.serverURL}, nil,
+		logger.Log(logger.LevelInfo, map[string]string{"root": state.rootID, "server": state.serverURL}, nil,
 			"cluster-inventory: ClusterProfile CRD is not available")
 
 		return
 	}
 
-	logger.Log(logger.LevelWarn, map[string]string{logFieldRoot: state.rootID, logFieldServer: state.serverURL}, err,
+	logger.Log(logger.LevelWarn, map[string]string{"root": state.rootID, "server": state.serverURL}, err,
 		"cluster-inventory: ClusterProfile watch error")
 }
 
@@ -514,7 +507,7 @@ func (r *Runner) syncClusterProfile(
 	}
 
 	if err := r.store.AddContext(headlampContext); err != nil {
-		logger.Log(logger.LevelWarn, map[string]string{logFieldClusterProfile: profileKey}, err,
+		logger.Log(logger.LevelWarn, map[string]string{"clusterprofile": profileKey}, err,
 			"cluster-inventory: failed to add context")
 
 		return
@@ -529,7 +522,7 @@ func (r *Runner) contextFromClusterProfile(
 	cp *apisv1alpha1.ClusterProfile,
 ) (*kubeconfig.Context, bool) {
 	if len(cp.Status.AccessProviders) == 0 {
-		logger.Log(logger.LevelInfo, map[string]string{logFieldClusterProfile: profileKey}, nil,
+		logger.Log(logger.LevelInfo, map[string]string{"clusterprofile": profileKey}, nil,
 			"cluster-inventory: ClusterProfile has no access providers")
 
 		return nil, false
@@ -537,7 +530,7 @@ func (r *Runner) contextFromClusterProfile(
 
 	restConfig, err := copyAccessConfig(r.accessConfig).BuildConfigFromCP(accessOnlyClusterProfile(cp))
 	if err != nil {
-		logger.Log(logger.LevelWarn, map[string]string{logFieldClusterProfile: profileKey}, err,
+		logger.Log(logger.LevelWarn, map[string]string{"clusterprofile": profileKey}, err,
 			"cluster-inventory: failed to build rest config")
 
 		return nil, false
@@ -547,14 +540,14 @@ func (r *Runner) contextFromClusterProfile(
 
 	headlampContext, err := restConfigToContext(restConfig, contextName, profileKey)
 	if err != nil {
-		logger.Log(logger.LevelWarn, map[string]string{logFieldClusterProfile: profileKey}, err,
+		logger.Log(logger.LevelWarn, map[string]string{"clusterprofile": profileKey}, err,
 			"cluster-inventory: failed to convert rest config")
 
 		return nil, false
 	}
 
 	if err := headlampContext.SetupProxy(); err != nil {
-		logger.Log(logger.LevelWarn, map[string]string{logFieldClusterProfile: profileKey}, err,
+		logger.Log(logger.LevelWarn, map[string]string{"clusterprofile": profileKey}, err,
 			"cluster-inventory: failed to setup proxy")
 
 		return nil, false

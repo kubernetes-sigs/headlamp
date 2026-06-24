@@ -374,7 +374,7 @@ export function createMuiTheme(currentTheme: AppTheme) {
       MuiTooltip: {
         styleOverrides: {
           tooltip: {
-            fontSize: '0.875rem',
+            fontSize: '1.3em',
             color: '#fff',
             backgroundColor: '#000',
           },
@@ -626,7 +626,7 @@ export function getThemeName(backendConfig?: {
 
   // Detect OS preference
   if (typeof window.matchMedia !== 'function') {
-    return backendConfig?.defaultLightTheme || 'Light';
+    return backendConfig?.defaultLightTheme || 'light';
   }
 
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -641,12 +641,12 @@ export function getThemeName(backendConfig?: {
 
   // Fallback to OS preference
   if (prefersLight) {
-    return 'Light';
+    return 'light';
   } else if (prefersDark) {
-    return 'Dark';
+    return 'dark';
   }
 
-  return 'Light';
+  return 'light';
 }
 
 export function setTheme(themeName: string) {

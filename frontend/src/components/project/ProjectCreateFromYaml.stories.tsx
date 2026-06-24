@@ -43,8 +43,6 @@ const makeStore = () => {
         isDynamicClusterEnabled: true,
         allowKubeconfigChanges: false,
         defaultPodDebugImage: '',
-        defaultNodeShellImage: '',
-        defaultNodeShellNamespace: '',
         settings: {
           tableRowsPerPageOptions: [15, 25, 50],
           timezone: 'UTC',

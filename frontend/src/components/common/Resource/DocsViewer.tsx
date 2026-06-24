@@ -26,7 +26,8 @@ import Empty from '../EmptyContent';
 import Loader from '../Loader';
 
 export interface DocsViewerProps {
-  docSpecs: { apiVersion?: string; kind: string }[];
+  // @todo: Declare strict types.
+  docSpecs: any;
 }
 
 function DocsViewer(props: DocsViewerProps) {
@@ -53,8 +54,8 @@ function DocsViewer(props: DocsViewerProps) {
     setDocsLoading(true);
     // fetch docSpecs for all the resources specified
     Promise.allSettled(
-      docSpecs.map(docSpec => {
-        return getDocDefinitions(docSpec.apiVersion ?? '', docSpec.kind);
+      docSpecs.map((docSpec: { apiVersion: string; kind: string }) => {
+        return getDocDefinitions(docSpec.apiVersion, docSpec.kind);
       })
     )
       .then(values => {

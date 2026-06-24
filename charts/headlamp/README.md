@@ -90,22 +90,12 @@ config:
         - name: secretreader
           execConfig:
             apiVersion: client.authentication.k8s.io/v1
-            command: /access-plugins/secretreader/bin/secretreader-plugin
-            interactiveMode: Never
-            provideClusterInfo: true
-        - name: kubeconfig-secretreader
-          execConfig:
-            apiVersion: client.authentication.k8s.io/v1
-            command: /access-plugins/kubeconfig-secretreader/bin/kubeconfig-secretreader-plugin
-            interactiveMode: Never
+            command: /access-plugins/secretreader/secretreader-plugin
             provideClusterInfo: true
     plugins:
       - name: secretreader
-        image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.3@sha256:ec3090dc166aa2b42fb35d714d161c417d8b27bbc463404c8f615f5f4c610a1d
+        image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.1
         mountPath: /access-plugins/secretreader
-      - name: kubeconfig-secretreader
-        image: registry.k8s.io/cluster-inventory-api/kubeconfig-secretreader:v0.1.3@sha256:b92966cc6e4ac78002a63862921022a71d54956826f6e4febcb7247495eb98c0
-        mountPath: /access-plugins/kubeconfig-secretreader
 ```
 
 `plugins[]` mounts Cluster Inventory access provider binaries as Kubernetes
@@ -133,11 +123,8 @@ config:
 | config.unsafeUseServiceAccountToken | bool | `false` | UNSAFE: authenticate every user as the pod's service account when running in-cluster. Only safe behind an auth proxy |
 | config.serviceAccountTokenPath | string | `""` | Path to the service account token file. Used only when `unsafeUseServiceAccountToken` is true |
 | config.pluginsDir  | string | `"/headlamp/plugins"` | Directory to load Headlamp plugins from                                   |
-| config.staticPlugins.enabled | bool | `true` | Serve the bundled static plugins shipped in the image (e.g. the Prometheus "Show Prometheus metrics" plugin). Set to false to disable them |
 | config.enableHelm  | bool   | `false`               | Enable Helm operations like install, upgrade and uninstall of Helm charts |
 | config.podDebugImage | string | `""`                | Default image to use when creating pod debug containers                    |
-| config.nodeShellImage | string | `""`               | Default image to use when creating node shell pods                         |
-| config.nodeShellNamespace | string | `""`            | Default namespace to use when creating node shell pods                      |
 | config.clusterInventory.enabled | bool | `false` | Enable experimental/alpha Cluster Inventory discovery |
 | config.clusterInventory.accessProvidersConfig | object | `{}` | Experimental/alpha Cluster Inventory access providers config. Required when Cluster Inventory is enabled |
 | config.clusterInventory.plugins | list | `[]` | Kubernetes image volumes that provide experimental/alpha Cluster Inventory access provider binaries |
@@ -222,29 +209,19 @@ config:
         - name: secretreader
           execConfig:
             apiVersion: client.authentication.k8s.io/v1
-            command: /access-plugins/secretreader/bin/secretreader-plugin
-            interactiveMode: Never
-            provideClusterInfo: true
-        - name: kubeconfig-secretreader
-          execConfig:
-            apiVersion: client.authentication.k8s.io/v1
-            command: /access-plugins/kubeconfig-secretreader/bin/kubeconfig-secretreader-plugin
-            interactiveMode: Never
+            command: /access-plugins/secretreader/secretreader-plugin
             provideClusterInfo: true
     plugins:
       - name: secretreader
-        image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.3@sha256:ec3090dc166aa2b42fb35d714d161c417d8b27bbc463404c8f615f5f4c610a1d
+        image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.1
         mountPath: /access-plugins/secretreader
-      - name: kubeconfig-secretreader
-        image: registry.k8s.io/cluster-inventory-api/kubeconfig-secretreader:v0.1.3@sha256:b92966cc6e4ac78002a63862921022a71d54956826f6e4febcb7247495eb98c0
-        mountPath: /access-plugins/kubeconfig-secretreader
 ```
 
 `plugins[]` is for Cluster Inventory access provider binaries, not Headlamp UI
 plugins. Each entry renders as a Kubernetes `image` volume and is mounted
 read-only into the Headlamp container. If an access provider `execConfig.command`
-is configured, the command must be under one of the absolute
-`plugins[].mountPath` values.
+is configured, the command's parent directory must match one of the
+absolute `plugins[].mountPath` values.
 
 ### Deployment Configuration
 

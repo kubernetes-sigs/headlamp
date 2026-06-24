@@ -42,12 +42,6 @@ const (
 	subFolderWatchInterval  = 5 * time.Second
 )
 
-// Structured-log field names that recur across multiple log sites.
-const (
-	logFieldPath = "path"
-	logFieldKey  = "key"
-)
-
 // PluginMetadata represents metadata about a plugin including its source type.
 type PluginMetadata struct {
 	// Path is the URL path to access the plugin
@@ -135,7 +129,7 @@ func periodicallyWatchSubfolders(
 			if d != nil && d.IsDir() && !slices.Contains(watcher.WatchList(), entryPath) {
 				err := watcher.Add(entryPath)
 				if err != nil {
-					logger.Log(logger.LevelError, map[string]string{logFieldPath: entryPath},
+					logger.Log(logger.LevelError, map[string]string{"path": entryPath},
 						err, "adding path to watcher")
 
 					return err
@@ -143,7 +137,7 @@ func periodicallyWatchSubfolders(
 				// when a folder is added, send events for all the files in the folder
 				entries, err := os.ReadDir(entryPath)
 				if err != nil {
-					logger.Log(logger.LevelError, map[string]string{logFieldPath: entryPath},
+					logger.Log(logger.LevelError, map[string]string{"path": entryPath},
 						err, "reading dir")
 
 					return err
@@ -452,7 +446,7 @@ func canSendRefresh(c cache.Cache[interface{}]) bool {
 			return false
 		}
 
-		logger.Log(logger.LevelError, map[string]string{logFieldKey: PluginCanSendRefreshKey},
+		logger.Log(logger.LevelError, map[string]string{"key": PluginCanSendRefreshKey},
 			err, "getting plugin-can-send-refresh key")
 	}
 
@@ -502,7 +496,7 @@ func PopulatePluginsCache(staticPluginDir, userPluginDir, pluginDir string, cach
 	// set the plugin refresh key to false
 	err := cache.Set(context.Background(), PluginRefreshKey, false)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{logFieldKey: PluginRefreshKey},
+		logger.Log(logger.LevelError, map[string]string{"key": PluginRefreshKey},
 			err, "setting plugin refresh key")
 	}
 
@@ -516,7 +510,7 @@ func PopulatePluginsCache(staticPluginDir, userPluginDir, pluginDir string, cach
 
 	err = cache.Set(context.Background(), PluginListKey, pluginList)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{logFieldKey: PluginListKey},
+		logger.Log(logger.LevelError, map[string]string{"key": PluginListKey},
 			err, "setting plugin list key")
 	}
 }
@@ -532,7 +526,7 @@ func HandlePluginReload(cache cache.Cache[interface{}], w http.ResponseWriter) {
 
 	value, err := cache.Get(context.Background(), PluginRefreshKey)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{logFieldKey: PluginRefreshKey},
+		logger.Log(logger.LevelError, map[string]string{"key": PluginRefreshKey},
 			err, "getting plugin refresh key")
 	}
 
@@ -553,7 +547,7 @@ func HandlePluginReload(cache cache.Cache[interface{}], w http.ResponseWriter) {
 		// set the plugin refresh key to false
 		err := cache.Set(context.Background(), PluginRefreshKey, false)
 		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{logFieldKey: PluginRefreshKey},
+			logger.Log(logger.LevelError, map[string]string{"key": PluginRefreshKey},
 				err, "setting plugin refresh key")
 		}
 	}

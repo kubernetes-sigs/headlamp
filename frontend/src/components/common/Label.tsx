@@ -83,13 +83,11 @@ export function ValueLabel(props: React.PropsWithChildren<{}>) {
 export interface StatusLabelProps {
   status: 'success' | 'warning' | 'error' | '';
   sx?: SxProps<Theme>;
-  /** When set, the label is wrapped in a tooltip instead of forwarding a native title to the span. */
-  title?: string;
   [otherProps: string]: any;
 }
 
 export const StatusLabel = forwardRef<HTMLSpanElement, StatusLabelProps>((props, ref) => {
-  const { status, sx, className = '', title, ...other } = props;
+  const { status, sx, className = '', ...other } = props;
   const theme = useTheme();
 
   const statuses = ['success', 'warning', 'error'];
@@ -122,7 +120,7 @@ export const StatusLabel = forwardRef<HTMLSpanElement, StatusLabelProps>((props,
     };
   }
 
-  const label = (
+  return (
     <Typography
       ref={ref}
       sx={{
@@ -145,15 +143,6 @@ export const StatusLabel = forwardRef<HTMLSpanElement, StatusLabelProps>((props,
       {...other}
     />
   );
-
-  // A `title` would otherwise be forwarded to the underlying span as a native
-  // HTML tooltip, which the browser renders unstyled (and out of place next to
-  // the rest of the UI). Route it through our styled tooltip instead.
-  if (title) {
-    return <LightTooltip title={title}>{label}</LightTooltip>;
-  }
-
-  return label;
 });
 
 export function makeStatusLabel(label: string, successStatusName: string) {

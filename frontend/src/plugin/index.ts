@@ -51,7 +51,6 @@ import * as Router from '../lib/router';
 import * as Utils from '../lib/util';
 import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
 import store from '../redux/stores/store';
-import * as stateless from '../stateless/index';
 import { Headlamp, Plugin } from './lib';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
@@ -103,7 +102,6 @@ window.pluginLib = {
   useTranslation,
   ...registryToExport,
   Activity,
-  stateless,
 };
 
 // backwards compat.
@@ -614,11 +612,6 @@ export async function fetchAndExecutePlugins(
               secrets['runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js'];
           }
 
-          if (isPackage['@headlamp-k8s/ai-assistant']) {
-            secretsToReturn['runCmd-gh'] = secrets['runCmd-gh'];
-            secretsToReturn['runCmd-az'] = secrets['runCmd-az'];
-          }
-
           return secretsToReturn;
         },
         getArgValues: (pluginName, pluginPath, allowedPermissions) => {
@@ -647,28 +640,6 @@ export async function fetchAndExecutePlugins(
               [pluginRunCommand, pluginPath],
             ];
           }
-
-          if (isPackage['@headlamp-k8s/ai-assistant']) {
-            function pluginRunCommand(
-              command: 'gh' | 'az',
-              args: string[],
-              options: {}
-            ): ReturnType<typeof internalRunCommand> {
-              return internalRunCommand(
-                command,
-                args,
-                options,
-                allowedPermissions,
-                pluginDesktopApiSend,
-                pluginDesktopApiReceive
-              );
-            }
-            return [
-              ['pluginRunCommand', 'pluginPath'],
-              [pluginRunCommand, pluginPath],
-            ];
-          }
-
           return [[], []];
         },
         PrivateFunction,

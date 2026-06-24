@@ -36,34 +36,22 @@ export default defineConfig({
   server: {
     port: 3000,
     cors: true,
-    // Combine routes into one proxy instance to avoid Node's MaxListeners warning (>10 routes)
-    proxy: [
-      {
-        pathFilter: [
-          '/api',
-          '/clusters',
-          '/plugins',
-          '/config',
-          '/auth',
-          '/oidc',
-          '/oidc-callback',
-          '/externalproxy',
-          '/drain-node',
-          '/drain-node-status',
-          '/parseKubeConfig',
-          '/cluster',
-          '/metrics',
-        ],
-        target: backendTarget,
-        changeOrigin: true,
-      },
-      {
-        pathFilter: ['/wsMultiplexer'],
-        target: backendTarget,
-        changeOrigin: true,
-        ws: true,
-      },
-    ],
+    proxy: {
+      '/api': { target: backendTarget, changeOrigin: true },
+      '/clusters': { target: backendTarget, changeOrigin: true },
+      '/plugins': { target: backendTarget, changeOrigin: true },
+      '/config': { target: backendTarget, changeOrigin: true },
+      '/auth': { target: backendTarget, changeOrigin: true },
+      '/oidc': { target: backendTarget, changeOrigin: true },
+      '/oidc-callback': { target: backendTarget, changeOrigin: true },
+      '/wsMultiplexer': { target: backendTarget, changeOrigin: true, ws: true },
+      '/externalproxy': { target: backendTarget, changeOrigin: true },
+      '/drain-node': { target: backendTarget, changeOrigin: true },
+      '/drain-node-status': { target: backendTarget, changeOrigin: true },
+      '/parseKubeConfig': { target: backendTarget, changeOrigin: true },
+      '/cluster': { target: backendTarget, changeOrigin: true },
+      '/metrics': { target: backendTarget, changeOrigin: true },
+    },
   },
   // dev: {
   //   hmr: false,
@@ -122,15 +110,6 @@ export default defineConfig({
         // 'monaco-editor': 'commonjs monaco-editor',
         // 'monaco-editor/esm/vs/editor/common/services/editorSimpleWorker': 'commonjs monaco-editor/esm/vs/editor/common/services/editorSimpleWorker',
       },
-      // Ignore monaco-editor's dynamic require() warning (unreachable in ESM build)
-      ignoreWarnings: [
-        {
-          module:
-            /monaco-editor[\\/]esm[\\/]vs[\\/]editor[\\/]common[\\/]services[\\/]editorSimpleWorker\.js/,
-          message:
-            /Critical dependency: require function is used in a way in which dependencies cannot be statically extracted/,
-        },
-      ],
     },
   },
 

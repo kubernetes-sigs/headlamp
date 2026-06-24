@@ -57,6 +57,7 @@ import SectionBox from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
 import Terminal from '../common/Terminal';
 import LightTooltip from '../common/Tooltip/TooltipLight';
+import { PodDiagnosticsSection } from '../diagnostics/Diagnostics';
 import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
@@ -83,7 +84,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
     'headlamp.logs.showTimestamps',
     true
   );
-  const [follow, setFollow] = useLocalStorageState<boolean>('headlamp.logs.follow', true);
+  const [follow, setFollow] = React.useState<boolean>(true);
   const [prettifyLogs, setPrettifyLogs] = useLocalStorageState<boolean>(
     'headlamp.logs.prettifyLogs',
     false
@@ -890,8 +891,12 @@ export default function PodDetails(props: PodDetailsProps) {
         ]
       }
       extraInfo={item => prepareExtraInfo(item)}
-      extraSections={item =>
+      extraSections={(item, context) =>
         item && [
+          {
+            id: 'headlamp.pod-diagnostics',
+            section: <PodDiagnosticsSection pod={item} events={context.events} />,
+          },
           {
             id: 'headlamp.pod-tolerations',
             section: <TolerationsSection tolerations={item?.spec?.tolerations || []} />,

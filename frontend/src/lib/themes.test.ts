@@ -67,7 +67,7 @@ describe('themes.ts', () => {
         matchMedia: vi.fn().mockReturnValue({ matches: false }),
       });
 
-      expect(getThemeName()).toBe('Light');
+      expect(getThemeName()).toBe('light');
     });
 
     it('should return dark theme if user prefers dark mode', () => {
@@ -81,7 +81,7 @@ describe('themes.ts', () => {
         })),
       });
 
-      expect(getThemeName()).toBe('Dark');
+      expect(getThemeName()).toBe('dark');
     });
 
     it('should return the theme stored in localStorage', () => {
@@ -252,7 +252,7 @@ describe('themes.ts', () => {
         defaultLightTheme: 'corporate-light',
       };
 
-      expect(getThemeName(backendConfig)).toBe('Dark');
+      expect(getThemeName(backendConfig)).toBe('dark');
     });
 
     it('should handle both default themes with OS preference selection', () => {

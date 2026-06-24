@@ -24,14 +24,10 @@ export interface KubeRoleBinding extends KubeObjectInterface {
     name: string;
   };
   subjects: {
-    // apiGroup is optional on RBAC Subjects and is commonly omitted (or set to an
-    // empty string for the core API group) for ServiceAccount subjects.
-    apiGroup?: string;
+    apiGroup: string;
     kind: string;
     name: string;
-    // namespace is only meaningful for ServiceAccount subjects; User and Group
-    // subjects are not namespaced.
-    namespace?: string;
+    namespace: string;
   }[];
 }
 

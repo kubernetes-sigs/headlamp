@@ -171,8 +171,6 @@ export default function EditorDialog(props: EditorDialogProps) {
         originalCodeRef.current = { code: itemCode, format };
       }
       setCode({ code: itemCode, format });
-      // Drop stale apply errors so a failed apply doesn't leave Apply disabled after the user edits.
-      setError('');
     }
 
     // Additional handling for Kubernetes objects
@@ -186,7 +184,6 @@ export default function EditorDialog(props: EditorDialogProps) {
         // Prevent updating to the same code, which would lead to an infinite loop.
         if (codeRef.current.code !== itemCode) {
           setCode({ code: itemCode, format: originalCodeRef.current.format });
-          setError('');
         }
 
         if (resourceVersionsDiffer && !!item.metadata!.resourceVersion) {
@@ -565,7 +562,7 @@ export default function EditorDialog(props: EditorDialogProps) {
                 label: t('translation|Documentation'),
                 component: (
                   <Box sx={{ height: '100%', overflowY: 'auto' }}>
-                    <DocsViewer docSpecs={Array.isArray(docSpecs) ? docSpecs : []} />
+                    <DocsViewer docSpecs={docSpecs} />
                   </Box>
                 ),
               },

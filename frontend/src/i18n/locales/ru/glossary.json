@@ -142,7 +142,6 @@
   "Uncordon": "Снять cordon",
   "Cordon": "Установить cordon",
   "Drain": "Дренировать",
-  "Node Pool": "",
   "Pod CIDR": "Pod CIDR",
   "Capacity": "Ёмкость",
   "Allocatable": "",

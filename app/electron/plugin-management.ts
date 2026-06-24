@@ -284,7 +284,7 @@ export class PluginManager {
       }
 
       // remove the existing plugin folder
-      fs.rmSync(pluginDir, { recursive: true, force: true });
+      fs.rmdirSync(pluginDir, { recursive: true });
 
       // create the plugin folder
       fs.mkdirSync(pluginDir, { recursive: true });
@@ -332,7 +332,7 @@ export class PluginManager {
       }
 
       if (fs.existsSync(pluginDir)) {
-        fs.rmSync(pluginDir, { recursive: true, force: true });
+        fs.rmdirSync(pluginDir, { recursive: true });
       } else {
         throw new Error('Plugin not found');
       }
@@ -654,7 +654,7 @@ async function downloadExtraFiles(
       // remove the input file folder... if it's empty
       const inputDir = path.dirname(inputFile);
       if (fs.readdirSync(inputDir).length === 0) {
-        fs.rmSync(inputDir);
+        fs.rmdirSync(inputDir);
       }
 
       if (progressCallback) {

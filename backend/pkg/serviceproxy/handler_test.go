@@ -226,11 +226,8 @@ func TestGetAuthToken(t *testing.T) {
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.AddCookie(&http.Cookie{
-					Name:     "headlamp-auth-my-cluster.0",
-					Value:    "cookie-token-xyz",
-					HttpOnly: true,
-					Secure:   true,
-					SameSite: http.SameSiteStrictMode,
+					Name:  "headlamp-auth-my-cluster.0",
+					Value: "cookie-token-xyz",
 				})
 
 				return req
@@ -256,11 +253,8 @@ func TestGetAuthToken(t *testing.T) {
 			setupRequest: func() *http.Request {
 				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.AddCookie(&http.Cookie{
-					Name:     "headlamp-auth-test-cluster.0",
-					Value:    "cookie-token-wins",
-					HttpOnly: true,
-					Secure:   true,
-					SameSite: http.SameSiteStrictMode,
+					Name:  "headlamp-auth-test-cluster.0",
+					Value: "cookie-token-wins",
 				})
 				req.Header.Set("Authorization", "Bearer header-token-loses")
 

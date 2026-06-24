@@ -23,7 +23,6 @@ import { KubeNodeSummaryStats, nodeSummaryStats } from './api/v2/nodeSummaryApi'
 import type { KubeCondition, KubeMetrics } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
-import { NODE_POOL_LABEL_KEYS } from './nodeConstants';
 
 export interface KubeNode extends KubeObjectInterface {
   status: {
@@ -143,24 +142,6 @@ class Node extends KubeObject<KubeNode> {
       .filter(key => key.startsWith(rolePrefix))
       .map(key => key.slice(rolePrefix.length));
   }
-
-  /**
-   * Returns the node pool name from well-known cloud provider labels.
-   * Supports GKE, AKS, EKS, kOps, and Cluster API.
-   */
-  getNodePool(): string {
-    const labels = this.metadata.labels ?? {};
-    for (const key of NODE_POOL_LABEL_KEYS) {
-      if (labels[key] !== undefined) {
-        return labels[key];
-      }
-    }
-    return '';
-  }
 }
-
-// Re-export for plugin compatibility. Import directly from nodeConstants.ts
-// when only the label keys are needed to avoid loading the Node implementation.
-export { NODE_POOL_LABEL_KEYS };
 
 export default Node;

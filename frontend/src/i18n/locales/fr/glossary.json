@@ -142,7 +142,6 @@
   "Uncordon": "Débloquer",
   "Cordon": "Bloquer",
   "Drain": "Vider",
-  "Node Pool": "",
   "Pod CIDR": "CIDR du pod",
   "Capacity": "Capacité",
   "Allocatable": "Allouable",

@@ -1,12 +1,6 @@
 {{- $oidc := .Values.config.oidc }}
 {{- $env := .Values.env }}
 
-{{- /* Disable the bundled static plugins (e.g. Prometheus) by clearing
-       HEADLAMP_STATIC_PLUGINS_DIR. `hasKey` guards against false being treated
-       as empty by `default`, and an unset value defaults to serving them. */}}
-{{- $staticPlugins := .Values.config.staticPlugins | default dict }}
-{{- $staticPluginsDisabled := and (hasKey $staticPlugins "enabled") (not $staticPlugins.enabled) }}
-
 {{- $clientID := "" }}
 {{- $clientSecret := "" }}
 {{- $issuerURL := "" }}
@@ -120,21 +114,15 @@ spec:
             {{- end }}
           image: "{{ .Values.image.registry}}/{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{ if or $oidc .Values.env $staticPluginsDisabled }}
+          {{ if or $oidc .Values.env }}
           {{- if $oidc.externalSecret.enabled }}
           # Check if externalSecret is enabled
           envFrom:
           - secretRef:
               name: {{ $oidc.externalSecret.name }}
-          {{- if or .Values.env $staticPluginsDisabled }}
+          {{- if .Values.env }}
           env:
-            {{- with .Values.env }}
-            {{- toYaml . | nindent 12 }}
-            {{- end }}
-            {{- if $staticPluginsDisabled }}
-            - name: HEADLAMP_STATIC_PLUGINS_DIR
-              value: ""
-            {{- end }}
+            {{- toYaml .Values.env | nindent 12 }}
           {{- end }}
           {{- else }}
           env:
@@ -254,10 +242,6 @@ spec:
             {{- if .Values.env }}
             {{- toYaml .Values.env | nindent 12 }}
             {{- end }}
-            {{- if $staticPluginsDisabled }}
-            - name: HEADLAMP_STATIC_PLUGINS_DIR
-              value: ""
-            {{- end }}
           {{- end }}
           {{- end }}
           args:
@@ -284,12 +268,6 @@ spec:
             {{- end }}
             {{- with .Values.config.podDebugImage }}
             - "-pod-debug-image={{ . }}"
-            {{- end }}
-            {{- with .Values.config.nodeShellImage }}
-            - "-node-shell-image={{ . }}"
-            {{- end }}
-            {{- with .Values.config.nodeShellNamespace }}
-            - "-node-shell-namespace={{ . }}"
             {{- end }}
             {{- if and .Values.config.inCluster .Values.config.unsafeUseServiceAccountToken }}
             - "-unsafe-use-service-account-token"

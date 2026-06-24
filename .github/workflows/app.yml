@@ -37,7 +37,7 @@ jobs:
         node-version: ${{ matrix.node-version }}
     - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
-        go-version: '1.26.*'
+        go-version: '1.25.*'
     - name: Run tests
       run: make app-test
     - name: Run tsc type checker
@@ -50,16 +50,10 @@ jobs:
     - name: Verify Linux build
       run: npm run app:verify-build-linux
   build-windows:
+    runs-on: windows-2025
     strategy:
       matrix:
-        include:
-          - arch: x64
-            runner: windows-2022
-            node-version: 22.x
-          - arch: arm64
-            runner: windows-11-arm
-            node-version: 22.x
-    runs-on: ${{ matrix.runner }}
+        node-version: [22.x]
     steps:
     - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
     - name: Use Node.js ${{ matrix.node-version }}
@@ -68,7 +62,7 @@ jobs:
         node-version: ${{ matrix.node-version }}
     - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
-        go-version: '1.26.*'
+        go-version: '1.25.*'
     - name: Dependencies
       uses: crazy-max/ghaction-chocolatey@e80bd39bb49cae70b67ea53d52d00833a7255c21 # v1.7.0
       with:
@@ -77,8 +71,8 @@ jobs:
       run: make app-test
     - name: Run tsc type checker
       run: make app-tsc
-    - name: App Windows ${{ matrix.arch }}
-      run: make app-build && cd app && npm run package -- --win --${{ matrix.arch }}
+    - name: App Windows
+      run: make app-win
     - name: Verify Windows build
       shell: pwsh
       run: npm run app:verify-build-windows
@@ -95,7 +89,7 @@ jobs:
         node-version: ${{ matrix.node-version }}
     - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
       with:
-        go-version: '1.26.*'
+        go-version: '1.25.*'
     - name: Dependencies
       run: brew install make
     - name: Run tests

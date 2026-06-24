@@ -45,39 +45,25 @@ window.desktopApi?.receive('open-about-dialog', () => {
  * @returns true if the path is safe, false otherwise
  */
 export const isValidRedirectPath = (redirectPath: string): boolean => {
-  if (!redirectPath) {
-    return false;
-  }
-
-  const trimmedPath = redirectPath.trim();
-
-  // Reject empty paths
-  if (trimmedPath === '') {
+  // Reject empty or null paths
+  if (!redirectPath || redirectPath.trim() === '') {
     return false;
   }
 
   // Reject paths that start with dangerous protocols
   const dangerousProtocols = ['javascript:', 'data:', 'vbscript:', 'file:', 'ftp:'];
-  let decodedPath: string;
-  try {
-    decodedPath = decodeURIComponent(trimmedPath);
-  } catch {
-    decodedPath = trimmedPath;
-  }
-  const lowerPath = decodedPath.toLowerCase();
+  const lowerPath = redirectPath.toLowerCase();
   if (dangerousProtocols.some(protocol => lowerPath.startsWith(protocol))) {
     return false;
   }
 
-  // Reject absolute URLs (external redirects), including scheme-based forms
-  // without slashes (e.g. http:evil.com), which the URL parser still treats
-  // as absolute
-  if (/^https?:/.test(lowerPath)) {
+  // Reject absolute URLs (external redirects)
+  if (redirectPath.startsWith('http://') || redirectPath.startsWith('https://')) {
     return false;
   }
 
   // Reject protocol-relative URLs (//example.com)
-  if (lowerPath.startsWith('//')) {
+  if (redirectPath.startsWith('//')) {
     return false;
   }
 

@@ -348,7 +348,6 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
         extraInfo={item => {
           if (!item) return [];
           const roles = item.getRoles();
-          const nodePool = item.getNodePool();
           // The keys of interest are reported by the API in kebab-case.
           const reportedKeys = ['cpu', 'memory', 'pods', 'ephemeral-storage'];
           const pickResources = (res: { [key: string]: string } = {}) =>
@@ -373,11 +372,6 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
             {
               name: t('translation|Conditions'),
               value: <NodeConditionsLabel node={item} />,
-            },
-            {
-              name: t('Node Pool'),
-              value: nodePool,
-              hide: !nodePool,
             },
             {
               name: t('Pod CIDR'),

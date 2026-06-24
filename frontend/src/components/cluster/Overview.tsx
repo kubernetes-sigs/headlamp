@@ -28,7 +28,6 @@ import { useFilterFunc } from '../../lib/util';
 import { useNamespaces } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { OverviewChart } from '../../redux/overviewChartsSlice';
-import EventsLifetimeInfo from '../common/EventsLifetimeInfo';
 import { DateLabel } from '../common/Label';
 import { StatusLabel } from '../common/Label';
 import Link from '../common/Link';
@@ -45,14 +44,10 @@ import {
 } from './Charts';
 import { ClusterGroupErrorMessage } from './ClusterGroupErrorMessage';
 
-const OVERVIEW_REFETCH_INTERVAL_MS = 60_000;
-
 export default function Overview() {
   const { t } = useTranslation(['translation']);
-  // The overview only needs periodic snapshots for aggregate charts. Avoid long-lived
-  // watches here because large clusters can stream enough events to exhaust the tab.
-  const [pods] = Pod.useList({ refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS });
-  const [nodes] = Node.useList({ refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS });
+  const [pods] = Pod.useList();
+  const [nodes] = Node.useList();
   const [nodeMetrics, metricsError] = Node.useMetrics();
   const chartProcessors = useTypedSelector(state => state.overviewCharts.processors);
 
@@ -127,7 +122,6 @@ function EventsSection() {
   const { items: events, errors: eventsErrors } = Event.useList({
     limit: Event.maxLimit,
     namespace,
-    refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS,
   });
 
   const warningActionFilterFunc = (event: Event, search?: string) => {
@@ -179,7 +173,6 @@ function EventsSection() {
       headerProps={{
         noNamespaceFilter: false,
         titleSideActions: [
-          <EventsLifetimeInfo key="event-lifetime-info" />,
           <FormControlLabel
             checked={isWarningEventSwitchChecked}
             label={t('Only warnings ({{ numWarnings }})', { numWarnings })}

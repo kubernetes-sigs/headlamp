@@ -175,50 +175,6 @@ func TestGetConfigIncludesDefaultPodDebugImage(t *testing.T) {
 	assert.Equal(t, "registry.example.com/debug:latest", config.DefaultPodDebugImage)
 }
 
-func TestGetConfigIncludesDefaultNodeShellImage(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore: kubeconfig.NewContextStore(),
-				NodeShellImage:  "registry.example.com/shell:latest",
-			},
-		},
-	}
-
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil)
-	recorder := httptest.NewRecorder()
-
-	c.getConfig(recorder, req)
-
-	var config clientConfig
-
-	err := json.Unmarshal(recorder.Body.Bytes(), &config)
-	require.NoError(t, err)
-	assert.Equal(t, "registry.example.com/shell:latest", config.DefaultNodeShellImage)
-}
-
-func TestGetConfigIncludesDefaultNodeShellNamespace(t *testing.T) {
-	c := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				KubeConfigStore:    kubeconfig.NewContextStore(),
-				NodeShellNamespace: "custom-ns",
-			},
-		},
-	}
-
-	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil)
-	recorder := httptest.NewRecorder()
-
-	c.getConfig(recorder, req)
-
-	var config clientConfig
-
-	err := json.Unmarshal(recorder.Body.Bytes(), &config)
-	require.NoError(t, err)
-	assert.Equal(t, "custom-ns", config.DefaultNodeShellNamespace)
-}
-
 //nolint:gocognit,funlen
 func TestDynamicClusters(t *testing.T) {
 	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != "true" {
@@ -386,10 +342,6 @@ func TestDynamicClusters(t *testing.T) {
 }
 
 func TestDynamicClustersKubeConfig(t *testing.T) {
-	t.Setenv("HOME", t.TempDir())
-	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
-	t.Setenv("APPDATA", t.TempDir())
-
 	kubeConfigByte, err := os.ReadFile("./headlamp_testdata/kubeconfig")
 	require.NoError(t, err)
 
@@ -1127,11 +1079,8 @@ func TestHandleNodeDrainUsesRequestedClusterCookieForCustomNamedContext(t *testi
 	})
 	require.NoError(t, err)
 	req.AddCookie(&http.Cookie{
-		Name:     "headlamp-auth-" + customCluster + ".0",
-		Value:    testToken,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		Name:  "headlamp-auth-" + customCluster + ".0",
+		Value: testToken,
 	})
 
 	rr := httptest.NewRecorder()
@@ -1879,42 +1828,6 @@ func TestOidcCallbackEmptyStateDoesNotLogStaleError(t *testing.T) {
 	require.NotNil(t, stateLog, "expected a log entry for the missing-state branch")
 	assert.Nil(t, stateLog.err,
 		"missing-state log must not carry a stale error from the outer createHeadlampHandler scope")
-}
-
-// TestOidcStateMapEviction verifies that abandoned OIDC state entries (where
-// the user never completes the callback) are evicted from oauthRequestMap once
-// they exceed OidcStateTTL, preventing unbounded memory growth.
-// It calls evictExpiredOidcStates directly so it exercises the same production
-// code path used by the background goroutine in createHeadlampHandler.
-func TestOidcStateMapEviction(t *testing.T) {
-	oauthRequestMap := make(map[string]*OauthConfig)
-
-	var oauthMu sync.Mutex
-
-	// Insert a stale entry that is already past the TTL.
-	staleState := "stale-state-token"
-	oauthRequestMap[staleState] = &OauthConfig{
-		Cluster:   "test-cluster",
-		createdAt: time.Now().Add(-OidcStateTTL - time.Second),
-	}
-
-	// Insert a fresh entry that should survive eviction.
-	freshState := "fresh-state-token"
-	oauthRequestMap[freshState] = &OauthConfig{
-		Cluster:   "test-cluster",
-		createdAt: time.Now(),
-	}
-
-	// Call the production helper — same function used by the goroutine.
-	evictExpiredOidcStates(oauthRequestMap, &oauthMu, OidcStateTTL)
-
-	oauthMu.Lock()
-	_, stalePresent := oauthRequestMap[staleState]
-	_, freshPresent := oauthRequestMap[freshState]
-	oauthMu.Unlock()
-
-	assert.False(t, stalePresent, "stale OIDC state entry should have been evicted")
-	assert.True(t, freshPresent, "fresh OIDC state entry should still be present")
 }
 
 func TestOIDCTokenRefreshMiddleware(t *testing.T) {
@@ -3039,11 +2952,8 @@ func TestOidcUseCookieLogic(t *testing.T) {
 	assert.NoError(t, err)
 
 	req.AddCookie(&http.Cookie{
-		Name:     cookieName,
-		Value:    testToken,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		Name:  cookieName,
+		Value: testToken,
 	})
 
 	setTokenFromCookie(req, clusterName)
@@ -3111,11 +3021,8 @@ func TestHelmRouteReleaseHandlerTokenExtraction(t *testing.T) {
 	require.NoError(t, err)
 
 	req.AddCookie(&http.Cookie{
-		Name:     cookieName,
-		Value:    testToken,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		Name:  cookieName,
+		Value: testToken,
 	})
 
 	w := httptest.NewRecorder()
@@ -3186,11 +3093,8 @@ func TestHelmRouteReleaseHandlerUsesServiceAccountToken(t *testing.T) {
 	require.NoError(t, err)
 	req.Header.Set("Authorization", "Bearer proxy-token")
 	req.AddCookie(&http.Cookie{
-		Name:     "headlamp-auth-" + clusterName + ".0",
-		Value:    "cookie-token",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		Name:  "headlamp-auth-" + clusterName + ".0",
+		Value: "cookie-token",
 	})
 
 	w := httptest.NewRecorder()
@@ -3254,7 +3158,7 @@ func TestHelmRouteRepositoryHandlerUsesServiceAccountToken(t *testing.T) {
 	assert.Empty(t, capturedAuthHeader)
 }
 
-func TestClusterRequestHandlerUsesServiceAccountToken(t *testing.T) { //nolint:funlen // test scaffolding.
+func TestClusterRequestHandlerUsesServiceAccountToken(t *testing.T) {
 	const cluster, proxyAuthTokenHeader = "main", "Impersonate-User"
 
 	tokenFile := writeTestTokenFile(t)
@@ -3303,11 +3207,8 @@ func TestClusterRequestHandlerUsesServiceAccountToken(t *testing.T) { //nolint:f
 	req.Header.Set("Authorization", "Bearer proxy-token")
 	req.Header.Set(proxyAuthTokenHeader, "kind-header-leak")
 	req.AddCookie(&http.Cookie{
-		Name:     "headlamp-auth-main.0",
-		Value:    "cookie-token",
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
+		Name:  "headlamp-auth-main.0",
+		Value: "cookie-token",
 	})
 
 	rr := httptest.NewRecorder()

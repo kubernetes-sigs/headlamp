@@ -295,7 +295,7 @@ func (c *Connection) updateStatus(state ConnectionState, err error) {
 	if writeErr != nil {
 		if !websocket.IsCloseError(writeErr, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 			logger.Log(logger.LevelError,
-				map[string]string{logFieldClusterID: c.ClusterID},
+				map[string]string{"clusterID": c.ClusterID},
 				writeErr,
 				"writing status message to client")
 		}
@@ -324,7 +324,7 @@ func (c *Connection) writeStatusLocked() error {
 
 	jsonData, jsonErr := json.Marshal(statusData)
 	if jsonErr != nil {
-		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: c.ClusterID}, jsonErr, "marshaling status message")
+		logger.Log(logger.LevelError, map[string]string{"clusterID": c.ClusterID}, jsonErr, "marshaling status message")
 
 		return jsonErr
 	}
@@ -383,13 +383,13 @@ func (m *Multiplexer) establishClusterConnection(
 ) (*Connection, error) {
 	clusterContext, err := m.getClusterContextWithFallback(clusterID, userID)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: clusterID}, err, "getting cluster config")
+		logger.Log(logger.LevelError, map[string]string{"clusterID": clusterID}, err, "getting cluster config")
 		return nil, err
 	}
 
 	config, err := clusterContext.RESTConfig()
 	if err != nil {
-		return nil, fmt.Errorf("getting REST config: %w", err)
+		return nil, fmt.Errorf("getting REST config: %v", err)
 	}
 
 	authToken, err := m.clusterConnectionToken(clusterContext, token)
@@ -408,7 +408,7 @@ func (m *Multiplexer) establishClusterConnection(
 	if err != nil {
 		connection.updateStatus(StateError, err)
 
-		return nil, fmt.Errorf("failed to get TLS config: %w", err)
+		return nil, fmt.Errorf("failed to get TLS config: %v", err)
 	}
 
 	conn, err := m.dialWebSocket(wsURL, tlsConfig, config.Host, authToken)
@@ -441,7 +441,7 @@ func (m *Multiplexer) getClusterConfigWithFallback(clusterID, userID string) (*r
 
 	config, err := clusterContext.RESTConfig()
 	if err != nil {
-		return nil, fmt.Errorf("getting REST config: %w", err)
+		return nil, fmt.Errorf("getting REST config: %v", err)
 	}
 
 	return config, nil
@@ -456,7 +456,7 @@ func (m *Multiplexer) getClusterContextWithFallback(clusterID, userID string) (*
 
 		clusterContext, err = m.getClusterContext(combinedKey)
 		if err != nil {
-			return nil, fmt.Errorf("getting cluster config: %w", err)
+			return nil, fmt.Errorf("getting cluster config: %v", err)
 		}
 	}
 
@@ -547,7 +547,7 @@ func (m *Multiplexer) dialWebSocket(
 			defer func() { _ = resp.Body.Close() }()
 		}
 
-		return nil, fmt.Errorf("dialing WebSocket: %w", err)
+		return nil, fmt.Errorf("dialing WebSocket: %v", err)
 	}
 
 	return conn, nil
@@ -566,10 +566,10 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 			return
 		case <-heartbeat.C:
 			if err := conn.WSConn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", err))
+				conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %v", err))
 
 				if newConn, err := m.reconnect(conn); err != nil {
-					logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err, "reconnecting to cluster")
+					logger.Log(logger.LevelError, map[string]string{"clusterID": conn.ClusterID}, err, "reconnecting to cluster")
 				} else {
 					conn = newConn
 				}
@@ -597,7 +597,7 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		conn.Token,
 	)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err, "reconnecting to cluster")
+		logger.Log(logger.LevelError, map[string]string{"clusterID": conn.ClusterID}, err, "reconnecting to cluster")
 
 		return nil, err
 	}
@@ -682,7 +682,7 @@ func (m *Multiplexer) processClientMessage(
 
 	token, err := auth.GetTokenFromCookie(r, msg.ClusterID)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: msg.ClusterID}, err, "getting token from cookie")
+		logger.Log(logger.LevelError, map[string]string{"clusterID": msg.ClusterID}, err, "getting token from cookie")
 		m.sendClientError(lockClientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID, err)
 
 		return
@@ -777,7 +777,7 @@ func (m *Multiplexer) getOrCreateConnection(msg Message, clientConn *WSConnLock,
 		if err != nil {
 			logger.Log(
 				logger.LevelError,
-				map[string]string{logFieldClusterID: msg.ClusterID, "UserID": msg.UserID},
+				map[string]string{"clusterID": msg.ClusterID, "UserID": msg.UserID},
 				err,
 				"establishing cluster connection",
 			)
@@ -822,7 +822,7 @@ func (m *Multiplexer) sendClientError(clientConn *WSConnLock, clusterID, path, q
 
 	jsonData, jsonErr := json.Marshal(errorData)
 	if jsonErr != nil {
-		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: clusterID}, jsonErr, "marshaling error message")
+		logger.Log(logger.LevelError, map[string]string{"clusterID": clusterID}, jsonErr, "marshaling error message")
 		return
 	}
 
@@ -838,7 +838,7 @@ func (m *Multiplexer) sendClientError(clientConn *WSConnLock, clusterID, path, q
 	if err := clientConn.WriteJSON(errorMsg); err != nil {
 		logger.Log(
 			logger.LevelError,
-			map[string]string{logFieldClusterID: clusterID},
+			map[string]string{"clusterID": clusterID},
 			err,
 			"writing error message to client",
 		)
@@ -848,9 +848,7 @@ func (m *Multiplexer) sendClientError(clientConn *WSConnLock, clusterID, path, q
 // handleConnectionError handles errors that occur when establishing a connection.
 func (m *Multiplexer) handleConnectionError(clientConn *WSConnLock, msg Message, err error) {
 	m.sendClientError(clientConn, msg.ClusterID, msg.Path, msg.Query, msg.UserID, err)
-	logger.Log(logger.LevelError,
-		map[string]string{logFieldClusterID: msg.ClusterID}, err,
-		"establishing cluster connection")
+	logger.Log(logger.LevelError, map[string]string{"clusterID": msg.ClusterID}, err, "establishing cluster connection")
 }
 
 // writeMessageToCluster writes a message to the cluster WebSocket connection.
@@ -860,7 +858,7 @@ func (m *Multiplexer) writeMessageToCluster(conn *Connection, data []byte) error
 		conn.updateStatus(StateError, err)
 		logger.Log(
 			logger.LevelError,
-			map[string]string{logFieldClusterID: conn.ClusterID},
+			map[string]string{"clusterID": conn.ClusterID},
 			err,
 			"writing message to cluster",
 		)
@@ -900,8 +898,8 @@ func (m *Multiplexer) processClusterMessage(
 		if websocket.IsUnexpectedCloseError(err, websocket.CloseNormalClosure, websocket.CloseGoingAway) {
 			logger.Log(logger.LevelError,
 				map[string]string{
-					logFieldClusterID: conn.ClusterID,
-					"userID":          conn.UserID,
+					"clusterID": conn.ClusterID,
+					"userID":    conn.UserID,
 				},
 				err,
 				"reading cluster message",
@@ -1080,7 +1078,7 @@ func (m *Multiplexer) cleanupConnections() {
 func (m *Multiplexer) getClusterContext(clusterID string) (*kubeconfig.Context, error) {
 	ctxtProxy, err := m.kubeConfigStore.GetContext(clusterID)
 	if err != nil {
-		return nil, fmt.Errorf("getting context: %w", err)
+		return nil, fmt.Errorf("getting context: %v", err)
 	}
 
 	return ctxtProxy, nil

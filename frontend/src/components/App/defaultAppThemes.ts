@@ -16,7 +16,7 @@
 
 import { AppTheme } from '../../lib/AppTheme';
 
-export const headlampClassicLightTheme: AppTheme = {
+const headlampClassicLightTheme: AppTheme = {
   name: 'Headlamp Classic',
   primary: '#222',
   secondary: '#eaeaea',
@@ -38,7 +38,7 @@ export const headlampClassicLightTheme: AppTheme = {
 };
 
 export const darkTheme: AppTheme = {
-  name: 'Dark',
+  name: 'dark',
   base: 'dark',
   primary: '#ffffff',
   secondary: '#1b1a19',
@@ -66,7 +66,7 @@ export const darkTheme: AppTheme = {
 };
 
 export const lightTheme: AppTheme = {
-  name: 'Light',
+  name: 'light',
   primary: '#414141',
   secondary: '#eff2f5',
   text: {

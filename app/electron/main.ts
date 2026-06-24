@@ -52,13 +52,7 @@ import {
   PluginManager,
 } from './plugin-management';
 import { addRunCmdConsent, removeRunCmdConsent, runScript, setupRunCmdHandlers } from './runCmd';
-import {
-  cleanupHeadlampTray,
-  createHeadlampTray,
-  isHeadlampTrayCreated,
-  isTrayIconEnabled,
-  setTrayIconEnabled,
-} from './tray';
+import { cleanupHeadlampTray, createHeadlampTray } from './tray';
 import windowSize from './windowSize';
 
 if (process.env.APPIMAGE) {
@@ -143,11 +137,6 @@ const args = yargs(hideBin(process.argv))
       type: 'number',
       default: 4466,
     },
-    'remote-debugging-port': {
-      describe:
-        'Enable Chromium remote debugging on the given port (defaults to 9222 if no port is provided)',
-      type: 'number',
-    },
   })
   .positional('kubeconfig', {
     describe:
@@ -156,17 +145,6 @@ const args = yargs(hideBin(process.argv))
   })
   .help()
   .parseSync();
-
-// Enable Chromium remote debugging only when --remote-debugging-port is explicitly
-// passed (e.g. via the `*:debug` npm scripts). This lets developers attach tooling
-// such as chrome-devtools-mcp to the app. It is opt-in on purpose: enabling it by
-// default would expose an unauthenticated debugging endpoint in production builds.
-if ('remote-debugging-port' in args) {
-  const requestedPort = Number(args['remote-debugging-port']);
-  const remoteDebuggingPort =
-    Number.isInteger(requestedPort) && requestedPort > 0 ? requestedPort : 9222;
-  app.commandLine.appendSwitch('remote-debugging-port', `${remoteDebuggingPort}`);
-}
 
 const isHeadlessMode = args.headless === true;
 let disableGPU = args['disable-gpu'] === true;
@@ -1728,17 +1706,6 @@ function startElectron() {
       mainWindow?.webContents.send('backend-port', actualPort);
     });
 
-    ipcMain.on('request-tray-icon', () => {
-      mainWindow?.webContents.send('tray-icon', isTrayIconEnabled());
-    });
-
-    ipcMain.on('set-tray-icon', (event: IpcMainEvent, enabled: boolean) => {
-      if (typeof enabled !== 'boolean') {
-        return;
-      }
-      applyTrayIconSetting(enabled);
-    });
-
     setupRunCmdHandlers(mainWindow, ipcMain);
 
     new PluginManagerEventListeners().setupEventHandlers();
@@ -1807,8 +1774,9 @@ function startElectron() {
     app.disableHardwareAcceleration();
   }
 
-  function buildTrayOptions() {
-    return {
+  app.on('ready', async () => {
+    await Promise.all([startServerIfNeeded(), createWindow()]);
+    hasTray = createHeadlampTray({
       backendToken,
       createWindow,
       getBackendPort: () => actualPort,
@@ -1818,27 +1786,7 @@ function startElectron() {
         isQuitting = true;
         app.quit();
       },
-    };
-  }
-
-  /**
-   * Applies the system tray preference at runtime: persists it, then creates or
-   * removes the tray so the change takes effect without restarting the app.
-   */
-  function applyTrayIconSetting(enabled: boolean) {
-    setTrayIconEnabled(enabled);
-
-    if (enabled && !isHeadlampTrayCreated()) {
-      hasTray = createHeadlampTray(buildTrayOptions());
-    } else if (!enabled && isHeadlampTrayCreated()) {
-      cleanupHeadlampTray();
-      hasTray = false;
-    }
-  }
-
-  app.on('ready', async () => {
-    await Promise.all([startServerIfNeeded(), createWindow()]);
-    hasTray = createHeadlampTray(buildTrayOptions());
+    });
   });
   app.on('activate', async function () {
     if (mainWindow === null) {

@@ -29,22 +29,12 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-const statelessContextKeySep = "\x00"
-
-func statelessContextKey(clusterName, userID string) string {
-	if userID == "" {
-		return clusterName
-	}
-
-	return clusterName + statelessContextKeySep + userID
-}
-
 // MarshalCustomObject marshals the runtime.Unknown object into a CustomObject.
 func MarshalCustomObject(info runtime.Object, contextName string) (kubeconfig.CustomObject, error) {
 	// Convert the runtime.Unknown object to a byte slice
 	unknownBytes, err := json.Marshal(info)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{logFieldCluster: contextName},
+		logger.Log(logger.LevelError, map[string]string{"cluster": contextName},
 			err, "unmarshaling context data")
 
 		return kubeconfig.CustomObject{}, err
@@ -55,7 +45,7 @@ func MarshalCustomObject(info runtime.Object, contextName string) (kubeconfig.Cu
 
 	err = json.Unmarshal(unknownBytes, &customObj)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{logFieldCluster: contextName},
+		logger.Log(logger.LevelError, map[string]string{"cluster": contextName},
 			err, "unmarshaling into CustomObject")
 
 		return kubeconfig.CustomObject{}, err
@@ -93,10 +83,14 @@ func (c *HeadlampConfig) setKeyInCache(key string, context kubeconfig.Context) e
 // Handles stateless cluster requests if kubeconfig is set and dynamic clusters are enabled.
 // It returns context key which is used to store the context in the cache.
 func (c *HeadlampConfig) handleStatelessReq(r *http.Request, kubeConfig string) (string, error) {
+	var key string
+
 	var contextKey string
 
 	userID := r.Header.Get("X-HEADLAMP-USER-ID")
-	targetClusterName := mux.Vars(r)["clusterName"]
+	clusterName := mux.Vars(r)["clusterName"]
+	// unique key for the context
+	key = clusterName + userID
 
 	contexts, contextLoadErrors, err := kubeconfig.LoadContextsFromBase64String(kubeConfig, kubeconfig.DynamicCluster)
 	if len(contextLoadErrors) > 0 {
@@ -123,35 +117,31 @@ func (c *HeadlampConfig) handleStatelessReq(r *http.Request, kubeConfig string) 
 	}
 
 	for _, context := range contexts {
-		effectiveContextName := context.Name
-
 		info := context.KubeContext.Extensions["headlamp_info"]
 		if info != nil {
 			customObj, err := MarshalCustomObject(info, context.Name)
 			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{logFieldCluster: context.Name},
+				logger.Log(logger.LevelError, map[string]string{"cluster": context.Name},
 					err, "marshaling custom object")
 
 				return "", err
 			}
 
+			// Check if the CustomName field is present
 			if customObj.CustomName != "" {
-				effectiveContextName = customObj.CustomName
+				key = customObj.CustomName + userID
 			}
-		}
-
-		if effectiveContextName != targetClusterName {
-			// Keep only the context requested by the route parameter.
+		} else if context.Name != clusterName {
+			// Skip contexts that don't match the requested cluster name
 			continue
 		}
 
-		cacheKey := statelessContextKey(effectiveContextName, userID)
-
-		if err := c.setKeyInCache(cacheKey, context); err != nil {
+		// check context is present
+		if err := c.setKeyInCache(key, context); err != nil {
 			return "", err
 		}
 
-		contextKey = cacheKey
+		contextKey = key
 	}
 
 	return contextKey, nil
@@ -187,9 +177,7 @@ func (c *HeadlampConfig) parseKubeConfig(w http.ResponseWriter, r *http.Request)
 	}
 
 	contexts, setupErrors := parseClusterFromKubeConfig(kubeconfigs)
-	if len(setupErrors) > 0 && len(contexts) == 0 {
-		// Only fail the request when NO clusters could be parsed at all.
-		// Partial failures (some entries invalid, others valid) still return the valid clusters.
+	if len(setupErrors) > 0 {
 		logger.Log(logger.LevelError, nil, setupErrors, "setting up contexts from kubeconfig")
 
 		http.Error(w, "setting up contexts from kubeconfig", http.StatusBadRequest)
@@ -213,13 +201,15 @@ func (c *HeadlampConfig) parseKubeConfig(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-// websocketConnContextKey extracts the user identity from websocket subprotocols
-// and builds the same cache key shape used by HTTP stateless requests.
+// websocketConnContextKey handles websocket requests. It returns context key
+// which is used to store the context in the cache. The context key is
+// unique for each user. It is found in the "base64url.headlamp.authorization.k8s.io" protocol
+// of the websocket.
 func websocketConnContextKey(r *http.Request, clusterName string) string {
 	// Expected number of submatches in the regular expression
 	const expectedSubmatches = 2
 
-	var userID string
+	var contextKey string
 	// Define a regular expression pattern for base64url.headlamp.authorization.k8s.io
 	pattern := `base64url\.headlamp\.authorization\.k8s\.io\.([a-zA-Z0-9_-]+)`
 
@@ -231,7 +221,10 @@ func websocketConnContextKey(r *http.Request, clusterName string) string {
 
 	// Check if a match is found
 	if len(matches) >= expectedSubmatches {
-		userID = matches[1]
+		// Extract the value after the specified prefix
+		contextKey = clusterName + matches[1]
+	} else {
+		contextKey = clusterName
 	}
 
 	// Remove the base64url.headlamp.authorization.k8s.io subprotocol from the list
@@ -254,11 +247,7 @@ func websocketConnContextKey(r *http.Request, clusterName string) string {
 	// Add the updated Sec-Websocket-Protocol header
 	r.Header.Add("Sec-Websocket-Protocol", updatedProtocol)
 
-	if userID == "" {
-		return clusterName
-	}
-
-	return statelessContextKey(clusterName, userID)
+	return contextKey
 }
 
 // getContextKeyForRequest handles every requests. It returns context key

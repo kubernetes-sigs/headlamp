@@ -184,14 +184,6 @@
           "type": "string",
           "description": "Default image to use when creating pod debug containers"
         },
-        "nodeShellImage": {
-          "type": "string",
-          "description": "Default image to use when creating node shell pods"
-        },
-        "nodeShellNamespace": {
-          "type": "string",
-          "description": "Default namespace to use when creating node shell pods"
-        },
         "unsafeUseServiceAccountToken": {
           "type": "boolean",
           "description": "UNSAFE: authenticate every user as the pod's service account in-cluster mode"
@@ -261,18 +253,6 @@
         "pluginsDir": {
           "type": "string",
           "description": "Directory to load plugins from"
-        },
-        "staticPlugins": {
-          "type": "object",
-          "description": "Bundled (static) plugins shipped in the Headlamp image, such as the Prometheus plugin",
-          "properties": {
-            "enabled": {
-              "type": "boolean",
-              "description": "Serve the bundled static plugins. Set to false to disable them (e.g. the \"Show Prometheus metrics\" button)",
-              "default": true
-            }
-          },
-          "additionalProperties": false
         },
          "tlsCertPath": {
           "type": "string",
@@ -362,124 +342,9 @@
           "value": {
             "type": "string",
             "description": "Value of the environment variable"
-          },
-          "valueFrom": {
-            "type": "object",
-            "description": "Source for the environment variable's value",
-            "properties": {
-              "secretKeyRef": {
-                "type": "object",
-                "description": "Selects a key of a Secret",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "description": "Name of the Secret"
-                  },
-                  "key": {
-                    "type": "string",
-                    "description": "Key of the Secret to select from"
-                  },
-                  "optional": {
-                    "type": "boolean",
-                    "description": "Specify whether the Secret or its key must be defined"
-                  }
-                },
-                "required": ["key"],
-                "additionalProperties": false
-              },
-              "configMapKeyRef": {
-                "type": "object",
-                "description": "Selects a key of a ConfigMap",
-                "properties": {
-                  "name": {
-                    "type": "string",
-                    "description": "Name of the ConfigMap"
-                  },
-                  "key": {
-                    "type": "string",
-                    "description": "Key of the ConfigMap to select from"
-                  },
-                  "optional": {
-                    "type": "boolean",
-                    "description": "Specify whether the ConfigMap or its key must be defined"
-                  }
-                },
-                "required": ["key"],
-                "additionalProperties": false
-              },
-              "fieldRef": {
-                "type": "object",
-                "description": "Selects a field of the pod",
-                "properties": {
-                  "apiVersion": {
-                    "type": "string",
-                    "description": "API version of the schema the fieldPath is written in"
-                  },
-                  "fieldPath": {
-                    "type": "string",
-                    "description": "Path of the field to select in the specified API version"
-                  }
-                },
-                "required": ["fieldPath"],
-                "additionalProperties": false
-              },
-              "resourceFieldRef": {
-                "type": "object",
-                "description": "Selects a resource of the container",
-                "properties": {
-                  "containerName": {
-                    "type": "string",
-                    "description": "Container name to select resources from"
-                  },
-                  "resource": {
-                    "type": "string",
-                    "description": "Resource to select"
-                  },
-                  "divisor": {
-                    "type": "string",
-                    "description": "Output format of the exposed resource"
-                  }
-                },
-                "required": ["resource"],
-                "additionalProperties": false
-              }
-            },
-            "oneOf": [
-              {
-                "required": ["secretKeyRef"],
-                "not": { "anyOf": [{ "required": ["configMapKeyRef"] }, { "required": ["fieldRef"] }, { "required": ["resourceFieldRef"] }] }
-              },
-              {
-                "required": ["configMapKeyRef"],
-                "not": { "anyOf": [{ "required": ["secretKeyRef"] }, { "required": ["fieldRef"] }, { "required": ["resourceFieldRef"] }] }
-              },
-              {
-                "required": ["fieldRef"],
-                "not": { "anyOf": [{ "required": ["secretKeyRef"] }, { "required": ["configMapKeyRef"] }, { "required": ["resourceFieldRef"] }] }
-              },
-              {
-                "required": ["resourceFieldRef"],
-                "not": { "anyOf": [{ "required": ["secretKeyRef"] }, { "required": ["configMapKeyRef"] }, { "required": ["fieldRef"] }] }
-              }
-            ],
-            "additionalProperties": false
           }
         },
-        "required": ["name"],
-        "oneOf": [
-          {
-            "required": ["value"],
-            "not": {
-              "required": ["valueFrom"]
-            }
-          },
-          {
-            "required": ["valueFrom"],
-            "not": {
-              "required": ["value"]
-            }
-          }
-        ],
+        "required": ["name", "value"],
         "additionalProperties": false
       }
     },
@@ -532,10 +397,6 @@
         "port": {
           "type": "integer",
           "description": "Kubernetes Service port"
-        },
-        "appProtocol": {
-          "type": ["string", "null"],
-          "description": "Kubernetes Service port appProtocol (for the main http port)"
         },
         "clusterIP": {
           "type": "string",
