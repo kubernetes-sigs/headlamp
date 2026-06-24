@@ -21,7 +21,15 @@ jobs:
       id-token: write # For fetching an OpenID Connect (OIDC) token
       contents: read
       actions: write # needed to upload artifacts
-    runs-on: windows-2022
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-2022
+          - arch: arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
     steps:
     - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       with:
