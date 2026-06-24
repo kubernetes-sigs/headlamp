@@ -67,9 +67,15 @@ func PurgeCacheForContext(k8scache cache.Cache[string], contextKey string) {
 	}
 }
 
+// clusterNameFromContextKey returns the cluster portion of a Headlamp context key.
+// Stateless keys use "clusterName\x00userID"; clientset cache keys use "clusterName\x00token".
+func clusterNameFromContextKey(contextKey string) string {
+	return strings.SplitN(contextKey, "\x00", 2)[0]
+}
+
 // cleanupRemovedContext drops cached API responses and auth clientsets for a
 // context that is no longer active.
 func cleanupRemovedContext(k8scache cache.Cache[string], contextKey string) {
 	PurgeCacheForContext(k8scache, contextKey)
-	EvictClientsetsForCluster(contextKey)
+	EvictClientsetsForCluster(clusterNameFromContextKey(contextKey))
 }

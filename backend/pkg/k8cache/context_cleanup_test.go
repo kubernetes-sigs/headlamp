@@ -86,6 +86,13 @@ func TestEvictClientsetsForCluster(t *testing.T) {
 }
 
 func TestSyncWatchersPurgesCacheAndClientsetsForRemovedContext(t *testing.T) {
+	const (
+		clusterName         = "removed-cluster"
+		removedContextKey   = clusterName + "\x00user1"
+		activeContextKey    = "active-cluster\x00user2"
+		removedCacheDataKey = "+pods+default+" + removedContextKey
+	)
+
 	k8cache.ResetRegistries()
 	t.Cleanup(func() { k8cache.ResetRegistries() })
 
@@ -95,8 +102,8 @@ func TestSyncWatchersPurgesCacheAndClientsetsForRemovedContext(t *testing.T) {
 	k8scache := cache.New[string]()
 	ctx := context.Background()
 
-	require.NoError(t, k8scache.Set(ctx, "+pods+default+removed-ctx", "stale-data"))
-	k8cache.SeedClientsetCache("removed-ctx\x00token", time.Now())
+	require.NoError(t, k8scache.Set(ctx, removedCacheDataKey, "stale-data"))
+	k8cache.SeedClientsetCache(clusterName+"\x00token", time.Now())
 
 	canceled := make(map[string]bool)
 
@@ -105,21 +112,21 @@ func TestSyncWatchersPurgesCacheAndClientsetsForRemovedContext(t *testing.T) {
 	_, cancel := context.WithCancel(context.Background())
 	wrappedCancel := func() {
 		mu.Lock()
-		canceled["removed-ctx"] = true
+		canceled[removedContextKey] = true
 		mu.Unlock()
 		cancel()
 	}
 
-	k8cache.StoreTestContextCancel("removed-ctx", wrappedCancel)
-	k8cache.StoreTestRegistry("active-ctx", func() {})
+	k8cache.StoreTestContextCancel(removedContextKey, wrappedCancel)
+	k8cache.StoreTestRegistry(activeContextKey, func() {})
 
-	k8cache.SyncWatchers(k8scache, []string{"active-ctx"})
+	k8cache.SyncWatchers(k8scache, []string{activeContextKey})
 
 	mu.Lock()
-	assert.True(t, canceled["removed-ctx"])
+	assert.True(t, canceled[removedContextKey])
 	mu.Unlock()
 
-	_, err := k8scache.Get(ctx, "+pods+default+removed-ctx")
+	_, err := k8scache.Get(ctx, removedCacheDataKey)
 	assert.Error(t, err)
 	assert.Equal(t, 0, k8cache.ClientsetCacheLen())
 }
