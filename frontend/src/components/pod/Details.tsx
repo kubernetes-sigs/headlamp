@@ -78,7 +78,10 @@ export function PodLogViewer(props: PodLogViewerProps) {
   const [container, setContainer] = React.useState(() =>
     resolveContainerName(item, initialContainer)
   );
-  const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
+  const [showPrevious, setShowPrevious] = useLocalStorageState<boolean>(
+    `headlamp.logs.showPrevious.${item.cluster}.${item.metadata.namespace}.${item.metadata.name}`,
+    false
+  );
   const [showTimestamps, setShowTimestamps] = useLocalStorageState<boolean>(
     'headlamp.logs.showTimestamps',
     true
@@ -90,7 +93,8 @@ export function PodLogViewer(props: PodLogViewerProps) {
   );
   const [formatJsonValues, setFormatJsonValues] = React.useState<boolean>(false);
   const [hasJsonLogs, setHasJsonLogs] = React.useState<boolean>(false);
-  const [lines, setLines] = React.useState<number>(100);
+  const [lines, _setLines] = useLocalStorageState<number>('headlamp.logs.lines', 100);
+  const setLines = (value: number | string) => _setLines(() => Number(value));
   const [logs, setLogs] = React.useState<{ logs: string[]; lastLineShown: number }>({
     logs: [],
     lastLineShown: -1,
