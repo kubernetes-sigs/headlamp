@@ -283,16 +283,54 @@ export class PluginManager {
         fs.mkdirSync(destinationFolder, { recursive: true });
       }
 
-      // remove the existing plugin folder
-      fs.rmSync(pluginDir, { recursive: true, force: true });
+      const backupDir = `${pluginDir}.backup`;
+      let backupCreated = false;
 
-      // create the plugin folder
-      fs.mkdirSync(pluginDir, { recursive: true });
+      try {
+        if (fs.existsSync(pluginDir)) {
+          if (fs.existsSync(backupDir)) {
+            fs.rmSync(backupDir, { recursive: true, force: true });
+          }
+          fs.renameSync(pluginDir, backupDir);
+          backupCreated = true;
+        }
 
-      // move the plugin to the destination folder
-      moveDirs(tempFolder, pluginDir);
-      if (progressCallback) {
-        progressCallback({ type: 'success', message: 'Plugin Updated' });
+        // move the plugin to the destination folder
+        moveDirs(tempFolder, pluginDir);
+
+        if (backupCreated && fs.existsSync(backupDir)) {
+          fs.rmSync(backupDir, { recursive: true, force: true });
+        }
+
+        if (progressCallback) {
+          progressCallback({ type: 'success', message: 'Plugin Updated' });
+        }
+      } catch (err) {
+        if (backupCreated && fs.existsSync(backupDir)) {
+          try {
+            if (fs.existsSync(pluginDir)) {
+              fs.rmSync(pluginDir, { recursive: true, force: true });
+            }
+            fs.renameSync(backupDir, pluginDir);
+          } catch (rollbackErr) {
+            console.error('Failed to restore backup directory during rollback:', rollbackErr);
+          }
+        }
+        try {
+          if (fs.existsSync(tempFolder)) {
+            fs.rmSync(tempFolder, { recursive: true, force: true });
+          }
+          const tempParent = path.dirname(tempFolder);
+          if (
+            fs.existsSync(tempParent) &&
+            path.basename(tempParent).startsWith('headlamp-plugin-temp-')
+          ) {
+            fs.rmSync(tempParent, { recursive: true, force: true });
+          }
+        } catch (cleanupErr) {
+          console.error('Failed to clean up temporary directory:', cleanupErr);
+        }
+        throw err;
       }
     } catch (e) {
       if (progressCallback) {
