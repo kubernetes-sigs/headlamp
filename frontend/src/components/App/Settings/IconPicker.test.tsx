@@ -26,8 +26,8 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('IconPicker Component', () => {
-  let onClose: ReturnType<typeof vi.fn>;
-  let onSelectIcon: ReturnType<typeof vi.fn>;
+  let onClose: () => void;
+  let onSelectIcon: (icon: string) => void;
 
   beforeEach(() => {
     onClose = vi.fn();
