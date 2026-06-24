@@ -34,9 +34,14 @@ function loadInitialState(): PluginConfigState {
     return {};
   }
   try {
-    return JSON.parse(localStorage.getItem(PLUGIN_CONFIG_KEY) || '{}');
+    const parsed: unknown = JSON.parse(localStorage.getItem(PLUGIN_CONFIG_KEY) || '{}');
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      console.warn('Stored plugin configs are not an object, falling back to empty:', parsed);
+      return {};
+    }
+    return parsed as PluginConfigState;
   } catch (error) {
-    console.error('Failed to parse stored plugin configs, falling back to empty:', error);
+    console.warn('Failed to parse stored plugin configs, falling back to empty:', error);
     return {};
   }
 }

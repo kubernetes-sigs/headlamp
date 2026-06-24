@@ -23,7 +23,7 @@ describe('plugin slices module-load state', () => {
   beforeEach(() => {
     vi.resetModules();
     localStorage.clear();
-    vi.spyOn(console, 'error').mockImplementation(() => {});
+    vi.spyOn(console, 'warn').mockImplementation(() => {});
   });
 
   afterEach(() => {
@@ -37,7 +37,17 @@ describe('plugin slices module-load state', () => {
     const state = reducer(undefined, { type: '@@INIT' });
 
     expect(state.pluginSettings).toEqual([]);
-    expect(console.error).toHaveBeenCalled();
+    expect(console.warn).toHaveBeenCalled();
+  });
+
+  it('pluginsSlice falls back to an empty array when stored settings are not an array', async () => {
+    localStorage.setItem('headlampPluginSettings', '{"not":"an array"}');
+
+    const { default: reducer } = await import('./pluginsSlice');
+    const state = reducer(undefined, { type: '@@INIT' });
+
+    expect(state.pluginSettings).toEqual([]);
+    expect(console.warn).toHaveBeenCalled();
   });
 
   it('pluginConfigSlice falls back to an empty object when stored configs are invalid JSON', async () => {
@@ -47,14 +57,34 @@ describe('plugin slices module-load state', () => {
     const state = reducer(undefined, { type: '@@INIT' });
 
     expect(state).toEqual({});
-    expect(console.error).toHaveBeenCalled();
+    expect(console.warn).toHaveBeenCalled();
+  });
+
+  it('pluginConfigSlice falls back to an empty object when stored configs are not an object', async () => {
+    localStorage.setItem('pluginConfigs', '["not","an object"]');
+
+    const { default: reducer } = await import('./pluginConfigSlice');
+    const state = reducer(undefined, { type: '@@INIT' });
+
+    expect(state).toEqual({});
+    expect(console.warn).toHaveBeenCalled();
+  });
+
+  it('pluginConfigSlice falls back to an empty object when stored configs are null', async () => {
+    localStorage.setItem('pluginConfigs', 'null');
+
+    const { default: reducer } = await import('./pluginConfigSlice');
+    const state = reducer(undefined, { type: '@@INIT' });
+
+    expect(state).toEqual({});
+    expect(console.warn).toHaveBeenCalled();
   });
 
   it('slices fall back to defaults when localStorage is unavailable at import time', async () => {
-    const originalLocalStorage = globalThis.localStorage;
     // Simulate a non-browser / pre-render environment where localStorage is missing.
-    // @ts-expect-error -- intentionally removing localStorage for this test.
-    delete globalThis.localStorage;
+    // Stubbing is more reliable than `delete` since jsdom's localStorage can be
+    // non-configurable.
+    vi.stubGlobal('localStorage', undefined);
 
     try {
       const { default: pluginsReducer } = await import('./pluginsSlice');
@@ -63,7 +93,7 @@ describe('plugin slices module-load state', () => {
       expect(pluginsReducer(undefined, { type: '@@INIT' }).pluginSettings).toEqual([]);
       expect(pluginConfigReducer(undefined, { type: '@@INIT' })).toEqual({});
     } finally {
-      globalThis.localStorage = originalLocalStorage;
+      vi.unstubAllGlobals();
     }
   });
 });

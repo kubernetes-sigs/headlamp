@@ -137,9 +137,14 @@ function loadPluginSettings(): PluginInfo[] {
     return [];
   }
   try {
-    return JSON.parse(localStorage.getItem('headlampPluginSettings') || '[]');
+    const parsed: unknown = JSON.parse(localStorage.getItem('headlampPluginSettings') || '[]');
+    if (!Array.isArray(parsed)) {
+      console.warn('Stored plugin settings are not an array, falling back to empty:', parsed);
+      return [];
+    }
+    return parsed as PluginInfo[];
   } catch (error) {
-    console.error('Failed to parse stored plugin settings, falling back to empty:', error);
+    console.warn('Failed to parse stored plugin settings, falling back to empty:', error);
     return [];
   }
 }
