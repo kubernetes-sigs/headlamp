@@ -26,6 +26,7 @@ import Select from '@mui/material/Select';
 import { styled } from '@mui/material/styles';
 import Switch from '@mui/material/Switch';
 import { Terminal as XTerminal } from '@xterm/xterm';
+import { t } from 'i18next';
 import { useSnackbar } from 'notistack';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -686,7 +687,7 @@ export function launchWorkloadLogs(
   }
   Activity.launch({
     id: 'logs-' + item.metadata.uid,
-    title: 'Logs: ' + item.metadata.name,
+    title: t('glossary|Logs: {{ itemName }}', { itemName: item.metadata.name }),
     icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
     cluster: item.cluster,
     location: 'full',
