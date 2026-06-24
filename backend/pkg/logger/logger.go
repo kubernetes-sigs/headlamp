@@ -75,6 +75,29 @@ func Init(loglevel string) {
 		Msg("Log level set from HEADLAMP_CONFIG_LOG_LEVEL")
 }
 
+var (
+	baseLogger      = zlog.Logger
+	baseLoggerMutex sync.RWMutex
+)
+
+// SetBaseLoggerForTest sets the base logger for testing and returns the previous one.
+func SetBaseLoggerForTest(l zerolog.Logger) zerolog.Logger {
+	baseLoggerMutex.Lock()
+	defer baseLoggerMutex.Unlock()
+
+	old := baseLogger
+	baseLogger = l
+
+	return old
+}
+
+func getBaseLogger() zerolog.Logger {
+	baseLoggerMutex.RLock()
+	defer baseLoggerMutex.RUnlock()
+
+	return baseLogger
+}
+
 // Log logs the message, source file, and line number at the specified level.
 func Log(level uint, str map[string]string, err interface{}, msg string) {
 	logFuncMutex.RLock()
@@ -92,15 +115,17 @@ func Log(level uint, str map[string]string, err interface{}, msg string) {
 func log(level uint, str map[string]string, err interface{}, msg string) {
 	var event *zerolog.Event
 
+	l := getBaseLogger()
+
 	switch level {
 	case LevelInfo:
-		event = zlog.Info()
+		event = l.Info()
 	case LevelWarn:
-		event = zlog.Warn()
+		event = l.Warn()
 	case LevelError:
-		event = zlog.Error()
+		event = l.Error()
 	default:
-		event = zlog.Info()
+		event = l.Info()
 	}
 
 	for k, v := range str {
