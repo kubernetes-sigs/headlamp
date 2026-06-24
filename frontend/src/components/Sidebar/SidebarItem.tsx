@@ -148,10 +148,13 @@ const SidebarItemBase = memo((props: SidebarItemProps & { clusters?: string[] })
               component="ul"
               disablePadding
               sx={{
-                '& .MuiListItem-root': {
+                '&& .MuiListItemButton-root': {
                   fontSize: '.875rem',
                   paddingTop: '2px',
                   paddingBottom: '2px',
+                },
+                '&& .MuiListItemText-primary': {
+                  fontSize: '.875rem',
                 },
               }}
             >
