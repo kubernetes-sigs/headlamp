@@ -30,6 +30,7 @@ import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
+import { encodeBase64 } from '../../helpers/base64';
 import { useClustersConf } from '../../lib/k8s';
 import { setCluster } from '../../lib/k8s/api/v1/clusterApi';
 import { setStatelessConfig } from '../../redux/configSlice';
@@ -373,7 +374,7 @@ function KubeConfigLoader() {
     if (state === Step.ConfigureClusters) {
       function loadClusters() {
         const selectedClusterConfig = configWithSelectedClusters(fileContent, selectedClusters);
-        setCluster({ kubeconfig: btoa(yaml.dump(selectedClusterConfig)) })
+        setCluster({ kubeconfig: encodeBase64(yaml.dump(selectedClusterConfig)) })
           .then(parsedConfig => {
             if (parsedConfig?.clusters?.length > 0) {
               const currentStatelessClusters = store.getState().config.statelessClusters;

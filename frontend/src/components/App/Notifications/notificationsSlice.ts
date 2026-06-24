@@ -16,6 +16,7 @@
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import _ from 'lodash';
+import { encodeBase64 } from '../../../helpers/base64';
 import { getCluster } from '../../../lib/cluster';
 
 /**
@@ -114,7 +115,7 @@ export class Notification implements NotificationIface {
       }
     }
     // generate the id based on the message and the date attached to a notification
-    this.id = btoa(unescape(encodeURIComponent(`${this.date},${this.message},${this.cluster}`)));
+    this.id = encodeBase64(`${this.date},${this.message},${this.cluster}`);
   }
 
   prepareMessage(message: string) {

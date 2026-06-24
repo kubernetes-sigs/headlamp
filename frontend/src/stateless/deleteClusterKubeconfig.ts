@@ -15,6 +15,7 @@
  */
 
 import * as jsyaml from 'js-yaml';
+import { decodeBase64, encodeBase64 } from '../helpers/base64';
 import { KubeconfigObject } from '../lib/k8s/kubeconfig';
 import {
   CursorSuccessEvent,
@@ -66,7 +67,7 @@ export async function deleteClusterKubeconfig(
 
           const row = cursor.value;
           const kubeconfig64 = row.kubeconfig;
-          const parsed = jsyaml.load(atob(kubeconfig64)) as KubeconfigObject;
+          const parsed = jsyaml.load(decodeBase64(kubeconfig64)) as KubeconfigObject;
 
           const { matchingKubeconfig, matchingContext } = findMatchingContexts(
             clusterName,
@@ -129,7 +130,7 @@ export async function deleteClusterKubeconfig(
           }
 
           // save the updated kubeconfig back to indexedDB
-          const updatedKubeconfig64 = btoa(jsyaml.dump(parsed));
+          const updatedKubeconfig64 = encodeBase64(jsyaml.dump(parsed));
           const updatedRow = { ...row, kubeconfig: updatedKubeconfig64 };
 
           const putRequest = store.put(updatedRow);

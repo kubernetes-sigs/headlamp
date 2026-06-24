@@ -15,6 +15,7 @@
  */
 
 import * as jsyaml from 'js-yaml';
+import { decodeBase64, encodeBase64 } from '../helpers/base64';
 import { KubeconfigObject } from '../lib/k8s/kubeconfig';
 import {
   CursorSuccessEvent,
@@ -73,7 +74,7 @@ export function updateStatelessClusterKubeconfig(
 
           const row = cursor.value;
           const rowKubeconfig64 = row.kubeconfig;
-          const parsed = jsyaml.load(atob(rowKubeconfig64)) as KubeconfigObject;
+          const parsed = jsyaml.load(decodeBase64(rowKubeconfig64)) as KubeconfigObject;
 
           const { matchingKubeconfig, matchingContext } = findMatchingContexts(clusterName, parsed);
 
@@ -100,7 +101,7 @@ export function updateStatelessClusterKubeconfig(
           target.context.extensions = extensions;
 
           // now we need to modify the yaml back into this row only
-          const updatedKubeconfig = btoa(jsyaml.dump(parsed));
+          const updatedKubeconfig = encodeBase64(jsyaml.dump(parsed));
           const updatedRow = { ...row, kubeconfig: updatedKubeconfig };
 
           const putRequest = store.put(updatedRow);

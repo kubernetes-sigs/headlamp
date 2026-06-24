@@ -17,6 +17,7 @@
 import jsyaml from 'js-yaml';
 import { KubeconfigObject } from '../lib/k8s/kubeconfig';
 import * as statelessFunctions from '../stateless';
+import { decodeBase64, encodeBase64 } from './base64';
 import { isBackstage } from './isBackstage';
 
 // BACKSTAGE_TOKEN_STORAGE_KEY is the key used to store the backstage token in the local storage
@@ -53,7 +54,7 @@ export function getBackstageToken(): string | null {
 async function storeKubeconfigFromBackstage(kubeconfig: string) {
   try {
     // Decode base64 kubeconfig
-    const decodedKubeconfig = atob(kubeconfig);
+    const decodedKubeconfig = decodeBase64(kubeconfig);
     const parsedKubeconfig = jsyaml.load(decodedKubeconfig) as KubeconfigObject;
 
     // For each context, create a new kubeconfig
@@ -85,7 +86,7 @@ async function storeKubeconfigFromBackstage(kubeconfig: string) {
 
         // Convert back to YAML and base64 encode
         const newKubeconfigYaml = jsyaml.dump(newKubeconfig, { lineWidth: -1 });
-        const newKubeconfigBase64 = btoa(newKubeconfigYaml);
+        const newKubeconfigBase64 = encodeBase64(newKubeconfigYaml);
         await statelessFunctions.findAndReplaceKubeconfig(context.name, newKubeconfigBase64, true);
       }
     );
