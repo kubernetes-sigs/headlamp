@@ -26,55 +26,56 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestLogErrorTypes(t *testing.T) { //nolint:funlen
+var logErrorTypeCases = []struct {
+	name    string
+	err     interface{}
+	wantErr func(t *testing.T, raw map[string]interface{})
+}{
+	{
+		name: "error type",
+		err:  fmt.Errorf("test error"),
+		wantErr: func(t *testing.T, raw map[string]interface{}) {
+			require.Equal(t, "test error", raw["error"])
+		},
+	},
+	{
+		name: "error slice",
+		err:  []error{fmt.Errorf("error1"), fmt.Errorf("error2")},
+		wantErr: func(t *testing.T, raw map[string]interface{}) {
+			require.Equal(t, []interface{}{"error1", "error2"}, raw["error"])
+		},
+	},
+	{
+		name: "int error code",
+		err:  500,
+		wantErr: func(t *testing.T, raw map[string]interface{}) {
+			require.Equal(t, float64(500), raw["error"])
+		},
+	},
+	{
+		name: "string error",
+		err:  "error message",
+		wantErr: func(t *testing.T, raw map[string]interface{}) {
+			require.Equal(t, "error message", raw["error"])
+		},
+	},
+	{
+		name: "interface error",
+		err:  struct{ Msg string }{Msg: "custom"},
+		wantErr: func(t *testing.T, raw map[string]interface{}) {
+			require.Equal(t, map[string]interface{}{"Msg": "custom"}, raw["error"])
+		},
+	},
+}
+
+func TestLogErrorTypes(t *testing.T) {
 	var buf bytes.Buffer
 
 	origBaseLogger := SetBaseLoggerForTest(zerolog.New(&buf))
+
 	t.Cleanup(func() { SetBaseLoggerForTest(origBaseLogger) })
 
-	testErrorCases := []struct {
-		name    string
-		err     interface{}
-		wantErr func(t *testing.T, raw map[string]interface{})
-	}{
-		{
-			name: "error type",
-			err:  fmt.Errorf("test error"),
-			wantErr: func(t *testing.T, raw map[string]interface{}) {
-				require.Equal(t, "test error", raw["error"])
-			},
-		},
-		{
-			name: "error slice",
-			err:  []error{fmt.Errorf("error1"), fmt.Errorf("error2")},
-			wantErr: func(t *testing.T, raw map[string]interface{}) {
-				require.Equal(t, []interface{}{"error1", "error2"}, raw["error"])
-			},
-		},
-		{
-			name: "int error code",
-			err:  500,
-			wantErr: func(t *testing.T, raw map[string]interface{}) {
-				require.Equal(t, float64(500), raw["error"])
-			},
-		},
-		{
-			name: "string error",
-			err:  "error message",
-			wantErr: func(t *testing.T, raw map[string]interface{}) {
-				require.Equal(t, "error message", raw["error"])
-			},
-		},
-		{
-			name: "interface error",
-			err:  struct{ Msg string }{Msg: "custom"},
-			wantErr: func(t *testing.T, raw map[string]interface{}) {
-				require.Equal(t, map[string]interface{}{"Msg": "custom"}, raw["error"])
-			},
-		},
-	}
-
-	for _, tt := range testErrorCases {
+	for _, tt := range logErrorTypeCases {
 		t.Run(tt.name, func(t *testing.T) {
 			buf.Reset()
 
