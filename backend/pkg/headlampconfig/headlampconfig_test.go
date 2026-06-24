@@ -225,14 +225,15 @@ func TestHeadlampConfigNilEmbeddedPointer(t *testing.T) {
 		Cache:       cache.New[interface{}](),
 	}
 
-	// The struct itself is valid and non-nil
 	require.NotNil(t, cfg)
 	assert.NotNil(t, cfg.Cache)
 	assert.Nil(t, cfg.HeadlampCFG)
 
-	// Accessing fields through the embedded pointer will panic.
-	// This test documents the expected behavior: callers must ensure HeadlampCFG is set.
-	assert.Nil(t, cfg.HeadlampCFG, "HeadlampCFG is nil, dereferencing it will panic")
+	// Accessing a promoted field through the nil embedded pointer must panic.
+	// The embedded *HeadlampCFG is nil so cfg.Port (promoted field) cannot be resolved.
+	require.Panics(t, func() {
+		_ = cfg.Port
+	}, "expected panic when accessing promoted field through nil embedded pointer")
 }
 
 func TestWebSocketMultiplexerInterface(t *testing.T) {
