@@ -228,6 +228,8 @@ export default function RollbackDialog(props: RollbackDialogProps) {
                           sx={{ mr: 1 }}
                         />
                         <ListItemText
+                          primaryTypographyProps={{ component: 'div' }}
+                          secondaryTypographyProps={{ component: 'div' }}
                           primary={
                             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                               <Typography variant="body2" fontWeight="medium">
