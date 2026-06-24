@@ -48,6 +48,7 @@ func TestHeadlampCFGZeroValues(t *testing.T) {
 	assert.Equal(t, "", cfg.TLSKeyPath)
 	assert.Equal(t, "", cfg.PodDebugImage)
 	assert.Equal(t, "", cfg.NodeShellImage)
+	assert.Equal(t, "", cfg.NodeShellNamespace)
 	assert.Equal(t, "", cfg.DefaultLightTheme)
 	assert.Equal(t, "", cfg.DefaultDarkTheme)
 	assert.Equal(t, "", cfg.ForceTheme)
@@ -57,6 +58,8 @@ func TestHeadlampCFGZeroValues(t *testing.T) {
 	assert.Nil(t, cfg.KubeConfigStore)
 	assert.Nil(t, cfg.Telemetry)
 	assert.Nil(t, cfg.Metrics)
+	assert.Equal(t, "", cfg.ClusterInventoryProviderFile)
+	assert.Equal(t, "", cfg.ClusterInventoryLabelSelector)
 	assert.Equal(t, time.Duration(0), cfg.ClusterInventoryRootReconcileInterval)
 	assert.Equal(t, time.Duration(0), cfg.ClusterInventoryNoCRDCacheTTL)
 }
@@ -91,6 +94,7 @@ func TestHeadlampCFGPopulated(t *testing.T) {
 		SessionTTL:                            3600,
 		PodDebugImage:                         "debugger:latest",
 		NodeShellImage:                        "shell:latest",
+		NodeShellNamespace:                    "default",
 		OidcUseCookie:                         true,
 		DefaultLightTheme:                     "light-theme",
 		DefaultDarkTheme:                      "dark-theme",
@@ -129,6 +133,7 @@ func TestHeadlampCFGPopulated(t *testing.T) {
 	assert.Equal(t, 3600, cfg.SessionTTL)
 	assert.Equal(t, "debugger:latest", cfg.PodDebugImage)
 	assert.Equal(t, "shell:latest", cfg.NodeShellImage)
+	assert.Equal(t, "default", cfg.NodeShellNamespace)
 	assert.True(t, cfg.OidcUseCookie)
 	assert.Equal(t, "light-theme", cfg.DefaultLightTheme)
 	assert.Equal(t, "dark-theme", cfg.DefaultDarkTheme)
