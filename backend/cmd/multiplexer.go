@@ -389,7 +389,7 @@ func (m *Multiplexer) establishClusterConnection(
 
 	config, err := clusterContext.RESTConfig()
 	if err != nil {
-		return nil, fmt.Errorf("getting REST config: %v", err)
+		return nil, fmt.Errorf("getting REST config: %w", err)
 	}
 
 	authToken, err := m.clusterConnectionToken(clusterContext, token)
@@ -408,7 +408,7 @@ func (m *Multiplexer) establishClusterConnection(
 	if err != nil {
 		connection.updateStatus(StateError, err)
 
-		return nil, fmt.Errorf("failed to get TLS config: %v", err)
+		return nil, fmt.Errorf("failed to get TLS config: %w", err)
 	}
 
 	conn, err := m.dialWebSocket(wsURL, tlsConfig, config.Host, authToken)
@@ -441,7 +441,7 @@ func (m *Multiplexer) getClusterConfigWithFallback(clusterID, userID string) (*r
 
 	config, err := clusterContext.RESTConfig()
 	if err != nil {
-		return nil, fmt.Errorf("getting REST config: %v", err)
+		return nil, fmt.Errorf("getting REST config: %w", err)
 	}
 
 	return config, nil
@@ -456,7 +456,7 @@ func (m *Multiplexer) getClusterContextWithFallback(clusterID, userID string) (*
 
 		clusterContext, err = m.getClusterContext(combinedKey)
 		if err != nil {
-			return nil, fmt.Errorf("getting cluster config: %v", err)
+			return nil, fmt.Errorf("getting cluster config: %w", err)
 		}
 	}
 
@@ -547,7 +547,7 @@ func (m *Multiplexer) dialWebSocket(
 			defer func() { _ = resp.Body.Close() }()
 		}
 
-		return nil, fmt.Errorf("dialing WebSocket: %v", err)
+		return nil, fmt.Errorf("dialing WebSocket: %w", err)
 	}
 
 	return conn, nil
@@ -566,7 +566,7 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 			return
 		case <-heartbeat.C:
 			if err := conn.WSConn.WriteMessage(websocket.PingMessage, nil); err != nil {
-				conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %v", err))
+				conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", err))
 
 				if newConn, err := m.reconnect(conn); err != nil {
 					logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err, "reconnecting to cluster")
@@ -1080,7 +1080,7 @@ func (m *Multiplexer) cleanupConnections() {
 func (m *Multiplexer) getClusterContext(clusterID string) (*kubeconfig.Context, error) {
 	ctxtProxy, err := m.kubeConfigStore.GetContext(clusterID)
 	if err != nil {
-		return nil, fmt.Errorf("getting context: %v", err)
+		return nil, fmt.Errorf("getting context: %w", err)
 	}
 
 	return ctxtProxy, nil

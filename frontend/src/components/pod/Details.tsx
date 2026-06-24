@@ -83,7 +83,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
     'headlamp.logs.showTimestamps',
     true
   );
-  const [follow, setFollow] = React.useState<boolean>(true);
+  const [follow, setFollow] = useLocalStorageState<boolean>('headlamp.logs.follow', true);
   const [prettifyLogs, setPrettifyLogs] = useLocalStorageState<boolean>(
     'headlamp.logs.prettifyLogs',
     false
