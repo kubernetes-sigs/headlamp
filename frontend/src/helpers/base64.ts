@@ -39,20 +39,29 @@
 export function encodeBase64(str: string): string {
   const bytes = new TextEncoder().encode(str);
   let binary = '';
-  bytes.forEach(byte => {
-    binary += String.fromCharCode(byte);
-  });
+  // Build in chunks to avoid O(n^2) string concatenation and argument limits.
+  for (let i = 0; i < bytes.length; i += 0x8000) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+  }
   return btoa(binary);
 }
 
 /**
  * Decodes a base64 string that was produced from UTF-8 bytes.
  *
+ * Falls back to the raw Latin1 string for legacy values that were produced by a
+ * plain `btoa()` on a Latin1 JS string (e.g. names containing "é"), so existing
+ * stored kubeconfigs/IDs keep decoding correctly.
+ *
  * @param base64 - The base64 string to decode.
- * @returns The decoded UTF-8 string.
+ * @returns The decoded string.
  */
 export function decodeBase64(base64: string): string {
   const binary = atob(base64);
   const bytes = Uint8Array.from(binary, char => char.charCodeAt(0));
-  return new TextDecoder().decode(bytes);
+  try {
+    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
+  } catch {
+    return binary;
+  }
 }

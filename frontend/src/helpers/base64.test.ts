@@ -45,4 +45,11 @@ describe('base64 helpers', () => {
     const input = 'plain-ascii-kubeconfig';
     expect(encodeBase64(input)).toBe(btoa(input));
   });
+
+  it('decodes legacy Latin1 base64 produced by btoa', () => {
+    // Values stored before the UTF-8 helpers existed were produced via
+    // btoa(latin1String) and must still decode to the original text.
+    const input = 'café';
+    expect(decodeBase64(btoa(input))).toBe(input);
+  });
 });
