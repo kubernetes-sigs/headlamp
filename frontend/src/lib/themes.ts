@@ -284,6 +284,9 @@ export function createMuiTheme(currentTheme: AppTheme) {
         main: red['800'],
         light: red['50'],
       },
+      info: {
+        main: '#015493',
+      },
       resourceToolTip: {
         color: 'rgba(0, 0, 0, 0.87)',
       },
@@ -470,6 +473,7 @@ export function createMuiTheme(currentTheme: AppTheme) {
         resourceToolTip: {
           color: 'rgba(255, 255, 255, 0.87)',
         },
+
         clusterChooser: {
           button: {
             color: '#fff',
