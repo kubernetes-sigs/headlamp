@@ -45,9 +45,8 @@ set -euo pipefail
 # first; if that tag does not exist locally, tries the alternate form by
 # adding a "v" prefix or stripping a leading "v".
 #
-# Args:#   $1 - release_name (e.g. "0.9.0")
-#
-# Outputs (stdout):
+# Args:
+#   $1 - release_name (e.g. "0.9.0")# Outputs (stdout):
 #   The resolved tag name, e.g. "0.9.0" or "v0.9.0"
 #
 # Returns:
@@ -62,12 +61,12 @@ resolve_tag() {
     return 0
   fi
 
-# Then try the alternate form (with or without a leading "v").
+  # Then try the alternate form (with or without a leading "v").
   if [[ "$release_name" == v* ]]; then
     tag_name="${release_name#v}"
   else
     tag_name="v$release_name"
-   fi
+  fi
 
   if git rev-parse "refs/tags/$tag_name" >/dev/null 2>&1; then
     echo "$tag_name"
