@@ -8,7 +8,7 @@ on:
         required: true
       run_ids:
         description: 'Comma-separated run IDs of workflows with artifacts to download'
-        required: false
+        required: true
       force:
         description: 'Force upload even if the release is no longer a draft'
         type: boolean
@@ -80,6 +80,7 @@ jobs:
 
       # Flatten directory structure for easier upload
       - name: Prepare artifacts for upload
+        id: prepare_artifacts
         run: |
           mkdir -p ./flattened-artifacts
           find ./artifacts -type f -not -path "*/\.*" -exec cp {} ./flattened-artifacts/ \;
@@ -90,13 +91,16 @@ jobs:
           echo "Files prepared for upload:"
           ls -la ./flattened-artifacts/
 
-          # Exit if no files are found
+          # Check if any files are found and set output
           if [ -z "$(ls -A ./flattened-artifacts)" ]; then
             echo "No artifacts found to upload!"
-            exit 0
+            echo "has_artifacts=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_artifacts=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Prepare GPG key
+        if: ${{ steps.prepare_artifacts.outputs.has_artifacts == 'true' }}
         run: |
           gpg_dir=.cr-gpg
           mkdir "$gpg_dir"
@@ -125,10 +129,12 @@ jobs:
           GPG_PASSPHRASE: "${{ secrets.GPG_PASSPHRASE }}"
 
       - name: Install script dependencies
+        if: ${{ steps.prepare_artifacts.outputs.has_artifacts == 'true' }}
         working-directory: ./app/scripts/push-release-assets
         run: npm ci
 
       - name: Upload assets to release
+        if: ${{ steps.prepare_artifacts.outputs.has_artifacts == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_UPDATE_TOKEN }}
         run: |
@@ -154,6 +160,7 @@ jobs:
           node push-release-assets.js "${ARGS[@]}"
 
       - name: Create and sign checksums signature
+        if: ${{ steps.prepare_artifacts.outputs.has_artifacts == 'true' }}
         run: |
           # Wait a moment for the checksums.txt to be available
           sleep 5

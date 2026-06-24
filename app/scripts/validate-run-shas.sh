@@ -43,8 +43,9 @@ set -euo pipefail
 #
 # Resolves the git tag name for a given release name. Tries the name as-is
 # first; if that tag does not exist locally, tries the alternate form by
-# adding a "v" prefix or stripping a leading "v".# Args:
-#   $1 - release_name (e.g. "0.9.0")
+# adding a "v" prefix or stripping a leading "v".
+#
+# Args:#   $1 - release_name (e.g. "0.9.0")
 #
 # Outputs (stdout):
 #   The resolved tag name, e.g. "0.9.0" or "v0.9.0"
@@ -73,7 +74,7 @@ resolve_tag() {
     return 0
   fi
 
-  echo "Error: Tag '$release_name' or 'v$release_name' not found." >&2
+  echo "Error: Tag '$release_name' or '$tag_name' not found." >&2
   return 1
 }
 
