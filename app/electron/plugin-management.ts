@@ -299,7 +299,11 @@ export class PluginManager {
         moveDirs(tempFolder, pluginDir);
 
         if (backupCreated && fs.existsSync(backupDir)) {
-          fs.rmSync(backupDir, { recursive: true, force: true });
+          try {
+            fs.rmSync(backupDir, { recursive: true, force: true });
+          } catch (cleanupErr) {
+            console.error('Failed to remove backup directory after successful update:', cleanupErr);
+          }
         }
 
         if (progressCallback) {
