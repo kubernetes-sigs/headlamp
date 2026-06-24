@@ -22,6 +22,7 @@ jobs:
       contents: read
       actions: write # needed to upload artifacts
     strategy:
+      fail-fast: false
       matrix:
         include:
           - arch: x64
