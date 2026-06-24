@@ -66,6 +66,12 @@ export function WorkloadCircleChart(props: WorkloadCircleChartProps) {
   }, [workloadData, categorize]);
 
   function makeData(): ChartDataPoint[] {
+    // Empty state: PercentageCircle divides each segment by total, so returning
+    // any data point here would produce 0/0 = NaN percentages. Return nothing
+    // and let it render the default full "total" ring instead.
+    if (total === 0) {
+      return [];
+    }
     if (counts) {
       // Order around the ring: healthy → degraded → transitional → failed.
       return [
