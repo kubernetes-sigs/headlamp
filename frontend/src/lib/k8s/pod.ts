@@ -411,7 +411,7 @@ class Pod extends KubeObject<KubePod> {
     let lastRestartDate = new Date(0);
     let lastRestartableInitContainerRestartDate = new Date(0);
 
-    let reason = this.status?.reason || this.status?.phase;
+    let reason = this.status?.reason || this.status?.phase || 'Unknown';
 
     const initContainers: Record<string, KubeContainer> = {};
     let totalContainers = (this.spec?.containers ?? []).length;
