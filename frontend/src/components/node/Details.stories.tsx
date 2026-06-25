@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import Details from './Details';
 import { NODE_DETAILED_DATA, NODE_METRICS_DATA } from './storyHelper';
 
@@ -39,10 +39,10 @@ const podMetricsList = {
 // served by the node itself and are independent of metrics-server, so they
 // belong here too.
 const commonHandlers = [
-  http.get('http://localhost:4466/api/v1/nodes/node', () => HttpResponse.json(NODE_DETAILED_DATA)),
-  http.get('http://localhost:4466/api/v1/pods', () => HttpResponse.json(emptyList)),
-  http.get('http://localhost:4466/api/v1/events', () => HttpResponse.json(emptyList)),
-  http.get('http://localhost:4466/api/v1/nodes/node/proxy/stats/summary', () =>
+  http.get(`${API_BASE}/api/v1/nodes/node`, () => HttpResponse.json(NODE_DETAILED_DATA)),
+  http.get(`${API_BASE}/api/v1/pods`, () => HttpResponse.json(emptyList)),
+  http.get(`${API_BASE}/api/v1/events`, () => HttpResponse.json(emptyList)),
+  http.get(`${API_BASE}/api/v1/nodes/node/proxy/stats/summary`, () =>
     HttpResponse.json({
       node: {
         fs: {
@@ -55,7 +55,7 @@ const commonHandlers = [
 ];
 
 const metricsHandlers = [
-  http.get('http://localhost:4466/apis/metrics.k8s.io/v1beta1/nodes', () =>
+  http.get(`${API_BASE}/apis/metrics.k8s.io/v1beta1/nodes`, () =>
     HttpResponse.json({
       kind: 'NodeMetricsList',
       apiVersion: 'metrics.k8s.io/v1beta1',
@@ -63,9 +63,7 @@ const metricsHandlers = [
       items: NODE_METRICS_DATA,
     })
   ),
-  http.get('http://localhost:4466/apis/metrics.k8s.io/v1beta1/pods', () =>
-    HttpResponse.json(podMetricsList)
-  ),
+  http.get(`${API_BASE}/apis/metrics.k8s.io/v1beta1/pods`, () => HttpResponse.json(podMetricsList)),
 ];
 
 const notFound = () =>
@@ -74,8 +72,8 @@ const notFound = () =>
 // metrics-server unavailable: both the node and pod metrics APIs 404. The
 // kubelet summary (ephemeral storage) still works, as it does on a real cluster.
 const noMetricsHandlers = [
-  http.get('http://localhost:4466/apis/metrics.k8s.io/v1beta1/nodes', notFound),
-  http.get('http://localhost:4466/apis/metrics.k8s.io/v1beta1/pods', notFound),
+  http.get(`${API_BASE}/apis/metrics.k8s.io/v1beta1/nodes`, notFound),
+  http.get(`${API_BASE}/apis/metrics.k8s.io/v1beta1/pods`, notFound),
 ];
 
 export default {

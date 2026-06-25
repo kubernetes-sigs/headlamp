@@ -67,14 +67,14 @@ BrokenSpec.parameters = {
     handlers: {
       storyBase: [],
       story: [
-        http.get('http://localhost:4466/apis/gateway.networking.k8s.io/v1/gateways', () =>
+        http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1/gateways`, () =>
           HttpResponse.json({
             kind: 'GatewayList',
             metadata: {},
             items: [BROKEN_GATEWAY],
           })
         ),
-        http.get('http://localhost:4466/apis/gateway.networking.k8s.io/v1beta1/gateways', () =>
+        http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1beta1/gateways`, () =>
           HttpResponse.json({ message: 'Not Found' }, { status: 404 })
         ),
       ],

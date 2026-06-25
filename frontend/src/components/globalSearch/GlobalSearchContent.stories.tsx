@@ -22,7 +22,7 @@ import type { Cluster } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
 import { initialState as configInitialState } from '../../redux/configSlice';
 import reducers from '../../redux/reducers/reducers';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import { generateK8sResourceList } from '../../test/mocker';
 import { podList } from '../pod/storyHelper';
 import { GlobalSearchContent } from './GlobalSearchContent';
@@ -44,7 +44,7 @@ const sampleCluster: Cluster = {
 };
 
 const recentSearchItemsKey = 'search-recent-items';
-const sampleClusterApiBase = `http://localhost:4466/clusters/${sampleCluster.name}`;
+const sampleClusterApiBase = `${API_BASE}/clusters/${sampleCluster.name}`;
 
 function makeKubeList(apiVersion: string, kind: string, items: any[] = []) {
   return {

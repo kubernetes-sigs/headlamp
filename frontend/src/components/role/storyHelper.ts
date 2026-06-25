@@ -16,9 +16,10 @@
 
 import { KubeRole } from '../../lib/k8s/role';
 import { KubeRoleBinding } from '../../lib/k8s/roleBinding';
+import { API_BASE } from '../../test';
 
 /** Base URL of the mock API server used by the role stories' MSW handlers. */
-export const BASE_URL = 'http://localhost:4466';
+export const BASE_URL = API_BASE;
 
 export const ROLE_DUMMY_DATA: KubeRole[] = [
   {

@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import Details from './Details';
 import { JOB_COMPLETE, JOB_RUNNING } from './storyHelper';
 
@@ -40,16 +40,16 @@ const podMetricsList = {
 // to the get-by-name request. Each list handler returns its proper Kubernetes
 // list kind so the mocked responses match the real API shape.
 const commonHandlers = [
-  http.get('http://localhost:4466/apis/batch/v1/namespaces/default/jobs', () =>
+  http.get(`${API_BASE}/apis/batch/v1/namespaces/default/jobs`, () =>
     HttpResponse.json(emptyList('JobList', 'batch/v1'))
   ),
-  http.get('http://localhost:4466/api/v1/namespaces/default/pods', () =>
+  http.get(`${API_BASE}/api/v1/namespaces/default/pods`, () =>
     HttpResponse.json(emptyList('PodList', 'v1'))
   ),
-  http.get('http://localhost:4466/apis/metrics.k8s.io/v1beta1/namespaces/default/pods', () =>
+  http.get(`${API_BASE}/apis/metrics.k8s.io/v1beta1/namespaces/default/pods`, () =>
     HttpResponse.json(podMetricsList)
   ),
-  http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+  http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
     HttpResponse.json(emptyList('EventList', 'v1'))
   ),
 ];
@@ -74,7 +74,7 @@ Default.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/apis/batch/v1/namespaces/default/jobs/hello', () =>
+        http.get(`${API_BASE}/apis/batch/v1/namespaces/default/jobs/hello`, () =>
           HttpResponse.json(JOB_COMPLETE)
         ),
         ...commonHandlers,
@@ -88,7 +88,7 @@ Running.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/apis/batch/v1/namespaces/default/jobs/hello', () =>
+        http.get(`${API_BASE}/apis/batch/v1/namespaces/default/jobs/hello`, () =>
           HttpResponse.json(JOB_RUNNING)
         ),
         ...commonHandlers,

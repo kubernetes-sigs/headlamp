@@ -17,7 +17,7 @@
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { KubeObjectInterface } from '../../lib/k8s/KubeObject';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import Details from './Details';
 import { DAEMONSET_DUMMY, DAEMONSET_NO_TOLERATIONS } from './storyHelper';
 
@@ -36,19 +36,17 @@ const podMetricsList = {
 // details view fires a watch on it in addition to the get-by-name request.
 function commonHandlers(namespace: string) {
   return [
-    http.get(`http://localhost:4466/apis/apps/v1/namespaces/${namespace}/daemonsets`, () =>
+    http.get(`${API_BASE}/apis/apps/v1/namespaces/${namespace}/daemonsets`, () =>
       HttpResponse.json(emptyList)
     ),
-    http.get(`http://localhost:4466/api/v1/namespaces/${namespace}/pods`, () =>
-      HttpResponse.json(emptyList)
-    ),
-    http.get(`http://localhost:4466/apis/metrics.k8s.io/v1beta1/namespaces/${namespace}/pods`, () =>
+    http.get(`${API_BASE}/api/v1/namespaces/${namespace}/pods`, () => HttpResponse.json(emptyList)),
+    http.get(`${API_BASE}/apis/metrics.k8s.io/v1beta1/namespaces/${namespace}/pods`, () =>
       HttpResponse.json(podMetricsList)
     ),
-    http.get(`http://localhost:4466/api/v1/namespaces/${namespace}/events`, () =>
+    http.get(`${API_BASE}/api/v1/namespaces/${namespace}/events`, () =>
       HttpResponse.json(emptyList)
     ),
-    http.get(`http://localhost:4466/apis/apps/v1/namespaces/${namespace}/controllerrevisions`, () =>
+    http.get(`${API_BASE}/apis/apps/v1/namespaces/${namespace}/controllerrevisions`, () =>
       HttpResponse.json(emptyList)
     ),
   ];
@@ -74,9 +72,8 @@ function makeStory(daemonSet: KubeObjectInterface) {
     msw: {
       handlers: {
         story: [
-          http.get(
-            `http://localhost:4466/apis/apps/v1/namespaces/${namespace}/daemonsets/${name}`,
-            () => HttpResponse.json(daemonSet)
+          http.get(`${API_BASE}/apis/apps/v1/namespaces/${namespace}/daemonsets/${name}`, () =>
+            HttpResponse.json(daemonSet)
           ),
           ...commonHandlers(namespace),
         ],
