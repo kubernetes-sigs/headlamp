@@ -27,47 +27,36 @@
         class="MuiBox-root css-1txv3mw"
       >
         <div
-          class="MuiBox-root css-1821gv5"
+          class="MuiBox-root css-j7qwjs"
         >
           <div
-            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorWarning MuiAlert-outlinedWarning MuiAlert-outlined css-7u48ag-MuiPaper-root-MuiAlert-root"
-            role="alert"
+            class="MuiBox-root css-k1dapx"
           >
             <div
-              class="MuiAlert-icon css-1ytlwq5-MuiAlert-icon"
+              class="MuiBox-root css-1qocved"
             >
-              <svg
-                aria-hidden="true"
-                class="MuiSvgIcon-root MuiSvgIcon-fontSizeInherit css-1vooibu-MuiSvgIcon-root"
-                data-testid="ReportProblemOutlinedIcon"
-                focusable="false"
-                viewBox="0 0 24 24"
+              <span
+                class="MuiTypography-root MuiTypography-body1 css-1dablfr-MuiTypography-root"
               >
-                <path
-                  d="M12 5.99L19.53 19H4.47L12 5.99M12 2L1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z"
-                />
-              </svg>
-            </div>
-            <div
-              class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
-            >
-              <div
-                class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom MuiAlertTitle-root css-19xro32-MuiTypography-root-MuiAlertTitle-root"
+                Warning
+              </span>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-vtuj24-MuiTypography-root"
               >
                 Unable to load owned pods for diagnostics
-              </div>
+              </p>
+            </div>
+            <div
+              class="MuiBox-root css-p9ukdl"
+            >
               <div
-                class="MuiBox-root css-agyrtj"
+                class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
               >
-                <div
-                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                 >
-                  <span
-                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
-                  >
-                    pods is forbidden: User cannot list resource "pods"
-                  </span>
-                </div>
+                  pods is forbidden: User cannot list resource "pods"
+                </span>
               </div>
             </div>
           </div>

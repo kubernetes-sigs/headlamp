@@ -14,15 +14,16 @@
  * limitations under the License.
  */
 
-import Alert, { AlertColor } from '@mui/material/Alert';
-import AlertTitle from '@mui/material/AlertTitle';
+import { Icon } from '@iconify/react';
+import type { AlertColor } from '@mui/material/Alert';
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
-import type { KubeCondition, KubeContainerStatus } from '../../lib/k8s/cluster';
+import type { KubeCondition } from '../../lib/k8s/cluster';
 import type Event from '../../lib/k8s/event';
 import type { KubeEvent } from '../../lib/k8s/event';
 import type { KubeObject } from '../../lib/k8s/KubeObject';
@@ -30,6 +31,7 @@ import Pod from '../../lib/k8s/pod';
 import type { Workload } from '../../lib/k8s/Workload';
 import { localeDate, timeAgo } from '../../lib/util';
 import Empty from '../common/EmptyContent';
+import { StatusLabel, type StatusLabelProps } from '../common/Label';
 import Link from '../common/Link';
 import Loader from '../common/Loader';
 import { useObjectEvents } from '../common/ObjectEventList';
@@ -63,11 +65,11 @@ export interface DiagnosticReference {
   kubeObject?: KubeObject;
 }
 
-/** A single diagnostic finding rendered as an MUI Alert. */
+/** A single diagnostic finding rendered as a row in the diagnostics list. */
 export interface DiagnosticItem {
   /** Stable identifier used for deduplication and as the React key. */
   id: string;
-  /** MUI Alert severity that controls the color: 'error', 'warning', or 'info'. */
+  /** Severity controlling the status label color: 'error', 'warning', 'info', or 'success'. */
   severity: AlertColor;
   /** Short headline shown in the alert title. */
   title: string;
@@ -77,11 +79,6 @@ export interface DiagnosticItem {
   details?: string[];
   /** Optional navigable links (e.g. to logs or related resources). */
   references?: DiagnosticReference[];
-}
-
-/** Returns true if the value is defined, non-null, and non-empty when coerced to a string. */
-function hasText(value?: string | number | null) {
-  return value !== undefined && value !== null && `${value}` !== '';
 }
 
 /**
@@ -171,21 +168,7 @@ function sortWarningEvents(events: EventLike[]) {
   });
 }
 
-/** Creates a reference that links to the log viewer for a given pod. */
-function podLogReference(pod: PodLike, label = defaultTranslate('View logs')): DiagnosticReference {
-  return {
-    label,
-    routeName: 'Pod',
-    params: {
-      namespace: pod.metadata.namespace,
-      name: pod.metadata.name,
-    },
-    search: { view: 'logs' },
-    activeCluster: pod.cluster,
-  };
-}
-
-/** Creates a reference that links to the detail page of a given pod. */
+/** Reference that links to a pod's detail page (where its own logs are available). */
 function podReference(pod: PodLike): DiagnosticReference {
   return {
     label: pod.metadata.name,
@@ -194,15 +177,33 @@ function podReference(pod: PodLike): DiagnosticReference {
 }
 
 /**
- * Returns conditions whose status is 'False' or 'Unknown'.
- * Conditions are skipped entirely when the pod phase is 'Succeeded'.
+ * Reasons that merely restate that the pod/containers failed (e.g. Ready is
+ * False because ContainersNotReady). They add nothing over the pod status
+ * summary and the Containers section, so conditions carrying them are dropped
+ * to avoid circular "it failed because it failed" findings.
+ */
+const REDUNDANT_CONDITION_REASONS = [
+  'ContainersNotReady',
+  'ContainersNotInitialized',
+  'PodFailed',
+  'PodCompleted',
+];
+
+/**
+ * Returns conditions whose status is 'False' or 'Unknown', excluding ones whose
+ * reason only restates the pod/container failure. Conditions are skipped
+ * entirely when the pod phase is 'Succeeded'.
  */
 function getFailedConditions(conditions: KubeCondition[] = [], phase?: string) {
   if (phase === 'Succeeded') {
     return [];
   }
 
-  return conditions.filter(condition => ['False', 'Unknown'].includes(condition.status));
+  return conditions.filter(
+    condition =>
+      ['False', 'Unknown'].includes(condition.status) &&
+      !REDUNDANT_CONDITION_REASONS.includes(condition.reason || '')
+  );
 }
 
 /**
@@ -265,97 +266,6 @@ function getContainerStatusGroups(pod: PodLike, t: Translate = defaultTranslate)
   ];
 }
 
-/** Builds metadata chip strings (restart count, exit code, signal, finish time) for a container. */
-function containerDetails(status: KubeContainerStatus, t: Translate) {
-  const details: string[] = [];
-  const terminated = status.state?.terminated || status.lastState?.terminated;
-
-  if (hasText(status.restartCount)) {
-    details.push(t('Restart count: {{ restartCount }}', { restartCount: status.restartCount }));
-  }
-  if (terminated && hasText(terminated.exitCode)) {
-    details.push(t('Exit code: {{ exitCode }}', { exitCode: terminated.exitCode }));
-  }
-  if (terminated && hasText(terminated.signal)) {
-    details.push(t('Signal: {{ signal }}', { signal: terminated.signal }));
-  }
-  if (terminated?.finishedAt) {
-    details.push(t('Finished: {{ date }}', { date: localeDate(terminated.finishedAt) }));
-  }
-
-  return details;
-}
-
-/** Produces diagnostics for waiting, terminated, and restarted containers in a pod. */
-function getContainerDiagnostics(pod: PodLike, t: Translate): DiagnosticItem[] {
-  const diagnostics: DiagnosticItem[] = [];
-
-  for (const group of getContainerStatusGroups(pod, t)) {
-    for (const status of group.statuses) {
-      const waiting = status.state?.waiting;
-      const terminated = status.state?.terminated;
-      const lastTerminated = status.lastState?.terminated;
-
-      if (waiting) {
-        diagnostics.push({
-          id: `container-waiting-${group.idLabel}-${status.name}`,
-          severity: containerSeverity(waiting.reason),
-          title: t('{{ containerType }} {{ containerName }} is waiting: {{ reason }}', {
-            containerType: group.label,
-            containerName: status.name,
-            reason: waiting.reason || t('Waiting'),
-          }),
-          message: waiting.message,
-          details: containerDetails(status, t),
-          references: [podLogReference(pod, t('View logs'))],
-        });
-      }
-
-      if (terminated && terminated.exitCode !== 0) {
-        const reason =
-          terminated.reason || t('Exit code: {{ exitCode }}', { exitCode: terminated.exitCode });
-        diagnostics.push({
-          id: `container-terminated-${group.idLabel}-${status.name}`,
-          severity: containerSeverity(terminated.reason, terminated.exitCode),
-          title: t('{{ containerType }} {{ containerName }} terminated: {{ reason }}', {
-            containerType: group.label,
-            containerName: status.name,
-            reason,
-          }),
-          message: terminated.message,
-          details: containerDetails(status, t),
-          references: [podLogReference(pod, t('View logs'))],
-        });
-      }
-
-      if (status.restartCount > 0 && lastTerminated) {
-        const title =
-          status.restartCount === 1
-            ? t('{{ containerType }} {{ containerName }} restarted {{ restartCount }} time', {
-                containerType: group.label,
-                containerName: status.name,
-                restartCount: status.restartCount,
-              })
-            : t('{{ containerType }} {{ containerName }} restarted {{ restartCount }} times', {
-                containerType: group.label,
-                containerName: status.name,
-                restartCount: status.restartCount,
-              });
-        diagnostics.push({
-          id: `container-restarted-${group.idLabel}-${status.name}`,
-          severity: containerSeverity(lastTerminated.reason, lastTerminated.exitCode),
-          title,
-          message: lastTerminated.message,
-          details: containerDetails(status, t),
-          references: [podLogReference(pod, t('View current or previous logs'))],
-        });
-      }
-    }
-  }
-
-  return diagnostics;
-}
-
 /** Emits an informational diagnostic when any containers have been restarted, hinting that previous logs may be available. */
 function getPreviousLogsDiagnostics(pod: PodLike, t: Translate): DiagnosticItem[] {
   const restartedContainers = getContainerStatusGroups(pod, t).flatMap(group =>
@@ -374,7 +284,6 @@ function getPreviousLogsDiagnostics(pod: PodLike, t: Translate): DiagnosticItem[
       severity: 'info',
       title: t('Previous logs may be available for restarted containers'),
       details: restartedContainers.map(container => t('Container: {{ container }}', { container })),
-      references: [podLogReference(pod, t('Open logs'))],
     },
   ];
 }
@@ -494,6 +403,62 @@ function eventDiagnostics(events: EventLike[], t: Translate): DiagnosticItem[] {
  * container issues, restart hints, pending scheduling hints, and warning events.
  * Returns a deduplicated list of {@link DiagnosticItem} entries.
  */
+/**
+ * Maps a Kubernetes failure reason to a short, actionable hint pointing at the
+ * likely cause and fix, so critical findings carry a direction of diagnosis the
+ * way warning events already do. Matching is case-insensitive and substring
+ * based so reason variants are covered; returns undefined for unknown reasons.
+ */
+function diagnosisHint(reason: string | undefined, t: Translate): string | undefined {
+  const r = (reason || '').toLowerCase();
+  if (!r) {
+    return undefined;
+  }
+  if (r.includes('crashloop')) {
+    return t(
+      'The container keeps crashing after starting. Check its logs and exit code for the cause.'
+    );
+  }
+  if (r.includes('imagepull') || r.includes('errimage') || r.includes('invalidimage')) {
+    return t(
+      'The image could not be pulled. Verify the image name and tag, and that the registry is reachable with valid credentials.'
+    );
+  }
+  if (r.includes('oomkilled')) {
+    return t(
+      'The container was killed for exceeding its memory limit. Raise the limit or reduce memory usage.'
+    );
+  }
+  if (r.includes('createcontainerconfig')) {
+    return t(
+      'The container configuration is invalid, often a missing ConfigMap or Secret. Check the referenced env vars and volumes.'
+    );
+  }
+  if (
+    r.includes('createcontainererror') ||
+    r.includes('runcontainererror') ||
+    r.includes('starterror')
+  ) {
+    return t('The container could not be started. Check the command, entrypoint, and image.');
+  }
+  if (r.includes('evicted')) {
+    return t(
+      'The pod was evicted due to node resource pressure. Check node conditions and set resource requests and limits.'
+    );
+  }
+  if (r.includes('unschedulable')) {
+    return t(
+      'The scheduler could not place the pod. Check node resources, taints and tolerations, and affinity rules.'
+    );
+  }
+  if (r.includes('containersnotready') || r.includes('containernotready')) {
+    return t(
+      'One or more containers are not ready. Check the container states above and their readiness probes.'
+    );
+  }
+  return undefined;
+}
+
 export function getPodDiagnostics(
   pod: PodLike,
   events: EventLike[] = [],
@@ -511,7 +476,11 @@ export function getPodDiagnostics(
       title: t('Pod status: {{ status }}', {
         status: details.reason || pod.status?.phase || t('Unknown'),
       }),
-      message: details.message || pod.status?.message,
+      message:
+        details.message ||
+        pod.status?.message ||
+        diagnosisHint(details.reason, t) ||
+        t('Review the container logs and the warning events below to find the cause.'),
       details: [
         t('Phase: {{ phase }}', { phase: pod.status?.phase || t('Unknown') }),
         details.totalContainers
@@ -533,14 +502,17 @@ export function getPodDiagnostics(
         type: condition.type,
         status: condition.status,
       }),
-      message: condition.message,
+      message: condition.message || diagnosisHint(condition.reason, t),
       details: [
         condition.reason ? t('Reason: {{ reason }}', { reason: condition.reason }) : '',
       ].filter(Boolean),
     });
   }
 
-  diagnostics.push(...getContainerDiagnostics(pod, t));
+  // Per-container waiting/terminated/restarted findings are intentionally
+  // omitted here: the Pod page's Containers section already shows that state.
+  // Diagnostics only surface what isn't shown elsewhere (conditions, events,
+  // scheduling hints, and a previous-logs link for restarted containers).
   diagnostics.push(...getPreviousLogsDiagnostics(pod, t));
   diagnostics.push(...getPendingHints(pod, warningEvents, t));
   diagnostics.push(...eventDiagnostics(events, t));
@@ -698,12 +670,15 @@ export function getWorkloadDiagnostics(
       id: `workload-pods-${reason}`,
       severity: containerSeverity(reason),
       title,
+      message: diagnosisHint(reason, t),
       details: [
         t('Unhealthy owned pods: {{ unhealthy }}/{{ total }}', {
           unhealthy: count,
           total: pods.length,
         }),
       ],
+      // Each failing pod links to its own detail page, where its logs (and a
+      // focused diagnostics section) are available.
       references: podsForReason.slice(0, 5).map(podReference),
     });
   }
@@ -750,7 +725,33 @@ function renderReference(reference: DiagnosticReference, index: number) {
   return <React.Fragment key={index}>{reference.label}</React.Fragment>;
 }
 
-/** Renders a list of diagnostic items as MUI Alerts, or an empty-state message when there are none. */
+/** Maps a diagnostic severity to a StatusLabel status (info has no colored status). */
+function severityStatus(severity: AlertColor): StatusLabelProps['status'] {
+  if (severity === 'error' || severity === 'warning' || severity === 'success') {
+    return severity;
+  }
+  return '';
+}
+
+/** Short, translated label shown in the status chip for a diagnostic severity. */
+function severityText(severity: AlertColor, t: Translate): string {
+  switch (severity) {
+    case 'error':
+      return t('Critical');
+    case 'warning':
+      return t('Warning');
+    case 'success':
+      return t('Healthy');
+    default:
+      return t('Info');
+  }
+}
+
+/**
+ * Renders diagnostics as a plain, minimal list to match the other detail
+ * sections: each row carries a small severity StatusLabel rather than a heavy
+ * coloured alert, with thin dividers between items.
+ */
 function DiagnosticsList(props: { items: DiagnosticItem[] }) {
   const { items } = props;
   const { t } = useTranslation('translation');
@@ -760,24 +761,42 @@ function DiagnosticsList(props: { items: DiagnosticItem[] }) {
   }
 
   return (
-    <Box display="flex" flexDirection="column" gap={1}>
-      {items.map(item => (
-        <Alert severity={item.severity} variant="outlined" key={item.id}>
-          <AlertTitle>{item.title}</AlertTitle>
-          {item.message && <Typography>{item.message}</Typography>}
+    <Box display="flex" flexDirection="column">
+      {items.map((item, index) => (
+        <Box
+          key={item.id}
+          sx={theme => ({
+            display: 'flex',
+            flexDirection: 'column',
+            gap: 0.5,
+            paddingY: 1.5,
+            borderTop: index === 0 ? 'none' : `1px solid ${theme.palette.divider}`,
+          })}
+        >
+          <Box display="flex" alignItems="center" gap={1} flexWrap="wrap">
+            <StatusLabel status={severityStatus(item.severity)}>
+              {severityText(item.severity, t)}
+            </StatusLabel>
+            <Typography sx={{ fontWeight: 500 }}>{item.title}</Typography>
+          </Box>
+          {item.message && (
+            <Typography variant="body2" color="text.secondary">
+              {item.message}
+            </Typography>
+          )}
           {item.details && item.details.length > 0 && (
-            <Box display="flex" gap={0.75} flexWrap="wrap" mt={1}>
-              {item.details.map((detail, index) => (
-                <Chip key={index} size="small" label={detail} />
+            <Box display="flex" gap={0.75} flexWrap="wrap" mt={0.5}>
+              {item.details.map((detail, detailIndex) => (
+                <Chip key={detailIndex} size="small" label={detail} />
               ))}
             </Box>
           )}
           {item.references && item.references.length > 0 && (
-            <Box display="flex" gap={1} flexWrap="wrap" mt={1}>
+            <Box display="flex" gap={1.5} flexWrap="wrap" mt={0.5}>
               {item.references.map(renderReference)}
             </Box>
           )}
-        </Alert>
+        </Box>
       ))}
     </Box>
   );
@@ -787,8 +806,34 @@ function DiagnosticsList(props: { items: DiagnosticItem[] }) {
  * Section component that displays diagnostics for a single pod.
  * Fetches events automatically unless pre-fetched events are provided.
  */
-export function PodDiagnosticsSection(props: { pod: Pod; events?: Event[] }) {
-  const { pod, events } = props;
+/**
+ * Name of the container most likely responsible for the pod's failure, so the
+ * log viewer opens on the relevant container (e.g. the crash-looping one) rather
+ * than the first/default one. Falls back to the first not-ready container.
+ */
+function getFailingContainerName(pod: PodLike): string | undefined {
+  const statuses = [
+    ...(pod.status?.initContainerStatuses || []),
+    ...(pod.status?.containerStatuses || []),
+  ];
+  const failing = statuses.find(status => {
+    const waiting = status.state?.waiting?.reason;
+    const terminated = status.state?.terminated;
+    return (
+      (!!waiting && /crash|error|backoff|imagepull|oomkilled|createcontainer/i.test(waiting)) ||
+      (!!terminated && terminated.exitCode !== 0)
+    );
+  });
+  return (failing ?? statuses.find(status => status.ready === false))?.name;
+}
+
+export function PodDiagnosticsSection(props: {
+  pod: Pod;
+  events?: Event[];
+  /** Opens the pod's log viewer for the given container. When provided, a "View logs" action is shown. */
+  onViewLogs?: (container?: string) => void;
+}) {
+  const { pod, events, onViewLogs } = props;
   const { t } = useTranslation('translation');
   const fetchedEvents = useObjectEvents(events === undefined ? pod : null);
   const diagnosticEvents = events ?? fetchedEvents;
@@ -797,8 +842,31 @@ export function PodDiagnosticsSection(props: { pod: Pod; events?: Event[] }) {
     [pod, diagnosticEvents, t]
   );
 
+  // The page header already has a generic "Show Logs" action, so the diagnostics
+  // action only appears when it adds something: jumping straight to the failing
+  // container's logs. Its label names that container to set it apart.
+  const failingContainer = getFailingContainerName(pod);
+
   return (
-    <SectionBox title={t('Diagnostics')}>
+    <SectionBox
+      title={t('Diagnostics')}
+      headerProps={{
+        headerStyle: 'subsection',
+        actions:
+          onViewLogs && failingContainer
+            ? [
+                <Button
+                  key="view-logs"
+                  size="small"
+                  startIcon={<Icon icon="mdi:file-alert-outline" />}
+                  onClick={() => onViewLogs(failingContainer)}
+                >
+                  {t('Logs: {{ container }}', { container: failingContainer })}
+                </Button>,
+              ]
+            : [],
+      }}
+    >
       <DiagnosticsList items={diagnostics} />
     </SectionBox>
   );
@@ -837,6 +905,8 @@ export function WorkloadDiagnosticsSection(props: {
     return items;
   }, [workload, pods, errors, podsLoading, t]);
 
+  // No logs action here: workload detail pages already expose an in-place logs
+  // button in the page header, and each failing pod below links to its own page.
   return (
     <SectionBox title={t('Diagnostics')}>
       {podsLoading ? (
