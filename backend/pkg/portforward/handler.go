@@ -94,6 +94,7 @@ type portForward struct {
 	ServiceNamespace string `json:"serviceNamespace"`
 	Namespace        string `json:"namespace"`
 	Cluster          string `json:"cluster"`
+	cacheKey         string `json:"-"`
 	Port             string `json:"port"`
 	TargetPort       string `json:"targetPort"`
 	Status           string `json:"status"`
@@ -219,7 +220,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		token, _ = auth.GetTokenFromCookie(r, requestClusterName)
 	}
 
-	err = startPortForward(kContext, cache, p, token, clusterName)
+	err = startPortForward(kContext, cache, p, token, clusterName, requestClusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting portforward")
 
@@ -620,7 +621,7 @@ func runAndMonitorPortForward(
 // startPortForward starts a port forward. This is the internal function that was refactored.
 // It sets up Kubernetes clients, initializes the port forwarder, and manages its lifecycle.
 func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{}],
-	p portForwardRequest, token string, clusterName string,
+	p portForwardRequest, token string, clusterName string, requestClusterName string,
 ) error {
 	clientset, rConf, err := getKubeClientAndConfig(kContext, token)
 	if err != nil {
@@ -656,7 +657,8 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 		ID:               p.ID,
 		closeChan:        stopChan,
 		Pod:              p.Pod,
-		Cluster:          clusterName,
+		Cluster:          requestClusterName,
+		cacheKey:         clusterName,
 		Namespace:        p.Namespace,
 		Service:          p.Service,
 		ServiceNamespace: p.ServiceNamespace,
