@@ -30,11 +30,18 @@ const storeKeyPrefix = "PORT_FORWARD_"
 // portforwardKeyGenerator generates a unique key
 // based on the cluster name, id,service name, and pod name.
 func portforwardKeyGenerator(p portForward) string {
-	if p.ID != "" {
-		return storeKeyPrefix + p.Cluster + p.ID
+	clusterKey := p.cacheKey
+	if clusterKey == "" {
+		// Fallback for entries that predate the cacheKey field (e.g. static
+		// clusters where userID is empty and cacheKey == Cluster).
+		clusterKey = p.Cluster
 	}
 
-	key := storeKeyPrefix + p.Cluster
+	if p.ID != "" {
+		return storeKeyPrefix + clusterKey + p.ID
+	}
+
+	key := storeKeyPrefix + clusterKey
 
 	if p.Service != "" {
 		key += p.Service
