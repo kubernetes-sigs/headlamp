@@ -101,8 +101,8 @@ export function ConditionList({ conditions, showLastUpdate = false }: ConditionL
     {
       label: t('glossary|Last Transition'),
       getter: condition =>
-        condition.lastTransitionTime ? (
-          <DateLabel date={String(condition.lastTransitionTime)} />
+        condition.lastTransitionTime !== null && condition.lastTransitionTime !== undefined ? (
+          <DateLabel date={condition.lastTransitionTime} />
         ) : (
           '-'
         ),
@@ -110,7 +110,11 @@ export function ConditionList({ conditions, showLastUpdate = false }: ConditionL
     {
       label: t('glossary|Last Update'),
       getter: condition =>
-        condition.lastUpdateTime ? <DateLabel date={String(condition.lastUpdateTime)} /> : '-',
+        condition.lastUpdateTime !== null && condition.lastUpdateTime !== undefined ? (
+          <DateLabel date={condition.lastUpdateTime} />
+        ) : (
+          '-'
+        ),
       hide: !showLastUpdate,
     },
     {
