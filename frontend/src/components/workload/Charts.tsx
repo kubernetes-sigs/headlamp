@@ -47,11 +47,14 @@ export function WorkloadCircleChart(props: WorkloadCircleChartProps) {
   const [total, partial] = useMemo(() => {
     // Total as -1 means it's loading.
     const total = !workloadData ? -1 : workloadData.length;
-    const partial =
-      workloadData?.filter(item => getReadyReplicas(item) !== getTotalReplicas(item)).length || 0;
+    // The categorized path uses `counts`, not `partial`, so skip the extra pass
+    // (and the replica helpers, irrelevant for Pods) when categorize is set.
+    const partial = categorize
+      ? 0
+      : workloadData?.filter(item => getReadyReplicas(item) !== getTotalReplicas(item)).length || 0;
 
     return [total, partial];
-  }, [workloadData]);
+  }, [workloadData, categorize]);
 
   // Categorized path: bucket every item into a health category.
   const counts = useMemo(() => {
