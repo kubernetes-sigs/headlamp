@@ -304,12 +304,16 @@ class Pod extends KubeObject<KubePod> {
    * @param containerName - The name of the ephemeral container to add
    * @param image - The container image to use
    * @param command - Optional command to run in the container (defaults to ['sh'])
+   * @param targetContainerName - Optional name of the container to target.
+   *   When set, the ephemeral container shares the target's namespaces (PID, IPC, etc.).
+   *   If undefined, no targeting is applied.
    * @returns Promise that resolves when the ephemeral container is added
    */
   async addEphemeralContainer(
     containerName: string,
     image: string,
-    command: string[] = ['sh']
+    command: string[] = ['sh'],
+    targetContainerName?: string
   ): Promise<void> {
     const ephemeralContainer: KubeContainer = {
       name: containerName,
@@ -319,6 +323,7 @@ class Pod extends KubeObject<KubePod> {
       stdinOnce: true,
       command,
       imagePullPolicy: 'IfNotPresent',
+      ...(targetContainerName ? { targetContainerName } : {}),
     };
 
     // Get current ephemeral containers
