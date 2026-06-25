@@ -96,7 +96,7 @@ function makePod(overrides: any = {}) {
 }
 
 describe('diagnostics helpers', () => {
-  it('summarizes pod status, failed conditions, container restarts, and warning events', () => {
+  it('summarizes pod status, failed conditions, and warning events without duplicating container state', () => {
     const diagnostics = getPodDiagnostics(makePod(), [
       {
         type: 'Warning',
@@ -112,23 +112,40 @@ describe('diagnostics helpers', () => {
     expect(diagnostics.map(item => item.title)).toEqual(
       expect.arrayContaining([
         'Pod status: CrashLoopBackOff',
-        'Condition Ready is False',
-        'Container gadget is waiting: CrashLoopBackOff',
-        'Container gadget restarted 3 times',
         'Previous logs may be available for restarted containers',
         'Warning event: BackOff (5 times)',
       ])
     );
-    expect(diagnostics.find(item => item.id === 'container-restarted-Container-gadget')).toEqual(
-      expect.objectContaining({
-        references: expect.arrayContaining([
-          expect.objectContaining({
-            label: 'View current or previous logs',
-            search: { view: 'logs' },
-          }),
-        ]),
-      })
-    );
+    // Per-container findings are intentionally omitted (shown in the Containers
+    // section); the restarted-containers hint is still surfaced.
+    expect(diagnostics.some(item => item.id.startsWith('container-'))).toBe(false);
+    // Conditions that only restate the failure (reason ContainersNotReady) are
+    // dropped as circular rather than shown.
+    expect(diagnostics.some(item => item.id.startsWith('condition-'))).toBe(false);
+    expect(diagnostics.some(item => item.id === 'pod-previous-logs')).toBe(true);
+    // Logs are opened from a single header action, not per-item links.
+    expect(diagnostics.every(item => !item.references)).toBe(true);
+  });
+
+  it('keeps informative conditions and adds a diagnosis hint when the message is missing', () => {
+    const pod = makePod({
+      status: {
+        phase: 'Pending',
+        conditions: [{ type: 'PodScheduled', status: 'False', reason: 'Unschedulable' }],
+        containerStatuses: [],
+      },
+      getDetailedStatus: () => ({
+        reason: 'Pending',
+        message: '',
+        readyContainers: 0,
+        totalContainers: 1,
+        restarts: 0,
+      }),
+    });
+
+    const scheduled = getPodDiagnostics(pod, []).find(item => item.id === 'condition-PodScheduled');
+    expect(scheduled?.title).toBe('Condition PodScheduled is False');
+    expect(scheduled?.message).toMatch(/scheduler could not place the pod/i);
   });
 
   it('aggregates unhealthy workload pods by dominant reason', () => {

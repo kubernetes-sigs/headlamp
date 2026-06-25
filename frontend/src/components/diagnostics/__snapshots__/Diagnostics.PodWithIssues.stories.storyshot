@@ -27,422 +27,135 @@
         class="MuiBox-root css-1txv3mw"
       >
         <div
-          class="MuiBox-root css-1821gv5"
+          class="MuiBox-root css-j7qwjs"
         >
           <div
-            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorError MuiAlert-outlinedError MuiAlert-outlined css-gw8lo5-MuiPaper-root-MuiAlert-root"
-            role="alert"
+            class="MuiBox-root css-k1dapx"
           >
             <div
-              class="MuiAlert-icon css-1ytlwq5-MuiAlert-icon"
+              class="MuiBox-root css-1qocved"
             >
-              <svg
-                aria-hidden="true"
-                class="MuiSvgIcon-root MuiSvgIcon-fontSizeInherit css-1vooibu-MuiSvgIcon-root"
-                data-testid="ErrorOutlineIcon"
-                focusable="false"
-                viewBox="0 0 24 24"
+              <span
+                class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
               >
-                <path
-                  d="M11 15h2v2h-2zm0-8h2v6h-2zm.99-5C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"
-                />
-              </svg>
-            </div>
-            <div
-              class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
-            >
-              <div
-                class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom MuiAlertTitle-root css-19xro32-MuiTypography-root-MuiAlertTitle-root"
+                Critical
+              </span>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-vtuj24-MuiTypography-root"
               >
                 Pod status: ImagePullBackOff
-              </div>
-              <p
-                class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
-              >
-                Back-off pulling image "doesnotexist:nover"
               </p>
+            </div>
+            <p
+              class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+            >
+              Back-off pulling image "doesnotexist:nover"
+            </p>
+            <div
+              class="MuiBox-root css-p9ukdl"
+            >
               <div
-                class="MuiBox-root css-agyrtj"
+                class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
               >
-                <div
-                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                 >
-                  <span
-                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
-                  >
-                    Phase: Pending
-                  </span>
-                </div>
-                <div
-                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+                  Phase: Pending
+                </span>
+              </div>
+              <div
+                class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                 >
-                  <span
-                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
-                  >
-                    Ready containers: 0/1
-                  </span>
-                </div>
-                <div
-                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+                  Ready containers: 0/1
+                </span>
+              </div>
+              <div
+                class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                 >
-                  <span
-                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
-                  >
-                    Total restarts: 1
-                  </span>
-                </div>
+                  Total restarts: 1
+                </span>
               </div>
             </div>
           </div>
           <div
-            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorError MuiAlert-outlinedError MuiAlert-outlined css-gw8lo5-MuiPaper-root-MuiAlert-root"
-            role="alert"
+            class="MuiBox-root css-pbze50"
           >
             <div
-              class="MuiAlert-icon css-1ytlwq5-MuiAlert-icon"
+              class="MuiBox-root css-1qocved"
             >
-              <svg
-                aria-hidden="true"
-                class="MuiSvgIcon-root MuiSvgIcon-fontSizeInherit css-1vooibu-MuiSvgIcon-root"
-                data-testid="ErrorOutlineIcon"
-                focusable="false"
-                viewBox="0 0 24 24"
+              <span
+                class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
               >
-                <path
-                  d="M11 15h2v2h-2zm0-8h2v6h-2zm.99-5C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"
-                />
-              </svg>
-            </div>
-            <div
-              class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
-            >
-              <div
-                class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom MuiAlertTitle-root css-19xro32-MuiTypography-root-MuiAlertTitle-root"
-              >
-                Condition Ready is False
-              </div>
+                Info
+              </span>
               <p
-                class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
-              >
-                containers with unready status: [imagepullbackoff]
-              </p>
-              <div
-                class="MuiBox-root css-agyrtj"
-              >
-                <div
-                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
-                >
-                  <span
-                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
-                  >
-                    Reason: ContainersNotReady
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div
-            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorError MuiAlert-outlinedError MuiAlert-outlined css-gw8lo5-MuiPaper-root-MuiAlert-root"
-            role="alert"
-          >
-            <div
-              class="MuiAlert-icon css-1ytlwq5-MuiAlert-icon"
-            >
-              <svg
-                aria-hidden="true"
-                class="MuiSvgIcon-root MuiSvgIcon-fontSizeInherit css-1vooibu-MuiSvgIcon-root"
-                data-testid="ErrorOutlineIcon"
-                focusable="false"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  d="M11 15h2v2h-2zm0-8h2v6h-2zm.99-5C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"
-                />
-              </svg>
-            </div>
-            <div
-              class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
-            >
-              <div
-                class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom MuiAlertTitle-root css-19xro32-MuiTypography-root-MuiAlertTitle-root"
-              >
-                Condition ContainersReady is False
-              </div>
-              <p
-                class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
-              >
-                containers with unready status: [imagepullbackoff]
-              </p>
-              <div
-                class="MuiBox-root css-agyrtj"
-              >
-                <div
-                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
-                >
-                  <span
-                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
-                  >
-                    Reason: ContainersNotReady
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div
-            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorError MuiAlert-outlinedError MuiAlert-outlined css-gw8lo5-MuiPaper-root-MuiAlert-root"
-            role="alert"
-          >
-            <div
-              class="MuiAlert-icon css-1ytlwq5-MuiAlert-icon"
-            >
-              <svg
-                aria-hidden="true"
-                class="MuiSvgIcon-root MuiSvgIcon-fontSizeInherit css-1vooibu-MuiSvgIcon-root"
-                data-testid="ErrorOutlineIcon"
-                focusable="false"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  d="M11 15h2v2h-2zm0-8h2v6h-2zm.99-5C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"
-                />
-              </svg>
-            </div>
-            <div
-              class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
-            >
-              <div
-                class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom MuiAlertTitle-root css-19xro32-MuiTypography-root-MuiAlertTitle-root"
-              >
-                Container imagepullbackoff is waiting: ImagePullBackOff
-              </div>
-              <p
-                class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
-              >
-                Back-off pulling image "doesnotexist:nover"
-              </p>
-              <div
-                class="MuiBox-root css-agyrtj"
-              >
-                <div
-                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
-                >
-                  <span
-                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
-                  >
-                    Restart count: 1
-                  </span>
-                </div>
-                <div
-                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
-                >
-                  <span
-                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
-                  >
-                    Exit code: 1
-                  </span>
-                </div>
-                <div
-                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
-                >
-                  <span
-                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
-                  >
-                    Finished: 2022-01-01T00:05:00.000Z
-                  </span>
-                </div>
-              </div>
-              <div
-                class="MuiBox-root css-e5z02e"
-              >
-                <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                  href="/?view=logs"
-                >
-                  View logs
-                </a>
-              </div>
-            </div>
-          </div>
-          <div
-            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorError MuiAlert-outlinedError MuiAlert-outlined css-gw8lo5-MuiPaper-root-MuiAlert-root"
-            role="alert"
-          >
-            <div
-              class="MuiAlert-icon css-1ytlwq5-MuiAlert-icon"
-            >
-              <svg
-                aria-hidden="true"
-                class="MuiSvgIcon-root MuiSvgIcon-fontSizeInherit css-1vooibu-MuiSvgIcon-root"
-                data-testid="ErrorOutlineIcon"
-                focusable="false"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  d="M11 15h2v2h-2zm0-8h2v6h-2zm.99-5C6.47 2 2 6.48 2 12s4.47 10 9.99 10C17.52 22 22 17.52 22 12S17.52 2 11.99 2zM12 20c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"
-                />
-              </svg>
-            </div>
-            <div
-              class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
-            >
-              <div
-                class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom MuiAlertTitle-root css-19xro32-MuiTypography-root-MuiAlertTitle-root"
-              >
-                Container imagepullbackoff restarted 1 time
-              </div>
-              <p
-                class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
-              >
-                Back-off pulling image "doesnotexist:nover"
-              </p>
-              <div
-                class="MuiBox-root css-agyrtj"
-              >
-                <div
-                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
-                >
-                  <span
-                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
-                  >
-                    Restart count: 1
-                  </span>
-                </div>
-                <div
-                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
-                >
-                  <span
-                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
-                  >
-                    Exit code: 1
-                  </span>
-                </div>
-                <div
-                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
-                >
-                  <span
-                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
-                  >
-                    Finished: 2022-01-01T00:05:00.000Z
-                  </span>
-                </div>
-              </div>
-              <div
-                class="MuiBox-root css-e5z02e"
-              >
-                <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                  href="/?view=logs"
-                >
-                  View current or previous logs
-                </a>
-              </div>
-            </div>
-          </div>
-          <div
-            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorInfo MuiAlert-outlinedInfo MuiAlert-outlined css-f8yk0t-MuiPaper-root-MuiAlert-root"
-            role="alert"
-          >
-            <div
-              class="MuiAlert-icon css-1ytlwq5-MuiAlert-icon"
-            >
-              <svg
-                aria-hidden="true"
-                class="MuiSvgIcon-root MuiSvgIcon-fontSizeInherit css-1vooibu-MuiSvgIcon-root"
-                data-testid="InfoOutlinedIcon"
-                focusable="false"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  d="M11,9H13V7H11M12,20C7.59,20 4,16.41 4,12C4,7.59 7.59,4 12,4C16.41,4 20,7.59 20, 12C20,16.41 16.41,20 12,20M12,2A10,10 0 0,0 2,12A10,10 0 0,0 12,22A10,10 0 0,0 22,12A10, 10 0 0,0 12,2M11,17H13V11H11V17Z"
-                />
-              </svg>
-            </div>
-            <div
-              class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
-            >
-              <div
-                class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom MuiAlertTitle-root css-19xro32-MuiTypography-root-MuiAlertTitle-root"
+                class="MuiTypography-root MuiTypography-body1 css-vtuj24-MuiTypography-root"
               >
                 Previous logs may be available for restarted containers
-              </div>
+              </p>
+            </div>
+            <div
+              class="MuiBox-root css-p9ukdl"
+            >
               <div
-                class="MuiBox-root css-agyrtj"
+                class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
               >
-                <div
-                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                 >
-                  <span
-                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
-                  >
-                    Container: imagepullbackoff (1)
-                  </span>
-                </div>
-              </div>
-              <div
-                class="MuiBox-root css-e5z02e"
-              >
-                <a
-                  class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                  href="/?view=logs"
-                >
-                  Open logs
-                </a>
+                  Container: imagepullbackoff (1)
+                </span>
               </div>
             </div>
           </div>
           <div
-            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorWarning MuiAlert-outlinedWarning MuiAlert-outlined css-7u48ag-MuiPaper-root-MuiAlert-root"
-            role="alert"
+            class="MuiBox-root css-pbze50"
           >
             <div
-              class="MuiAlert-icon css-1ytlwq5-MuiAlert-icon"
+              class="MuiBox-root css-1qocved"
             >
-              <svg
-                aria-hidden="true"
-                class="MuiSvgIcon-root MuiSvgIcon-fontSizeInherit css-1vooibu-MuiSvgIcon-root"
-                data-testid="ReportProblemOutlinedIcon"
-                focusable="false"
-                viewBox="0 0 24 24"
+              <span
+                class="MuiTypography-root MuiTypography-body1 css-1dablfr-MuiTypography-root"
               >
-                <path
-                  d="M12 5.99L19.53 19H4.47L12 5.99M12 2L1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z"
-                />
-              </svg>
-            </div>
-            <div
-              class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
-            >
-              <div
-                class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom MuiAlertTitle-root css-19xro32-MuiTypography-root-MuiAlertTitle-root"
+                Warning
+              </span>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-vtuj24-MuiTypography-root"
               >
                 Warning event: Unhealthy (7 times)
-              </div>
-              <p
-                class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
-              >
-                Readiness probe failed: HTTP probe failed with statuscode: 500
               </p>
+            </div>
+            <p
+              class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+            >
+              Readiness probe failed: HTTP probe failed with statuscode: 500
+            </p>
+            <div
+              class="MuiBox-root css-p9ukdl"
+            >
               <div
-                class="MuiBox-root css-agyrtj"
+                class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
               >
-                <div
-                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                 >
-                  <span
-                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
-                  >
-                    Last seen: 90d (2023-04-01T10:00:00.000Z)
-                  </span>
-                </div>
-                <div
-                  class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+                  Last seen: 90d (2023-04-01T10:00:00.000Z)
+                </span>
+              </div>
+              <div
+                class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                 >
-                  <span
-                    class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
-                  >
-                    7 times since 90d
-                  </span>
-                </div>
+                  7 times since 90d
+                </span>
               </div>
             </div>
           </div>
