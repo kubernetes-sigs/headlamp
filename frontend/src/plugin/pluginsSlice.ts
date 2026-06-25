@@ -133,10 +133,13 @@ export interface PluginsState {
 }
 // Load from local storage, falling back to empty if unavailable, missing or invalid.
 function loadPluginSettings(): PluginInfo[] {
-  if (typeof localStorage === 'undefined') {
-    return [];
-  }
   try {
+    // Accessing localStorage can itself throw in restricted contexts (e.g. a
+    // SecurityError from a throwing getter), so keep the availability check
+    // inside the try so every failure path falls back to empty.
+    if (typeof localStorage === 'undefined') {
+      return [];
+    }
     const parsed: unknown = JSON.parse(localStorage.getItem('headlampPluginSettings') || '[]');
     if (!Array.isArray(parsed)) {
       console.warn('Stored plugin settings are not an array, falling back to empty:', parsed);
@@ -144,7 +147,7 @@ function loadPluginSettings(): PluginInfo[] {
     }
     return parsed as PluginInfo[];
   } catch (error) {
-    console.warn('Failed to parse stored plugin settings, falling back to empty:', error);
+    console.warn('Failed to read stored plugin settings, falling back to empty:', error);
     return [];
   }
 }

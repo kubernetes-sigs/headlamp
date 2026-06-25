@@ -30,10 +30,13 @@ const PLUGIN_CONFIG_KEY = 'pluginConfigs';
 
 // Load from local storage, falling back to empty if unavailable, missing or invalid.
 function loadInitialState(): PluginConfigState {
-  if (typeof localStorage === 'undefined') {
-    return {};
-  }
   try {
+    // Accessing localStorage can itself throw in restricted contexts (e.g. a
+    // SecurityError from a throwing getter), so keep the availability check
+    // inside the try so every failure path falls back to empty.
+    if (typeof localStorage === 'undefined') {
+      return {};
+    }
     const parsed: unknown = JSON.parse(localStorage.getItem(PLUGIN_CONFIG_KEY) || '{}');
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
       console.warn('Stored plugin configs are not an object, falling back to empty:', parsed);
@@ -41,7 +44,7 @@ function loadInitialState(): PluginConfigState {
     }
     return parsed as PluginConfigState;
   } catch (error) {
-    console.warn('Failed to parse stored plugin configs, falling back to empty:', error);
+    console.warn('Failed to read stored plugin configs, falling back to empty:', error);
     return {};
   }
 }

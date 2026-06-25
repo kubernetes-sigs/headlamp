@@ -96,4 +96,26 @@ describe('plugin slices module-load state', () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it('slices fall back to defaults when accessing localStorage throws', async () => {
+    // Restricted/privacy contexts can throw (e.g. SecurityError) on any
+    // localStorage access, including the availability check itself.
+    vi.stubGlobal('localStorage', {
+      getItem: () => {
+        throw new Error('SecurityError');
+      },
+      clear: () => {},
+    });
+
+    try {
+      const { default: pluginsReducer } = await import('./pluginsSlice');
+      const { default: pluginConfigReducer } = await import('./pluginConfigSlice');
+
+      expect(pluginsReducer(undefined, { type: '@@INIT' }).pluginSettings).toEqual([]);
+      expect(pluginConfigReducer(undefined, { type: '@@INIT' })).toEqual({});
+      expect(console.warn).toHaveBeenCalled();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
