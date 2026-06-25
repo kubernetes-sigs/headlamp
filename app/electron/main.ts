@@ -879,9 +879,15 @@ function quitServerProcess() {
   }
 
   serverProcess.stdin.destroy();
-  // @todo: should we try and end the process a bit more gracefully?
-  //       What happens if the kill signal doesn't kill it?
-  serverProcess.kill();
+  if (serverProcess.pid) {
+    try {
+      killProcess(serverProcess.pid);
+    } catch (e) {
+      console.info('Backend process already stopped or not found.');
+    }
+  } else {
+    serverProcess.kill();
+  }
 
   serverProcess = null;
 }
