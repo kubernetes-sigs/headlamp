@@ -41,6 +41,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
@@ -2173,7 +2174,7 @@ func TestOIDCTokenRefreshMiddleware(t *testing.T) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	middleware := config.OIDCTokenRefreshMiddleware(handler)
+	middleware := auth.OIDCTokenRefreshMiddleware(config.HeadlampConfig)(handler)
 
 	// Test case: non-cluster request
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/non-cluster", nil)
@@ -3405,7 +3406,7 @@ func TestOidcUseCookieLogic(t *testing.T) {
 		SameSite: http.SameSiteStrictMode,
 	})
 
-	setTokenFromCookie(req, clusterName)
+	auth.SetTokenFromCookie(req, clusterName)
 
 	got := req.Header.Get("Authorization")
 	want := "Bearer " + testToken
