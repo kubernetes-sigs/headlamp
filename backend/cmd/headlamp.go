@@ -1496,7 +1496,6 @@ func serverHandler(ctx context.Context, config *HeadlampConfig) (http.Handler, e
 	return handler, nil
 }
 
-//nolint:funlen
 func StartHeadlampServer(config *HeadlampConfig) {
 	tel, err := initTelemetry(config)
 	if err != nil {
@@ -1535,6 +1534,12 @@ func StartHeadlampServer(config *HeadlampConfig) {
 		return
 	}
 
+	runServer(config, cancel, handler)
+}
+
+// runServer creates the HTTP server, sets up graceful shutdown, starts
+// listening (TLS or plain), and handles the server completion and errors.
+func runServer(config *HeadlampConfig, cancel context.CancelFunc, handler http.Handler) {
 	listenHost := strings.TrimPrefix(strings.TrimSuffix(config.ListenAddr, "]"), "[")
 	addr := net.JoinHostPort(listenHost, fmt.Sprintf("%d", config.Port))
 
@@ -1547,6 +1552,8 @@ func StartHeadlampServer(config *HeadlampConfig) {
 
 	serverDone := make(chan struct{})
 	setupGracefulShutdown(server, cancel, serverDone)
+
+	var err error
 
 	if config.TLSCertPath != "" && config.TLSKeyPath != "" {
 		err = server.ListenAndServeTLS(config.TLSCertPath, config.TLSKeyPath)
