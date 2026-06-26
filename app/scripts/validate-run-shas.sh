@@ -49,7 +49,9 @@ set -euo pipefail
 #   $1 - release_name (e.g. "0.9.0")
 #
 # Outputs (stdout):
-#   The resolved tag name, e.g. "0.9.0" or "v0.9.0"# Returns:
+#   The resolved tag name, e.g. "0.9.0" or "v0.9.0"
+#
+# Returns:#
 #   0 on success, 1 if neither tag variant exists.
 # ---------------------------------------------------------------------------
 resolve_tag() {
