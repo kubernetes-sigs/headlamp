@@ -20,24 +20,30 @@ import React from 'react';
 import { TestContext } from '../../../test';
 import EditorDialog from './EditorDialog';
 
-const { mockSetModelMarkers, mockGetModel, mockTextarea, mockEditorInstance } = vi.hoisted(() => {
-  const textarea = document.createElement('textarea');
-  return {
-    mockSetModelMarkers: vi.fn(),
-    mockGetModel: vi.fn(() => ({})),
-    mockTextarea: textarea,
-    mockEditorInstance: {
-      getDomNode: () => ({
-        querySelector: (selector: string) => {
-          if (selector === 'textarea') {
-            return textarea;
-          }
-          return null;
-        },
-      }),
-    },
-  };
-});
+const { mockSetModelMarkers, mockGetModel, mockTextarea, mockEditorInstance, mockOnChangeRef } =
+  vi.hoisted(() => {
+    const textarea = document.createElement('textarea');
+    return {
+      mockSetModelMarkers: vi.fn(),
+      mockGetModel: vi.fn(() => ({})),
+      mockTextarea: textarea,
+      mockEditorInstance: {
+        getDomNode: () => ({
+          querySelector: (selector: string) => {
+            if (selector === 'textarea') {
+              return textarea;
+            }
+            return null;
+          },
+        }),
+        getScrollTop: vi.fn(() => 123),
+        getPosition: vi.fn(() => ({ lineNumber: 5, column: 10 })),
+        setScrollTop: vi.fn(),
+        setPosition: vi.fn(),
+      },
+      mockOnChangeRef: { current: undefined as ((value: string | undefined) => void) | undefined },
+    };
+  });
 
 vi.mock('js-yaml', () => {
   class YAMLException extends Error {
@@ -67,6 +73,8 @@ vi.mock('@monaco-editor/react', () => {
   return {
     Monaco: {} as any,
     Editor: ({ onChange, onMount }: any) => {
+      mockOnChangeRef.current = onChange;
+
       React.useEffect(() => {
         onMount?.(
           { ...mockEditorInstance, getModel: mockGetModel },
@@ -122,11 +130,18 @@ describe('EditorDialog', () => {
     vi.useFakeTimers();
     localStorage.setItem('useSimpleEditor', 'true');
     mockTextarea.id = '';
+    // jsdom doesn't implement requestAnimationFrame; run callbacks
+    // synchronously so the scroll/cursor restore is deterministic in tests.
+    vi.stubGlobal('requestAnimationFrame', (cb: (time: number) => void) => {
+      cb(0);
+      return 0;
+    });
   });
 
   afterEach(() => {
     vi.useRealTimers();
     vi.clearAllMocks();
+    vi.unstubAllGlobals();
   });
 
   function renderEditorDialog() {
@@ -262,5 +277,43 @@ describe('EditorDialog', () => {
       'aria-controls',
       textareaId
     );
+  });
+
+  it('restores Monaco scroll position and cursor after validation produces an error', () => {
+    localStorage.setItem('useSimpleEditor', 'false');
+
+    renderEditorDialog();
+
+    act(() => {
+      mockOnChangeRef.current?.('invalid');
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(mockEditorInstance.setScrollTop).toHaveBeenCalledWith(123);
+    expect(mockEditorInstance.setPosition).toHaveBeenCalledWith({ lineNumber: 5, column: 10 });
+  });
+
+  it('does not touch scroll/cursor when validation finds nothing to update', () => {
+    localStorage.setItem('useSimpleEditor', 'false');
+
+    renderEditorDialog();
+
+    // The dialog's mount effect re-detects the mocked (JSON-shaped) initial
+    // content as format 'json'. Valid JSON without "invalid" in it keeps
+    // both format ('json') and error ('') unchanged, so there's nothing for
+    // the validation tick to restore.
+    act(() => {
+      mockOnChangeRef.current?.('{"apiVersion":"v1","kind":"Node"}');
+    });
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    expect(mockEditorInstance.setScrollTop).not.toHaveBeenCalled();
+    expect(mockEditorInstance.setPosition).not.toHaveBeenCalled();
   });
 });

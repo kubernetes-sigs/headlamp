@@ -262,11 +262,27 @@ export default function EditorDialog(props: EditorDialogProps) {
         code: value || '',
         format: originalCodeRef.current.format,
       });
-      if (code.format !== format) {
+
+      const willUpdateCode = code.format !== format;
+      const willUpdateError = error !== (err?.message || '');
+
+      // Nothing will change, so there's no re-render and nothing to restore.
+      if (!willUpdateCode && !willUpdateError) {
+        return;
+      }
+
+      // The state updates below re-render the editor and reset its scroll
+      // position. Save it here and restore it once the re-render settles, so
+      // the user doesn't lose their place.
+      const editor = editorRef.current;
+      const scrollTop = editor?.getScrollTop();
+      const position = editor?.getPosition();
+
+      if (willUpdateCode) {
         setCode(currentCode => ({ code: currentCode.code || '', format }));
       }
 
-      if (error !== (err?.message || '')) {
+      if (willUpdateError) {
         setError(err?.message || '');
       }
 
@@ -306,6 +322,20 @@ export default function EditorDialog(props: EditorDialogProps) {
             monacoRef.current.editor.setModelMarkers(model, 'headlamp-yaml-parse', []);
           }
         }
+      }
+
+      if (editor && scrollTop !== undefined) {
+        requestAnimationFrame(() => {
+          // The editor may have been unmounted (e.g. switched to the simple
+          // editor) or replaced between capture and this frame.
+          if (editorRef.current !== editor) {
+            return;
+          }
+          editor.setScrollTop(scrollTop);
+          if (position) {
+            editor.setPosition(position);
+          }
+        });
       }
     }, 500); // ms
 
