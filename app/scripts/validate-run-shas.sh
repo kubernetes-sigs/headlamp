@@ -46,8 +46,9 @@ set -euo pipefail
 # adding a "v" prefix or stripping a leading "v".
 #
 # Args:
-#   $1 - release_name (e.g. "0.9.0")# Outputs (stdout):
-#   The resolved tag name, e.g. "0.9.0" or "v0.9.0"
+#   $1 - release_name (e.g. "0.9.0")
+#
+# Outputs (stdout):#   The resolved tag name, e.g. "0.9.0" or "v0.9.0"
 #
 # Returns:
 #   0 on success, 1 if neither tag variant exists.
@@ -185,6 +186,12 @@ main() {
     echo "  release_name  e.g. 0.9.0 or v0.9.0" >&2
     echo "  repo          e.g. kubernetes-sigs/headlamp" >&2
     echo "  run_ids       comma-separated workflow run IDs" >&2
+    exit 1
+  fi
+
+  # Ensure GitHub auth is available for gh CLI.
+  if [ -z "${GITHUB_TOKEN:-}" ]; then
+    echo "Error: GITHUB_TOKEN is required for GitHub CLI authentication." >&2
     exit 1
   fi
 
