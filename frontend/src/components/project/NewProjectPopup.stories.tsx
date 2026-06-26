@@ -52,6 +52,7 @@ const makeStore = () => {
         defaultPodDebugImage: '',
         defaultNodeShellImage: '',
         defaultNodeShellNamespace: '',
+        websocketMode: null,
       },
       projects: {
         headerActions: {},
