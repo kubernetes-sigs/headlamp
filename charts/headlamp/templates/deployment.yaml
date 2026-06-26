@@ -312,7 +312,7 @@ spec:
             {{- end }}
             {{- if not $oidc.externalSecret.enabled}}
             # Check if externalSecret is disabled
-            {{- if or (ne $oidc.clientID "") (ne $clientID "") }}
+            {{- if or (ne ($oidc.clientID | quote ) "") (ne $clientID "") }}
             # Check if clientID is non empty either from env or oidc.config
             - "-oidc-client-id=$(OIDC_CLIENT_ID)"
             {{- end }}

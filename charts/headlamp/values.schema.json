@@ -219,7 +219,7 @@
               }
             },
             "clientID": {
-              "type": "string",
+              "type": ["string", "integer"],
               "description": "Issuer of the OIDC provider"
             },
             "clientSecret": {
