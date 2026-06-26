@@ -177,6 +177,7 @@ type clientConfig struct {
 	Clusters                  []Cluster `json:"clusters"`
 	IsDynamicClusterEnabled   bool      `json:"isDynamicClusterEnabled"`
 	AllowKubeconfigChanges    bool      `json:"allowKubeconfigChanges"`
+	WebsocketMode             string    `json:"websocketMode"`
 	DefaultPodDebugImage      string    `json:"defaultPodDebugImage"`
 	DefaultNodeShellImage     string    `json:"defaultNodeShellImage"`
 	DefaultNodeShellNamespace string    `json:"defaultNodeShellNamespace"`
@@ -2251,6 +2252,7 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 		Clusters:                  c.getClusters(),
 		IsDynamicClusterEnabled:   c.EnableDynamicClusters,
 		AllowKubeconfigChanges:    c.AllowKubeconfigChanges,
+		WebsocketMode:             c.WebsocketMode,
 		DefaultPodDebugImage:      c.PodDebugImage,
 		DefaultNodeShellImage:     c.NodeShellImage,
 		DefaultNodeShellNamespace: c.NodeShellNamespace,
