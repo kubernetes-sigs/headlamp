@@ -17,7 +17,14 @@
 import { renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppTheme } from './AppTheme';
-import { createMuiTheme, getThemeName, setTheme, usePrefersColorScheme } from './themes';
+import {
+  createMuiTheme,
+  getLastThemeForMode,
+  getThemeName,
+  setLastThemeForMode,
+  setTheme,
+  usePrefersColorScheme,
+} from './themes';
 
 describe('themes.ts', () => {
   describe('createMuiTheme', () => {
@@ -100,6 +107,50 @@ describe('themes.ts', () => {
 
       setTheme('dark');
       expect(mockLocalStorage.headlampThemePreference).toBe('dark');
+    });
+  });
+
+  describe('setLastThemeForMode / getLastThemeForMode', () => {
+    beforeEach(() => {
+      // Earlier tests replace localStorage with bare stubs, so install a fresh
+      // in-memory implementation that actually persists.
+      const store: Record<string, string> = {};
+      vi.stubGlobal('localStorage', {
+        getItem: (key: string) => (key in store ? store[key] : null),
+        setItem: (key: string, value: string) => {
+          store[key] = String(value);
+        },
+        removeItem: (key: string) => {
+          delete store[key];
+        },
+        clear: () => {
+          Object.keys(store).forEach(key => delete store[key]);
+        },
+      });
+    });
+
+    it('writes and reads the light mode theme from its own key', () => {
+      setLastThemeForMode('light', 'Monochrome Light');
+      expect(localStorage.getItem('headlampLastLightTheme')).toBe('Monochrome Light');
+      expect(getLastThemeForMode('light')).toBe('Monochrome Light');
+    });
+
+    it('writes and reads the dark mode theme from its own key', () => {
+      setLastThemeForMode('dark', 'Lights Out');
+      expect(localStorage.getItem('headlampLastDarkTheme')).toBe('Lights Out');
+      expect(getLastThemeForMode('dark')).toBe('Lights Out');
+    });
+
+    it('keeps the light and dark keys independent', () => {
+      setLastThemeForMode('light', 'Monochrome Light');
+      setLastThemeForMode('dark', 'Lights Out');
+      expect(getLastThemeForMode('light')).toBe('Monochrome Light');
+      expect(getLastThemeForMode('dark')).toBe('Lights Out');
+    });
+
+    it('returns undefined when no theme has been stored for a mode', () => {
+      expect(getLastThemeForMode('light')).toBeUndefined();
+      expect(getLastThemeForMode('dark')).toBeUndefined();
     });
   });
 

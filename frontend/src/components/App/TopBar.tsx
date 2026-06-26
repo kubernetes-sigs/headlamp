@@ -266,6 +266,9 @@ export const PureTopBar = memo(
     const isSmall = useMediaQuery(theme.breakpoints.down('sm'));
     const dispatch = useDispatch();
     const history = useHistory();
+    // When the backend forces a theme, omit the toggle entirely so the mobile
+    // overflow menu doesn't render an empty item.
+    const forceTheme = useTypedSelector(state => state.config.forceTheme);
 
     const openSideBar = !!(isSidebarOpenUserSelected === undefined ? false : isSidebarOpen);
 
@@ -413,7 +416,7 @@ export const PureTopBar = memo(
       },
       {
         id: DefaultAppBarAction.THEME_TOGGLE,
-        action: <ThemeToggleButton />,
+        action: forceTheme ? null : <ThemeToggleButton />,
       },
       {
         id: DefaultAppBarAction.SETTINGS,
@@ -479,7 +482,7 @@ export const PureTopBar = memo(
       },
       {
         id: DefaultAppBarAction.THEME_TOGGLE,
-        action: <ThemeToggleButton />,
+        action: forceTheme ? null : <ThemeToggleButton />,
       },
       {
         id: DefaultAppBarAction.SETTINGS,

@@ -44,6 +44,28 @@ describe('themeSlice', () => {
     expect(actual.name).toEqual(themeName);
   });
 
+  describe('setTheme records the last theme per mode', () => {
+    beforeEach(() => {
+      localStorage.clear();
+      delete (localStorage as any).headlampThemePreference;
+    });
+
+    it('records a dark theme under the dark key', () => {
+      themeReducer(initialState, setTheme('dark'));
+      expect(localStorage.getItem('headlampLastDarkTheme')).toEqual('dark');
+    });
+
+    it('records a light theme under the light key', () => {
+      themeReducer(initialState, setTheme('Monochrome Light'));
+      expect(localStorage.getItem('headlampLastLightTheme')).toEqual('Monochrome Light');
+    });
+
+    it('treats a base:dark theme as dark', () => {
+      themeReducer(initialState, setTheme('Lights Out'));
+      expect(localStorage.getItem('headlampLastDarkTheme')).toEqual('Lights Out');
+    });
+  });
+
   describe('applyBackendThemeConfig', () => {
     beforeEach(() => {
       localStorage.clear();

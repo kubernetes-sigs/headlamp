@@ -43,9 +43,9 @@ export default function ThemeToggleButton() {
   const targetMode = isDark ? 'light' : 'dark';
 
   // Prefer the user's most recently selected theme of the target mode, then the
-  // built-in "Light"/"Dark" themes, then any available theme of that mode.
+  // built-in "light"/"dark" themes, then any available theme of that mode.
   const remembered = getLastThemeForMode(targetMode);
-  const defaultName = isDark ? 'Light' : 'Dark';
+  const defaultName = targetMode;
   const targetTheme =
     (remembered ? appThemes.find(it => it.name === remembered) : undefined) ??
     appThemes.find(it => it.name === defaultName) ??
