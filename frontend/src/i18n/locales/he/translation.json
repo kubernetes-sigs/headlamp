@@ -200,6 +200,8 @@
   "Navigation": "Navigation",
   "General": "General",
   "Reset All to Defaults": "Reset All to Defaults",
+  "Switch to light theme": "",
+  "Switch to dark theme": "",
   "Log out from all": "Log out from all",
   "Log out": "Log out",
   "Account of current user": "Account of current user",

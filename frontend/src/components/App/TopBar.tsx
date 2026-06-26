@@ -53,6 +53,7 @@ import { GlobalSearch } from '../globalSearch/GlobalSearch';
 import HeadlampButton from '../Sidebar/HeadlampButton';
 import { setWhetherSidebarOpen } from '../Sidebar/sidebarSlice';
 import { AppLogo } from './AppLogo';
+import ThemeToggleButton from './ThemeToggleButton';
 import { handleLogoutPathUpdate } from './TopBar.utils';
 
 export interface TopBarProps {}
@@ -411,6 +412,10 @@ export const PureTopBar = memo(
         action: null,
       },
       {
+        id: DefaultAppBarAction.THEME_TOGGLE,
+        action: <ThemeToggleButton />,
+      },
+      {
         id: DefaultAppBarAction.SETTINGS,
         action: isClusterContext ? <SettingsButton onClickExtra={handleMenuClose} /> : null,
       },
@@ -471,6 +476,10 @@ export const PureTopBar = memo(
       {
         id: DefaultAppBarAction.NOTIFICATION,
         action: null,
+      },
+      {
+        id: DefaultAppBarAction.THEME_TOGGLE,
+        action: <ThemeToggleButton />,
       },
       {
         id: DefaultAppBarAction.SETTINGS,

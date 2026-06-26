@@ -200,6 +200,8 @@
   "Navigation": "Навигация",
   "General": "Общий",
   "Reset All to Defaults": "Сбросить все к настройкам по умолчанию",
+  "Switch to light theme": "",
+  "Switch to dark theme": "",
   "Log out from all": "Выйти из всех",
   "Log out": "Выйти",
   "Account of current user": "Аккаунт текущего пользователя",

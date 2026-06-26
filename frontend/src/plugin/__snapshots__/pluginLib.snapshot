@@ -317,6 +317,7 @@
     "GLOBAL_SEARCH": "GLOBAL_SEARCH",
     "NOTIFICATION": "NOTIFICATION",
     "SETTINGS": "SETTINGS",
+    "THEME_TOGGLE": "THEME_TOGGLE",
     "USER": "USER",
   },
   "DefaultDetailsViewSection": {

@@ -17,7 +17,7 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { useSelector } from 'react-redux';
 import { AppTheme } from '../../lib/AppTheme';
-import { getThemeName, setTheme as setAppTheme } from '../../lib/themes';
+import { getThemeName, setLastThemeForMode, setTheme as setAppTheme } from '../../lib/themes';
 import { AppLogoType } from './AppLogo';
 import defaultAppThemes from './defaultAppThemes';
 export interface ThemeState {
@@ -55,6 +55,11 @@ const themeSlice = createSlice({
     setTheme(state, action: PayloadAction<string>) {
       state.name = action.payload;
       setAppTheme(state.name);
+      // Remember the most recent light and dark theme so the navbar toggle can
+      // swap back to the user's preferred theme of each mode.
+      const selected = state.appThemes.find(it => it.name === state.name);
+      const mode = (selected?.base ?? 'light') === 'dark' ? 'dark' : 'light';
+      setLastThemeForMode(mode, state.name);
     },
     addCustomAppTheme(state, action: PayloadAction<AppTheme>) {
       state.appThemes = state.appThemes.filter(it => it.name !== action.payload.name);

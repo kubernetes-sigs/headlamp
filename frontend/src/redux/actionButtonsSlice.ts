@@ -60,6 +60,7 @@ export enum DefaultHeaderAction {
 export enum DefaultAppBarAction {
   CLUSTER = 'CLUSTER',
   NOTIFICATION = 'NOTIFICATION',
+  THEME_TOGGLE = 'THEME_TOGGLE',
   SETTINGS = 'SETTINGS',
   USER = 'USER',
   GLOBAL_SEARCH = 'GLOBAL_SEARCH',

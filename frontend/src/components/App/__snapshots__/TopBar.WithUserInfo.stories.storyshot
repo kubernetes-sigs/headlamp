@@ -59,6 +59,17 @@
           />
         </svg>
         <button
+          aria-label="Switch to dark theme"
+          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-colorInherit MuiIconButton-sizeMedium css-1jcv3fz-MuiButtonBase-root-MuiIconButton-root"
+          data-mui-internal-clone-element="true"
+          tabindex="0"
+          type="button"
+        >
+          <span
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+          />
+        </button>
+        <button
           aria-controls="primary-user-menu"
           aria-haspopup="true"
           aria-label="Account of current user"

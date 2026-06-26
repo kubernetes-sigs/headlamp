@@ -652,3 +652,23 @@ export function getThemeName(backendConfig?: {
 export function setTheme(themeName: string) {
   localStorage.headlampThemePreference = themeName;
 }
+
+const LAST_LIGHT_THEME_KEY = 'headlampLastLightTheme';
+const LAST_DARK_THEME_KEY = 'headlampLastDarkTheme';
+
+/**
+ * Remembers the most recently selected theme for a given mode so the navbar
+ * light/dark toggle can swap back to a user's preferred theme of each mode
+ * (e.g. "Monochrome Light" <-> "Lights Out") instead of always snapping to the
+ * built-in Light/Dark themes.
+ */
+export function setLastThemeForMode(mode: 'light' | 'dark', themeName: string) {
+  localStorage.setItem(mode === 'dark' ? LAST_DARK_THEME_KEY : LAST_LIGHT_THEME_KEY, themeName);
+}
+
+/** Returns the most recently selected theme name for the given mode, if any. */
+export function getLastThemeForMode(mode: 'light' | 'dark'): string | undefined {
+  return (
+    localStorage.getItem(mode === 'dark' ? LAST_DARK_THEME_KEY : LAST_LIGHT_THEME_KEY) ?? undefined
+  );
+}
