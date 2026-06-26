@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { vi } from 'vitest';
+import * as themesLib from '../../lib/themes';
 import { AppLogoProps, AppLogoType } from './AppLogo';
 import themeReducer, {
   applyBackendThemeConfig,
@@ -45,41 +46,31 @@ describe('themeSlice', () => {
   });
 
   describe('setTheme records the last theme per mode', () => {
+    // Assert on the persistence call itself rather than the localStorage
+    // round-trip, so the test doesn't depend on the shared localStorage mock.
+    let setLastThemeForMode: ReturnType<typeof vi.spyOn>;
+
     beforeEach(() => {
-      // Use a self-contained localStorage so the assertions don't depend on the
-      // shared mock, which other test files can leave in an inconsistent state.
-      const store: Record<string, string> = {};
-      vi.stubGlobal('localStorage', {
-        getItem: (key: string) => (key in store ? store[key] : null),
-        setItem: (key: string, value: string) => {
-          store[key] = String(value);
-        },
-        removeItem: (key: string) => {
-          delete store[key];
-        },
-        clear: () => {
-          Object.keys(store).forEach(key => delete store[key]);
-        },
-      });
+      setLastThemeForMode = vi.spyOn(themesLib, 'setLastThemeForMode').mockImplementation(() => {});
     });
 
     afterEach(() => {
-      vi.unstubAllGlobals();
+      setLastThemeForMode.mockRestore();
     });
 
     it('records a dark theme under the dark key', () => {
       themeReducer(initialState, setTheme('dark'));
-      expect(localStorage.getItem('headlampLastDarkTheme')).toEqual('dark');
+      expect(setLastThemeForMode).toHaveBeenCalledWith('dark', 'dark');
     });
 
     it('records a light theme under the light key', () => {
       themeReducer(initialState, setTheme('Monochrome Light'));
-      expect(localStorage.getItem('headlampLastLightTheme')).toEqual('Monochrome Light');
+      expect(setLastThemeForMode).toHaveBeenCalledWith('light', 'Monochrome Light');
     });
 
     it('treats a base:dark theme as dark', () => {
       themeReducer(initialState, setTheme('Lights Out'));
-      expect(localStorage.getItem('headlampLastDarkTheme')).toEqual('Lights Out');
+      expect(setLastThemeForMode).toHaveBeenCalledWith('dark', 'Lights Out');
     });
   });
 

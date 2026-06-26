@@ -33,6 +33,8 @@ export default function ThemeToggleButton() {
   const themeName = useTypedSelector(state => state.theme.name) || getThemeName();
   // When the backend forces a theme, switching is disabled (mirrors Settings).
   const forceTheme = useTypedSelector(state => state.config.forceTheme);
+  const defaultLightTheme = useTypedSelector(state => state.config.defaultLightTheme);
+  const defaultDarkTheme = useTypedSelector(state => state.config.defaultDarkTheme);
 
   if (forceTheme) {
     return null;
@@ -43,12 +45,14 @@ export default function ThemeToggleButton() {
   const targetMode = isDark ? 'light' : 'dark';
 
   // Prefer the user's most recently selected theme of the target mode, then the
-  // built-in "light"/"dark" themes, then any available theme of that mode.
+  // backend's default theme for that mode, then the built-in "light"/"dark"
+  // themes, then any available theme of that mode.
   const remembered = getLastThemeForMode(targetMode);
-  const defaultName = targetMode;
+  const defaultName = (targetMode === 'dark' ? defaultDarkTheme : defaultLightTheme) ?? targetMode;
   const targetTheme =
     (remembered ? appThemes.find(it => it.name === remembered) : undefined) ??
     appThemes.find(it => it.name === defaultName) ??
+    appThemes.find(it => it.name === targetMode) ??
     appThemes.find(it => (it.base ?? 'light') === targetMode);
 
   if (!targetTheme) {
