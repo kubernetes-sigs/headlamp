@@ -212,8 +212,12 @@ describe('EditorDialog', () => {
       vi.advanceTimersByTime(500);
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /undo/i }));
-    expect(mockSetModelMarkers).toHaveBeenCalledWith(expect.any(Object), 'headlamp-yaml-parse', []);
+    fireEvent.click(screen.getByRole('button', { name: /undo changes/i }));
+    expect(mockSetModelMarkers).toHaveBeenLastCalledWith(
+      expect.any(Object),
+      'headlamp-yaml-parse',
+      []
+    );
   });
 
   it('renders the editor textarea and action buttons with correct id and aria-controls attributes', () => {

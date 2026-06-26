@@ -267,16 +267,22 @@ export default function EditorDialog(props: EditorDialogProps) {
 
           if (mark && typeof mark.line === 'number' && typeof mark.column === 'number') {
             const lineNumber = mark.line + 1;
+            const lineCount =
+              typeof model.getLineCount === 'function' ? model.getLineCount() : lineNumber;
+            const safeLineNumber = Math.min(Math.max(lineNumber, 1), lineCount);
             const maxColumn =
               typeof model.getLineMaxColumn === 'function'
-                ? model.getLineMaxColumn(lineNumber)
+                ? model.getLineMaxColumn(safeLineNumber)
                 : mark.column + 2;
+            const startColumn = Math.min(mark.column + 1, maxColumn);
+            const endColumn = Math.max(startColumn + 1, Math.min(mark.column + 2, maxColumn));
+
             monacoRef.current.editor.setModelMarkers(model, 'headlamp-yaml-parse', [
               {
-                startLineNumber: lineNumber,
-                startColumn: Math.min(mark.column + 1, maxColumn),
-                endLineNumber: lineNumber,
-                endColumn: Math.min(mark.column + 2, maxColumn),
+                startLineNumber: safeLineNumber,
+                startColumn,
+                endLineNumber: safeLineNumber,
+                endColumn,
                 message: reason || err?.message || t('Invalid YAML'),
                 severity: monacoRef.current.MarkerSeverity.Error,
               },
