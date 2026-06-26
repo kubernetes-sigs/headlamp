@@ -68,6 +68,7 @@ func ResetClientsetCache() {
 	defer mu.Unlock()
 
 	clientsetCache = make(map[string]*CachedClientSet)
+	blockedClientsetPrefixes = make(map[string]struct{})
 }
 
 // SeedClientsetCache populates the clientset cache with dummy entries for testing.
