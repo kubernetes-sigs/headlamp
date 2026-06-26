@@ -60,6 +60,7 @@ import DeleteButton from './DeleteButton';
 import DownloadButton from './DownloadButton';
 import EditButton from './EditButton';
 import ResourceTableMultiActions from './ResourceTableMultiActions';
+import { ResourceStatusProvider } from './resourceTableSlice';
 import { RestartButton } from './RestartButton';
 import ScaleButton from './ScaleButton';
 import ViewButton from './ViewButton';
@@ -299,6 +300,42 @@ export function useThrottle(value: any, interval = 1000): any {
   return throttledValue;
 }
 
+const loggedErrors = new WeakSet<ResourceStatusProvider>();
+
+function ResourceStatusBadges({
+  resource,
+  statusProviders,
+}: {
+  resource: KubeObject;
+  statusProviders?: ResourceStatusProvider[];
+}) {
+  const badges = React.useMemo(() => {
+    return (statusProviders || [])
+      .map((provider, index) => {
+        try {
+          const badge = provider(resource);
+          if (badge === null || badge === undefined || badge === false) return null;
+          return <React.Fragment key={index}>{badge}</React.Fragment>;
+        } catch (err) {
+          if (!loggedErrors.has(provider)) {
+            loggedErrors.add(provider);
+            console.error('Error rendering status provider:', err);
+          }
+          return null;
+        }
+      })
+      .filter(badge => badge !== null);
+  }, [resource, statusProviders]);
+
+  if (badges.length === 0) return null;
+
+  return (
+    <Box display="flex" alignItems="center" gap={0.5} ml={1}>
+      {badges}
+    </Box>
+  );
+}
+
 function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTableProps<RowItem>) {
   const {
     columns,
@@ -321,6 +358,8 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const clusters = useSelectedClusters();
   const tableProcessors = useTypedSelector(state => state.resourceTable.tableColumnsProcessors);
+  const statusProviders =
+    useTypedSelector(state => state.resourceTable.resourceStatusProviders) || [];
   const defaultFilterFunc = useFilterFunc();
   const [columnVisibility, setColumnVisibility] = useState(() =>
     initColumnVisibilityState(columns, id)
@@ -455,8 +494,22 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               header: t('translation|Name'),
               gridTemplate: 'auto',
               accessorFn: (item: RowItem) => item.metadata.name,
-              Cell: ({ row }: { row: MRT_Row<RowItem> }) =>
-                row.original && <Link kubeObject={row.original} />,
+              Cell: ({ row }: { row: MRT_Row<RowItem> }) => {
+                if (!row.original) return null;
+                const nameLink = <Link kubeObject={row.original} />;
+                if (statusProviders.length === 0) {
+                  return nameLink;
+                }
+                return (
+                  <Box display="flex" alignItems="center" gap={0.5}>
+                    {nameLink}
+                    <ResourceStatusBadges
+                      resource={row.original}
+                      statusProviders={statusProviders}
+                    />
+                  </Box>
+                );
+              },
             };
           case 'age':
             return {
@@ -550,6 +603,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     tableProcessors,
     tableSettings,
     sorting,
+    statusProviders,
   ]);
 
   const defaultActions: RowAction[] = [

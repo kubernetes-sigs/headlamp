@@ -16,6 +16,7 @@
 
 import { configureStore } from '@reduxjs/toolkit';
 import resourceTableReducer, {
+  addResourceStatusProvider,
   addResourceTableColumnsProcessor,
   TableColumnsProcessor,
 } from './resourceTableSlice';
@@ -76,5 +77,17 @@ describe('resourceTableSlice', () => {
     store.dispatch(addResourceTableColumnsProcessor(processor2));
 
     expect(store.getState().resourceTable.tableColumnsProcessors).toEqual([processor1, processor2]);
+  });
+
+  it('should start with an empty list of status providers', () => {
+    expect(store.getState().resourceTable.resourceStatusProviders).toEqual([]);
+  });
+
+  it('should add a status provider', () => {
+    const provider = () => null;
+
+    store.dispatch(addResourceStatusProvider(provider));
+
+    expect(store.getState().resourceTable.resourceStatusProviders).toEqual([provider]);
   });
 });

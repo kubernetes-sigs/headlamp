@@ -15,13 +15,21 @@
  */
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import { ResourceTableProps } from './ResourceTable';
+import type { ReactNode } from 'react';
+import type { KubeObject } from '../../../lib/k8s/KubeObject';
+import type { ResourceTableProps } from './ResourceTable';
+
+export type ResourceStatusProvider = (resource: KubeObject) => ReactNode;
 
 export interface ResourceTableState {
   /**
    * List of table columns processors. Allowing the modification of what tables show.
    */
   tableColumnsProcessors: TableColumnsProcessor[];
+  /**
+   * List of registered resource status providers.
+   */
+  resourceStatusProviders: ResourceStatusProvider[];
 }
 
 export type TableColumnsProcessor = {
@@ -41,6 +49,7 @@ export type TableColumnsProcessor = {
 
 const initialState: ResourceTableState = {
   tableColumnsProcessors: [],
+  resourceStatusProviders: [],
 };
 
 const resourceTableSlice = createSlice({
@@ -65,9 +74,16 @@ const resourceTableSlice = createSlice({
 
       state.tableColumnsProcessors.push(processor);
     },
+    /**
+     * Adds a resource status provider.
+     */
+    addResourceStatusProvider(state, action: PayloadAction<ResourceStatusProvider>) {
+      state.resourceStatusProviders.push(action.payload);
+    },
   },
 });
 
-export const { addResourceTableColumnsProcessor } = resourceTableSlice.actions;
+export const { addResourceTableColumnsProcessor, addResourceStatusProvider } =
+  resourceTableSlice.actions;
 export { resourceTableSlice };
 export default resourceTableSlice.reducer;
