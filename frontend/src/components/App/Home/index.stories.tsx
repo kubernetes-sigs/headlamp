@@ -21,6 +21,7 @@ import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { initialState } from '../../../redux/configSlice';
 import shortcutsReducer from '../../../redux/shortcutsSlice';
+import { API_BASE } from '../../../test';
 import Home from '.';
 
 const ourState = {
@@ -84,13 +85,13 @@ Base.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/clusters/cluster0/version', () =>
+        http.get(`${API_BASE}/clusters/cluster0/version`, () =>
           HttpResponse.json({ major: '1', minor: '28', gitVersion: 'v1.28.0' })
         ),
-        http.get('http://localhost:4466/clusters/cluster1/version', () =>
+        http.get(`${API_BASE}/clusters/cluster1/version`, () =>
           HttpResponse.json({ major: '1', minor: '28', gitVersion: 'v1.28.0' })
         ),
-        http.get('http://localhost:4466/clusters/cluster2/version', () =>
+        http.get(`${API_BASE}/clusters/cluster2/version`, () =>
           HttpResponse.json({ major: '1', minor: '28', gitVersion: 'v1.28.0' })
         ),
       ],
@@ -130,9 +131,9 @@ InaccessibleClusters.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/clusters/cluster0/version', () => HttpResponse.error()),
-        http.get('http://localhost:4466/clusters/cluster1/version', () => HttpResponse.error()),
-        http.get('http://localhost:4466/clusters/cluster2/version', () => HttpResponse.error()),
+        http.get(`${API_BASE}/clusters/cluster0/version`, () => HttpResponse.error()),
+        http.get(`${API_BASE}/clusters/cluster1/version`, () => HttpResponse.error()),
+        http.get(`${API_BASE}/clusters/cluster2/version`, () => HttpResponse.error()),
       ],
     },
   },
