@@ -42,7 +42,7 @@ function loadInitialState(): PluginConfigState {
       // Avoid logging the value itself: plugin configs may hold sensitive data.
       console.warn(
         `Stored plugin configs are not an object (got ${
-          Array.isArray(parsed) ? 'array' : typeof parsed
+          parsed === null ? 'null' : Array.isArray(parsed) ? 'array' : typeof parsed
         }), falling back to empty.`
       );
       return {};

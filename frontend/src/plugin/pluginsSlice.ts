@@ -144,7 +144,9 @@ function loadPluginSettings(): PluginInfo[] {
     if (!Array.isArray(parsed)) {
       // Avoid logging the value itself: plugin settings may hold sensitive data.
       console.warn(
-        `Stored plugin settings are not an array (got ${typeof parsed}), falling back to empty.`
+        `Stored plugin settings are not an array (got ${
+          parsed === null ? 'null' : typeof parsed
+        }), falling back to empty.`
       );
       return [];
     }
