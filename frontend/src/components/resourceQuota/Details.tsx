@@ -44,7 +44,7 @@ export function ResourceQuotaTable({
           label: t('translation|Used'),
           getter: item => {
             const normalizedUnit = normalizeUnit(item.name, item.used);
-            return compareUnits(item.used, normalizedUnit)
+            return compareUnits(item.used, normalizedUnit, item.name)
               ? normalizedUnit
               : `${item.used} (${normalizedUnit})`;
           },
@@ -53,7 +53,7 @@ export function ResourceQuotaTable({
           label: t('translation|Hard'),
           getter: item => {
             const normalizedUnit = normalizeUnit(item.name, item.hard);
-            return compareUnits(item.hard, normalizedUnit)
+            return compareUnits(item.hard, normalizedUnit, item.name)
               ? normalizedUnit
               : `${item.hard} (${normalizedUnit})`;
           },
