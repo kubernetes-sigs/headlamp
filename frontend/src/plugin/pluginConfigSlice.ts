@@ -39,7 +39,12 @@ function loadInitialState(): PluginConfigState {
     }
     const parsed: unknown = JSON.parse(localStorage.getItem(PLUGIN_CONFIG_KEY) || '{}');
     if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      console.warn('Stored plugin configs are not an object, falling back to empty:', parsed);
+      // Avoid logging the value itself: plugin configs may hold sensitive data.
+      console.warn(
+        `Stored plugin configs are not an object (got ${
+          Array.isArray(parsed) ? 'array' : typeof parsed
+        }), falling back to empty.`
+      );
       return {};
     }
     return parsed as PluginConfigState;
