@@ -1,0 +1,4 @@
+# Test case: Set websocket mode to multiplexer
+# Should set HEADLAMP_CONFIG_WEBSOCKET_MODE=multiplexer env var in the deployment
+config:
+  websocketMode: multiplexer

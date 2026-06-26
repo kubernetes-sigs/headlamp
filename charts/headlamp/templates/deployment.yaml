@@ -6,6 +6,7 @@
        as empty by `default`, and an unset value defaults to serving them. */}}
 {{- $staticPlugins := .Values.config.staticPlugins | default dict }}
 {{- $staticPluginsDisabled := and (hasKey $staticPlugins "enabled") (not $staticPlugins.enabled) }}
+{{- $websocketModeOverride := and .Values.config.websocketMode (ne .Values.config.websocketMode "websockets") }}
 
 {{- $clientID := "" }}
 {{- $clientSecret := "" }}
@@ -120,13 +121,13 @@ spec:
             {{- end }}
           image: "{{ .Values.image.registry}}/{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{ if or $oidc .Values.env $staticPluginsDisabled }}
+          {{ if or $oidc .Values.env $staticPluginsDisabled $websocketModeOverride }}
           {{- if $oidc.externalSecret.enabled }}
           # Check if externalSecret is enabled
           envFrom:
           - secretRef:
               name: {{ $oidc.externalSecret.name }}
-          {{- if or .Values.env $staticPluginsDisabled }}
+          {{- if or .Values.env $staticPluginsDisabled $websocketModeOverride }}
           env:
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
@@ -134,6 +135,10 @@ spec:
             {{- if $staticPluginsDisabled }}
             - name: HEADLAMP_STATIC_PLUGINS_DIR
               value: ""
+            {{- end }}
+            {{- if $websocketModeOverride }}
+            - name: HEADLAMP_CONFIG_WEBSOCKET_MODE
+              value: {{ .Values.config.websocketMode | quote }}
             {{- end }}
           {{- end }}
           {{- else }}
@@ -257,6 +262,10 @@ spec:
             {{- if $staticPluginsDisabled }}
             - name: HEADLAMP_STATIC_PLUGINS_DIR
               value: ""
+            {{- end }}
+            {{- if $websocketModeOverride }}
+            - name: HEADLAMP_CONFIG_WEBSOCKET_MODE
+              value: {{ .Values.config.websocketMode | quote }}
             {{- end }}
           {{- end }}
           {{- end }}

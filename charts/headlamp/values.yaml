@@ -131,6 +131,11 @@ config:
     # image paths; this sets HEADLAMP_STATIC_PLUGINS_DIR to an empty string so the backend skips them.
     enabled: true
   enableHelm: false
+  # -- WebSocket mode for real-time updates.
+  # Options: websockets (default, standard WebSocket connections),
+  #          multiplexer (experimental, improved performance for busy clusters),
+  #          off (disable real-time updates entirely, useful for very busy clusters)
+  websocketMode: "websockets"
   watchPlugins: false
   # -- Default image to use when creating pod debug containers. If empty, Headlamp uses its built-in default.
   podDebugImage: ""

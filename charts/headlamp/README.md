@@ -135,6 +135,7 @@ config:
 | config.pluginsDir  | string | `"/headlamp/plugins"` | Directory to load Headlamp plugins from                                   |
 | config.staticPlugins.enabled | bool | `true` | Serve the bundled static plugins shipped in the image (e.g. the Prometheus "Show Prometheus metrics" plugin). Set to false to disable them |
 | config.enableHelm  | bool   | `false`               | Enable Helm operations like install, upgrade and uninstall of Helm charts |
+| config.websocketMode | string | `"websockets"` | WebSocket mode for real-time updates: `websockets` (default), `multiplexer` (experimental, improved performance), `off` (disable real-time updates, useful for very busy clusters) |
 | config.podDebugImage | string | `""`                | Default image to use when creating pod debug containers                    |
 | config.nodeShellImage | string | `""`               | Default image to use when creating node shell pods                         |
 | config.nodeShellNamespace | string | `""`            | Default namespace to use when creating node shell pods                      |
