@@ -59,7 +59,10 @@ type inFlightEntry struct {
 
 var (
 	clientsetCache = make(map[string]*CachedClientSet)
-	mu             sync.Mutex
+	// blockedClientsetPrefixes holds identifier prefixes whose clientsets must not be
+	// re-cached after context removal (e.g. while an in-flight GetClientSet completes).
+	blockedClientsetPrefixes = make(map[string]struct{})
+	mu                       sync.Mutex
 	janitorOnce    sync.Once
 
 	// inFlight keeps track of clientsets currently being created to avoid redundant work.
@@ -120,16 +123,20 @@ func evictExpiredClientsets() {
 	}
 }
 
-// EvictClientsetsForCluster removes cached authorization clientsets for a cluster
-// immediately when its kube context is removed, instead of waiting for TTL expiry.
-func EvictClientsetsForCluster(clusterName string) {
-	if clusterName == "" {
+// EvictClientsetsForCluster removes cached authorization clientsets whose keys share
+// the given prefix immediately when a kube context is removed, instead of waiting for
+// TTL expiry. The prefix is the clientset cache key identifier (the part before the
+// NUL separator), not necessarily the Kubernetes cluster name from kubeconfig.
+func EvictClientsetsForCluster(clientsetCachePrefix string) {
+	if clientsetCachePrefix == "" {
 		return
 	}
 
-	prefix := clusterName + "\x00"
+	prefix := clientsetCachePrefix + "\x00"
 
 	mu.Lock()
+
+	blockedClientsetPrefixes[clientsetCachePrefix] = struct{}{}
 
 	evicted := 0
 
@@ -148,7 +155,18 @@ func EvictClientsetsForCluster(clusterName string) {
 	if evicted > 0 {
 		logger.Log(logger.LevelInfo, nil, nil,
 			fmt.Sprintf("evicted %d clientset(s) for removed cluster %s, %d remaining",
-				evicted, redactContextKey(clusterName), remaining))
+				evicted, redactContextKey(clientsetCachePrefix), remaining))
+	}
+}
+
+// clearBlockedClientsetPrefixesForActiveContexts allows clientset caching again for
+// contexts that are currently active (for example after a cluster is re-added).
+func clearBlockedClientsetPrefixesForActiveContexts(activeContexts []string) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	for _, contextKey := range activeContexts {
+		delete(blockedClientsetPrefixes, clientsetCachePrefixFromContextKey(contextKey))
 	}
 }
 
@@ -214,6 +232,11 @@ func createAndCacheClientSet(
 
 			return existing.clientset, nil
 		}
+	}
+
+	prefix := strings.SplitN(cacheKey, "\x00", 2)[0]
+	if _, blocked := blockedClientsetPrefixes[prefix]; blocked {
+		return cs, nil
 	}
 
 	clientsetCache[cacheKey] = &CachedClientSet{

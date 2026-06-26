@@ -208,6 +208,8 @@ func CheckForChanges(
 // their cached API responses and authorization clientsets.
 // activeContexts is a list of currently valid context keys.
 func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
+	clearBlockedClientsetPrefixesForActiveContexts(activeContexts)
+
 	activeMap := make(map[string]bool, len(activeContexts))
 	for _, ctx := range activeContexts {
 		activeMap[ctx] = true
