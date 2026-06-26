@@ -2530,6 +2530,7 @@ func newFakeK8sServer(authAllowed bool) *httptest.Server {
 // integration tests do not share clientsets or API response cache entries.
 func resetCacheMiddlewareTestState() {
 	k8cache.ResetForTesting()
+
 	k8sResponseCache = cache.New[string]()
 }
 
