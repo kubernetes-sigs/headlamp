@@ -486,8 +486,7 @@ async function downloadExtractPlugin(
       throw new Error('Download cancelled');
     }
 
-    // await sleep(4000); // comment out for testing
-    const archResponse = await fetch(archiveURL, { redirect: 'follow', follow: 10 }, { signal });
+    const archResponse = await fetch(archiveURL, { redirect: 'follow', signal });
     if (!archResponse.ok) {
       throw new Error(`Failed to download tarball. Status code: ${archResponse.status}`);
     }
@@ -597,7 +596,7 @@ async function fetchPluginInfo(URL, progressCallback, signal, pluginVersion) {
     if (progressCallback) {
       progressCallback({ type: 'info', message: 'Fetching Plugin Metadata' });
     }
-    let response = await fetch(apiURL, { redirect: 'follow', follow: 10 }, { signal });
+    let response = await fetch(apiURL, { redirect: 'follow', signal });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -612,8 +611,7 @@ async function fetchPluginInfo(URL, progressCallback, signal, pluginVersion) {
       const baseURL = apiURL.endsWith('/') ? apiURL.slice(0, -1) : apiURL;
       response = await fetch(
         `${baseURL}/${pluginVersion}`,
-        { redirect: 'follow', follow: 10 },
-        { signal }
+        { redirect: 'follow', signal }
       );
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);

@@ -93,6 +93,39 @@ describe('PluginManager Test Cases', () => {
     });
   });
 
+  test('Update Plugin Rollback on Move Failure', async () => {
+    // Set a lower version first in the installed plugin
+    const pluginDir = `${tempDir}/headlamp_flux`;
+    const backupDir = `${pluginDir}.backup`;
+    const packageJSONPath = `${pluginDir}/package.json`;
+    const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath, 'utf8'));
+    packageJSON.artifacthub.version = '0.0.1'; // Lower version to trigger update
+    fs.writeFileSync(packageJSONPath, JSON.stringify(packageJSON, null, 2));
+
+    // Mock fs.cpSync to throw an error during moveDirs
+    const cpSyncSpy = jest.spyOn(fs, 'cpSync').mockImplementation(() => {
+      throw new Error('Mocked copy failure');
+    });
+
+    await PluginManager.update('@headlamp-k8s/flux', tempDir, '', mockProgressCallback);
+
+    expect(mockProgressCallback).toHaveBeenCalledWith({
+      type: 'error',
+      message: 'Mocked copy failure',
+    });
+
+    // Verify the original plugin folder exists and is restored
+    expect(fs.existsSync(pluginDir)).toBe(true);
+    const restoredPackageJSON = JSON.parse(fs.readFileSync(packageJSONPath, 'utf8'));
+    expect(restoredPackageJSON.artifacthub.version).toBe('0.0.1');
+
+    // Verify that the backup folder was cleaned up
+    expect(fs.existsSync(backupDir)).toBe(false);
+
+    // Restore the spy
+    cpSyncSpy.mockRestore();
+  });
+
   test('Uninstall Plugin', async () => {
     const tempDir = tmp.dirSync({ unsafeCleanup: true }).name;
 
