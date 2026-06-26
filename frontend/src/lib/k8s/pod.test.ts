@@ -140,6 +140,16 @@ describe('Pod class', () => {
       expect(pod.getHealth()).toBe('failed');
     });
 
+    it('classifies a terminated container with a non-zero exitCode and empty reason as failed', () => {
+      const pod = makePod({
+        phase: 'Pending',
+        initContainerStatuses: [
+          { name: 'init', state: { terminated: { exitCode: 1, reason: '' } } },
+        ],
+      });
+      expect(pod.getHealth()).toBe('failed');
+    });
+
     it('classifies a Failed pod as failed', () => {
       const pod = makePod({ phase: 'Failed' });
       expect(pod.getHealth()).toBe('failed');

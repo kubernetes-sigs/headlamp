@@ -575,7 +575,14 @@ class Pod extends KubeObject<KubePod> {
     // or as the current terminated reason (Error, OOMKilled…). lastState is
     // intentionally ignored so a container that already recovered isn't flagged.
     const hasFailingContainer = containerStatuses.some(cs => {
-      const reason = cs.state?.waiting?.reason || cs.state?.terminated?.reason;
+      const terminated = cs.state?.terminated;
+      // A container terminated with a non-zero exit code or signal is a failure
+      // even when the reason is empty/unspecified, mirroring the ExitCode:/Signal:
+      // handling in getDetailedStatus.
+      if (terminated && (terminated.exitCode || terminated.signal)) {
+        return true;
+      }
+      const reason = cs.state?.waiting?.reason || terminated?.reason;
       return !!reason && POD_FAILED_CONTAINER_REASONS.includes(reason);
     });
     if (phase === 'Failed' || hasFailingContainer) {
