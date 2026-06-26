@@ -46,8 +46,25 @@ describe('themeSlice', () => {
 
   describe('setTheme records the last theme per mode', () => {
     beforeEach(() => {
-      localStorage.clear();
-      delete (localStorage as any).headlampThemePreference;
+      // Use a self-contained localStorage so the assertions don't depend on the
+      // shared mock, which other test files can leave in an inconsistent state.
+      const store: Record<string, string> = {};
+      vi.stubGlobal('localStorage', {
+        getItem: (key: string) => (key in store ? store[key] : null),
+        setItem: (key: string, value: string) => {
+          store[key] = String(value);
+        },
+        removeItem: (key: string) => {
+          delete store[key];
+        },
+        clear: () => {
+          Object.keys(store).forEach(key => delete store[key]);
+        },
+      });
+    });
+
+    afterEach(() => {
+      vi.unstubAllGlobals();
     });
 
     it('records a dark theme under the dark key', () => {
