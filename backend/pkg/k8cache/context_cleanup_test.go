@@ -83,6 +83,25 @@ func TestEvictClientsetsForCluster(t *testing.T) {
 	assert.Equal(t, 1, k8cache.ClientsetCacheLen())
 }
 
+func TestEvictClientsetsForCluster_StatelessScope(t *testing.T) {
+	k8cache.ResetClientsetCache()
+	t.Cleanup(k8cache.ResetClientsetCache)
+
+	const (
+		removedUser = "minikube\x00user1"
+		activeUser  = "minikube\x00user2"
+	)
+
+	k8cache.SeedClientsetCache(removedUser+"\x00token-a", time.Now())
+	k8cache.SeedClientsetCache(activeUser+"\x00token-b", time.Now())
+
+	assert.Equal(t, 2, k8cache.ClientsetCacheLen())
+
+	k8cache.EvictClientsetsForCluster(removedUser)
+
+	assert.Equal(t, 1, k8cache.ClientsetCacheLen())
+}
+
 func TestSyncWatchersPurgesCacheAndClientsetsForRemovedContext(t *testing.T) {
 	const (
 		clusterName         = "removed-cluster"
@@ -101,7 +120,8 @@ func TestSyncWatchersPurgesCacheAndClientsetsForRemovedContext(t *testing.T) {
 	ctx := context.Background()
 
 	require.NoError(t, k8scache.Set(ctx, removedCacheDataKey, "stale-data"))
-	k8cache.SeedClientsetCache(clusterName+"\x00token", time.Now())
+	k8cache.SeedClientsetCache(removedContextKey+"\x00token", time.Now())
+	k8cache.SeedClientsetCache(clusterName+"\x00user2\x00other-token", time.Now())
 
 	canceled := make(map[string]bool)
 
@@ -126,5 +146,5 @@ func TestSyncWatchersPurgesCacheAndClientsetsForRemovedContext(t *testing.T) {
 
 	_, err := k8scache.Get(ctx, removedCacheDataKey)
 	assert.Error(t, err)
-	assert.Equal(t, 0, k8cache.ClientsetCacheLen())
+	assert.Equal(t, 1, k8cache.ClientsetCacheLen())
 }
