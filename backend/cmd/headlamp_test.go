@@ -199,6 +199,31 @@ func TestGetConfigIncludesDefaultNodeShellImage(t *testing.T) {
 	assert.Equal(t, "registry.example.com/shell:latest", config.DefaultNodeShellImage)
 }
 
+func TestGetConfigIncludesExternalLinks(t *testing.T) {
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeconfig.NewContextStore(),
+				ExternalLinks:   `[{"label": "Test Link", "url": "https://example.com", "icon": "mdi:test"}]`,
+			},
+		},
+	}
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/config", nil)
+	recorder := httptest.NewRecorder()
+
+	c.getConfig(recorder, req)
+
+	var config clientConfig
+
+	err := json.Unmarshal(recorder.Body.Bytes(), &config)
+	require.NoError(t, err)
+	require.Len(t, config.ExternalLinks, 1)
+	assert.Equal(t, "Test Link", config.ExternalLinks[0].Label)
+	assert.Equal(t, "https://example.com", config.ExternalLinks[0].URL)
+	assert.Equal(t, "mdi:test", config.ExternalLinks[0].Icon)
+}
+
 func TestGetConfigIncludesDefaultNodeShellNamespace(t *testing.T) {
 	c := &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
