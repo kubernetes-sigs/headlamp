@@ -19,7 +19,7 @@ import Paper from '@mui/material/Paper';
 import { useTheme } from '@mui/material/styles';
 import { styled } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
-import React, { ReactNode, useCallback, useRef, useState } from 'react';
+import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import {
   Bar,
@@ -199,6 +199,10 @@ export function PercentageBar(props: PercentageBarProps) {
 
   const containerRef = useRef<HTMLDivElement>(null);
   const [containerRect, setContainerRect] = useState<DOMRect | null>(null);
+
+  useEffect(() => {
+    setContainerRect(containerRef.current?.getBoundingClientRect() ?? null);
+  }, []);
 
   const handleMouseEnter = useCallback(() => {
     setContainerRect(containerRef.current?.getBoundingClientRect() ?? null);
