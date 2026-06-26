@@ -167,3 +167,13 @@ func ExportedInvalidateCacheKeysForResourceEvent(
 func ExportedCacheKeyBelongsToContext(key, contextKey string) bool {
 	return cacheKeyBelongsToContext(key, contextKey)
 }
+
+// ExportedClientsetPrefixBlocked reports whether clientset caching is blocked for a prefix.
+func ExportedClientsetPrefixBlocked(prefix string) bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	_, blocked := blockedClientsetPrefixes[prefix]
+
+	return blocked
+}

@@ -36,7 +36,6 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
-
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"go.opentelemetry.io/otel/attribute"
@@ -116,6 +115,8 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		TLSKeyPath:                            conf.TLSKeyPath,
 		SessionTTL:                            conf.SessionTTL,
 		PodDebugImage:                         conf.PodDebugImage,
+		NodeShellImage:                        conf.NodeShellImage,
+		NodeShellNamespace:                    conf.NodeShellNamespace,
 		OidcUseCookie:                         conf.OidcUseCookie,
 		DefaultLightTheme:                     conf.DefaultLightTheme,
 		DefaultDarkTheme:                      conf.DefaultDarkTheme,

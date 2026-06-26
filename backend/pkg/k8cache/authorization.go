@@ -59,8 +59,9 @@ type inFlightEntry struct {
 
 var (
 	clientsetCache = make(map[string]*CachedClientSet)
-	// blockedClientsetPrefixes holds identifier prefixes whose clientsets must not be
-	// re-cached after context removal (e.g. while an in-flight GetClientSet completes).
+	// blockedClientsetPrefixes holds context keys whose clientsets must not be
+	// re-cached after context removal. Entries are cleared when SyncWatchers sees
+	// the context active again.
 	blockedClientsetPrefixes = make(map[string]struct{})
 	mu                       sync.Mutex
 	janitorOnce              sync.Once
@@ -150,8 +151,6 @@ func EvictClientsetsForCluster(clientsetCachePrefix string) {
 
 	remaining := len(clientsetCache)
 
-	unblockClientsetPrefixIfIdleLocked(clientsetCachePrefix)
-
 	mu.Unlock()
 
 	if evicted > 0 {
@@ -161,20 +160,14 @@ func EvictClientsetsForCluster(clientsetCachePrefix string) {
 	}
 }
 
-// unblockClientsetPrefixIfIdleLocked removes a blocked clientset prefix when no
-// clientset creation is in flight for that prefix. Caller must hold mu.
-func unblockClientsetPrefixIfIdleLocked(prefix string) {
-	for key := range inFlight {
-		if clientsetCachePrefixFromCacheKey(key) == prefix {
-			return
-		}
+// clientsetCachePrefixFromCacheKey returns the Headlamp context store key prefix
+// from a clientset cache key (everything before the final NUL separator).
+func clientsetCachePrefixFromCacheKey(cacheKey string) string {
+	if i := strings.LastIndex(cacheKey, "\x00"); i >= 0 {
+		return cacheKey[:i]
 	}
 
-	delete(blockedClientsetPrefixes, prefix)
-}
-
-func clientsetCachePrefixFromCacheKey(cacheKey string) string {
-	return strings.SplitN(cacheKey, "\x00", 2)[0]
+	return cacheKey
 }
 
 // clearBlockedClientsetPrefixesForActiveContexts allows clientset caching again for
@@ -286,8 +279,6 @@ func finishInFlightClientset(cacheKey string, entry *inFlightEntry, cs *kubernet
 
 	delete(inFlight, cacheKey)
 	close(entry.waitCh)
-
-	unblockClientsetPrefixIfIdleLocked(clientsetCachePrefixFromCacheKey(cacheKey))
 
 	mu.Unlock()
 }
