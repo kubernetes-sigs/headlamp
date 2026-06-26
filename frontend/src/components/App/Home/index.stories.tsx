@@ -16,6 +16,7 @@
 
 import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
+import { http, HttpResponse } from 'msw';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { initialState } from '../../../redux/configSlice';
@@ -55,8 +56,6 @@ const ourState = {
   shortcuts: { ...shortcutsReducer(undefined, { type: '' }) },
 };
 
-// @todo: Add a way for the results from useClustersVersion to be mocked, so not
-// all clusters appear as not accessible.
 export default {
   title: 'Home/Home',
   component: Home,
@@ -81,6 +80,23 @@ Base.decorators = [
     );
   },
 ];
+Base.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/clusters/cluster0/version', () =>
+          HttpResponse.json({ major: '1', minor: '28', gitVersion: 'v1.28.0' })
+        ),
+        http.get('http://localhost:4466/clusters/cluster1/version', () =>
+          HttpResponse.json({ major: '1', minor: '28', gitVersion: 'v1.28.0' })
+        ),
+        http.get('http://localhost:4466/clusters/cluster2/version', () =>
+          HttpResponse.json({ major: '1', minor: '28', gitVersion: 'v1.28.0' })
+        ),
+      ],
+    },
+  },
+};
 
 const loadingState = {
   ...ourState,
@@ -107,3 +123,17 @@ LoadingClusters.decorators = [
     );
   },
 ];
+
+export const InaccessibleClusters = Template.bind({});
+InaccessibleClusters.decorators = Base.decorators;
+InaccessibleClusters.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get('http://localhost:4466/clusters/cluster0/version', () => HttpResponse.error()),
+        http.get('http://localhost:4466/clusters/cluster1/version', () => HttpResponse.error()),
+        http.get('http://localhost:4466/clusters/cluster2/version', () => HttpResponse.error()),
+      ],
+    },
+  },
+};
