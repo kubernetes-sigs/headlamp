@@ -77,14 +77,16 @@ class PluginManager {
     signal = null,
     pluginVersion = ''
   ) {
+    let tempFolder = '';
     try {
-      const [name, tempFolder] = await downloadExtractPlugin(
+      const [name, downloadedTempFolder] = await downloadExtractPlugin(
         URL,
         headlampVersion,
         progressCallback,
         signal,
         pluginVersion
       );
+      tempFolder = downloadedTempFolder;
 
       // sleep(2000);  // comment out for testing
 
@@ -94,10 +96,37 @@ class PluginManager {
       }
       // move the plugin to the destination folder
       moveDirs(tempFolder, path.join(destinationFolder, path.basename(name)));
+
+      // Clean up the parent temp directory created by mkdtempSync (moveDirs only removes tempFolder)
+      try {
+        const tempParent = path.dirname(tempFolder);
+        if (
+          fs.existsSync(tempParent) &&
+          path.basename(tempParent).startsWith('headlamp-plugin-temp-')
+        ) {
+          fs.rmSync(tempParent, { recursive: true, force: true });
+        }
+      } catch (cleanupErr) {
+        console.error('Failed to clean up temporary parent directory:', cleanupErr);
+      }
+
       if (progressCallback) {
         progressCallback({ type: 'success', message: 'Plugin Installed' });
       }
     } catch (e) {
+      if (tempFolder) {
+        try {
+          if (fs.existsSync(tempFolder)) {
+            fs.rmSync(tempFolder, { recursive: true, force: true });
+          }
+          const tempParent = path.dirname(tempFolder);
+          if (fs.existsSync(tempParent) && path.basename(tempParent).startsWith('headlamp-plugin-temp-')) {
+            fs.rmSync(tempParent, { recursive: true, force: true });
+          }
+        } catch (cleanupErr) {
+          console.error('Failed to clean up temporary directory:', cleanupErr);
+        }
+      }
       if (progressCallback) {
         progressCallback({ type: 'error', message: e.message });
       } else {
@@ -173,6 +202,19 @@ class PluginManager {
         // move the plugin to the destination folder
         moveDirs(tempFolder, pluginDir);
 
+        // Clean up the parent temp directory created by mkdtempSync (moveDirs only removes tempFolder)
+        try {
+          const tempParent = path.dirname(tempFolder);
+          if (
+            fs.existsSync(tempParent) &&
+            path.basename(tempParent).startsWith('headlamp-plugin-temp-')
+          ) {
+            fs.rmSync(tempParent, { recursive: true, force: true });
+          }
+        } catch (cleanupErr) {
+          console.error('Failed to clean up temporary parent directory:', cleanupErr);
+        }
+
         if (backupCreated && fs.existsSync(backupDir)) {
           try {
             fs.rmSync(backupDir, { recursive: true, force: true });
@@ -185,6 +227,7 @@ class PluginManager {
           progressCallback({ type: 'success', message: 'Plugin Updated' });
         }
       } catch (err) {
+        let finalErr = err;
         if (backupCreated && fs.existsSync(backupDir)) {
           try {
             if (fs.existsSync(pluginDir)) {
@@ -193,6 +236,10 @@ class PluginManager {
             fs.renameSync(backupDir, pluginDir);
           } catch (rollbackErr) {
             console.error('Failed to restore backup directory during rollback:', rollbackErr);
+            finalErr = new AggregateError(
+              [err, rollbackErr],
+              'Plugin update failed and rollback failed'
+            );
           }
         }
         try {
@@ -206,7 +253,7 @@ class PluginManager {
         } catch (cleanupErr) {
           console.error('Failed to clean up temporary directory:', cleanupErr);
         }
-        throw err;
+        throw finalErr;
       }
     } catch (e) {
       if (progressCallback) {
@@ -431,90 +478,101 @@ async function downloadExtractPlugin(
   const tempDir = await fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugin-temp-'));
   const tempFolder = fs.mkdirSync(path.join(tempDir, pluginName), { recursive: true });
 
-  if (progressCallback) {
-    progressCallback({ type: 'info', message: 'Downloading Plugin' });
-  }
-  if (signal && signal.aborted) {
-    throw new Error('Download cancelled');
-  }
+  try {
+    if (progressCallback) {
+      progressCallback({ type: 'info', message: 'Downloading Plugin' });
+    }
+    if (signal && signal.aborted) {
+      throw new Error('Download cancelled');
+    }
 
-  // await sleep(4000); // comment out for testing
-  const archResponse = await fetch(archiveURL, { redirect: 'follow', follow: 10 }, { signal });
-  if (!archResponse.ok) {
-    throw new Error(`Failed to download tarball. Status code: ${archResponse.status}`);
-  }
+    // await sleep(4000); // comment out for testing
+    const archResponse = await fetch(archiveURL, { redirect: 'follow', follow: 10 }, { signal });
+    if (!archResponse.ok) {
+      throw new Error(`Failed to download tarball. Status code: ${archResponse.status}`);
+    }
 
-  if (signal && signal.aborted) {
-    throw new Error('Download cancelled');
-  }
+    if (signal && signal.aborted) {
+      throw new Error('Download cancelled');
+    }
 
-  if (progressCallback) {
-    progressCallback({ type: 'info', message: 'Plugin Downloaded' });
-  }
+    if (progressCallback) {
+      progressCallback({ type: 'info', message: 'Plugin Downloaded' });
+    }
 
-  const archChunks = [];
-  let archBufferLengeth = 0;
+    const archChunks = [];
+    let archBufferLengeth = 0;
 
-  for await (const chunk of archResponse.body) {
-    archChunks.push(chunk);
-    archBufferLengeth += chunk.length;
-  }
+    for await (const chunk of archResponse.body) {
+      archChunks.push(chunk);
+      archBufferLengeth += chunk.length;
+    }
 
-  const archBuffer = Buffer.concat(archChunks, archBufferLengeth);
+    const archBuffer = Buffer.concat(archChunks, archBufferLengeth);
 
-  const archiveChecksum = crypto.createHash('sha256').update(archBuffer).digest('hex');
+    const archiveChecksum = crypto.createHash('sha256').update(archBuffer).digest('hex');
 
-  if (archiveChecksum !== checksum) {
-    throw new Error('Checksum mismatch.');
-  }
+    if (archiveChecksum !== checksum) {
+      throw new Error('Checksum mismatch.');
+    }
 
-  if (signal && signal.aborted) {
-    throw new Error('Download cancelled');
-  }
+    if (signal && signal.aborted) {
+      throw new Error('Download cancelled');
+    }
 
-  if (progressCallback) {
-    progressCallback({ type: 'info', message: 'Extracting Plugin' });
-  }
-  const archStream = new stream.PassThrough();
-  archStream.end(archBuffer);
+    if (progressCallback) {
+      progressCallback({ type: 'info', message: 'Extracting Plugin' });
+    }
+    const archStream = new stream.PassThrough();
+    archStream.end(archBuffer);
 
-  const extractStream = archStream.pipe(zlib.createGunzip()).pipe(
-    tar.extract({
-      cwd: tempFolder,
-      strip: 1,
-      sync: true,
-    })
-  );
+    const extractStream = archStream.pipe(zlib.createGunzip()).pipe(
+      tar.extract({
+        cwd: tempFolder,
+        strip: 1,
+        sync: true,
+      })
+    );
 
-  await new Promise((resolve, reject) => {
-    extractStream.on('finish', () => {
-      resolve();
+    await new Promise((resolve, reject) => {
+      extractStream.on('finish', () => {
+        resolve();
+      });
+      extractStream.on('error', err => {
+        reject(err);
+      });
     });
-    extractStream.on('error', err => {
-      reject(err);
-    });
-  });
 
-  if (signal && signal.aborted) {
-    throw new Error('Download cancelled');
-  }
+    if (signal && signal.aborted) {
+      throw new Error('Download cancelled');
+    }
 
-  if (progressCallback) {
-    progressCallback({ type: 'info', message: 'Plugin Extracted' });
+    if (progressCallback) {
+      progressCallback({ type: 'info', message: 'Plugin Extracted' });
+    }
+    // add artifacthub metadata to the plugin
+    const packageJSON = JSON.parse(fs.readFileSync(`${tempFolder}/package.json`, 'utf8'));
+    packageJSON.artifacthub = {
+      name: pluginName,
+      title: pluginInfo.display_name,
+      url: `https://artifacthub.io/packages/headlamp/${pluginInfo.repository.name}/${pluginName}`,
+      version: pluginInfo.version,
+      repoName: pluginInfo.repository.name,
+      author: pluginInfo.repository.user_alias,
+    };
+    packageJSON.isManagedByHeadlampPlugin = true;
+    fs.writeFileSync(`${tempFolder}/package.json`, JSON.stringify(packageJSON, null, 2));
+    return [pluginName, tempFolder];
+  } catch (err) {
+    try {
+      if (fs.existsSync(tempDir)) {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    } catch (cleanupErr) {
+      console.error('Failed to clean up temporary directory on failure:', cleanupErr);
+    }
+    throw err;
   }
-  // add artifacthub metadata to the plugin
-  const packageJSON = JSON.parse(fs.readFileSync(`${tempFolder}/package.json`, 'utf8'));
-  packageJSON.artifacthub = {
-    name: pluginName,
-    title: pluginInfo.display_name,
-    url: `https://artifacthub.io/packages/headlamp/${pluginInfo.repository.name}/${pluginName}`,
-    version: pluginInfo.version,
-    repoName: pluginInfo.repository.name,
-    author: pluginInfo.repository.user_alias,
-  };
-  packageJSON.isManagedByHeadlampPlugin = true;
-  fs.writeFileSync(`${tempFolder}/package.json`, JSON.stringify(packageJSON, null, 2));
-  return [pluginName, tempFolder];
 }
 
 /**
