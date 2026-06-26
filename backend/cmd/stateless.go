@@ -92,7 +92,6 @@ func (c *HeadlampConfig) setKeyInCache(key string, context kubeconfig.Context) e
 	return nil
 }
 
-
 // Handles stateless cluster requests if kubeconfig is set and dynamic clusters are enabled.
 // It returns context key which is used to store the context in the cache.
 func (c *HeadlampConfig) handleStatelessReq(r *http.Request, kubeConfig string) (string, error) {
