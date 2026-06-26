@@ -26,7 +26,7 @@ import nock from 'nock';
 import os from 'os';
 import path from 'path';
 import * as tar from 'tar';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PluginManager } from './plugin-management';
 import { getExtraFiles } from './plugin-management';
 
@@ -317,10 +317,9 @@ describe('PluginManager', () => {
     mockArtifactHubAPIWithoutPlatformSpecific(testDataDir);
 
     // 4. Force cpSync to fail during move
-    const originalCpSync = fs.cpSync;
-    fs.cpSync = () => {
+    const cpSyncSpy = vi.spyOn(fs, 'cpSync').mockImplementation(() => {
       throw new Error('Simulated filesystem error during moveDirs');
-    };
+    });
 
     try {
       // 5. Run update and expect it to fail (passing null progressCallback so error throws)
@@ -336,8 +335,7 @@ describe('PluginManager', () => {
       expect(packageJson.artifacthub.version).toBe('0.0.1');
     } finally {
       // Restore fs.cpSync
-      fs.cpSync = originalCpSync;
-
+      cpSyncSpy.mockRestore();
       // Clean up
       if (fs.existsSync(pluginDestDir)) {
         fs.rmSync(pluginDestDir, { recursive: true });
