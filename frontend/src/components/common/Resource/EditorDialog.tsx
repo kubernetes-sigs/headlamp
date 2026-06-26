@@ -507,14 +507,14 @@ export default function EditorDialog(props: EditorDialogProps) {
             value={code.code}
             options={editorOptions}
             onChange={onChange}
-            onMount={handleEditorDidMount}
-            height="100%"
-            onMount={editor => {
+            onMount={(editor, monaco) => {
+              handleEditorDidMount(editor, monaco);
               const textarea = editor.getDomNode()?.querySelector('textarea');
               if (textarea && editorId) {
                 textarea.id = editorId;
               }
             }}
+            height="100%"
           />
         )}
       </Box>

@@ -212,7 +212,7 @@ describe('EditorDialog', () => {
       vi.advanceTimersByTime(500);
     });
 
-    fireEvent.click(screen.getByRole('button', { name: /undo changes/i }));
+    fireEvent.click(screen.getByRole('button', { name: /undo/i }));
     expect(mockSetModelMarkers).toHaveBeenLastCalledWith(
       expect.any(Object),
       'headlamp-yaml-parse',
