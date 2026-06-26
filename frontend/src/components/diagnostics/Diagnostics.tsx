@@ -477,9 +477,9 @@ export function getPodDiagnostics(
         status: details.reason || pod.status?.phase || t('Unknown'),
       }),
       message:
-        details.message ||
-        pod.status?.message ||
-        diagnosisHint(details.reason, t) ||
+        [details.message || pod.status?.message, diagnosisHint(details.reason, t)]
+          .filter(Boolean)
+          .join(' ') ||
         t('Review the container logs and the warning events below to find the cause.'),
       details: [
         t('Phase: {{ phase }}', { phase: pod.status?.phase || t('Unknown') }),
