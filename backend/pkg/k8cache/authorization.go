@@ -156,7 +156,7 @@ func EvictClientsetsForCluster(clientsetCachePrefix string) {
 
 	if evicted > 0 {
 		logger.Log(logger.LevelInfo, nil, nil,
-			fmt.Sprintf("evicted %d clientset(s) for removed context %s, %d remaining",
+			fmt.Sprintf("evicted %d clientset(s) for removed clientset cache prefix %s, %d remaining",
 				evicted, redactContextKey(clientsetCachePrefix), remaining))
 	}
 }
@@ -265,6 +265,33 @@ func createAndCacheClientSet(
 	return cs, nil
 }
 
+func waitForInFlightClientset(entry *inFlightEntry) (*kubernetes.Clientset, error) {
+	hookMu.RLock()
+
+	waitHook := testingInFlightWait
+
+	hookMu.RUnlock()
+
+	waitHook()
+	<-entry.waitCh
+
+	return entry.cs, entry.err
+}
+
+func finishInFlightClientset(cacheKey string, entry *inFlightEntry, cs *kubernetes.Clientset, err error) {
+	mu.Lock()
+
+	entry.cs = cs
+	entry.err = err
+
+	delete(inFlight, cacheKey)
+	close(entry.waitCh)
+
+	unblockClientsetPrefixIfIdleLocked(clientsetCachePrefixFromCacheKey(cacheKey))
+
+	mu.Unlock()
+}
+
 // GetClientSet returns *kubernetes.ClientSet and error which is further used for creating
 // SSAR requests to k8s server to authorize user. GetClientSet uses kubeconfig.Context and
 // authentication bearer token which will help to create clientSet based on the user's
@@ -301,17 +328,7 @@ func GetClientSet(k *kubeconfig.Context, token string) (*kubernetes.Clientset, e
 	if entry, ok := inFlight[cacheKey]; ok {
 		mu.Unlock()
 
-		hookMu.RLock()
-
-		waitHook := testingInFlightWait
-
-		hookMu.RUnlock()
-
-		waitHook()
-		<-entry.waitCh
-
-		// Return the shared result.
-		return entry.cs, entry.err
+		return waitForInFlightClientset(entry)
 	}
 
 	// We are the one to create it.
@@ -324,17 +341,7 @@ func GetClientSet(k *kubeconfig.Context, token string) (*kubernetes.Clientset, e
 
 	cs, err := createAndCacheClientSet(k, token, cacheKey, contextKey)
 
-	mu.Lock()
-
-	entry.cs = cs
-	entry.err = err
-
-	delete(inFlight, cacheKey)
-	close(entry.waitCh)
-
-	unblockClientsetPrefixIfIdleLocked(clientsetCachePrefixFromCacheKey(cacheKey))
-
-	mu.Unlock()
+	finishInFlightClientset(cacheKey, entry, cs, err)
 
 	return cs, err
 }
