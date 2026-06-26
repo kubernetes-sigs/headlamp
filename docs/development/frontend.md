@@ -33,6 +33,23 @@ npm run frontend:start
 This command leverages the `create-react-app`'s start script that launches
 a development server for the frontend (by default at `localhost:3000`).
 
+### WebSocket mode scripts
+
+The frontend package provides explicit scripts for WebSocket runtime modes.
+From the `frontend/` directory:
+
+```bash
+npm run start-websockets-websockets
+npm run start-websockets-multiplexer
+npm run start-websockets-off
+```
+
+Modes:
+
+- `websockets`: Default mode, uses regular WebSocket connections.
+- `multiplexer`: Experimental mode, reuses connections for better performance.
+- `off`: Disables real-time WebSocket updates.
+
 We use [react-query](https://tanstack.com/query/latest/docs/framework/react/overview) 
 for network request, if you need the devtools for react-query, you can simply set `REACT_APP_ENABLE_REACT_QUERY_DEVTOOLS=true` in the `.env` file.
 
