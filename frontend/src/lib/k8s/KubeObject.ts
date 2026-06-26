@@ -850,7 +850,7 @@ export function useKubeApiList<K extends KubeObject>(
   // If the request itself has no namespaces set, we check whether to apply the
   // allowed namespaces.
   if (namespaces.length === 0 && kubeObjectClass.isNamespaced) {
-    namespaces = getAllowedNamespaces(cluster);
+    namespaces = getAllowedNamespaces(cluster ?? getCluster());
   }
 
   if (namespaces.length > 0) {
