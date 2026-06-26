@@ -60,7 +60,6 @@ spec:
     - port: 80
       targetPort: http
       protocol: TCP
-      appProtocol: "kubernetes.io/ws"
       name: http
   selector:
     app.kubernetes.io/name: headlamp
@@ -109,6 +108,8 @@ spec:
           imagePullPolicy: IfNotPresent
           
           env:
+            - name: HEADLAMP_CONFIG_WEBSOCKET_MODE
+              value: "multiplexer"
           args:
             - "-in-cluster"
             - "-in-cluster-context-name=main"

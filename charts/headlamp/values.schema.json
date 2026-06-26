@@ -274,6 +274,11 @@
           },
           "additionalProperties": false
         },
+        "websocketMode": {
+          "type": "string",
+          "enum": ["websockets", "off", "multiplexer"],
+          "description": "WebSocket mode for real-time updates. 'websockets' (default) uses standard connections, 'multiplexer' uses an experimental multiplexed connection for improved performance, 'off' disables real-time updates entirely"
+        },
          "tlsCertPath": {
           "type": "string",
           "description": "Path of certificate file for TLS"
