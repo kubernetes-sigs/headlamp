@@ -52,9 +52,17 @@ const sortSidebarItems = (items: SidebarItemProps[]): SidebarItemProps[] => {
   }));
 };
 
+const safeLinkUrl = (url: string): string | null => {
+  const trimmed = url.trim();
+  if (!/^https?:\/\//i.test(trimmed)) return null;
+  // Normalize only the scheme so external URLs are detected reliably without changing the full URL.
+  return trimmed.replace(/^https?:\/\//i, m => m.toLowerCase());
+};
+
 export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER) => {
   const clusters = useTypedSelector(state => state.config.clusters) ?? {};
   const settings = useTypedSelector(state => state.config.settings);
+  const externalLinks = useTypedSelector(state => state.config.externalLinks) || [];
   const customSidebarEntries = useTypedSelector(state => state.sidebar.entries);
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
   const customHomeSidebarFilters = useTypedSelector(state => state.sidebar.homeFilters);
@@ -453,6 +461,31 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
       });
     }
 
+    if (externalLinks.length > 0) {
+      const links = externalLinks
+        .map((link, i) => {
+          const url = safeLinkUrl(link.url);
+          return url
+            ? {
+                name: `external-link-${i}`,
+                label: link.label,
+                url,
+                icon: link.icon || 'mdi:link',
+              }
+            : null;
+        })
+        .filter((item): item is NonNullable<typeof item> => item !== null);
+
+      if (links.length > 0) {
+        inClusterItems.push({
+          name: 'externalLinks',
+          label: t('translation|External Links'),
+          icon: 'mdi:link-variant',
+          subList: links,
+        });
+      }
+    }
+
     // List of sidebars, they act as roots for the sidebar tree
     const sidebarsList: SidebarItemProps[] = [
       { name: DefaultSidebars.HOME, subList: homeItems, label: '' },
@@ -546,6 +579,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     selectedClusters.join(','),
     allClustersConf,
     crdsSidebarEntries,
+    externalLinks,
     t,
   ]);
 

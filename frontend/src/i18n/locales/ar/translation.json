@@ -889,6 +889,7 @@
   "Main Navigation": "التنقل الرئيسي",
   "Navigation Tabs": "علامات تبويب التنقل",
   "Instances": "المثيلات",
+  "External Links": "",
   "Cluster version upgraded to {{ gitVersion }}": "تمت ترقية إصدار الكتلة إلى {{ gitVersion }}",
   "Cluster version downgraded to {{ gitVersion }}": "تم تخفيض إصدار الكتلة إلى {{ gitVersion }}",
   "Controlled Resources": "الموارد المتحكم بها",
