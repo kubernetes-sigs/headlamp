@@ -49,7 +49,7 @@
             <p
               class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
             >
-              Back-off pulling image "doesnotexist:nover"
+              Back-off pulling image "doesnotexist:nover" The image could not be pulled. Verify the image name and tag, and that the registry is reachable with valid credentials.
             </p>
             <div
               class="MuiBox-root css-p9ukdl"

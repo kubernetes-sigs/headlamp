@@ -14,9 +14,9 @@
  * limitations under the License.
  */
 
-import { KubeDeployment } from '../../lib/k8s/deployment';
-import { KubeEvent } from '../../lib/k8s/event';
-import { KubePod } from '../../lib/k8s/pod';
+import type { KubeDeployment } from '../../lib/k8s/deployment';
+import type { KubeEvent } from '../../lib/k8s/event';
+import type { KubePod } from '../../lib/k8s/pod';
 import { podList } from '../pod/storyHelper';
 
 // Reuse the existing, fully-formed pod fixtures so the diagnostics logic (which
