@@ -16,6 +16,7 @@
 
 import React from 'react';
 import { vi } from 'vitest';
+import { AppTheme } from '../../lib/AppTheme';
 import * as themesLib from '../../lib/themes';
 import { AppLogoProps, AppLogoType } from './AppLogo';
 import themeReducer, {
@@ -50,6 +51,16 @@ describe('themeSlice', () => {
     // round-trip, so the test doesn't depend on the shared localStorage mock.
     let setLastThemeForMode: ReturnType<typeof vi.spyOn>;
 
+    // Use an explicit theme list instead of the shared defaultAppThemes, which
+    // other tests can mutate when isolation is off (e.g. under --coverage).
+    const appThemes: AppTheme[] = [
+      { name: 'light', base: 'light' },
+      { name: 'dark', base: 'dark' },
+      { name: 'Monochrome Light', base: 'light' },
+      { name: 'Lights Out', base: 'dark' },
+    ];
+    const stateWithThemes = { ...initialState, appThemes };
+
     beforeEach(() => {
       setLastThemeForMode = vi.spyOn(themesLib, 'setLastThemeForMode').mockImplementation(() => {});
     });
@@ -59,17 +70,17 @@ describe('themeSlice', () => {
     });
 
     it('records a dark theme under the dark key', () => {
-      themeReducer(initialState, setTheme('dark'));
+      themeReducer(stateWithThemes, setTheme('dark'));
       expect(setLastThemeForMode).toHaveBeenCalledWith('dark', 'dark');
     });
 
     it('records a light theme under the light key', () => {
-      themeReducer(initialState, setTheme('Monochrome Light'));
+      themeReducer(stateWithThemes, setTheme('Monochrome Light'));
       expect(setLastThemeForMode).toHaveBeenCalledWith('light', 'Monochrome Light');
     });
 
     it('treats a base:dark theme as dark', () => {
-      themeReducer(initialState, setTheme('Lights Out'));
+      themeReducer(stateWithThemes, setTheme('Lights Out'));
       expect(setLastThemeForMode).toHaveBeenCalledWith('dark', 'Lights Out');
     });
   });
