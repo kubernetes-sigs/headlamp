@@ -423,8 +423,9 @@ class Pod extends KubeObject<KubePod> {
     }
 
     let initializing = false;
-    for (const i in this.status?.initContainerStatuses ?? []) {
-      const container = this.status.initContainerStatuses![i];
+    const initContainerStatuses = this.status?.initContainerStatuses ?? [];
+    for (const i in initContainerStatuses) {
+      const container = initContainerStatuses[i];
       restarts += container.restartCount;
       lastRestartDate = this.getLastRestartDate(container, lastRestartDate);
 
