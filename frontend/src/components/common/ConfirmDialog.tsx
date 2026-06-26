@@ -51,6 +51,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
     confirmLabel,
     hideCancelButton = false,
     confirmButtonDisabled = false,
+    ...muiDialogProps
   } = props;
   const { t } = useTranslation();
 
@@ -69,6 +70,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
   return (
     <div>
       <MuiDialog
+        {...muiDialogProps}
         open={open}
         onClose={handleClose}
         aria-labelledby="alert-dialog-title"
@@ -77,6 +79,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
           sx: {
             minWidth: 'clamp(280px, 25vw, 600px)',
           },
+          ...muiDialogProps.PaperProps,
         }}
       >
         <DialogTitle id="alert-dialog-title">{title}</DialogTitle>
