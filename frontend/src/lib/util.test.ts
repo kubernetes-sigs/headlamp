@@ -20,6 +20,7 @@ import {
   flattenClusterListItems,
   formatDuration,
   getPercentStr,
+  isValidTimezone,
   normalizeUnit,
   timeAgo,
 } from './util';
@@ -343,6 +344,37 @@ describe('normalizeUnit', () => {
     it('shows plural cores', () => {
       expect(normalizeUnit('cpu', '2')).toBe('2 cores');
     });
+  });
+});
+
+describe('isValidTimezone', () => {
+  it('returns true for valid IANA timezone identifiers', () => {
+    expect(isValidTimezone('UTC')).toBe(true);
+    expect(isValidTimezone('America/New_York')).toBe(true);
+    expect(isValidTimezone('Europe/Bucharest')).toBe(true);
+    expect(isValidTimezone('Asia/Tokyo')).toBe(true);
+  });
+
+  it('returns false for Etc/Unknown (the Chrome crash case)', () => {
+    const originalDateTimeFormat = Intl.DateTimeFormat;
+    const spy = vi.spyOn(Intl, 'DateTimeFormat').mockImplementation((locale, options) => {
+      if (options && options.timeZone === 'Etc/Unknown') {
+        throw new RangeError('Invalid time zone');
+      }
+      return new originalDateTimeFormat(locale, options);
+    });
+
+    try {
+      expect(isValidTimezone('Etc/Unknown')).toBe(false);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('returns false for other unrecognised timezone strings', () => {
+    expect(isValidTimezone('Invalid/Timezone')).toBe(false);
+    expect(isValidTimezone('foobar')).toBe(false);
+    expect(isValidTimezone(':/etc/localtime')).toBe(false);
   });
 });
 

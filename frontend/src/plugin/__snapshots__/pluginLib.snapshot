@@ -614,6 +614,7 @@
     "getResourceMetrics": [Function],
     "getResourceStr": [Function],
     "getTotalReplicas": [Function],
+    "isValidTimezone": [Function],
     "localeDate": [Function],
     "normalizeUnit": [Function],
     "timeAgo": [Function],

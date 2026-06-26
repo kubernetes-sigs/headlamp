@@ -203,6 +203,35 @@ export function formatDuration(duration: number, options: TimeAgoOptions = {}) {
   return humanDuration(duration);
 }
 
+const tzCache = new Map<string, boolean>();
+
+/**
+ * Returns true when tz is a valid IANA timezone string accepted by the
+ * Intl API. Some Linux systems expose TZ=:/etc/localtime which Chrome
+ * resolves to "Etc/Unknown" — an identifier that Node accepts but browsers
+ * reject with a RangeError.
+ */
+export function isValidTimezone(tz: string): boolean {
+  if (!import.meta.env.UNDER_TEST) {
+    const cached = tzCache.get(tz);
+    if (cached !== undefined) {
+      return cached;
+    }
+  }
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz });
+    if (!import.meta.env.UNDER_TEST) {
+      tzCache.set(tz, true);
+    }
+    return true;
+  } catch {
+    if (!import.meta.env.UNDER_TEST) {
+      tzCache.set(tz, false);
+    }
+    return false;
+  }
+}
+
 export function localeDate(date: DateParam) {
   const options: Intl.DateTimeFormatOptions = { timeZoneName: 'short' };
   let locale: string | undefined = undefined;
@@ -214,7 +243,10 @@ export function localeDate(date: DateParam) {
     locale = 'en-US';
     return new Date(date).toISOString();
   } else {
-    options.timeZone = store.getState().config.settings.timezone;
+    const tz = store.getState().config.settings.timezone;
+    if (tz && isValidTimezone(tz)) {
+      options.timeZone = tz;
+    }
   }
 
   return new Date(date).toLocaleString(locale, options);
