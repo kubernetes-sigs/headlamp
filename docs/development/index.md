@@ -224,6 +224,16 @@ to more folders.
 docker run --network="host" -p 127.0.0.1:4466:4466/tcp --mount type=bind,source="/home/rene/.minikube",target=$HOME/.minikube --mount type=bind,source="$HOME/.kube",target=/root/.kube ghcr.io/headlamp-k8s/headlamp:latest /headlamp/headlamp-server -html-static-dir /headlamp/frontend -plugins-dir=/headlamp/plugins
 ```
 
+#### Configuring WebSocket mode
+
+Headlamp supports configurable WebSocket modes for real-time updates: `websockets` (default), `multiplexer` (experimental), and `off`.
+
+This can be configured at runtime without rebuilding (image or app).
+
+```bash
+HEADLAMP_CONFIG_WEBSOCKET_MODE=multiplexer npm run start
+```
+
 If you want to make a new container image called `headlamp-k8s/headlamp:development`
 you can run it like this:
 
