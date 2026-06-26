@@ -275,7 +275,7 @@ export default function EditorDialog(props: EditorDialogProps) {
                 ? model.getLineMaxColumn(safeLineNumber)
                 : mark.column + 2;
             const startColumn = Math.min(mark.column + 1, maxColumn);
-            const endColumn = Math.max(startColumn + 1, Math.min(mark.column + 2, maxColumn));
+            const endColumn = Math.min(Math.max(startColumn + 1, mark.column + 2), maxColumn);
 
             monacoRef.current.editor.setModelMarkers(model, 'headlamp-yaml-parse', [
               {
