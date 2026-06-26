@@ -133,7 +133,11 @@ vi.mock('../../../lib/k8s/job', () => {
 vi.mock('i18next', async importOriginal => {
   const actual = await importOriginal<typeof import('i18next')>();
   const fakeT = (key: string, options?: { itemName?: string }) => {
-    const resolvedKey = key.split('|').pop() ?? key;
+    // Keep existing tests stable by defaulting to returning the key unchanged.
+    if (key !== 'glossary|Logs: {{ itemName }}') {
+      return key;
+    }
+    const resolvedKey = 'Logs: {{ itemName }}';
     return options?.itemName
       ? resolvedKey.replace('{{ itemName }}', options.itemName)
       : resolvedKey;
