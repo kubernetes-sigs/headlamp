@@ -32,6 +32,7 @@ import { AppDispatch } from '../../../redux/stores/store';
 import ActionButton, { ButtonStyle } from '../ActionButton';
 import ConfirmDialog from '../ConfirmDialog';
 import AuthVisible from './AuthVisible';
+import PermissionDeniedAction from './PermissionDeniedAction';
 
 export type RestartableResource = Deployment | StatefulSet | DaemonSet;
 
@@ -100,6 +101,13 @@ function RestartButtonInner(
     <AuthVisible
       item={item}
       authVerb="update"
+      deniedFallback={result => (
+        <PermissionDeniedAction
+          result={result}
+          label={t('translation|Restart')}
+          buttonStyle={buttonStyle}
+        />
+      )}
       onError={(err: Error) => {
         console.error(`Error while getting authorization for restart button in ${item}:`, err);
       }}

@@ -1,8 +1,8 @@
 {
+  "Namespace": "مساحة الأسماء",
   "Kubernetes Version": "إصدار Kubernetes",
   "Cluster": "المجموعة",
   "Cluster selector": "محدد المجموعة",
-  "Namespace": "مساحة الأسماء",
   "Git Commit": "تحديث Git",
   "Memory": "الذاكرة",
   "CPU": "المعالج",

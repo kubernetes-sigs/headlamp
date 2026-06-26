@@ -32,6 +32,7 @@ import {
 import { AppDispatch } from '../../../redux/stores/store';
 import ActionButton, { ButtonStyle } from '../ActionButton';
 import AuthVisible from './AuthVisible';
+import PermissionDeniedAction from './PermissionDeniedAction';
 import RollbackDialog from './RollbackDialog';
 
 /**
@@ -132,6 +133,13 @@ export function RollbackButton(props: RollbackButtonProps) {
     <AuthVisible
       item={item}
       authVerb="update"
+      deniedFallback={result => (
+        <PermissionDeniedAction
+          result={result}
+          label={t('translation|Rollback')}
+          buttonStyle={buttonStyle}
+        />
+      )}
       onError={(err: Error) => {
         console.error(`Error while getting authorization for rollback button in ${item}:`, err);
       }}

@@ -17,6 +17,7 @@
 import React from 'react';
 import { useHistory } from 'react-router';
 import NotFoundComponent from '../../components/404';
+import Permissions from '../../components/access/Permissions';
 import AuthToken from '../../components/account/Auth';
 import AddCluster from '../../components/App/CreateCluster/AddCluster';
 import Home from '../../components/App/Home';
@@ -601,6 +602,13 @@ const defaultRoutes: { [routeName: string]: Route } = {
     exact: true,
     sidebar: 'serviceAccounts',
     component: () => <ServiceAccountDetails />,
+  },
+  access: {
+    path: '/access',
+    exact: true,
+    name: 'Access',
+    sidebar: 'access',
+    component: () => <Permissions />,
   },
   roles: {
     path: '/roles',
