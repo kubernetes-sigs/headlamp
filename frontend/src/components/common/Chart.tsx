@@ -221,39 +221,42 @@ export function PercentageBar(props: PercentageBarProps) {
     theme.palette.mode === 'dark' ? theme.palette.primary.light : theme.palette.primary.main;
 
   return (
-    <div onMouseEnter={handleMouseEnter}>
-      <StyledResponsiveContainer width="95%" height={20} ref={containerRef}>
-        <StyledBarChart layout="vertical" maxBarSize={5} data={[formatData()]}>
-          {tooltipFunc && (
-            <Tooltip
-              content={props => (
-                <PaperTooltip
-                  rechartsProps={props}
-                  tooltipFunc={tooltipFunc}
-                  data={data}
-                  containerRect={containerRect}
-                />
-              )}
-            />
-          )}
-          <XAxis hide domain={[0, 100]} type="number" />
-          <YAxis hide type="category" />
-          {data.map((item, index) => {
-            return (
-              <Bar
-                key={index}
-                dataKey={item.name}
-                stackId="1"
-                fill={item.fill || barColor}
-                layout="vertical"
-                radius={theme.shape.borderRadius}
-                background={{ fill: barBackground }}
+    <StyledResponsiveContainer width="95%" height={20} ref={containerRef}>
+      <StyledBarChart
+        layout="vertical"
+        maxBarSize={5}
+        data={[formatData()]}
+        onMouseEnter={handleMouseEnter}
+      >
+        {tooltipFunc && (
+          <Tooltip
+            content={props => (
+              <PaperTooltip
+                rechartsProps={props}
+                tooltipFunc={tooltipFunc}
+                data={data}
+                containerRect={containerRect}
               />
-            );
-          })}
-        </StyledBarChart>
-      </StyledResponsiveContainer>
-    </div>
+            )}
+          />
+        )}
+        <XAxis hide domain={[0, 100]} type="number" />
+        <YAxis hide type="category" />
+        {data.map((item, index) => {
+          return (
+            <Bar
+              key={index}
+              dataKey={item.name}
+              stackId="1"
+              fill={item.fill || barColor}
+              layout="vertical"
+              radius={theme.shape.borderRadius}
+              background={{ fill: barBackground }}
+            />
+          );
+        })}
+      </StyledBarChart>
+    </StyledResponsiveContainer>
   );
 }
 
@@ -265,7 +268,8 @@ interface PaperTooltipProps {
 }
 
 function PaperTooltip({ rechartsProps, tooltipFunc, data, containerRect }: PaperTooltipProps) {
-  if (!rechartsProps || !rechartsProps.active || !rechartsProps.coordinate) return null;
+  if (!rechartsProps || !rechartsProps.active || !rechartsProps.coordinate || !containerRect)
+    return null;
 
   const { x, y } = rechartsProps.coordinate;
   const left = (containerRect?.left ?? 0) + x;
