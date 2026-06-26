@@ -2531,6 +2531,10 @@ func newFakeK8sServer(authAllowed bool) *httptest.Server {
 func resetCacheMiddlewareTestState() {
 	k8cache.ResetForTesting()
 
+	if k8sResponseCache != nil {
+		_ = k8sResponseCache.Close()
+	}
+
 	k8sResponseCache = cache.New[string]()
 }
 
