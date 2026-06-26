@@ -69,8 +69,6 @@ func TestPurgeCacheForContext(t *testing.T) {
 }
 
 func TestEvictClientsetsForCluster(t *testing.T) {
-	t.Parallel()
-
 	k8cache.ResetClientsetCache()
 	t.Cleanup(k8cache.ResetClientsetCache)
 

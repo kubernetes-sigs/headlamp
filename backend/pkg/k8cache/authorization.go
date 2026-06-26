@@ -63,7 +63,7 @@ var (
 	// re-cached after context removal (e.g. while an in-flight GetClientSet completes).
 	blockedClientsetPrefixes = make(map[string]struct{})
 	mu                       sync.Mutex
-	janitorOnce    sync.Once
+	janitorOnce              sync.Once
 
 	// inFlight keeps track of clientsets currently being created to avoid redundant work.
 	inFlight = make(map[string]*inFlightEntry)
@@ -150,13 +150,31 @@ func EvictClientsetsForCluster(clientsetCachePrefix string) {
 
 	remaining := len(clientsetCache)
 
+	unblockClientsetPrefixIfIdleLocked(clientsetCachePrefix)
+
 	mu.Unlock()
 
 	if evicted > 0 {
 		logger.Log(logger.LevelInfo, nil, nil,
-			fmt.Sprintf("evicted %d clientset(s) for removed cluster %s, %d remaining",
+			fmt.Sprintf("evicted %d clientset(s) for removed context %s, %d remaining",
 				evicted, redactContextKey(clientsetCachePrefix), remaining))
 	}
+}
+
+// unblockClientsetPrefixIfIdleLocked removes a blocked clientset prefix when no
+// clientset creation is in flight for that prefix. Caller must hold mu.
+func unblockClientsetPrefixIfIdleLocked(prefix string) {
+	for key := range inFlight {
+		if clientsetCachePrefixFromCacheKey(key) == prefix {
+			return
+		}
+	}
+
+	delete(blockedClientsetPrefixes, prefix)
+}
+
+func clientsetCachePrefixFromCacheKey(cacheKey string) string {
+	return strings.SplitN(cacheKey, "\x00", 2)[0]
 }
 
 // clearBlockedClientsetPrefixesForActiveContexts allows clientset caching again for
@@ -234,7 +252,7 @@ func createAndCacheClientSet(
 		}
 	}
 
-	prefix := strings.SplitN(cacheKey, "\x00", 2)[0]
+	prefix := clientsetCachePrefixFromCacheKey(cacheKey)
 	if _, blocked := blockedClientsetPrefixes[prefix]; blocked {
 		return cs, nil
 	}
@@ -313,6 +331,8 @@ func GetClientSet(k *kubeconfig.Context, token string) (*kubernetes.Clientset, e
 
 	delete(inFlight, cacheKey)
 	close(entry.waitCh)
+
+	unblockClientsetPrefixIfIdleLocked(clientsetCachePrefixFromCacheKey(cacheKey))
 
 	mu.Unlock()
 
