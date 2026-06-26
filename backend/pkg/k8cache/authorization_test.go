@@ -59,12 +59,12 @@ func (k *MockKubeConfig) ClientConfig() (clientcmd.ClientConfig, error) {
 
 func TestGetClientSet(t *testing.T) {
 	tests := []struct {
-		name                string
-		mockK               MockKubeConfig
-		headlampContextKey  string
-		token               string
-		clientSet           *kubernetes.Clientset
-		expectedError       error
+		name               string
+		mockK              MockKubeConfig
+		headlampContextKey string
+		token              string
+		clientSet          *kubernetes.Clientset
+		expectedError      error
 	}{
 		{
 			name: "valid ClusterID returns cached clientset",
@@ -162,7 +162,6 @@ func TestGetKindAndVerb(t *testing.T) {
 			expectedKind: "deployments",
 			expectedVerb: "get",
 		},
-		
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
