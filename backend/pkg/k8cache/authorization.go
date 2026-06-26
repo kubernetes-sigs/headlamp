@@ -125,8 +125,8 @@ func evictExpiredClientsets() {
 
 // EvictClientsetsForCluster removes cached authorization clientsets whose keys share
 // the given prefix immediately when a kube context is removed, instead of waiting for
-// TTL expiry. The prefix is the clientset cache key identifier (the part before the
-// NUL separator), not necessarily the Kubernetes cluster name from kubeconfig.
+// TTL expiry. The prefix is the Headlamp context store key (the part before the token
+// separator in clientset cache keys), which includes the user ID for stateless contexts.
 func EvictClientsetsForCluster(clientsetCachePrefix string) {
 	if clientsetCachePrefix == "" {
 		return
@@ -295,8 +295,13 @@ func finishInFlightClientset(cacheKey string, entry *inFlightEntry, cs *kubernet
 // GetClientSet returns *kubernetes.ClientSet and error which is further used for creating
 // SSAR requests to k8s server to authorize user. GetClientSet uses kubeconfig.Context and
 // authentication bearer token which will help to create clientSet based on the user's
-// identity.
-func GetClientSet(k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
+// identity. headlampContextKey is the key used in the kubeconfig store (for stateless
+// clusters this includes the user ID, e.g. "cluster\x00userID").
+func GetClientSet(headlampContextKey string, k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
+	if headlampContextKey == "" {
+		return nil, fmt.Errorf("empty headlamp context key in getClientSet")
+	}
+
 	contextKey := strings.Split(k.ClusterID, "+")
 	if len(contextKey) < 2 {
 		return nil, fmt.Errorf("unexpected ClusterID format in getClientSet: %q", k.ClusterID)
@@ -304,7 +309,7 @@ func GetClientSet(k *kubeconfig.Context, token string) (*kubernetes.Clientset, e
 
 	startJanitor()
 
-	cacheKey := contextKey[1] + "\x00" + token
+	cacheKey := headlampContextKey + "\x00" + token
 
 	// Check cache first
 	if cs, found := getCachedClientSet(cacheKey); found {
@@ -379,12 +384,13 @@ func GetKindAndVerb(r *http.Request) (string, string) {
 // If the user is authorized and has permission to view the resources, it returns true.
 // Otherwise, it returns false if authorization fails.
 func IsAllowed(
+	headlampContextKey string,
 	k *kubeconfig.Context,
 	r *http.Request,
 ) (bool, error) {
 	token := auth.BearerTokenValue(r.Header.Get("Authorization"))
 
-	clientset, err := GetClientSet(k, token)
+	clientset, err := GetClientSet(headlampContextKey, k, token)
 	if err != nil {
 		return false, err
 	}

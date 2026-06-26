@@ -59,11 +59,12 @@ func (k *MockKubeConfig) ClientConfig() (clientcmd.ClientConfig, error) {
 
 func TestGetClientSet(t *testing.T) {
 	tests := []struct {
-		name          string
-		mockK         MockKubeConfig
-		token         string
-		clientSet     *kubernetes.Clientset
-		expectedError error
+		name                string
+		mockK               MockKubeConfig
+		headlampContextKey  string
+		token               string
+		clientSet           *kubernetes.Clientset
+		expectedError       error
 	}{
 		{
 			name: "valid ClusterID returns cached clientset",
@@ -75,8 +76,9 @@ func TestGetClientSet(t *testing.T) {
 					KubeContext: &api.Context{Cluster: "kind-headlamp-admin"},
 				},
 			},
-			token:         "token-1245",
-			expectedError: nil,
+			headlampContextKey: "kind-headlamp-admin",
+			token:              "token-1245",
+			expectedError:      nil,
 		},
 		{
 			name: "return unexpected ClusterID format",
@@ -88,14 +90,15 @@ func TestGetClientSet(t *testing.T) {
 					KubeContext: &api.Context{Cluster: "kind-headlamp-admin"},
 				},
 			},
-			token: "token-54321",
+			headlampContextKey: "kind-headlamp-admin",
+			token:              "token-54321",
 			expectedError: fmt.Errorf("unexpected ClusterID format in getClientSet: " +
 				"\"/home/user/.kubeconfig/kind-headlamp-admin\""),
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			cs, err := k8cache.GetClientSet(tc.mockK.Context, tc.token)
+			cs, err := k8cache.GetClientSet(tc.headlampContextKey, tc.mockK.Context, tc.token)
 			if tc.clientSet != nil { // It is difficult to compare the expected clientset with
 				// the returned clientSet as it return nested-struct inside the clientset which
 				// returns only memory references. To check whether the clientset was correct or
@@ -159,6 +162,7 @@ func TestGetKindAndVerb(t *testing.T) {
 			expectedKind: "deployments",
 			expectedVerb: "get",
 		},
+		
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -209,7 +213,7 @@ func TestIsAllowed(t *testing.T) {
 
 			assert.NoError(t, err)
 
-			isAllowed, _ := k8cache.IsAllowed(tc.mockK.Context, r)
+			isAllowed, _ := k8cache.IsAllowed("kind-headlamp-admin", tc.mockK.Context, r)
 			assert.Equal(t, tc.isAllowed, isAllowed)
 		})
 	}

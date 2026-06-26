@@ -579,7 +579,7 @@ func TestIsAllowed_EmptyKind(t *testing.T) {
 	)
 	// No mux vars → GetKindAndVerb returns ("", "unknown") →
 	// IsAllowed must return (false, non-nil error).
-	allowed, err := k8cache.IsAllowed(k, req)
+	allowed, err := k8cache.IsAllowed("kind-auth-test", k, req)
 	assert.False(t, allowed)
 	assert.Error(t, err)
 }

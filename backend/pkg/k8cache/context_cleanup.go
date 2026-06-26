@@ -67,11 +67,11 @@ func PurgeCacheForContext(k8scache cache.Cache[string], contextKey string) {
 	}
 }
 
-// clientsetCachePrefixFromContextKey returns the prefix shared by clientset cache keys
-// for a Headlamp context. Stateless context keys use "identifier\x00userID"; clientset
-// cache keys use the same identifier prefix with "\x00token".
+// clientsetCachePrefixFromContextKey returns the Headlamp context store key used as
+// the prefix for clientset cache keys. For stateless contexts this includes the user
+// ID (e.g. "cluster\x00userID"); for regular contexts it is the cluster name alone.
 func clientsetCachePrefixFromContextKey(contextKey string) string {
-	return strings.SplitN(contextKey, "\x00", 2)[0]
+	return contextKey
 }
 
 // cleanupRemovedContext drops cached API responses and auth clientsets for a
