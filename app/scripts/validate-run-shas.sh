@@ -51,7 +51,7 @@ set -euo pipefail
 # Outputs (stdout):
 #   The resolved tag name, e.g. "0.9.0" or "v0.9.0"
 #
-# Returns:#
+# Returns:
 #   0 on success, 1 if neither tag variant exists.
 # ---------------------------------------------------------------------------
 resolve_tag() {
@@ -133,6 +133,12 @@ validate_runs() {
   local tag_name="$2"
   local repo="$3"
   local run_ids_csv="$4"
+
+  local cleaned_run_ids="${run_ids_csv//[[:space:],]/}"
+  if [ -z "$cleaned_run_ids" ]; then
+    echo "Error: No workflow run IDs provided." >&2
+    return 1
+  fi
 
   echo "Expected release SHA: $expected_sha (from tag $tag_name)"
 

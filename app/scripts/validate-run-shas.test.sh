@@ -263,10 +263,12 @@ test_validate_runs_empty_run_ids() {
   STUB_GH_EMPTY=""
   STUB_RUN_SHA=""
   local out rc
-  # All entries are whitespace / empty; loop skips them all — should pass silently.
+  # All entries are whitespace / empty; should fail (nothing to validate).
   out=$(validate_runs "deadbeef1234" "v0.9.0" "kubernetes-sigs/headlamp" ",, ," 2>&1)
   rc=$?
-  assert_exit 0 "$rc" "validate_runs: all-empty run IDs passes (nothing to validate)"
+  set -e
+  assert_exit 1 "$rc" "validate_runs: all-empty run IDs fails (fail fast)"
+  assert_output_contains "Error: No workflow run IDs provided." "$out" "validate_runs: empty run IDs prints error"
 }
 
 test_validate_runs_get_run_sha_failure() {
