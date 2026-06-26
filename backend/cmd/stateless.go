@@ -201,6 +201,7 @@ func (c *HeadlampConfig) parseKubeConfig(w http.ResponseWriter, r *http.Request)
 		Clusters:                contexts,
 		IsDynamicClusterEnabled: c.EnableDynamicClusters,
 		AllowKubeconfigChanges:  c.AllowKubeconfigChanges,
+		WebsocketMode:           c.WebsocketMode,
 		DefaultLightTheme:       c.DefaultLightTheme,
 		DefaultDarkTheme:        c.DefaultDarkTheme,
 		ForceTheme:              c.ForceTheme,

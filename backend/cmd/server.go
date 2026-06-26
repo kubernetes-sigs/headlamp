@@ -97,6 +97,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		EnableDynamicClusters:  conf.EnableDynamicClusters,
 		EnableClusterInventory: conf.EnableClusterInventory,
 		AllowKubeconfigChanges: conf.AllowKubeconfigChanges,
+		WebsocketMode:          conf.WebsocketMode,
 		WatchPluginsChanges:    conf.WatchPluginsChanges,
 		KubeConfigStore:        kubeConfigStore,
 		BaseURL:                conf.BaseURL,
