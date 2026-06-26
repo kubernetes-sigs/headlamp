@@ -142,10 +142,14 @@ vi.mock('i18next', async importOriginal => {
       ? resolvedKey.replace('{{ itemName }}', options.itemName)
       : resolvedKey;
   };
+  const defaultExport: any = actual.default;
+  if (defaultExport) {
+    defaultExport.t = fakeT;
+  }
   return {
     ...actual,
     t: fakeT,
-    default: { ...actual.default, t: fakeT },
+    default: defaultExport,
   };
 });
 vi.mock('../../../lib/k8s', () => ({ labelSelectorToQuery: vi.fn(() => 'app=test') }));
