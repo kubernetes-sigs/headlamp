@@ -529,7 +529,7 @@ func TestGetPortForwardByID_UserIDKeyIsolation(t *testing.T) {
 }
 
 // TestGetPortForwardsHandler_UserIDKeyIsolation uses the exported HTTP handler
-// to verify that the X-HEADLAMP-USER-ID header causes a different cache lookup.
+// to verify that a different context key causes a different cache lookup.
 func TestGetPortForwardsHandler_UserIDKeyIsolation(t *testing.T) {
 	c := cache.New[interface{}]()
 
@@ -537,12 +537,12 @@ func TestGetPortForwardsHandler_UserIDKeyIsolation(t *testing.T) {
 	pf := portForward{ID: "pf-3", Cluster: "cluster", Pod: "nginx", Namespace: "default", Status: RUNNING}
 	portforwardstore(c, pf)
 
-	// Request WITHOUT user ID header — should return the seeded entry.
+	// Request with the base cluster context key — should return the seeded entry.
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/portforward/list", nil)
 	r = mux.SetURLVars(r, map[string]string{"clusterName": "cluster"})
 
-	GetPortForwards(c, w, r)
+	GetPortForwards(c, "cluster", w, r)
 
 	res := w.Result()
 
@@ -554,13 +554,12 @@ func TestGetPortForwardsHandler_UserIDKeyIsolation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Contains(t, string(body), "pf-3")
 
-	// Request WITH user ID header — should return empty list.
+	// Request with a user-specific context key — should return empty list.
 	w2 := httptest.NewRecorder()
 	r2 := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/portforward/list", nil)
 	r2 = mux.SetURLVars(r2, map[string]string{"clusterName": "cluster"})
-	r2.Header.Set("X-HEADLAMP-USER-ID", "user999")
 
-	GetPortForwards(c, w2, r2)
+	GetPortForwards(c, "clusteruser999", w2, r2)
 
 	res2 := w2.Result()
 
@@ -574,7 +573,7 @@ func TestGetPortForwardsHandler_UserIDKeyIsolation(t *testing.T) {
 }
 
 // TestGetPortForwardByIDHandler_UserIDKeyIsolation uses the exported HTTP handler
-// to verify that the X-HEADLAMP-USER-ID header causes a different cache lookup.
+// to verify that a different context key causes a different cache lookup.
 func TestGetPortForwardByIDHandler_UserIDKeyIsolation(t *testing.T) {
 	c := cache.New[interface{}]()
 
@@ -582,13 +581,13 @@ func TestGetPortForwardByIDHandler_UserIDKeyIsolation(t *testing.T) {
 	pf := portForward{ID: "pf-4", Cluster: "cluster", Pod: "redis", Namespace: "cache", Status: RUNNING}
 	portforwardstore(c, pf)
 
-	// Request WITHOUT user ID header — should find the entry.
+	// Request with the base cluster context key — should find the entry.
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/portforward?id=pf-4", nil)
 	r = mux.SetURLVars(r, map[string]string{"clusterName": "cluster"})
 	r.URL = &url.URL{RawQuery: "id=pf-4"}
 
-	GetPortForwardByID(c, w, r)
+	GetPortForwardByID(c, "cluster", w, r)
 
 	res := w.Result()
 
@@ -596,14 +595,13 @@ func TestGetPortForwardByIDHandler_UserIDKeyIsolation(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 
-	// Request WITH user ID header — should NOT find it.
+	// Request with a user-specific context key — should NOT find it.
 	w2 := httptest.NewRecorder()
 	r2 := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/portforward?id=pf-4", nil)
 	r2 = mux.SetURLVars(r2, map[string]string{"clusterName": "cluster"})
 	r2.URL = &url.URL{RawQuery: "id=pf-4"}
-	r2.Header.Set("X-HEADLAMP-USER-ID", "user999")
 
-	GetPortForwardByID(c, w2, r2)
+	GetPortForwardByID(c, "clusteruser999", w2, r2)
 
 	res2 := w2.Result()
 
@@ -614,7 +612,7 @@ func TestGetPortForwardByIDHandler_UserIDKeyIsolation(t *testing.T) {
 }
 
 // TestStopOrDeletePortForwardHandler_UserIDKeyIsolation verifies that
-// StopOrDeletePortForward uses cluster+userID as the cache key.
+// StopOrDeletePortForward uses the provided context key as the cache key.
 func TestStopOrDeletePortForwardHandler_UserIDKeyIsolation(t *testing.T) {
 	c := cache.New[interface{}]()
 
@@ -623,16 +621,15 @@ func TestStopOrDeletePortForwardHandler_UserIDKeyIsolation(t *testing.T) {
 	pf := portForward{ID: "pf-5", Cluster: "cluster", Pod: "app", Namespace: "ns", Status: RUNNING, closeChan: ch}
 	portforwardstore(c, pf)
 
-	// Try to stop with a user ID header — should fail because the key is different.
+	// Try to stop with a user-specific context key — should fail because the key is different.
 	payload, err := json.Marshal(map[string]interface{}{"id": "pf-5", "stopOrDelete": true})
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodDelete, "/portforward", bytes.NewReader(payload))
 	r = mux.SetURLVars(r, map[string]string{"clusterName": "cluster"})
-	r.Header.Set("X-HEADLAMP-USER-ID", "user999")
 
-	StopOrDeletePortForward(c, w, r)
+	StopOrDeletePortForward(c, "clusteruser999", w, r)
 
 	res := w.Result()
 

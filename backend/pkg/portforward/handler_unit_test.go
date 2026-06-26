@@ -52,7 +52,7 @@ func TestGetPortForwards_MissingCluster(t *testing.T) {
 	// No clusterName in mux vars — simulates a request without the route parameter.
 	r := newRequestWithVars(http.MethodGet, "/portforward/list", nil, map[string]string{})
 
-	portforward.GetPortForwards(ch, w, r)
+	portforward.GetPortForwards(ch, "", w, r)
 
 	res := w.Result()
 
@@ -74,7 +74,7 @@ func TestGetPortForwards_EmptyList(t *testing.T) {
 		"clusterName": "test-cluster",
 	})
 
-	portforward.GetPortForwards(ch, w, r)
+	portforward.GetPortForwards(ch, "test-cluster", w, r)
 
 	res := w.Result()
 
@@ -99,7 +99,7 @@ func TestGetPortForwards_ContentTypeHeader(t *testing.T) {
 		"clusterName": "any-cluster",
 	})
 
-	portforward.GetPortForwards(ch, w, r)
+	portforward.GetPortForwards(ch, "any-cluster", w, r)
 
 	res := w.Result()
 
@@ -119,7 +119,7 @@ func TestGetPortForwardByID_MissingCluster(t *testing.T) {
 	r := newRequestWithVars(http.MethodGet, "/portforward?id=abc", nil, map[string]string{})
 	r.URL = &url.URL{RawQuery: "id=abc"}
 
-	portforward.GetPortForwardByID(ch, w, r)
+	portforward.GetPortForwardByID(ch, "", w, r)
 
 	res := w.Result()
 
@@ -142,7 +142,7 @@ func TestGetPortForwardByID_MissingID(t *testing.T) {
 	})
 	r.URL = &url.URL{}
 
-	portforward.GetPortForwardByID(ch, w, r)
+	portforward.GetPortForwardByID(ch, "test-cluster", w, r)
 
 	res := w.Result()
 
@@ -165,7 +165,7 @@ func TestGetPortForwardByID_NotFound(t *testing.T) {
 	})
 	r.URL = &url.URL{RawQuery: "id=nonexistent"}
 
-	portforward.GetPortForwardByID(ch, w, r)
+	portforward.GetPortForwardByID(ch, "test-cluster", w, r)
 
 	res := w.Result()
 
@@ -191,7 +191,7 @@ func TestStopOrDeletePortForward_InvalidJSON(t *testing.T) {
 		"clusterName": "test-cluster",
 	})
 
-	portforward.StopOrDeletePortForward(ch, w, r)
+	portforward.StopOrDeletePortForward(ch, "test-cluster", w, r)
 
 	res := w.Result()
 
@@ -200,66 +200,60 @@ func TestStopOrDeletePortForward_InvalidJSON(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
 }
 
-func TestStopOrDeletePortForward_MissingID(t *testing.T) {
+func TestStopOrDeletePortForward_ErrorCases(t *testing.T) {
 	t.Parallel()
 
-	ch := cache.New[interface{}]()
-	w := httptest.NewRecorder()
-
-	payload := map[string]interface{}{
-		"id":           "",
-		"stopOrDelete": true,
+	tests := []struct {
+		name           string
+		id             string
+		wantStatusCode int
+		wantBody       string
+	}{
+		{
+			name:           "missing id",
+			id:             "",
+			wantStatusCode: http.StatusBadRequest,
+			wantBody:       "id is required",
+		},
+		{
+			name:           "id not found in cache",
+			id:             "does-not-exist",
+			wantStatusCode: http.StatusInternalServerError,
+			wantBody:       "failed to delete port forward",
+		},
 	}
 
-	jsonPayload, err := json.Marshal(payload)
-	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
 
-	body := bytes.NewReader(jsonPayload)
-	r := newRequestWithVars(http.MethodDelete, "/portforward", body, map[string]string{
-		"clusterName": "test-cluster",
-	})
+			ch := cache.New[interface{}]()
+			w := httptest.NewRecorder()
 
-	portforward.StopOrDeletePortForward(ch, w, r)
+			payload := map[string]interface{}{
+				"id":           tt.id,
+				"stopOrDelete": true,
+			}
 
-	res := w.Result()
+			jsonPayload, err := json.Marshal(payload)
+			require.NoError(t, err)
 
-	defer func() { _ = res.Body.Close() }()
+			body := bytes.NewReader(jsonPayload)
+			r := newRequestWithVars(http.MethodDelete, "/portforward", body, map[string]string{
+				"clusterName": "test-cluster",
+			})
 
-	assert.Equal(t, http.StatusBadRequest, res.StatusCode)
+			portforward.StopOrDeletePortForward(ch, "test-cluster", w, r)
 
-	respBody, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-	assert.Contains(t, string(respBody), "id is required")
-}
+			res := w.Result()
 
-func TestStopOrDeletePortForward_NotFoundInCache(t *testing.T) {
-	t.Parallel()
+			defer func() { _ = res.Body.Close() }()
 
-	ch := cache.New[interface{}]()
-	w := httptest.NewRecorder()
+			assert.Equal(t, tt.wantStatusCode, res.StatusCode)
 
-	payload := map[string]interface{}{
-		"id":           "does-not-exist",
-		"stopOrDelete": true,
+			respBody, err := io.ReadAll(res.Body)
+			require.NoError(t, err)
+			assert.Contains(t, string(respBody), tt.wantBody)
+		})
 	}
-
-	jsonPayload, err := json.Marshal(payload)
-	require.NoError(t, err)
-
-	body := bytes.NewReader(jsonPayload)
-	r := newRequestWithVars(http.MethodDelete, "/portforward", body, map[string]string{
-		"clusterName": "test-cluster",
-	})
-
-	portforward.StopOrDeletePortForward(ch, w, r)
-
-	res := w.Result()
-
-	defer func() { _ = res.Body.Close() }()
-
-	assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
-
-	respBody, err := io.ReadAll(res.Body)
-	require.NoError(t, err)
-	assert.Contains(t, string(respBody), "failed to delete port forward")
 }

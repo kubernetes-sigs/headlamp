@@ -133,7 +133,7 @@ func TestStartPortForward(t *testing.T) {
 	req.Body = io.NopCloser(bytes.NewReader(jsonReq))
 	req.Header.Set("Content-Type", "application/json")
 
-	portforward.StartPortForward(kubeConfigStore, ch, false, resp, req)
+	portforward.StartPortForward(kubeConfigStore, ch, false, minikubeName, resp, req)
 
 	res := resp.Result()
 
@@ -204,7 +204,7 @@ func TestStartPortForward(t *testing.T) {
 	stopReq.Header.Set("Content-Type", "application/json")
 	stopReq = mux.SetURLVars(stopReq, map[string]string{"clusterName": minikubeName})
 
-	portforward.StopOrDeletePortForward(ch, stopResp, stopReq)
+	portforward.StopOrDeletePortForward(ch, minikubeName, stopResp, stopReq)
 
 	stopRes := stopResp.Result()
 
@@ -230,7 +230,7 @@ func TestStartPortForward(t *testing.T) {
 	listReq.URL = &url.URL{}
 	listReq = mux.SetURLVars(listReq, map[string]string{"clusterName": minikubeName})
 
-	portforward.GetPortForwards(ch, listResp, listReq)
+	portforward.GetPortForwards(ch, minikubeName, listResp, listReq)
 
 	listRes := listResp.Result()
 
@@ -280,7 +280,7 @@ func TestStartPortForward(t *testing.T) {
 	getReq.URL.RawQuery = "id=" + id
 	getReq = mux.SetURLVars(getReq, map[string]string{"clusterName": minikubeName})
 
-	portforward.GetPortForwardByID(ch, getResp, getReq)
+	portforward.GetPortForwardByID(ch, minikubeName, getResp, getReq)
 
 	getRes := getResp.Result()
 
@@ -315,7 +315,7 @@ func TestStartPortForward(t *testing.T) {
 	deleteReq.Header.Set("Content-Type", "application/json")
 	deleteReq = mux.SetURLVars(deleteReq, map[string]string{"clusterName": minikubeName})
 
-	portforward.StopOrDeletePortForward(ch, deleteResp, deleteReq)
+	portforward.StopOrDeletePortForward(ch, minikubeName, deleteResp, deleteReq)
 
 	deleteRes := deleteResp.Result()
 
