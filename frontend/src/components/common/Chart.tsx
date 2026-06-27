@@ -201,7 +201,10 @@ export function PercentageBar(props: PercentageBarProps) {
   const [containerRect, setContainerRect] = useState<DOMRect | null>(null);
 
   useEffect(() => {
-    setContainerRect(containerRef.current?.getBoundingClientRect() ?? null);
+    const handle = requestAnimationFrame(() => {
+      setContainerRect(containerRef.current?.getBoundingClientRect() ?? null);
+    });
+    return () => cancelAnimationFrame(handle);
   }, []);
 
   const handleMouseEnter = useCallback(() => {
