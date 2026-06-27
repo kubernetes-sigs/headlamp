@@ -22,6 +22,7 @@ import Chip from '@mui/material/Chip';
 import Typography from '@mui/material/Typography';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
+import { getDefaultContainer } from '../../helpers/podContainer';
 import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import type { KubeCondition } from '../../lib/k8s/cluster';
 import type Event from '../../lib/k8s/event';
@@ -854,10 +855,12 @@ export function PodDiagnosticsSection(props: {
     [pod, diagnosticEvents, t]
   );
 
-  // The page header already has a generic "Show Logs" action, so the diagnostics
-  // action only appears when it adds something: jumping straight to the failing
-  // container's logs. Its label names that container to set it apart.
+  // The page header already has a generic "Show Logs" action that opens the
+  // pod's default container, so the diagnostics action only appears when it
+  // points somewhere else: a failing container that isn't the default one.
+  // For single-container pods these coincide, so no redundant button is shown.
   const failingContainer = getFailingContainerName(pod);
+  const showLogs = !!failingContainer && failingContainer !== getDefaultContainer(pod);
 
   return (
     <SectionBox
@@ -865,7 +868,7 @@ export function PodDiagnosticsSection(props: {
       headerProps={{
         headerStyle: 'subsection',
         actions:
-          onViewLogs && failingContainer
+          onViewLogs && showLogs
             ? [
                 <Button
                   key="view-logs"
