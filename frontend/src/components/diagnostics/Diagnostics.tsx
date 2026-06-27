@@ -168,11 +168,23 @@ function sortWarningEvents(events: EventLike[]) {
   });
 }
 
-/** Reference that links to a pod's detail page (where its own logs are available). */
+/**
+ * Reference that links to a pod's logs, opening the log viewer on the container
+ * most likely responsible for the failure (falling back to the pod's default).
+ */
 function podReference(pod: PodLike): DiagnosticReference {
+  const container = getFailingContainerName(pod);
   return {
     label: pod.metadata.name,
-    kubeObject: pod,
+    routeName: 'pod',
+    params: {
+      name: pod.metadata.name,
+      namespace: pod.metadata.namespace,
+    },
+    search: {
+      view: 'logs',
+      ...(container ? { container } : {}),
+    },
   };
 }
 
