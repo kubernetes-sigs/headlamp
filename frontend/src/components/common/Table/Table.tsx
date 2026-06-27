@@ -37,14 +37,17 @@ import {
   useMaterialReactTable,
   useMRT_Rows,
 } from 'material-react-table';
+import { MRT_Localization_AR } from 'material-react-table/locales/ar';
 import { MRT_Localization_DE } from 'material-react-table/locales/de';
 import { MRT_Localization_EN } from 'material-react-table/locales/en';
 import { MRT_Localization_ES } from 'material-react-table/locales/es';
 import { MRT_Localization_FR } from 'material-react-table/locales/fr';
+import { MRT_Localization_HE } from 'material-react-table/locales/he';
 import { MRT_Localization_IT } from 'material-react-table/locales/it';
 import { MRT_Localization_JA } from 'material-react-table/locales/ja';
 import { MRT_Localization_KO } from 'material-react-table/locales/ko';
 import { MRT_Localization_PT } from 'material-react-table/locales/pt';
+import { MRT_Localization_RU } from 'material-react-table/locales/ru';
 import { MRT_Localization_ZH_HANS } from 'material-react-table/locales/zh-Hans';
 import { MRT_Localization_ZH_HANT } from 'material-react-table/locales/zh-Hant';
 import { memo, ReactNode, useEffect, useMemo, useState } from 'react';
@@ -154,15 +157,18 @@ function usePageURLState(
   return [zeroIndexPage, setZeroIndexPage];
 }
 
-const tableLocalizationMap: Record<string, MRT_Localization> = {
+const tableLocalizationMap: Partial<Record<string, MRT_Localization>> = {
+  ar: MRT_Localization_AR,
   de: MRT_Localization_DE,
   en: MRT_Localization_EN,
   es: MRT_Localization_ES,
   fr: MRT_Localization_FR,
+  he: MRT_Localization_HE,
   it: MRT_Localization_IT,
   ja: MRT_Localization_JA,
   pt: MRT_Localization_PT,
   ko: MRT_Localization_KO,
+  ru: MRT_Localization_RU,
   zh: MRT_Localization_ZH_HANS,
   'zh-TW': MRT_Localization_ZH_HANT,
 };
