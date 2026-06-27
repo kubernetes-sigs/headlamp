@@ -342,7 +342,7 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 		return c.OidcConf, nil
 	}
 
-	if c.AuthInfo.AuthProvider == nil {
+	if c.AuthInfo == nil || c.AuthInfo.AuthProvider == nil {
 		return nil, errors.New("authProvider is nil")
 	}
 

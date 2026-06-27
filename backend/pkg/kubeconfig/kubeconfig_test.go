@@ -328,6 +328,16 @@ users:
 	})
 }
 
+func TestOidcConfigWithNilAuthInfo(t *testing.T) {
+	context := &kubeconfig.Context{AuthInfo: nil}
+
+	oidcConfig, err := context.OidcConfig()
+
+	require.Error(t, err, "Expected an error when AuthInfo is nil")
+	assert.Nil(t, oidcConfig, "Expected nil OIDC config when AuthInfo is nil")
+	assert.EqualError(t, err, "authProvider is nil")
+}
+
 // createTempKubeconfig creates a temporary kubeconfig file for testing.
 func createTempKubeconfig(t *testing.T, content string) string {
 	t.Helper()
