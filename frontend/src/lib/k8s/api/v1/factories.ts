@@ -358,8 +358,6 @@ export interface ApiInfo {
   resource: string;
 }
 
-// @todo: singleApiFactory should have a return type rather than just what it returns.
-
 /**
  * @returns An object with methods for interacting with a single API endpoint.
  *

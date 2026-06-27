@@ -265,6 +265,16 @@ export function streamResultsForCluster(
 }
 
 /**
+ * The connection handle returned by the stream connection helpers.
+ */
+export interface StreamConnection {
+  /** Closes the underlying WebSocket connection. */
+  close: () => void;
+  /** The underlying WebSocket, or null if it could not be created. */
+  socket: WebSocket | null;
+}
+
+/**
  * Configure a stream with... StreamArgs.
  */
 export interface StreamArgs {
@@ -297,7 +307,7 @@ export interface StreamArgs {
  * the stream, and `getSocket`, which returns the WebSocket object.
  */
 export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs) {
-  let connection: { close: () => void; socket: WebSocket | null } | null = null;
+  let connection: StreamConnection | null = null;
   let isCancelled = false;
   const { failCb, cluster = '' } = args;
   // We only set reconnectOnFailure as true by default if the failCb has not been provided.
@@ -353,8 +363,6 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
   }
 }
 
-// @todo: needs a return type.
-
 /**
  * Connects to a WebSocket stream at the specified path and returns an object
  * with a `close` function and a `socket` property. Sends messages to `cb` callback.
@@ -365,7 +373,7 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
  * @param isJson - Whether the messages should be parsed as JSON.
  * @param additionalProtocols - An optional array of additional WebSocket protocols to use.
  *
- * @returns An object with a `close` function and a `socket` property.
+ * @returns A promise that resolves to an object with a `close` function and a `socket` property.
  */
 export async function connectStream<T>(
   path: string,
@@ -374,7 +382,7 @@ export async function connectStream<T>(
   isJson: boolean,
   additionalProtocols: string[] = [],
   cluster = ''
-) {
+): Promise<StreamConnection> {
   return connectStreamWithParams(path, cb, onFail, {
     isJson,
     cluster: cluster || getCluster() || '',
@@ -412,10 +420,7 @@ export async function connectStreamWithParams<T>(
   cb: StreamResultsCb<T>,
   onFail: () => void,
   params?: StreamParams
-): Promise<{
-  close: () => void;
-  socket: WebSocket | null;
-}> {
+): Promise<StreamConnection> {
   const { isJson = false, additionalProtocols = [], cluster = '' } = params || {};
   let isClosing = false;
 
