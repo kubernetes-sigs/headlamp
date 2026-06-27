@@ -42,7 +42,11 @@ function formatErrorDetail(error: null | string | boolean): string {
   }
   // Keep only the concise reason and drop the raw response body that clusterRequest
   // appends after " - " (e.g. the verbose "[+]ping ok [+]etcd ok…" healthz checklist).
-  const detail = error.split(' - ')[0].replace(/\s+/g, ' ').trim();
+  const separator = ' - ';
+  const healthPrefixIndex = error.indexOf(' is not healthy: ');
+  const separatorIndex = error.indexOf(separator, healthPrefixIndex >= 0 ? healthPrefixIndex : 0);
+  const concise = separatorIndex >= 0 ? error.slice(0, separatorIndex) : error;
+  const detail = concise.replace(/\s+/g, ' ').trim();
   return detail.length > MAX_ERROR_DETAIL_LENGTH
     ? `${detail.slice(0, MAX_ERROR_DETAIL_LENGTH).trimEnd()}…`
     : detail;
@@ -201,16 +205,19 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
           {errorDetail}
         </Typography>
       )}
-      <Link
-        routeName="settingsCluster"
-        sx={(theme: Theme) => ({
-          color: theme.palette.common.white,
-          textDecorationColor: theme.palette.common.white,
-          fontWeight: 'bold',
-        })}
-      >
-        {t('translation|Check cluster settings')}
-      </Link>
+      {getCluster() && (
+        <Link
+          routeName="settingsCluster"
+          params={{ cluster: getCluster()! }}
+          sx={(theme: Theme) => ({
+            color: theme.palette.common.white,
+            textDecorationColor: theme.palette.common.white,
+            fontWeight: 'bold',
+          })}
+        >
+          {t('translation|Check cluster settings')}
+        </Link>
+      )}
     </Alert>
   );
 }
