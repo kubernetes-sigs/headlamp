@@ -339,7 +339,7 @@ class Pod extends KubeObject<KubePod> {
     };
 
     // Get current ephemeral containers
-    const currentEphemeralContainers = this.spec.ephemeralContainers || [];
+    const currentEphemeralContainers = this.spec?.ephemeralContainers || [];
 
     // Prepare the patch body
     const patchBody = {
@@ -484,7 +484,7 @@ class Pod extends KubeObject<KubePod> {
           message = container.state.waiting!.message || '';
           break;
         default:
-          reason = `Init:${i}/${(this.spec.initContainers || []).length}`;
+          reason = `Init:${i}/${(this.spec?.initContainers || []).length}`;
           initializing = true;
       }
       break;
