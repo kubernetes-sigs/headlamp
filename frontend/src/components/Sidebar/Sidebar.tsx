@@ -20,7 +20,9 @@ import Button from '@mui/material/Button';
 import Drawer from '@mui/material/Drawer';
 import Grid from '@mui/material/Grid';
 import List from '@mui/material/List';
+import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import _ from 'lodash';
 import React, { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -282,6 +284,17 @@ export const PureSidebar = memo(
     const listContainerRef = React.useRef<HTMLDivElement | null>(null);
     const [isOverflowing, setIsOverflowing] = React.useState(false);
     const [scrollbarWidth, setScrollbarWidth] = React.useState(0);
+    const [isAnimating, setIsAnimating] = React.useState(false);
+    const theme = useTheme();
+
+    React.useEffect(() => {
+      setIsAnimating(true);
+      const timer = setTimeout(() => {
+        setIsAnimating(false);
+      }, theme.transitions.duration.enteringScreen);
+      return () => clearTimeout(timer);
+    }, [open, isTemporaryDrawer, theme.transitions.duration.enteringScreen]);
+
     const closedWidth = 72 + (isOverflowing ? scrollbarWidth : 0);
     const temporarySideBarOpen = open === true && isTemporaryDrawer && openUserSelected === true;
 
@@ -363,15 +376,18 @@ export const PureSidebar = memo(
         setScrollbarWidth(Math.max(0, el.offsetWidth - el.clientWidth));
       };
 
-      const observer = new ResizeObserver(update);
+      const debouncedUpdate = _.debounce(update, 300);
+
+      const observer = new ResizeObserver(debouncedUpdate);
       observer.observe(el);
 
-      window.addEventListener('resize', update);
+      window.addEventListener('resize', debouncedUpdate);
       update();
 
       return () => {
         observer.disconnect();
-        window.removeEventListener('resize', update);
+        window.removeEventListener('resize', debouncedUpdate);
+        debouncedUpdate.cancel();
       };
     }, [items]);
 
@@ -396,6 +412,7 @@ export const PureSidebar = memo(
               height: '100%',
               background: theme.palette.sidebar.background,
               color: theme.palette.sidebar.color,
+              pointerEvents: isAnimating ? 'none' : 'auto',
             };
 
             const drawerOpen = {
@@ -406,6 +423,7 @@ export const PureSidebar = memo(
                 duration: theme.transitions.duration.enteringScreen,
               }),
               background: theme.palette.sidebar.background,
+              overflowX: 'hidden',
             };
 
             const drawerClose = {

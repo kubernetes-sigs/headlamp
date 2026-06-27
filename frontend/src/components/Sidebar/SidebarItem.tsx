@@ -20,9 +20,9 @@ import ListItem, { ListItemProps } from '@mui/material/ListItem';
 import React, { memo } from 'react';
 import { generatePath } from 'react-router';
 import { formatClusterPathParam, getClusterPrefixedPath } from '../../lib/cluster';
-import { useSelectedClusters } from '../../lib/k8s';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getRoute } from '../../lib/router/getRoute';
+import { useTypedSelector } from '../../redux/hooks';
 import ListItemLink from './ListItemLink';
 import { SidebarEntry } from './sidebarSlice';
 
@@ -84,9 +84,11 @@ const SidebarItem = memo((props: SidebarItemProps) => {
     isCR,
     ...other
   } = props;
-  const clusters = useSelectedClusters();
+  const clusters = useTypedSelector(state =>
+    useClusterURL ? state.clusterAction.selectedClusters : null
+  );
   let fullURL = url;
-  if (fullURL && useClusterURL && clusters.length && !fullURL.startsWith('http')) {
+  if (fullURL && useClusterURL && clusters && clusters.length && !fullURL.startsWith('http')) {
     fullURL = generatePath(getClusterPrefixedPath(url), {
       cluster: clusters.length ? formatClusterPathParam(clusters) : '',
     });
@@ -119,7 +121,7 @@ const SidebarItem = memo((props: SidebarItemProps) => {
             padding: 0,
           }}
         >
-          <Collapse in={fullWidth && isSelected} sx={{ width: '100%' }}>
+          <Collapse in={fullWidth && isSelected} sx={{ width: '100%' }} unmountOnExit>
             <List
               component="ul"
               disablePadding
