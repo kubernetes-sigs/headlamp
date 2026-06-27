@@ -80,6 +80,7 @@ type HeadlampConfig struct {
 	*headlampconfig.HeadlampConfig
 	proxyURLMu        sync.Mutex
 	compiledProxyURLs []glob.Glob
+	oidcStateReader   io.Reader
 }
 
 func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
@@ -963,14 +964,12 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		// state should be unique per request, cryptographically secure random, url safe
-		state, err := func() (string, error) {
-			b := make([]byte, 32)
-			if _, err := rand.Read(b); err != nil {
-				return "", fmt.Errorf("generating OIDC state: %w", err)
-			}
+		stateReader := config.oidcStateReader
+		if stateReader == nil {
+			stateReader = rand.Reader
+		}
 
-			return base64.RawURLEncoding.EncodeToString(b), nil
-		}()
+		state, err := generateOidcState(stateReader)
 		if err != nil {
 			logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster}, err, "failed to generate OIDC state")
 			http.Error(w, "failed to generate OIDC state", http.StatusInternalServerError)
@@ -1261,6 +1260,16 @@ func isLoopbackAddr(addr string) bool {
 	ip := net.ParseIP(strings.Trim(addr, "[]"))
 
 	return ip != nil && ip.IsLoopback()
+}
+
+func generateOidcState(reader io.Reader) (string, error) {
+	b := make([]byte, 32)
+
+	if _, err := io.ReadFull(reader, b); err != nil {
+		return "", fmt.Errorf("generating OIDC state: %w", err)
+	}
+
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 // allowedHosts returns the set of normalized host values that are considered
