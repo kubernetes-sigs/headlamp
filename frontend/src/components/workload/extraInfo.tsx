@@ -93,7 +93,10 @@ export function jobExtraInfo(item: Job, t: TFunction): NameValueTableRow[] {
   ]
     .filter(Boolean)
     .join(', ');
-  const duration = formatDuration(item.getDuration());
+  // getDuration() returns -1 while a job is still running; formatting that
+  // yields a misleading "0s", so only show a duration once the job has one.
+  const durationMs = item.getDuration();
+  const duration = durationMs > 0 ? formatDuration(durationMs) : '';
 
   return [
     {
