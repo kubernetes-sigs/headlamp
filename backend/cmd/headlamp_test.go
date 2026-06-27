@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -2157,6 +2158,127 @@ func TestOidcStateMapEviction(t *testing.T) {
 
 	assert.False(t, stalePresent, "stale OIDC state entry should have been evicted")
 	assert.True(t, freshPresent, "fresh OIDC state entry should still be present")
+}
+
+func TestGenerateOidcState(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		stateBytes := make([]byte, 32)
+		for i := range stateBytes {
+			stateBytes[i] = byte(i)
+		}
+
+		state, err := generateOidcState(bytes.NewReader(stateBytes))
+		require.NoError(t, err)
+		assert.Equal(t, "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8", state)
+	})
+
+	t.Run("failure", func(t *testing.T) {
+		state, err := generateOidcState(errReader{err: errors.New("rand failure")})
+
+		require.Error(t, err)
+		assert.Empty(t, state)
+	})
+
+	t.Run("short read", func(t *testing.T) {
+		// bytes.NewReader with fewer than 32 bytes triggers the short-read path.
+		state, err := generateOidcState(bytes.NewReader(make([]byte, 31)))
+
+		require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+		assert.Empty(t, state)
+	})
+}
+
+func TestOIDCHandlerReturnsInternalServerErrorWhenStateGenerationFails(t *testing.T) {
+	var oidcProvider *httptest.Server
+
+	oidcProvider = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/.well-known/openid-configuration":
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
+				"issuer":                                oidcProvider.URL,
+				"authorization_endpoint":                oidcProvider.URL + "/auth",
+				"token_endpoint":                        oidcProvider.URL + "/token",
+				"jwks_uri":                              oidcProvider.URL + "/keys",
+				"id_token_signing_alg_values_supported": []string{"RS256"},
+			})
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(oidcProvider.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		OidcConf: &kubeconfig.OidcConfig{
+			ClientID:     "test-client",
+			ClientSecret: "test-secret",
+			IdpIssuerURL: oidcProvider.URL,
+		},
+	})
+	require.NoError(t, err)
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+		oidcStateReader: errReader{err: errors.New("rand failure")},
+	}
+
+	handler := createHeadlampHandler(context.Background(), cfg)
+	rr, err := getResponse(handler, http.MethodGet, "/oidc?cluster=test-cluster", nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "failed to generate OIDC state")
+}
+
+type errReader struct {
+	err error
+}
+
+func (r errReader) Read([]byte) (int, error) {
+	return 0, r.err
+}
+
+func TestOIDCTokenRefreshMiddleware(t *testing.T) {
+	kubeConfigStore := kubeconfig.NewContextStore()
+	config := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore},
+			Cache:            cache.New[interface{}](),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	middleware := config.OIDCTokenRefreshMiddleware(handler)
+
+	// Test case: non-cluster request
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/non-cluster", nil)
+	rec := httptest.NewRecorder()
+	middleware.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	// Test case: cluster request without token
+	req = httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/test-cluster", nil)
+	rec = httptest.NewRecorder()
+	middleware.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
 func TestStartHeadlampServer(t *testing.T) {
