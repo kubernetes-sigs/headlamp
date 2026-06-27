@@ -20,9 +20,9 @@ import ListItem, { ListItemProps } from '@mui/material/ListItem';
 import React, { memo } from 'react';
 import { generatePath } from 'react-router';
 import { formatClusterPathParam, getClusterPrefixedPath } from '../../lib/cluster';
+import { useSelectedClusters } from '../../lib/k8s';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getRoute } from '../../lib/router/getRoute';
-import { useTypedSelector } from '../../redux/hooks';
 import ListItemLink from './ListItemLink';
 import { SidebarEntry } from './sidebarSlice';
 
@@ -65,7 +65,7 @@ export interface SidebarItemProps extends ListItemProps, SidebarEntry {
   isCR?: boolean;
 }
 
-const SidebarItem = memo((props: SidebarItemProps) => {
+const SidebarItemBase = memo((props: SidebarItemProps & { clusters?: string[] }) => {
   const {
     label,
     name,
@@ -82,13 +82,11 @@ const SidebarItem = memo((props: SidebarItemProps) => {
     hide,
     tabIndex,
     isCR,
+    clusters = [],
     ...other
   } = props;
-  const clusters = useTypedSelector(state =>
-    useClusterURL ? state.clusterAction.selectedClusters : null
-  );
   let fullURL = url;
-  if (fullURL && useClusterURL && clusters && clusters.length && !fullURL.startsWith('http')) {
+  if (fullURL && useClusterURL && clusters.length && !fullURL.startsWith('http')) {
     fullURL = generatePath(getClusterPrefixedPath(url), {
       cluster: clusters.length ? formatClusterPathParam(clusters) : '',
     });
@@ -149,6 +147,18 @@ const SidebarItem = memo((props: SidebarItemProps) => {
       )}
     </React.Fragment>
   );
+});
+
+const SidebarItemWithCluster = memo((props: SidebarItemProps) => {
+  const clusters = useSelectedClusters();
+  return <SidebarItemBase {...props} clusters={clusters} />;
+});
+
+const SidebarItem = memo((props: SidebarItemProps) => {
+  if (props.useClusterURL) {
+    return <SidebarItemWithCluster {...props} />;
+  }
+  return <SidebarItemBase {...props} />;
 });
 
 export default SidebarItem;
