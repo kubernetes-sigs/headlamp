@@ -152,3 +152,12 @@ func ExportedFilterImportantResources(gvrList []schema.GroupVersionResource) []s
 func ExportedReturnGVRList(apiResourceLists []*metav1.APIResourceList) []schema.GroupVersionResource {
 	return returnGVRList(apiResourceLists)
 }
+
+// ExportedInvalidateCacheKeysForResourceEvent exposes invalidateCacheKeysForResourceEvent for testing.
+func ExportedInvalidateCacheKeysForResourceEvent(
+	gvr schema.GroupVersionResource,
+	namespace, name, contextKey string,
+	k8scache cache.Cache[string],
+) {
+	invalidateCacheKeysForResourceEvent(gvr, namespace, name, contextKey, k8scache)
+}

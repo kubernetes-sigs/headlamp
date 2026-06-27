@@ -340,13 +340,35 @@ func handleKeyGenerationAndDeletion(obj interface{}, gvr schema.GroupVersionReso
 		return
 	}
 
-	namespace := unstructuredObj.GetNamespace()
-	key := buildCacheKey(gvr.Group, gvr.Resource, namespace, contextKey)
+	invalidateCacheKeysForResourceEvent(
+		gvr,
+		unstructuredObj.GetNamespace(),
+		unstructuredObj.GetName(),
+		contextKey,
+		k8scache,
+	)
+}
 
-	logger.Log(logger.LevelInfo, nil, nil, redactCacheKey(key)+" will be deleted from the cache")
+// invalidateCacheKeysForResourceEvent evicts cached list responses (including the
+// all-namespace list variant via DeleteKeys) and a cached named GET response.
+// GenerateKey stores list paths with gvr.Resource as the kind segment, but named
+// GET paths use the object name as the kind segment.
+func invalidateCacheKeysForResourceEvent(
+	gvr schema.GroupVersionResource,
+	namespace, name, contextKey string,
+	k8scache cache.Cache[string],
+) {
+	listKey := buildCacheKey(gvr.Group, gvr.Resource, namespace, contextKey)
 
-	if err := k8scache.Delete(context.Background(), key); err != nil {
-		logger.Log(logger.LevelError, nil, err, "error while deleting key")
+	logger.Log(logger.LevelInfo, nil, nil,
+		redactCacheKey(listKey)+" and related cache keys will be deleted from the cache")
+
+	DeleteKeys(listKey, k8scache)
+
+	if name == "" {
 		return
 	}
+
+	namedKey := buildCacheKey(gvr.Group, name, namespace, contextKey)
+	_ = k8scache.Delete(context.Background(), namedKey)
 }

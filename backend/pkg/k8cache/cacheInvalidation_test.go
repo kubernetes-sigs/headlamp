@@ -439,7 +439,98 @@ func TestRunInformerToWatch_OldResource(t *testing.T) {
 	close(stopCh)
 }
 
-// GetKindAndVerb — missing / empty mux "api" var  (0% branch today)
+func TestInvalidateCacheKeysForResourceEvent(t *testing.T) {
+	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+	contextKey := "test-context"
+	listKey := "+pods+default+" + contextKey
+	allNamespacesKey := "+pods++" + contextKey
+	namedKey := "+test-pod+default+" + contextKey
+	unrelatedKey := "+services+default+" + contextKey
+
+	mockCache := &MockCache{
+		store: map[string]string{
+			listKey:          "list-data",
+			allNamespacesKey: "all-namespaces-list-data",
+			namedKey:         "named-get-data",
+			unrelatedKey:     "unrelated-data",
+		},
+	}
+
+	k8cache.ExportedInvalidateCacheKeysForResourceEvent(
+		gvr, "default", "test-pod", contextKey, mockCache,
+	)
+
+	for _, key := range []string{listKey, allNamespacesKey, namedKey} {
+		_, err := mockCache.Get(context.Background(), key)
+		assert.Error(t, err, "key %q should be evicted", key)
+	}
+
+	val, err := mockCache.Get(context.Background(), unrelatedKey)
+	assert.NoError(t, err)
+	assert.Equal(t, "unrelated-data", val)
+}
+
+// TestRunInformerToWatch_InvalidatesListNamedAndAllNamespaceCacheKeys verifies
+// informer events evict namespaced list, all-namespace list, and named GET keys.
+func TestRunInformerToWatch_InvalidatesListNamedAndAllNamespaceCacheKeys(t *testing.T) {
+	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+	contextKey := "test-context"
+	listKey := "+pods+default+" + contextKey
+	allNamespacesKey := "+pods++" + contextKey
+	namedKey := "+test-pod+default+" + contextKey
+	unrelatedKey := "+services+default+" + contextKey
+
+	mockPod := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Pod",
+			"metadata": map[string]interface{}{
+				"name":              "test-pod",
+				"namespace":         "default",
+				"creationTimestamp": time.Now().UTC().Format(time.RFC3339),
+			},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	clientMap := map[schema.GroupVersionResource]string{gvr: "PodList"}
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, clientMap)
+	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(client, 0, "", nil)
+
+	mockCache := &MockCache{
+		store: map[string]string{
+			listKey:          "list-data",
+			allNamespacesKey: "all-namespaces-list-data",
+			namedKey:         "named-get-data",
+			unrelatedKey:     "unrelated-data",
+		},
+	}
+
+	k8cache.RunInformerToWatch([]schema.GroupVersionResource{gvr}, factory, contextKey, mockCache)
+
+	stopCh := make(chan struct{})
+	factory.Start(stopCh)
+	factory.WaitForCacheSync(stopCh)
+
+	err := client.Tracker().Add(mockPod)
+	assert.NoError(t, err)
+
+	assert.Eventually(t, func() bool {
+		for _, key := range []string{listKey, allNamespacesKey, namedKey} {
+			if _, err := mockCache.Get(context.Background(), key); err == nil {
+				return false
+			}
+		}
+
+		if _, err := mockCache.Get(context.Background(), unrelatedKey); err != nil {
+			return false
+		}
+
+		return true
+	}, 2*time.Second, 50*time.Millisecond, "informer should evict list, all-namespace, and named GET keys")
+
+	close(stopCh)
+}
 
 // TestGetKindAndVerb_NoMuxVars exercises the early-return path where the
 // "api" mux variable is absent from the request context.
