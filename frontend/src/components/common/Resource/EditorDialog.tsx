@@ -168,6 +168,17 @@ export default function EditorDialog(props: EditorDialogProps) {
     };
   }, [useSimpleEditor]);
 
+  React.useEffect(() => {
+    if (useSimpleEditor || error) {
+      return;
+    }
+
+    const model = editorRef.current?.getModel();
+    if (monacoRef.current && model) {
+      monacoRef.current.editor.setModelMarkers(model, 'headlamp-yaml-parse', []);
+    }
+  }, [error, useSimpleEditor]);
+
   function isKubeObjectIsh(item: any): item is KubeObjectIsh {
     return item && typeof item === 'object' && !Array.isArray(item) && 'metadata' in item;
   }
@@ -274,8 +285,12 @@ export default function EditorDialog(props: EditorDialogProps) {
               typeof model.getLineMaxColumn === 'function'
                 ? model.getLineMaxColumn(safeLineNumber)
                 : mark.column + 2;
-            const startColumn = Math.min(mark.column + 1, maxColumn);
-            const endColumn = Math.min(Math.max(startColumn + 1, mark.column + 2), maxColumn);
+            const safeMaxColumn = Math.max(maxColumn, 1);
+            const startColumn = Math.min(
+              Math.max(mark.column + 1, 1),
+              Math.max(safeMaxColumn - 1, 1)
+            );
+            const endColumn = Math.min(startColumn + 1, safeMaxColumn);
 
             monacoRef.current.editor.setModelMarkers(model, 'headlamp-yaml-parse', [
               {
