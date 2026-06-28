@@ -107,7 +107,6 @@ func startJanitor() {
 // every entry older than clientsetTTL.
 func evictExpiredClientsets() {
 	mu.Lock()
-	defer mu.Unlock()
 
 	now := time.Now()
 	evicted := 0
@@ -123,6 +122,8 @@ func evictExpiredClientsets() {
 	pruneBlockedClientsetPrefixesLocked(now)
 
 	remaining := len(clientsetCache)
+
+	mu.Unlock()
 
 	if evicted > 0 {
 		logger.Log(logger.LevelInfo, nil, nil,

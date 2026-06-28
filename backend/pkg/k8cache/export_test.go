@@ -112,6 +112,16 @@ func ResetInFlight() {
 	inFlight = make(map[string]*inFlightEntry)
 }
 
+// SeedInFlightClientsetKey registers an in-flight clientset creation for testing.
+func SeedInFlightClientsetKey(cacheKey string) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	inFlight[cacheKey] = &inFlightEntry{
+		waitCh: make(chan struct{}),
+	}
+}
+
 // SetClientsetCreator sets a custom clientset creator function for testing.
 // It returns a function to restore the original creator.
 func SetClientsetCreator(fn func(*kubeconfig.Context, string) (*kubernetes.Clientset, error)) func() {

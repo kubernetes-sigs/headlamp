@@ -185,6 +185,29 @@ func TestSyncWatchersPurgesCacheWithoutWatcher(t *testing.T) {
 	assert.Equal(t, 0, k8cache.ClientsetCacheLen())
 }
 
+func TestSyncWatchersPurgesContextWithOnlyInFlightClientset(t *testing.T) {
+	const (
+		removedContextKey = "removed-cluster\x00user1"
+		activeContextKey  = "active-cluster\x00user2"
+	)
+
+	k8cache.ResetRegistries()
+	t.Cleanup(func() { k8cache.ResetRegistries() })
+
+	k8cache.ResetClientsetCache()
+	t.Cleanup(k8cache.ResetClientsetCache)
+
+	k8cache.ResetInFlight()
+	t.Cleanup(k8cache.ResetInFlight)
+
+	k8cache.SeedInFlightClientsetKey(removedContextKey + "\x00token")
+	assert.Equal(t, 0, k8cache.ClientsetCacheLen())
+
+	k8cache.SyncWatchers(nil, []string{activeContextKey})
+
+	assert.True(t, k8cache.ExportedClientsetPrefixBlocked(removedContextKey))
+}
+
 func TestPruneBlockedClientsetPrefixes(t *testing.T) {
 	k8cache.ResetClientsetCache()
 	t.Cleanup(k8cache.ResetClientsetCache)
