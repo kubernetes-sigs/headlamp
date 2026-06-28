@@ -264,6 +264,7 @@ test_validate_runs_empty_run_ids() {
   STUB_RUN_SHA=""
   local out rc
   # All entries are whitespace / empty; should fail (nothing to validate).
+  set +e
   out=$(validate_runs "deadbeef1234" "v0.9.0" "kubernetes-sigs/headlamp" ",, ," 2>&1)
   rc=$?
   set -e

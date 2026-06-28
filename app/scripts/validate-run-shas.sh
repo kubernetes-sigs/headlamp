@@ -23,7 +23,7 @@
 # commit.
 #
 # Usage:
-#   GITHUB_TOKEN=<token> ./validate-run-shas.sh <release_name> <repo> <run_ids>
+#   GH_TOKEN=<token> ./validate-run-shas.sh <release_name> <repo> <run_ids>
 #
 #   release_name  - Release version, e.g. "0.9.0" or "v0.9.0"
 #   repo          - GitHub repository in "owner/name" format
@@ -34,7 +34,7 @@
 #   1 - Validation failed (tag not found, SHA mismatch, or empty run SHA)
 #
 # Environment variables:
-#   GITHUB_TOKEN  - Required. GitHub token with 'actions: read' permission.
+#   GH_TOKEN or GITHUB_TOKEN  - Required. GitHub token with 'actions: read' permission.
 
 set -euo pipefail
 
@@ -197,10 +197,13 @@ main() {
   fi
 
   # Ensure GitHub auth is available for gh CLI.
-  if [ -z "${GITHUB_TOKEN:-}" ]; then
-    echo "Error: GITHUB_TOKEN is required for GitHub CLI authentication." >&2
+  # GitHub CLI supports both GH_TOKEN and GITHUB_TOKEN.
+  local gh_token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+  if [ -z "$gh_token" ]; then
+    echo "Error: GH_TOKEN or GITHUB_TOKEN is required for GitHub CLI authentication." >&2
     exit 1
   fi
+  export GH_TOKEN="$gh_token"
 
   # Ensure tags are available locally before resolving
   git fetch --tags --force origin
