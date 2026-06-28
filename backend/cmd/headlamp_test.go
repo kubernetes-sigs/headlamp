@@ -2162,19 +2162,17 @@ func TestOidcStateMapEviction(t *testing.T) {
 
 func TestOIDCTokenRefreshMiddleware(t *testing.T) {
 	kubeConfigStore := kubeconfig.NewContextStore()
-	config := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore},
-			Cache:            cache.New[interface{}](),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
+	config := &auth.OIDCMiddlewareConfig{
+		KubeConfigStore:  kubeConfigStore,
+		Cache:            cache.New[interface{}](),
+		TelemetryHandler: &telemetry.RequestHandler{},
 	}
 
 	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
 	})
 
-	middleware := auth.OIDCTokenRefreshMiddleware(config.HeadlampConfig)(handler)
+	middleware := auth.OIDCTokenRefreshMiddleware(config)(handler)
 
 	// Test case: non-cluster request
 	req := httptest.NewRequestWithContext(context.Background(), "GET", "/non-cluster", nil)

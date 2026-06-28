@@ -1330,6 +1330,25 @@ func hostValidationMiddleware(listenAddr string, port uint) func(http.Handler) h
 	}
 }
 
+// newOIDCMiddlewareConfig maps the server's full HeadlampConfig down to the
+// minimal config the auth package's OIDC token refresh middleware needs. Keeping
+// this mapping in cmd lets the auth package stay decoupled from the global server config.
+func newOIDCMiddlewareConfig(c *headlampconfig.HeadlampConfig) *auth.OIDCMiddlewareConfig {
+	return &auth.OIDCMiddlewareConfig{
+		KubeConfigStore:              c.KubeConfigStore,
+		Cache:                        c.Cache,
+		TelemetryHandler:             c.TelemetryHandler,
+		Metrics:                      c.Metrics,
+		OidcUseAccessToken:           c.OidcUseAccessToken,
+		OidcIdpIssuerURL:             c.OidcIdpIssuerURL,
+		OidcValidatorIdpIssuerURL:    c.OidcValidatorIdpIssuerURL,
+		BaseURL:                      c.BaseURL,
+		SessionTTL:                   c.SessionTTL,
+		UseInCluster:                 c.UseInCluster,
+		UnsafeUseServiceAccountToken: c.UnsafeUseServiceAccountToken,
+	}
+}
+
 func serverHandler(ctx context.Context, config *HeadlampConfig) (http.Handler, error) {
 	handler := createHeadlampHandler(ctx, config)
 
@@ -1337,7 +1356,7 @@ func serverHandler(ctx context.Context, config *HeadlampConfig) (http.Handler, e
 		return nil, err
 	}
 
-	handler = auth.OIDCTokenRefreshMiddleware(config.HeadlampConfig)(handler)
+	handler = auth.OIDCTokenRefreshMiddleware(newOIDCMiddlewareConfig(config.HeadlampConfig))(handler)
 
 	// Only validate the Host header when listening on a loopback address.
 	// When bound to a non-loopback address (e.g. behind a reverse proxy),

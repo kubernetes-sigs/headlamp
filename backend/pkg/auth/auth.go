@@ -34,7 +34,6 @@ import (
 	"github.com/jmespath/go-jmespath"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
@@ -662,9 +661,29 @@ func SetTokenFromCookie(r *http.Request, clusterName string) {
 	}
 }
 
+// OIDCMiddlewareConfig carries only the configuration that the OIDC token refresh
+// middleware and its helpers need. It decouples the auth package from the server's
+// full HeadlampConfig, improving testability and keeping auth's dependency surface small.
+type OIDCMiddlewareConfig struct {
+	KubeConfigStore  kubeconfig.ContextStore
+	Cache            cache.Cache[interface{}]
+	TelemetryHandler *telemetry.RequestHandler
+	Metrics          *telemetry.Metrics
+
+	OidcUseAccessToken        bool
+	OidcIdpIssuerURL          string
+	OidcValidatorIdpIssuerURL string
+
+	BaseURL    string
+	SessionTTL int
+
+	UseInCluster                 bool
+	UnsafeUseServiceAccountToken bool
+}
+
 // ShouldUseUnsafeServiceAccountTokenForContext reports whether Headlamp is configured
 // to use the in-cluster service account token.
-func ShouldUseUnsafeServiceAccountTokenForContext(c *headlampconfig.HeadlampConfig, kContext *kubeconfig.Context) bool {
+func ShouldUseUnsafeServiceAccountTokenForContext(c *OIDCMiddlewareConfig, kContext *kubeconfig.Context) bool {
 	if c == nil || kContext == nil {
 		return false
 	}
@@ -678,7 +697,7 @@ func ShouldUseUnsafeServiceAccountTokenForContext(c *headlampconfig.HeadlampConf
 // refresh middleware for telemetry. It is also the span/operation name.
 const oidcMiddlewareRoute = "OIDCTokenRefreshMiddleware"
 
-func incrementRequestCounter(c *headlampconfig.HeadlampConfig, ctx context.Context) {
+func incrementRequestCounter(c *OIDCMiddlewareConfig, ctx context.Context) {
 	if c.Metrics != nil {
 		c.Metrics.RequestCounter.Add(ctx, 1,
 			metric.WithAttributes(
@@ -689,7 +708,7 @@ func incrementRequestCounter(c *headlampconfig.HeadlampConfig, ctx context.Conte
 }
 
 func verifyAndGetToken(
-	c *headlampconfig.HeadlampConfig,
+	c *OIDCMiddlewareConfig,
 	r *http.Request,
 	span trace.Span,
 ) (string, string, bool, string) {
@@ -716,7 +735,7 @@ func verifyAndGetToken(
 }
 
 func getOidcConfig(
-	c *headlampconfig.HeadlampConfig,
+	c *OIDCMiddlewareConfig,
 	cluster string,
 	ctx context.Context,
 	span trace.Span,
@@ -758,7 +777,7 @@ func getOidcConfig(
 // OIDCTokenRefreshMiddleware refreshes the OIDC token if it's about to expire.
 //
 //nolint:funlen
-func OIDCTokenRefreshMiddleware(c *headlampconfig.HeadlampConfig) func(http.Handler) http.Handler {
+func OIDCTokenRefreshMiddleware(c *OIDCMiddlewareConfig) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
