@@ -146,7 +146,7 @@ config:
 | config.clusterInventory.noCRDCacheTTL | string | `""` | Override the experimental/alpha Cluster Inventory no-CRD cache TTL. Empty uses the Headlamp default |
 | kubeconfigSecret.create | bool | `true` | Generate a kubeconfig Secret from files under the chart `kubeconfig/` directory |
 | kubeconfigSecret.skipIfExists | bool | `true` | Skip creating the Secret if one with the same name already exists |
-| kubeconfigSecret.name | string | `"headlamp-kubeconfig"` | Name of the Secret mounted into the Headlamp pod |
+| kubeconfigSecret.name | string | `"headlamp-kubeconfig"` | Name of the Secret mounted into the Headlamp pod. When empty and `create=true`, defaults to `headlamp-kubeconfig` |
 | kubeconfigSecret.selectedKubeconfigs | list | `[...]` | Optional list of kubeconfig files to merge from the chart `kubeconfig/` directory |
 | config.extraArgs   | array  | `[]`                  | Additional arguments for Headlamp server                                  |
 | config.tlsCertPath | string | `""`                  | Certificate for serving TLS                                               |
@@ -271,6 +271,8 @@ When `selectedKubeconfigs` is non-empty, each entry is loaded from
 `kubeconfig/<entry>` (with optional `.yaml` suffix), merged into one kubeconfig,
 stored in a Secret, and mounted in the pod. If `selectedKubeconfigs` is empty,
 the chart creates an empty kubeconfig Secret payload and still mounts it.
+If `kubeconfigSecret.create=true` and `kubeconfigSecret.name` is empty, the
+chart uses `headlamp-kubeconfig` as the Secret name.
 The Secret key/file name and mounted `KUBECONFIG` path are fixed to
 `multi-cluster-kubeconfig.yaml`.
 
