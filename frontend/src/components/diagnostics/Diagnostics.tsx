@@ -397,7 +397,7 @@ function eventDiagnostics(events: EventLike[], t: Translate): DiagnosticItem[] {
 
       return {
         id: `event-${(event as Event).metadata?.uid || reason}`,
-        severity: containerSeverity(reason),
+        severity: 'warning',
         title:
           count > 1
             ? t('Warning event: {{ reason }} ({{ eventCount }} times)', {
