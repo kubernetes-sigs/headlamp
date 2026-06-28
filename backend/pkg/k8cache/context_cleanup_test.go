@@ -115,8 +115,7 @@ func TestEvictClientsetsForCluster_KeepsPrefixBlocked(t *testing.T) {
 
 func TestSyncWatchersPurgesCacheAndClientsetsForRemovedContext(t *testing.T) {
 	const (
-		clusterName         = "removed-cluster"
-		removedContextKey   = clusterName + "\x00user1"
+		removedContextKey   = "removed-cluster\x00user1"
 		activeContextKey    = "active-cluster\x00user2"
 		removedCacheDataKey = "+pods+default+" + removedContextKey
 	)
@@ -132,7 +131,7 @@ func TestSyncWatchersPurgesCacheAndClientsetsForRemovedContext(t *testing.T) {
 
 	require.NoError(t, k8scache.Set(ctx, removedCacheDataKey, "stale-data"))
 	k8cache.SeedClientsetCache(removedContextKey+"\x00token", time.Now())
-	k8cache.SeedClientsetCache(clusterName+"\x00user2\x00other-token", time.Now())
+	k8cache.SeedClientsetCache(activeContextKey+"\x00other-token", time.Now())
 
 	canceled := make(map[string]bool)
 
@@ -158,4 +157,44 @@ func TestSyncWatchersPurgesCacheAndClientsetsForRemovedContext(t *testing.T) {
 	_, err := k8scache.Get(ctx, removedCacheDataKey)
 	assert.Error(t, err)
 	assert.Equal(t, 1, k8cache.ClientsetCacheLen())
+}
+
+func TestSyncWatchersPurgesCacheWithoutWatcher(t *testing.T) {
+	const (
+		removedContextKey   = "removed-cluster\x00user1"
+		activeContextKey    = "active-cluster\x00user2"
+		removedCacheDataKey = "+pods+default+" + removedContextKey
+	)
+
+	k8cache.ResetRegistries()
+	t.Cleanup(func() { k8cache.ResetRegistries() })
+
+	k8cache.ResetClientsetCache()
+	t.Cleanup(k8cache.ResetClientsetCache)
+
+	k8scache := cache.New[string]()
+	ctx := context.Background()
+
+	require.NoError(t, k8scache.Set(ctx, removedCacheDataKey, "stale-data"))
+	k8cache.SeedClientsetCache(removedContextKey+"\x00token", time.Now())
+
+	k8cache.SyncWatchers(k8scache, []string{activeContextKey})
+
+	_, err := k8scache.Get(ctx, removedCacheDataKey)
+	assert.Error(t, err)
+	assert.Equal(t, 0, k8cache.ClientsetCacheLen())
+}
+
+func TestPruneBlockedClientsetPrefixes(t *testing.T) {
+	k8cache.ResetClientsetCache()
+	t.Cleanup(k8cache.ResetClientsetCache)
+
+	const removedContext = "minikube\x00user1"
+
+	k8cache.SeedBlockedClientsetPrefix(removedContext, time.Now().Add(-11*time.Minute))
+	assert.True(t, k8cache.ExportedClientsetPrefixBlocked(removedContext))
+
+	k8cache.ManualEvictExpiredClientsets()
+
+	assert.False(t, k8cache.ExportedClientsetPrefixBlocked(removedContext))
 }

@@ -215,6 +215,8 @@ func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
 		activeMap[ctx] = true
 	}
 
+	cleaned := make(map[string]struct{})
+
 	contextCancel.Range(func(key, value interface{}) bool {
 		contextKey, ok := key.(string)
 		if !ok {
@@ -228,11 +230,24 @@ func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
 				watcherRegistry.Delete(contextKey)
 				contextCancel.Delete(contextKey)
 				cleanupRemovedContext(k8scache, contextKey)
+				cleaned[contextKey] = struct{}{}
 			}
 		}
 
 		return true
 	})
+
+	for contextKey := range collectCachedContextKeys(k8scache) {
+		if activeMap[contextKey] {
+			continue
+		}
+
+		if _, alreadyCleaned := cleaned[contextKey]; alreadyCleaned {
+			continue
+		}
+
+		cleanupRemovedContext(k8scache, contextKey)
+	}
 }
 
 // runWatcher is a long-lived goroutine that sets up and runs Kubernetes informers.

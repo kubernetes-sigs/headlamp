@@ -68,7 +68,7 @@ func ResetClientsetCache() {
 	defer mu.Unlock()
 
 	clientsetCache = make(map[string]*CachedClientSet)
-	blockedClientsetPrefixes = make(map[string]struct{})
+	blockedClientsetPrefixes = make(map[string]blockedPrefixEntry)
 }
 
 // SeedClientsetCache populates the clientset cache with dummy entries for testing.
@@ -85,6 +85,14 @@ func SeedClientsetCache(key string, lastUsed time.Time) {
 // ManualEvictExpiredClientsets triggers the eviction logic immediately for testing.
 func ManualEvictExpiredClientsets() {
 	evictExpiredClientsets()
+}
+
+// SeedBlockedClientsetPrefix marks a prefix as blocked at the given time for testing.
+func SeedBlockedClientsetPrefix(prefix string, blockedAt time.Time) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	blockedClientsetPrefixes[prefix] = blockedPrefixEntry{blockedAt: blockedAt}
 }
 
 // ClientsetCacheLen returns the current number of entries in the
