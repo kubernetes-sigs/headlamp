@@ -285,15 +285,23 @@ export const PureSidebar = memo(
     const [isOverflowing, setIsOverflowing] = React.useState(false);
     const [scrollbarWidth, setScrollbarWidth] = React.useState(0);
     const [isAnimating, setIsAnimating] = React.useState(false);
-    const theme = useTheme();
+    const muiTheme = useTheme();
 
     React.useEffect(() => {
+      const duration = open
+        ? muiTheme.transitions.duration.enteringScreen
+        : muiTheme.transitions.duration.leavingScreen;
       setIsAnimating(true);
-      const timer = setTimeout(() => {
+      const timer = window.setTimeout(() => {
         setIsAnimating(false);
-      }, theme.transitions.duration.enteringScreen);
-      return () => clearTimeout(timer);
-    }, [open, isTemporaryDrawer, theme.transitions.duration.enteringScreen]);
+      }, duration);
+
+      return () => window.clearTimeout(timer);
+    }, [
+      open,
+      muiTheme.transitions.duration.enteringScreen,
+      muiTheme.transitions.duration.leavingScreen,
+    ]);
 
     const closedWidth = 72 + (isOverflowing ? scrollbarWidth : 0);
     const temporarySideBarOpen = open === true && isTemporaryDrawer && openUserSelected === true;

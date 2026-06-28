@@ -5,7 +5,7 @@
       class="MuiBox-root css-qnyptn"
     >
       <div
-        class="MuiDrawer-root MuiDrawer-docked css-ohfc2x-MuiDrawer-docked"
+        class="MuiDrawer-root MuiDrawer-docked css-184654t-MuiDrawer-docked"
       >
         <div
           class="MuiPaper-root MuiPaper-outlined MuiDrawer-paper MuiDrawer-paperAnchorLeft MuiDrawer-paperAnchorDockedLeft css-2vc5z5-MuiPaper-root-MuiDrawer-paper"
@@ -24,7 +24,7 @@
                 >
                   <a
                     aria-label="Home"
-                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1f63b8p-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="-1"
@@ -44,7 +44,7 @@
                 >
                   <a
                     aria-label="Notifications"
-                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1f63b8p-MuiButtonBase-root-MuiListItemButton-root"
                     href="/notifications"
                     role="button"
                     tabindex="-1"
@@ -64,7 +64,7 @@
                 >
                   <a
                     aria-label="Settings"
-                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-1f63b8p-MuiButtonBase-root-MuiListItemButton-root"
                     href="/settings/general"
                     role="button"
                     tabindex="-1"
@@ -81,94 +81,7 @@
                 </li>
                 <li
                   class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
-                >
-                  <div
-                    class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-11uq76c-MuiCollapse-root"
-                    style="min-height: 0px;"
-                  >
-                    <div
-                      class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
-                    >
-                      <div
-                        class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
-                      >
-                        <ul
-                          class="MuiList-root css-2l483y-MuiList-root"
-                        >
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/settings/general"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  General
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/settings/plugins"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Plugins
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/settings/cluster"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Cluster
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </li>
+                />
               </ul>
             </div>
             <div
@@ -182,7 +95,23 @@
                 >
                   <div
                     class="MuiBox-root css-0"
-                  />
+                  >
+                    <div
+                      class="MuiBox-root css-1ebnygn"
+                    >
+                      <button
+                        aria-label="Add Cluster"
+                        class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                        data-mui-internal-clone-element="true"
+                        tabindex="0"
+                        type="button"
+                      >
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
+                    </div>
+                  </div>
                   <div
                     class="MuiBox-root css-0"
                   >

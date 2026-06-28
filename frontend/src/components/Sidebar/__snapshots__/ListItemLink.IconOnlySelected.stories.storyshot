@@ -12,7 +12,7 @@
           >
             <a
               aria-label="Workloads"
-              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-rg8mu-MuiButtonBase-root-MuiListItemButton-root"
+              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-1f63b8p-MuiButtonBase-root-MuiListItemButton-root"
               href="/workloads"
               role="button"
               tabindex="0"
