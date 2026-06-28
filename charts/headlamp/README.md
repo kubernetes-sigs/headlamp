@@ -270,7 +270,7 @@ kubeconfigSecret:
 When `selectedKubeconfigs` is non-empty, each entry is loaded from
 `kubeconfig/<entry>` (with optional `.yaml` suffix), merged into one kubeconfig,
 stored in a Secret, and mounted in the pod. If `selectedKubeconfigs` is empty,
-the chart reads `kubeconfig/multi-cluster-kubeconfig.yaml` as the source file.
+the chart creates an empty kubeconfig Secret payload and still mounts it.
 The Secret key/file name and mounted `KUBECONFIG` path are fixed to
 `multi-cluster-kubeconfig.yaml`.
 
