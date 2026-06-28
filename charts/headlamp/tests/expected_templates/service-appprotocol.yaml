@@ -6,10 +6,10 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.42.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.42.0"
+    app.kubernetes.io/version: "0.43.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: headlamp/templates/secret.yaml
@@ -21,16 +21,26 @@ metadata:
 type: Opaque
 data:
 ---
+# Source: headlamp/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: headlamp-kubeconfig
+  namespace: default
+type: Opaque
+data:
+  multi-cluster-kubeconfig.yaml: "YXBpVmVyc2lvbjogdjEKY2x1c3RlcnM6Ci0gY2x1c3RlcjoKICAgIHNlcnZlcjogaHR0cHM6Ly9jbHVzdGVyMS5leGFtcGxlLmludmFsaWQKICBuYW1lOiBjbHVzdGVyMQotIGNsdXN0ZXI6CiAgICBzZXJ2ZXI6IGh0dHBzOi8vY2x1c3RlcjIuZXhhbXBsZS5pbnZhbGlkCiAgbmFtZTogY2x1c3RlcjIKLSBjbHVzdGVyOgogICAgc2VydmVyOiBodHRwczovL2NsdXN0ZXIzLmV4YW1wbGUuaW52YWxpZAogIG5hbWU6IGNsdXN0ZXIzCi0gY2x1c3RlcjoKICAgIHNlcnZlcjogaHR0cHM6Ly9jbHVzdGVyNC5leGFtcGxlLmludmFsaWQKICBuYW1lOiBjbHVzdGVyNAotIGNsdXN0ZXI6CiAgICBzZXJ2ZXI6IGh0dHBzOi8vY2x1c3RlcjUuZXhhbXBsZS5pbnZhbGlkCiAgbmFtZTogY2x1c3RlcjUKY29udGV4dHM6Ci0gY29udGV4dDoKICAgIGNsdXN0ZXI6IGNsdXN0ZXIxCiAgICB1c2VyOiBjbHVzdGVyMS11c2VyCiAgbmFtZTogY2x1c3RlcjEKLSBjb250ZXh0OgogICAgY2x1c3RlcjogY2x1c3RlcjIKICAgIHVzZXI6IGNsdXN0ZXIyLXVzZXIKICBuYW1lOiBjbHVzdGVyMgotIGNvbnRleHQ6CiAgICBjbHVzdGVyOiBjbHVzdGVyMwogICAgdXNlcjogY2x1c3RlcjMtdXNlcgogIG5hbWU6IGNsdXN0ZXIzCi0gY29udGV4dDoKICAgIGNsdXN0ZXI6IGNsdXN0ZXI0CiAgICB1c2VyOiBjbHVzdGVyNC11c2VyCiAgbmFtZTogY2x1c3RlcjQKLSBjb250ZXh0OgogICAgY2x1c3RlcjogY2x1c3RlcjUKICAgIHVzZXI6IGNsdXN0ZXI1LXVzZXIKICBuYW1lOiBjbHVzdGVyNQpjdXJyZW50LWNvbnRleHQ6IGNsdXN0ZXIxCmtpbmQ6IENvbmZpZwpwcmVmZXJlbmNlczoge30KdXNlcnM6Ci0gbmFtZTogY2x1c3RlcjEtdXNlcgogIHVzZXI6CiAgICB0b2tlbjogY2x1c3RlcjEtdG9rZW4KLSBuYW1lOiBjbHVzdGVyMi11c2VyCiAgdXNlcjoKICAgIHRva2VuOiBjbHVzdGVyMi10b2tlbgotIG5hbWU6IGNsdXN0ZXIzLXVzZXIKICB1c2VyOgogICAgdG9rZW46IGNsdXN0ZXIzLXRva2VuCi0gbmFtZTogY2x1c3RlcjQtdXNlcgogIHVzZXI6CiAgICB0b2tlbjogY2x1c3RlcjQtdG9rZW4KLSBuYW1lOiBjbHVzdGVyNS11c2VyCiAgdXNlcjoKICAgIHRva2VuOiBjbHVzdGVyNS10b2tlbg=="
+---
 # Source: headlamp/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
 metadata:
   name: headlamp-admin
   labels:
-    helm.sh/chart: headlamp-0.42.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.42.0"
+    app.kubernetes.io/version: "0.43.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -48,10 +58,10 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.42.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.42.0"
+    app.kubernetes.io/version: "0.43.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   type: ClusterIP
@@ -76,10 +86,10 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.42.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.42.0"
+    app.kubernetes.io/version: "0.43.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -105,10 +115,12 @@ spec:
             runAsGroup: 101
             runAsNonRoot: true
             runAsUser: 100
-          image: "ghcr.io/headlamp-k8s/headlamp:v0.42.0"
+          image: "ghcr.io/headlamp-k8s/headlamp:v0.43.0"
           imagePullPolicy: IfNotPresent
           
           env:
+            - name: KUBECONFIG
+              value: "/headlamp-kubeconfig/multi-cluster-kubeconfig.yaml"
           args:
             - "-in-cluster"
             - "-in-cluster-context-name=main"
@@ -141,3 +153,11 @@ spec:
             failureThreshold: 3
           resources:
             {}
+          volumeMounts:
+            - name: kubeconfig-secret
+              mountPath: /headlamp-kubeconfig
+              readOnly: true
+      volumes:
+        - name: kubeconfig-secret
+          secret:
+            secretName: headlamp-kubeconfig
