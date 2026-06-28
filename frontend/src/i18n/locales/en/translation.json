@@ -152,7 +152,7 @@
   "Node Shell Settings": "Node Shell Settings",
   "The default image is used for dropping a shell into a node (when not specified directly).": "The default image is used for dropping a shell into a node (when not specified directly).",
   "Linux image": "Linux image",
-  "The default namespace is default.": "The default namespace is default.",
+  "The default namespace is {{ namespace }}.": "The default namespace is {{ namespace }}.",
   "Namespace": "Namespace",
   "Enter a value between {{ minRows }} and {{ maxRows }}.": "Enter a value between {{ minRows }} and {{ maxRows }}.",
   "Custom row value": "Custom row value",

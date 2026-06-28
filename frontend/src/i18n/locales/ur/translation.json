@@ -152,7 +152,7 @@
   "Node Shell Settings": "نوڈ شیل کی ترتیبات",
   "The default image is used for dropping a shell into a node (when not specified directly).": "ڈیفالٹ امیج نوڈ میں شیل کھولنے کے لیے استعمال ہوتی ہے جب براہ راست کوئی امیج متعین نہ کی گئی ہو",
   "Linux image": "لینکس امیج",
-  "The default namespace is default.": "ڈیفالٹ نیم اسپیس default ہے",
+  "The default namespace is {{ namespace }}.": "ڈیفالٹ نیم اسپیس {{ namespace }} ہے",
   "Namespace": "نیم اسپیس",
   "Enter a value between {{ minRows }} and {{ maxRows }}.": "{{ minRows }} اور {{ maxRows }} کے درمیان کوئی قدر درج کریں",
   "Custom row value": "حسب ضرورت قطار کی قدر",

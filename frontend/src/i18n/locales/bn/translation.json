@@ -152,7 +152,7 @@
   "Node Shell Settings": "Node Shell সেটিংস",
   "The default image is used for dropping a shell into a node (when not specified directly).": "Default চিত্রটি একটি Node Shell ফেলে দেওয়ার জন্য ব্যবহৃত হয় (যখন সরাসরি নির্দিষ্ট করা হয় না)।",
   "Linux image": "Linux ইমেজ",
-  "The default namespace is default.": "ডিফল্ট নেমস্পেস হলো default।",
+  "The default namespace is {{ namespace }}.": "ডিফল্ট নেমস্পেস হলো {{ namespace }}।",
   "Namespace": "namespace",
   "Enter a value between {{ minRows }} and {{ maxRows }}.": "মধ্যে একটি মান লিখুন {{ minRows }} এবং {{ maxRows }}।",
   "Custom row value": "Custom সারি মান",

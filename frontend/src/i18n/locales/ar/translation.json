@@ -152,7 +152,7 @@
   "Node Shell Settings": "إعدادات Node Shell",
   "The default image is used for dropping a shell into a node (when not specified directly).": "تُستخدم الصورة الافتراضية لفتح shell داخل العقدة (عند عدم تحديدها مباشرة)",
   "Linux image": "صورة لينكس",
-  "The default namespace is default.": "النطاق الافتراضي هو default.",
+  "The default namespace is {{ namespace }}.": "النطاق الافتراضي هو {{ namespace }}.",
   "Namespace": "النطاق",
   "Enter a value between {{ minRows }} and {{ maxRows }}.": "أدخل قيمة بين {{ minRows }} و {{ maxRows }}.",
   "Custom row value": "قيمة صف مخصصة",

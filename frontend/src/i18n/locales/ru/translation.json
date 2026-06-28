@@ -152,7 +152,7 @@
   "Node Shell Settings": "Настройки оболочки узла",
   "The default image is used for dropping a shell into a node (when not specified directly).": "Образ по умолчанию используется для размещения оболочки в узле (если не указано напрямую).",
   "Linux image": "Образ Linux",
-  "The default namespace is default.": "Пространство имён по умолчанию — default.",
+  "The default namespace is {{ namespace }}.": "Пространство имён по умолчанию — {{ namespace }}.",
   "Namespace": "Пространство имён",
   "Enter a value between {{ minRows }} and {{ maxRows }}.": "Введите значение от {{ minRows }} до {{ maxRows }}.",
   "Custom row value": "Пользовательское значение строки",
