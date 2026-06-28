@@ -116,6 +116,6 @@ describe('BackendTrafficPolicyList', () => {
 
     const retryColEmpty = screen.getByTestId('col-retryConstraint');
     expect(retryColEmpty.querySelector('.value')).toHaveTextContent('Retry 20% per 10s');
-    expect(retryColEmpty.querySelector('.node')).toHaveTextContent('Retry undefined% per undefined');
+    expect(retryColEmpty.querySelector('.node')).toHaveTextContent('Retry 20% per 10s');
   });
 });
