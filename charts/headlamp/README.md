@@ -254,7 +254,7 @@ is configured, the command must be under one of the absolute
 
 The chart can merge one or more kubeconfig files bundled in the chart's
 `kubeconfig/` directory into a single Secret, then mount it into the Headlamp
-container and set `KUBECONFIG` automatically.
+ container and set `HEADLAMP_CONFIG_KUBECONFIG` (and `KUBECONFIG`) automatically.
 
 ```yaml
 kubeconfigSecret:

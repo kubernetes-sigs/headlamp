@@ -144,6 +144,8 @@ spec:
               value: ""
             {{- end }}
             {{- if $kubeconfigSecretEnabled }}
+            - name: HEADLAMP_CONFIG_KUBECONFIG
+              value: {{ $kubeconfigMountedFilePath | quote }}
             - name: KUBECONFIG
               value: {{ $kubeconfigMountedFilePath | quote }}
             {{- end }}
@@ -271,6 +273,8 @@ spec:
               value: ""
             {{- end }}
             {{- if $kubeconfigSecretEnabled }}
+            - name: HEADLAMP_CONFIG_KUBECONFIG
+              value: {{ $kubeconfigMountedFilePath | quote }}
             - name: KUBECONFIG
               value: {{ $kubeconfigMountedFilePath | quote }}
             {{- end }}
