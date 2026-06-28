@@ -270,3 +270,16 @@ SidebarOpen.args = {
   },
 };
 SidebarOpen.storyName = 'Sidebar Open (Should Render Nothing)';
+
+export const NetworkPoliciesSelected = Template.bind({});
+NetworkPoliciesSelected.args = {
+  mockSidebarState: {
+    selected: {
+      item: 'NetworkPolicies',
+      sidebar: DefaultSidebars.IN_CLUSTER,
+    },
+    isSidebarOpen: false,
+  },
+};
+NetworkPoliciesSelected.storyName =
+  "Network View (Child 'Network Policies' Selected, After Hidden Item)";
