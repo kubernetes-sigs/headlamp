@@ -645,8 +645,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		r = baseRoute.PathPrefix(config.BaseURL).Subrouter()
 	}
 
-	fmt.Println("*** Headlamp Server ***")
-	fmt.Println("  API Routers:")
+	logger.Log(logger.LevelInfo, nil, nil, "*** Headlamp Server ***")
+	logger.Log(logger.LevelInfo, nil, nil, "  API Routers:")
 
 	// load kubeConfig clusters
 	err := kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
