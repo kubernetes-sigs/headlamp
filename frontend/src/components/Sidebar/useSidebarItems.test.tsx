@@ -20,6 +20,8 @@ import { renderHook } from '@testing-library/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 import App from '../../App';
+import type { ConfigState } from '../../redux/configSlice';
+import { initialState as initialConfigState } from '../../redux/configSlice';
 import reducers from '../../redux/reducers/reducers';
 import { TestContext } from '../../test';
 import { DefaultSidebars, SidebarEntry } from './sidebarSlice';
@@ -35,18 +37,28 @@ describe('useSidebarItems', () => {
   const mockStore = (
     customSidebarEntries: { [name: string]: SidebarEntry },
     customSidebarFilters: ((entry: SidebarEntry) => SidebarEntry | null)[],
-    customHomeSidebarFilters: ((entry: SidebarEntry) => SidebarEntry | null)[] = []
+    configOrHomeFilters?: Partial<ConfigState> | ((entry: SidebarEntry) => SidebarEntry | null)[],
+    customConfig?: Partial<ConfigState>
   ) => {
+    const homeFilters = Array.isArray(configOrHomeFilters) ? configOrHomeFilters : [];
+    const config = !Array.isArray(configOrHomeFilters) ? configOrHomeFilters : customConfig;
+
     return configureStore({
       reducer: reducers,
       preloadedState: {
         sidebar: {
           entries: customSidebarEntries,
           filters: customSidebarFilters,
-          homeFilters: customHomeSidebarFilters,
+          homeFilters,
           selected: { item: null, sidebar: DefaultSidebars.IN_CLUSTER },
           isVisible: true,
         },
+        config: config
+          ? {
+              ...initialConfigState,
+              ...config,
+            }
+          : undefined,
       },
     });
   };
@@ -251,5 +263,37 @@ describe('useSidebarItems', () => {
 
     // Check that home is still present
     expect(result.current.find(it => it.name === 'home')).toBeDefined();
+  });
+
+  it('should include external links and filter out invalid ones', () => {
+    const store = mockStore({}, [], {
+      externalLinks: [
+        { label: 'Google', url: 'https://google.com' },
+        { label: 'GitHub', url: 'http://github.com' },
+        { label: 'Invalid Link', url: 'javascript:alert(1)' },
+      ],
+    });
+
+    const { result } = renderHook(() => useSidebarItems(), {
+      wrapper: wrapper(store),
+    });
+
+    const externalLinksItem = result.current.find(it => it.name === 'externalLinks');
+    expect(externalLinksItem).toBeDefined();
+    expect(externalLinksItem?.label).toBe('External Links');
+    expect(externalLinksItem?.subList).toEqual([
+      {
+        name: 'external-link-0',
+        label: 'Google',
+        url: 'https://google.com',
+        icon: 'mdi:link',
+      },
+      {
+        name: 'external-link-1',
+        label: 'GitHub',
+        url: 'http://github.com',
+        icon: 'mdi:link',
+      },
+    ]);
   });
 });
