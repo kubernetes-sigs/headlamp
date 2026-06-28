@@ -88,7 +88,7 @@ export default function AuthVisible(props: AuthVisibleProps) {
         }
 
         if (item instanceof KubeObject) {
-          return item.getAuthorization(authVerb, {
+          return await item.getAuthorization(authVerb, {
             subresource,
             namespace,
           });
