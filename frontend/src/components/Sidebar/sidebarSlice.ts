@@ -17,7 +17,7 @@
 import { IconProps } from '@iconify/react';
 import type { SxProps, Theme } from '@mui/material/styles';
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
-import type { Draft } from 'immer';
+import { castDraft } from 'immer';
 import React from 'react';
 
 export enum DefaultSidebars {
@@ -186,7 +186,7 @@ const sidebarSlice = createSlice({
      * Sets an item in the sidebar.
      */
     setSidebarItem(state, action: PayloadAction<SidebarEntry>) {
-      state.entries[action.payload.name] = action.payload as Draft<SidebarEntry>;
+      state.entries[action.payload.name] = castDraft(action.payload);
     },
 
     /**
