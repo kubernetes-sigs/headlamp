@@ -98,6 +98,7 @@ describe('BackendTrafficPolicyList', () => {
 
     const retryCol = screen.getByTestId('col-retryConstraint');
     expect(retryCol.querySelector('.value')).toHaveTextContent('—');
+    expect(retryCol.querySelector('.node')).toHaveTextContent('—');
 
     // 2. retryConstraint with empty budget (will fallback to default or render -)
     currentDummyPolicy = {
@@ -113,8 +114,8 @@ describe('BackendTrafficPolicyList', () => {
       </TestContext>
     );
 
-    expect(screen.getByTestId('col-retryConstraint').querySelector('.value')).toHaveTextContent(
-      'Retry 20% per 10s'
-    );
+    const retryColEmpty = screen.getByTestId('col-retryConstraint');
+    expect(retryColEmpty.querySelector('.value')).toHaveTextContent('Retry 20% per 10s');
+    expect(retryColEmpty.querySelector('.node')).toHaveTextContent('Retry 20% per 10s');
   });
 });

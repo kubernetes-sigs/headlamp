@@ -49,6 +49,10 @@ vi.mock('react-i18next', () => ({
   },
 }));
 
+vi.mock('../common/Resource', () => ({
+  DetailsGrid: () => null,
+}));
+
 vi.mock('../common/Link', () => ({
   default: ({ children }: any) => <span>{children}</span>,
 }));
