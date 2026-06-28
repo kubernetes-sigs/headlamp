@@ -103,27 +103,30 @@ describe('PluginManager Test Cases', () => {
     fs.writeFileSync(packageJSONPath, JSON.stringify(packageJSON, null, 2));
 
     // Mock fs.cpSync to throw an error during moveDirs
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const cpSyncSpy = jest.spyOn(fs, 'cpSync').mockImplementation(() => {
       throw new Error('Mocked copy failure');
     });
 
-    await PluginManager.update('@headlamp-k8s/flux', tempDir, '', mockProgressCallback);
+    try {
+      await PluginManager.update('@headlamp-k8s/flux', tempDir, '', mockProgressCallback);
 
-    expect(mockProgressCallback).toHaveBeenCalledWith({
-      type: 'error',
-      message: 'Mocked copy failure',
-    });
+      expect(mockProgressCallback).toHaveBeenCalledWith({
+        type: 'error',
+        message: 'Mocked copy failure',
+      });
 
-    // Verify the original plugin folder exists and is restored
-    expect(fs.existsSync(pluginDir)).toBe(true);
-    const restoredPackageJSON = JSON.parse(fs.readFileSync(packageJSONPath, 'utf8'));
-    expect(restoredPackageJSON.artifacthub.version).toBe('0.0.1');
+      // Verify the original plugin folder exists and is restored
+      expect(fs.existsSync(pluginDir)).toBe(true);
+      const restoredPackageJSON = JSON.parse(fs.readFileSync(packageJSONPath, 'utf8'));
+      expect(restoredPackageJSON.artifacthub.version).toBe('0.0.1');
 
-    // Verify that the backup folder was cleaned up
-    expect(fs.existsSync(backupDir)).toBe(false);
-
-    // Restore the spy
-    cpSyncSpy.mockRestore();
+      // Verify that the backup folder was cleaned up
+      expect(fs.existsSync(backupDir)).toBe(false);
+    } finally {
+      // Restore the spy
+      cpSyncSpy.mockRestore();
+    }
   });
 
   test('Uninstall Plugin', async () => {
