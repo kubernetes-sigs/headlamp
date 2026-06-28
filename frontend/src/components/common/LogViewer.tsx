@@ -49,6 +49,10 @@ export interface LogViewerProps extends DialogProps {
    * @description This is a boolean that determines whether the reconnect button should be shown or not.
    */
   showReconnectButton?: boolean;
+  /**
+   * @description When true, an automatic reconnect is in progress and a banner is shown.
+   */
+  isAutoReconnecting?: boolean;
   /** Don't render in the dialog */
   noDialog?: boolean;
 }
@@ -63,6 +67,7 @@ export function LogViewer(props: LogViewerProps) {
     topActions = [],
     handleReconnect,
     showReconnectButton = false,
+    isAutoReconnecting = false,
     ...other
   } = props;
   const { t } = useTranslation();
@@ -228,6 +233,37 @@ export function LogViewer(props: LogViewerProps) {
           position: 'relative',
         })}
       >
+        {isAutoReconnecting && (
+          <Box
+            sx={theme => ({
+              display: 'flex',
+              alignItems: 'center',
+              gap: 1,
+              px: 2,
+              py: 0.5,
+              background: theme.palette.action.hover,
+              borderRadius: 1,
+              mb: 0.5,
+            })}
+          >
+            <Box
+              component="span"
+              sx={{
+                width: 12,
+                height: 12,
+                borderRadius: '50%',
+                border: '2px solid currentColor',
+                borderTopColor: 'transparent',
+                display: 'inline-block',
+                animation: 'spin 0.8s linear infinite',
+                '@keyframes spin': { to: { transform: 'rotate(360deg)' } },
+              }}
+            />
+            <Box component="span" sx={{ fontSize: '0.85rem' }}>
+              {t('translation|Reconnecting…')}
+            </Box>
+          </Box>
+        )}
         {showReconnectButton && (
           <Button onClick={handleReconnect} color="info" variant="contained">
             {t('translation|Reconnect')}

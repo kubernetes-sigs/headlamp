@@ -96,6 +96,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
     lastLineShown: -1,
   });
   const [showReconnectButton, setShowReconnectButton] = React.useState(false);
+  const [isAutoReconnecting, setIsAutoReconnecting] = React.useState(false);
   const [cancelLogsStream, setCancelLogsStream] = React.useState<(() => void) | null>(null);
   const xtermRef = React.useRef<XTerminal | null>(null);
   const { t } = useTranslation();
@@ -202,6 +203,8 @@ export function PodLogViewer(props: PodLogViewerProps) {
         xtermRef.current?.clear();
         setLogs({ logs: [], lastLineShown: -1 });
         setHasJsonLogs(false);
+        setIsAutoReconnecting(false);
+        setShowReconnectButton(false);
 
         callback = item.getLogs(container, debouncedSetState, {
           tailLines: lines,
@@ -210,11 +213,15 @@ export function PodLogViewer(props: PodLogViewerProps) {
           follow,
           prettifyLogs,
           formatJsonValues,
+          onReconnecting: () => {
+            setIsAutoReconnecting(true);
+          },
           /**
-           * When the connection is lost, show the reconnect button.
-           * This will stop the current log stream.
+           * When the connection is lost and all auto-retries are exhausted,
+           * show the manual reconnect button.
            */
           onReconnectStop: () => {
+            setIsAutoReconnecting(false);
             setShowReconnectButton(true);
           },
         });
@@ -314,6 +321,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
       xtermRef={xtermRef}
       handleReconnect={handleReconnect}
       showReconnectButton={showReconnectButton}
+      isAutoReconnecting={isAutoReconnecting}
       topActions={[
         <FormControl sx={{ minWidth: '11rem' }}>
           <InputLabel shrink id="container-name-chooser-label">

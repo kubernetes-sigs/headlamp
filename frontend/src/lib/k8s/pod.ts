@@ -105,6 +105,8 @@ export interface LogOptions {
   formatJsonValues?: boolean;
   /** Callback to be called when the reconnection attempts stop */
   onReconnectStop?: () => void;
+  /** Callback invoked each time an automatic reconnect attempt begins */
+  onReconnecting?: () => void;
 }
 
 /**@deprecated
@@ -175,7 +177,6 @@ class Pod extends KubeObject<KubePod> {
       });
     }
 
-    let isReconnecting = true; // Flag to track reconnection attempts
     const [container, onLogs, logsOptions] = args as Parameters<newGetLogs>;
     const {
       tailLines = 100,
@@ -185,16 +186,34 @@ class Pod extends KubeObject<KubePod> {
       prettifyLogs = false,
       formatJsonValues = false,
       onReconnectStop,
+      onReconnecting,
     } = logsOptions;
 
     let logs: string[] = [];
     let hasJsonLogs = false;
-    let url = `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/log?container=${container}&previous=${showPrevious}&timestamps=${showTimestamps}&follow=${follow}`;
 
-    // Negative tailLines parameter fetches all logs. If it's non negative it fetches
-    // the tailLines number of logs.
-    if (tailLines !== -1) {
-      url += `&tailLines=${tailLines}`;
+    // Tracks the RFC3339 timestamp of the last received log line so that on
+    // reconnect we can pass sinceTime= and skip already-seen lines.
+    let lastTimestamp: string | null = null;
+    let retryDelay = 1000;
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+    let cancelCurrentStream: (() => void) | null = null;
+
+    // RFC3339 timestamp at the start of a log line (produced by ?timestamps=true).
+    const RFC3339_RE = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z) /;
+
+    function buildUrl(): string {
+      // Always request timestamps so we can track position across reconnects.
+      let u = `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/log?container=${container}&previous=${showPrevious}&timestamps=true&follow=${follow}`;
+      if (tailLines !== -1 && lastTimestamp === null) {
+        // tailLines only applies on the initial fetch; after a reconnect we use sinceTime instead.
+        u += `&tailLines=${tailLines}`;
+      }
+      if (lastTimestamp !== null) {
+        u += `&sinceTime=${encodeURIComponent(lastTimestamp)}`;
+      }
+      return u;
     }
 
     function unescapeStringLiterals(str: string): string {
@@ -241,40 +260,74 @@ class Pod extends KubeObject<KubePod> {
 
       const decodedLog = Base64.decode(item);
       if (!decodedLog || decodedLog.trim() === '') return;
-      const trimmedLog = decodedLog.trim();
+
+      // Extract the leading RFC3339 timestamp that ?timestamps=true prepends.
+      const tsMatch = RFC3339_RE.exec(decodedLog);
+      if (tsMatch) {
+        const lineTs = tsMatch[1];
+        // Skip lines at or before the last seen timestamp to deduplicate on reconnect.
+        if (lastTimestamp !== null && lineTs <= lastTimestamp) return;
+        lastTimestamp = lineTs;
+      }
+
+      // Strip the timestamp prefix from the line shown to the user when they
+      // didn't ask for timestamps — we only requested them for tracking.
+      const displayLog =
+        !showTimestamps && tsMatch ? decodedLog.slice(tsMatch[0].length) : decodedLog;
+
+      const trimmedLog = displayLog.trim();
       const jsonMatch = trimmedLog.match(/(\{.*\})/);
       if (jsonMatch) hasJsonLogs = true;
-      const processedLog = hasJsonLogs && prettifyLogs ? prettifyLogLine(decodedLog) : decodedLog;
+      const processedLog = hasJsonLogs && prettifyLogs ? prettifyLogLine(displayLog) : displayLog;
       logs.push(processedLog);
       onLogs({ logs, hasJsonLogs });
     }
 
-    const { cancel } = stream(url, onResults, {
-      cluster: this.cluster,
-      isJson: false,
-      connectCb: () => {
-        logs = [];
-        hasJsonLogs = false;
-      },
-      /**
-       * This callback is called when the connection is closed. It then check
-       * if the connection was closed due to an error or not. If it was closed
-       * due to an error, it stops further reconnection attempts.
-       */
-      failCb: () => {
-        // If it's a reconnection attempt, stop further reconnection attempts
-        if (follow && isReconnecting) {
-          isReconnecting = false;
+    const startStream = () => {
+      if (cancelled) return;
 
-          // If the onReconnectStop callback is provided, call it
-          if (onReconnectStop) {
-            onReconnectStop();
+      const { cancel } = stream(buildUrl.call(this), onResults, {
+        cluster: this.cluster,
+        isJson: false,
+        connectCb: () => {
+          if (lastTimestamp === null) {
+            // First connection — clear any stale state.
+            logs = [];
+            hasJsonLogs = false;
           }
-        }
-      },
-    });
+          // Successful connection; reset backoff.
+          retryDelay = 1000;
+        },
+        failCb: () => {
+          if (!follow || cancelled) {
+            if (onReconnectStop) {
+              onReconnectStop();
+            }
+            return;
+          }
+          // Automatic reconnect with exponential backoff.
+          if (onReconnecting) {
+            onReconnecting();
+          }
+          retryTimer = setTimeout(() => {
+            startStream();
+          }, retryDelay);
+          retryDelay = Math.min(retryDelay * 2, 30000);
+        },
+      });
+      cancelCurrentStream = cancel;
+    };
 
-    return cancel;
+    startStream();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer !== null) {
+        clearTimeout(retryTimer);
+        retryTimer = null;
+      }
+      cancelCurrentStream?.();
+    };
   }
 
   attach(container: string, onAttach: StreamResultsCb, options: StreamArgs = {}) {
