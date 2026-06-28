@@ -352,7 +352,11 @@ export class PluginManager {
         }
 
         if (progressCallback) {
-          progressCallback({ type: 'success', message: 'Plugin Updated' });
+          try {
+            progressCallback({ type: 'success', message: 'Plugin Updated' });
+          } catch (callbackErr) {
+            console.error('Progress callback failed:', callbackErr);
+          }
         }
       } catch (err) {
         let finalErr = err as Error;
