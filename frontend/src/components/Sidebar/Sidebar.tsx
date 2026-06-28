@@ -286,8 +286,14 @@ export const PureSidebar = memo(
     const [scrollbarWidth, setScrollbarWidth] = React.useState(0);
     const [isAnimating, setIsAnimating] = React.useState(false);
     const muiTheme = useTheme();
+    const prevOpenRef = React.useRef(open);
 
     React.useEffect(() => {
+      if (prevOpenRef.current === open) {
+        return;
+      }
+      prevOpenRef.current = open;
+
       const duration = open
         ? muiTheme.transitions.duration.enteringScreen
         : muiTheme.transitions.duration.leavingScreen;

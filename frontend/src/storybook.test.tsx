@@ -21,6 +21,19 @@ import { getWorker } from 'msw-storybook-addon';
 import path from 'path';
 import * as previewAnnotations from '../.storybook/preview';
 
+vi.mock('./lib/k8s/api/v1/clusterRequests', async () => {
+  const actual = await vi.importActual('./lib/k8s/api/v1/clusterRequests');
+  return {
+    ...(actual as any),
+    clusterRequest: vi.fn((url, ...args) => {
+      if (url === '/version') {
+        return Promise.resolve({ gitVersion: 'v1.2.3' });
+      }
+      return (actual as any).clusterRequest(url, ...args);
+    }),
+  };
+});
+
 const annotations = setProjectAnnotations([previewAnnotations, { testingLibraryRender }]);
 beforeAll(annotations.beforeAll!);
 
