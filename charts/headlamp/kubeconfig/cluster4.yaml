@@ -12,5 +12,5 @@ contexts:
 users:
   - name: cluster4-user
     user:
-      token: cluster4-token
+      token: ""
 current-context: cluster4

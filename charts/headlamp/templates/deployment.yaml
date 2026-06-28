@@ -574,6 +574,9 @@ spec:
         - name: kubeconfig-secret
           secret:
             secretName: {{ $kubeconfigSecretName }}
+            items:
+              - key: {{ $kubeconfigFileName }}
+                path: {{ $kubeconfigFileName }}
         {{- end }}
         {{- if $tmpCtx.addVolume }}
         - name: headlamp-tmp

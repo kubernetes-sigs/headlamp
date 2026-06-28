@@ -180,12 +180,13 @@ config:
 # -- Kubeconfig Secret settings for loading multiple external clusters.
 kubeconfigSecret:
   # -- Generate a kubeconfig Secret from files in charts/headlamp/kubeconfig/.
-  create: true
+  create: false
   # -- Skip creating Secret when one with the same name already exists.
   skipIfExists: true
   # -- Name of the kubeconfig Secret to mount in the Headlamp pod.
   # When empty and create=true, defaults to "headlamp-kubeconfig".
-  name: "headlamp-kubeconfig"
+  # When create=false, set this to an existing Secret name to enable mounting.
+  name: ""
   # -- Optional list of kubeconfig files (from the chart's kubeconfig/ folder)
   # to merge into a single Secret payload. Entries can be file names with or
   # without the .yaml extension.

@@ -21,16 +21,6 @@ metadata:
 type: Opaque
 data:
 ---
-# Source: headlamp/templates/secret.yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: headlamp-kubeconfig
-  namespace: default
-type: Opaque
-data:
-  multi-cluster-kubeconfig.yaml: "YXBpVmVyc2lvbjogdjEKY2x1c3RlcnM6IFtdCmNvbnRleHRzOiBbXQpjdXJyZW50LWNvbnRleHQ6ICIiCmtpbmQ6IENvbmZpZwpwcmVmZXJlbmNlczoge30KdXNlcnM6IFtd"
----
 # Source: headlamp/templates/plugin-configmap.yaml
 apiVersion: v1
 kind: ConfigMap
@@ -134,8 +124,6 @@ spec:
           imagePullPolicy: IfNotPresent
           
           env:
-            - name: KUBECONFIG
-              value: "/headlamp-kubeconfig/multi-cluster-kubeconfig.yaml"
           args:
             - "-in-cluster"
             - "-in-cluster-context-name=main"
@@ -171,9 +159,6 @@ spec:
           volumeMounts:
             - name: plugins-dir
               mountPath: /headlamp/plugins
-            - name: kubeconfig-secret
-              mountPath: /headlamp-kubeconfig
-              readOnly: true
         - name: headlamp-plugin
           image: node:lts-alpine
           command: ["/bin/sh", "-c"]
@@ -208,6 +193,3 @@ spec:
             name: headlamp-plugin-config
         - name: headlamp-plugins-tmp
           emptyDir: {}
-        - name: kubeconfig-secret
-          secret:
-            secretName: headlamp-kubeconfig

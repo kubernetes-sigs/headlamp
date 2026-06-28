@@ -54,7 +54,7 @@
       "properties": {
         "create": {
           "type": "boolean",
-          "description": "Generate a kubeconfig Secret from files in charts/headlamp/kubeconfig/"
+          "description": "Generate a kubeconfig Secret from files in charts/headlamp/kubeconfig/. Defaults to false (opt-in)"
         },
         "skipIfExists": {
           "type": "boolean",
@@ -62,7 +62,7 @@
         },
         "name": {
           "type": "string",
-          "description": "Name of the kubeconfig Secret to mount in the Headlamp pod. When empty and create=true, defaults to headlamp-kubeconfig"
+          "description": "Name of the kubeconfig Secret to mount in the Headlamp pod. When empty and create=true, defaults to headlamp-kubeconfig. When create=false, set this to an existing Secret name"
         },
         "selectedKubeconfigs": {
           "type": "array",

@@ -144,10 +144,10 @@ config:
 | config.clusterInventory.labelSelector | string | `"!headlamp.dev/ignore"` | Kubernetes label selector used to filter experimental/alpha ClusterProfile resources |
 | config.clusterInventory.rootReconcileInterval | string | `""` | Override the experimental/alpha Cluster Inventory root reconcile interval. Empty uses the Headlamp default |
 | config.clusterInventory.noCRDCacheTTL | string | `""` | Override the experimental/alpha Cluster Inventory no-CRD cache TTL. Empty uses the Headlamp default |
-| kubeconfigSecret.create | bool | `true` | Generate a kubeconfig Secret from files under the chart `kubeconfig/` directory |
+| kubeconfigSecret.create | bool | `false` | Generate a kubeconfig Secret from files under the chart `kubeconfig/` directory |
 | kubeconfigSecret.skipIfExists | bool | `true` | Skip creating the Secret if one with the same name already exists |
-| kubeconfigSecret.name | string | `"headlamp-kubeconfig"` | Name of the Secret mounted into the Headlamp pod. When empty and `create=true`, defaults to `headlamp-kubeconfig` |
-| kubeconfigSecret.selectedKubeconfigs | list | `[...]` | Optional list of kubeconfig files to merge from the chart `kubeconfig/` directory |
+| kubeconfigSecret.name | string | `""` | Name of the Secret mounted into the Headlamp pod. When empty and `create=true`, defaults to `headlamp-kubeconfig` |
+| kubeconfigSecret.selectedKubeconfigs | list | `[]` | Optional list of kubeconfig files to merge from the chart `kubeconfig/` directory |
 | config.extraArgs   | array  | `[]`                  | Additional arguments for Headlamp server                                  |
 | config.tlsCertPath | string | `""`                  | Certificate for serving TLS                                               |
 | config.tlsKeyPath  | string | `""`                  | Key for serving TLS                                                       |
@@ -258,9 +258,10 @@ container and set `KUBECONFIG` automatically.
 
 ```yaml
 kubeconfigSecret:
-  create: true
+  create: false
   skipIfExists: true
-  name: "headlamp-kubeconfig"
+  # Leave empty by default. Set a value when referencing an existing Secret.
+  name: ""
   selectedKubeconfigs:
     - cluster1.yaml
     - cluster2
@@ -275,6 +276,8 @@ If `kubeconfigSecret.create=true` and `kubeconfigSecret.name` is empty, the
 chart uses `headlamp-kubeconfig` as the Secret name.
 The Secret key/file name and mounted `KUBECONFIG` path are fixed to
 `multi-cluster-kubeconfig.yaml`.
+When `kubeconfigSecret.create=false`, set `kubeconfigSecret.name` to an existing
+Secret. That Secret must contain a key named `multi-cluster-kubeconfig.yaml`.
 
 ### Deployment Configuration
 

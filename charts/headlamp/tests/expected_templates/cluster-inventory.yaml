@@ -21,16 +21,6 @@ metadata:
 type: Opaque
 data:
 ---
-# Source: headlamp/templates/secret.yaml
-apiVersion: v1
-kind: Secret
-metadata:
-  name: headlamp-kubeconfig
-  namespace: default
-type: Opaque
-data:
-  multi-cluster-kubeconfig.yaml: "YXBpVmVyc2lvbjogdjEKY2x1c3RlcnM6IFtdCmNvbnRleHRzOiBbXQpjdXJyZW50LWNvbnRleHQ6ICIiCmtpbmQ6IENvbmZpZwpwcmVmZXJlbmNlczoge30KdXNlcnM6IFtd"
----
 # Source: headlamp/templates/cluster-inventory-configmap.yaml
 apiVersion: v1
 kind: ConfigMap
@@ -133,8 +123,6 @@ spec:
           imagePullPolicy: IfNotPresent
           
           env:
-            - name: KUBECONFIG
-              value: "/headlamp-kubeconfig/multi-cluster-kubeconfig.yaml"
           args:
             - "-in-cluster"
             - "-in-cluster-context-name=main"
@@ -173,9 +161,6 @@ spec:
           resources:
             {}
           volumeMounts:
-            - name: kubeconfig-secret
-              mountPath: /headlamp-kubeconfig
-              readOnly: true
             - name: cluster-inventory-config
               mountPath: /etc/cluster-inventory
               readOnly: true
@@ -186,6 +171,3 @@ spec:
             items:
               - key: config.json
                 path: config.json
-        - name: kubeconfig-secret
-          secret:
-            secretName: headlamp-kubeconfig
