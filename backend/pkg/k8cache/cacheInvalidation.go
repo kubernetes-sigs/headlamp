@@ -370,5 +370,7 @@ func invalidateCacheKeysForResourceEvent(
 	}
 
 	namedKey := buildCacheKey(gvr.Group, name, namespace, contextKey)
-	_ = k8scache.Delete(context.Background(), namedKey)
+	if err := k8scache.Delete(context.Background(), namedKey); err != nil {
+		logger.Log(logger.LevelError, nil, err, "error while deleting key")
+	}
 }
