@@ -21,6 +21,16 @@ metadata:
 type: Opaque
 data:
 ---
+# Source: headlamp/templates/secret.yaml
+apiVersion: v1
+kind: Secret
+metadata:
+  name: headlamp-kubeconfig
+  namespace: default
+type: Opaque
+data:
+  multi-cluster-kubeconfig.yaml: "YXBpVmVyc2lvbjogdjEKY2x1c3RlcnM6IFtdCmNvbnRleHRzOiBbXQpjdXJyZW50LWNvbnRleHQ6ICIiCmtpbmQ6IENvbmZpZwpwcmVmZXJlbmNlczoge30KdXNlcnM6IFtd"
+---
 # Source: headlamp/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -110,6 +120,8 @@ spec:
           env:
             - name: HEADLAMP_STATIC_PLUGINS_DIR
               value: ""
+            - name: KUBECONFIG
+              value: "/headlamp-kubeconfig/multi-cluster-kubeconfig.yaml"
           args:
             - "-in-cluster"
             - "-in-cluster-context-name=main"
@@ -142,3 +154,11 @@ spec:
             failureThreshold: 3
           resources:
             {}
+          volumeMounts:
+            - name: kubeconfig-secret
+              mountPath: /headlamp-kubeconfig
+              readOnly: true
+      volumes:
+        - name: kubeconfig-secret
+          secret:
+            secretName: headlamp-kubeconfig

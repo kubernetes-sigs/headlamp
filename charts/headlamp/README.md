@@ -144,6 +144,10 @@ config:
 | config.clusterInventory.labelSelector | string | `"!headlamp.dev/ignore"` | Kubernetes label selector used to filter experimental/alpha ClusterProfile resources |
 | config.clusterInventory.rootReconcileInterval | string | `""` | Override the experimental/alpha Cluster Inventory root reconcile interval. Empty uses the Headlamp default |
 | config.clusterInventory.noCRDCacheTTL | string | `""` | Override the experimental/alpha Cluster Inventory no-CRD cache TTL. Empty uses the Headlamp default |
+| kubeconfigSecret.create | bool | `true` | Generate a kubeconfig Secret from files under the chart `kubeconfig/` directory |
+| kubeconfigSecret.skipIfExists | bool | `true` | Skip creating the Secret if one with the same name already exists |
+| kubeconfigSecret.name | string | `"headlamp-kubeconfig"` | Name of the Secret mounted into the Headlamp pod. When empty and `create=true`, defaults to `headlamp-kubeconfig` |
+| kubeconfigSecret.selectedKubeconfigs | list | `[...]` | Optional list of kubeconfig files to merge from the chart `kubeconfig/` directory |
 | config.extraArgs   | array  | `[]`                  | Additional arguments for Headlamp server                                  |
 | config.tlsCertPath | string | `""`                  | Certificate for serving TLS                                               |
 | config.tlsKeyPath  | string | `""`                  | Key for serving TLS                                                       |
@@ -245,6 +249,32 @@ plugins. Each entry renders as a Kubernetes `image` volume and is mounted
 read-only into the Headlamp container. If an access provider `execConfig.command`
 is configured, the command must be under one of the absolute
 `plugins[].mountPath` values.
+
+### Kubeconfig Secret Merge
+
+The chart can merge one or more kubeconfig files bundled in the chart's
+`kubeconfig/` directory into a single Secret, then mount it into the Headlamp
+container and set `KUBECONFIG` automatically.
+
+```yaml
+kubeconfigSecret:
+  create: true
+  skipIfExists: true
+  name: "headlamp-kubeconfig"
+  selectedKubeconfigs:
+    - cluster1.yaml
+    - cluster2
+    - cluster3
+```
+
+When `selectedKubeconfigs` is non-empty, each entry is loaded from
+`kubeconfig/<entry>` (with optional `.yaml` suffix), merged into one kubeconfig,
+stored in a Secret, and mounted in the pod. If `selectedKubeconfigs` is empty,
+the chart creates an empty kubeconfig Secret payload and still mounts it.
+If `kubeconfigSecret.create=true` and `kubeconfigSecret.name` is empty, the
+chart uses `headlamp-kubeconfig` as the Secret name.
+The Secret key/file name and mounted `KUBECONFIG` path are fixed to
+`multi-cluster-kubeconfig.yaml`.
 
 ### Deployment Configuration
 
