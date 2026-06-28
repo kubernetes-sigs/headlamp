@@ -2185,6 +2185,14 @@ func TestOIDCTokenRefreshMiddleware(t *testing.T) {
 	rec = httptest.NewRecorder()
 	middleware.ServeHTTP(rec, req)
 	assert.Equal(t, http.StatusOK, rec.Code)
+
+	// Test case: nil config acts as a pass-through instead of panicking
+	nilMiddleware := auth.OIDCTokenRefreshMiddleware(nil)(handler)
+	req = httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/test-cluster", nil)
+	rec = httptest.NewRecorder()
+
+	assert.NotPanics(t, func() { nilMiddleware.ServeHTTP(rec, req) })
+	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
 func TestStartHeadlampServer(t *testing.T) {

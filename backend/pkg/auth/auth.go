@@ -778,6 +778,12 @@ func getOidcConfig(
 //
 //nolint:funlen
 func OIDCTokenRefreshMiddleware(c *OIDCMiddlewareConfig) func(http.Handler) http.Handler {
+	if c == nil {
+		return func(next http.Handler) http.Handler {
+			return next
+		}
+	}
+
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			ctx := r.Context()
