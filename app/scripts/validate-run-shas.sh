@@ -142,9 +142,10 @@ validate_runs() {
 
   echo "Expected release SHA: $expected_sha (from tag $tag_name)"
 
-  IFS=',' read -ra RUN_IDS <<< "$run_ids_csv"
+  local -a run_ids
+  IFS=',' read -ra run_ids <<< "$run_ids_csv"
 
-  for run_id in "${RUN_IDS[@]}"; do
+  for run_id in "${run_ids[@]}"; do
     # Trim surrounding whitespace
     run_id=$(echo "$run_id" | xargs)
 
