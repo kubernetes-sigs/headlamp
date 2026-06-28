@@ -23,7 +23,10 @@
 {{- $clusterInventoryProviderMountDir := "/etc/cluster-inventory" }}
 {{- $clusterInventoryProviderConfigPath := "config.json" }}
 {{- $kubeconfigSecret := .Values.kubeconfigSecret | default dict }}
-{{- $kubeconfigSecretEnabled := ne (($kubeconfigSecret.name | default "") | toString) "" }}
+{{- $kubeconfigSecretCreate := $kubeconfigSecret.create | default false }}
+{{- $kubeconfigSecretRawName := (($kubeconfigSecret.name | default "") | toString) }}
+{{- $kubeconfigSecretName := ternary "headlamp-kubeconfig" $kubeconfigSecretRawName (and $kubeconfigSecretCreate (eq $kubeconfigSecretRawName "")) }}
+{{- $kubeconfigSecretEnabled := ne $kubeconfigSecretName "" }}
 {{- $kubeconfigMountDir := "/headlamp-kubeconfig" }}
 {{- $kubeconfigFileName := "multi-cluster-kubeconfig.yaml" }}
 {{- $kubeconfigMountedFilePath := printf "%s/%s" $kubeconfigMountDir $kubeconfigFileName }}
@@ -570,7 +573,7 @@ spec:
         {{- if $kubeconfigSecretEnabled }}
         - name: kubeconfig-secret
           secret:
-            secretName: {{ $kubeconfigSecret.name }}
+            secretName: {{ $kubeconfigSecretName }}
         {{- end }}
         {{- if $tmpCtx.addVolume }}
         - name: headlamp-tmp

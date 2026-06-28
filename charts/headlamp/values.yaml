@@ -184,6 +184,7 @@ kubeconfigSecret:
   # -- Skip creating Secret when one with the same name already exists.
   skipIfExists: true
   # -- Name of the kubeconfig Secret to mount in the Headlamp pod.
+  # When empty and create=true, defaults to "headlamp-kubeconfig".
   name: "headlamp-kubeconfig"
   # -- Optional list of kubeconfig files (from the chart's kubeconfig/ folder)
   # to merge into a single Secret payload. Entries can be file names with or

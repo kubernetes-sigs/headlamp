@@ -62,7 +62,7 @@
         },
         "name": {
           "type": "string",
-          "description": "Name of the kubeconfig Secret to mount in the Headlamp pod"
+          "description": "Name of the kubeconfig Secret to mount in the Headlamp pod. When empty and create=true, defaults to headlamp-kubeconfig"
         },
         "selectedKubeconfigs": {
           "type": "array",
