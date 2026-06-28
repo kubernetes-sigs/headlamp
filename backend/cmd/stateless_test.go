@@ -438,6 +438,6 @@ func TestMarshalCustomObject_InvalidJSON(t *testing.T) {
 }
 
 func TestStatelessContextKeyFormat(t *testing.T) {
-	assert.Equal(t, "2:ab|1:c", statelessContextKey("ab", "c"))
-	assert.Equal(t, "1:a|2:bc", statelessContextKey("a", "bc"))
+	assert.Equal(t, "ab\x00c", statelessContextKey("ab", "c"))
+	assert.Equal(t, "a\x00bc", statelessContextKey("a", "bc"))
 }

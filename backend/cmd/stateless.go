@@ -29,16 +29,16 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
-// statelessContextKey generates a structured context key using length-prefixed
-// components to avoid collisions across cluster and user pairs.
-// Format: "<len(clusterName)>:<clusterName>|<len(userID)>:<userID>".
+// statelessContextKey generates a structured context key by joining the cluster name
+// and user ID with a NUL character separator to keep the stateless keyspace disjoint.
+// Format: "<clusterName>\x00<userID>".
 // If userID is empty, it returns the clusterName.
 func statelessContextKey(clusterName, userID string) string {
 	if userID == "" {
 		return clusterName
 	}
 
-	return fmt.Sprintf("%d:%s|%d:%s", len(clusterName), clusterName, len(userID), userID)
+	return clusterName + "\x00" + userID
 }
 
 // MarshalCustomObject marshals the runtime.Unknown object into a CustomObject.
