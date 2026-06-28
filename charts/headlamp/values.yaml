@@ -180,7 +180,7 @@ config:
 # -- Kubeconfig Secret settings for loading multiple external clusters.
 kubeconfigSecret:
   # -- Generate a kubeconfig Secret from files in the chart's kubeconfig/ directory.
-  create: true
+  create: false
   # -- Skip creating Secret when one with the same name already exists.
   skipIfExists: true
   # -- Name of the kubeconfig Secret to mount in the Headlamp pod.

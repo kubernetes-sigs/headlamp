@@ -54,10 +54,12 @@
       "properties": {
         "create": {
           "type": "boolean",
+          "default": false,
           "description": "Generate a kubeconfig Secret from files in the chart kubeconfig/ directory. Defaults to false (opt-in)"
         },
         "skipIfExists": {
           "type": "boolean",
+          "default": true,
           "description": "Skip creating Secret when one with the same name already exists"
         },
         "name": {
