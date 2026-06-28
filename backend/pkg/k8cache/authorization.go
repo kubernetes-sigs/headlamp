@@ -107,6 +107,7 @@ func startJanitor() {
 // every entry older than clientsetTTL.
 func evictExpiredClientsets() {
 	mu.Lock()
+	defer mu.Unlock()
 
 	now := time.Now()
 	evicted := 0
@@ -119,11 +120,9 @@ func evictExpiredClientsets() {
 		}
 	}
 
+	pruneBlockedClientsetPrefixesLocked(now)
+
 	remaining := len(clientsetCache)
-
-	mu.Unlock()
-
-	pruneBlockedClientsetPrefixes(now)
 
 	if evicted > 0 {
 		logger.Log(logger.LevelInfo, nil, nil,
@@ -131,6 +130,8 @@ func evictExpiredClientsets() {
 	}
 }
 
+// hasClientsetActivityForPrefix reports whether any clientset or in-flight entry
+// exists for the given prefix. mu must be held.
 func hasClientsetActivityForPrefix(prefix string) bool {
 	prefixWithNul := prefix + "\x00"
 
@@ -149,9 +150,10 @@ func hasClientsetActivityForPrefix(prefix string) bool {
 	return false
 }
 
-// pruneBlockedClientsetPrefixes drops stale block entries so removed contexts that
+// pruneBlockedClientsetPrefixesLocked drops stale block entries so removed contexts that
 // never return do not accumulate unbounded entries over long process lifetimes.
-func pruneBlockedClientsetPrefixes(now time.Time) {
+// mu must be held.
+func pruneBlockedClientsetPrefixesLocked(now time.Time) {
 	for prefix, entry := range blockedClientsetPrefixes {
 		if hasClientsetActivityForPrefix(prefix) {
 			continue
