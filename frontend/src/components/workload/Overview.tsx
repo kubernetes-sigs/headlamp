@@ -126,11 +126,12 @@ export default function Overview() {
 
   // Jobs/CronJobs/JobSets have no replica fields either (like Pods), so they
   // classify health per item instead of by replica match.
-  const jobHealth: { [className: string]: (item: Workload) => ReturnType<Job['getHealth']> } = {
-    [Job.className]: item => (item as Job).getHealth(),
-    [CronJob.className]: item => (item as CronJob).getHealth(),
-    [JobSet.className]: item => (item as JobSet).getHealth(),
-  };
+  const jobHealth: Record<string, ((item: Workload) => ReturnType<Job['getHealth']>) | undefined> =
+    {
+      [Job.className]: item => (item as Job).getHealth(),
+      [CronJob.className]: item => (item as CronJob).getHealth(),
+      [JobSet.className]: item => (item as JobSet).getHealth(),
+    };
 
   return (
     <PageGrid>
