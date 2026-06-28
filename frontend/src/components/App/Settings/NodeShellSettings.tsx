@@ -24,6 +24,7 @@ import {
   DEFAULT_NODE_SHELL_LINUX_IMAGE,
   DEFAULT_NODE_SHELL_NAMESPACE,
 } from '../../../helpers/clusterSettings';
+import { useTypedSelector } from '../../../redux/hooks';
 import { NameValueTable } from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
 import { isValidNamespaceFormat } from './util';
@@ -37,6 +38,12 @@ interface SettingsProps {
 export default function NodeShellSettings(props: SettingsProps) {
   const { clusterSettings, setClusterSettings } = props;
   const { t } = useTranslation(['translation']);
+  const defaultNodeShellImage =
+    useTypedSelector(state => state.config?.defaultNodeShellImage) ||
+    DEFAULT_NODE_SHELL_LINUX_IMAGE;
+  const defaultNodeShellNamespace =
+    useTypedSelector(state => state.config?.defaultNodeShellNamespace) ||
+    DEFAULT_NODE_SHELL_NAMESPACE;
 
   const nodeShellLabelID = 'node-shell-enabled-label';
 
@@ -84,7 +91,7 @@ export default function NodeShellSettings(props: SettingsProps) {
                   updateNodeShell({ linuxImage: value });
                 }}
                 value={image}
-                placeholder={DEFAULT_NODE_SHELL_LINUX_IMAGE}
+                placeholder={defaultNodeShellImage}
                 helperText={t(
                   'translation|The default image is used for dropping a shell into a node (when not specified directly).'
                 )}
@@ -111,11 +118,13 @@ export default function NodeShellSettings(props: SettingsProps) {
                   }
                 }}
                 value={namespaceInput}
-                placeholder={DEFAULT_NODE_SHELL_NAMESPACE}
+                placeholder={defaultNodeShellNamespace}
                 error={!isValidNamespace}
                 helperText={
                   isValidNamespace
-                    ? t('translation|The default namespace is default.')
+                    ? t('translation|The default namespace is {{ namespace }}.', {
+                        namespace: defaultNodeShellNamespace,
+                      })
                     : invalidNamespaceMessage
                 }
                 variant="outlined"
