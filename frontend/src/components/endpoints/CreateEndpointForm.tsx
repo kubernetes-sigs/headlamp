@@ -82,7 +82,7 @@ function rowsToSubsets(rows: SubsetRow[]): KubeEndpointSubset[] {
       ...(a.nodeName ? { nodeName: a.nodeName } : {}),
     })),
     ports: r.ports.map(p => ({
-      name: p.name,
+      ...(p.name ? { name: p.name } : {}),
       appProtocol: p.appProtocol,
       port: p.port,
       protocol: p.protocol,
@@ -100,10 +100,23 @@ function SubsetsEditor(props: SubsetsEditorProps) {
   const { t } = useTranslation(['translation']);
 
   const [rows, setRows] = React.useState<SubsetRow[]>(() => subsetsToRows(value ?? []));
+  const lastEmittedRef = React.useRef<KubeEndpointSubset[]>(rowsToSubsets(rows));
+
+  // Re-seed rows when value changes externally (e.g. user edits YAML directly).
+  // Skip the update when the change is our own echo to avoid clobbering in-progress edits.
+  React.useEffect(() => {
+    const incoming = value ?? [];
+    if (JSON.stringify(incoming) !== JSON.stringify(lastEmittedRef.current)) {
+      setRows(subsetsToRows(incoming));
+      lastEmittedRef.current = incoming;
+    }
+  }, [value]);
 
   function commit(next: SubsetRow[]) {
     setRows(next);
-    onChange(rowsToSubsets(next));
+    const subsets = rowsToSubsets(next);
+    lastEmittedRef.current = subsets;
+    onChange(subsets);
   }
 
   function addSubset() {
@@ -181,7 +194,8 @@ function SubsetsEditor(props: SubsetsEditorProps) {
         if (p._id !== portId) return p;
         if (field === 'port') {
           const num = parseInt(val, 10);
-          return { ...p, port: isNaN(num) ? p.port : num };
+          if (isNaN(num) || num < 1 || num > 65535) return p;
+          return { ...p, port: num };
         }
         return { ...p, [field]: val };
       }),
