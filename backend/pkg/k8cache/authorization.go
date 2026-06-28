@@ -57,12 +57,17 @@ type inFlightEntry struct {
 	err    error
 }
 
+type blockedPrefixEntry struct {
+	blockedAt time.Time
+}
+
 var (
 	clientsetCache = make(map[string]*CachedClientSet)
 	// blockedClientsetPrefixes holds context keys whose clientsets must not be
 	// re-cached after context removal. Entries are cleared when SyncWatchers sees
-	// the context active again.
-	blockedClientsetPrefixes = make(map[string]struct{})
+	// the context active again, or by the janitor once clientsetTTL has elapsed
+	// and no clientset or in-flight entries remain for the prefix.
+	blockedClientsetPrefixes = make(map[string]blockedPrefixEntry)
 	mu                       sync.Mutex
 	janitorOnce              sync.Once
 
@@ -118,9 +123,43 @@ func evictExpiredClientsets() {
 
 	mu.Unlock()
 
+	pruneBlockedClientsetPrefixes(now)
+
 	if evicted > 0 {
 		logger.Log(logger.LevelInfo, nil, nil,
 			fmt.Sprintf("janitor: evicted %d expired clientset(s), %d remaining", evicted, remaining))
+	}
+}
+
+func hasClientsetActivityForPrefix(prefix string) bool {
+	prefixWithNul := prefix + "\x00"
+
+	for key := range clientsetCache {
+		if strings.HasPrefix(key, prefixWithNul) {
+			return true
+		}
+	}
+
+	for key := range inFlight {
+		if strings.HasPrefix(key, prefixWithNul) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// pruneBlockedClientsetPrefixes drops stale block entries so removed contexts that
+// never return do not accumulate unbounded entries over long process lifetimes.
+func pruneBlockedClientsetPrefixes(now time.Time) {
+	for prefix, entry := range blockedClientsetPrefixes {
+		if hasClientsetActivityForPrefix(prefix) {
+			continue
+		}
+
+		if now.Sub(entry.blockedAt) >= clientsetTTL {
+			delete(blockedClientsetPrefixes, prefix)
+		}
 	}
 }
 
@@ -137,7 +176,7 @@ func EvictClientsetsForCluster(clientsetCachePrefix string) {
 
 	mu.Lock()
 
-	blockedClientsetPrefixes[clientsetCachePrefix] = struct{}{}
+	blockedClientsetPrefixes[clientsetCachePrefix] = blockedPrefixEntry{blockedAt: time.Now()}
 
 	evicted := 0
 
@@ -290,12 +329,12 @@ func finishInFlightClientset(cacheKey string, entry *inFlightEntry, cs *kubernet
 // clusters this includes the user ID, e.g. "cluster\x00userID").
 func GetClientSet(headlampContextKey string, k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
 	if headlampContextKey == "" {
-		return nil, fmt.Errorf("empty headlamp context key in getClientSet")
+		return nil, fmt.Errorf("empty headlamp context key in GetClientSet")
 	}
 
 	contextKey := strings.Split(k.ClusterID, "+")
 	if len(contextKey) < 2 {
-		return nil, fmt.Errorf("unexpected ClusterID format in getClientSet: %q", k.ClusterID)
+		return nil, fmt.Errorf("unexpected ClusterID format in GetClientSet: %q", k.ClusterID)
 	}
 
 	startJanitor()

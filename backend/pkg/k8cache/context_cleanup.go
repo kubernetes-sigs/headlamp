@@ -67,7 +67,42 @@ func PurgeCacheForContext(k8scache cache.Cache[string], contextKey string) {
 	}
 }
 
-// clientsetCachePrefixFromContextKey returns the Headlamp context store key used as
+// collectCachedContextKeys returns Headlamp context keys that still have k8cache
+// or clientset cache entries.
+func collectCachedContextKeys(k8scache cache.Cache[string]) map[string]struct{} {
+	keys := make(map[string]struct{})
+
+	mu.Lock()
+
+	for cacheKey := range clientsetCache {
+		if prefix := clientsetCachePrefixFromCacheKey(cacheKey); prefix != "" {
+			keys[prefix] = struct{}{}
+		}
+	}
+
+	mu.Unlock()
+
+	if k8scache == nil {
+		return keys
+	}
+
+	allKeys, err := k8scache.GetAll(context.Background(), nil)
+	if err != nil {
+		logger.Log(logger.LevelWarn, nil, err, "failed to list cache keys during context cleanup")
+
+		return keys
+	}
+
+	for key := range allKeys {
+		parts := strings.SplitN(key, "+", 4)
+		if len(parts) == 4 && parts[3] != "" {
+			keys[parts[3]] = struct{}{}
+		}
+	}
+
+	return keys
+}
+
 // the prefix for clientset cache keys. For stateless contexts this includes the user
 // ID (e.g. "cluster\x00userID"); for regular contexts it is the cluster name alone.
 func clientsetCachePrefixFromContextKey(contextKey string) string {

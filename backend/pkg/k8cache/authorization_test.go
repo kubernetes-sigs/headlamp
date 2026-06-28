@@ -92,7 +92,7 @@ func TestGetClientSet(t *testing.T) {
 			},
 			headlampContextKey: "kind-headlamp-admin",
 			token:              "token-54321",
-			expectedError: fmt.Errorf("unexpected ClusterID format in getClientSet: " +
+			expectedError: fmt.Errorf("unexpected ClusterID format in GetClientSet: " +
 				"\"/home/user/.kubeconfig/kind-headlamp-admin\""),
 		},
 	}
