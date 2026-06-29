@@ -14,13 +14,19 @@
  * limitations under the License.
  */
 
-import { describe, expect, it } from 'vitest';
+import { Base64 } from 'js-base64';
+import { describe, expect, it, vi } from 'vitest';
 import App from '../../App';
+import { stream } from './api/v1/streamingApi';
 import Pod from './pod';
 
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
 const _dont_delete_me = App;
+
+vi.mock('./api/v1/streamingApi', () => ({
+  stream: vi.fn(() => ({ cancel: vi.fn(), getSocket: vi.fn(() => null) })),
+}));
 
 describe('Pod class', () => {
   const mockPodData = {
@@ -187,6 +193,95 @@ describe('Pod class', () => {
     it('classifies a Succeeded pod as healthy', () => {
       const pod = makePod({ phase: 'Succeeded' });
       expect(pod.getHealth()).toBe('healthy');
+    });
+  });
+
+  describe('getLogs', () => {
+    it('extracts lastTimestamp, strips timestamps when showTimestamps is false, and appends sinceTime upon reconnect', () => {
+      vi.useFakeTimers();
+      let captureOnResults: any = null;
+      let captureFailCb: any = null;
+      const mockStream = vi.mocked(stream).mockImplementation((_url, onResults, options) => {
+        captureOnResults = onResults;
+        captureFailCb = options?.failCb;
+        return { cancel: vi.fn(), getSocket: vi.fn(() => null) };
+      });
+
+      const pod = new Pod(mockPodData as any);
+      const onLogs = vi.fn();
+
+      const cancel = pod.getLogs('container-1', onLogs, {
+        showTimestamps: false,
+        follow: true,
+      });
+
+      expect(mockStream).toHaveBeenCalledWith(
+        expect.stringContaining('timestamps=true'),
+        expect.any(Function),
+        expect.any(Object)
+      );
+
+      const lastCallUrl = mockStream.mock.calls[0][0];
+      expect(lastCallUrl).not.toContain('sinceTime');
+
+      const logLine1 = '2026-06-30T10:00:00.123456Z Log message line 1\n';
+      const encodedLog1 = Base64.encode(logLine1);
+
+      captureOnResults(encodedLog1);
+
+      expect(onLogs).toHaveBeenCalledWith({
+        logs: ['Log message line 1\n'],
+        hasJsonLogs: false,
+      });
+
+      // Send a second log line to verify no premature [Reconnected!] banner is shown
+      const logLine1b = '2026-06-30T10:01:00.000000Z Log message line 1b\n';
+      const encodedLog1b = Base64.encode(logLine1b);
+      captureOnResults(encodedLog1b);
+
+      expect(onLogs).toHaveBeenLastCalledWith({
+        logs: ['Log message line 1\n', 'Log message line 1b\n'],
+        hasJsonLogs: false,
+      });
+
+      mockStream.mockClear();
+      captureFailCb();
+
+      expect(onLogs).toHaveBeenLastCalledWith({
+        logs: [
+          'Log message line 1\n',
+          'Log message line 1b\n',
+          '\n\x1b[33m[Connection lost. Reconnecting... (attempt 1/5)]\x1b[0m\n',
+        ],
+        hasJsonLogs: false,
+      });
+
+      // Fast-forward the 3000ms delay
+      vi.advanceTimersByTime(3000);
+
+      expect(mockStream).toHaveBeenCalledWith(
+        expect.stringContaining('sinceTime=2026-06-30T10%3A01%3A00.000000Z'),
+        expect.any(Function),
+        expect.any(Object)
+      );
+
+      const logLine2 = '2026-06-30T10:05:00.000000Z Log message line 2\n';
+      const encodedLog2 = Base64.encode(logLine2);
+      captureOnResults(encodedLog2);
+
+      expect(onLogs).toHaveBeenLastCalledWith({
+        logs: [
+          'Log message line 1\n',
+          'Log message line 1b\n',
+          '\n\x1b[33m[Connection lost. Reconnecting... (attempt 1/5)]\x1b[0m\n',
+          '\n\x1b[32m[Reconnected!]\x1b[0m\n',
+          'Log message line 2\n',
+        ],
+        hasJsonLogs: false,
+      });
+
+      cancel();
+      vi.useRealTimers();
     });
   });
 });
