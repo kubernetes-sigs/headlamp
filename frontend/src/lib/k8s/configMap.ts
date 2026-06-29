@@ -18,6 +18,7 @@ import type { StringDict } from './cluster';
 import { KubeObject, type KubeObjectInterface } from './KubeObject';
 
 export interface KubeConfigMap extends KubeObjectInterface {
+  binaryData?: StringDict;
   data?: StringDict;
 }
 
@@ -26,6 +27,10 @@ class ConfigMap extends KubeObject<KubeConfigMap> {
   static apiName = 'configmaps';
   static apiVersion = 'v1';
   static isNamespaced = true;
+
+  get binaryData() {
+    return this.jsonData.binaryData;
+  }
 
   get data() {
     return this.jsonData.data;
