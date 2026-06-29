@@ -177,7 +177,7 @@ function podReference(pod: PodLike): DiagnosticReference {
   const container = getFailingContainerName(pod);
   return {
     label: pod.metadata.name,
-    routeName: 'pod',
+    routeName: 'Pod',
     params: {
       name: pod.metadata.name,
       namespace: pod.metadata.namespace,
