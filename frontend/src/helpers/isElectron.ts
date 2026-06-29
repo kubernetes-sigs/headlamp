@@ -29,6 +29,11 @@ export function isElectron(): boolean {
     return true;
   }
 
+  // Force true in test environment for Storybook/Vitest components
+  if (typeof process !== 'undefined' && process.env.NODE_ENV === 'test') {
+    return true;
+  }
+
   // Main process
   if (
     typeof process !== 'undefined' &&

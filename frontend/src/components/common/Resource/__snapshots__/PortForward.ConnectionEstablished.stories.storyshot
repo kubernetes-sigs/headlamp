@@ -6,18 +6,20 @@
       <div
         class="MuiBox-root css-0"
       >
+        <a
+          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+          href="http://127.0.0.1:30080"
+          target="_blank"
+        >
+          http://127.0.0.1:30080
+        </a>
         <button
-          aria-label="Start port forward"
-          class="MuiButtonBase-root MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeMedium MuiButton-outlinedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeMedium MuiButton-outlinedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-1ftyvt9-MuiButtonBase-root-MuiButton-root"
-          style="text-transform: none;"
+          aria-label="Stop port forward"
+          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-colorPrimary MuiIconButton-sizeSmall css-18expok-MuiButtonBase-root-MuiIconButton-root"
+          data-mui-internal-clone-element="true"
           tabindex="0"
           type="button"
         >
-          <p
-            class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
-          >
-            Forward port
-          </p>
           <span
             class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
           />

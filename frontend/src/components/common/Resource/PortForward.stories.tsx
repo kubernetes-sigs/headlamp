@@ -30,14 +30,11 @@ export default {
   argTypes: {},
   decorators: [
     function PortForwardStoryDecorator(Story: any) {
-      // Mock isElectron environment (must be set before first render)
-      const originalProcess = (window as any).process;
-      const originalType = (window as any).process?.type;
+      // Mock isElectron environment synchronously before first render
+      const originalProcess = typeof window !== 'undefined' ? (window as any).process : undefined;
 
-      if (!originalProcess) {
-        (window as any).process = { type: 'renderer' };
-      } else if (originalType !== 'renderer') {
-        (window as any).process.type = 'renderer';
+      if (typeof window !== 'undefined') {
+        (window as any).process = { ...((window as any).process || {}), type: 'renderer' };
       }
 
       // Reset localStorage for portforwards between stories
@@ -45,18 +42,12 @@ export default {
 
       React.useEffect(() => {
         return () => {
-          if (!originalProcess) {
-            delete (window as any).process;
-          } else if (originalType !== 'renderer') {
-            if (originalType === undefined) {
-              delete (window as any).process.type;
-            } else {
-              (window as any).process.type = originalType;
-            }
-          }
           localStorage.removeItem('portforwards');
+          if (typeof window !== 'undefined') {
+            (window as any).process = originalProcess;
+          }
         };
-      }, [originalProcess, originalType]);
+      }, [originalProcess]);
 
       return (
         <TestContext>
@@ -92,7 +83,6 @@ const mockPod = new Pod({
     uid: 'pod-123',
     creationTimestamp: '2024-01-01T00:00:00Z',
   },
-  cluster: mockCluster,
   spec: {
     containers: [
       {
