@@ -16,68 +16,49 @@
 
 import { KubeConfigMap } from '../../lib/k8s/configMap';
 
-export const BASE_CONFIG_MAP: KubeConfigMap = {
-  apiVersion: 'v1',
-  kind: 'ConfigMap',
-  metadata: {
-    creationTimestamp: '2023-04-27T20:31:27Z',
-    name: 'my-pvc',
-    namespace: 'default',
-    resourceVersion: '1234',
-    uid: 'abc-1234',
-  },
-  data: {
-    storageClassName: 'default',
-    volumeMode: 'Filesystem',
-    volumeName: 'pvc-abc-1234',
-  },
+const binaryData = {
+  'hello.txt': 'SGVsbG8sIFdvcmxkIQo=',
+  'config.bin': 'YmluYXJ5AGNvbmZpZwFwYXlsb2Fk',
+};
+
+const data = {
+  storageClassName: 'default',
+  volumeMode: 'Filesystem',
+  volumeName: 'pvc-abc-1234',
+};
+
+const metadata = {
+  creationTimestamp: '2023-04-27T20:31:27Z',
+  namespace: 'default',
+  name: 'my-pvc',
+  resourceVersion: '1234',
+  uid: 'abc-1234',
 };
 
 export const BASE_EMPTY_CONFIG_MAP: KubeConfigMap = {
   apiVersion: 'v1',
   kind: 'ConfigMap',
-  metadata: {
-    creationTimestamp: '2023-04-27T20:31:27Z',
-    name: 'my-pvc',
-    namespace: 'default',
-    resourceVersion: '1234',
-    uid: 'abc-1234',
-  },
-  data: {},
+  metadata,
 };
 
-export const BASE_BINARY_CONFIG_MAP: KubeConfigMap = {
+export const BASE_DATA_CONFIG_MAP: KubeConfigMap = {
   apiVersion: 'v1',
   kind: 'ConfigMap',
-  metadata: {
-    creationTimestamp: '2023-04-27T20:31:27Z',
-    name: 'my-pvc',
-    namespace: 'default',
-    resourceVersion: '1234',
-    uid: 'abc-1234',
-  },
-  binaryData: {
-    'hello.txt': 'SGVsbG8sIFdvcmxkIQo=',
-    'config.bin': 'YmluYXJ5AGNvbmZpZwFwYXlsb2Fk',
-  },
+  metadata,
+  data,
 };
 
-export const BASE_DATA_AND_BINARY_CONFIG_MAP: KubeConfigMap = {
+export const BASE_BINARY_DATA_CONFIG_MAP: KubeConfigMap = {
   apiVersion: 'v1',
   kind: 'ConfigMap',
-  metadata: {
-    creationTimestamp: '2023-04-27T20:31:27Z',
-    name: 'my-pvc',
-    namespace: 'default',
-    resourceVersion: '1234',
-    uid: 'abc-1234',
-  },
-  data: {
-    storageClassName: 'default',
-    volumeMode: 'Filesystem',
-    volumeName: 'pvc-abc-1234',
-  },
-  binaryData: {
-    'cert.der': 'LS0tLS1GQUtFIENFUlQtLS0tLQpNSUlCSWpBTkJna3EK',
-  },
+  metadata,
+  binaryData,
+};
+
+export const BASE_BINARY_DATA_AND_DATA_CONFIG_MAP: KubeConfigMap = {
+  apiVersion: 'v1',
+  kind: 'ConfigMap',
+  metadata,
+  data,
+  binaryData,
 };

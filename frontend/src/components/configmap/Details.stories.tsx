@@ -18,7 +18,12 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { API_BASE, TestContext } from '../../test';
 import Details from './Details';
-import { BASE_CONFIG_MAP, BASE_EMPTY_CONFIG_MAP } from './storyHelper';
+import {
+  BASE_BINARY_DATA_AND_DATA_CONFIG_MAP,
+  BASE_BINARY_DATA_CONFIG_MAP,
+  BASE_DATA_CONFIG_MAP,
+  BASE_EMPTY_CONFIG_MAP,
+} from './storyHelper';
 
 export default {
   title: 'ConfigMap/DetailsView',
@@ -55,17 +60,6 @@ const Template: StoryFn = () => {
   return <Details />;
 };
 
-export const WithBase = Template.bind({});
-WithBase.parameters = {
-  msw: {
-    handlers: {
-      story: [
-        http.get(`${API_BASE}/api/v1/configmaps/my-cm`, () => HttpResponse.json(BASE_CONFIG_MAP)),
-      ],
-    },
-  },
-};
-
 export const Empty = Template.bind({});
 Empty.parameters = {
   msw: {
@@ -73,6 +67,45 @@ Empty.parameters = {
       story: [
         http.get(`${API_BASE}/api/v1/configmaps/my-cm`, () =>
           HttpResponse.json(BASE_EMPTY_CONFIG_MAP)
+        ),
+      ],
+    },
+  },
+};
+
+export const WithBinaryData = Template.bind({});
+WithBinaryData.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/api/v1/configmaps/my-cm`, () =>
+          HttpResponse.json(BASE_BINARY_DATA_CONFIG_MAP)
+        ),
+      ],
+    },
+  },
+};
+
+export const WithBinaryDataAndData = Template.bind({});
+WithBinaryDataAndData.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/api/v1/configmaps/my-cm`, () =>
+          HttpResponse.json(BASE_BINARY_DATA_AND_DATA_CONFIG_MAP)
+        ),
+      ],
+    },
+  },
+};
+
+export const WithData = Template.bind({});
+WithData.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/api/v1/configmaps/my-cm`, () =>
+          HttpResponse.json(BASE_DATA_CONFIG_MAP)
         ),
       ],
     },
