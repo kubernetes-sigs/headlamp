@@ -41,7 +41,7 @@ vi.mock('../common/Resource/ResourceListView', () => ({
         <span data-testid="title">{props.title}</span>
         {props.columns.map((col: any, idx: number) => {
           if (typeof col === 'object') {
-            const val = col.getValue ? col.getValue(currentDummyRoute) : '';
+            const val = col.getValue ? col.getValue(currentDummyRoute) ?? '' : '';
             const node = col.render ? col.render(currentDummyRoute) : null;
             return (
               <div key={idx} data-testid={`col-${col.id}`}>
@@ -105,6 +105,6 @@ describe('HTTPRouteList', () => {
     expect(hostCol.querySelector('.node')).toHaveTextContent('*');
 
     const rulesCol = screen.getByTestId('col-rules');
-    expect(rulesCol.querySelector('.value')).toHaveTextContent('undefined');
+    expect(rulesCol.querySelector('.value')).toHaveTextContent('');
   });
 });

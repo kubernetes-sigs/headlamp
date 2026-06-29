@@ -51,7 +51,7 @@ vi.mock('../common/Resource/ResourceListView', () => ({
         <span data-testid="title">{props.title}</span>
         {props.columns.map((col: any, idx: number) => {
           if (typeof col === 'object') {
-            const val = col.getValue ? col.getValue(currentDummyGateway) : '';
+            const val = col.getValue ? col.getValue(currentDummyGateway) ?? '' : '';
             const node = col.render ? col.render(currentDummyGateway) : null;
             return (
               <div key={idx} data-testid={`col-${col.id}`}>
@@ -130,7 +130,7 @@ describe('GatewayList', () => {
 
     // Conditions column is empty
     const condCol = screen.getByTestId('col-conditions');
-    expect(condCol.querySelector('.value')).toHaveTextContent('null');
+    expect(condCol.querySelector('.value')).toHaveTextContent('');
     expect(condCol.querySelector('.node')).toHaveTextContent('null');
 
     // Listeners column is 0

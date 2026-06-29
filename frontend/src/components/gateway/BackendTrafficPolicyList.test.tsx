@@ -28,7 +28,15 @@ vi.mock('../../lib/k8s/backendTrafficPolicy', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key.split('|').pop() || key,
+    t: (key: string, opts?: Record<string, any>) => {
+      let result = key.split('|').pop() || key;
+      if (opts) {
+        Object.entries(opts).forEach(([k, v]) => {
+          result = result.replace(new RegExp(`{{${k}}}`, 'g'), String(v));
+        });
+      }
+      return result;
+    },
   }),
 }));
 
@@ -41,7 +49,7 @@ vi.mock('../common/Resource/ResourceListView', () => ({
         <span data-testid="title">{props.title}</span>
         {props.columns.map((col: any, idx: number) => {
           if (typeof col === 'object') {
-            const val = col.getValue ? col.getValue(currentDummyPolicy) : '';
+            const val = col.getValue ? col.getValue(currentDummyPolicy) ?? '' : '';
             const node = col.render ? col.render(currentDummyPolicy) : null;
             return (
               <div key={idx} data-testid={`col-${col.id}`}>
