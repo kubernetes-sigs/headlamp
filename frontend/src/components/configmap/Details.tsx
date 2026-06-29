@@ -33,9 +33,9 @@ function ConfigMapDataSection({ item }: { item: ConfigMap }) {
   const { t } = useTranslation(['translation']);
   const dispatch: AppDispatch = useDispatch();
 
-  const [data, setData] = React.useState(() => _.cloneDeep(item.data));
+  const [data, setData] = React.useState(() => _.cloneDeep(item.data || {}));
   const [isDirty, setIsDirty] = React.useState(false);
-  const lastDataRef = React.useRef(_.cloneDeep(item.data));
+  const lastDataRef = React.useRef(_.cloneDeep(item.data || {}));
 
   const handleFieldChange = (key: string, newValue: string) => {
     setData(prev => ({ ...prev, [key]: newValue }));
@@ -43,7 +43,7 @@ function ConfigMapDataSection({ item }: { item: ConfigMap }) {
   };
 
   React.useEffect(() => {
-    const newData = _.cloneDeep(item.data);
+    const newData = _.cloneDeep(item.data || {});
     if (!isDirty && !_.isEqual(newData, lastDataRef.current)) {
       setData(newData);
       lastDataRef.current = newData;
