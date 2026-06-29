@@ -18,7 +18,12 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { API_BASE, TestContext } from '../../test';
 import ListView from './List';
-import { BASE_DATA_CONFIG_MAP, BASE_EMPTY_CONFIG_MAP } from './storyHelper';
+import {
+  BASE_BINARY_DATA_AND_DATA_CONFIG_MAP,
+  BASE_BINARY_DATA_CONFIG_MAP,
+  BASE_DATA_CONFIG_MAP,
+  BASE_EMPTY_CONFIG_MAP,
+} from './storyHelper';
 
 export default {
   title: 'ConfigMap/ListView',
@@ -41,7 +46,12 @@ export default {
           http.get(`${API_BASE}/api/v1/configmaps`, () =>
             HttpResponse.json({
               kind: 'ConfigMapList',
-              items: [BASE_DATA_CONFIG_MAP, BASE_EMPTY_CONFIG_MAP],
+              items: [
+                BASE_EMPTY_CONFIG_MAP,
+                BASE_DATA_CONFIG_MAP,
+                BASE_BINARY_DATA_CONFIG_MAP,
+                BASE_BINARY_DATA_AND_DATA_CONFIG_MAP,
+              ],
               metadata: {},
             })
           ),
