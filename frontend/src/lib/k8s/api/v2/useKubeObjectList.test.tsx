@@ -539,4 +539,39 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
 
     expect(spy).toHaveBeenCalledWith({ enabled: false, connections: [] });
   });
+
+  it('should unsubscribe if effect cleanup runs before subscribe resolves', async () => {
+    let resolveSubscribe!: (unsubscribe: () => void) => void;
+    const mockUnsubscribe = vi.fn();
+
+    mockSubscribe.mockImplementationOnce(
+      () =>
+        new Promise<() => void>(resolve => {
+          resolveSubscribe = resolve;
+        })
+    );
+
+    const { unmount } = renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          endpoint: { version: 'v1', resource: 'pods' },
+          lists: [{ cluster: 'cluster-a', namespace: 'namespace-a', resourceVersion: '1' }],
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    // Unmount before the subscribe Promise resolves
+    unmount();
+
+    // Resolve after cleanup — the fix must call unsubscribe immediately
+    resolveSubscribe(mockUnsubscribe);
+    await Promise.resolve();
+
+    expect(mockUnsubscribe).toHaveBeenCalledTimes(1);
+  });
 });
