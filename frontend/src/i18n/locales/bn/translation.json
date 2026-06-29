@@ -540,6 +540,8 @@
   "Timezone": "Timezone",
   "Data": "Data",
   "No data in this config map": "এই কনফিগার মানচিত্রে কোনও Data নেই",
+  "Binary Data": "",
+  "No binary data in this config map": "",
   "Error getting custom resource definition {{ crdName }}: {{ errorMessage }}": "Custom Resource সংজ্ঞা পেতে Error {{ crdName }}:: {{ errorMessage }}",
   "Loading custom resource details": "Custom Resource বিশদ লোড হচ্ছে",
   "Error getting custom resource {{ crName }}: {{ errorMessage }}": "Custom Resource পেতে Error {{ crName }}:: {{ errorMessage }}",

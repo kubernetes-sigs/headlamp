@@ -560,6 +560,8 @@
   "Timezone": "المنطقة الزمنية",
   "Data": "البيانات",
   "No data in this config map": "لا توجد بيانات في Config Map هذه",
+  "Binary Data": "",
+  "No binary data in this config map": "",
   "Error getting custom resource definition {{ crdName }}: {{ errorMessage }}": "خطأ أثناء جلب تعريف المورد المخصص {{ crdName }}: {{ errorMessage }}",
   "Loading custom resource details": "جارٍ تحميل تفاصيل المورد المخصص",
   "Error getting custom resource {{ crName }}: {{ errorMessage }}": "خطأ أثناء جلب المورد المخصص {{ crName }}: {{ errorMessage }}",

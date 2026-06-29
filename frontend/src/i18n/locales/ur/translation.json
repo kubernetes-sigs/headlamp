@@ -540,6 +540,8 @@
   "Timezone": "ٹائم زون",
   "Data": "ڈیٹا",
   "No data in this config map": "اس کنفگ میپ میں کوئی ڈیٹا نہیں ہے",
+  "Binary Data": "",
+  "No binary data in this config map": "",
   "Error getting custom resource definition {{ crdName }}: {{ errorMessage }}": "کسٹم ریسورس ڈیفینیشن {{ crdName }} حاصل کرنے میں خرابی: {{ errorMessage }}",
   "Loading custom resource details": "کسٹم ریسورس کی تفصیلات لوڈ ہو رہی ہیں",
   "Error getting custom resource {{ crName }}: {{ errorMessage }}": "کسٹم ریسورس {{ crName }} حاصل کرنے میں خرابی: {{ errorMessage }}",

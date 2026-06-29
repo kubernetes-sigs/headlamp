@@ -540,6 +540,8 @@
   "Timezone": "",
   "Data": "",
   "No data in this config map": "",
+  "Binary Data": "",
+  "No binary data in this config map": "",
   "Error getting custom resource definition {{ crdName }}: {{ errorMessage }}": "",
   "Loading custom resource details": "",
   "Error getting custom resource {{ crName }}: {{ errorMessage }}": "",
