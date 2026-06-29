@@ -817,6 +817,7 @@
   "Start Debug": "डीबग शुरू करें",
   "Pod debug is disabled in settings": "",
   "Attaching to existing debug container...": "",
+  "Reattaching to debug container...": "",
   "Creating ephemeral debug container...": "",
   "Targeting container: {{container}}": "कंटेनर को लक्ष्य कर रहे हैं: {{container}}",
   "Failed to create debug container: {{message}}": "",

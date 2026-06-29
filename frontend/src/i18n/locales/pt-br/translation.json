@@ -823,6 +823,7 @@
   "Start Debug": "",
   "Pod debug is disabled in settings": "A depuração de pod está desabilitada nas configurações",
   "Attaching to existing debug container...": "Anexando ao contêiner de depuração existente...",
+  "Reattaching to debug container...": "",
   "Creating ephemeral debug container...": "Criando contêiner efêmero de depuração...",
   "Targeting container: {{container}}": "",
   "Failed to create debug container: {{message}}": "Falha ao criar o contêiner de depuração: {{message}}",

@@ -811,6 +811,7 @@
   "Start Debug": "",
   "Pod debug is disabled in settings": "Debug pod dinonaktifkan di pengaturan",
   "Attaching to existing debug container...": "Memasang ke kontainer debug yang ada...",
+  "Reattaching to debug container...": "",
   "Creating ephemeral debug container...": "Membuat kontainer debug sementara...",
   "Targeting container: {{container}}": "",
   "Failed to create debug container: {{message}}": "Gagal membuat kontainer debug: {{message}}",
