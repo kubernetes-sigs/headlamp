@@ -390,7 +390,11 @@ export const PureSidebar = memo(
         setScrollbarWidth(Math.max(0, el.offsetWidth - el.clientWidth));
       };
 
-      const debouncedUpdate = _.debounce(update, 300);
+      const debounceDelay = Math.max(
+        muiTheme.transitions.duration.enteringScreen,
+        muiTheme.transitions.duration.leavingScreen
+      );
+      const debouncedUpdate = _.debounce(update, debounceDelay);
 
       const observer = new ResizeObserver(debouncedUpdate);
       observer.observe(el);
@@ -403,7 +407,11 @@ export const PureSidebar = memo(
         window.removeEventListener('resize', debouncedUpdate);
         debouncedUpdate.cancel();
       };
-    }, [items]);
+    }, [
+      items,
+      muiTheme.transitions.duration.enteringScreen,
+      muiTheme.transitions.duration.leavingScreen,
+    ]);
 
     return (
       <Box
