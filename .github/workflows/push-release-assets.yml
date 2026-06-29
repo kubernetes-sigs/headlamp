@@ -40,7 +40,6 @@ jobs:
       # Ensure workflow runs used to generate release artifacts were executed
       # from the same commit as the release tag. See app/scripts/validate-run-shas.sh.
       - name: Validate workflow run SHAs match release tag
-        if: ${{ inputs.run_ids != '' }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
