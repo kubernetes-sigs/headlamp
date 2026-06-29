@@ -145,10 +145,12 @@ export default function NavigationTabs() {
       <Tabs
         tabs={level1TabRoutes}
         onTabChanged={tabChangeHandler}
-        defaultIndex={Math.max(
-          0,
-          level1SelectedItem ? level1Tabs.filter(item => !item.hide).indexOf(level1SelectedItem) : 0
-        )}
+        defaultIndex={(() => {
+          const idx = level1SelectedItem
+            ? level1Tabs.filter(item => !item.hide).indexOf(level1SelectedItem)
+            : 0;
+          return idx >= 0 ? idx : null;
+        })()}
         sx={{
           maxWidth: '85vw',
           [theme.breakpoints.down('sm')]: {
@@ -162,12 +164,13 @@ export default function NavigationTabs() {
         <>
           <Tabs
             tabs={level2TabRoutes!!}
-            defaultIndex={Math.max(
-              0,
-              level2Tabs && level2SelectedItem
-                ? level2Tabs.filter(item => !item.hide).indexOf(level2SelectedItem)
-                : 0
-            )}
+            defaultIndex={(() => {
+              const idx =
+                level2Tabs && level2SelectedItem
+                  ? level2Tabs.filter(item => !item.hide).indexOf(level2SelectedItem)
+                  : 0;
+              return idx >= 0 ? idx : null;
+            })()}
             onTabChanged={tabSecondLevelChangeHandler}
             ariaLabel={t('translation|Navigation Tabs')}
           />
