@@ -84,14 +84,14 @@ function ViewButton({ item, buttonStyle, initialToggle }: ViewButtonProps) {
 
   const initialToggleRef = React.useRef(initialToggle);
 
-useEffect(() => {
-  if (!initialToggleRef.current) {
-    return;
-  }
+  useEffect(() => {
+    if (!initialToggleRef.current) {
+      return;
+    }
 
-  initialToggleRef.current = false;
-  launchActivity();
-}, [launchActivity]);
+    initialToggleRef.current = false;
+    launchActivity();
+  }, [launchActivity]);
 
   return (
     <>
