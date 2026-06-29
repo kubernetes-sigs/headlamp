@@ -45,3 +45,39 @@ export const BASE_EMPTY_CONFIG_MAP: KubeConfigMap = {
   },
   data: {},
 };
+
+export const BASE_BINARY_CONFIG_MAP: KubeConfigMap = {
+  apiVersion: 'v1',
+  kind: 'ConfigMap',
+  metadata: {
+    creationTimestamp: '2023-04-27T20:31:27Z',
+    name: 'my-pvc',
+    namespace: 'default',
+    resourceVersion: '1234',
+    uid: 'abc-1234',
+  },
+  binaryData: {
+    'hello.txt': 'SGVsbG8sIFdvcmxkIQo=',
+    'config.bin': 'YmluYXJ5AGNvbmZpZwFwYXlsb2Fk',
+  },
+};
+
+export const BASE_DATA_AND_BINARY_CONFIG_MAP: KubeConfigMap = {
+  apiVersion: 'v1',
+  kind: 'ConfigMap',
+  metadata: {
+    creationTimestamp: '2023-04-27T20:31:27Z',
+    name: 'my-pvc',
+    namespace: 'default',
+    resourceVersion: '1234',
+    uid: 'abc-1234',
+  },
+  data: {
+    storageClassName: 'default',
+    volumeMode: 'Filesystem',
+    volumeName: 'pvc-abc-1234',
+  },
+  binaryData: {
+    'cert.der': 'LS0tLS1GQUtFIENFUlQtLS0tLQpNSUlCSWpBTkJna3EK',
+  },
+};
