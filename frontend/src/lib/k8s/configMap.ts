@@ -35,12 +35,6 @@ class ConfigMap extends KubeObject<KubeConfigMap> {
   get data() {
     return this.jsonData.data;
   }
-
-  static getBaseObject(): KubeConfigMap {
-    const baseObject = super.getBaseObject() as KubeConfigMap;
-    baseObject.data = {};
-    return baseObject;
-  }
 }
 
 export default ConfigMap;
