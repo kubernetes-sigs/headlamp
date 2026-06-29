@@ -144,6 +144,12 @@ describe('parseCpu', () => {
     expect(parseCpu('1000')).toBe(1000000000000);
   });
 
+  it('should keep the fractional part of decimal-core quantities', () => {
+    expect(parseCpu('0.5')).toBe(500000000);
+    expect(parseCpu('1.5')).toBe(1500000000);
+    expect(parseCpu('2.5')).toBe(2500000000);
+  });
+
   it('should scale correctly between units', () => {
     fc.assert(
       fc.property(fc.integer({ min: 1, max: 1000 }), num => {
