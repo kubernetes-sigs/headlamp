@@ -248,7 +248,7 @@ export function ProjectResourcesTab({
           }
           if (kind === 'Pod') {
             const res = resource as Pod;
-            return `Phase: ${res.status?.phase}`;
+            return `Phase: ${res.status?.phase ?? 'Unknown'}`;
           }
           return '';
         },
@@ -280,7 +280,7 @@ export function ProjectResourcesTab({
             const res = resource as Pod;
             return (
               <Typography variant="body2" color="text.secondary" whiteSpace="nowrap">
-                {`Phase: ${res.status?.phase}`}
+                {`Phase: ${res.status?.phase ?? 'Unknown'}`}
               </Typography>
             );
           }
