@@ -18,7 +18,7 @@ import type { StringDict } from './cluster';
 import { KubeObject, type KubeObjectInterface } from './KubeObject';
 
 export interface KubeConfigMap extends KubeObjectInterface {
-  data: StringDict;
+  data?: StringDict;
 }
 
 class ConfigMap extends KubeObject<KubeConfigMap> {
