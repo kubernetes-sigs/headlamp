@@ -33,9 +33,6 @@
             />
           </a>
         </li>
-        <li
-          class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
-        />
       </ul>
     </div>
   </div>
