@@ -53,7 +53,7 @@ claims provided by Dex.
 - [Minikube](https://minikube.sigs.k8s.io/) ≥ 1.31
 - [Helm](https://helm.sh/) ≥ 3.10
 - `kubectl`
-- A local install of [Dex](https://dexidp.io/docs/getting-started/) (binary or container) — version 2.38.0 or newer
+- A local install of [Dex](https://dexidp.io/docs/getting-started/) (binary or container), version 2.38.0 or newer
 
 > **Try it yourself.** A complete set of scripts and manifests reproducing
 > all the steps below is provided in the [`test-scripts/`](https://github.com/kubernetes-sigs/headlamp/tree/main/docs/installation/in-cluster/dex/test-scripts)
@@ -63,7 +63,7 @@ claims provided by Dex.
 This tutorial was written and tested against Headlamp 0.36, OAuth2-Proxy 7.x,
 Dex 2.45, and Minikube 1.34.
 
-## Step 1 — Configure and start Dex
+## Step 1: Configure and start Dex
 
 Create a Dex configuration file. Note the **redirect URI**: with this new
 setup, the OIDC redirect target is no longer Headlamp itself; it is the
@@ -111,7 +111,7 @@ Replace `<YOUR-DEX-HOST>` with a host name that is reachable from:
 3. The **OAuth2-Proxy pod** running inside Minikube.
 
 A common convention when running Dex on the host machine is
-`host.minikube.internal` (which Minikube resolves to the host) — see the
+`host.minikube.internal` (which Minikube resolves to the host); see the
 test scripts for an example.
 
 Start Dex:
@@ -120,14 +120,14 @@ Start Dex:
 dex serve dex-config.yaml
 ```
 
-## Step 2 — Start Minikube with OIDC API-server flags
+## Step 2: Start Minikube with OIDC API-server flags
 
 The Kubernetes API server has to be told to trust Dex as an OIDC issuer:
 
 ```shell
 minikube start -p=dex \
   --extra-config=apiserver.authorization-mode=Node,RBAC \
-  --extra-config=apiserver.oidc-issuer-url=http://<YOUR-DEX-HOST>:5556 \
+  --extra-config=apiserver.oidc-issuer-url=https://<YOUR-DEX-HOST>:5556 \
   --extra-config=apiserver.oidc-username-claim=email \
   --extra-config=apiserver.oidc-client-id=headlamp
 ```
@@ -142,13 +142,13 @@ and mount the CA file on the Minikube node.
 > scripts run Dex over plain HTTP for simplicity, and `kube-apiserver`
 > rejects `--oidc-issuer-url` values that don't use `https://`. In the
 > OAuth2-Proxy + Dex pattern the API server doesn't need to know about
-> the OIDC issuer to demo the login flow — Headlamp talks to the API
+> the OIDC issuer to demo the login flow; Headlamp talks to the API
 > server using its in-cluster ServiceAccount (see `headlamp-values.yaml`).
 > The flags above are only needed when you want per-user RBAC against
 > the API server in production, in which case you should also be running
 > Dex over HTTPS as described in the previous paragraph.
 
-## Step 3 — Create a ClusterRoleBinding for the Dex user
+## Step 3: Create a ClusterRoleBinding for the Dex user
 
 We tell Kubernetes that the email `admin@example.com` (the email claim Dex
 will issue) maps to `cluster-admin`:
@@ -172,9 +172,9 @@ roleRef:
 kubectl apply -f clusterrolebinding.yaml
 ```
 
-## Step 4 — Install Headlamp
+## Step 4: Install Headlamp
 
-With this setup, Headlamp itself does **not** need any OIDC configuration —
+With this setup, Headlamp itself does **not** need any OIDC configuration;
 authentication is handled entirely by OAuth2-Proxy. Install it with the
 default Helm chart values:
 
@@ -191,7 +191,7 @@ Verify it is running:
 kubectl get pods -n headlamp
 ```
 
-## Step 5 — Install OAuth2-Proxy in front of Headlamp
+## Step 5: Install OAuth2-Proxy in front of Headlamp
 
 OAuth2-Proxy will:
 
@@ -202,7 +202,7 @@ OAuth2-Proxy will:
 
 The snippet below is a minimal, production-shaped values file. The
 runnable
-[`test-scripts/oauth2-proxy-values.yaml.tpl`](https://github.com/headlamp-k8s/headlamp/blob/main/docs/installation/in-cluster/dex/test-scripts/oauth2-proxy-values.yaml.tpl)
+[`test-scripts/oauth2-proxy-values.yaml.tpl`](https://github.com/kubernetes-sigs/headlamp/blob/main/docs/installation/in-cluster/dex/test-scripts/oauth2-proxy-values.yaml.tpl)
 adds a few extra knobs that are only safe for the local-only
 `kubectl port-forward` demo (`cookie_secure = false`,
 `insecure_oidc_allow_unverified_email = true`,
@@ -229,7 +229,7 @@ config:
     # `Authorization: Bearer <id_token>`, so Headlamp can call the
     # Kubernetes API server on the user's behalf. With provider = "oidc",
     # `pass_authorization_header` forwards the id_token (not the access
-    # token) — which is what Headlamp expects by default.
+    # token), which is what Headlamp expects by default.
     pass_authorization_header = true
 
     # Where to send the (authenticated) request.
@@ -262,9 +262,9 @@ helm install oauth2-proxy oauth2-proxy/oauth2-proxy \
   -f oauth2-proxy-values.yaml
 ```
 
-## Step 6 — Open Headlamp through OAuth2-Proxy
+## Step 6: Open Headlamp through OAuth2-Proxy
 
-Port-forward to OAuth2-Proxy (**not** to Headlamp directly — going directly
+Port-forward to OAuth2-Proxy, not to Headlamp directly (going directly
 would bypass authentication):
 
 ```shell

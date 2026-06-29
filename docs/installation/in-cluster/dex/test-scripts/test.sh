@@ -16,6 +16,7 @@ set -euo pipefail
 
 PF_PORT=8080
 DEX_PORT=5556
+DEX_LOG_FILE="/tmp/headlamp-dex.log"
 EXPECTED_ISSUER="http://host.minikube.internal:${DEX_PORT}"
 
 log()  { printf '\033[1;34m==>\033[0m %s\n' "$*"; }
@@ -50,7 +51,7 @@ pass "Dex advertises issuer ${EXPECTED_ISSUER}"
 
 log "4. Headlamp pod is Ready"
 # `kubectl wait` fails if no pods match the selector, and only succeeds
-# once *every* matched pod reports Ready=True — which is what we want,
+# once *every* matched pod reports Ready=True, which is what we want,
 # instead of a substring match on a list of booleans that would pass as
 # long as one container in one pod was ready.
 if ! kubectl --context dex -n headlamp wait \

@@ -22,7 +22,7 @@
  * variable `HEADLAMP_TEST_DEX_OAUTH2_PROXY` is set to a truthy value
  * (`1`, `true`, `yes`). It is opt-in because it depends on a real local
  * stack (Minikube + Dex + Headlamp + OAuth2-Proxy) that takes minutes
- * to bring up — not something we want to run as part of the regular
+ * to bring up, not something we want to run as part of the regular
  * e2e suite.
  *
  * Two modes are supported:
@@ -122,7 +122,7 @@ async function signIn(page: Page, user: string = DEX_USER, password: string = DE
     await grantAccess.waitFor({ state: 'visible', timeout: 10 * 1000 });
     await grantAccess.click();
   } catch {
-    // No consent screen — Dex skipped it. Proceed.
+    // No consent screen; Dex skipped it.
   }
 
   // 4. After the OIDC callback, OAuth2-Proxy forwards us back to Headlamp.
@@ -152,6 +152,7 @@ test.describe('Headlamp + OAuth2-Proxy + Dex (opt-in)', () => {
   });
 
   test.afterAll(async () => {
+    test.setTimeout(5 * 60 * 1000);
     if (MANAGE_STACK) {
       try {
         runScript('cleanup.sh', 5 * 60 * 1000);
@@ -247,7 +248,7 @@ test.describe('Headlamp + OAuth2-Proxy + Dex (opt-in)', () => {
     expect(body.email).toBe(DEX_USER);
   });
 
-  test('session cookie persists across reload — no second Dex round-trip', async ({ page }) => {
+  test('session cookie persists across reload: no second Dex round-trip', async ({ page }) => {
     test.setTimeout(2 * 60 * 1000);
     await signIn(page);
 
@@ -267,7 +268,7 @@ test.describe('Headlamp + OAuth2-Proxy + Dex (opt-in)', () => {
     // Visit OAuth2-Proxy's sign-out endpoint. In older versions a GET
     // to `/oauth2/sign_out` immediately clears the session cookie and
     // redirects to `/oauth2/sign_in`. In OAuth2-Proxy v7.6+ a GET shows
-    // a confirmation form with a "Sign out" submit button — the cookie
+    // a confirmation form with a "Sign out" button; the cookie
     // is only cleared once that button is clicked. Handle both shapes.
     await page.goto(`${BASE_URL}/oauth2/sign_out`);
     const signOutConfirm = page
@@ -331,7 +332,7 @@ test.describe('Headlamp + OAuth2-Proxy + Dex (opt-in)', () => {
     await signIn(page);
 
     const cookies = await context.cookies(BASE_URL);
-    const session = cookies.find(c => c.name.startsWith('_oauth2_proxy'));
+    const session = cookies.find(c => c.name === '_oauth2_proxy');
     expect(session, 'expected an _oauth2_proxy session cookie after sign-in').toBeDefined();
     expect(session!.httpOnly).toBe(true);
     // Playwright normalizes SameSite to 'Strict' | 'Lax' | 'None'.
@@ -359,7 +360,7 @@ test.describe('Headlamp + OAuth2-Proxy + Dex (opt-in)', () => {
     request,
   }) => {
     // OAuth2-Proxy must not accept an attacker-supplied `Authorization:
-    // Bearer …` in place of a valid session cookie — that would defeat
+    // Bearer token in place of a valid session cookie; that would defeat
     // the gate entirely. The request should land on /oauth2/sign_in
     // (302) or be rejected (401/403); in no case should it reach the
     // Headlamp upstream with a 200.
@@ -406,7 +407,7 @@ test.describe('Headlamp + OAuth2-Proxy + Dex (opt-in)', () => {
     // OAuth2-Proxy stores the CSRF state in a short-lived cookie when
     // it initiates the OIDC flow (`/oauth2/start`). A direct hit on
     // `/oauth2/callback` with no matching state cookie must be refused
-    // — accepting it would let an attacker initiate a flow on a victim
+    // accepting it would let an attacker initiate a flow on a victim
     // (CSRF) or skip the state-mismatch check entirely.
     //
     // We do *not* pass any cookies (Playwright's `request` fixture is

@@ -5,7 +5,7 @@ try it yourself with a single command.
 
 It brings up:
 
-- A **Minikube** profile (`dex`) configured to trust Dex as an OIDC issuer.
+- A **Minikube** profile (`dex`) with RBAC enabled (no `apiserver.oidc-*` flags; see "How it differs" below).
 - A **Dex** instance (running on the host machine) acting as the OIDC provider.
 - A **Headlamp** install via the official Helm chart, with no OIDC config.
 - An **OAuth2-Proxy** install via the official Helm chart, configured to
@@ -25,8 +25,8 @@ Make sure the following are installed and on your `PATH`:
 - [`minikube`](https://minikube.sigs.k8s.io/) ≥ 1.31
 - [`kubectl`](https://kubernetes.io/docs/tasks/tools/)
 - [`helm`](https://helm.sh/) ≥ 3.10
-- [`dex`](https://github.com/dexidp/dex/releases) ≥ 2.38 (the binary
-  produced by `make build` or downloaded from a release)
+- [`dex`](https://github.com/dexidp/dex) ≥ 2.38 (build from source with
+  `make build`; Dex does not publish prebuilt binaries)
 - `curl` (for the smoke test)
 - `openssl` (for the random cookie secret)
 
@@ -49,7 +49,7 @@ on macOS, all four tools (including `dex`) are available from Homebrew.
 sudo apt-get update
 sudo apt-get install -y curl ca-certificates apt-transport-https gnupg openssl tar git golang-go
 
-# kubectl — Kubernetes apt repo
+# kubectl: Kubernetes apt repo
 sudo mkdir -p -m 755 /etc/apt/keyrings
 curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.31/deb/Release.key \
   | sudo gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg
@@ -58,7 +58,7 @@ echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.
 sudo apt-get update
 sudo apt-get install -y kubectl
 
-# helm — official apt repo
+# helm: official apt repo
 curl -fsSL https://baltocdn.com/helm/signing.asc \
   | sudo gpg --dearmor -o /etc/apt/keyrings/helm.gpg
 echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/helm.gpg] https://baltocdn.com/helm/stable/debian/ all main" \
@@ -66,12 +66,12 @@ echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/helm.gp
 sudo apt-get update
 sudo apt-get install -y helm
 
-# minikube — upstream .deb
+# minikube: upstream .deb
 curl -fsSL -o /tmp/minikube.deb \
   https://storage.googleapis.com/minikube/releases/latest/minikube_latest_amd64.deb
 sudo dpkg -i /tmp/minikube.deb && rm /tmp/minikube.deb
 
-# dex — Dex does not publish prebuilt binaries, so build from source.
+# dex: no prebuilt binaries, build from source
 DEX_VERSION=v2.45.1
 git clone --depth=1 --branch "${DEX_VERSION}" \
   https://github.com/dexidp/dex.git /tmp/dex-src
@@ -95,7 +95,7 @@ sudo usermod -aG docker "$USER"`, then re-login).
 ```bash
 # All four binaries are in homebrew-core
 brew install kubectl minikube helm dex
-# curl and openssl ship with macOS — no install needed.
+# curl and openssl ship with macOS, no install needed.
 
 # Sanity check
 kubectl version --client
@@ -113,7 +113,7 @@ Minikube on macOS needs a driver too; the easiest is Docker Desktop
 |-------------------------------|---------------------------------------------------------------------|
 | `dex-config.yaml`             | Dex configuration (static client + static password).                |
 | `clusterrolebinding.yaml`     | RBAC binding mapping the Dex user to `cluster-admin`.               |
-| `headlamp-values.yaml`        | Helm values for Headlamp (no OIDC — that's done by OAuth2-Proxy).   |
+| `headlamp-values.yaml`        | Helm values for Headlamp (auth handled by OAuth2-Proxy, no OIDC needed). |
 | `oauth2-proxy-values.yaml.tpl`| Template Helm values for OAuth2-Proxy (cookie secret is injected).  |
 | `run.sh`                      | Brings up Minikube, Dex, Headlamp, OAuth2-Proxy and port-forwards.  |
 | `test.sh`                     | Smoke-tests that the OAuth2-Proxy login redirects to Dex.           |
@@ -137,16 +137,17 @@ Minikube on macOS needs a driver too; the easiest is Docker Desktop
 ./cleanup.sh
 ```
 
-`run.sh` is idempotent — re-running it will pick up where a previous run
+`run.sh` is idempotent: re-running it picks up where a previous run
 left off.
 
 ## How it differs from the older Dex tutorial
 
-The [other Dex tutorial](../../dex/index.md) points Headlamp directly at Dex
+The [other Dex tutorial](../index.md) points Headlamp directly at Dex
 and lets Headlamp drive the OIDC flow. The new pattern, which matches
 [OAuth2-Proxy's official Headlamp integration guide](https://oauth2-proxy.github.io/oauth2-proxy/configuration/integrations/headlamp),
 puts OAuth2-Proxy in front of Headlamp. OAuth2-Proxy talks OIDC to Dex,
 issues a session cookie to the browser, and forwards the user's
-`id_token` to Headlamp as an `Authorization: Bearer …` header so Headlamp
-(and through it the Kubernetes API server) authenticate as the real
-user.
+`id_token` to Headlamp as an `Authorization: Bearer …` header.
+
+> **Note:** These scripts omit `apiserver.oidc-*` flags, so `clusterrolebinding.yaml`
+> has no effect here. For per-user RBAC see `../index.md`.

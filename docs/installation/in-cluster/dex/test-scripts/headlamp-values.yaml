@@ -1,11 +1,11 @@
 # Helm values for Headlamp.
 #
-# In the OAuth2-Proxy pattern, Headlamp itself does NOT participate in the
-# OIDC flow — OAuth2-Proxy authenticates the user against Dex and then
-# forwards an `Authorization: Bearer <id_token>` header to Headlamp.
-# Headlamp uses that token to call the Kubernetes API as the user.
+# Headlamp does not participate in the OIDC flow; OAuth2-Proxy handles auth
+# and forwards an Authorization: Bearer <id_token> header to Headlamp.
+# In these scripts the API server has no oidc-* flags, so K8s access runs
+# under Headlamp's in-cluster ServiceAccount (id_token not validated).
 #
-# That means we don't need any `config.oidc.*` settings here.
+# No config.oidc.* settings are needed.
 config: {}
 
 service:

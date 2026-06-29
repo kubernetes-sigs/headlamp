@@ -41,7 +41,7 @@ fail() { printf '\033[1;31mxx \033[0m %s\n' "$*" >&2; exit 1; }
 #
 # Returns success only when PID is alive AND its command line matches
 # PATTERN (a fixed substring). Guards against a stale pidfile whose PID
-# has since been reused by an unrelated process — without this we could
+  # has since been reused by an unrelated process; without this we could
 # (a) skip starting Dex / port-forward because we think they're already
 # running, or (b) later signal the wrong process from cleanup.sh.
 pid_matches() {
@@ -71,7 +71,7 @@ start_dex() {
     return
   fi
   # Either no pidfile, or the recorded PID is dead/belongs to something
-  # else now — drop the stale file and start fresh.
+  # else now. Drop the stale file and start fresh.
   rm -f "$DEX_PID_FILE"
   log "Starting Dex on :${DEX_PORT} (logs: ${DEX_LOG_FILE})"
   rm -f /tmp/dex.db
@@ -97,17 +97,14 @@ start_minikube() {
   fi
   # NOTE: we intentionally do NOT pass --extra-config=apiserver.oidc-* here.
   #
-  # In this OAuth2-Proxy + Dex pattern Headlamp does not impersonate the
-  # user against the Kubernetes API — it talks to the API server using
-  # its in-cluster ServiceAccount (see headlamp-values.yaml). The OIDC
-  # flow is between the browser, OAuth2-Proxy and Dex; the API server
-  # never sees the id_token. Configuring apiserver-level OIDC would
-  # additionally require Dex to serve HTTPS (kube-apiserver rejects
-  # --oidc-issuer-url with an http:// scheme), which is out of scope
-  # for this local-development smoke test.
+  # Running Dex over plain HTTP makes this impossible anyway: kube-apiserver
+  # rejects --oidc-issuer-url values that don't use https://. Without those
+  # flags the API server never validates Dex JWTs, so all Kubernetes API calls
+  # run under Headlamp's in-cluster ServiceAccount and the clusterrolebinding.yaml
+  # has no practical effect in this local demo.
   #
-  # For production / per-user RBAC against the API server, see the
-  # "Production" section of ../index.md.
+  # For per-user RBAC against the API server, run Dex over HTTPS and configure
+  # apiserver.oidc-* flags. See the "Production" section of ../index.md.
   log "Starting Minikube profile '$PROFILE'."
   minikube start -p "$PROFILE" \
     --extra-config=apiserver.authorization-mode=Node,RBAC
@@ -158,9 +155,9 @@ start_port_forward() {
     log "Port-forward already running (PID $(cat "$PF_PID_FILE"))"
     return
   fi
-  # Stale pidfile (or PID reused by something else) — discard it.
+  # Stale pidfile (or PID reused); discard it.
   rm -f "$PF_PID_FILE"
-  # Refuse if the local port is already taken — kubectl port-forward would
+  # Refuse if the local port is already taken: kubectl port-forward would
   # exit immediately and we'd cache a stale PID. The port is hard-coded
   # to 8080 because the OAuth2-Proxy `redirect_url` and Dex
   # `redirectURIs` are pinned to `http://localhost:8080/...`; changing
