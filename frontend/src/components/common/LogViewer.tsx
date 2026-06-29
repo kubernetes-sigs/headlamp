@@ -82,13 +82,29 @@ export function LogViewer(props: LogViewerProps) {
     // Cuts off the last 5 digits of the timestamp to remove the milliseconds
     const time = new Date().toISOString().replace(/:/g, '-').slice(0, -5);
 
+    const cleanLogs = logs.filter(line => {
+      // Only strip banners that we injected (they include ANSI color sequences).
+      const hasAnsi = /\x1b\[[0-9;]*m/.test(line);
+      if (!hasAnsi) {
+        return true;
+      }
+      // Strip ANSI color codes and then drop reconnect banners (optionally prefixed, e.g. "[pod] ").
+      const noAnsi = line.replace(/\x1b\[[0-9;]*m/g, '').trim();
+      const isReconnectBanner =
+        /^(?:\[[^\]]+\]\s*)?\[(?:Connection lost\..*|Reconnected!)\]\s*$/.test(noAnsi);
+      return !isReconnectBanner;
+    });
+
     const element = document.createElement('a');
-    const file = new Blob(logs, { type: 'text/plain' });
-    element.href = URL.createObjectURL(file);
+    const file = new Blob(cleanLogs, { type: 'text/plain' });
+    const url = URL.createObjectURL(file);
+    element.href = url;
     element.download = `${downloadName}_${time}.txt`;
     // Required for FireFox
     document.body.appendChild(element);
     element.click();
+    document.body.removeChild(element);
+    URL.revokeObjectURL(url);
   }
 
   React.useEffect(() => {

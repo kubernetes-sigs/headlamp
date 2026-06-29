@@ -797,6 +797,7 @@
   "Debug: {{ itemName }}": "Отладка: {{ itemName }}",
   "Pod debug is disabled in settings": "Отладка Pod отключена в настройках",
   "Attaching to existing debug container...": "Присоединение к существующему контейнеру отладки...",
+  "Reattaching to debug container...": "",
   "Creating ephemeral debug container...": "Создание эфемерного контейнера отладки...",
   "Failed to create debug container: {{message}}": "Не удалось создать контейнер отладки: {{message}}.",
   "Attaching to debug container...": "Присоединение к контейнеру отладки...",
