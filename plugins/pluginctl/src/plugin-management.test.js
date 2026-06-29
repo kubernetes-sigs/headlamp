@@ -103,7 +103,6 @@ describe('PluginManager Test Cases', () => {
     fs.writeFileSync(packageJSONPath, JSON.stringify(packageJSON, null, 2));
 
     // Mock fs.cpSync to throw an error during moveDirs
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const cpSyncSpy = jest.spyOn(fs, 'cpSync').mockImplementation(() => {
       throw new Error('Mocked copy failure');
     });

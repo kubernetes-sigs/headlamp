@@ -50,11 +50,17 @@ const envPaths = require('env-paths');
 function moveDirs(currentPath, newPath) {
   try {
     fs.cpSync(currentPath, newPath, { recursive: true, force: true });
-    fs.rmSync(currentPath, { recursive: true });
-    console.log(`Moved directory from ${currentPath} to ${newPath}`);
   } catch (err) {
-    console.error(`Error moving directory from ${currentPath} to ${newPath}:`, err);
+    console.error(`Error copying directory from ${currentPath} to ${newPath}:`, err);
     throw err;
+  }
+  console.log(`Copied directory from ${currentPath} to ${newPath}`);
+  try {
+    fs.rmSync(currentPath, { recursive: true });
+  } catch (err) {
+    // Source cleanup is non-fatal: the copy succeeded, so the destination is complete.
+    // Log and continue so rollback is not triggered unnecessarily (e.g. temp dir locked on Windows).
+    console.warn(`Warning: could not remove source directory ${currentPath}:`, err);
   }
 }
 
