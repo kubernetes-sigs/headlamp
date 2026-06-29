@@ -112,9 +112,11 @@ git() {
       ;;
     fetch)
       # no-op: tests don't need a real remote
+      return 0
       ;;
     *)
-      command git "$@"
+      echo "Unexpected git invocation in test stub: git $*" >&2
+      return 127
       ;;
   esac
 }
