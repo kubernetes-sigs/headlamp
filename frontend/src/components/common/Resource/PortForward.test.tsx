@@ -18,9 +18,10 @@ import { act, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import { TestContext } from '../../../test';
 import PortForward, { PORT_FORWARD_STOP_STATUS } from './PortForward';
 
-const { mockListPortForward, mockStopOrDeletePortForward } = vi.hoisted(() => ({
+const { mockListPortForward, mockStopPortForward, mockDeletePortForward } = vi.hoisted(() => ({
   mockListPortForward: vi.fn(),
-  mockStopOrDeletePortForward: vi.fn(),
+  mockStopPortForward: vi.fn(),
+  mockDeletePortForward: vi.fn(),
 }));
 
 vi.mock('react-i18next', () => ({
@@ -33,7 +34,8 @@ vi.mock('../../../lib/cluster', () => ({ getCluster: () => 'test-cluster' }));
 vi.mock('../../../lib/k8s/api/v1/portForward', () => ({
   listPortForward: (...args: any[]) => mockListPortForward(...args),
   startPortForward: vi.fn(),
-  stopOrDeletePortForward: (...args: any[]) => mockStopOrDeletePortForward(...args),
+  stopPortForward: (...args: any[]) => mockStopPortForward(...args),
+  deletePortForward: (...args: any[]) => mockDeletePortForward(...args),
 }));
 vi.mock('../../../lib/k8s/pod', () => ({
   default: { useList: () => [[], null] },
@@ -85,7 +87,7 @@ describe('PortForward stop handler', () => {
   });
 
   it('transitions UI from running to stopped after clicking Stop', async () => {
-    mockStopOrDeletePortForward.mockResolvedValue('ok');
+    mockStopPortForward.mockResolvedValue('ok');
     renderPortForward();
 
     await waitFor(() => screen.getByLabelText(/Stop port forward/i));
@@ -101,7 +103,7 @@ describe('PortForward stop handler', () => {
   });
 
   it('shows port URL as plain text (not a link) in stopped state', async () => {
-    mockStopOrDeletePortForward.mockResolvedValue('ok');
+    mockStopPortForward.mockResolvedValue('ok');
     renderPortForward();
 
     await waitFor(() => screen.getByLabelText(/Stop port forward/i));
@@ -117,7 +119,7 @@ describe('PortForward stop handler', () => {
   });
 
   it('shows error and resets to idle state when stop fails', async () => {
-    mockStopOrDeletePortForward.mockRejectedValue(new Error('network error'));
+    mockStopPortForward.mockRejectedValue(new Error('network error'));
     renderPortForward();
 
     await waitFor(() => screen.getByLabelText(/Stop port forward/i));

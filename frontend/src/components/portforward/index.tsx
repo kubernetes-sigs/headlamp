@@ -26,9 +26,10 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { isDockerDesktop } from '../../helpers/isDockerDesktop';
 import {
+  deletePortForward,
   listPortForward,
   startPortForward,
-  stopOrDeletePortForward,
+  stopPortForward,
 } from '../../lib/k8s/api/v1/portForward';
 import { getCluster } from '../../lib/util';
 import { StatusLabel } from '../common/Label';
@@ -199,7 +200,7 @@ export default function PortForwardingList() {
     if (option === PortForwardAction.Stop) {
       setPortForwardInActionSafely({ ...portforward, loading: true });
       // stop portforward
-      stopOrDeletePortForward(cluster, id, true).finally(() => {
+      stopPortForward(cluster, id).finally(() => {
         setPortForwardInActionSafely(null);
         // Always refresh the backend-backed port-forward list so localStorage
         // stays in sync even if the component unmounts before the request settles.
@@ -209,7 +210,7 @@ export default function PortForwardingList() {
     if (option === PortForwardAction.Delete) {
       setPortForwardInActionSafely({ ...portforward, loading: true });
       // delete portforward
-      stopOrDeletePortForward(cluster, id, false).finally(() => {
+      deletePortForward(cluster, id).finally(() => {
         setPortForwardInActionSafely(null);
 
         // remove portforward from storage too

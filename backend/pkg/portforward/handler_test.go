@@ -193,8 +193,8 @@ func TestStartPortForward(t *testing.T) {
 	stopResp := httptest.NewRecorder()
 
 	stopReqPayload := map[string]interface{}{
-		"id":           id,
-		"stopOrDelete": true,
+		"id":     id,
+		"action": "stop",
 	}
 
 	jsonStopReq, err := json.Marshal(stopReqPayload)
@@ -304,8 +304,8 @@ func TestStartPortForward(t *testing.T) {
 	deleteResp := httptest.NewRecorder()
 
 	deleteReqPayload := map[string]interface{}{
-		"id":           id,
-		"stopOrDelete": false,
+		"id":     id,
+		"action": "delete",
 	}
 
 	jsonDeleteReq, err := json.Marshal(deleteReqPayload)
@@ -323,7 +323,7 @@ func TestStartPortForward(t *testing.T) {
 
 	deleteRespBody, err := io.ReadAll(deleteRes.Body)
 	require.NoError(t, err)
-	require.Contains(t, string(deleteRespBody), "stopped")
+	require.Contains(t, string(deleteRespBody), "deleted")
 
 	chState, err = ch.Get(context.Background(), cacheKey)
 	require.Error(t, err, "port-forward with key %s should be deleted from cache, but Get returned no error", cacheKey)

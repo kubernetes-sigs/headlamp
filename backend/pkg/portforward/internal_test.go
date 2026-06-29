@@ -172,7 +172,7 @@ func TestStopOrDeletePortForward(t *testing.T) {
 	err := cache.Set(context.Background(), portforwardKeyGenerator(p), p)
 	require.NoError(t, err)
 
-	err = stopOrDeletePortForward(cache, "cluster", "id", true)
+	err = stopPortForward(cache, "cluster", "id")
 	assert.NoError(t, err)
 
 	chanValue := <-ch
@@ -183,7 +183,7 @@ func TestStopOrDeletePortForward(t *testing.T) {
 	assert.NotEqual(t, portForward{}, pFromCache)
 	assert.Equal(t, STOPPED, pFromCache.Status)
 
-	err = stopOrDeletePortForward(cache, "cluster", "id", false)
+	err = deletePortForward(cache, "cluster", "id")
 	require.NoError(t, err)
 
 	_, err = cache.Get(context.Background(), portforwardKeyGenerator(p))
@@ -376,6 +376,11 @@ func TestStopOrDeletePortForwardRequestValidate(t *testing.T) {
 	assert.EqualError(t, err, "invalid request, id is required")
 
 	req.ID = "id"
+
+	err = req.Validate()
+	assert.EqualError(t, err, `invalid request, action must be "stop" or "delete"`)
+
+	req.Action = portForwardActionStop
 
 	err = req.Validate()
 	assert.NoError(t, err)
@@ -627,7 +632,7 @@ func TestStopOrDeletePortForwardHandler_UserIDKeyIsolation(t *testing.T) {
 	portforwardstore(c, pf)
 
 	// Try to stop with a user ID header — should fail because the key is different.
-	payload, err := json.Marshal(map[string]interface{}{"id": "pf-5", "stopOrDelete": true})
+	payload, err := json.Marshal(map[string]interface{}{"id": "pf-5", "action": "stop"})
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()

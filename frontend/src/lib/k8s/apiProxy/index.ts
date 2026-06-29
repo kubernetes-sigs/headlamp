@@ -75,7 +75,12 @@ export {
 } from '../api/v1/factories';
 
 // Port forward functions
-export { listPortForward, startPortForward, stopOrDeletePortForward } from '../api/v1/portForward';
+export {
+  listPortForward,
+  startPortForward,
+  stopPortForward,
+  deletePortForward,
+} from '../api/v1/portForward';
 
 export {
   deleteCluster,
