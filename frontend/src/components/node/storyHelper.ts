@@ -206,3 +206,81 @@ export const NODE_DUMMY_DATA_NO_POOLS: KubeNode[] = NODE_DUMMY_DATA.map(node => 
     ),
   },
 }));
+
+function makeAKSNode(name: string): KubeNode {
+  return {
+    kind: 'Node',
+    apiVersion: 'v1',
+    metadata: {
+      name,
+      creationTimestamp,
+      uid: `${name}-uid`,
+      labels: { 'kubernetes.azure.com/cluster': 'aks-cluster' },
+    },
+    spec: {
+      podCIDR: '',
+      podCIDRs: [],
+      providerID: `azure:///subscriptions/123/${name}`,
+      taints: [],
+      unschedulable: false,
+    },
+    status: {
+      addresses: [],
+      allocatable: {},
+      capacity: {},
+      conditions: [
+        {
+          type: 'Ready',
+          status: 'True',
+          lastHeartbeatTime: creationTimestamp,
+          lastTransitionTime: creationTimestamp,
+          reason: 'KubeletReady',
+          message: 'kubelet is posting ready status',
+        },
+      ],
+      nodeInfo: { kubeletVersion: 'v1.29.0' } as KubeNode['status']['nodeInfo'],
+    },
+  } as KubeNode;
+}
+
+/**
+ * AKS-managed nodes used by the UpgradeVisualizationPanel stories: one node
+ * mid-upgrade, one surge node, and one idle node.
+ */
+export const AKS_UPGRADE_NODES: KubeNode[] = [
+  makeAKSNode('aks-node-upgrading'),
+  makeAKSNode('aks-node-surge'),
+  makeAKSNode('aks-node-idle'),
+];
+
+const eventTime = new Date('2025-01-01T00:00:00Z').toISOString();
+
+function makeUpgradeEvent(reason: string, message: string, nodeName: string) {
+  return {
+    kind: 'Event',
+    apiVersion: 'v1',
+    type: 'Normal',
+    reason,
+    message,
+    involvedObject: { kind: 'Node', name: nodeName },
+    firstTimestamp: eventTime,
+    metadata: {
+      name: `${nodeName}-${reason}`,
+      namespace: 'default',
+      uid: `${nodeName}-${reason}-uid`,
+      creationTimestamp: eventTime,
+    },
+  };
+}
+
+/**
+ * Upgrade events that drive the UpgradeVisualizationPanel: an upgrade-started
+ * event (so an upgrade is detected), cordon + drain events for the upgrading
+ * node, and a surge event for the surge node.
+ */
+export const AKS_UPGRADE_EVENTS = [
+  makeUpgradeEvent('Upgrade', 'Upgrade started for agent pool nodepool1', 'aks-node-upgrading'),
+  makeUpgradeEvent('Cordon', 'Cordoning node aks-node-upgrading', 'aks-node-upgrading'),
+  makeUpgradeEvent('Drain', 'Draining node aks-node-upgrading', 'aks-node-upgrading'),
+  makeUpgradeEvent('Surge', 'Created a surge node aks-node-surge', 'aks-node-surge'),
+];

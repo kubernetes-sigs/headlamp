@@ -316,14 +316,22 @@ function UpgradeVisualizationPanelInner({ nodes }: { nodes: Node[] }) {
  * Only mounted when an upgrade is detected, so the Node event fetch
  * is avoided on idle AKS clusters.
  */
-function UpgradeVisualizationPanelContent({ nodes }: { nodes: Node[] }) {
-  const { t } = useTranslation(['translation']);
-
+export function UpgradeVisualizationPanelContent({ nodes }: { nodes: Node[] }) {
   // fetch for all Node events to buildNodeUpgradeStates
   const { items: nodeEvents } = Event.useList({
     limit: Event.maxLimit,
     fieldSelector: 'involvedObject.kind=Node',
   });
+
+  return <UpgradeProgress nodes={nodes} nodeEvents={nodeEvents ?? []} />;
+}
+
+/**
+ * Pure renderer for the upgrade progress sections. Takes the nodes and their
+ * events directly so it can be rendered without fetching (e.g. in stories).
+ */
+export function UpgradeProgress({ nodes, nodeEvents }: { nodes: Node[]; nodeEvents: Event[] }) {
+  const { t } = useTranslation(['translation']);
 
   const nodeStates = useMemo(() => {
     if (!nodes || !nodeEvents) return new Map<string, NodeUpgradeState>();
