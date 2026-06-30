@@ -22,19 +22,7 @@
               </h1>
               <div
                 class="MuiBox-root css-ldp2l3"
-              >
-                <button
-                  aria-label="Create ReplicaSet"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                  data-mui-internal-clone-element="true"
-                  tabindex="0"
-                  type="button"
-                >
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
-                </button>
-              </div>
+              />
             </div>
           </div>
           <div
@@ -937,27 +925,41 @@
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-13vbnfx-MuiTableCell-root"
                 >
                   <div
+                    aria-label="app.kubernetes.io/instance: headlamp-release
+app.kubernetes.io/name: headlamp
+pod-template-hash: b123456"
                     class="MuiBox-root css-0"
+                    data-mui-internal-clone-element="true"
                   >
                     <div
-                      class="MuiBox-root css-yi3mkw"
+                      class="MuiBox-root css-0"
                     >
-                      <p
-                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                      <div
+                        class="MuiBox-root css-yi3mkw"
                       >
-                        app.kubernetes.io/instance: headlamp-release
-                      </p>
-                      <p
-                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                      >
-                        app.kubernetes.io/name: headlamp
-                      </p>
-                      <p
-                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                      >
-                        pod-template-hash: b123456
-                      </p>
+                        <p
+                          aria-label="app.kubernetes.io/instance: headlamp-release"
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
+                        >
+                          app.kubern…
+                        </p>
+                        <p
+                          aria-label="app.kubernetes.io/name: headlamp"
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
+                        >
+                          app.kubern…
+                        </p>
+                      </div>
                     </div>
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-5gr3gb-MuiTypography-root"
+                    >
+                      +
+                      1
+                       more…
+                    </p>
                   </div>
                 </td>
                 <td
@@ -1082,21 +1084,32 @@
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-13vbnfx-MuiTableCell-root"
                 >
                   <div
+                    aria-label="k8s-app: headlamp
+pod-template-hash: a123456"
                     class="MuiBox-root css-0"
+                    data-mui-internal-clone-element="true"
                   >
                     <div
-                      class="MuiBox-root css-yi3mkw"
+                      class="MuiBox-root css-0"
                     >
-                      <p
-                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                      <div
+                        class="MuiBox-root css-yi3mkw"
                       >
-                        k8s-app: headlamp
-                      </p>
-                      <p
-                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                      >
-                        pod-template-hash: a123456
-                      </p>
+                        <p
+                          aria-label="k8s-app: headlamp"
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
+                        >
+                          k8s-app: h…
+                        </p>
+                        <p
+                          aria-label="pod-template-hash: a123456"
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
+                        >
+                          pod-templa…
+                        </p>
+                      </div>
                     </div>
                   </div>
                 </td>

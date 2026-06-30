@@ -64,19 +64,25 @@
               class="MuiBox-root css-yi3mkw"
             >
               <p
+                aria-label="label1: My Label 1"
                 class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                data-mui-internal-clone-element="true"
               >
-                label1: My Label 1
+                label1: My…
               </p>
               <p
+                aria-label="label2: My Label 2"
                 class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                data-mui-internal-clone-element="true"
               >
-                label2: My Label 2
+                label2: My…
               </p>
               <p
+                aria-label="label3: My Label 3"
                 class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                data-mui-internal-clone-element="true"
               >
-                label3: My Label 3
+                label3: My…
               </p>
             </div>
           </div>

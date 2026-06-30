@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import Box from '@mui/material/Box';
+import Typography from '@mui/material/Typography';
 import { useTranslation } from 'react-i18next';
 import { KubeContainer } from '../../lib/k8s/cluster';
 import ReplicaSet from '../../lib/k8s/replicaSet';
@@ -102,7 +104,31 @@ export default function ReplicaSetList() {
           getValue: replicaSet => replicaSet.getMatchLabelsList().join(''),
           render: replicaSet => {
             const matchLabels = replicaSet.spec.selector?.matchLabels;
-            return matchLabels && <MetadataDictGrid dict={matchLabels} />;
+            if (!matchLabels) return null;
+            const entries = Object.entries(matchLabels);
+            const maxVisible = 2;
+            const hiddenCount = entries.length - maxVisible;
+            const visibleDict = Object.fromEntries(entries.slice(0, maxVisible));
+            const tooltipText = entries.map(([k, v]) => `${k}: ${v}`).join('\n');
+            return (
+              <LightTooltip title={tooltipText} interactive>
+                <Box>
+                  <MetadataDictGrid dict={visibleDict} />
+                  {hiddenCount > 0 && (
+                    <Typography
+                      variant="body2"
+                      sx={theme => ({
+                        color: theme.palette.text.secondary,
+                        fontSize: theme.typography.pxToRem(12),
+                        mt: 0.5,
+                      })}
+                    >
+                      +{hiddenCount} more…
+                    </Typography>
+                  )}
+                </Box>
+              </LightTooltip>
+            );
           },
         },
         'labels',

@@ -82,8 +82,8 @@
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                 >
                   <button
-                    aria-label="Edit"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                    aria-label="View YAML"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-edgeEnd MuiIconButton-sizeMedium css-1d2b2o6-MuiButtonBase-root-MuiIconButton-root"
                     data-mui-internal-clone-element="true"
                     tabindex="0"
                     type="button"
@@ -95,20 +95,7 @@
                 </div>
                 <div
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-                >
-                  <button
-                    aria-label="Delete"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                    data-mui-internal-clone-element="true"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
-                  <div />
-                </div>
+                />
               </div>
             </div>
           </div>
@@ -192,77 +179,81 @@
                         class="MuiBox-root css-yi3mkw"
                       >
                         <p
+                          aria-label="a8r.io/owner: platform-team@example.com"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
                         >
-                          a8r.io/owner: platform-team@example.com
+                          a8r.io/own…
                         </p>
                         <p
                           aria-label="a8r.io/description: Main API gateway service for the platform"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
-                          a8r.io/description: Main API gateway service for t…
+                          a8r.io/des…
                         </p>
                         <p
                           aria-label="a8r.io/documentation: https://docs.example.com/api-gateway"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
-                          a8r.io/documentation: https://docs.example.com/api…
+                          a8r.io/doc…
                         </p>
                         <p
                           aria-label="a8r.io/repository: https://github.com/example/api-gateway"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
-                          a8r.io/repository: https://github.com/example/api-…
+                          a8r.io/rep…
                         </p>
                         <p
                           aria-label="a8r.io/bugs: https://github.com/example/api-gateway/issues"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
-                          a8r.io/bugs: https://github.com/example/api-gatewa…
+                          a8r.io/bug…
                         </p>
                         <p
                           aria-label="a8r.io/chat: https://slack.example.com/channels/platform-team"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
-                          a8r.io/chat: https://slack.example.com/channels/pl…
+                          a8r.io/cha…
                         </p>
                         <p
                           aria-label="a8r.io/runbook: https://runbooks.example.com/api-gateway"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
-                          a8r.io/runbook: https://runbooks.example.com/api-g…
+                          a8r.io/run…
                         </p>
                         <p
                           aria-label="a8r.io/incidents: https://incidents.example.com/api-gateway"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
-                          a8r.io/incidents: https://incidents.example.com/ap…
+                          a8r.io/inc…
                         </p>
                         <p
                           aria-label="a8r.io/uptime: https://status.example.com/api-gateway"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
-                          a8r.io/uptime: https://status.example.com/api-gate…
+                          a8r.io/upt…
                         </p>
                         <p
+                          aria-label="a8r.io/logs: https://logs.example.com/api-gateway"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
                         >
-                          a8r.io/logs: https://logs.example.com/api-gateway
+                          a8r.io/log…
                         </p>
                         <p
                           aria-label="a8r.io/dependencies: redis-master, auth-api, postgres-db"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
-                          a8r.io/dependencies: redis-master, auth-api, postg…
+                          a8r.io/dep…
                         </p>
                       </div>
                     </div>
@@ -324,9 +315,11 @@
                         class="MuiBox-root css-yi3mkw"
                       >
                         <p
+                          aria-label="app: example"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
                         >
-                          app: example
+                          app: examp…
                         </p>
                       </div>
                     </div>

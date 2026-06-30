@@ -75,34 +75,13 @@
               >
                 <div
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-                >
-                  <button
-                    aria-label="Cordon"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                    data-mui-internal-clone-element="true"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
-                </div>
+                />
                 <div
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-                >
-                  <button
-                    aria-label="Drain"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                    data-mui-internal-clone-element="true"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
-                </div>
+                />
+                <div
+                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                />
                 <div
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                 />
@@ -114,35 +93,7 @@
                 />
                 <div
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-                >
-                  <button
-                    aria-label="Edit"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                    data-mui-internal-clone-element="true"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
-                </div>
-                <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-                >
-                  <button
-                    aria-label="Delete"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                    data-mui-internal-clone-element="true"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
-                  <div />
-                </div>
+                />
               </div>
             </div>
           </div>
@@ -745,19 +696,25 @@
                         class="MuiBox-root css-yi3mkw"
                       >
                         <p
+                          aria-label="node-role.kubernetes.io/control-plane: "
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
                         >
-                          node-role.kubernetes.io/control-plane: 
+                          node-role.…
                         </p>
                         <p
+                          aria-label="kubernetes.io/arch: amd64"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
                         >
-                          kubernetes.io/arch: amd64
+                          kubernetes…
                         </p>
                         <p
+                          aria-label="kubernetes.io/os: linux"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
                         >
-                          kubernetes.io/os: linux
+                          kubernetes…
                         </p>
                       </div>
                     </div>
@@ -878,9 +835,11 @@
                           cpu: 4
                         </p>
                         <p
+                          aria-label="memory: 8000000Ki"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
                         >
-                          memory: 8000000Ki
+                          memory: 80…
                         </p>
                         <p
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
@@ -888,9 +847,11 @@
                           pods: 110
                         </p>
                         <p
+                          aria-label="ephemeral-storage: 50000000Ki"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
                         >
-                          ephemeral-storage: 50000000Ki
+                          ephemeral-…
                         </p>
                       </div>
                     </div>
@@ -915,9 +876,11 @@
                           cpu: 4
                         </p>
                         <p
+                          aria-label="memory: 8000000Ki"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
                         >
-                          memory: 8000000Ki
+                          memory: 80…
                         </p>
                         <p
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
@@ -925,9 +888,11 @@
                           pods: 110
                         </p>
                         <p
+                          aria-label="ephemeral-storage: 50000000Ki"
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          data-mui-internal-clone-element="true"
                         >
-                          ephemeral-storage: 50000000Ki
+                          ephemeral-…
                         </p>
                       </div>
                     </div>

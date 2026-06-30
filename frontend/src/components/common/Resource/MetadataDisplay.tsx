@@ -242,8 +242,8 @@ export function MetadataDictGrid(props: MetadataDictGridProps) {
     // Shorten the label manually because relying on the ellipsing methods
     // was not working (it would correctly ellipse the text, but the width of it
     // would still extend the area/section where the text is contained).
-    if (fullText.length > 50) {
-      shortText = fullText.substr(0, 50) + '…';
+    if (fullText.length > 10) {
+      shortText = fullText.substr(0, 10) + '…';
     }
 
     let labelComponent = <MetadataEntry>{shortText}</MetadataEntry>;

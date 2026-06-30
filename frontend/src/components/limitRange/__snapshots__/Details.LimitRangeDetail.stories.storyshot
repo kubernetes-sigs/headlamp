@@ -82,8 +82,8 @@
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                 >
                   <button
-                    aria-label="Edit"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                    aria-label="View YAML"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-edgeEnd MuiIconButton-sizeMedium css-1d2b2o6-MuiButtonBase-root-MuiIconButton-root"
                     data-mui-internal-clone-element="true"
                     tabindex="0"
                     type="button"
@@ -95,20 +95,7 @@
                 </div>
                 <div
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-                >
-                  <button
-                    aria-label="Delete"
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                    data-mui-internal-clone-element="true"
-                    tabindex="0"
-                    type="button"
-                  >
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
-                  <div />
-                </div>
+                />
               </div>
             </div>
           </div>
@@ -205,9 +192,11 @@
                             cpu: 100m
                           </p>
                           <p
+                            aria-label="memory: 128Mi"
                             class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                            data-mui-internal-clone-element="true"
                           >
-                            memory: 128Mi
+                            memory: 12…
                           </p>
                         </div>
                       </div>
@@ -232,9 +221,11 @@
                             cpu: 50m
                           </p>
                           <p
+                            aria-label="memory: 64Mi"
                             class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                            data-mui-internal-clone-element="true"
                           >
-                            memory: 64Mi
+                            memory: 64…
                           </p>
                         </div>
                       </div>
@@ -261,7 +252,7 @@
                           <p
                             class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                           >
-                            memory: 1Gi
+                            memory: 1G…
                           </p>
                         </div>
                       </div>
@@ -288,7 +279,7 @@
                           <p
                             class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                           >
-                            memory: 4Mi
+                            memory: 4M…
                           </p>
                         </div>
                       </div>
