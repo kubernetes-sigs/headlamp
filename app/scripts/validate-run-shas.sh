@@ -153,6 +153,10 @@ validate_runs() {
       continue
     fi
 
+    if [[ ! "$run_id" =~ ^[0-9]+$ ]]; then
+      echo "Error: Invalid workflow run ID '$run_id' (expected a numeric Actions run ID)." >&2
+      return 1
+    fi
     local run_sha
     if ! run_sha=$(get_run_sha "$run_id" "$repo"); then
       echo "Error: Failed to query SHA for workflow run ID $run_id." >&2
