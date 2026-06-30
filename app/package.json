@@ -199,7 +199,7 @@
     "find-process": "^1.4.10",
     "glob": "^10.5.0",
     "i18next": "^23.12.1",
-    "i18next-fs-backend": "^2.6.5",
+    "i18next-fs-backend": "^2.6.6",
     "mkdirp": "^3.0.1",
     "nock": "^14.0.5",
     "shx": "^0.4.0",
