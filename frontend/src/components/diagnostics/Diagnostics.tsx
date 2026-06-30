@@ -182,6 +182,7 @@ function podReference(pod: PodLike): DiagnosticReference {
       name: pod.metadata.name,
       namespace: pod.metadata.namespace,
     },
+    activeCluster: pod.cluster,
     search: {
       view: 'logs',
       ...(container ? { container } : {}),
