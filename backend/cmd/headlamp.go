@@ -63,7 +63,6 @@ import (
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
@@ -1163,15 +1162,6 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	return r
 }
 
-// setTokenFromCookie attempts to get a token from the cookie and set it as Authorization header.
-func setTokenFromCookie(r *http.Request, clusterName string) {
-	tokenFromCookie, err := auth.GetTokenFromCookie(r, clusterName)
-	// Set bearer token from cookie if it exists
-	if err == nil && tokenFromCookie != "" {
-		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokenFromCookie))
-	}
-}
-
 func clearRequestAuthorization(r *http.Request) {
 	r.Header.Del("Authorization")
 	r.Header.Del("Cookie")
@@ -1224,7 +1214,7 @@ func (c *HeadlampConfig) requestTokenForContext(
 func applyRequestTokenToContext(r *http.Request, clusterName string, context *kubeconfig.Context) {
 	// Only promote a cookie token when the request does not already provide Authorization.
 	if strings.TrimSpace(r.Header.Get("Authorization")) == "" {
-		setTokenFromCookie(r, clusterName)
+		auth.SetTokenFromCookie(r, clusterName)
 	}
 
 	bearerToken := auth.BearerTokenValue(r.Header.Get("Authorization"))
@@ -1239,141 +1229,26 @@ func applyRequestTokenToContext(r *http.Request, clusterName string, context *ku
 	context.AuthInfo.Token = bearerToken
 }
 
-func (c *HeadlampConfig) incrementRequestCounter(ctx context.Context) {
-	if c.Metrics != nil {
-		c.Metrics.RequestCounter.Add(ctx, 1,
-			metric.WithAttributes(
-				attribute.String("api.route", oidcMiddlewareRoute),
-				attribute.String("status", "start"),
-			))
-	}
-}
-
-// oidcMiddlewareRoute is the api.route attribute value used by the OIDC token
-// refresh middleware for telemetry. It is also the span/operation name.
-const oidcMiddlewareRoute = "OIDCTokenRefreshMiddleware"
-
-// TODO: relocate this middleware (and the setTokenFromCookie helper) to the
-// auth package; RefreshAndSetToken already lives there.
-//
-//nolint:funlen
+// OIDCTokenRefreshMiddleware is a thin wrapper around auth.NewOIDCTokenRefreshMiddleware.
+// The middleware logic was relocated to the auth package to keep authentication
+// concerns together.
 func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		start := time.Now()
-		// status is captured by the deferred RecordDuration below. Each early-return
-		// branch sets it before calling next.ServeHTTP. The happy path leaves it as
-		// "success".
-		status := "success"
+	config := auth.OIDCTokenRefreshConfig{
+		KubeConfigStore:              c.KubeConfigStore,
+		Cache:                        c.Cache,
+		Telemetry:                    c.Telemetry,
+		TelemetryHandler:             c.TelemetryHandler,
+		Metrics:                      c.Metrics,
+		OidcUseAccessToken:           c.OidcUseAccessToken,
+		OidcIdpIssuerURL:             c.OidcIdpIssuerURL,
+		OidcValidatorIdpIssuerURL:    c.OidcValidatorIdpIssuerURL,
+		BaseURL:                      c.BaseURL,
+		SessionTTL:                   c.SessionTTL,
+		UseInCluster:                 c.UseInCluster,
+		UnsafeUseServiceAccountToken: c.UnsafeUseServiceAccountToken,
+	}
 
-		var span trace.Span
-		if c.Telemetry != nil {
-			_, span = telemetry.CreateSpan(ctx, r, "auth", oidcMiddlewareRoute)
-
-			c.TelemetryHandler.RecordEvent(span, "Middleware started")
-
-			defer span.End()
-		}
-
-		defer func() {
-			c.TelemetryHandler.RecordDuration(ctx, start,
-				attribute.String("api.route", oidcMiddlewareRoute),
-				attribute.String("status", status))
-		}()
-
-		c.incrementRequestCounter(ctx)
-
-		// skip if not cluster request
-		if !strings.HasPrefix(r.URL.String(), "/clusters/") {
-			c.TelemetryHandler.RecordEvent(span, "Not a cluster request, skipping OIDC refresh")
-
-			status = "skipped"
-
-			next.ServeHTTP(w, r)
-
-			return
-		}
-
-		// parse cluster and token
-		cluster, token := auth.ParseClusterAndToken(r)
-		if cluster == "" || token == "" {
-			c.TelemetryHandler.RecordEvent(span, "Missing cluster or token, bypassing OIDC refresh")
-
-			status = "missing"
-
-			next.ServeHTTP(w, r)
-
-			return
-		}
-
-		// get oidc config
-		kContext, err := c.KubeConfigStore.GetContext(cluster)
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
-				err, "failed to get context")
-			c.TelemetryHandler.RecordError(span, err, "Failed to get context")
-			c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error", "get_context_failure"))
-
-			status = "get_context_failure"
-
-			next.ServeHTTP(w, r)
-
-			return
-		}
-
-		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
-			c.TelemetryHandler.RecordEvent(span, "Using service account token, skipping OIDC refresh")
-
-			status = "service_account_token"
-
-			next.ServeHTTP(w, r)
-
-			return
-		}
-
-		// skip if cluster is not using OIDC auth
-		oidcAuthConfig, err := kContext.OidcConfig()
-		if err != nil {
-			c.TelemetryHandler.RecordEvent(span, "OIDC auth not enabled for cluster")
-
-			status = "oidc_auth_not_enabled"
-
-			next.ServeHTTP(w, r)
-
-			return
-		}
-
-		// skip if token is not about to expire
-		if !auth.IsTokenAboutToExpire(token) {
-			c.TelemetryHandler.RecordEvent(span, "Token not about to expire, skipping refresh")
-
-			status = "token_valid"
-
-			next.ServeHTTP(w, r)
-
-			return
-		}
-
-		// refresh and cache new token
-		auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
-			Ctx:                       ctx,
-			OIDCAuthConfig:            oidcAuthConfig,
-			Cache:                     c.Cache,
-			Token:                     token,
-			Cluster:                   cluster,
-			Span:                      span,
-			Writer:                    w,
-			Request:                   r,
-			TelemetryHandler:          c.TelemetryHandler,
-			OIDCUseAccessToken:        c.OidcUseAccessToken,
-			OIDCIdpIssuerURL:          c.OidcIdpIssuerURL,
-			OIDCValidatorIdpIssuerURL: c.OidcValidatorIdpIssuerURL,
-			BaseURL:                   c.BaseURL,
-			SessionTTL:                c.SessionTTL,
-		})
-
-		next.ServeHTTP(w, r)
-	})
+	return auth.NewOIDCTokenRefreshMiddleware(config)(next)
 }
 
 // isLoopbackAddr reports whether the given listen address is a loopback address.
@@ -1800,7 +1675,7 @@ func (c *HeadlampConfig) helmRouteRepositoryHandler(
 		clearRequestAuthorization(r)
 	} else {
 		// fetch token from cookie
-		setTokenFromCookie(r, clusterName)
+		auth.SetTokenFromCookie(r, clusterName)
 	}
 
 	// if no token present in in-cluster mode, return error

@@ -2159,35 +2159,6 @@ func TestOidcStateMapEviction(t *testing.T) {
 	assert.True(t, freshPresent, "fresh OIDC state entry should still be present")
 }
 
-func TestOIDCTokenRefreshMiddleware(t *testing.T) {
-	kubeConfigStore := kubeconfig.NewContextStore()
-	config := &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore},
-			Cache:            cache.New[interface{}](),
-			TelemetryHandler: &telemetry.RequestHandler{},
-		},
-	}
-
-	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		w.WriteHeader(http.StatusOK)
-	})
-
-	middleware := config.OIDCTokenRefreshMiddleware(handler)
-
-	// Test case: non-cluster request
-	req := httptest.NewRequestWithContext(context.Background(), "GET", "/non-cluster", nil)
-	rec := httptest.NewRecorder()
-	middleware.ServeHTTP(rec, req)
-	assert.Equal(t, http.StatusOK, rec.Code)
-
-	// Test case: cluster request without token
-	req = httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/test-cluster", nil)
-	rec = httptest.NewRecorder()
-	middleware.ServeHTTP(rec, req)
-	assert.Equal(t, http.StatusOK, rec.Code)
-}
-
 func TestStartHeadlampServer(t *testing.T) {
 	// Create a temporary directory for plugins
 	tempDir, err := os.MkdirTemp("", "headlamp-test")
@@ -3389,32 +3360,6 @@ func TestHandleClusterServiceProxyUsesServiceAccountToken(t *testing.T) {
 
 // TestOidcUseCookieLogic verifies that the mechanism for promoting an OIDC token
 // from a cookie to the Authorization header works as expected.
-func TestOidcUseCookieLogic(t *testing.T) {
-	clusterName := "test-cluster-oidc"
-	testToken := "fake-token-for-testing"
-	cookieName := "headlamp-auth-" + clusterName + ".0"
-
-	req, err := http.NewRequestWithContext(context.Background(), "GET", "/api/v1/clusters/"+clusterName, nil)
-	assert.NoError(t, err)
-
-	req.AddCookie(&http.Cookie{
-		Name:     cookieName,
-		Value:    testToken,
-		HttpOnly: true,
-		Secure:   true,
-		SameSite: http.SameSiteStrictMode,
-	})
-
-	setTokenFromCookie(req, clusterName)
-
-	got := req.Header.Get("Authorization")
-	want := "Bearer " + testToken
-
-	if got != want {
-		t.Errorf("got %q, want %q", got, want)
-	}
-}
-
 // TestHelmRouteReleaseHandlerTokenExtraction verifies that helmRouteReleaseHandler
 // sets the Authorization header and propagates the bearer token into the clientConfig
 // in a non-OIDC in-cluster deployment where OidcConf is nil. This is a regression
