@@ -48,7 +48,7 @@ export interface FormField {
   /** Display label for the field. */
   label: string;
   /** Input type – defaults to 'text'. */
-  type?: 'text' | 'number' | 'labels' | 'select' | 'containers' | 'namespace';
+  type?: 'text' | 'number' | 'boolean' | 'labels' | 'select' | 'containers' | 'namespace';
   /** Whether the field is required. */
   required?: boolean;
   /** For 'number' fields: minimum allowed value. */
@@ -59,6 +59,9 @@ export interface FormField {
   helperText?: string;
   /** Options for 'select' type fields. */
   options?: SelectOption[];
+  /** For 'containers' fields: show a `Command` column editing
+   *  `container.command` (string[]). Off by default. */
+  showCommand?: boolean;
   /** Extra top margin (theme spacing units) to visually separate from the field above. */
   spacingTop?: number;
   /** Optional custom renderer. When provided, this replaces the built-in input
@@ -92,8 +95,9 @@ export interface CreateResourceFormProps {
 }
 
 /** Data-driven resource creation form. Renders labelled sections of typed
- *  fields (text, labels, containers, namespace, select) from a declarative
- *  descriptor and keeps a plain JS resource object in sync via `onChange`. */
+ *  fields (text, number, boolean, labels, containers, namespace, select)
+ *  from a declarative descriptor and keeps a plain JS resource object in
+ *  sync via `onChange`. */
 export default function CreateResourceForm(props: CreateResourceFormProps) {
   const { sections, resource, onChange } = props;
   const { t } = useTranslation(['translation']);
@@ -160,6 +164,7 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
             helperText={field.helperText}
             value={value ?? []}
             onChange={containers => handleFieldChange(field.path, containers)}
+            showCommand={field.showCommand}
           />
         );
       case 'namespace':
@@ -243,6 +248,26 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
                   {opt.label}
                 </MenuItem>
               ))}
+            </FormTextField>
+          </Box>
+        );
+      case 'boolean':
+        return (
+          <Box>
+            <FieldLabel
+              label={field.label}
+              required={field.required}
+              helperText={field.helperText}
+            />
+            <FormTextField
+              value={value === true ? 'true' : 'false'}
+              onChange={e => handleFieldChange(field.path, e.target.value === 'true')}
+              required={field.required}
+              select
+              inputProps={{ 'aria-label': field.label }}
+            >
+              <MenuItem value="false">{t('translation|No')}</MenuItem>
+              <MenuItem value="true">{t('translation|Yes')}</MenuItem>
             </FormTextField>
           </Box>
         );

@@ -52,7 +52,9 @@
     "ContainersSection": [Function],
     "CopyButton": [Function],
     "CreateButton": [Function],
+    "CreateCronJobForm": [Function],
     "CreateDeploymentForm": [Function],
+    "CreateJobForm": [Function],
     "CreatePodForm": [Function],
     "CreateReplicaSetForm": [Function],
     "CreateResourceButton": [Function],
@@ -116,7 +118,15 @@
     "PortForward": [Function],
     "PureNamespacesAutocomplete": [Function],
     "RESOURCE_DEFINITIONS": {
+      "CronJob": {
+        "class": [Function],
+        "form": [Function],
+      },
       "Deployment": {
+        "class": [Function],
+        "form": [Function],
+      },
+      "Job": {
         "class": [Function],
         "form": [Function],
       },
@@ -141,7 +151,9 @@
       "ContainersSection": [Function],
       "CopyButton": [Function],
       "CreateButton": [Function],
+      "CreateCronJobForm": [Function],
       "CreateDeploymentForm": [Function],
+      "CreateJobForm": [Function],
       "CreatePodForm": [Function],
       "CreateReplicaSetForm": [Function],
       "CreateResourceForm": [Function],
@@ -182,7 +194,15 @@
       "PodLabelsEditor": [Function],
       "PortForward": [Function],
       "RESOURCE_DEFINITIONS": {
+        "CronJob": {
+          "class": [Function],
+          "form": [Function],
+        },
         "Deployment": {
+          "class": [Function],
+          "form": [Function],
+        },
+        "Job": {
           "class": [Function],
           "form": [Function],
         },
@@ -217,6 +237,7 @@
       "VolumeSection": [Function],
       "addResourceTableColumnsProcessor": [Function],
       "buildLabelRows": [Function],
+      "formatCommand": [Function],
       "getA8RMetadata": [Function],
       "isRestartableResource": [Function],
       "isRollbackableResource": [Function],
@@ -227,6 +248,7 @@
       "launchWorkloadLogs": [Function],
       "metadataStyles": [Function],
       "nextLabelRowId": [Function],
+      "parseCommand": [Function],
       "parseEditorObject": [Function],
       "parseLabelsString": [Function],
       "parseYaml": [Function],
@@ -290,6 +312,7 @@
     "VolumeSection": [Function],
     "addResourceTableColumnsProcessor": [Function],
     "buildLabelRows": [Function],
+    "formatCommand": [Function],
     "getA8RMetadata": [Function],
     "getReadyCondition": [Function],
     "isRestartableResource": [Function],
@@ -302,6 +325,7 @@
     "makeStatusLabel": [Function],
     "metadataStyles": [Function],
     "nextLabelRowId": [Function],
+    "parseCommand": [Function],
     "parseEditorObject": [Function],
     "parseLabelsString": [Function],
     "parseYaml": [Function],
