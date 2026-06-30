@@ -285,14 +285,14 @@
                   >
                     <input
                       aria-autocomplete="both"
-                      aria-describedby="cluster-selector-autocomplete-helper-text"
+                      aria-describedby="timezone-selector-autocomplete-helper-text"
                       aria-expanded="false"
                       aria-invalid="false"
                       aria-labelledby="timezone-label"
                       autocapitalize="none"
                       autocomplete="off"
                       class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
-                      id="cluster-selector-autocomplete"
+                      id="timezone-selector-autocomplete"
                       role="combobox"
                       spellcheck="false"
                       type="text"
@@ -341,7 +341,7 @@
                   </div>
                   <p
                     class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained MuiFormHelperText-filled css-153yz37-MuiFormHelperText-root"
-                    id="cluster-selector-autocomplete-helper-text"
+                    id="timezone-selector-autocomplete-helper-text"
                   >
                     Timezone
                   </p>
