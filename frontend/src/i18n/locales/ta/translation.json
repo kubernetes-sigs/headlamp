@@ -861,7 +861,6 @@
   "Main Navigation": "",
   "Navigation Tabs": "",
   "Instances": "",
-  "External Links": "",
   "Cluster version upgraded to {{ gitVersion }}": "",
   "Cluster version downgraded to {{ gitVersion }}": "",
   "Controlled Resources": "",
