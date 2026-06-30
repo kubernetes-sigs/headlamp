@@ -632,9 +632,8 @@ async function fetchPluginInfo(URL, progressCallback, signal, pluginVersion) {
   } catch (e) {
     if (progressCallback) {
       progressCallback({ type: 'error', message: e.message });
-    } else {
-      throw e;
     }
+    throw e;
   }
 }
 
@@ -647,6 +646,9 @@ async function fetchPluginInfo(URL, progressCallback, signal, pluginVersion) {
  * @returns {boolean} True if the folder is a valid Headlamp plugin folder, false otherwise.
  */
 function checkValidPluginFolder(folder) {
+  if (folder.endsWith('.backup')) {
+    return false;
+  }
   if (!fs.existsSync(folder)) {
     return false;
   }

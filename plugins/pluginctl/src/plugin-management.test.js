@@ -17,6 +17,7 @@
 const pluginManagement = require('./plugin-management.js');
 const tmp = require('tmp');
 const fs = require('fs');
+const path = require('path');
 
 const PluginManager = pluginManagement.PluginManager;
 const validateArchiveURL = pluginManagement.validateArchiveURL;
@@ -149,6 +150,59 @@ describe('PluginManager Test Cases', () => {
     });
 
     fs.rmSync(tempDir, { recursive: true, force: true });
+  });
+
+  test('Error propagation when progressCallback is provided', async () => {
+    const errorCallback = jest.fn();
+    
+    // install should resolve to undefined when progressCallback is provided, as it catches the error and reports it via callback
+    await expect(
+      PluginManager.install(
+        'https://artifacthub.io/packages/headlamp/headlamp-plugins/non-existent-plugin',
+        tempDir,
+        '',
+        errorCallback
+      )
+    ).resolves.toBeUndefined();
+
+    expect(errorCallback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'error',
+        message: expect.stringContaining('HTTP error! status: 404'),
+      })
+    );
+  });
+
+  test('List ignores backup directories', () => {
+    // Create a backup directory with valid plugin files
+    const backupDir = path.join(tempDir, 'ghost-plugin.backup');
+    fs.mkdirSync(backupDir, { recursive: true });
+    fs.writeFileSync(path.join(backupDir, 'main.js'), 'console.log("ghost");');
+    fs.writeFileSync(
+      path.join(backupDir, 'package.json'),
+      JSON.stringify({
+        name: 'ghost-plugin',
+        version: '1.0.0',
+        isManagedByHeadlampPlugin: true,
+        artifacthub: {
+          title: 'Ghost Plugin',
+        },
+      })
+    );
+
+    const listCallback = jest.fn();
+    PluginManager.list(tempDir, listCallback);
+
+    // The list should not contain the ghost-plugin
+    const listedPlugins = listCallback.mock.calls.find(
+      call => call[0].type === 'success'
+    )[0].data;
+
+    const ghostFound = listedPlugins.some(p => p.folderName === 'ghost-plugin.backup');
+    expect(ghostFound).toBe(false);
+
+    // Clean up
+    fs.rmSync(backupDir, { recursive: true, force: true });
   });
 });
 

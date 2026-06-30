@@ -406,6 +406,35 @@ describe('PluginManager', () => {
       fs.rmSync(testDataDir, { recursive: true });
     }
   }, 30000);
+
+  it('should ignore backup directories during listing', () => {
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'list-backup-plugins');
+
+    // Create a backup directory with valid plugin files
+    const backupDir = `${path.join(pluginDestDir, 'headlamp_minikube')}.backup`;
+    fs.mkdirSync(backupDir, { recursive: true });
+    fs.writeFileSync(path.join(backupDir, 'main.js'), 'console.log("ghost");');
+    fs.writeFileSync(
+      path.join(backupDir, 'package.json'),
+      JSON.stringify({
+        name: 'headlamp_minikube',
+        version: '1.0.0',
+        isManagedByHeadlampPlugin: true,
+        artifacthub: {
+          title: 'Minikube',
+        },
+      })
+    );
+
+    const plugins = PluginManager.list(pluginDestDir);
+    expect(plugins).toBeDefined();
+    expect(plugins!.length).toBe(0);
+
+    // Clean up
+    if (fs.existsSync(pluginDestDir)) {
+      fs.rmSync(pluginDestDir, { recursive: true });
+    }
+  });
 });
 
 /**

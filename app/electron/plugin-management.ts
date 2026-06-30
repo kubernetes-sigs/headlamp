@@ -1104,6 +1104,9 @@ async function fetchPluginInfo(
  * @returns True if the folder is a valid Headlamp plugin folder, false otherwise.
  */
 function checkValidPluginFolder(folder: string): boolean {
+  if (folder.endsWith('.backup')) {
+    return false;
+  }
   if (!fs.existsSync(folder)) {
     return false;
   }
