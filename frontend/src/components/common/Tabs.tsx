@@ -65,7 +65,7 @@ export interface TabsProps {
 export default function Tabs(props: TabsProps) {
   const { tabs, tabProps = {}, defaultIndex = 0, onTabChanged = null, ariaLabel } = props;
   const [tabIndex, setTabIndex] = React.useState<TabsProps['defaultIndex']>(
-    defaultIndex && Math.max(defaultIndex as number, 0)
+    typeof defaultIndex === 'number' ? Math.max(defaultIndex, 0) : false
   );
 
   /**
@@ -83,11 +83,7 @@ export default function Tabs(props: TabsProps) {
   }
 
   React.useEffect(() => {
-    if (defaultIndex === null) {
-      setTabIndex(false);
-      return;
-    }
-    setTabIndex(defaultIndex);
+    setTabIndex(typeof defaultIndex === 'number' ? Math.max(defaultIndex, 0) : false);
   }, [defaultIndex]);
 
   const uniqueIdSuffix = useId('tabs-');

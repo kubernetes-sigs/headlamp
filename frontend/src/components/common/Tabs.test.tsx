@@ -15,7 +15,8 @@
  */
 
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import React from 'react';
+import { describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../test';
 import Tabs from './Tabs';
 
@@ -43,15 +44,20 @@ describe('Tabs', () => {
     // Math.min(2, 0) = 0 caused the wrong tab to be shown on the first render;
     // Math.max(2, 0) = 2 initialises the state correctly so no flash occurs.
     it('selects the correct tab when defaultIndex is a positive non-zero integer', () => {
-      render(
-        <TestContext>
-          <Tabs defaultIndex={2} tabs={THREE_TABS} ariaLabel="test tabs" />
-        </TestContext>
-      );
-      const [tab1, tab2, tab3] = screen.getAllByRole('tab');
-      expect(tab1).toHaveAttribute('aria-selected', 'false');
-      expect(tab2).toHaveAttribute('aria-selected', 'false');
-      expect(tab3).toHaveAttribute('aria-selected', 'true');
+      const useEffectSpy = vi.spyOn(React, 'useEffect').mockImplementation(() => {});
+      try {
+        render(
+          <TestContext>
+            <Tabs defaultIndex={2} tabs={THREE_TABS} ariaLabel="test tabs" />
+          </TestContext>
+        );
+        const [tab1, tab2, tab3] = screen.getAllByRole('tab');
+        expect(tab1).toHaveAttribute('aria-selected', 'false');
+        expect(tab2).toHaveAttribute('aria-selected', 'false');
+        expect(tab3).toHaveAttribute('aria-selected', 'true');
+      } finally {
+        useEffectSpy.mockRestore();
+      }
     });
 
     it('deselects all tabs when defaultIndex is null', () => {
