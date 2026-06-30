@@ -1351,7 +1351,13 @@ async function loadZoomFactor(): Promise<number> {
     const { zoomFactor = 1.0 } = JSON.parse(content);
     return typeof zoomFactor === 'number' ? zoomFactor : 1.0;
   } catch (err) {
-    console.error('Failed to load zoom factor, defaulting to 1.0:', err);
+    // ENOENT is expected on first launch, before any zoom change has been
+    // saved — the config file simply doesn't exist yet. Only log genuine
+    // failures (corrupted JSON, permission errors, etc).
+    const code = (err as NodeJS.ErrnoException | null | undefined)?.code;
+    if (code !== 'ENOENT') {
+      console.error('Failed to load zoom factor, defaulting to 1.0:', err);
+    }
     return 1.0;
   }
 }
