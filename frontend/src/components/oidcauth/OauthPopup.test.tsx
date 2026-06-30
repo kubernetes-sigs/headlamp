@@ -17,6 +17,7 @@
 import Button from '@mui/material/Button';
 import { cleanup, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
+import { AUTH_STATUS_KEY } from './constants';
 import OauthPopup from './OauthPopup';
 
 describe('OauthPopup', () => {
@@ -125,11 +126,11 @@ describe('OauthPopup', () => {
     )?.[1];
     expect(storageListener).toBeTypeOf('function');
 
-    localStorage.setItem('auth_status', 'code=oauth-code');
+    localStorage.setItem(AUTH_STATUS_KEY, 'code=oauth-code');
     window.dispatchEvent(new StorageEvent('storage'));
 
     expect(onCode).toHaveBeenCalledWith('code=oauth-code');
-    expect(localStorage.getItem('auth_status')).toBeNull();
+    expect(localStorage.getItem(AUTH_STATUS_KEY)).toBeNull();
     expect(removeEventListenerSpy).toHaveBeenCalledWith('storage', storageListener);
     expect(popupWindow.removeEventListener).toHaveBeenCalledWith(
       'beforeunload',
