@@ -253,9 +253,10 @@ export const AKS_UPGRADE_NODES: KubeNode[] = [
   makeAKSNode('aks-node-idle'),
 ];
 
-const eventTime = new Date('2025-01-01T00:00:00Z').toISOString();
-
 function makeUpgradeEvent(reason: string, message: string, nodeName: string) {
+  // No timestamps: the stepper renders stage times via toLocaleTimeString, which
+  // is timezone-dependent and would make snapshots differ between machines/CI.
+  // Omitting them keeps the snapshot deterministic; event order below is fixed.
   return {
     kind: 'Event',
     apiVersion: 'v1',
@@ -263,12 +264,10 @@ function makeUpgradeEvent(reason: string, message: string, nodeName: string) {
     reason,
     message,
     involvedObject: { kind: 'Node', name: nodeName },
-    firstTimestamp: eventTime,
     metadata: {
       name: `${nodeName}-${reason}`,
       namespace: 'default',
       uid: `${nodeName}-${reason}-uid`,
-      creationTimestamp: eventTime,
     },
   };
 }
