@@ -142,7 +142,7 @@ const OidcStateTTL = 60 * time.Minute
 
 const (
 	// serverReadHeaderTimeout is the maximum time to read the request headers.
-	serverReadHeaderTimeout = 10 * time.Second
+	serverReadHeaderTimeout = 30 * time.Second
 	// serverIdleTimeout is the maximum time to wait for the next request on a keep-alive connection.
 	serverIdleTimeout = 120 * time.Second
 )
@@ -1535,15 +1535,7 @@ func StartHeadlampServer(config *HeadlampConfig) {
 		return
 	}
 
-	listenHost := strings.TrimPrefix(strings.TrimSuffix(config.ListenAddr, "]"), "[")
-	addr := net.JoinHostPort(listenHost, fmt.Sprintf("%d", config.Port))
-
-	server := &http.Server{
-		Addr:              addr,
-		Handler:           handler,
-		ReadHeaderTimeout: serverReadHeaderTimeout,
-		IdleTimeout:       serverIdleTimeout,
-	}
+	server := createHTTPServer(config, handler)
 
 	serverDone := make(chan struct{})
 	setupGracefulShutdown(server, cancel, serverDone)
@@ -1559,6 +1551,18 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	if err != nil && err != http.ErrServerClosed {
 		logger.Log(logger.LevelError, nil, err, "Failed to start server")
 		HandleServerStartError(&err)
+	}
+}
+
+func createHTTPServer(config *HeadlampConfig, handler http.Handler) *http.Server {
+	listenHost := strings.TrimPrefix(strings.TrimSuffix(config.ListenAddr, "]"), "[")
+	addr := net.JoinHostPort(listenHost, fmt.Sprintf("%d", config.Port))
+
+	return &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: serverReadHeaderTimeout,
+		IdleTimeout:       serverIdleTimeout,
 	}
 }
 

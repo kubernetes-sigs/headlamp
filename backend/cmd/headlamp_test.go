@@ -3999,3 +3999,53 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, int(maxProxyResponseSize), rr.Body.Len())
 }
+
+func TestCreateHTTPServer(t *testing.T) {
+	tests := []struct {
+		name       string
+		listenAddr string
+		port       uint
+		expected   string
+	}{
+		{
+			name:       "IPv4 address",
+			listenAddr: "127.0.0.1",
+			port:       8080,
+			expected:   "127.0.0.1:8080",
+		},
+		{
+			name:       "IPv6 address with brackets",
+			listenAddr: "[::1]",
+			port:       8080,
+			expected:   "[::1]:8080",
+		},
+		{
+			name:       "IPv6 address without brackets",
+			listenAddr: "::1",
+			port:       8080,
+			expected:   "[::1]:8080",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						ListenAddr: tc.listenAddr,
+						Port:       tc.port,
+					},
+				},
+			}
+			handler := http.NewServeMux()
+
+			server := createHTTPServer(cfg, handler)
+
+			assert.NotNil(t, server)
+			assert.Equal(t, tc.expected, server.Addr)
+			assert.Equal(t, handler, server.Handler)
+			assert.Equal(t, serverReadHeaderTimeout, server.ReadHeaderTimeout)
+			assert.Equal(t, serverIdleTimeout, server.IdleTimeout)
+		})
+	}
+}
