@@ -100,6 +100,17 @@ export const activitySlice = createSlice({
         window?.dispatchEvent?.(new Event('resize'));
       }, 200);
     },
+    minimizeAll(state) {
+      Object.values(state.activities).forEach(activity => {
+        if (activity.temporary) {
+          delete state.activities[activity.id];
+          state.history = state.history.filter(it => it !== activity.id);
+        } else if (!activity.minimized) {
+          activity.minimized = true;
+          state.history = state.history.filter(it => it !== activity.id);
+        }
+      });
+    },
     reset() {
       return initialState;
     },
