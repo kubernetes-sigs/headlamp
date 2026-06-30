@@ -278,22 +278,19 @@ describe('useSidebarItems', () => {
       wrapper: wrapper(store),
     });
 
-    const externalLinksItem = result.current.find(it => it.name === 'externalLinks');
-    expect(externalLinksItem).toBeDefined();
-    expect(externalLinksItem?.label).toBe('External Links');
-    expect(externalLinksItem?.subList).toEqual([
-      {
-        name: 'external-link-0',
-        label: 'Google',
-        url: 'https://google.com',
-        icon: 'mdi:link',
-      },
-      {
-        name: 'external-link-1',
-        label: 'GitHub',
-        url: 'http://github.com',
-        icon: 'mdi:link',
-      },
-    ]);
+    const googleLink = result.current.find(it => it.name === 'external-link-0');
+    expect(googleLink).toBeDefined();
+    expect(googleLink?.label).toBe('Google');
+    expect(googleLink?.url).toBe('https://google.com');
+    expect(googleLink?.icon).toBe('mdi:link');
+
+    const githubLink = result.current.find(it => it.name === 'external-link-1');
+    expect(githubLink).toBeDefined();
+    expect(githubLink?.label).toBe('GitHub');
+    expect(githubLink?.url).toBe('http://github.com');
+    expect(githubLink?.icon).toBe('mdi:link');
+
+    const invalidLink = result.current.find(it => it.name === 'external-link-2');
+    expect(invalidLink).toBeUndefined();
   });
 });

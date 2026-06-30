@@ -429,6 +429,8 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
       },
     ];
 
+    const hasExternalLinks = externalLinks.some(link => safeLinkUrl(link.url) !== null);
+
     if (crdsSidebarEntries.length !== 0) {
       const sublist: SidebarItemProps[] = [
         {
@@ -446,6 +448,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         label: t('glossary|Custom Resources'),
         icon: 'mdi:puzzle',
         subList: sublist,
+        divider: hasExternalLinks,
       });
     } else {
       inClusterItems.push({
@@ -458,32 +461,22 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             label: t('translation|Instances'),
           },
         ],
+        divider: hasExternalLinks,
       });
     }
 
     if (externalLinks.length > 0) {
-      const links = externalLinks
-        .map((link, i) => {
-          const url = safeLinkUrl(link.url);
-          return url
-            ? {
-                name: `external-link-${i}`,
-                label: link.label,
-                url,
-                icon: link.icon || 'mdi:link',
-              }
-            : null;
-        })
-        .filter((item): item is NonNullable<typeof item> => item !== null);
-
-      if (links.length > 0) {
-        inClusterItems.push({
-          name: 'externalLinks',
-          label: t('translation|External Links'),
-          icon: 'mdi:link-variant',
-          subList: links,
-        });
-      }
+      externalLinks.forEach((link, i) => {
+        const url = safeLinkUrl(link.url);
+        if (url) {
+          inClusterItems.push({
+            name: `external-link-${i}`,
+            label: link.label,
+            url,
+            icon: link.icon || 'mdi:link',
+          });
+        }
+      });
     }
 
     // List of sidebars, they act as roots for the sidebar tree
