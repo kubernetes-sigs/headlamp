@@ -65,11 +65,6 @@
                   >
                     Cordon
                   </span>
-                  <span
-                    class="MuiTypography-root MuiTypography-caption css-19f89s9-MuiTypography-root"
-                  >
-                    05:30:00
-                  </span>
                 </span>
               </span>
             </div>
@@ -100,11 +95,6 @@
                     class="MuiStepLabel-label Mui-active MuiStepLabel-alternativeLabel css-172s6dr-MuiStepLabel-label"
                   >
                     Drain
-                  </span>
-                  <span
-                    class="MuiTypography-root MuiTypography-caption css-19f89s9-MuiTypography-root"
-                  >
-                    05:30:00
                   </span>
                 </span>
               </span>
