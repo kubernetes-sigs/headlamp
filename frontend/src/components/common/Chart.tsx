@@ -234,6 +234,7 @@ export function PercentageBar(props: PercentageBarProps) {
         maxBarSize={5}
         data={[formatData()]}
         onMouseEnter={handleMouseEnter}
+        onMouseMove={handleMouseEnter}
       >
         {tooltipFunc && (
           <Tooltip
