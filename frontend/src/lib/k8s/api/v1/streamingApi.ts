@@ -448,6 +448,17 @@ export async function connectStreamWithParams<T>(
   }
 
   let socket: WebSocket | null = null;
+
+  if (!url) {
+    console.error('connectStreamWithParams: empty WebSocket URL; refusing to open WebSocket', {
+      path,
+      cluster,
+      fullPath,
+    });
+    onFail();
+    return { close, socket };
+  }
+
   try {
     socket = new WebSocket(url, protocols);
     socket.binaryType = 'arraybuffer';
@@ -456,6 +467,7 @@ export async function connectStreamWithParams<T>(
     socket.addEventListener('error', onError);
   } catch (error) {
     console.error(error);
+    onFail();
   }
 
   return { close, socket };
