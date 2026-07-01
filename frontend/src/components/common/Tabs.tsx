@@ -43,7 +43,7 @@ export interface TabsProps {
     [propName: string]: any;
   };
   /** The index of the initially active tab. Defaults to 0. Set to null or false to disable initial selection. */
-  defaultIndex?: number | null | boolean;
+  defaultIndex?: number | null | false;
   /** Callback invoked when the active tab changes.
    * @param tabIndex - The index of the newly selected tab.
    */
@@ -141,9 +141,9 @@ export default function Tabs(props: TabsProps) {
  */
 interface TabPanelProps extends Omit<TypographyProps, 'tabIndex'> {
   /** The index of the currently active tab (preferred). */
-  selectedTab?: number | null | boolean;
+  selectedTab?: TabsProps['defaultIndex'];
   /** Deprecated fallback for backward compatibility. Use selectedTab instead. */
-  tabIndex?: number | null | boolean;
+  tabIndex?: TabsProps['defaultIndex'];
   /** The index of this tab panel. */
   index: number;
   /** The unique ID for the tab panel, used for accessibility. */
@@ -165,12 +165,15 @@ export function TabPanel(props: TabPanelProps) {
   return (
     <Typography
       component="div"
+      {...otherProps}
       role="tabpanel"
       hidden={activeTab !== index}
       id={id}
       aria-labelledby={labeledBy}
-      sx={{ flexGrow: 1, overflow: 'hidden' }}
-      {...otherProps}
+      sx={[
+        { flexGrow: 1, overflow: 'hidden' },
+        ...(Array.isArray(otherProps.sx) ? otherProps.sx : [otherProps.sx]),
+      ]}
     >
       {children}
     </Typography>

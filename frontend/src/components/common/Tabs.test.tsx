@@ -131,5 +131,25 @@ describe('Tabs', () => {
       expect(screen.getByText('Hidden Content').closest('div')).toHaveAttribute('hidden');
       expect(screen.getByText('Visible Content').closest('div')).not.toHaveAttribute('hidden');
     });
+
+    it('prevents callers from overriding critical attributes like hidden', () => {
+      render(
+        <TestContext>
+          {/* @ts-ignore - attempting to pass hidden to test override protection */}
+          <TabPanel
+            selectedTab={0}
+            index={1}
+            id="panel-override"
+            labeledBy="tab-override"
+            hidden={false}
+          >
+            Override Hidden Content
+          </TabPanel>
+        </TestContext>
+      );
+
+      const panel = screen.getByText('Override Hidden Content').closest('div');
+      expect(panel).toHaveAttribute('hidden');
+    });
   });
 });
