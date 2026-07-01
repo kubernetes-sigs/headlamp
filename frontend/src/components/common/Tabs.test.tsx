@@ -18,7 +18,7 @@ import { render, screen } from '@testing-library/react';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../test';
-import Tabs from './Tabs';
+import Tabs, { TabPanel } from './Tabs';
 
 const THREE_TABS = [
   { label: 'Tab 1', component: <div>Content 1</div> },
@@ -90,6 +90,46 @@ describe('Tabs', () => {
       tabpanels.forEach(panel => {
         expect(panel).toHaveAttribute('hidden');
       });
+    });
+  });
+
+  describe('TabPanel', () => {
+    it('uses selectedTab prop to control visibility', () => {
+      render(
+        <TestContext>
+          <TabPanel selectedTab={0} index={0} id="panel-0" labeledBy="tab-0">
+            Visible Content
+          </TabPanel>
+          <TabPanel selectedTab={0} index={1} id="panel-1" labeledBy="tab-1">
+            Hidden Content
+          </TabPanel>
+        </TestContext>
+      );
+
+      const panels = screen.getAllByRole('tabpanel', { hidden: true });
+      expect(panels).toHaveLength(2);
+      expect(screen.getByText('Visible Content').closest('div')).not.toHaveAttribute('hidden');
+      expect(screen.getByText('Hidden Content').closest('div')).toHaveAttribute('hidden');
+    });
+
+    it('falls back to tabIndex prop when selectedTab is undefined', () => {
+      render(
+        <TestContext>
+          {/* eslint-disable-next-line jsx-a11y/tabindex-no-positive */}
+          <TabPanel tabIndex={1} index={0} id="panel-0" labeledBy="tab-0">
+            Hidden Content
+          </TabPanel>
+          {/* eslint-disable-next-line jsx-a11y/tabindex-no-positive */}
+          <TabPanel tabIndex={1} index={1} id="panel-1" labeledBy="tab-1">
+            Visible Content
+          </TabPanel>
+        </TestContext>
+      );
+
+      const panels = screen.getAllByRole('tabpanel', { hidden: true });
+      expect(panels).toHaveLength(2);
+      expect(screen.getByText('Hidden Content').closest('div')).toHaveAttribute('hidden');
+      expect(screen.getByText('Visible Content').closest('div')).not.toHaveAttribute('hidden');
     });
   });
 });
