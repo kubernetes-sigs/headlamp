@@ -141,6 +141,9 @@ export default function NameValueTable(props: NameValueTableProps) {
                   maxWidth: '100%',
                   minWidth: 0,
                   wordBreak: 'normal',
+                  overflow: 'hidden',
+  textOverflow: 'ellipsis',
+  whiteSpace: 'nowrap',
                   verticalAlign: 'top',
                   color: theme.palette.text.secondary,
                   borderBottom:
