@@ -40,6 +40,7 @@ describe('NavigationTabs', () => {
         sidebar: {
           entries: {},
           filters: [],
+          homeFilters: [],
           selected: { item: selectedItem, sidebar: DefaultSidebars.IN_CLUSTER },
           isVisible: true,
           isSidebarOpen: false,
