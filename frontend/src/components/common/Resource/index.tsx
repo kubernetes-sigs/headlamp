@@ -37,6 +37,8 @@ export * from '../../job/CreateJobForm';
 export { default as CreateJobForm } from '../../job/CreateJobForm';
 export * from '../../cronjob/CreateCronJobForm';
 export { default as CreateCronJobForm } from '../../cronjob/CreateCronJobForm';
+export * from '../../jobset/CreateJobSetForm';
+export { default as CreateJobSetForm } from '../../jobset/CreateJobSetForm';
 export * from './CreateResourceForm';
 export { default as CreateResourceForm } from './CreateResourceForm';
 export * from './CopyButton';

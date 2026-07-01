@@ -55,6 +55,7 @@
     "CreateCronJobForm": [Function],
     "CreateDeploymentForm": [Function],
     "CreateJobForm": [Function],
+    "CreateJobSetForm": [Function],
     "CreatePodForm": [Function],
     "CreateReplicaSetForm": [Function],
     "CreateResourceButton": [Function],
@@ -130,6 +131,10 @@
         "class": [Function],
         "form": [Function],
       },
+      "JobSet": {
+        "class": [Function],
+        "form": [Function],
+      },
       "Pod": {
         "class": [Function],
         "form": [Function],
@@ -154,6 +159,7 @@
       "CreateCronJobForm": [Function],
       "CreateDeploymentForm": [Function],
       "CreateJobForm": [Function],
+      "CreateJobSetForm": [Function],
       "CreatePodForm": [Function],
       "CreateReplicaSetForm": [Function],
       "CreateResourceForm": [Function],
@@ -203,6 +209,10 @@
           "form": [Function],
         },
         "Job": {
+          "class": [Function],
+          "form": [Function],
+        },
+        "JobSet": {
           "class": [Function],
           "form": [Function],
         },
