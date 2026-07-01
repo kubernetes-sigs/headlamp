@@ -260,6 +260,7 @@ export function PodListRenderer(props: PodListProps) {
         'namespace',
         'cluster',
         {
+          id: 'restarts',
           label: t('Restarts'),
           gridTemplate: 'min-content',
           disableFiltering: true,
@@ -272,6 +273,7 @@ export function PodListRenderer(props: PodListProps) {
                 })
               : restarts;
           },
+          sort: (a, b) => a.getDetailedStatus().restarts - b.getDetailedStatus().restarts,
         },
         {
           id: 'ready',
@@ -281,6 +283,15 @@ export function PodListRenderer(props: PodListProps) {
           getValue: pod => {
             const podRow = pod.getDetailedStatus();
             return `${podRow.readyContainers}/${podRow.totalContainers}`;
+          },
+          sort: (a, b) => {
+            const aStatus = a.getDetailedStatus();
+            const bStatus = b.getDetailedStatus();
+            const aRatio =
+              aStatus.totalContainers > 0 ? aStatus.readyContainers / aStatus.totalContainers : 0;
+            const bRatio =
+              bStatus.totalContainers > 0 ? bStatus.readyContainers / bStatus.totalContainers : 0;
+            return aRatio - bRatio;
           },
         },
         {

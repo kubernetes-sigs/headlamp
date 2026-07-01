@@ -427,7 +427,7 @@
               </th>
               <th
                 aria-sort="none"
-                class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-9s5e2s-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-5m78vi-MuiTableCell-root"
                 colspan="1"
                 data-can-sort="true"
                 data-index="-1"
@@ -949,7 +949,7 @@
                 </a>
               </td>
               <td
-                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1vvmgn4-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qi2rnp-MuiTableCell-root"
               >
                 1 (90d ago)
               </td>
@@ -1085,7 +1085,7 @@
                 </a>
               </td>
               <td
-                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1vvmgn4-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qi2rnp-MuiTableCell-root"
               >
                 0
               </td>
@@ -1239,7 +1239,7 @@
                 </a>
               </td>
               <td
-                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1vvmgn4-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qi2rnp-MuiTableCell-root"
               >
                 0
               </td>
@@ -1375,7 +1375,7 @@
                 </a>
               </td>
               <td
-                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1vvmgn4-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qi2rnp-MuiTableCell-root"
               >
                 337 (90d ago)
               </td>
@@ -1511,7 +1511,7 @@
                 </a>
               </td>
               <td
-                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1vvmgn4-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qi2rnp-MuiTableCell-root"
               >
                 0
               </td>
@@ -1647,7 +1647,7 @@
                 </a>
               </td>
               <td
-                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1vvmgn4-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qi2rnp-MuiTableCell-root"
               >
                 0
               </td>
@@ -1783,7 +1783,7 @@
                 </a>
               </td>
               <td
-                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1vvmgn4-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qi2rnp-MuiTableCell-root"
               >
                 0
               </td>
@@ -1919,7 +1919,7 @@
                 </a>
               </td>
               <td
-                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1vvmgn4-MuiTableCell-root"
+                class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-qi2rnp-MuiTableCell-root"
               >
                 0
               </td>
