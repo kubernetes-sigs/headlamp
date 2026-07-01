@@ -316,16 +316,10 @@ function getPendingHints(pod: PodLike, warningEvents: EventLike[], t: Translate)
     /FailedScheduling|Unschedulable/i.test((event as Event).reason ?? (event as KubeEvent).reason)
   );
 
-  if (scheduledCondition && scheduledCondition.status !== 'True') {
-    diagnostics.push({
-      id: 'pod-scheduling-condition',
-      severity: 'warning',
-      title: t('Pod scheduling is blocked: {{ reason }}', {
-        reason: scheduledCondition.reason || scheduledCondition.status,
-      }),
-      message: scheduledCondition.message,
-    });
-  } else if (failedSchedulingEvent) {
+  // A failing PodScheduled condition is already surfaced by the failed-conditions
+  // loop in getPodDiagnostics, so only add an event-based scheduling hint when
+  // there is no such condition to avoid duplicate entries.
+  if (!scheduledCondition && failedSchedulingEvent) {
     const reason =
       (failedSchedulingEvent as Event).reason || (failedSchedulingEvent as KubeEvent).reason;
     diagnostics.push({
