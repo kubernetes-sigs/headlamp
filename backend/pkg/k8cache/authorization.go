@@ -240,13 +240,11 @@ func getCachedClientSet(cacheKey string) (*kubernetes.Clientset, bool) {
 
 	if now.Sub(cs.lastUsed) > clientsetTTL {
 		delete(clientsetCache, cacheKey)
-
-		// Extract cluster name from cacheKey (format: "clusterName\x00token")
-		clusterName := strings.Split(cacheKey, "\x00")[0]
+		redactedContext := redactContextKey(clientsetCachePrefixFromCacheKey(cacheKey))
 		mu.Unlock()
 
 		logger.Log(logger.LevelInfo, nil, nil,
-			fmt.Sprintf("expired clientset for cluster %s was deleted", clusterName))
+			fmt.Sprintf("expired clientset for cluster %s was deleted", redactedContext))
 
 		return nil, false
 	}
