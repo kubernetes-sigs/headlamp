@@ -184,6 +184,20 @@ func TestEvictClientsetsForCluster_KeepsPrefixBlocked(t *testing.T) {
 	assert.True(t, k8cache.ExportedClientsetPrefixBlocked(removedContext))
 }
 
+func TestEvictClientsetsForCluster_PrunesBlockedPrefixWithoutGetClientSet(t *testing.T) {
+	k8cache.ResetClientsetCache()
+	t.Cleanup(k8cache.ResetClientsetCache)
+
+	const removedContext = "minikube\x00user1"
+
+	k8cache.EvictClientsetsForCluster(removedContext)
+	k8cache.SeedBlockedClientsetPrefix(removedContext, time.Now().Add(-11*time.Minute))
+
+	k8cache.ManualEvictExpiredClientsets()
+
+	assert.False(t, k8cache.ExportedClientsetPrefixBlocked(removedContext))
+}
+
 func TestSyncWatchersPurgesCacheAndClientsetsForRemovedContext(t *testing.T) {
 	const (
 		removedContextKey   = "removed-cluster\x00user1"
