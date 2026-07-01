@@ -5,7 +5,6 @@ default_agent: "@dev-agent"
 > **Consulted files (agent must populate before committing):**
 > - `/backend/pkg/k8cache/cacheInvalidation.go`
 > - `/backend/pkg/kubeconfig/contextStore.go`
-> - `/frontend/src/components/Sidebar/NavigationTabs.tsx`
 >
 > **README.md files:**
 > - `/README.md` - Main project README
