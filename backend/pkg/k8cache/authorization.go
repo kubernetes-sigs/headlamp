@@ -303,8 +303,10 @@ func createAndCacheClientSet(
 	return cs, nil
 }
 
-// waitForInFlightClientset blocks until another goroutine finishes creating the
-// clientset for the same cache key. The caller must not hold mu.
+// waitForInFlightClientset waits for another goroutine to finish creating a
+// clientset for the same cache key. It blocks on entry.waitCh until
+// finishInFlightClientset closes it, then returns the clientset and error
+// stored on entry. The caller must not hold mu.
 func waitForInFlightClientset(entry *inFlightEntry) (*kubernetes.Clientset, error) {
 	hookMu.RLock()
 
@@ -318,9 +320,10 @@ func waitForInFlightClientset(entry *inFlightEntry) (*kubernetes.Clientset, erro
 	return entry.cs, entry.err
 }
 
-// finishInFlightClientset stores the creation result on the in-flight entry,
-// removes it from inFlight, and unblocks waiters by closing entry.waitCh.
-// mu must not be held on entry; this function acquires mu internally.
+// finishInFlightClientset records the clientset creation outcome on entry,
+// removes cacheKey from the inFlight map, and closes entry.waitCh so any
+// goroutines blocked in waitForInFlightClientset can proceed. mu must not be
+// held; this function acquires mu internally.
 func finishInFlightClientset(cacheKey string, entry *inFlightEntry, cs *kubernetes.Clientset, err error) {
 	mu.Lock()
 
