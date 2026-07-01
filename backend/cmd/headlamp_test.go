@@ -1847,6 +1847,40 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 	assert.Contains(t, clustersByName, "docker-desktop", "expected docker-desktop cluster to still exist")
 }
 
+// TestHandleClusterRename_NameCollision covers the name-collision branch of
+// handleClusterRename. It must return a non-nil error so the caller does not
+// record a failed rename as a success (it previously returned nil).
+func TestHandleClusterRename_NameCollision(t *testing.T) {
+	c := HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:          false,
+				KubeConfigPath:        "./headlamp_testdata/kubeconfig",
+				EnableDynamicClusters: true,
+				KubeConfigStore:       kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/cluster/minikube/rename", nil)
+
+	ctx, span := otel.Tracer("test").Start(context.Background(), "TestHandleClusterRename_NameCollision")
+	defer span.End()
+
+	// Rename "minikube" to "docker-desktop", which already exists in the kubeconfig.
+	err := c.handleClusterRename(w, r, "minikube", RenameClusterRequest{
+		NewClusterName: "docker-desktop",
+		Source:         "kubeconfig",
+	}, ctx, span)
+
+	require.Error(t, err, "a name collision must return a non-nil error")
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
 func TestFileExists(t *testing.T) {
 	// Test for existing file
 	assert.True(t, fileExists("./headlamp_testdata/kubeconfig"),

@@ -2623,10 +2623,12 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 	isUnique := CheckUniqueName(config.Contexts, clusterName, reqBody.NewClusterName)
 	if !isUnique {
 		http.Error(w, "custom name already in use", http.StatusBadRequest)
-		logger.Log(logger.LevelError, map[string]string{logFieldCluster: clusterName},
-			err, "cluster name already exists in the kubeconfig")
 
-		return err
+		renameErr := errors.New("cluster name already in use")
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: clusterName},
+			renameErr, "cluster name already exists in the kubeconfig")
+
+		return renameErr
 	}
 
 	contextName := findMatchingContextName(config, clusterName)
@@ -2637,8 +2639,10 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 	}
 
 	if errs := c.updateCustomContextToCache(config, clusterName); len(errs) > 0 {
-		c.handleError(w, ctx, span, err, "failed to update context to cache", http.StatusInternalServerError)
-		return errors.New("failed to update context cache")
+		cacheErr := errors.Join(errs...)
+		c.handleError(w, ctx, span, cacheErr, "failed to update context to cache", http.StatusInternalServerError)
+
+		return cacheErr
 	}
 
 	w.WriteHeader(http.StatusCreated)
