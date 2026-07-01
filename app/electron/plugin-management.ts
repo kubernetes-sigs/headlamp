@@ -316,15 +316,15 @@ export class PluginManager {
 
       // sleep(2000);  // comment out for testing
 
-      // create the destination folder if it doesn't exist
-      if (!fs.existsSync(destinationFolder)) {
-        fs.mkdirSync(destinationFolder, { recursive: true });
-      }
-
       const backupDir = `${pluginDir}.backup`;
       let backupCreated = false;
 
       try {
+        // create the destination folder if it doesn't exist
+        if (!fs.existsSync(destinationFolder)) {
+          fs.mkdirSync(destinationFolder, { recursive: true });
+        }
+
         if (fs.existsSync(pluginDir)) {
           if (fs.existsSync(backupDir)) {
             fs.rmSync(backupDir, { recursive: true, force: true });
@@ -603,10 +603,9 @@ async function downloadExtractArchive(
   }
 
   // Create temporary folder for extraction
-  const tempDir = await fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugin-temp-'));
-  // Defaulting to '' should never happen if recursive is true. So this is for the type
-  // checker only.
-  const tempFolder = fs.mkdirSync(path.join(tempDir, pluginName), { recursive: true }) ?? '';
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugin-temp-'));
+  const tempFolder = path.join(tempDir, pluginName);
+  fs.mkdirSync(tempFolder, { recursive: true });
 
   try {
     // First, download and extract the main archive
