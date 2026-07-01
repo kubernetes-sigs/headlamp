@@ -15,6 +15,7 @@ package k8cache_test
 
 import (
 	"context"
+	"net/url"
 	"sync"
 	"testing"
 	"time"
@@ -34,6 +35,9 @@ func TestCacheKeyBelongsToContext(t *testing.T) {
 		want       bool
 	}{
 		{"+pods+default+minikube", "minikube", true},
+		{"+pods+default+prod%2Bcluster", "prod+cluster", true},
+		{"+pods+default+prod%252Bcluster", "prod%2Bcluster", true},
+		{"+pods+default+prod%2Bcluster", "prod%2Bcluster", false},
 		{"apps+deployments+default+minikube", "minikube", true},
 		{"+pods+default+other", "minikube", false},
 		{"malformed", "minikube", false},
@@ -66,6 +70,73 @@ func TestPurgeCacheForContext(t *testing.T) {
 	val, err := k8scache.Get(ctx, "+pods+default+other-cluster")
 	assert.NoError(t, err)
 	assert.Equal(t, "other-data", val)
+}
+
+func TestPurgeCacheForContext_EscapedContextKey(t *testing.T) {
+	t.Parallel()
+
+	const contextKey = "prod+cluster"
+
+	podsURL := url.URL{Path: "/clusters/kind/apis/v1/namespaces/default/pods"}
+	podsKey, err := k8cache.GenerateKey(&podsURL, contextKey)
+	require.NoError(t, err)
+
+	otherURL := url.URL{Path: "/clusters/kind/apis/v1/namespaces/default/pods"}
+	otherKey, err := k8cache.GenerateKey(&otherURL, "other-cluster")
+	require.NoError(t, err)
+
+	k8scache := cache.New[string]()
+	ctx := context.Background()
+
+	require.NoError(t, k8scache.Set(ctx, podsKey, "pods-data"))
+	require.NoError(t, k8scache.Set(ctx, otherKey, "other-data"))
+
+	k8cache.PurgeCacheForContext(k8scache, contextKey)
+
+	_, err = k8scache.Get(ctx, podsKey)
+	assert.Error(t, err)
+
+	val, err := k8scache.Get(ctx, otherKey)
+	assert.NoError(t, err)
+	assert.Equal(t, "other-data", val)
+}
+
+func TestSyncWatchersDoesNotPurgeActiveContextWithPlusInName(t *testing.T) {
+	const (
+		activeContextKey  = "prod+cluster\x00user1"
+		removedContextKey = "removed-cluster\x00user2"
+	)
+
+	podsURL := url.URL{Path: "/clusters/kind/apis/v1/namespaces/default/pods"}
+	activeCacheDataKey, err := k8cache.GenerateKey(&podsURL, activeContextKey)
+	require.NoError(t, err)
+
+	removedCacheDataKey, err := k8cache.GenerateKey(&podsURL, removedContextKey)
+	require.NoError(t, err)
+
+	k8cache.ResetRegistries()
+	t.Cleanup(func() { k8cache.ResetRegistries() })
+
+	k8cache.ResetClientsetCache()
+	t.Cleanup(k8cache.ResetClientsetCache)
+
+	k8scache := cache.New[string]()
+	ctx := context.Background()
+
+	require.NoError(t, k8scache.Set(ctx, activeCacheDataKey, "active-data"))
+	require.NoError(t, k8scache.Set(ctx, removedCacheDataKey, "stale-data"))
+	k8cache.SeedClientsetCache(removedContextKey+"\x00token", time.Now())
+
+	k8cache.StoreTestRegistry(activeContextKey, func() {})
+
+	k8cache.SyncWatchers(k8scache, []string{activeContextKey})
+
+	val, err := k8scache.Get(ctx, activeCacheDataKey)
+	assert.NoError(t, err)
+	assert.Equal(t, "active-data", val)
+
+	_, err = k8scache.Get(ctx, removedCacheDataKey)
+	assert.Error(t, err)
 }
 
 func TestEvictClientsetsForCluster(t *testing.T) {
