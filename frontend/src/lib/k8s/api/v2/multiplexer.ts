@@ -192,7 +192,27 @@ export const WebSocketManager = {
     }
 
     // Establish connection and send REQUEST
-    const socket = await this.connect();
+    let socket: WebSocket;
+    try {
+      socket = await this.connect();
+    } catch (err) {
+      // Roll back pre-registered entries directly (no debounce) so that a
+      // subsequent caller-side unsubscribe() call is a safe no-op.
+      const ls = this.listeners.get(key);
+      if (ls) {
+        ls.delete(onMessage);
+        if (ls.size === 0) this.listeners.delete(key);
+      }
+      if (onError) {
+        const els = this.errorListeners.get(key);
+        if (els) {
+          els.delete(onError);
+          if (els.size === 0) this.errorListeners.delete(key);
+        }
+      }
+      this.activeSubscriptions.delete(key);
+      throw err;
+    }
     const userId = getUserIdFromLocalStorage();
     const requestMsg: WebSocketMessage = {
       clusterId,
