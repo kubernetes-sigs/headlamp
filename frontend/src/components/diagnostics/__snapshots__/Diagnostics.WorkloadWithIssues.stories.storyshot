@@ -163,7 +163,7 @@
             >
               <a
                 class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                href="/?view=logs&container=imagepullbackoff"
+                href="/c/minikube/pods/default/imagepullbackoff?view=logs&container=imagepullbackoff"
               >
                 imagepullbackoff
               </a>

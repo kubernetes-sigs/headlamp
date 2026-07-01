@@ -49,14 +49,14 @@ const PodTemplate: StoryFn<{ pod: Pod; events: Event[] }> = args => (
 
 export const PodHealthy = PodTemplate.bind({});
 PodHealthy.args = {
-  pod: new Pod(healthyPod),
+  pod: new Pod(healthyPod, 'minikube'),
   events: [],
 };
 
 export const PodWithIssues = PodTemplate.bind({});
 PodWithIssues.args = {
-  pod: new Pod(failingPod),
-  events: warningEvents.map(event => new Event(event)),
+  pod: new Pod(failingPod, 'minikube'),
+  events: warningEvents.map(event => new Event(event, 'minikube')),
 };
 
 // Workload diagnostics. Owned pods and errors are passed directly as props.
@@ -68,25 +68,25 @@ const WorkloadTemplate: StoryFn<{
 
 export const WorkloadLoading = WorkloadTemplate.bind({});
 WorkloadLoading.args = {
-  workload: new Deployment(healthyDeployment),
+  workload: new Deployment(healthyDeployment, 'minikube'),
   pods: null,
 };
 
 export const WorkloadHealthy = WorkloadTemplate.bind({});
 WorkloadHealthy.args = {
-  workload: new Deployment(healthyDeployment),
-  pods: [new Pod(healthyPod)],
+  workload: new Deployment(healthyDeployment, 'minikube'),
+  pods: [new Pod(healthyPod, 'minikube')],
 };
 
 export const WorkloadWithIssues = WorkloadTemplate.bind({});
 WorkloadWithIssues.args = {
-  workload: new Deployment(degradedDeployment),
-  pods: [new Pod(failingPod)],
+  workload: new Deployment(degradedDeployment, 'minikube'),
+  pods: [new Pod(failingPod, 'minikube')],
 };
 
 export const WorkloadPodsError = WorkloadTemplate.bind({});
 WorkloadPodsError.args = {
-  workload: new Deployment(healthyDeployment),
+  workload: new Deployment(healthyDeployment, 'minikube'),
   pods: null,
   errors: [new ApiError('pods is forbidden: User cannot list resource "pods"', { status: 403 })],
 };
