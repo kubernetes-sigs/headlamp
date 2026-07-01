@@ -92,7 +92,7 @@ resolve_tag() {
 # ---------------------------------------------------------------------------
 get_tag_sha() {
   local tag_name="$1"
-  git rev-list -n 1 "refs/tags/$tag_name"
+  git rev-list -n 1 "refs/tags/$tag_name^{commit}"
 }
 
 # ---------------------------------------------------------------------------
