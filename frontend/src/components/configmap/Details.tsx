@@ -28,6 +28,7 @@ import EmptyContent from '../common/EmptyContent';
 import { DataField, DetailsGrid } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
 import { NameValueTable, NameValueTableRow } from '../common/SimpleTable';
+import { UsedBySection } from '../common/UsedBy';
 
 function ConfigMapDataSection({ item }: { item: ConfigMap }) {
   const { t } = useTranslation(['translation']);
@@ -122,6 +123,10 @@ export default function ConfigDetails(props: {
           {
             id: 'headlamp.configmap-data',
             section: () => <ConfigMapDataSection item={item} />,
+          },
+          {
+            id: 'headlamp.configmap-used-by',
+            section: () => <UsedBySection resource={item} resourceKind="ConfigMap" />,
           },
         ]
       }

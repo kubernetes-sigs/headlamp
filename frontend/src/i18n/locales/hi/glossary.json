@@ -32,6 +32,7 @@
   "Ephemeral Containers": "इफेमेरल कंटेनर्स",
   "Owner": "",
   "Container": "कंटेनर",
+  "Pod": "",
   "Config Maps": "कॉन्फिग मैप्स",
   "Definition": "परिभाषा",
   "CRD: {{ crdName }}": "CRD: {{ crdName }}",

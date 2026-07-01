@@ -29,6 +29,7 @@ import EmptyContent from '../common/EmptyContent';
 import { DetailsGrid, SecretField } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
 import { NameValueTable, NameValueTableRow } from '../common/SimpleTable';
+import { UsedBySection } from '../common/UsedBy';
 
 interface SecretDataSectionProps {
   /** The Secret resource whose data fields are displayed and edited. */
@@ -144,6 +145,10 @@ export default function SecretDetails(props: {
           {
             id: 'headlamp.secrets-data',
             section: () => <SecretDataSection item={item} />,
+          },
+          {
+            id: 'headlamp.secrets-used-by',
+            section: () => <UsedBySection resource={item} resourceKind="Secret" />,
           },
         ]
       }

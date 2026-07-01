@@ -32,6 +32,7 @@
   "Ephemeral Containers": "Эфемерные контейнеры",
   "Owner": "Владелец",
   "Container": "Контейнер",
+  "Pod": "",
   "Config Maps": "ConfigMap",
   "Definition": "Определение",
   "CRD: {{ crdName }}": "CRD: {{ crdName }}",

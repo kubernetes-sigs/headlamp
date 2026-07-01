@@ -32,6 +32,7 @@
   "Ephemeral Containers": "எஃபிமரல் கன்டெய்னர்கள்",
   "Owner": "",
   "Container": "கன்டெய்னர்",
+  "Pod": "",
   "Config Maps": "கான்ஃபிக் மேப்ஸ்",
   "Definition": "வரையறை",
   "CRD: {{ crdName }}": "சிஆர்டி: {{ crdName }}",
