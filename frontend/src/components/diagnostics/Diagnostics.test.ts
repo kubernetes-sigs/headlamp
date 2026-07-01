@@ -143,9 +143,13 @@ describe('diagnostics helpers', () => {
       }),
     });
 
-    const scheduled = getPodDiagnostics(pod, []).find(item => item.id === 'condition-PodScheduled');
+    const diagnostics = getPodDiagnostics(pod, []);
+    const scheduled = diagnostics.find(item => item.id === 'condition-PodScheduled');
     expect(scheduled?.title).toBe('Condition PodScheduled is False');
     expect(scheduled?.message).toMatch(/scheduler could not place the pod/i);
+    // The failing PodScheduled condition must not also produce a duplicate
+    // scheduling hint from getPendingHints.
+    expect(diagnostics.some(item => item.id === 'pod-scheduling-condition')).toBe(false);
   });
 
   it('aggregates unhealthy workload pods by dominant reason', () => {

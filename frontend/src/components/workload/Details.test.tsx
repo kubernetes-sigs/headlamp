@@ -179,6 +179,23 @@ describe('WorkloadDetails owned-pods diagnostics wiring', () => {
     expect(lastDiagnosticsProps()).toMatchObject({ pods: [fakePod], errors: [fakeError] });
   });
 
+  it('propagates a loaded-but-empty pod list so the section leaves the loading state', () => {
+    render(
+      <TestContext>
+        <WorkloadDetails workloadKind={fakeWorkloadKind} name="nginx" namespace="default" />
+      </TestContext>
+    );
+
+    const onPodsUpdate = mockOwnedPodsSection.mock.calls.at(-1)?.[0]?.onPodsUpdate;
+
+    // null (loading) -> [] (loaded, no pods) must not be swallowed as a no-op.
+    act(() => {
+      onPodsUpdate(fakeDeployment, [], []);
+    });
+
+    expect(lastDiagnosticsProps().pods).toEqual([]);
+  });
+
   it('does not re-render diagnostics when the update keys are unchanged', () => {
     render(
       <TestContext>
