@@ -34,7 +34,7 @@ func cacheKeyBelongsToContext(key, contextKey string) bool {
 		return false
 	}
 
-	return parts[3] == contextKey
+	return parts[3] == escapeCacheKeySegment(contextKey)
 }
 
 // PurgeCacheForContext removes all cached API responses for a removed context.
@@ -102,7 +102,7 @@ func collectCachedContextKeys(k8scache cache.Cache[string]) map[string]struct{} 
 	for key := range allKeys {
 		parts := strings.SplitN(key, "+", 4)
 		if len(parts) == 4 && parts[3] != "" {
-			keys[parts[3]] = struct{}{}
+			keys[unescapeCacheKeySegment(parts[3])] = struct{}{}
 		}
 	}
 
