@@ -316,7 +316,7 @@ function UpgradeVisualizationPanelInner({ nodes }: { nodes: Node[] }) {
  * Only mounted when an upgrade is detected, so the Node event fetch
  * is avoided on idle AKS clusters.
  */
-export function UpgradeVisualizationPanelContent({ nodes }: { nodes: Node[] }) {
+function UpgradeVisualizationPanelContent({ nodes }: { nodes: Node[] }) {
   // fetch for all Node events to buildNodeUpgradeStates
   const { items: nodeEvents } = Event.useList({
     limit: Event.maxLimit,
