@@ -66,7 +66,8 @@ var (
 	// blockedClientsetPrefixes holds context keys whose clientsets must not be
 	// re-cached after context removal. Entries are cleared when SyncWatchers sees
 	// the context active again, or by the janitor once clientsetTTL has elapsed
-	// and no clientset or in-flight entries remain for the prefix.
+	// and no clientset or in-flight entries remain for the prefix. The janitor is
+	// started by GetClientSet and EvictClientsetsForCluster.
 	blockedClientsetPrefixes = make(map[string]blockedPrefixEntry)
 	mu                       sync.Mutex
 	janitorOnce              sync.Once
@@ -174,6 +175,8 @@ func EvictClientsetsForCluster(clientsetCachePrefix string) {
 	if clientsetCachePrefix == "" {
 		return
 	}
+
+	startJanitor()
 
 	prefix := clientsetCachePrefix + "\x00"
 
