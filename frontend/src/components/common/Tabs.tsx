@@ -43,7 +43,7 @@ export interface TabsProps {
     [propName: string]: any;
   };
   /** The index of the initially active tab. Defaults to 0. Set to null or false to disable initial selection. */
-  defaultIndex?: number | null | boolean;
+  defaultIndex?: number | null | false;
   /** Callback invoked when the active tab changes.
    * @param tabIndex - The index of the newly selected tab.
    */
@@ -124,7 +124,7 @@ export default function Tabs(props: TabsProps) {
       {tabs.map(({ component }, i) => (
         <TabPanel
           key={i}
-          tabIndex={Number(tabIndex)}
+          selectedTab={tabIndex}
           index={i}
           id={`full-width-tabpanel-${i}-${ariaLabel.replace(' ', '')}-${uniqueIdSuffix}`}
           labeledBy={`full-width-tab-${i}-${ariaLabel.replace(' ', '')}-${uniqueIdSuffix}`}
@@ -141,7 +141,7 @@ export default function Tabs(props: TabsProps) {
  */
 interface TabPanelProps extends TypographyProps {
   /** The index of the currently active tab. */
-  tabIndex: number;
+  selectedTab: number | null | false | undefined;
   /** The index of this tab panel. */
   index: number;
   /** The unique ID for the tab panel, used for accessibility. */
@@ -157,13 +157,13 @@ interface TabPanelProps extends TypographyProps {
  * @returns A container showing the content if this panel is active.
  */
 export function TabPanel(props: TabPanelProps) {
-  const { children, tabIndex, index, id, labeledBy } = props;
+  const { children, selectedTab, index, id, labeledBy } = props;
 
   return (
     <Typography
       component="div"
       role="tabpanel"
-      hidden={tabIndex !== index}
+      hidden={selectedTab !== index}
       id={id}
       aria-labelledby={labeledBy}
       sx={{ flexGrow: 1, overflow: 'hidden' }}

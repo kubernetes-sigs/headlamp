@@ -60,7 +60,7 @@ describe('Tabs', () => {
       }
     });
 
-    it('deselects all tabs when defaultIndex is null', () => {
+    it('deselects all tabs and hides all panel content when defaultIndex is null', () => {
       render(
         <TestContext>
           <Tabs defaultIndex={null} tabs={THREE_TABS} ariaLabel="test tabs" />
@@ -68,6 +68,27 @@ describe('Tabs', () => {
       );
       screen.getAllByRole('tab').forEach(tab => {
         expect(tab).toHaveAttribute('aria-selected', 'false');
+      });
+      const tabpanels = screen.getAllByRole('tabpanel', { hidden: true });
+      expect(tabpanels).toHaveLength(3);
+      tabpanels.forEach(panel => {
+        expect(panel).toHaveAttribute('hidden');
+      });
+    });
+
+    it('deselects all tabs and hides all panel content when defaultIndex is false', () => {
+      render(
+        <TestContext>
+          <Tabs defaultIndex={false} tabs={THREE_TABS} ariaLabel="test tabs" />
+        </TestContext>
+      );
+      screen.getAllByRole('tab').forEach(tab => {
+        expect(tab).toHaveAttribute('aria-selected', 'false');
+      });
+      const tabpanels = screen.getAllByRole('tabpanel', { hidden: true });
+      expect(tabpanels).toHaveLength(3);
+      tabpanels.forEach(panel => {
+        expect(panel).toHaveAttribute('hidden');
       });
     });
   });
