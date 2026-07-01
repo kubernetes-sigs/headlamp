@@ -44,9 +44,7 @@ export function loadSearchResourceClasses(): Promise<KubeObjectClass[]> {
       import('../../lib/k8s/serviceAccount'),
       import('../../lib/k8s/node'),
       import('../../lib/k8s/jobSet'),
-    ]).then(modules =>
-      modules.map(module => module.default as KubeObjectClass)
-    );
+    ]).then(modules => modules.map(module => module.default as KubeObjectClass));
   }
 
   return searchResourceClassesPromise;

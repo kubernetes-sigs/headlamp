@@ -109,11 +109,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
 
   if (!resourceClasses) {
     return (
-      <GlobalSearchContentPlaceholder
-        {...props}
-        query={queryDraft}
-        onQueryChange={setQueryDraft}
-      />
+      <GlobalSearchContentPlaceholder {...props} query={queryDraft} onQueryChange={setQueryDraft} />
     );
   }
 
@@ -144,8 +140,8 @@ function GlobalSearchContentPlaceholder(props: GlobalSearchContentPlaceholderPro
       value={query}
       onChange={event => onQueryChange(event.target.value)}
       onBlur={onBlur}
-      autoFocus
       InputProps={{
+        autoFocus: true,
         sx: theme => ({
           background: theme.palette.background.default,
         }),
