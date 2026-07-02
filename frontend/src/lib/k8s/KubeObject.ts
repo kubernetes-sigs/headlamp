@@ -731,7 +731,25 @@ export interface AuthRequestResourceAttrs {
  * Hook to get a list of Kubernetes objects.
  *
  * Replaces the static `KubeObjectClass.useList()` pattern with a proper
- * standalone hook that follows React's rules of hooks.
+ * standalone hook that follows React's rules of hooks. Builds list requests
+ * for each cluster/namespace combination and delegates to {@link useKubeObjectList}.
+ *
+ * @param kubeObjectClass - The KubeObject subclass to list (e.g. `Pod`, `Deployment`).
+ * @param opts - Options controlling which clusters, namespaces, and query parameters to use.
+ * @param opts.cluster - A single cluster to list from. Overrides `clusters` if set.
+ * @param opts.clusters - An array of clusters to list from. Falls back to the currently
+ *   selected clusters if not provided.
+ * @param opts.namespace - Namespace(s) to filter by. Can be a single string or an array.
+ * @param opts.refetchInterval - Polling interval in milliseconds. Disables watching if set.
+ * @returns A {@link QueryListResponse} containing the list of objects, loading/error state,
+ *   and per-cluster results.
+ *
+ * @example
+ * ```tsx
+ * const [pods, error] = Pod.useList({ namespace: 'default' });
+ * // or as a standalone hook:
+ * const result = useKubeList(Pod, { namespace: 'default' });
+ * ```
  */
 export function useKubeList<K extends KubeObject>(
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>,
@@ -787,7 +805,24 @@ export function useKubeList<K extends KubeObject>(
  * Hook to get a single Kubernetes object by name.
  *
  * Replaces the static `KubeObjectClass.useGet()` pattern with a proper
- * standalone hook that follows React's rules of hooks.
+ * standalone hook that follows React's rules of hooks. Delegates to
+ * {@link useKubeObject} from the v2 API hooks.
+ *
+ * @param kubeObjectClass - The KubeObject subclass to fetch (e.g. `Pod`, `Deployment`).
+ * @param name - The name of the Kubernetes object to retrieve.
+ * @param namespace - The namespace of the object. Optional for cluster-scoped resources.
+ * @param opts - Additional options.
+ * @param opts.queryParams - Extra query parameters to include in the API request.
+ * @param opts.cluster - The cluster to fetch from. Defaults to the currently active cluster.
+ * @returns A tuple `[object, error]` that also implements {@link QueryResponse},
+ *   providing `isLoading`, `isError`, `isSuccess`, and `status` fields.
+ *
+ * @example
+ * ```tsx
+ * const [pod, error] = Pod.useGet('my-pod', 'default');
+ * // or as a standalone hook:
+ * const [pod, error] = useKubeGet(Pod, 'my-pod', 'default');
+ * ```
  */
 export function useKubeGet<K extends KubeObject>(
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>,
@@ -808,7 +843,19 @@ export function useKubeGet<K extends KubeObject>(
 }
 
 /**
- * Hook to get a list of Kubernetes objects via list callback.
+ * Hook to list Kubernetes objects using the legacy callback-based (v1) API.
+ *
+ * Sets up streaming API connections via {@link useConnectApi}. For namespaced
+ * resources, creates one API call per namespace and aggregates results before
+ * invoking the callback. Automatically applies allowed-namespace filtering
+ * from cluster settings when no explicit namespaces are provided.
+ *
+ * @param kubeObjectClass - The KubeObject subclass to list (e.g. `Pod`, `Deployment`).
+ * @param onList - Callback invoked with the aggregated array of objects whenever
+ *   results are updated.
+ * @param onError - Optional error callback invoked if any API call fails.
+ * @param opts - Options matching {@link ApiListOptions}, including `namespace`,
+ *   `cluster`, and `queryParams`.
  */
 export function useKubeApiList<K extends KubeObject>(
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>,
@@ -876,7 +923,19 @@ export function useKubeApiList<K extends KubeObject>(
 }
 
 /**
- * Hook to get a single Kubernetes object by name via get callback.
+ * Hook to get a single Kubernetes object using the legacy callback-based (v1) API.
+ *
+ * Sets up a streaming API connection via {@link useConnectApi} that invokes the
+ * callback whenever the object is updated.
+ *
+ * @param kubeObjectClass - The KubeObject subclass to fetch (e.g. `Pod`, `Deployment`).
+ * @param onGet - Callback invoked with the object whenever it is fetched or updated.
+ * @param name - The name of the Kubernetes object to retrieve.
+ * @param namespace - The namespace of the object. Optional for cluster-scoped resources.
+ * @param onError - Optional error callback invoked if the API call fails.
+ * @param opts - Additional options.
+ * @param opts.queryParams - Extra query parameters to include in the API request.
+ * @param opts.cluster - The cluster to fetch from. Defaults to the currently active cluster.
  */
 export function useKubeApiGet<K extends KubeObject>(
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>,
