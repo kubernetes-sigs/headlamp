@@ -93,7 +93,7 @@ export function ClusterStatus({
       //
       // A try/catch guards against callbacks that violate this constraint so that a
       // misbehaving plugin does not crash the entire ClusterTable.
-      let renderedStatus: React.ReactElement | null;
+      let renderedStatus: React.ReactElement | null | undefined;
       try {
         renderedStatus = Status({ cluster, error });
       } catch (e) {
@@ -106,7 +106,10 @@ export function ClusterStatus({
         }
         continue;
       }
-      if (renderedStatus !== null) {
+      // A plugin callback could mistakenly return undefined instead of null.
+      // Returning undefined from ClusterStatus itself is invalid for React, so
+      // treat it the same as null here.
+      if (renderedStatus !== null && renderedStatus !== undefined) {
         return renderedStatus;
       }
     }

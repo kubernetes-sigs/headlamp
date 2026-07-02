@@ -113,11 +113,24 @@ describe('ClusterStatus — registerClusterStatus callback loop', () => {
     expect(screen.getByTestId('recovery-status')).toBeInTheDocument();
   });
 
+  it('skips a callback that returns undefined and falls through to the next one', () => {
+    const returnsUndefined: ClusterStatusComponent = () => undefined as any;
+    const recoveryCallback: ClusterStatusComponent = () => (
+      <span data-testid="recovery-status">Recovery</span>
+    );
+
+    render(
+      <Provider store={makeStore([returnsUndefined, recoveryCallback])}>
+        <ClusterStatus cluster={mockCluster} error={undefined} />
+      </Provider>
+    );
+
+    expect(screen.getByTestId('recovery-status')).toBeInTheDocument();
+  });
+
   it('uses only the first non-null callback; subsequent ones never run', () => {
     const secondSpy = vi.fn(() => <span data-testid="second">Second</span>);
-    const firstReturnsChip: ClusterStatusComponent = () => (
-      <span data-testid="first">First</span>
-    );
+    const firstReturnsChip: ClusterStatusComponent = () => <span data-testid="first">First</span>;
 
     render(
       <Provider store={makeStore([firstReturnsChip, secondSpy])}>
