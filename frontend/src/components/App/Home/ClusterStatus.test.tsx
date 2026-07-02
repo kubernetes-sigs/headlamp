@@ -64,6 +64,10 @@ function makeStore(clusterStatuses: ClusterStatusComponent[]) {
 
 const mockCluster = { name: 'test-cluster', server: 'https://k8s.example.com' } as any;
 
+// isConnected=true and error=null bypass the "Not connected" / "Connecting…" states
+// so the callback loop and the default active-status fallback are exercised directly.
+const connectedProps = { isConnected: true, onConnect: vi.fn(), error: null };
+
 describe('ClusterStatus — registerClusterStatus callback loop', () => {
   it('renders the first non-null callback result and skips null-returning callbacks', () => {
     const firstReturnsNull: ClusterStatusComponent = () => null;
@@ -73,26 +77,26 @@ describe('ClusterStatus — registerClusterStatus callback loop', () => {
 
     render(
       <Provider store={makeStore([firstReturnsNull, secondReturnsChip])}>
-        <ClusterStatus cluster={mockCluster} error={undefined} />
+        <ClusterStatus cluster={mockCluster} {...connectedProps} />
       </Provider>
     );
 
     expect(screen.getByTestId('custom-status')).toBeInTheDocument();
   });
 
-  it('falls through to the default status dots when all callbacks return null', () => {
+  it('falls through to the default status when all callbacks return null', () => {
     const alwaysNull: ClusterStatusComponent = () => null;
 
     render(
       <Provider store={makeStore([alwaysNull])}>
-        <ClusterStatus cluster={mockCluster} error={undefined} />
+        <ClusterStatus cluster={mockCluster} {...connectedProps} />
       </Provider>
     );
 
     // No custom chip rendered
     expect(screen.queryByTestId('custom-status')).not.toBeInTheDocument();
-    // Default unknown-state indicator is rendered (error === undefined → stateUnknown → '⋯')
-    expect(screen.getByText('⋯')).toBeInTheDocument();
+    // Default active-state label is rendered (isConnected + error === null → "Active")
+    expect(screen.getByText('translation|Active')).toBeInTheDocument();
   });
 
   it('skips a throwing callback and falls through to the next one', () => {
@@ -106,7 +110,7 @@ describe('ClusterStatus — registerClusterStatus callback loop', () => {
     // Should not throw; the error is caught and the loop continues
     render(
       <Provider store={makeStore([throwingCallback, recoveryCallback])}>
-        <ClusterStatus cluster={mockCluster} error={undefined} />
+        <ClusterStatus cluster={mockCluster} {...connectedProps} />
       </Provider>
     );
 
@@ -121,7 +125,7 @@ describe('ClusterStatus — registerClusterStatus callback loop', () => {
 
     render(
       <Provider store={makeStore([returnsUndefined, recoveryCallback])}>
-        <ClusterStatus cluster={mockCluster} error={undefined} />
+        <ClusterStatus cluster={mockCluster} {...connectedProps} />
       </Provider>
     );
 
@@ -134,7 +138,7 @@ describe('ClusterStatus — registerClusterStatus callback loop', () => {
 
     render(
       <Provider store={makeStore([firstReturnsChip, secondSpy])}>
-        <ClusterStatus cluster={mockCluster} error={undefined} />
+        <ClusterStatus cluster={mockCluster} {...connectedProps} />
       </Provider>
     );
 
