@@ -52,7 +52,8 @@ const sortSidebarItems = (items: SidebarItemProps[]): SidebarItemProps[] => {
   }));
 };
 
-const safeLinkUrl = (url: string): string | null => {
+const safeLinkUrl = (url: unknown): string | null => {
+  if (typeof url !== 'string') return null;
   const trimmed = url.trim();
   if (!/^https?:\/\//i.test(trimmed)) return null;
   // Normalize only the scheme so external URLs are detected reliably without changing the full URL.

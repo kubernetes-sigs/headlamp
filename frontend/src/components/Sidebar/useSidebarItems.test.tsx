@@ -271,6 +271,9 @@ describe('useSidebarItems', () => {
         { label: 'Google', url: 'https://google.com' },
         { label: 'GitHub', url: 'http://github.com' },
         { label: 'Invalid Link', url: 'javascript:alert(1)' },
+        { label: 'Missing URL', url: undefined as any },
+        { label: 'Number URL', url: 123 as any },
+        { label: 'Null URL', url: null as any },
       ],
     });
 
@@ -292,5 +295,14 @@ describe('useSidebarItems', () => {
 
     const invalidLink = result.current.find(it => it.name === 'external-link-2');
     expect(invalidLink).toBeUndefined();
+
+    const missingLink = result.current.find(it => it.label === 'Missing URL');
+    expect(missingLink).toBeUndefined();
+
+    const numberLink = result.current.find(it => it.label === 'Number URL');
+    expect(numberLink).toBeUndefined();
+
+    const nullLink = result.current.find(it => it.label === 'Null URL');
+    expect(nullLink).toBeUndefined();
   });
 });
