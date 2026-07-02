@@ -135,7 +135,7 @@ describe('Tabs', () => {
     it('prevents callers from overriding critical attributes like hidden', () => {
       render(
         <TestContext>
-          {/* @ts-ignore - attempting to pass hidden to test override protection */}
+          {/* Passing hidden to ensure TabPanel overrides/ignores it */}
           <TabPanel
             selectedTab={0}
             index={1}
