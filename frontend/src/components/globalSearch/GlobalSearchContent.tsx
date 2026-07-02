@@ -554,7 +554,6 @@ function GlobalSearchContentLoaded(props: GlobalSearchContentLoadedProps) {
             // this is suboptimal and doesn't fit for the search UX
             // so we're overriding onMouseDown for our own that doesn't do anything
             onMouseDown: () => {},
-            defaultValue,
             autoFocus: true,
             endAdornment: (
               <>
