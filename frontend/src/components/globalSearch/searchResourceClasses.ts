@@ -44,7 +44,13 @@ export function loadSearchResourceClasses(): Promise<KubeObjectClass[]> {
       import('../../lib/k8s/serviceAccount'),
       import('../../lib/k8s/node'),
       import('../../lib/k8s/jobSet'),
-    ]).then(modules => modules.map(module => module.default as KubeObjectClass));
+    ])
+      .then(modules => modules.map(module => module.default as KubeObjectClass))
+      .catch(error => {
+        // Allow a later call to retry if chunk loading fails once.
+        searchResourceClassesPromise = null;
+        throw error;
+      });
   }
 
   return searchResourceClassesPromise;
