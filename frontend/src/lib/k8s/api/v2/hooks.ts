@@ -175,7 +175,7 @@ export function useKubeObject<K extends KubeObject>({
       },
     ];
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [endpoint]);
+  }, [endpoint, namespace, name]);
 
   const multiplexerEnabled = getWebsocketMultiplexerEnabled();
 

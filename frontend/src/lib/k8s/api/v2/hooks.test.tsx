@@ -396,4 +396,43 @@ describe('useKubeObject watch wiring', () => {
       expect(lastCall.url()).toContain('namespaces/my-ns');
     });
   });
+
+  it('re-subscribes to the new resource when navigating between resources of the same kind', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'pod-a', namespace: 'my-ns' },
+      })
+    );
+
+    const { rerender } = renderHook(
+      ({ name }: { name: string }) =>
+        useKubeObject({
+          kubeObjectClass: MockPod,
+          name,
+          namespace: 'my-ns',
+          cluster: 'test',
+        }),
+      { wrapper: createWrapper(), initialProps: { name: 'pod-a' } }
+    );
+
+    // Same endpoint ("pods") is used for both resources, so only the watch
+    // connection's fieldSelector should change between renders.
+    await waitFor(() => {
+      const calls = mockUseWebSockets.mock.calls;
+      const lastCall = calls[calls.length - 1][0];
+      expect(lastCall.connections[0]?.url).toContain('metadata.name%3Dpod-a');
+    });
+
+    rerender({ name: 'pod-b' });
+
+    await waitFor(() => {
+      const calls = mockUseWebSockets.mock.calls;
+      const lastCall = calls[calls.length - 1][0];
+      expect(lastCall.connections[0]?.url).toContain('metadata.name%3Dpod-b');
+      expect(lastCall.connections[0]?.url).not.toContain('metadata.name%3Dpod-a');
+    });
+  });
 });
