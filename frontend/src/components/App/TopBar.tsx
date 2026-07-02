@@ -187,6 +187,26 @@ export interface PureTopBarProps {
   onToggleOpen: () => void;
 }
 
+/**
+ * Wraps children in a MenuItem only if they render non-empty DOM content.
+ * Uses useLayoutEffect (fires before first paint) so the empty item is never
+ * visible to the user — it is suppressed in the same commit cycle.
+ * This handles plugin actions that are valid React elements or function
+ * components but conditionally render nothing in the mobile menu context.
+ */
+function NullableMenuItem({ children }: { children: React.ReactNode }) {
+  const ref = React.useRef<HTMLLIElement>(null);
+  const [show, setShow] = React.useState(true);
+
+  React.useLayoutEffect(() => {
+    if (ref.current && ref.current.innerHTML.trim() === '') {
+      setShow(false);
+    }
+  }, []);
+
+  return show ? <MenuItem ref={ref}>{children}</MenuItem> : null;
+}
+
 export function AppBarActionsMenu({
   appBarActions,
 }: {
@@ -203,7 +223,7 @@ export function AppBarActionsMenu({
           }
           return (
             <ErrorBoundary>
-              <MenuItem>{Action}</MenuItem>
+              <NullableMenuItem>{Action}</NullableMenuItem>
             </ErrorBoundary>
           );
         } else if (Action === null || Action === false) {
@@ -212,9 +232,9 @@ export function AppBarActionsMenu({
           const ActionComponent = Action as React.FC;
           return (
             <ErrorBoundary>
-              <MenuItem>
+              <NullableMenuItem>
                 <ActionComponent />
-              </MenuItem>
+              </NullableMenuItem>
             </ErrorBoundary>
           );
         }
