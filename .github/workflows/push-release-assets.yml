@@ -40,13 +40,31 @@ jobs:
       # Ensure workflow runs used to generate release artifacts were executed
       # from the same commit as the release tag. See app/scripts/validate-run-shas.sh.
       - name: Validate workflow run SHAs match release tag
+        id: validate_run_shas
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          bash app/scripts/validate-run-shas.sh \
-            "${{ inputs.release_name }}" \
-            "${{ github.repository }}" \
-            "${{ inputs.run_ids }}"
+          # Source the script so we can reuse resolve_tag/get_tag_sha/validate_runs
+          # without executing its main() function.
+          # shellcheck source=app/scripts/validate-run-shas.sh
+          source app/scripts/validate-run-shas.sh
+
+          gh_token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+          if [ -z "$gh_token" ]; then
+            echo "Error: GH_TOKEN or GITHUB_TOKEN is required for GitHub CLI authentication." >&2
+            exit 1
+          fi
+          export GH_TOKEN="$gh_token"
+
+          # Ensure tags are available locally before resolving.
+          git fetch --tags --force origin
+
+          tag_name="$(resolve_tag "${{ inputs.release_name }}")"
+          expected_sha="$(get_tag_sha "$tag_name")"
+
+          validate_runs "$expected_sha" "$tag_name" "${{ github.repository }}" "${{ inputs.run_ids }}"
+
+          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
 
       - name: Download artifacts from workflow runs
         if: ${{ inputs.run_ids != '' }}
@@ -152,7 +170,7 @@ jobs:
           if [ "${{ inputs.force }}" == "true" ]; then
             ARGS+=("--force")
           fi
-          ARGS+=("${{ inputs.release_name }}")
+          ARGS+=("${{ steps.validate_run_shas.outputs.tag_name }}")
           ARGS+=("${ASSETS[@]}")
 
           echo "Executing: node push-release-assets.js ${ARGS[*]}"
