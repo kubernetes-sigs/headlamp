@@ -92,20 +92,35 @@ interface GlobalSearchContentProps {
 export function GlobalSearchContent(props: GlobalSearchContentProps) {
   const [resourceClasses, setResourceClasses] = useState<KubeObjectClass[] | null>(null);
   const [queryDraft, setQueryDraft] = useState(props.defaultValue ?? '');
+  const [loadAttempt, setLoadAttempt] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
-    loadSearchResourceClasses().then(classes => {
-      if (!cancelled) {
-        setResourceClasses(classes);
-      }
-    });
+    loadSearchResourceClasses()
+      .then(classes => {
+        if (!cancelled) {
+          setResourceClasses(classes);
+        }
+      })
+      .catch(() => {
+        if (cancelled) {
+          return;
+        }
+        // Keep the input responsive and retry after a short delay when chunk loading fails.
+        retryTimer = setTimeout(() => {
+          setLoadAttempt(attempt => attempt + 1);
+        }, 3000);
+      });
 
     return () => {
       cancelled = true;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+      }
     };
-  }, []);
+  }, [loadAttempt]);
 
   if (!resourceClasses) {
     return (
@@ -210,7 +225,7 @@ function makeKubeObjectResults(
 }
 
 function GlobalSearchContentLoaded(props: GlobalSearchContentLoadedProps) {
-  const { maxWidth, defaultValue, onBlur, resourceClasses, initialQuery } = props;
+  const { maxWidth, onBlur, resourceClasses, initialQuery } = props;
   const { t } = useTranslation();
   const history = useHistory();
   const dispatch = useDispatch();
@@ -384,7 +399,7 @@ function GlobalSearchContentLoaded(props: GlobalSearchContentLoadedProps) {
       label: `Search "${query}" with Advanced Search`,
       onClick: () => {
         // Set the search query in localStorage for the Advanced Search
-        useLocalStorageState.update(ADVANCED_SEARCH_QUERY_KEY, `metadata.name == "${query}"`);
+        useLocalStorageState.update(ADVANCED_SEARCH_QUERY_KEY, `metadata.name === "${query}"`);
 
         const params = new URLSearchParams(history.location.search);
         history.push(createRouteURL('advancedSearch') + '?' + params.toString());
