@@ -212,6 +212,7 @@ func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolin
 
 		if !isOTLPConfigured {
 			isOTLPConfigured = true
+			cfg.OTLPEndpoint = cfg.JaegerEndpoint
 		}
 	}
 
