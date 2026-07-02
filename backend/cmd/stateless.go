@@ -29,8 +29,10 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 )
 
+const statelessContextKeySep = "\x00"
+
 // statelessContextKey generates a structured context key by joining the cluster name
-// and user ID with a NUL character separator to keep the stateless keyspace disjoint.
+// and user ID with a NUL character separator (statelessContextKeySep) to keep the stateless keyspace disjoint.
 // Format: "<clusterName>\x00<userID>".
 // If userID is empty, it returns the clusterName.
 func statelessContextKey(clusterName, userID string) string {
@@ -38,7 +40,7 @@ func statelessContextKey(clusterName, userID string) string {
 		return clusterName
 	}
 
-	return clusterName + "\x00" + userID
+	return clusterName + statelessContextKeySep + userID
 }
 
 // MarshalCustomObject marshals the runtime.Unknown object into a CustomObject.
