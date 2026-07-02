@@ -220,13 +220,15 @@ function CreateActivityContent(props: { onClose: () => void }) {
 
 interface CreateButtonProps {
   isNarrow?: boolean;
+  onClickExtra?: () => void;
 }
 
 export default function CreateButton(props: CreateButtonProps) {
-  const { isNarrow } = props;
+  const { isNarrow, onClickExtra } = props;
   const { t } = useTranslation(['translation']);
 
   const openActivity = () => {
+    onClickExtra?.();
     const id = 'create-button';
     Activity.launch({
       id: id,
