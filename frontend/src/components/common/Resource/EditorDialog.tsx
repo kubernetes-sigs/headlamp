@@ -641,6 +641,7 @@ export default function EditorDialog(props: EditorDialogProps) {
           overflowY: 'hidden',
           display: 'flex',
           flexDirection: 'column',
+          px: { xs: 0, sm: 3 },
         }}
       >
         <Box py={1}>
