@@ -61,10 +61,28 @@ export const PORT_FORWARD_RUNNING_STATUS = 'Running';
 export const DOCKER_DESKTOP_MIN_PORT = 30000;
 export const DOCKER_DESKTOP_MAX_PORT = 32000;
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (
+    error !== null &&
+    typeof error === 'object' &&
+    'message' in error &&
+    typeof (error as Record<string, unknown>).message === 'string'
+  ) {
+    return (error as Record<string, unknown>).message as string;
+  }
+  if (error === null || error === undefined) {
+    return '';
+  }
+  return String(error);
+}
+
 function getPortNumberFromPortName(containers: KubeContainer[], namedPort: string) {
   let portNumber = 0;
   containers.every((container: KubeContainer) => {
-    container.ports?.find((port: any) => {
+    container.ports?.find((port: { name?: string; containerPort: number }) => {
       if (port.name === namedPort) {
         portNumber = port.containerPort;
         return false;
@@ -89,7 +107,7 @@ function getPodsSelectorFilter(service?: Service) {
 }
 
 function checkIfPodPortForwarding(portforwardParam: {
-  item: any;
+  item: PortForwardState;
   namespace: string;
   name: string;
   cluster: string;
@@ -102,6 +120,40 @@ function checkIfPodPortForwarding(portforwardParam: {
     item.cluster === cluster &&
     item.targetPort === numericContainerPort.toString()
   );
+}
+
+function getPortForwardsFromStorage(): PortForwardState[] {
+  try {
+    const portForwardsInStorage = localStorage.getItem(PORT_FORWARDS_STORAGE_KEY);
+    if (!portForwardsInStorage) {
+      return [];
+    }
+    const parsed = JSON.parse(portForwardsInStorage);
+    if (!Array.isArray(parsed)) {
+      return [];
+    }
+    return parsed.filter((pf: unknown): pf is PortForwardState => {
+      if (pf === null || typeof pf !== 'object' || Array.isArray(pf)) {
+        return false;
+      }
+      const r = pf as Record<string, unknown>;
+      return (
+        typeof r.id === 'string' &&
+        typeof r.pod === 'string' &&
+        typeof r.service === 'string' &&
+        typeof r.serviceNamespace === 'string' &&
+        typeof r.namespace === 'string' &&
+        typeof r.cluster === 'string' &&
+        typeof r.port === 'string' &&
+        typeof r.targetPort === 'string' &&
+        (r.status === undefined || typeof r.status === 'string') &&
+        (r.error === undefined || typeof r.error === 'string')
+      );
+    });
+  } catch (err) {
+    console.warn('Failed to parse port forwards from storage', err);
+    return [];
+  }
 }
 
 function PortForwardContent(props: PortForwardProps) {
@@ -164,12 +216,11 @@ function PortForwardContent(props: PortForwardProps) {
         }
         const portForwards = result || [];
         const serverAndStoragePortForwards = [...portForwards];
-        const portForwardsInStorage = localStorage.getItem(PORT_FORWARDS_STORAGE_KEY);
-        const parsedPortForwards = JSON.parse(portForwardsInStorage || '[]');
+        const parsedPortForwards = getPortForwardsFromStorage();
 
-        parsedPortForwards.forEach((portforward: any) => {
+        parsedPortForwards.forEach((portforward: PortForwardState) => {
           const isStoragePortForwardAvailableInServer = portForwards.find(
-            (pf: any) => pf.id === portforward.id
+            (pf: PortForwardState) => pf.id === portforward.id
           );
           if (!isStoragePortForwardAvailableInServer) {
             portforward.status = PORT_FORWARD_STOP_STATUS;
@@ -203,7 +254,8 @@ function PortForwardContent(props: PortForwardProps) {
           return;
         }
         console.error('Failed to list port forwards', err);
-        setError(err?.message || 'Failed to list port forwards');
+        const message = getErrorMessage(err);
+        setError(message || 'Failed to list port forwards');
       });
 
     return () => {
@@ -235,9 +287,8 @@ function PortForwardContent(props: PortForwardProps) {
 
       if (!chosenPort && !portForward?.port) {
         const activePorts: string[] = [];
-        const portForwardsInStorage = localStorage.getItem(PORT_FORWARDS_STORAGE_KEY);
-        const parsedPortForwards = JSON.parse(portForwardsInStorage || '[]');
-        parsedPortForwards.forEach((pf: any) => {
+        const parsedPortForwards = getPortForwardsFromStorage();
+        parsedPortForwards.forEach((pf: PortForwardState) => {
           if (pf.status === PORT_FORWARD_RUNNING_STATUS) {
             activePorts.push(pf.port);
           }
@@ -276,24 +327,25 @@ function PortForwardContent(props: PortForwardProps) {
       address,
       portForward?.id
     )
-      .then((data: any) => {
+      .then((data: PortForwardState) => {
         setLoading(false);
         setPortForward(data);
 
-        const portForwardsInStorage = localStorage.getItem(PORT_FORWARDS_STORAGE_KEY);
-        const parsedPortForwards = JSON.parse(portForwardsInStorage || '[]');
+        const parsedPortForwards = getPortForwardsFromStorage();
         parsedPortForwards.push(data);
         localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify(parsedPortForwards));
       })
       .catch(error => {
-        setError(error?.message ?? 'An unexpected error occurred.');
+        const message = getErrorMessage(error);
+        setError(message || 'An unexpected error occurred.');
         setLoading(false);
         setPortForward(null);
 
         if (portForward?.id) {
-          const portForwardsInStorage = localStorage.getItem(PORT_FORWARDS_STORAGE_KEY);
-          const parsedPortForwards = JSON.parse(portForwardsInStorage || '[]');
-          const index = parsedPortForwards.findIndex((pf: any) => pf.id === portForward.id);
+          const parsedPortForwards = getPortForwardsFromStorage();
+          const index = parsedPortForwards.findIndex(
+            (pf: PortForwardState) => pf.id === portForward.id
+          );
           if (index !== -1) {
             parsedPortForwards.splice(index, 1);
             localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify(parsedPortForwards));
@@ -320,7 +372,8 @@ function PortForwardContent(props: PortForwardProps) {
         setPortForward({ ...portForward, status: PORT_FORWARD_STOP_STATUS });
       })
       .catch(error => {
-        setError(error?.message);
+        const message = getErrorMessage(error);
+        setError(message || 'Failed to stop port forward');
         setPortForward(null);
       })
       .finally(() => {
@@ -334,23 +387,43 @@ function PortForwardContent(props: PortForwardProps) {
       return;
     }
     setLoading(true);
-    stopOrDeletePortForward(cluster, id, false).finally(() => {
-      setLoading(false);
-      const portforwardInStorage = localStorage.getItem(PORT_FORWARDS_STORAGE_KEY);
-      const parsedPortForwards = JSON.parse(portforwardInStorage || '[]');
-      const index = parsedPortForwards.findIndex((pf: any) => pf.id === id);
-      if (index !== -1) {
-        parsedPortForwards.splice(index, 1);
-      }
-      localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify(parsedPortForwards));
-      setPortForward(null);
-    });
+    stopOrDeletePortForward(cluster, id, false)
+      .then(() => {
+        const parsedPortForwards = getPortForwardsFromStorage();
+        const index = parsedPortForwards.findIndex((pf: PortForwardState) => pf.id === id);
+        if (index !== -1) {
+          parsedPortForwards.splice(index, 1);
+          localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, JSON.stringify(parsedPortForwards));
+        }
+        setPortForward(null);
+      })
+      .catch(error => {
+        const message = getErrorMessage(error);
+        setError(message || 'Failed to delete port forward');
+      })
+      .finally(() => {
+        setLoading(false);
+      });
   }
 
   const forwardBaseURL = 'http://127.0.0.1';
 
   return (
     <Box>
+      {error && (
+        <Box mb={2}>
+          <Alert
+            severity="error"
+            onClose={() => {
+              setError(null);
+            }}
+          >
+            <Tooltip title={t('translation|Error')}>
+              <Box style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{error}</Box>
+            </Tooltip>
+          </Alert>
+        </Box>
+      )}
       {!portForward ? (
         <>
           {loading ? (
@@ -369,20 +442,6 @@ function PortForwardContent(props: PortForwardProps) {
               <InlineIcon icon="mdi:fast-forward" width={20} />
               <Typography>{t('translation|Forward port')}</Typography>
             </Button>
-          )}
-          {error && (
-            <Box mt={1}>
-              <Alert
-                severity="error"
-                onClose={() => {
-                  setError(null);
-                }}
-              >
-                <Tooltip title="error">
-                  <Box style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{error}</Box>
-                </Tooltip>
-              </Alert>
-            </Box>
           )}
         </>
       ) : (
@@ -424,6 +483,7 @@ function PortForwardContent(props: PortForwardProps) {
               <MuiLink
                 href={`${forwardBaseURL}:${portForward.port}`}
                 target="_blank"
+                rel="noopener noreferrer"
                 color="primary"
               >
                 {`${forwardBaseURL}:${portForward.port}`}
