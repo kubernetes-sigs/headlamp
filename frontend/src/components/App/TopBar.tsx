@@ -448,6 +448,24 @@ export const PureTopBar = memo(
           </MenuItem>
         ) : null,
       },
+      {
+        id: DefaultAppBarAction.VERSION,
+        action: (
+          <MenuItem
+            onClick={() => {
+              dispatch(uiSlice.actions.setVersionDialogOpen(true));
+              handleMobileMenuClose();
+            }}
+          >
+            <ListItemIcon>
+              <Icon icon="mdi:information-outline" />
+            </ListItemIcon>
+            <ListItemText>
+              {getProductName()} {getVersion()['VERSION']}
+            </ListItemText>
+          </MenuItem>
+        ),
+      },
     ];
     const renderMobileMenu = (
       <Menu
