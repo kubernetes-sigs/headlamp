@@ -43,6 +43,8 @@ type HeadlampConfig struct {
 	ProxyAuthGroupHeader      string
 	ProxyAuthEmailHeader      string
 	ProxyAuthTokenHeader      string
+	ImpersonationEnabled      bool
+	ImpersonationRules        []config.MappingRule
 	ServerCtx                 context.Context
 }
 

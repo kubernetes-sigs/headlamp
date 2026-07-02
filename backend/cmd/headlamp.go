@@ -1182,6 +1182,54 @@ func (c *HeadlampConfig) shouldUseUnsafeServiceAccountTokenForContext(kContext *
 	return c.shouldUseUnsafeServiceAccountToken() && kContext.UsesInClusterServiceAccountToken()
 }
 
+func (c *HeadlampConfig) applyAuthAndImpersonation(r *http.Request, kContext *kubeconfig.Context) {
+	if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+		clearRequestAuthorization(r)
+		return
+	}
+
+	var token string
+	if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
+		token = strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
+	}
+
+	if token == "" {
+		token, _ = auth.GetTokenFromCookie(r, kContext.Name)
+	}
+
+	if token == "" {
+		return
+	}
+
+	r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+
+	if !c.ImpersonationEnabled {
+		return
+	}
+
+	claims, err := auth.ExtractClaims(token)
+	if err != nil {
+		logger.Log(logger.LevelWarn, nil, err, "failed to extract claims for impersonation")
+		return
+	}
+
+	impUser, impGroups, err := auth.EvaluateRules(c.ImpersonationRules, claims)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to evaluate impersonation rules")
+		return
+	}
+
+	if impUser != "" {
+		r.Header.Set("Impersonate-User", impUser)
+	}
+
+	r.Header.Del("Impersonate-Group")
+
+	for _, group := range impGroups {
+		r.Header.Add("Impersonate-Group", group)
+	}
+}
+
 func tokenFromCookie(r *http.Request, clusterName string) string {
 	if cookieToken, err := auth.GetTokenFromCookie(r, clusterName); err == nil && cookieToken != "" {
 		return cookieToken
@@ -1360,6 +1408,7 @@ func serverHandler(ctx context.Context, config *HeadlampConfig) (http.Handler, e
 	}
 
 	handler = config.OIDCTokenRefreshMiddleware(handler)
+	handler = auth.StripImpersonationHeadersMiddleware(handler)
 
 	// Only validate the Host header when listening on a loopback address.
 	// When bound to a non-loopback address (e.g. behind a reverse proxy),
@@ -1832,23 +1881,7 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 		// Process WebSocket protocol headers if present
 		processWebSocketProtocolHeader(r)
 
-		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
-			clearRequestAuthorization(r)
-		} else {
-			var token string
-
-			if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
-				token = strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
-			}
-
-			if token == "" {
-				token, _ = auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
-			}
-
-			if token != "" {
-				r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-			}
-		}
+		c.applyAuthAndImpersonation(r, kContext)
 
 		clearConfiguredProxyTokenHeader(r, c.ProxyAuthTokenHeader)
 
