@@ -106,9 +106,7 @@ export default function ErrorComponent(props: ErrorComponentProps) {
     title = t('Uh-oh! Something went wrong.'),
     message = '',
     withTypography = true,
-    // In vite headlampBrokenImage is a string, but in webpack it is an object
-    // TODO: Remove this once we migrate plugins to vite
-    graphic = headlampBrokenImage as any as string,
+    graphic = headlampBrokenImage,
     error,
   } = props;
   return (

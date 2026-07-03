@@ -17,18 +17,16 @@
 import * as fs from 'fs';
 import * as path from 'path';
 
+const currentDir = typeof __dirname !== 'undefined' ? __dirname : import.meta.dirname;
+
 // Get the path to the frontend locales directory
 let frontendLocalesPath: string;
 const isDev = process.env.ELECTRON_DEV || false;
-// Check if we're running in a normal Node.js process (for i18next-parser)
-// or in an Electron environment
 const isRunningInNode = !(process as any).resourcesPath;
 
 if (isDev || isRunningInNode) {
-  // When running as a normal Node.js process (i18next parser) or in dev mode
-  frontendLocalesPath = path.resolve(__dirname, '../../frontend/src/i18n/locales');
+  frontendLocalesPath = path.resolve(currentDir, '../../frontend/src/i18n/locales');
 } else {
-  // When running in Electron production mode
   frontendLocalesPath = path.join((process as any).resourcesPath, 'frontend/i18n/locales');
 }
 

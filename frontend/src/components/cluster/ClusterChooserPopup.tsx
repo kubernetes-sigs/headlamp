@@ -46,9 +46,11 @@ function ClusterListItem(props: { cluster: Cluster; onClick: () => void; selecte
   return (
     <MenuItem
       selected={selected}
+      aria-selected={!!cluster.isCurrent}
       key={`recent_cluster_${cluster.name}`}
       onClick={onClick}
       id={cluster.name}
+      role="option"
       sx={theme => ({
         borderRadius: theme.shape.borderRadius + 'px',
       })}
@@ -107,7 +109,9 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
   const [recentClusters, clustersToShow] = React.useMemo(() => {
     let allClusters = Object.values(clusters || {});
     if (filter !== '') {
-      allClusters = allClusters.filter(cluster => cluster.name.includes(filter));
+      allClusters = allClusters.filter(cluster =>
+        cluster.name.toLowerCase().includes(filter.toLowerCase())
+      );
     }
 
     const recentClustersNames = !!filter ? [] : getRecentClusters();
@@ -149,6 +153,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
     });
 
     return [recentClusters, clustersToShow];
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [clusters, selectedClusters.join(','), filter]);
 
   React.useEffect(() => {
@@ -178,6 +183,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
     return {
       'aria-activedescendant': cluster.name,
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeDescendantIndex]);
 
   function getActiveDescendantCluster() {
@@ -192,15 +198,29 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
   function onKeyDown(e: React.KeyboardEvent<HTMLDivElement>) {
     switch (e.key) {
       case 'ArrowUp': {
-        setActiveDescendantIndex(
-          idx => (idx - 1) % (recentClusters.length + clustersToShow.length)
-        );
+        setActiveDescendantIndex(idx => {
+          const total = recentClusters.length + clustersToShow.length;
+          if (total === 0) {
+            return -1;
+          }
+
+          if (idx <= 0) {
+            return total - 1;
+          }
+
+          return (idx - 1 + total) % total;
+        });
         break;
       }
       case 'ArrowDown': {
-        setActiveDescendantIndex(
-          idx => (idx + 1) % (recentClusters.length + clustersToShow.length)
-        );
+        setActiveDescendantIndex(idx => {
+          const total = recentClusters.length + clustersToShow.length;
+          if (total === 0) {
+            return -1;
+          }
+
+          return (idx + 1) % total;
+        });
         break;
       }
       case 'Enter': {
@@ -257,6 +277,8 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
         />
         <MenuList
           id="cluster-chooser-list"
+          role="listbox"
+          tabIndex={0}
           sx={{
             width: '280px',
             minWidth: '280px',
@@ -281,6 +303,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
                 clustersToShow.length > 0 && (
                   <ListSubheader
                     disableSticky
+                    role="presentation"
                     sx={{
                       paddingLeft: 0,
                       lineHeight: theme.typography.pxToRem(24),
@@ -300,7 +323,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
               ))}
             </>
           )}
-          {clustersToShow.length > 0 && recentClusters.length > 0 && <Divider />}
+          {clustersToShow.length > 0 && recentClusters.length > 0 && <Divider role="separator" />}
           {clustersToShow.map(cluster => (
             <ClusterListItem
               key={`cluster_button_${cluster.name}`}

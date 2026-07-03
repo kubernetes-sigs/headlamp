@@ -23,6 +23,8 @@ import { ClusterSettings } from '../../../helpers/clusterSettings';
 import { parseKubeConfig, renameCluster } from '../../../lib/k8s/api/v1/clusterApi';
 import { Cluster } from '../../../lib/k8s/cluster';
 import { setConfig, setStatelessConfig } from '../../../redux/configSlice';
+import store from '../../../redux/stores/store';
+import { mergeStatelessConfigState } from '../../../stateless';
 import { findKubeconfigByClusterName } from '../../../stateless/findKubeconfigByClusterName';
 import { updateStatelessClusterKubeconfig } from '../../../stateless/updateStatelessClusterKubeconfig';
 import { ConfirmButton, ConfirmDialog, NameValueTable } from '../../common';
@@ -33,8 +35,8 @@ interface ClusterNameEditorProps {
   clusterConf: {
     [clusterName: string]: Cluster;
   } | null;
-  clusterSettings: ClusterSettings | null;
-  setClusterSettings: React.Dispatch<React.SetStateAction<ClusterSettings | null>>;
+  clusterSettings: ClusterSettings;
+  setClusterSettings: React.Dispatch<React.SetStateAction<ClusterSettings>>;
 }
 
 export function ClusterNameEditor({
@@ -96,45 +98,7 @@ export function ClusterNameEditor({
     setCustomNameInUse(nameInUse);
   }
 
-  function ClusterErrorDialog() {
-    return (
-      <ConfirmDialog
-        onConfirm={() => {
-          setClusterErrorDialogOpen(false);
-        }}
-        handleClose={() => {
-          setClusterErrorDialogOpen(false);
-        }}
-        hideCancelButton
-        open={clusterErrorDialogOpen}
-        title={t('translation|Error')}
-        description={clusterErrorDialogMessage}
-        confirmLabel={t('translation|Okay')}
-      ></ConfirmDialog>
-    );
-  }
   // Display the original name of the cluster if it was loaded from a kubeconfig file.
-  function ClusterName() {
-    const currentName = clusterInfo?.name;
-    const originalName = clusterInfo?.meta_data?.originalName;
-    const source = clusterInfo?.meta_data?.source;
-    // Note: display original name is currently only supported for non dynamic clusters from kubeconfig sources.
-    const displayOriginalName = source === 'kubeconfig' && originalName;
-
-    return (
-      <>
-        {clusterErrorDialogOpen && <ClusterErrorDialog />}
-        <Typography>{t('translation|Name')}</Typography>
-        {displayOriginalName && currentName !== displayOriginalName && (
-          <Typography variant="body2" color="textSecondary">
-            {t('translation|Original name: {{ displayName }}', {
-              displayName: displayName,
-            })}
-          </Typography>
-        )}
-      </>
-    );
-  }
 
   function storeNewClusterName(name: string) {
     let actualName = name;
@@ -143,13 +107,10 @@ export function ClusterNameEditor({
       setNewClusterName(actualName);
     }
 
-    setClusterSettings((settings: ClusterSettings | null) => {
-      const newSettings = { ...(settings || {}) };
-      if (isValidClusterNameFormat(name)) {
-        newSettings.currentName = actualName;
-      }
-      return newSettings;
-    });
+    setClusterSettings(settings => ({
+      ...settings,
+      ...(isValidClusterNameFormat(name) ? { currentName: actualName } : {}),
+    }));
   }
 
   const handleUpdateClusterName = (source: string) => {
@@ -164,9 +125,14 @@ export function ClusterNameEditor({
               const updatedKubeconfig = await findKubeconfigByClusterName(cluster, clusterID);
               if (updatedKubeconfig !== null) {
                 parseKubeConfig({ kubeconfig: updatedKubeconfig })
-                  .then((config: any) => {
+                  .then((parsedConfig: any) => {
                     storeNewClusterName(newClusterName);
-                    dispatch(setStatelessConfig(config));
+                    const currentStatelessClusters = store.getState().config.statelessClusters;
+                    dispatch(
+                      setStatelessConfig(
+                        mergeStatelessConfigState(currentStatelessClusters, parsedConfig)
+                      )
+                    );
                   })
                   .catch((err: Error) => {
                     console.error('Error updating cluster name:', err.message);
@@ -190,11 +156,46 @@ export function ClusterNameEditor({
   };
   const isValidCurrentName = isValidClusterNameFormat(newClusterName);
 
+  const hasOriginalName =
+    source === 'kubeconfig' && originalName && clusterInfo?.name !== originalName;
+
+  const clusterNameLabelID = 'cluster-name-label';
+  const clusterOriginalNameID = 'cluster-original-name';
+
   return (
     <NameValueTable
       rows={[
         {
-          name: <ClusterName />,
+          name: (
+            <>
+              {clusterErrorDialogOpen && (
+                <ConfirmDialog
+                  onConfirm={() => {
+                    setClusterErrorDialogOpen(false);
+                  }}
+                  handleClose={() => {
+                    setClusterErrorDialogOpen(false);
+                  }}
+                  hideCancelButton
+                  open={clusterErrorDialogOpen}
+                  title={t('translation|Error')}
+                  description={clusterErrorDialogMessage}
+                  confirmLabel={t('translation|Okay')}
+                ></ConfirmDialog>
+              )}
+              <Typography>{t('translation|Name')}</Typography>
+              <div>
+                {source === 'kubeconfig' && originalName && clusterInfo?.name !== originalName && (
+                  <Typography id="cluster-original-name" variant="body2" color="textSecondary">
+                    {t('translation|Original name: {{ displayName }}', {
+                      displayName: displayName,
+                    })}
+                  </Typography>
+                )}
+              </div>
+            </>
+          ),
+          nameID: clusterNameLabelID,
           value: (
             <TextField
               onChange={event => {
@@ -219,11 +220,12 @@ export function ClusterNameEditor({
                 </Typography>
               }
               inputProps={{
-                'aria-label': t('translation|Cluster name'),
+                'aria-labelledby': clusterNameLabelID,
+                'aria-describedby': hasOriginalName ? clusterOriginalNameID : undefined,
               }}
               InputProps={{
                 endAdornment: (
-                  <Box pt={2} textAlign="right">
+                  <Box display="flex" alignItems="center">
                     <ConfirmButton
                       onConfirm={() => {
                         if (isValidCurrentName) {
@@ -241,7 +243,7 @@ export function ClusterNameEditor({
                     </ConfirmButton>
                   </Box>
                 ),
-                onKeyPress: event => {
+                onKeyDown: event => {
                   if (event.key === 'Enter' && isValidCurrentName) {
                     handleUpdateClusterName(source);
                   }

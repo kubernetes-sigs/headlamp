@@ -96,7 +96,7 @@ graph TD
 
 How can plugins be enabled?
 
-- Operators can configure which plugins which they enable for their deployed version of Headlamp.
+- Operators can configure which plugins they enable for their deployed version of Headlamp.
 - Users of the Headlamp Desktop app can install and enable their own plugins.
 - The Headlamp Desktop App can browse and install Headlamp Plugins indexed on Artifact Hub.
 - Some plugins are bundled with the Headlamp app.
@@ -212,7 +212,7 @@ This section outlines the key ideas that guide how Headlamp is built and what mu
 - **Consistency**: The UI should always show the current state of the cluster.
 - **Adaptive UI**: The interface should adjust based on what the user is allowed to do. For example, if a user can’t edit something, they’ll only see a “view” button.
 
-If you're planning a big change to Headlamp, please open an issue first. See the [contribution guide](https://headlamp.dev/docs/latest/faq/) for more info.
+If you're planning a big change to Headlamp, please open an issue first. See the [contribution guide](https://headlamp.dev/docs/latest/contributing/) for more info.
 
 ## Deployment Options
 

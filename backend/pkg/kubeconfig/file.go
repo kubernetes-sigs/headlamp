@@ -1,11 +1,12 @@
 package kubeconfig
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
 
-	"github.com/pkg/errors"
 	"k8s.io/client-go/tools/clientcmd"
 	clientcmdapi "k8s.io/client-go/tools/clientcmd/api"
 )
@@ -22,10 +23,10 @@ func WriteToFile(config clientcmdapi.Config, path string) error {
 
 		err = clientcmd.WriteToFile(config, newKubeConfigFile)
 		if err != nil {
-			return errors.Wrap(err, "failed to write new kubeconfig file")
+			return fmt.Errorf("failed to write new kubeconfig file: %w", err)
 		}
 
-		defer os.Remove(newKubeConfigFile)
+		defer func() { _ = os.Remove(newKubeConfigFile) }()
 
 		load := clientcmd.ClientConfigLoadingRules{
 			Precedence: []string{configFile, newKubeConfigFile},
@@ -33,7 +34,7 @@ func WriteToFile(config clientcmdapi.Config, path string) error {
 
 		mergedConfig, err := load.Load()
 		if err != nil {
-			return errors.Wrap(err, "failed to load merged kubeconfig")
+			return fmt.Errorf("failed to load merged kubeconfig: %w", err)
 		}
 
 		config = *mergedConfig
@@ -47,7 +48,7 @@ func WriteToFile(config clientcmdapi.Config, path string) error {
 func RemoveContextFromFile(context string, path string) error {
 	config, err := clientcmd.LoadFromFile(path)
 	if err != nil {
-		return errors.Wrap(err, "failed to load kubeconfig file")
+		return fmt.Errorf("failed to load kubeconfig file: %w", err)
 	}
 
 	// remove the context from the config

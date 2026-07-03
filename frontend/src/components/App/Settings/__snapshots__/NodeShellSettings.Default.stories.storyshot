@@ -30,7 +30,7 @@
           class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
         >
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1g8ukv4-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
           >
             <p
               class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
@@ -46,12 +46,12 @@
               class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
             >
               <span
-                class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
+                class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-po6g13-MuiButtonBase-root-MuiSwitchBase-root-MuiSwitch-switchBase"
               >
                 <input
                   aria-labelledby="node-shell-enabled-label"
                   checked=""
-                  class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
+                  class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
                   type="checkbox"
                 />
                 <span
@@ -67,7 +67,7 @@
             </span>
           </dd>
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1g8ukv4-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
           >
             Linux Image
           </dt>
@@ -78,24 +78,24 @@
               class="MuiFormControl-root MuiTextField-root css-1u3bzj6-MuiFormControl-root-MuiTextField-root"
             >
               <div
-                class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd css-14f1a7d-MuiInputBase-root-MuiOutlinedInput-root"
+                class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall css-1j5i1mu-MuiInputBase-root-MuiOutlinedInput-root"
               >
                 <input
                   aria-describedby=":mock-test-id:"
                   aria-invalid="false"
                   aria-label="Linux image"
-                  class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+                  class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                   id=":mock-test-id:"
                   placeholder="docker.io/library/busybox:latest"
                   type="text"
-                  value=""
+                  value="busybox:1.28"
                 />
                 <fieldset
                   aria-hidden="true"
-                  class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                  class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                 >
                   <legend
-                    class="css-ihdtdm"
+                    class="css-1whs34k-MuiNotchedOutlined-root"
                   >
                     <span
                       class="notranslate"
@@ -106,7 +106,7 @@
                 </fieldset>
               </div>
               <p
-                class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained css-153yz37-MuiFormHelperText-root"
+                class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained MuiFormHelperText-filled css-153yz37-MuiFormHelperText-root"
                 id=":mock-test-id:"
               >
                 The default image is used for dropping a shell into a node (when not specified directly).
@@ -114,7 +114,7 @@
             </div>
           </dd>
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1779c3p-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
           >
             Namespace
           </dt>
@@ -125,24 +125,24 @@
               class="MuiFormControl-root MuiTextField-root css-1u3bzj6-MuiFormControl-root-MuiTextField-root"
             >
               <div
-                class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd css-8secpz-MuiInputBase-root-MuiOutlinedInput-root"
+                class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall css-v0wilr-MuiInputBase-root-MuiOutlinedInput-root"
               >
                 <input
                   aria-describedby=":mock-test-id:"
                   aria-invalid="false"
                   aria-label="Namespace"
-                  class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+                  class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                   id=":mock-test-id:"
                   placeholder="default"
                   type="text"
-                  value=""
+                  value="kube-system"
                 />
                 <fieldset
                   aria-hidden="true"
-                  class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                  class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                 >
                   <legend
-                    class="css-ihdtdm"
+                    class="css-1whs34k-MuiNotchedOutlined-root"
                   >
                     <span
                       class="notranslate"
@@ -153,7 +153,7 @@
                 </fieldset>
               </div>
               <p
-                class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained css-153yz37-MuiFormHelperText-root"
+                class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained MuiFormHelperText-filled css-153yz37-MuiFormHelperText-root"
                 id=":mock-test-id:"
               >
                 The default namespace is default.

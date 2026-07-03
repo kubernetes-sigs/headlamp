@@ -10,7 +10,7 @@
     <div
       aria-hidden="true"
       class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
-      style="opacity: 1; webkit-transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+      style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
     />
     <div
       data-testid="sentinelStart"
@@ -19,7 +19,7 @@
     <div
       class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
       role="presentation"
-      style="opacity: 1; webkit-transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+      style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
       tabindex="-1"
     >
       <div
@@ -40,6 +40,7 @@
             >
               <h1
                 class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
+                id="editor-dialog-title-id"
                 style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
               >
                 Edit: Dummy_Name
@@ -102,10 +103,10 @@
                       class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
                     >
                       <span
-                        class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
+                        class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-po6g13-MuiButtonBase-root-MuiSwitchBase-root-MuiSwitch-switchBase"
                       >
                         <input
-                          class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
+                          class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
                           name="useSimpleEditor"
                           type="checkbox"
                         />
@@ -184,6 +185,20 @@
                     class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                   />
                 </button>
+                <button
+                  aria-controls="full-width-tabpanel-2-Editor-tabs-id"
+                  aria-selected="false"
+                  class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
+                  id="full-width-tab-2-Editor-tabs-id"
+                  role="tab"
+                  tabindex="-1"
+                  type="button"
+                >
+                  Review Changes
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </button>
               </div>
               <span
                 class="MuiTabs-indicator css-1s2zz1g-MuiTabs-indicator"
@@ -226,11 +241,19 @@
               </div>
             </div>
           </div>
+          <div
+            aria-labelledby="full-width-tab-2-Editor-tabs-id"
+            class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
+            hidden=""
+            id="full-width-tabpanel-2-Editor-tabs-id"
+            role="tabpanel"
+          />
         </div>
         <div
           class="MuiDialogActions-root MuiDialogActions-spacing css-knqc4i-MuiDialogActions-root"
         >
           <button
+            aria-controls="editor-textarea-id"
             aria-label="Undo"
             class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-14f6w6s-MuiButtonBase-root-MuiButton-root"
             disabled=""
@@ -257,7 +280,17 @@
             />
           </button>
           <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
+            aria-controls="editor-textarea-id"
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-1uk0gch-MuiButtonBase-root-MuiButton-root"
+            disabled=""
+            tabindex="-1"
+            type="button"
+          >
+            Dry Run
+          </button>
+          <button
+            aria-controls="editor-textarea-id"
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation Mui-disabled MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-k15prl-MuiButtonBase-root-MuiButton-root"
             disabled=""
             tabindex="-1"
             type="button"

@@ -2,10 +2,12 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"time"
+
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"go.opentelemetry.io/otel"
@@ -220,8 +222,10 @@ func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolin
 	}
 
 	if enabledExporters > 1 {
-		log.Printf("Warning: Multiple trace exporters configured (%s). Using %s exporter based on priority.",
-			strings.Join(enabledTypes, ", "), enabledTypes[0])
+		logger.Log(logger.LevelWarn, map[string]string{
+			"configured": strings.Join(enabledTypes, ", "),
+			"selected":   enabledTypes[0],
+		}, nil, "Multiple trace exporters configured, using highest priority exporter")
 	}
 
 	if *cfg.StdoutTraceEnabled {
@@ -294,7 +298,7 @@ func setupShutdownFunction(t *Telemetry) {
 
 		// Return both errors if both occur
 		if err1 != nil && err2 != nil {
-			return fmt.Errorf("multiple shutdown errors: tracer: %w; meter: %v", err1, err2)
+			return errors.Join(fmt.Errorf("tracer shutdown error: %w", err1), fmt.Errorf("meter shutdown error: %w", err2))
 		}
 
 		if err1 != nil {

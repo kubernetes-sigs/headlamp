@@ -25,10 +25,16 @@ import MenuItem from '@mui/material/MenuItem';
 import { SelectChangeEvent } from '@mui/material/Select';
 import Select from '@mui/material/Select';
 import TextField from '@mui/material/TextField';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
+import {
+  getTablesRowsPerPage,
+  maxTablesRowsPerPage,
+  minTablesRowsPerPage,
+  parseTablesRowsPerPage,
+  setTablesRowsPerPage,
+} from '../../../helpers/tablesRowsPerPage';
 import { defaultTableRowsPerPageOptions, setAppSettings } from '../../../redux/configSlice';
 
 export default function NumRowsInput(props: { defaultValue: number[]; nameLabelID?: string }) {
@@ -36,34 +42,32 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
   const { defaultValue, nameLabelID } = props;
   const [isSelectOpen, setIsSelectOpen] = useState(false);
   const [options, setOptions] = useState(defaultValue);
+  const [minRows, maxRows] = [minTablesRowsPerPage, maxTablesRowsPerPage];
   const focusedRef = useCallback((node: HTMLElement) => {
     if (node !== null) {
       node.focus();
     }
   }, []);
-  const defaultRowsPerPageValue = useMemo(() => {
+  const [selectedValue, setSelectedValue] = useState(() => {
     const val = getTablesRowsPerPage();
-    if (options.includes(val)) {
+    if (defaultValue.includes(val)) {
       return val;
     }
     return defaultTableRowsPerPageOptions[0];
-  }, []);
-  const [selectedValue, setSelectedValue] = useState(defaultRowsPerPageValue);
-  const storedCustomValue = useMemo(() => {
-    const val = options.find(val => !defaultTableRowsPerPageOptions.includes(val));
+  });
+  const [customValue, setCustomValue] = useState(() => {
+    const val = defaultValue.find(val => !defaultTableRowsPerPageOptions.includes(val));
     if (!val) {
-      return defaultTableRowsPerPageOptions[0];
+      return defaultTableRowsPerPageOptions[0].toString();
     }
-    return val;
-  }, []);
-  const [customValue, setCustomValue] = useState<number | undefined>(storedCustomValue);
+    return val.toString();
+  });
   const [errorMessage, setErrorMessage] = useState('');
-  const [minRows, maxRows] = [5, 1000];
   const dispatch = useDispatch();
 
   useEffect(() => {
     dispatch(setAppSettings({ tableRowsPerPageOptions: options }));
-  }, [options]);
+  }, [options, dispatch]);
 
   // Make sure we update the value in the localStorage when the user selects a new value.
   useEffect(() => {
@@ -100,35 +104,35 @@ export default function NumRowsInput(props: { defaultValue: number[]; nameLabelI
           error={!!errorMessage}
           placeholder={t('translation|Custom row value')}
           helperText={errorMessage || suggestionMsg}
-          inputProps={{ min: minRows, max: maxRows }}
+          inputProps={{ min: minRows, max: maxRows, step: 1 }}
           inputRef={focusedRef}
           onChange={e => {
-            const val = parseInt(e.target.value);
-            if (Number.isInteger(val)) {
-              if (val < 5 || val > maxRows) {
-                setErrorMessage(suggestionMsg);
-              } else {
-                setErrorMessage('');
-              }
-              setCustomValue(val);
-            } else {
-              setCustomValue(undefined);
+            const val = parseTablesRowsPerPage(e.target.value);
+            setCustomValue(e.target.value);
+            if (val === null) {
+              setErrorMessage(e.target.value ? suggestionMsg : '');
+              return;
             }
+
+            setErrorMessage('');
           }}
         />
         <Box display="inline-flex" alignItems="center" mx={1}>
           <Button
             variant="contained"
-            disabled={!!errorMessage}
+            disabled={!!errorMessage || parseTablesRowsPerPage(customValue) === null}
             size="small"
             onClick={() => {
-              if (customValue === undefined) {
+              const parsedCustomValue = parseTablesRowsPerPage(customValue);
+              if (parsedCustomValue === null) {
                 return;
               }
-              const newOptions = [...new Set([...defaultTableRowsPerPageOptions, customValue])];
+              const newOptions = [
+                ...new Set([...defaultTableRowsPerPageOptions, parsedCustomValue]),
+              ];
               newOptions.sort((a, b) => a - b);
               setOptions(newOptions);
-              setSelectedValue(customValue);
+              setSelectedValue(parsedCustomValue);
             }}
           >
             {t('translation|Apply')}

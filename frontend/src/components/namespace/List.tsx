@@ -119,6 +119,7 @@ export default function NamespacesList() {
         'age',
       ],
     } satisfies ResourceTableFromResourceClassProps<typeof Namespace>;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allowedNamespaces]);
 
   return (

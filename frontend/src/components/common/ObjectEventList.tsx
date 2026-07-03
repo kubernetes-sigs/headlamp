@@ -20,6 +20,7 @@ import Event, { KubeEvent } from '../../lib/k8s/event';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { localeDate, timeAgo } from '../../lib/util';
 import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
+import EventsLifetimeInfo from '../common/EventsLifetimeInfo';
 import { HoverInfoLabel } from '../common/Label';
 import SectionBox from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
@@ -37,6 +38,7 @@ export default function ObjectEventList(props: ObjectEventListProps) {
     if (events) {
       dispatchEventList(events, props.object);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [events]);
 
   async function fetchEvents() {
@@ -51,10 +53,18 @@ export default function ObjectEventList(props: ObjectEventListProps) {
 
   useEffect(() => {
     fetchEvents();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
-    <SectionBox title={t('glossary|Events')}>
+    <SectionBox
+      title={t('glossary|Events')}
+      headerProps={{
+        noPadding: false,
+        headerStyle: 'subsection',
+        titleSideActions: [<EventsLifetimeInfo key="event-lifetime-info" />],
+      }}
+    >
       <SimpleTable
         columns={[
           {
@@ -90,11 +100,6 @@ export default function ObjectEventList(props: ObjectEventListProps) {
           {
             label: t('Age'),
             getter: item => {
-              if (item.count > 1) {
-                return `${timeAgo(item.lastOccurrence)} (${item.count} times over ${timeAgo(
-                  item.firstOccurrence
-                )})`;
-              }
               const eventDate = timeAgo(item.lastOccurrence, { format: 'mini' });
               let label: string;
               if (item.count > 1) {
@@ -115,8 +120,7 @@ export default function ObjectEventList(props: ObjectEventListProps) {
                 />
               );
             },
-            sort: (n1: KubeEvent, n2: KubeEvent) =>
-              new Date(n2.lastTimestamp).getTime() - new Date(n1.lastTimestamp).getTime(),
+            sort: (item: Event) => -new Date(item.lastOccurrence).getTime(),
           },
         ]}
         data={events}

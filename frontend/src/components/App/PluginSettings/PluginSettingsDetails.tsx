@@ -20,23 +20,20 @@ import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import _ from 'lodash';
-import { isValidElement, useEffect, useMemo, useState } from 'react';
+import { isValidElement, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useDispatch } from 'react-redux';
 import { useHistory, useParams } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
-import { deletePlugin } from '../../../lib/k8s/api/v1/pluginsApi';
 import { ConfigStore } from '../../../plugin/configStore';
-import { PluginInfo, reloadPage } from '../../../plugin/pluginsSlice';
-import { clusterAction } from '../../../redux/clusterActionSlice';
+import { PluginInfo } from '../../../plugin/pluginsSlice';
 import { useTypedSelector } from '../../../redux/hooks';
-import type { AppDispatch } from '../../../redux/stores/store';
 import NotFoundComponent from '../../404';
 import { SectionHeader } from '../../common';
 import ActionButton from '../../common/ActionButton';
 import { ConfirmDialog } from '../../common/Dialog';
 import ErrorBoundary from '../../common/ErrorBoundary';
 import { SectionBox } from '../../common/SectionBox';
+import { usePluginDelete } from './usePluginDelete';
 
 // Helper function to open plugin folder in file explorer (Electron only)
 function openPluginFolder(plugin: PluginInfo) {
@@ -70,40 +67,19 @@ function canOpenPluginFolder(plugin: PluginInfo): boolean {
 
 const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
   const { plugin } = props;
-  const { t } = useTranslation(['translation']);
   const store = new ConfigStore(plugin.name);
   const pluginConf = store.useConfig();
   const config = pluginConf() as { [key: string]: any };
-  const dispatch: AppDispatch = useDispatch();
-  const history = useHistory();
+  const deletePluginAction = usePluginDelete();
 
   function handleSave(data: { [key: string]: any }) {
     store.set(data);
   }
 
   function handleDeleteConfirm() {
-    // Use folderName if available (the actual folder name on disk),
-    // otherwise fall back to extracting from the name
-    const pluginFolderName = plugin.folderName || plugin.name.split('/').splice(-1)[0];
-
-    // Determine plugin type for deletion - only allow deletion of user and development plugins
-    const pluginType =
-      plugin.type === 'development' || plugin.type === 'user' ? plugin.type : undefined;
-
-    dispatch(
-      clusterAction(() => deletePlugin(pluginFolderName, pluginType), {
-        startMessage: t('Deleting plugin {{ itemName }}...', { itemName: pluginFolderName }),
-        cancelledMessage: t('Cancelled deletion of {{ itemName }}.', {
-          itemName: pluginFolderName,
-        }),
-        successMessage: t('Deleted plugin {{ itemName }}.', { itemName: pluginFolderName }),
-        errorMessage: t('Error deleting plugin {{ itemName }}.', { itemName: pluginFolderName }),
-      })
-    ).then(() => {
-      // Navigate to plugins list page, then reload to refresh plugin list from backend
-      history.push('/settings/plugins');
-      dispatch(reloadPage());
-    });
+    // The hook handles the snackbar, navigation, and reload. The promise rejects
+    // on failure but we ignore it here since the user stays on the detail page.
+    deletePluginAction(plugin).catch(() => {});
   }
 
   return (
@@ -177,20 +153,12 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
   const { config, plugin, onSave, onDelete } = props;
   const { t } = useTranslation(['translation']);
   const [data, setData] = useState<{ [key: string]: any } | undefined>(config);
-  const [enableSaveButton, setEnableSaveButton] = useState(false);
+  const enableSaveButton = useMemo(() => !_.isEqual(config, data), [config, data]);
   const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
   const history = useHistory();
   const [author, name] = plugin.name.includes('@')
     ? plugin.name.substring(1).split(/\/(.+)/)
     : [null, plugin.name];
-
-  useEffect(() => {
-    if (!_.isEqual(config, data)) {
-      setEnableSaveButton(true);
-    } else {
-      setEnableSaveButton(false);
-    }
-  }, [data, config]);
 
   function onDataChange(data: { [key: string]: any }) {
     setData(data);

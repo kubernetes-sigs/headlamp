@@ -105,6 +105,7 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
         )
       );
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [options]
   );
 

@@ -64,16 +64,19 @@ Testing.args = {
 export const HaveClusters = Template.bind({});
 HaveClusters.args = {
   ...argFixture,
+  title: 'Select a cluster to sign in',
 };
 
 export const AuthTypeoidc = Template.bind({});
 AuthTypeoidc.args = {
   ...argFixture,
   clusterAuthType: 'oidc',
+  title: 'Sign in with OpenID Connect',
 };
 
 export const AnError = Template.bind({});
 AnError.args = {
   ...argFixture,
+  title: 'Authentication',
   error: Error('Oh no! Some error happened?!?'),
 };

@@ -18,6 +18,7 @@ import { InlineIcon } from '@iconify/react';
 import Button from '@mui/material/Button';
 import Typography from '@mui/material/Typography';
 import { Meta, StoryFn } from '@storybook/react';
+import React from 'react';
 import { DropZoneBox } from './DropZoneBox';
 
 export default {
@@ -27,19 +28,25 @@ export default {
 
 const Template: StoryFn<typeof DropZoneBox> = args => <DropZoneBox {...args} />;
 
-export const UploadFiles = Template.bind({});
-UploadFiles.args = {
-  children: (
+const UploadFilesContent = () => {
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  return (
     <>
       <Typography sx={{ m: 2 }}>{'Select a file or drag and drop here'}</Typography>
+      <input type="file" hidden ref={fileInputRef} />
       <Button
         variant="contained"
-        component="label"
+        onClick={() => fileInputRef.current?.click()}
         startIcon={<InlineIcon icon="mdi:upload" width={32} />}
         sx={{ fontWeight: 500 }}
       >
         {'Select File'}
       </Button>
     </>
-  ),
+  );
+};
+
+export const UploadFiles = Template.bind({});
+UploadFiles.args = {
+  children: <UploadFilesContent />,
 };

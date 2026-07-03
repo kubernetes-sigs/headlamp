@@ -24,7 +24,7 @@ import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import CRD from '../../lib/k8s/crd';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
-import { DefaultSidebars, SidebarItemProps } from '.';
+import { DefaultSidebars, SidebarEntryProps, SidebarItemProps } from '.';
 import ClusterBadge from './ClusterBadge';
 
 /** Iterates over every entry in the list, including children */
@@ -57,6 +57,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   const settings = useTypedSelector(state => state.config.settings);
   const customSidebarEntries = useTypedSelector(state => state.sidebar.entries);
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
+  const customHomeSidebarFilters = useTypedSelector(state => state.sidebar.homeFilters);
   const shouldShowHomeItem = isElectron() || Object.keys(clusters).length !== 1;
   const selectedClusters = useSelectedClusters();
   const allClustersConf = useClustersConf();
@@ -65,7 +66,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
 
   const [crds, error] = CRD.useList();
   if (error !== null) {
-    console.log(error);
+    console.error('Failed to fetch CRDs:', error);
   }
 
   const crdsSidebarEntries = useMemo(() => {
@@ -244,6 +245,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'CronJobs',
             label: t('glossary|CronJobs'),
           },
+          {
+            name: 'JobSets',
+            label: t('glossary|Job Sets'),
+          },
         ],
       },
       {
@@ -262,6 +267,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
           {
             name: 'storageClasses',
             label: t('glossary|Storage Classes'),
+          },
+          {
+            name: 'volumeAttributesClasses',
+            label: t('glossary|Volume Attributes Classes'),
           },
         ],
       },
@@ -486,41 +495,67 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
 
     const sidebars = Object.fromEntries(sidebarsList.map(item => [item.name, item.subList]));
 
+    const filterSublist = (
+      item: SidebarItemProps,
+      filter: (entry: SidebarEntryProps) => SidebarEntryProps | null
+    ): SidebarItemProps | null => {
+      const filtered = filter(item);
+      if (!filtered) {
+        return null;
+      }
+
+      const newItem = { ...item, ...filtered };
+
+      if (newItem.subList) {
+        newItem.subList = newItem.subList
+          .map(it => filterSublist(it, filter))
+          .filter((it): it is SidebarItemProps => it !== null);
+      }
+
+      return newItem;
+    };
+
     // Filter in-cluster sidebar
     if (customSidebarFilters.length > 0) {
-      const filterSublist = (item: SidebarItemProps, filter: any) => {
-        if (item.subList) {
-          item.subList = item.subList.filter(it => filter(it));
-          item.subList = item.subList.map(it => filterSublist(it, filter));
-        }
-
-        return item;
-      };
-
       customSidebarFilters.forEach(customFilter => {
-        sidebars[DefaultSidebars.IN_CLUSTER] = sidebars[DefaultSidebars.IN_CLUSTER]!.filter(it =>
-          customFilter(it)
-        ).map(it => filterSublist(it, customFilter));
+        sidebars[DefaultSidebars.IN_CLUSTER] = sidebars[DefaultSidebars.IN_CLUSTER]!.map(it =>
+          filterSublist(it, customFilter)
+        ).filter((it): it is SidebarItemProps => it !== null);
+      });
+    }
+
+    // Filter home sidebar
+    if (customHomeSidebarFilters.length > 0) {
+      customHomeSidebarFilters.forEach(customFilter => {
+        sidebars[DefaultSidebars.HOME] = sidebars[DefaultSidebars.HOME]!.map(it =>
+          filterSublist(it, customFilter)
+        ).filter((it): it is SidebarItemProps => it !== null);
       });
     }
 
     return sidebars;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     customSidebarEntries,
     shouldShowHomeItem,
+    customSidebarFilters,
+    customHomeSidebarFilters,
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     Object.keys(clusters).join(','),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     selectedClusters.join(','),
     allClustersConf,
     crdsSidebarEntries,
     t,
   ]);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const unsortedItems =
     sidebars[sidebarName === '' ? DefaultSidebars.IN_CLUSTER : sidebarName] ?? [];
 
   const sortedItems = useMemo(() => {
-    // Make a deep copy so that we always start from the original (unsorted) order.
-    const itemsCopy = _.cloneDeep(unsortedItems);
+    // Make a copy so that we always start from the original (unsorted) order.
+    const itemsCopy = [...unsortedItems];
     return settings?.sidebarSortAlphabetically ? sortSidebarItems(itemsCopy) : itemsCopy;
   }, [unsortedItems, settings.sidebarSortAlphabetically]);
 

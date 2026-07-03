@@ -14,9 +14,16 @@ See [platforms](../platforms.md) to find out which browsers, OS and flavors of K
 
 These are the required dependencies to get started. Other dependencies are pulled in by the golang or node package managers (see frontend/package.json, app/package.json, backend/go.mod and Dockerfile).
 
-- [Node.js](https://nodejs.org/en/download/) Latest LTS (20.11.1 at time of writing). Many of us use [nvm](https://github.com/nvm-sh/nvm) for installing multiple versions of Node.
-- [Go](https://go.dev/doc/install), (1.24 at time of writing)
-- [Kubernetes](https://kubernetes.io/), we suggest [minikube](https://minikube.sigs.k8s.io/docs/) as one good K8s installation for testing locally. Other k8s installations are supported (see [platforms](../platforms.md).
+- [Node.js](https://nodejs.org/en/download/) >= 22.0.0 (LTS recommended). Many of us use [nvm](https://github.com/nvm-sh/nvm) for installing multiple versions of Node.
+- [npm](https://www.npmjs.com/) (>= 11.0.0)
+- [Go](https://go.dev/doc/install) (>= 1.25.9)
+- [Kubernetes](https://kubernetes.io/), we suggest [minikube](https://minikube.sigs.k8s.io/docs/) as one good K8s installation for testing locally. Other k8s installations are supported (see [platforms](../platforms.md)).
+
+You can install the required frontend, app, and backend dependencies by running:
+
+```bash
+npm run install:all
+```
 
 ## Build the code
 
@@ -121,6 +128,29 @@ npm run app:package:win:msi
 ```
 
 See the generated app files in app/dist/ .
+
+### Verifying Builds
+
+After packaging the desktop app using the appropriate `npm run app:package` command (which creates packaged artifacts in `app/dist/`), you can verify that the built binaries work correctly by running the appropriate verification command. This is useful to ensure the built binaries run properly, especially when upgrading packages that build binaries or when updating Electron.
+
+#### Linux
+```bash
+npm run app:verify-build-linux
+```
+
+#### macOS
+```bash
+npm run app:verify-build-mac
+```
+
+#### Windows
+```powershell
+npm run app:verify-build-windows
+```
+
+These verification scripts will check that build artifacts exist, test the backend server binary, and run the Electron app to ensure it executes correctly.
+
+**Note for macOS:** On systems without a display server (like CI environments), the Electron app may timeout. This is expected behavior and is treated as success if the app at least starts.
 
 ### Running the app
 

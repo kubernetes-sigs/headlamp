@@ -1,11 +1,8 @@
 <body>
   <div>
-    <div>
-      <h1
-        style="position: absolute; left: -10000px;"
-      >
-        Plugin Settings Test Page
-      </h1>
+    <div
+      aria-label="Plugin Settings Test Page"
+    >
       <div
         class="MuiBox-root css-j1fy4m"
       >
@@ -32,6 +29,12 @@
         <div
           class="MuiBox-root css-1txv3mw"
         >
+          <div
+            aria-atomic="true"
+            aria-live="polite"
+            class="MuiBox-root css-ty8jgw"
+            role="status"
+          />
           <div
             class="MuiBox-root css-1ipmh7v"
           >
@@ -390,7 +393,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -399,7 +402,7 @@
                     >
                       plugin a 0
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -453,7 +456,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -462,7 +465,7 @@
                     >
                       plugin a 1
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -518,7 +521,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -527,7 +530,7 @@
                     >
                       plugin a 2
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -581,7 +584,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -590,7 +593,7 @@
                     >
                       plugin a 3
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -646,7 +649,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -655,7 +658,7 @@
                     >
                       plugin a 4
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -709,7 +712,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -718,7 +721,7 @@
                     >
                       plugin a 5
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -774,7 +777,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -783,7 +786,7 @@
                     >
                       plugin a 6
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -837,7 +840,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -846,7 +849,7 @@
                     >
                       plugin a 7
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -902,7 +905,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -911,7 +914,7 @@
                     >
                       plugin a 8
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -965,7 +968,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -974,7 +977,7 @@
                     >
                       plugin a 9
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -1030,7 +1033,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -1039,7 +1042,7 @@
                     >
                       plugin a 10
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -1093,7 +1096,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -1102,7 +1105,7 @@
                     >
                       plugin a 11
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -1158,7 +1161,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -1167,7 +1170,7 @@
                     >
                       plugin a 12
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -1221,7 +1224,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -1230,7 +1233,7 @@
                     >
                       plugin a 13
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -1286,7 +1289,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -1295,7 +1298,7 @@
                     >
                       plugin a 14
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -1367,7 +1370,7 @@
                       Rows per page
                     </label>
                     <div
-                      class="MuiInputBase-root MuiInput-root MuiInputBase-colorPrimary  css-dnm9fb-MuiInputBase-root-MuiInput-root-MuiSelect-root"
+                      class="MuiInputBase-root MuiInput-root MuiInputBase-colorPrimary css-dnm9fb-MuiInputBase-root-MuiInput-root-MuiSelect-root"
                     >
                       <div
                         aria-controls="test-id"

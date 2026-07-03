@@ -14,7 +14,7 @@
     <div
       aria-hidden="true"
       class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
-      style="opacity: 1; webkit-transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+      style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
     />
     <div
       data-testid="sentinelStart"
@@ -23,7 +23,7 @@
     <div
       class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
       role="presentation"
-      style="opacity: 1; webkit-transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+      style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
       tabindex="-1"
     >
       <div
@@ -42,10 +42,7 @@
             <div
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
-              <h1
-                class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
-                style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
-              >
+              <div>
                 <svg
                   fill="none"
                   height="38"
@@ -97,7 +94,12 @@
                     fill="#1B1A19"
                   />
                 </svg>
-              </h1>
+                <span
+                  class="MuiBox-root css-ty8jgw"
+                >
+                  Headlamp
+                </span>
+              </div>
             </div>
             <div
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
@@ -135,6 +137,7 @@
               >
                 <h1
                   class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
+                  id="chooser-dialog-title"
                   style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
                   tabindex="-1"
                 >
@@ -151,14 +154,13 @@
               class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-4 MuiGrid-direction-xs-column css-1w41v25-MuiGrid-root"
             >
               <div
-                aria-labelledby="#recent-clusters-label"
                 class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-2 css-1mqp8pp-MuiGrid-root"
               >
                 <div
                   class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                 >
                   <button
-                    class="MuiButtonBase-root css-10d1a0h-MuiButtonBase-root"
+                    class="MuiButtonBase-root Mui-focusVisible css-10d1a0h-MuiButtonBase-root"
                     tabindex="0"
                     type="button"
                   >
@@ -169,8 +171,9 @@
                         class="MuiCardContent-root css-d64700-MuiCardContent-root"
                       >
                         <p
+                          aria-label="only-cluster"
                           class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-18vfeyy-MuiTypography-root"
-                          title="only-cluster"
+                          data-mui-internal-clone-element="true"
                         >
                           only-cluster
                         </p>
@@ -178,7 +181,16 @@
                     </div>
                     <span
                       class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
+                    >
+                      <span
+                        class="css-y4cjyz-MuiTouchRipple-ripple MuiTouchRipple-ripple MuiTouchRipple-rippleVisible MuiTouchRipple-ripplePulsate"
+                        style="width: 1px; height: 1px; top: -0.5px; left: -0.5px;"
+                      >
+                        <span
+                          class="MuiTouchRipple-child MuiTouchRipple-childPulsate"
+                        />
+                      </span>
+                    </span>
                   </button>
                 </div>
                 <div
@@ -196,8 +208,9 @@
                         class="MuiCardContent-root css-d64700-MuiCardContent-root"
                       >
                         <p
+                          aria-label="only-cluster"
                           class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-18vfeyy-MuiTypography-root"
-                          title="only-cluster"
+                          data-mui-internal-clone-element="true"
                         >
                           only-cluster
                         </p>

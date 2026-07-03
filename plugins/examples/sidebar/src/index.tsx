@@ -15,6 +15,7 @@
  */
 
 import {
+  registerHomeSidebarEntryFilter,
   registerRoute,
   registerRouteFilter,
   registerSidebarEntry,
@@ -23,6 +24,18 @@ import {
 import { SectionBox } from '@kinvolk/headlamp-plugin/lib/CommonComponents';
 import Typography from '@mui/material/Typography';
 import React from 'react';
+
+// A non-clickable section header in the sidebar.
+registerSidebarEntry({
+  parent: null,
+  name: 'feedback-section',
+  label: 'Feedback Tools',
+  entryType: 'subheader',
+  sx: {
+    fontSize: '0.8rem',
+    textTransform: 'none',
+  },
+});
 
 // A top level item in the sidebar.
 // The sidebar link URL is: /c/mycluster/feedback
@@ -222,3 +235,6 @@ registerRouteFilter(route => (route.path === '/workloads' ? null : route));
 registerSidebarEntryFilter(entry => (entry.name === 'namespaces' ? null : entry));
 // Remove "/namespaces" route
 registerRouteFilter(route => (route.path === '/namespaces' ? null : route));
+
+// Remove "settings" from the HOME sidebar
+registerHomeSidebarEntryFilter(entry => (entry.name === 'settings' ? null : entry));

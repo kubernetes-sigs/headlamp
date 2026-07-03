@@ -37,7 +37,7 @@ export const mockCRD = {
     versions: [
       {
         name: 'v1',
-        served: false,
+        served: true,
         storage: false,
         additionalPrinterColumns: [
           {

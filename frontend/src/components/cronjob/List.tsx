@@ -66,7 +66,7 @@ export default function CronJobList() {
         {
           id: 'suspend',
           label: t('translation|Suspend'),
-          getValue: cronJob => cronJob.spec.suspend.toString(),
+          getValue: cronJob => (cronJob.spec?.suspend ?? false).toString(),
           gridTemplate: 0.6,
         },
         {
@@ -119,6 +119,7 @@ export default function CronJobList() {
             );
           },
         },
+        'labels',
         'age',
       ]}
     />

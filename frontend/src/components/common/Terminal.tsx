@@ -22,13 +22,16 @@ import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
+import { useTheme } from '@mui/material/styles';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import { getDefaultContainer, resolveContainerName } from '../../helpers/podContainer';
 import Pod from '../../lib/k8s/pod';
 import { Dialog } from './Dialog';
+import { getXtermTheme } from './xtermTheme';
 
 const decoder = new TextDecoder('utf-8');
 const encoder = new TextEncoder();
@@ -47,6 +50,7 @@ interface TerminalProps extends DialogProps {
   /** Don't render the terminal in the dialog */
   noDialog?: boolean;
   onClose?: () => void;
+  initialContainer?: string;
 }
 
 interface XTerminalConnected {
@@ -58,9 +62,11 @@ interface XTerminalConnected {
 type execReturn = ReturnType<Pod['exec']>;
 
 export default function Terminal(props: TerminalProps) {
-  const { item, onClose, isAttach, noDialog, ...other } = props;
+  const { item, onClose, isAttach, noDialog, initialContainer, ...other } = props;
   const [terminalContainerRef, setTerminalContainerRef] = React.useState<HTMLElement | null>(null);
-  const [container, setContainer] = useState<string | null>(getDefaultContainer());
+  const [container, setContainer] = useState<string | null>(() =>
+    resolveContainerName(item, initialContainer)
+  );
   const execOrAttachRef = React.useRef<execReturn | null>(null);
   const fitAddonRef = React.useRef<FitAddon | null>(null);
   const xtermRef = React.useRef<XTerminalConnected | null>(null);
@@ -69,10 +75,8 @@ export default function Terminal(props: TerminalProps) {
     currentIdx: 0,
   });
   const { t } = useTranslation(['translation', 'glossary']);
-
-  function getDefaultContainer() {
-    return item.spec.containers.length > 0 ? item.spec.containers[0].name : '';
-  }
+  const muiTheme = useTheme();
+  const xtermTheme = React.useMemo(() => getXtermTheme(muiTheme), [muiTheme]);
 
   // @todo: Give the real exec type when we have it.
   function setupTerminal(containerRef: HTMLElement, xterm: XTerminal, fitAddon: FitAddon) {
@@ -81,6 +85,7 @@ export default function Terminal(props: TerminalProps) {
     }
 
     xterm.open(containerRef);
+    xterm.focus();
 
     let lastKeyPressEvent: KeyboardEvent | null = null;
     xterm.onData(data => {
@@ -143,7 +148,10 @@ export default function Terminal(props: TerminalProps) {
   }
 
   function send(channel: number, data: string) {
-    const socket = execOrAttachRef.current!.getSocket();
+    if (!execOrAttachRef.current) {
+      return;
+    }
+    const socket = execOrAttachRef.current.getSocket();
 
     // We should only send data if the socket is ready.
     if (!socket || socket.readyState !== 1) {
@@ -158,6 +166,7 @@ export default function Terminal(props: TerminalProps) {
   }
 
   function onData(xtermc: XTerminalConnected, bytes: ArrayBuffer) {
+    if (!execOrAttachRef.current) return;
     const xterm = xtermc.xterm;
     // Only show data from stdout, stderr and server error channel.
     const channel: Channel = new Int8Array(bytes.slice(0, 1))[0];
@@ -254,6 +263,12 @@ export default function Terminal(props: TerminalProps) {
     }
   }
 
+  React.useEffect(() => {
+    if (xtermRef.current) {
+      xtermRef.current.xterm.options.theme = xtermTheme;
+    }
+  }, [xtermTheme]);
+
   React.useEffect(
     () => {
       // We need a valid container ref for the terminal to add itself to it.
@@ -286,6 +301,7 @@ export default function Terminal(props: TerminalProps) {
           rows: 30, // initial rows before fit
           windowsMode: isWindows,
           allowProposedApi: true,
+          theme: xtermTheme,
         }),
         connected: false,
         reconnectOnEnter: false,
@@ -328,6 +344,7 @@ export default function Terminal(props: TerminalProps) {
       return function cleanup() {
         xtermRef.current?.xterm.dispose();
         execOrAttachRef.current?.cancel();
+        execOrAttachRef.current = null;
         window.removeEventListener('resize', handler);
       };
     },
@@ -338,7 +355,7 @@ export default function Terminal(props: TerminalProps) {
   React.useEffect(
     () => {
       if (props.open && container === null) {
-        setContainer(getDefaultContainer());
+        setContainer(getDefaultContainer(item));
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -352,6 +369,7 @@ export default function Terminal(props: TerminalProps) {
         currentIdx: 0,
       });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [item]);
 
   function getAvailableShells() {
@@ -377,7 +395,13 @@ export default function Terminal(props: TerminalProps) {
         if (_.isEmpty(error.metadata) && error.status === 'Success') {
           return true;
         }
-      } catch {}
+      } catch (e) {
+        console.debug('Terminal: failed to parse server error channel data', {
+          channel,
+          text,
+          error: e,
+        });
+      }
     }
     return false;
   }
@@ -390,7 +414,13 @@ export default function Terminal(props: TerminalProps) {
         if (error.code === 500 && error.status === 'Failure' && error.reason === 'InternalError') {
           return true;
         }
-      } catch {}
+      } catch (e) {
+        console.debug('Terminal: failed to parse server error channel data', {
+          channel,
+          text,
+          error: e,
+        });
+      }
     }
     // Windows container Error
     if (channel === 1) {
@@ -430,7 +460,7 @@ export default function Terminal(props: TerminalProps) {
           <Select
             labelId="container-name-chooser-label"
             id="container-name-chooser"
-            value={container !== null ? container : getDefaultContainer()}
+            value={container !== null ? container : getDefaultContainer(item)}
             onChange={handleContainerChange}
           >
             {item?.spec?.containers && (

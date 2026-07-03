@@ -25,6 +25,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
+	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
 	"fmt"
@@ -33,6 +34,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"reflect"
+	goruntime "runtime"
 	"strconv"
 	"strings"
 	"testing"
@@ -94,6 +96,39 @@ stR0Yiw0buV6DL/moUO0HIM9Bjh96HJp+LxiIS6UCdIhMPp5HoQa
 -----END RSA PRIVATE KEY-----`)
 	validCert *tls.Certificate
 )
+
+func setTestPluginCommand(config *api.ExecConfig) {
+	if goruntime.GOOS == "windows" {
+		config.Command = "cmd"
+		config.Args = append([]string{"/C", ".\\testdata\\test-plugin.bat"}, config.Args...)
+
+		return
+	}
+
+	config.Command = "./testdata/test-plugin.sh"
+}
+
+func testOutputEnv(output string) api.ExecEnvVar {
+	if goruntime.GOOS == "windows" {
+		return api.ExecEnvVar{
+			Name:  "TEST_OUTPUT_B64",
+			Value: base64.StdEncoding.EncodeToString([]byte(output)),
+		}
+	}
+
+	return api.ExecEnvVar{
+		Name:  "TEST_OUTPUT",
+		Value: output,
+	}
+}
+
+func testOutputEnvString(output string) string {
+	if goruntime.GOOS == "windows" {
+		return "TEST_OUTPUT_B64=" + base64.StdEncoding.EncodeToString([]byte(output))
+	}
+
+	return "TEST_OUTPUT=" + output
+}
 
 func init() {
 	cert, err := tls.X509KeyPair(certData, keyData)
@@ -794,11 +829,8 @@ func TestRefreshCreds(t *testing.T) {
 			c := test.config
 
 			if c.Command == "" {
-				c.Command = "./testdata/test-plugin.sh"
-				c.Env = append(c.Env, api.ExecEnvVar{
-					Name:  "TEST_OUTPUT",
-					Value: test.output,
-				})
+				setTestPluginCommand(&c)
+				c.Env = append(c.Env, testOutputEnv(test.output))
 				c.Env = append(c.Env, api.ExecEnvVar{
 					Name:  "TEST_EXIT_CODE",
 					Value: strconv.Itoa(test.exitCode),
@@ -860,7 +892,7 @@ func TestRoundTripper(t *testing.T) {
 	}
 
 	setOutput := func(s string) {
-		env[0] = "TEST_OUTPUT=" + s
+		env[0] = testOutputEnvString(s)
 	}
 
 	handler := func(w http.ResponseWriter, r *http.Request) {
@@ -879,10 +911,11 @@ func TestRoundTripper(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(handler))
 
 	c := api.ExecConfig{
-		Command:         "./testdata/test-plugin.sh",
 		APIVersion:      "client.authentication.k8s.io/v1beta1",
 		InteractiveMode: api.IfAvailableExecInteractiveMode,
 	}
+	setTestPluginCommand(&c)
+
 	a, err := newAuthenticator(newCache(), func(_ int) bool { return false }, &c, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -993,10 +1026,12 @@ func TestAuthorizationHeaderPresentCancelsExecAction(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			a, err := newAuthenticator(newCache(), func(_ int) bool { return false }, &api.ExecConfig{
-				Command:    "./testdata/test-plugin.sh",
+			c := api.ExecConfig{
 				APIVersion: "client.authentication.k8s.io/v1beta1",
-			}, nil)
+			}
+			setTestPluginCommand(&c)
+
+			a, err := newAuthenticator(newCache(), func(_ int) bool { return false }, &c, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -1035,11 +1070,13 @@ func TestTLSCredentials(t *testing.T) {
 	server.StartTLS()
 	defer server.Close()
 
-	a, err := newAuthenticator(newCache(), func(_ int) bool { return false }, &api.ExecConfig{
-		Command:         "./testdata/test-plugin.sh",
+	c := api.ExecConfig{
 		APIVersion:      "client.authentication.k8s.io/v1beta1",
 		InteractiveMode: api.IfAvailableExecInteractiveMode,
-	}, nil)
+	}
+	setTestPluginCommand(&c)
+
+	a, err := newAuthenticator(newCache(), func(_ int) bool { return false }, &c, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1049,7 +1086,7 @@ func TestTLSCredentials(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		return []string{"TEST_OUTPUT=" + string(data)}
+		return []string{testOutputEnvString(string(data))}
 	}
 	a.now = func() time.Time { return now }
 	a.stderr = io.Discard
@@ -1126,9 +1163,10 @@ func TestConcurrentUpdateTransportConfig(t *testing.T) {
 	}
 
 	c := api.ExecConfig{
-		Command:    "./testdata/test-plugin.sh",
 		APIVersion: "client.authentication.k8s.io/v1beta1",
 	}
+	setTestPluginCommand(&c)
+
 	a, err := newAuthenticator(newCache(), func(_ int) bool { return false }, &c, nil)
 	if err != nil {
 		t.Fatal(err)

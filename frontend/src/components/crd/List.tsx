@@ -95,6 +95,7 @@ export default function CustomResourceDefinitionList() {
           filterSelectOptions: categories,
         },
         'cluster',
+        'labels',
         'age',
       ]}
     />

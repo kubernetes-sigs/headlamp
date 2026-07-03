@@ -25,9 +25,6 @@ export default mergeConfig(
     test: {
       globals: true,
       environment: 'jsdom',
-      env: {
-        UNDER_TEST: 'true',
-      },
       alias: [
         {
           find: /^monaco-editor$/,

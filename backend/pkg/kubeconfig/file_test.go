@@ -58,7 +58,7 @@ func TestRemoveContextFromFile(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, data)
 
-	err = os.WriteFile("./test_data/config_copy", data, 0o600)
+	err = os.WriteFile("./test_data/config_copy", data, 0o600) //nolint:gosec
 	require.NoError(t, err)
 
 	// remove context from kubeconfig file

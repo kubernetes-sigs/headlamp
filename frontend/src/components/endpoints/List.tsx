@@ -44,6 +44,7 @@ export default function EndpointList() {
           render: endpoint => <LabelListItem labels={endpoint.getAddresses()} />,
           gridTemplate: 1.5,
         },
+        'labels',
         'age',
       ]}
     />

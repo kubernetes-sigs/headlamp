@@ -209,11 +209,7 @@ function AuthChooser({ children }: AuthChooserProps) {
       handleTryAgain={runTestAuthAgain}
       handleOidcAuth={() => {
         queryClient.invalidateQueries({ queryKey: ['clusterMe', clusterName], exact: true });
-        history.replace({
-          pathname: generatePath(getClusterPrefixedPath(), {
-            cluster: clusterName as string,
-          }),
-        });
+        history.replace(from);
       }}
       handleBackButtonPress={() => {
         numClusters > 1 ? history.goBack() : history.push('/');
@@ -303,7 +299,7 @@ export function PureAuthChooser({
                 <ColorButton onClick={handleTokenAuth}>{t('Use A Token')}</ColorButton>
               </Box>
               <Box m={2} textAlign="center">
-                <Link routeName="settingsCluster" params={{ clusterID: clusterName }}>
+                <Link routeName="settingsClusterHomeContext" search={{ c: clusterName }}>
                   {t('translation|Cluster settings')}
                 </Link>
               </Box>
@@ -321,7 +317,7 @@ export function PureAuthChooser({
                         errorMessage: error!.message,
                       })}
                 </Empty>
-                <Link routeName="settingsClusterHomeContext">
+                <Link routeName="settingsClusterHomeContext" search={{ c: clusterName }}>
                   {t('translation|Cluster settings')}
                 </Link>
               </Box>
@@ -339,6 +335,16 @@ export function PureAuthChooser({
           alignItems="center"
           style={{ cursor: 'pointer' }}
           onClick={handleBackButtonPress}
+          onKeyDown={e => {
+            if (e.repeat) {
+              return;
+            }
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              handleBackButtonPress();
+            }
+          }}
+          tabIndex={0}
           role="button"
         >
           <Box pt={0.5}>

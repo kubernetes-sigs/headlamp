@@ -103,10 +103,22 @@ export interface JobsListRendererProps {
   hideColumns?: 'namespace'[];
   reflectTableInURL?: SimpleTableProps['reflectInURL'];
   noNamespaceFilter?: boolean;
+  enableRowActions?: boolean;
+  enableRowSelection?: boolean;
+  hideCreateButton?: boolean;
 }
 
 export function JobsListRenderer(props: JobsListRendererProps) {
-  const { jobs, errors, hideColumns = [], reflectTableInURL = 'jobs', noNamespaceFilter } = props;
+  const {
+    jobs,
+    errors,
+    hideColumns = [],
+    reflectTableInURL = 'jobs',
+    noNamespaceFilter,
+    enableRowActions,
+    enableRowSelection,
+    hideCreateButton,
+  } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
   function getCompletions(job: Job) {
@@ -114,9 +126,9 @@ export function JobsListRenderer(props: JobsListRendererProps) {
   }
 
   function sortByCompletions(job1: Job, job2: Job) {
-    const parallelismSorted = job1.spec.parallelism - job2.spec.parallelism;
+    const parallelismSorted = (job1.spec.parallelism ?? 0) - (job2.spec.parallelism ?? 0);
     if (parallelismSorted === 0) {
-      return job1.spec.completions - job2.spec.completions;
+      return (job1.spec.completions ?? 0) - (job2.spec.completions ?? 0);
     }
     return parallelismSorted;
   }
@@ -126,7 +138,9 @@ export function JobsListRenderer(props: JobsListRendererProps) {
       title={t('Jobs')}
       headerProps={{
         noNamespaceFilter,
-        titleSideActions: [<CreateResourceButton resourceClass={Job} key="create-job-button" />],
+        titleSideActions: hideCreateButton
+          ? []
+          : [<CreateResourceButton resourceClass={Job} key="create-job-button" />],
       }}
       hideColumns={hideColumns}
       errors={errors}
@@ -202,11 +216,14 @@ export function JobsListRenderer(props: JobsListRendererProps) {
             );
           },
         },
+        'labels',
         'age',
       ]}
       data={jobs}
       reflectInURL={reflectTableInURL}
       id="headlamp-jobs"
+      enableRowActions={enableRowActions}
+      enableRowSelection={enableRowSelection}
     />
   );
 }

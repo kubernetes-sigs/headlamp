@@ -22,17 +22,23 @@ import { loadClusterSettings } from '../../helpers/clusterSettings';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../cluster';
 import { createRouteURL } from '../router/createRouteURL';
 import { timeAgo } from '../util';
-import { useConnectApi, useSelectedClusters } from '.';
 import { post } from './api/v1/clusterRequests';
 import type { DeleteParameters } from './api/v1/deleteParameters';
-import type { RecursivePartial } from './api/v1/factories';
+import type {
+  ApiClient,
+  ApiWithNamespaceClient,
+  CancelFunction,
+  RecursivePartial,
+} from './api/v1/factories';
 import { apiFactory, apiFactoryWithNamespace } from './api/v1/factories';
+import { useConnectApi, useSelectedClusters } from './api/v1/hooks';
 import type { QueryParameters } from './api/v1/queryParameters';
 import type { ApiError } from './api/v2/ApiError';
 import { useKubeObject } from './api/v2/hooks';
 import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
 import type { KubeEvent } from './event';
 import type { KubeMetadata, KubeMetadataCreate } from './KubeMetadata';
+import { computePatchOperations, computeRawPatchCount } from './patchUtils';
 
 function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
   if (!cluster) {
@@ -250,28 +256,30 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     return code;
   }
 
-  // @todo: apiList has 'any' return type.
   /**
-   * Returns the API endpoint for this object.
+   * Builds a list request for this object's API endpoint.
    *
    * @param onList - Callback function to be called when the list is retrieved.
    * @param onError - Callback function to be called when an error occurs.
    * @param opts - Options to be passed to the API endpoint.
    *
-   * @returns The API endpoint for this object.
+   * @returns A parameterless function that starts the list request and resolves
+   *          to a {@link CancelFunction} for stopping it.
    */
   static apiList<K extends KubeObject>(
     this: (new (...args: any) => K) & typeof KubeObject<any>,
     onList: (arg: K[]) => void,
     onError?: (err: ApiError, cluster?: string) => void,
     opts?: ApiListSingleNamespaceOptions
-  ) {
+  ): () => Promise<CancelFunction> {
     const createInstance = (item: any): any => this.create(item);
 
     const args: any[] = [(list: any[]) => onList(list.map((item: any) => createInstance(item)))];
 
     if (this.apiEndpoint.isNamespaced) {
-      args.unshift(opts?.namespace || null);
+      // An empty string means "all namespaces" and matches the namespace: string
+      // contract on ApiWithNamespaceClient.list (a falsy value is treated the same).
+      args.unshift(opts?.namespace || '');
     }
 
     args.push(onError);
@@ -299,6 +307,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     onError?: (err: ApiError, cluster?: string) => void,
     opts?: ApiListOptions
   ) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const [objs, setObjs] = React.useState<{ [key: string]: K[] }>({});
     const listCallback = onList as (arg: any[]) => void;
 
@@ -359,6 +368,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       listCalls.push(this.apiList(listCallback, onError, { queryParams, cluster }));
     }
 
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     useConnectApi(...listCalls);
   }
 
@@ -378,9 +388,11 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       refetchInterval?: number;
     } & QueryParameters = {}
   ) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const fallbackClusters = useSelectedClusters();
 
     // Create requests for each cluster and namespace
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const requests = useMemo(() => {
       const clusterList = cluster
         ? [cluster]
@@ -399,8 +411,10 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
         this.isNamespaced,
         namespacesFromParams
       );
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [cluster, clusters, fallbackClusters, namespace, this.isNamespaced]);
 
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     const result = useKubeObjectList<K>({
       queryParams: queryParams,
       kubeObjectClass: this,
@@ -420,6 +434,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       cluster?: string;
     }
   ) {
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     return useKubeObject<K>({
       kubeObjectClass: this as (new (...args: any) => K) & typeof KubeObject<any>,
       name: name,
@@ -475,6 +490,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     // We do the type conversion here because we want to be able to use hooks that may not have
     // the exact signature as get callbacks.
     const getCallback = onGet as (item: K) => void;
+    // eslint-disable-next-line react-hooks/rules-of-hooks
     useConnectApi(this.apiGet(getCallback, name, namespace, onError, opts));
   }
 
@@ -489,10 +505,12 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     }
     const params: DeleteParameters = {};
 
-    console.log(force);
+    if (this._class().kind === 'Job') {
+      params.propagationPolicy = 'Background';
+    }
+
     if (force) {
       params.gracePeriodSeconds = 0;
-      console.log(params);
     }
 
     // @ts-ignore
@@ -501,6 +519,54 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
   update(data: KubeObjectInterface) {
     return this._class().apiEndpoint.put(data, {}, this._clusterName);
+  }
+
+  /**
+   * Updates a resource using JSON Patch (RFC 6902), sending only the diff between
+   * the original and modified objects. This avoids 409 Conflict errors on resources
+   * that are frequently updated by controllers (e.g. HPA).
+   */
+  patchUpdate(
+    original: KubeObjectInterface,
+    modified: KubeObjectInterface
+  ): Promise<KubeObjectInterface> {
+    const filteredOps = computePatchOperations(original, modified);
+    if (filteredOps.length === 0) {
+      const rawCount = computeRawPatchCount(original, modified);
+      if (rawCount > 0) {
+        // The user changed something, but every change was in a
+        // server-managed field that we filter out (status,
+        // resourceVersion, managedFields, generation). Reject so the
+        // editor can surface a clear error rather than silently
+        // dropping the user's edits.
+        return Promise.reject(
+          new Error(
+            `No editable changes to apply: all ${rawCount} change(s) for ${this.getName()} ` +
+              `were in server-managed fields (status, resourceVersion, managedFields, generation).`
+          )
+        );
+      }
+      // True no-op: nothing changed at all.
+      console.debug(`patchUpdate: No differences detected for ${this.getName()}. No patch sent.`);
+      return Promise.resolve(this.jsonData as KubeObjectInterface);
+    }
+
+    const endpoint = this._class().apiEndpoint;
+    if (this.isNamespaced) {
+      return (endpoint as ApiWithNamespaceClient<KubeObjectInterface>).jsonPatch(
+        filteredOps,
+        this.getNamespace()!,
+        this.getName(),
+        {},
+        this._clusterName
+      );
+    }
+    return (endpoint as ApiClient<KubeObjectInterface>).jsonPatch(
+      filteredOps,
+      this.getName(),
+      {},
+      this._clusterName
+    );
   }
 
   static put(data: KubeObjectInterface) {

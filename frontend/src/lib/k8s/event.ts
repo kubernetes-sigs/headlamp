@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-import _ from 'lodash';
-import React, { useMemo } from 'react';
+import { useMemo } from 'react';
 import { ResourceClasses } from '.';
 import { request } from './api/v1/clusterRequests';
 import type { QueryParameters } from './api/v1/queryParameters';
@@ -47,6 +46,9 @@ class Event extends KubeObject<KubeEvent> {
   static apiVersion = 'v1';
 
   static isNamespaced = true;
+
+  static useListForClusters = useEventListForClusters;
+  static useWarningList = useEventWarningList;
 
   // Max number of events to fetch from the API
   private static maxEventsLimit = 2000;
@@ -195,87 +197,78 @@ class Event extends KubeObject<KubeEvent> {
 
     return objInstance;
   }
-
-  /**
-   * Fetch events for given clusters
-   *
-   * Important! Make sure to have the parent component have clusters as a key
-   * so that component remounts when clusters change, instead of rerendering
-   * with different number of clusters
-   */
-  static useListForClusters(
-    clusterNames: string[],
-    options: { queryParams?: QueryParameters } = {}
-  ) {
-    // Calling hooks in a loop is usually forbidden
-    // But if we make sure that clusters don't change between renders it's fine
-    const queries = Event.useList({
-      clusters: clusterNames,
-      ...options.queryParams,
-    });
-
-    type EventsPerCluster = {
-      [cluster: string]: {
-        warnings: Event[];
-        error?: ApiError | null;
-      };
-    };
-
-    const result = useMemo(() => {
-      const res: EventsPerCluster = {};
-
-      queries.errors?.forEach(error => {
-        if (error.cluster) {
-          res[error.cluster] ??= { warnings: [] };
-          res[error.cluster].error = error;
-        }
-      });
-
-      Object.entries(queries.clusterResults ?? {}).forEach(([cluster, result]) => {
-        if (!res[cluster]) {
-          res[cluster] = { warnings: [] };
-        }
-
-        res[cluster].warnings = result.items ?? [];
-      });
-
-      return res;
-    }, [queries, clusterNames]);
-
-    return result;
-  }
-
-  /**
-   * Fetch warning events for given clusters
-   * Amount is limited to {@link Event.maxEventsLimit}
-   *
-   * Important! Make sure to have the parent component have clusters as a key
-   * so that component remounts when clusters change, instead of rerendering
-   * with different number of clusters
-   */
-  static useWarningList(clusters: string[], options?: { queryParams?: QueryParameters }) {
-    const queryParameters = Object.assign(
-      {
-        limit: this.maxEventsLimit,
-        fieldSelector: 'type!=Normal',
-      },
-      options?.queryParams ?? {}
-    );
-
-    const newWarningsList = this.useListForClusters(clusters, { queryParams: queryParameters });
-    const [warningList, setWarningList] = React.useState<typeof newWarningsList>(newWarningsList);
-
-    // Only update the warnings if they actually differ
-    React.useEffect(() => {
-      if (_.isEqual(warningList, newWarningsList)) {
-        return;
-      }
-
-      setWarningList(newWarningsList);
-    }, [newWarningsList]);
-
-    return warningList;
-  }
 }
 
 export default Event;
+
+/**
+ * Fetch events for given clusters
+ *
+ * Important! Make sure to have the parent component have clusters as a key
+ * so that component remounts when clusters change, instead of rerendering
+ * with different number of clusters
+ */
+export function useEventListForClusters(
+  clusterNames: string[],
+  options: { queryParams?: QueryParameters } = {}
+) {
+  const queries = Event.useList({
+    clusters: clusterNames,
+    ...options.queryParams,
+  });
+
+  type EventsPerCluster = {
+    [cluster: string]: {
+      warnings: Event[];
+      error?: ApiError | null;
+    };
+  };
+
+  const result = useMemo(() => {
+    const res: EventsPerCluster = {};
+
+    queries.errors?.forEach(error => {
+      if (error.cluster) {
+        res[error.cluster] ??= { warnings: [] };
+        res[error.cluster].error = error;
+      }
+    });
+
+    Object.entries(queries.clusterResults ?? {}).forEach(([cluster, result]) => {
+      if (!res[cluster]) {
+        res[cluster] = { warnings: [] };
+      }
+
+      res[cluster].warnings = result.items ?? [];
+    });
+
+    return res;
+  }, [queries.clusterResults, queries.errors]);
+
+  return result;
+}
+
+/**
+ * Fetch warning events for given clusters
+ * Amount is limited to {@link Event.maxLimit}
+ *
+ * Important! Make sure to have the parent component have clusters as a key
+ * so that component remounts when clusters change, instead of rerendering
+ * with different number of clusters
+ */
+export function useEventWarningList(
+  clusters: string[],
+  options?: { queryParams?: QueryParameters }
+) {
+  const queryParameters = Object.assign(
+    {
+      limit: Event.maxLimit,
+      fieldSelector: 'type!=Normal',
+    },
+    options?.queryParams ?? {}
+  );
+
+  const warningsList = useEventListForClusters(clusters, { queryParams: queryParameters });
+
+  return warningsList;
+}

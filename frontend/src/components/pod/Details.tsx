@@ -15,9 +15,11 @@
  */
 
 import { Icon } from '@iconify/react';
+import Checkbox from '@mui/material/Checkbox';
 import FormControl from '@mui/material/FormControl';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import InputLabel from '@mui/material/InputLabel';
+import ListItemText from '@mui/material/ListItemText';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import Switch from '@mui/material/Switch';
@@ -27,21 +29,30 @@ import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
+import { getDefaultContainer, resolveContainerName } from '../../helpers/podContainer';
 import { KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
+import { localeDate } from '../../lib/util';
 import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
 import { EventStatus, HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { Activity } from '../activity/Activity';
 import ActionButton from '../common/ActionButton';
 import Link from '../common/Link';
 import { LogViewer, LogViewerProps } from '../common/LogViewer';
+import { NameValueTableRow } from '../common/NameValueTable';
 import {
   ConditionsSection,
   ContainersSection,
   DetailsGrid,
+  MetadataDictGrid,
   VolumeSection,
 } from '../common/Resource';
 import AuthVisible from '../common/Resource/AuthVisible';
+import {
+  ALL_SEVERITIES,
+  filterLogsBySeverity,
+  LogSeverity,
+} from '../common/Resource/logSeverityFilter';
 import SectionBox from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
 import Terminal from '../common/Terminal';
@@ -50,6 +61,7 @@ import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
 import { PodDebugAction } from './PodDebugAction';
+
 const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   margin: 0,
   paddingTop: theme.spacing(2),
@@ -58,18 +70,24 @@ const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
 
 interface PodLogViewerProps extends Omit<LogViewerProps, 'logs'> {
   item: Pod;
+  initialContainer?: string;
 }
 
 export function PodLogViewer(props: PodLogViewerProps) {
-  const { item, onClose, open, ...other } = props;
-  const [container, setContainer] = React.useState(getDefaultContainer());
+  const { item, onClose, open, initialContainer, ...other } = props;
+  const [container, setContainer] = React.useState(() =>
+    resolveContainerName(item, initialContainer)
+  );
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showTimestamps, setShowTimestamps] = useLocalStorageState<boolean>(
     'headlamp.logs.showTimestamps',
     true
   );
-  const [follow, setFollow] = React.useState<boolean>(true);
-  const [prettifyLogs, setPrettifyLogs] = React.useState<boolean>(false);
+  const [follow, setFollow] = useLocalStorageState<boolean>('headlamp.logs.follow', true);
+  const [prettifyLogs, setPrettifyLogs] = useLocalStorageState<boolean>(
+    'headlamp.logs.prettifyLogs',
+    false
+  );
   const [formatJsonValues, setFormatJsonValues] = React.useState<boolean>(false);
   const [hasJsonLogs, setHasJsonLogs] = React.useState<boolean>(false);
   const [lines, setLines] = React.useState<number>(100);
@@ -81,10 +99,34 @@ export function PodLogViewer(props: PodLogViewerProps) {
   const [cancelLogsStream, setCancelLogsStream] = React.useState<(() => void) | null>(null);
   const xtermRef = React.useRef<XTerminal | null>(null);
   const { t } = useTranslation();
+  const [selectedSeverities, setSelectedSeverities] = useLocalStorageState<LogSeverity[]>(
+    'headlamp.logs.severityFilter',
+    [...ALL_SEVERITIES]
+  );
+  const selectedSeveritiesRef = React.useRef(selectedSeverities);
 
-  function getDefaultContainer() {
-    return item.spec.containers.length > 0 ? item.spec.containers[0].name : '';
-  }
+  React.useEffect(() => {
+    selectedSeveritiesRef.current = selectedSeverities;
+  }, [selectedSeverities]);
+
+  // Re-render xterm when selectedSeverities changes
+  React.useEffect(() => {
+    if (xtermRef.current && logs.logs.length > 0) {
+      xtermRef.current.clear();
+      const displayLogs = logs.logs.map(logEntry => {
+        if (prettifyLogs && hasJsonLogs) {
+          return colorizePrettifiedLog(logEntry);
+        }
+        return logEntry;
+      });
+      const filteredLogs = filterLogsBySeverity(displayLogs, selectedSeverities);
+      xtermRef.current.write(filteredLogs.join('').replaceAll('\n', '\r\n'));
+
+      // Update lastLineShown just in case, though it shouldn't be strictly necessary here
+      setLogs(current => ({ ...current, lastLineShown: current.logs.length - 1 }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedSeverities]);
 
   const options = { leading: true, trailing: true, maxWait: 1000 };
 
@@ -97,24 +139,32 @@ export function PodLogViewer(props: PodLogViewerProps) {
   }) {
     setHasJsonLogs(hasJsonLogs);
 
-    const displayLogs = logLines.map(logEntry => {
-      if (prettifyLogs && hasJsonLogs) {
-        return colorizePrettifiedLog(logEntry);
-      }
-      return logEntry;
-    });
-
     setLogs(current => {
       if (current.lastLineShown >= logLines.length) {
+        // Full re-render
+        const displayLogs = logLines.map(logEntry => {
+          if (prettifyLogs && hasJsonLogs) {
+            return colorizePrettifiedLog(logEntry);
+          }
+          return logEntry;
+        });
+        const filteredLogs = filterLogsBySeverity(displayLogs, selectedSeveritiesRef.current);
         xtermRef.current?.clear();
-        xtermRef.current?.write(displayLogs.join('').replaceAll('\n', '\r\n'));
+        xtermRef.current?.write(filteredLogs.join('').replaceAll('\n', '\r\n'));
       } else {
-        xtermRef.current?.write(
-          displayLogs
-            .slice(current.lastLineShown + 1)
-            .join('')
-            .replaceAll('\n', '\r\n')
-        );
+        // Incremental write: slice raw lines first, then format and filter
+        const newRawLines = logLines.slice(current.lastLineShown + 1);
+        const displayLogs = newRawLines.map(logEntry => {
+          if (prettifyLogs && hasJsonLogs) {
+            return colorizePrettifiedLog(logEntry);
+          }
+          return logEntry;
+        });
+        const filteredLogs = filterLogsBySeverity(displayLogs, selectedSeveritiesRef.current);
+
+        if (filteredLogs.length > 0) {
+          xtermRef.current?.write(filteredLogs.join('').replaceAll('\n', '\r\n'));
+        }
       }
 
       return {
@@ -136,6 +186,13 @@ export function PodLogViewer(props: PodLogViewerProps) {
   }
 
   const debouncedSetState = _.debounce(setLogsDebounced, 500, options);
+  React.useEffect(() => {
+    const next = getDefaultContainer(item);
+    if (next && !container) {
+      setContainer(next);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item?.status]);
 
   React.useEffect(
     () => {
@@ -372,6 +429,35 @@ export function PodLogViewer(props: PodLogViewerProps) {
             }
           />
         </LightTooltip>,
+        <FormControl sx={{ minWidth: '9rem' }}>
+          <InputLabel shrink id="severity-filter-label">
+            {t('translation|Severity')}
+          </InputLabel>
+          <Select
+            labelId="severity-filter-label"
+            id="severity-filter"
+            multiple
+            value={selectedSeverities}
+            onChange={event => {
+              const value = event.target.value as LogSeverity[];
+              if (value.length > 0) {
+                setSelectedSeverities(() => value);
+              }
+            }}
+            renderValue={selected =>
+              selected.length === ALL_SEVERITIES.length
+                ? t('translation|All')
+                : (selected as LogSeverity[]).map(s => s.toUpperCase()).join(', ')
+            }
+          >
+            {ALL_SEVERITIES.map(severity => (
+              <MenuItem key={severity} value={severity}>
+                <Checkbox checked={selectedSeverities.includes(severity)} size="small" />
+                <ListItemText primary={severity.toUpperCase()} />
+              </MenuItem>
+            ))}
+          </Select>
+        </FormControl>,
         hasJsonLogs && (
           <PaddedFormControlLabel
             label={t('translation|Prettify')}
@@ -418,10 +504,10 @@ export interface VolumeDetailsProps {
 
 export function VolumeDetails(props: VolumeDetailsProps) {
   const { volumes } = props;
+  const { t } = useTranslation();
   if (!volumes) {
     return null;
   }
-  const { t } = useTranslation();
   return (
     <SectionBox title={t('translation|Volumes')}>
       <SimpleTable
@@ -492,10 +578,12 @@ export default function PodDetails(props: PodDetailsProps) {
   const { t } = useTranslation('glossary');
   const dispatchHeadlampEvent = useEventCallback();
 
-  const lastAutoLaunchedPod = React.useRef<string | null>(null);
+  const lastAutoLaunchedPodLogs = React.useRef<string | null>(null);
+  const lastAutoLaunchedPodExec = React.useRef<string | null>(null);
   const location = useLocation();
   const queryParams = new URLSearchParams(location.search);
   const autoLaunchView = queryParams.get('view');
+  const autoLaunchContainer = queryParams.get('container') ?? undefined;
   const [podItem, setPodItem] = React.useState<Pod | null>(null);
 
   const launchLogs = React.useCallback(
@@ -506,7 +594,15 @@ export default function PodDetails(props: PodDetailsProps) {
         cluster: item.cluster,
         icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
         location: 'full',
-        content: <PodLogViewer noDialog open item={item} onClose={() => {}} />,
+        content: (
+          <PodLogViewer
+            noDialog
+            open
+            item={item}
+            onClose={() => {}}
+            initialContainer={autoLaunchContainer}
+          />
+        ),
       });
       dispatchHeadlampEvent({
         type: HeadlampEventType.LOGS,
@@ -515,36 +611,79 @@ export default function PodDetails(props: PodDetailsProps) {
         },
       });
     },
-    [t, dispatchHeadlampEvent]
+    [t, dispatchHeadlampEvent, autoLaunchContainer]
+  );
+
+  const launchTerminal = React.useCallback(
+    (item: Pod) => {
+      const activityId = 'terminal-' + item.metadata.uid;
+      Activity.launch({
+        id: activityId,
+        title: item.metadata.name,
+        cluster: item.cluster,
+        icon: <Icon icon="mdi:console" width="100%" height="100%" />,
+        location: 'full',
+        content: (
+          <Terminal
+            noDialog
+            open
+            item={item}
+            onClose={() => Activity.close(activityId)}
+            isAttach={false}
+            initialContainer={autoLaunchContainer}
+          />
+        ),
+      });
+      dispatchHeadlampEvent({
+        type: HeadlampEventType.TERMINAL,
+        data: {
+          resource: item,
+          status: EventStatus.OPENED,
+        },
+      });
+    },
+    [dispatchHeadlampEvent, autoLaunchContainer]
   );
 
   React.useEffect(() => {
     if (autoLaunchView !== 'logs') {
-      lastAutoLaunchedPod.current = null;
+      lastAutoLaunchedPodLogs.current = null;
       return;
     }
 
     if (
       podItem &&
       autoLaunchView === 'logs' &&
-      lastAutoLaunchedPod.current !== podItem.metadata.uid
+      lastAutoLaunchedPodLogs.current !== `${podItem.metadata.uid}:${autoLaunchContainer ?? ''}`
     ) {
-      lastAutoLaunchedPod.current = podItem.metadata.uid;
+      lastAutoLaunchedPodLogs.current = `${podItem.metadata.uid}:${autoLaunchContainer ?? ''}`;
       launchLogs(podItem);
     }
-  }, [podItem, launchLogs, autoLaunchView]);
+  }, [podItem, launchLogs, autoLaunchView, autoLaunchContainer]);
+
+  React.useEffect(() => {
+    if (autoLaunchView !== 'exec') {
+      lastAutoLaunchedPodExec.current = null;
+      return;
+    }
+
+    if (
+      podItem &&
+      autoLaunchView === 'exec' &&
+      lastAutoLaunchedPodExec.current !== `${podItem.metadata.uid}:${autoLaunchContainer ?? ''}`
+    ) {
+      lastAutoLaunchedPodExec.current = `${podItem.metadata.uid}:${autoLaunchContainer ?? ''}`;
+      launchTerminal(podItem);
+    }
+  }, [podItem, launchTerminal, autoLaunchView, autoLaunchContainer]);
 
   function prepareExtraInfo(item: Pod | null) {
-    let extraInfo: {
-      name: string;
-      value: React.ReactNode;
-      hideLabel?: boolean;
-    }[] = [];
+    let extraInfo: (NameValueTableRow & { hideLabel?: boolean })[] = [];
     if (item) {
       extraInfo = [
         {
           name: t('State'),
-          value: makePodStatusLabel(item, false),
+          value: makePodStatusLabel(item, false, t),
         },
         {
           name: t('Node'),
@@ -620,6 +759,61 @@ export default function PodDetails(props: PodDetailsProps) {
           name: t('Priority'),
           value: item.spec.priority,
         },
+        {
+          name: t('Priority Class'),
+          value: item.spec.priorityClassName ? (
+            <Link
+              routeName="priorityClass"
+              params={{ name: item.spec.priorityClassName }}
+              activeCluster={item.cluster}
+            >
+              {item.spec.priorityClassName}
+            </Link>
+          ) : (
+            ''
+          ),
+          hide: !item.spec.priorityClassName,
+        },
+        {
+          name: t('Runtime Class'),
+          value: item.spec.runtimeClassName,
+          hide: !item.spec.runtimeClassName,
+        },
+        {
+          name: t('Nominated Node'),
+          value: item.status.nominatedNodeName,
+          hide: !item.status.nominatedNodeName,
+        },
+        {
+          name: t('Start Time'),
+          value: item.status.startTime ? localeDate(item.status.startTime) : '',
+          hide: !item.status.startTime,
+        },
+        {
+          name: t('Termination Grace Period'),
+          value:
+            item.spec.terminationGracePeriodSeconds !== undefined
+              ? t('translation|{{ seconds }}s', {
+                  seconds: item.spec.terminationGracePeriodSeconds,
+                })
+              : '',
+          hide: item.spec.terminationGracePeriodSeconds === undefined,
+        },
+        {
+          name: t('translation|Reason'),
+          value: item.status.reason,
+          hide: !item.status.reason,
+        },
+        {
+          name: t('translation|Message'),
+          value: item.status.message,
+          hide: !item.status.message,
+        },
+        {
+          name: t('Node Selectors'),
+          value: <MetadataDictGrid dict={item.spec.nodeSelector ?? {}} />,
+          hide: _.isEmpty(item.spec.nodeSelector),
+        },
       ];
     }
     return extraInfo;
@@ -656,25 +850,7 @@ export default function PodDetails(props: PodDetailsProps) {
                 <ActionButton
                   description={t('Terminal / Exec')}
                   icon="mdi:console"
-                  onClick={() => {
-                    Activity.launch({
-                      id: 'terminal-' + item.metadata.uid,
-                      title: item.metadata.name,
-                      cluster: item.cluster,
-                      icon: <Icon icon="mdi:console" width="100%" height="100%" />,
-                      location: 'full',
-                      content: (
-                        <Terminal noDialog open item={item} onClose={() => {}} isAttach={false} />
-                      ),
-                    });
-                    dispatchHeadlampEvent({
-                      type: HeadlampEventType.TERMINAL,
-                      data: {
-                        resource: item,
-                        status: EventStatus.CLOSED,
-                      },
-                    });
-                  }}
+                  onClick={() => launchTerminal(item)}
                 />
               </AuthVisible>
             ),

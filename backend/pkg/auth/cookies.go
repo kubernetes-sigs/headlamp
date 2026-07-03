@@ -75,7 +75,7 @@ func IsSecureContext(r *http.Request) bool {
 }
 
 // SetTokenCookie sets an authentication cookie for a specific cluster.
-func SetTokenCookie(w http.ResponseWriter, r *http.Request, cluster, token, baseURL string) {
+func SetTokenCookie(w http.ResponseWriter, r *http.Request, cluster, token, baseURL string, sessionTTL int) {
 	// Validate inputs
 	if cluster == "" || token == "" {
 		return
@@ -94,14 +94,16 @@ func SetTokenCookie(w http.ResponseWriter, r *http.Request, cluster, token, base
 	// if token is larger than maxCookieSize, split it into multiple cookies
 	chunks := splitToken(token, chunkSize)
 	for i, chunk := range chunks {
-		cookie := &http.Cookie{
+		// G124: Secure is set from IsSecureContext so localhost development still works;
+		// HttpOnly and SameSite are set unconditionally.
+		cookie := &http.Cookie{ //nolint:gosec
 			Name:     fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, i),
 			Value:    chunk,
 			HttpOnly: true,
 			Secure:   secure,
 			SameSite: http.SameSiteStrictMode,
 			Path:     GetCookiePath(baseURL, cluster),
-			MaxAge:   86400, // 24 hours
+			MaxAge:   sessionTTL,
 		}
 
 		http.SetCookie(w, cookie)
@@ -153,7 +155,9 @@ func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL s
 			break
 		}
 
-		cookie := &http.Cookie{
+		// G124: Secure is set from IsSecureContext so localhost development still works;
+		// HttpOnly and SameSite are set unconditionally.
+		cookie := &http.Cookie{ //nolint:gosec
 			Name:     cookieName,
 			Value:    "",
 			HttpOnly: true,

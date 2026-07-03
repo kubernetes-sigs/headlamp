@@ -14,9 +14,11 @@
  * limitations under the License.
  */
 
+import { useTheme } from '@mui/material/styles';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal as XTerminal } from '@xterm/xterm';
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { getXtermTheme } from '../../components/common/xtermTheme';
 
 const decoder = new TextDecoder('utf-8');
 const encoder = new TextEncoder();
@@ -102,6 +104,14 @@ export function useTerminalStream(options: TerminalStreamOptions) {
   const xtermRef = useRef<XTerminalConnected | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const streamRef = useRef<any | null>(null);
+  const muiTheme = useTheme();
+  const xtermTheme = useMemo(() => getXtermTheme(muiTheme), [muiTheme]);
+
+  useEffect(() => {
+    if (xtermRef.current) {
+      xtermRef.current.xterm.options.theme = xtermTheme;
+    }
+  }, [xtermTheme]);
 
   /**
    * Sends data to the terminal stream on the specified channel.
@@ -182,6 +192,7 @@ export function useTerminalStream(options: TerminalStreamOptions) {
       }
 
       xterm.open(containerEl);
+      xterm.focus();
 
       let lastKeyPressEvent: KeyboardEvent | null = null;
       xterm.onData(data => {
@@ -254,6 +265,7 @@ export function useTerminalStream(options: TerminalStreamOptions) {
       rows: 30,
       windowsMode: isWindows,
       allowProposedApi: true,
+      theme: xtermTheme,
     };
 
     xtermRef.current = {
@@ -293,6 +305,7 @@ export function useTerminalStream(options: TerminalStreamOptions) {
       streamRef.current?.cancel();
       window.removeEventListener('resize', resizeHandler);
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [containerRef, enabled, send, onData, setupTerminal, connectStream]);
 
   return {

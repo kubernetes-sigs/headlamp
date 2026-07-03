@@ -355,7 +355,7 @@ export async function initializePluginI18n(
   if (i18nEnabled) {
     // Store supported locales for later use
     pluginSupportedLocales[pluginName] = supportedLocales;
-    console.log(
+    console.debug(
       `Initializing i18n for plugin ${pluginName} (supported locales: ${supportedLocales.join(
         ', '
       )})`
@@ -366,6 +366,6 @@ export async function initializePluginI18n(
       console.error(`Failed to initialize i18n for plugin ${pluginName}:`, error);
     }
   } else {
-    console.log(`Plugin ${pluginName} does not have i18n enabled in package.json`);
+    console.debug(`Plugin ${pluginName} does not have i18n enabled in package.json`);
   }
 }

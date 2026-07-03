@@ -39,8 +39,8 @@ export interface LinkProps extends LinkBaseProps {
   routeName: string;
   /** An object with corresponding params for the pattern to use. */
   params?: RouteURLProps;
-  /** A string representation of query parameters. */
-  search?: string;
+  /** Query parameters as a string or object. Objects are converted via URLSearchParams. */
+  search?: string | Record<string, string>;
   /** Cluster name of the resource. Set this parameter to not override selected clusters param */
   activeCluster?: string;
   /** State to persist to the location. */
@@ -116,16 +116,21 @@ function PureLink(
     ...otherProps
   } = props as LinkObjectProps;
 
-  if (activeCluster) {
-    params.cluster = formatClusterPathParam(getSelectedClusters(), activeCluster);
-  }
+  const finalParams = activeCluster
+    ? {
+        ...params,
+        cluster: formatClusterPathParam(getSelectedClusters(), activeCluster),
+      }
+    : params;
+
+  const searchString = typeof search === 'object' ? new URLSearchParams(search).toString() : search;
 
   return (
     <MuiLink
       component={RouterLink}
       to={{
-        pathname: createRouteURL(routeName, params),
-        search,
+        pathname: createRouteURL(routeName, finalParams),
+        search: searchString,
         state,
       }}
       {...otherProps}
@@ -152,8 +157,16 @@ export default function Link(props: React.PropsWithChildren<LinkProps | LinkObje
       ? props.kubeObject?.cluster
       : props.activeCluster ?? getCluster() ?? '';
 
+  // When a class overrides detailsRoute (e.g. a plugin's custom resource class),
+  // the drawer's kindComponentMap won't have the right component for it,
+  // so we skip the drawer and let normal link navigation handle it.
+  const hasCustomDetailsRoute =
+    'kubeObject' in props &&
+    props.kubeObject &&
+    props.kubeObject._class().detailsRoute !== props.kubeObject._class().kind;
+
   const openDrawer =
-    drawerEnabled && canRenderDetails(kind)
+    drawerEnabled && !hasCustomDetailsRoute && canRenderDetails(kind)
       ? () => {
           // Object information can be provided throught kubeObject or route parameters
           const name = 'kubeObject' in props ? props.kubeObject?.getName() : props.params?.name;

@@ -44,21 +44,21 @@ export interface OurDialogTitleProps extends DialogTitleProps {
  * reading can begin.
  */
 export function DialogTitle(props: OurDialogTitleProps) {
-  const { children, focusTitle, buttons, disableTypography = false, ...other } = props;
+  const { children, focusTitle, buttons, disableTypography = false, id, ...other } = props;
+  const focusedRef = React.useCallback(
+    (node: HTMLElement | null) => {
+      if (node !== null && focusTitle) {
+        node.setAttribute('tabindex', '-1');
+        node.focus();
+      }
+    },
+    [focusTitle]
+  );
 
   // Don't render heading if there's no content to avoid empty heading violations
   if (!children && (!buttons || buttons.length === 0)) {
     return null;
   }
-
-  const focusedRef = React.useCallback((node: HTMLElement) => {
-    if (node !== null) {
-      if (focusTitle) {
-        node.setAttribute('tabindex', '-1');
-        node.focus();
-      }
-    }
-  }, []);
 
   return (
     <MuiDialogTitle style={{ display: 'flex' }} {...other}>
@@ -66,9 +66,10 @@ export function DialogTitle(props: OurDialogTitleProps) {
         {children && (
           <Grid item>
             {disableTypography ? (
-              children
+              <div id={id}>{children}</div>
             ) : (
               <Typography
+                id={id}
                 ref={focusedRef}
                 variant="h1"
                 style={{
@@ -131,36 +132,44 @@ export function Dialog(props: DialogProps) {
     });
   }
 
-  function FullScreenButton() {
-    if (!withFullScreen) {
-      return null;
-    }
-
-    return (
-      <ActionButton
-        description={t('Toggle fullscreen')}
-        onClick={handleFullScreen}
-        icon={fullScreen ? 'mdi:fullscreen-exit' : 'mdi:fullscreen'}
-      />
-    );
-  }
-
-  function CloseButton() {
-    return (
-      <ActionButton
-        description={t('Close')}
-        onClick={() => {
-          props.onClose && props.onClose({}, 'escapeKeyDown');
-        }}
-        icon={'mdi:close'}
-      />
-    );
-  }
+  const generatedId = React.useId();
+  const titleId = titleProps?.id || generatedId;
+  const dialogAriaProps = title ? { 'aria-labelledby': titleId } : {};
 
   return (
-    <MuiDialog maxWidth="lg" scroll="paper" fullWidth fullScreen={fullScreen} {...other}>
+    <MuiDialog
+      maxWidth="lg"
+      scroll="paper"
+      fullWidth
+      fullScreen={fullScreen}
+      {...dialogAriaProps}
+      {...other}
+    >
       {(!!title || withFullScreen) && (
-        <DialogTitle buttons={[<FullScreenButton />, <CloseButton />]} {...titleProps}>
+        <DialogTitle
+          {...titleProps}
+          id={titleId}
+          buttons={
+            [
+              withFullScreen ? (
+                <ActionButton
+                  key="fullscreen"
+                  description={t('Toggle fullscreen')}
+                  onClick={handleFullScreen}
+                  icon={fullScreen ? 'mdi:fullscreen-exit' : 'mdi:fullscreen'}
+                />
+              ) : null,
+              <ActionButton
+                key="close"
+                description={t('Close')}
+                onClick={() => {
+                  props.onClose && props.onClose({}, 'escapeKeyDown');
+                }}
+                icon={'mdi:close'}
+              />,
+            ].filter(Boolean) as React.ReactNode[]
+          }
+        >
           {title}
         </DialogTitle>
       )}

@@ -43,6 +43,38 @@ export interface ConfigState {
     [clusterName: string]: Cluster;
   } | null;
   /**
+   * Whether dynamic clusters are enabled.
+   * When true, users can add and delete clusters dynamically.
+   */
+  isDynamicClusterEnabled: boolean;
+  /**
+   * Whether users are allowed to remove clusters from their kubeconfig.
+   * When true, the UI will show options to delete kubeconfig-sourced clusters.
+   * Defaults to false to prevent accidental removal in company-deployed environments.
+   */
+  allowKubeconfigChanges: boolean;
+  /**
+   * Default image used for pod debug containers when no per-cluster override is configured.
+   * An empty string indicates that no default image is configured.
+   */
+  defaultPodDebugImage: string;
+  /**
+   * Default image used for node shell pods when no per-cluster override is configured.
+   * An empty string indicates that no default image is configured.
+   */
+  defaultNodeShellImage: string;
+  /**
+   * Default namespace used for node shell pods when no per-cluster override is configured.
+   * An empty string indicates that no default namespace is configured.
+   */
+  defaultNodeShellNamespace: string;
+  /**
+   * Theme configuration from the backend server.
+   */
+  defaultLightTheme?: string;
+  defaultDarkTheme?: string;
+  forceTheme?: string;
+  /**
    * Settings is a map of settings names to settings values.
    */
   settings: {
@@ -54,29 +86,95 @@ export interface ConfigState {
      * timezone is the timezone to use for displaying dates and times.
      */
     timezone: string;
+    sidebarSortAlphabetically: boolean;
     useEvict: boolean;
     [key: string]: any;
   };
 }
 
-export const defaultTableRowsPerPageOptions = [15, 25, 50];
+export const defaultTableRowsPerPageOptions = [15, 25, 50, 100];
 
 function defaultTimezone() {
   return import.meta.env.UNDER_TEST ? 'UTC' : Intl.DateTimeFormat().resolvedOptions().timeZone;
 }
 
-const storedSettings = JSON.parse(localStorage.getItem('settings') || '{}');
+function isNumberArray(value: unknown): value is number[] {
+  return (
+    Array.isArray(value) &&
+    value.length > 0 &&
+    value.every(item => Number.isInteger(item) && item > 0)
+  );
+}
+
+function isString(value: unknown): value is string {
+  return typeof value === 'string';
+}
+
+function isBoolean(value: unknown): value is boolean {
+  return typeof value === 'boolean';
+}
+
+function isValidTimeZone(value: string): boolean {
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: value });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function loadStoredSettings(): Partial<ConfigState['settings']> {
+  try {
+    const rawSettings = localStorage.getItem('settings');
+    if (!rawSettings) {
+      return {};
+    }
+
+    const parsed: unknown = JSON.parse(rawSettings);
+
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return {};
+    }
+
+    const parsedSettings = parsed as Record<string, unknown>;
+    const sanitizedSettings: Partial<ConfigState['settings']> = {};
+
+    if (isNumberArray(parsedSettings.tableRowsPerPageOptions)) {
+      sanitizedSettings.tableRowsPerPageOptions = parsedSettings.tableRowsPerPageOptions;
+    }
+    if (isString(parsedSettings.timezone) && isValidTimeZone(parsedSettings.timezone)) {
+      sanitizedSettings.timezone = parsedSettings.timezone;
+    }
+    if (isBoolean(parsedSettings.sidebarSortAlphabetically)) {
+      sanitizedSettings.sidebarSortAlphabetically = parsedSettings.sidebarSortAlphabetically;
+    }
+    if (isBoolean(parsedSettings.useEvict)) {
+      sanitizedSettings.useEvict = parsedSettings.useEvict;
+    }
+
+    return sanitizedSettings;
+  } catch {
+    return {};
+  }
+}
+
+const storedSettings = loadStoredSettings();
 
 export const initialState: ConfigState = {
   clusters: null,
   statelessClusters: null,
   allClusters: null,
+  isDynamicClusterEnabled: false,
+  allowKubeconfigChanges: false,
+  defaultPodDebugImage: '',
+  defaultNodeShellImage: '',
+  defaultNodeShellNamespace: '',
   settings: {
     tableRowsPerPageOptions:
-      storedSettings.tableRowsPerPageOptions || defaultTableRowsPerPageOptions,
+      storedSettings.tableRowsPerPageOptions ?? defaultTableRowsPerPageOptions,
     timezone: storedSettings.timezone || defaultTimezone(),
-    sidebarSortAlphabetically: storedSettings.sidebarSortAlphabetically || false,
-    useEvict: storedSettings.useEvict || true,
+    sidebarSortAlphabetically: storedSettings.sidebarSortAlphabetically ?? false,
+    useEvict: storedSettings.useEvict ?? true,
   },
 };
 
@@ -89,8 +187,39 @@ const configSlice = createSlice({
      * @param state - The current state.
      * @param action - The payload action containing the config.
      */
-    setConfig(state, action: PayloadAction<{ clusters: ConfigState['clusters'] }>) {
+    setConfig(
+      state,
+      action: PayloadAction<{
+        clusters: ConfigState['clusters'];
+        isDynamicClusterEnabled?: boolean;
+        allowKubeconfigChanges?: boolean;
+        defaultPodDebugImage?: string;
+        defaultNodeShellImage?: string;
+        defaultNodeShellNamespace?: string;
+        defaultLightTheme?: string;
+        defaultDarkTheme?: string;
+        forceTheme?: string;
+      }>
+    ) {
       state.clusters = action.payload.clusters;
+      if (action.payload.isDynamicClusterEnabled !== undefined) {
+        state.isDynamicClusterEnabled = action.payload.isDynamicClusterEnabled;
+      }
+      if (action.payload.allowKubeconfigChanges !== undefined) {
+        state.allowKubeconfigChanges = action.payload.allowKubeconfigChanges;
+      }
+      if (action.payload.defaultPodDebugImage !== undefined) {
+        state.defaultPodDebugImage = action.payload.defaultPodDebugImage;
+      }
+      if (action.payload.defaultNodeShellImage !== undefined) {
+        state.defaultNodeShellImage = action.payload.defaultNodeShellImage;
+      }
+      if (action.payload.defaultNodeShellNamespace !== undefined) {
+        state.defaultNodeShellNamespace = action.payload.defaultNodeShellNamespace;
+      }
+      state.defaultLightTheme = action.payload.defaultLightTheme;
+      state.defaultDarkTheme = action.payload.defaultDarkTheme;
+      state.forceTheme = action.payload.forceTheme;
     },
     /**
      * Save the config. To both the store, and localStorage.

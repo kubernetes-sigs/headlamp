@@ -19,3 +19,12 @@ export const MULTI_HOME_ENABLED = import.meta.env.REACT_APP_MULTI_HOME_ENABLED =
 
 /** Show recent clusters on the home page */
 export const ENABLE_RECENT_CLUSTERS = import.meta.env.REACT_APP_ENABLE_RECENT_CLUSTERS === 'true';
+
+/**
+ * When true (default), clicking a cluster name on the Home page also connects
+ * to that cluster (starts polling its version/status) in addition to the
+ * explicit Connect button. Set to false if you want the Connect button to be
+ * the only way to start polling a cluster.
+ */
+export const CONNECT_ON_CLUSTER_LINK =
+  import.meta.env.REACT_APP_CONNECT_ON_CLUSTER_LINK !== 'false';

@@ -57,15 +57,7 @@ export default function ScaleButton(props: ScaleButtonProps) {
   const location = useLocation();
   const { t } = useTranslation();
 
-  async function updateFunc(numReplicas: number) {
-    try {
-      await item.scale(numReplicas);
-    } catch (err) {
-      throw err;
-    }
-  }
-
-  const applyFunc = React.useCallback(updateFunc, [item]);
+  const applyFunc = React.useCallback((numReplicas: number) => item.scale(numReplicas), [item]);
 
   function handleSave(numReplicas: number) {
     const cancelUrl = location.pathname;

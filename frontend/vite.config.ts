@@ -17,16 +17,18 @@
 import react from '@vitejs/plugin-react';
 import { defineConfig } from 'vite';
 import { nodePolyfills } from 'vite-plugin-node-polyfills';
+import { viteStaticCopy } from 'vite-plugin-static-copy';
 import svgr from 'vite-plugin-svgr';
-import { viteStaticCopy } from "vite-plugin-static-copy";
 
 // Use environment variable for backend port, defaulting to 4466
 const backendPort = process.env.HEADLAMP_PORT || '4466';
 const backendTarget = `http://localhost:${backendPort}`;
+const underTest = process.env.UNDER_TEST === 'true' || process.env.VITEST === 'true';
 
 export default defineConfig({
   define: {
     global: 'globalThis',
+    'import.meta.env.UNDER_TEST': JSON.stringify(underTest),
   },
   envPrefix: 'REACT_APP_',
   base: process.env.PUBLIC_URL,
@@ -49,7 +51,7 @@ export default defineConfig({
         target: backendTarget,
         changeOrigin: true,
       },
-      '/auth': {
+      '/auth/': {
         target: backendTarget,
         changeOrigin: true,
       },
@@ -115,8 +117,8 @@ export default defineConfig({
     viteStaticCopy({
       targets: [
         {
-          src: "node_modules/monaco-editor/min/vs",
-          dest: "assets", // copies to assets/vs
+          src: 'node_modules/monaco-editor/min/vs',
+          dest: 'assets', // copies to assets/vs
         },
       ],
     }),

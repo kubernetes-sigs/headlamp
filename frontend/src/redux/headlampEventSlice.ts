@@ -39,10 +39,14 @@ export enum HeadlampEventType {
   EDIT_RESOURCE = 'headlamp.edit-resource',
   /** Events related to scaling a resource. */
   SCALE_RESOURCE = 'headlamp.scale-resource',
+  /** Events related to scaling multiple resources. */
+  SCALE_RESOURCES = 'headlamp.scale-resources',
   /** Events related to restarting a resource. */
   RESTART_RESOURCE = 'headlamp.restart-resource',
   /** Events related to restarting multiple resources. */
   RESTART_RESOURCES = 'headlamp.restart-resources',
+  /** Events related to rolling back a resource. */
+  ROLLBACK_RESOURCE = 'headlamp.rollback-resource',
   /** Events related to viewing logs. */
   LOGS = 'headlamp.logs',
   /** Events related to opening a terminal. */
@@ -153,6 +157,22 @@ export interface ScaleResourceEvent {
 }
 
 /**
+ * Event fired when scaling multiple resources.
+ */
+export interface ScaleResourcesEvent extends HeadlampEvent<HeadlampEventType.SCALE_RESOURCES> {
+  data: {
+    /** The resources for which scaling was called. */
+    resources: KubeObject[];
+    /** The number of replicas set. */
+    numReplicas: number;
+    /** What exactly this event represents. 'CONFIRMED' when the user confirms scaling of resources.
+     * For now only 'CONFIRMED' is sent.
+     */
+    status: EventStatus.CONFIRMED;
+  };
+}
+
+/**
  * Event fired when restarting a resource.
  */
 export interface RestartResourceEvent extends HeadlampEvent<HeadlampEventType.RESTART_RESOURCE> {
@@ -174,6 +194,20 @@ export interface RestartResourcesEvent extends HeadlampEvent<HeadlampEventType.R
     /** Resources for which restart was called. */
     resources: KubeObject[];
     /** What exactly this event represents. 'CONFIRMED' when the user confirms restart of resources.
+     * For now only 'CONFIRMED' is sent.
+     */
+    status: EventStatus.CONFIRMED;
+  };
+}
+
+/**
+ * Event fired when rolling back a resource (e.g., Deployment).
+ */
+export interface RollbackResourceEvent extends HeadlampEvent<HeadlampEventType.ROLLBACK_RESOURCE> {
+  data: {
+    /** The resource for which rollback was called. */
+    resource: KubeObject;
+    /** What exactly this event represents. 'CONFIRMED' when rollback is selected by the user.
      * For now only 'CONFIRMED' is sent.
      */
     status: EventStatus.CONFIRMED;
@@ -332,8 +366,8 @@ export const listenerMiddleware =
   createListenerMiddleware<Pick<RootState, 'eventCallbackReducer'>>();
 listenerMiddleware.startListening({
   actionCreator: eventAction,
-  effect: async (action, listernerApi) => {
-    const trackerFuncs = listernerApi.getState()?.eventCallbackReducer?.trackerFuncs;
+  effect: async (action, listenerApi) => {
+    const trackerFuncs = listenerApi.getState()?.eventCallbackReducer?.trackerFuncs;
     for (const trackerFunc of trackerFuncs) {
       try {
         trackerFunc(action.payload);
@@ -379,11 +413,17 @@ export function useEventCallback(
   eventType: HeadlampEventType.SCALE_RESOURCE
 ): (data: EventDataType<ScaleResourceEvent>) => void;
 export function useEventCallback(
+  eventType: HeadlampEventType.SCALE_RESOURCES
+): (data: EventDataType<ScaleResourcesEvent>) => void;
+export function useEventCallback(
   eventType: HeadlampEventType.RESTART_RESOURCE
 ): (data: EventDataType<RestartResourceEvent>) => void;
 export function useEventCallback(
   eventType: HeadlampEventType.RESTART_RESOURCES
 ): (data: EventDataType<RestartResourcesEvent>) => void;
+export function useEventCallback(
+  eventType: HeadlampEventType.ROLLBACK_RESOURCE
+): (data: EventDataType<RollbackResourceEvent>) => void;
 export function useEventCallback(
   eventType: HeadlampEventType.LOGS
 ): (data: EventDataType<LogsEvent>) => void;
@@ -443,8 +483,14 @@ export function useEventCallback(eventType?: HeadlampEventType | string) {
       return dispatchDataEventFunc<EditResourceEvent>(HeadlampEventType.EDIT_RESOURCE);
     case HeadlampEventType.SCALE_RESOURCE:
       return dispatchDataEventFunc<ScaleResourceEvent>(HeadlampEventType.SCALE_RESOURCE);
+    case HeadlampEventType.SCALE_RESOURCES:
+      return dispatchDataEventFunc<ScaleResourcesEvent>(HeadlampEventType.SCALE_RESOURCES);
     case HeadlampEventType.RESTART_RESOURCE:
       return dispatchDataEventFunc<RestartResourceEvent>(HeadlampEventType.RESTART_RESOURCE);
+    case HeadlampEventType.RESTART_RESOURCES:
+      return dispatchDataEventFunc<RestartResourcesEvent>(HeadlampEventType.RESTART_RESOURCES);
+    case HeadlampEventType.ROLLBACK_RESOURCE:
+      return dispatchDataEventFunc<RollbackResourceEvent>(HeadlampEventType.ROLLBACK_RESOURCE);
     case HeadlampEventType.LOGS:
       return dispatchDataEventFunc<LogsEvent>(HeadlampEventType.LOGS);
     case HeadlampEventType.TERMINAL:

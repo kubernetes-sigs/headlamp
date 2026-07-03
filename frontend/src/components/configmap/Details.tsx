@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import _ from 'lodash';
 import React from 'react';
@@ -29,6 +28,123 @@ import { DataField, DetailsGrid } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
 import { NameValueTable, NameValueTableRow } from '../common/SimpleTable';
 
+function ConfigMapDataSection({ item }: { item: ConfigMap }) {
+  const { t } = useTranslation(['translation']);
+  const dispatch: AppDispatch = useDispatch();
+
+  const [data, setData] = React.useState(() => _.cloneDeep(item.data || {}));
+  const [binaryData, setBinaryData] = React.useState(() => _.cloneDeep(item.binaryData || {}));
+  const [isDirty, setIsDirty] = React.useState(false);
+  const lastDataRef = React.useRef(_.cloneDeep(item.data || {}));
+  const lastBinaryDataRef = React.useRef(_.cloneDeep(item.binaryData || {}));
+
+  const handleDataFieldChange = (key: string, newValue: string) => {
+    setData(prev => {
+      const next = { ...prev, [key]: newValue };
+      setIsDirty(
+        !_.isEqual(next, lastDataRef.current) || !_.isEqual(binaryData, lastBinaryDataRef.current)
+      );
+      return next;
+    });
+  };
+
+  const handleBinaryDataFieldChange = (key: string, newValue: string) => {
+    setBinaryData(prev => {
+      const next = { ...prev, [key]: newValue };
+      setIsDirty(
+        !_.isEqual(data, lastDataRef.current) || !_.isEqual(next, lastBinaryDataRef.current)
+      );
+      return next;
+    });
+  };
+
+  React.useEffect(() => {
+    const newData = _.cloneDeep(item.data || {});
+    if (!isDirty && !_.isEqual(newData, lastDataRef.current)) {
+      setData(newData);
+      lastDataRef.current = newData;
+    }
+    const newBinaryData = _.cloneDeep(item.binaryData || {});
+    if (!isDirty && !_.isEqual(newBinaryData, lastBinaryDataRef.current)) {
+      setBinaryData(newBinaryData);
+      lastBinaryDataRef.current = newBinaryData;
+    }
+  }, [item.data, item.binaryData, isDirty]);
+
+  const handleSave = () => {
+    const updatedConfigMap = { ...item.jsonData, data, binaryData };
+    dispatch(
+      clusterAction(() => item.update(updatedConfigMap), {
+        startMessage: t('translation|Applying changes to {{ itemName }}…', {
+          itemName: item.metadata.name,
+        }),
+        cancelledMessage: t('translation|Cancelled changes to {{ itemName }}.', {
+          itemName: item.metadata.name,
+        }),
+        successMessage: t('translation|Applied changes to {{ itemName }}.', {
+          itemName: item.metadata.name,
+        }),
+        errorMessage: t('translation|Failed to apply changes to {{ itemName }}.', {
+          itemName: item.metadata.name,
+        }),
+      })
+    );
+    lastDataRef.current = _.cloneDeep(data);
+    lastBinaryDataRef.current = _.cloneDeep(binaryData);
+    setIsDirty(false);
+  };
+
+  const dataRows: NameValueTableRow[] = Object.entries(data).map(([key, value]) => ({
+    name: key,
+    value: (
+      <DataField
+        label={key}
+        disableLabel
+        value={value}
+        onChange={(newValue: string) => handleDataFieldChange(key, newValue)}
+      />
+    ),
+  }));
+
+  const binaryDataRows: NameValueTableRow[] = Object.entries(binaryData).map(([key, value]) => ({
+    name: key,
+    value: (
+      <DataField
+        label={key}
+        disableLabel
+        value={value}
+        onChange={(newValue: string) => handleBinaryDataFieldChange(key, newValue)}
+      />
+    ),
+  }));
+
+  return (
+    <>
+      <SectionBox title={t('translation|Data')}>
+        {dataRows.length === 0 ? (
+          <EmptyContent>{t('No data in this config map')}</EmptyContent>
+        ) : (
+          <NameValueTable rows={dataRows} />
+        )}
+      </SectionBox>
+      <SectionBox title={t('translation|Binary Data')}>
+        {binaryDataRows.length === 0 ? (
+          <EmptyContent>{t('No binary data in this config map')}</EmptyContent>
+        ) : (
+          <NameValueTable rows={binaryDataRows} />
+        )}
+      </SectionBox>
+      {binaryDataRows.length + dataRows.length > 0 && (
+        <SectionBox display="flex" justifyContent="flex-end">
+          <Button variant="contained" color="primary" onClick={handleSave}>
+            {t('translation|Save')}
+          </Button>
+        </SectionBox>
+      )}
+    </>
+  );
+}
+
 export default function ConfigDetails(props: {
   name?: string;
   namespace?: string;
@@ -36,8 +152,6 @@ export default function ConfigDetails(props: {
 }) {
   const params = useParams<{ namespace: string; name: string }>();
   const { name = params.name, namespace = params.namespace, cluster } = props;
-  const { t } = useTranslation(['translation']);
-  const dispatch: AppDispatch = useDispatch();
 
   return (
     <DetailsGrid
@@ -50,75 +164,7 @@ export default function ConfigDetails(props: {
         item && [
           {
             id: 'headlamp.configmap-data',
-            section: () => {
-              const [data, setData] = React.useState(() => _.cloneDeep(item.data));
-              const [isDirty, setIsDirty] = React.useState(false);
-              const lastDataRef = React.useRef(_.cloneDeep(item.data));
-
-              const handleFieldChange = (key: string, newValue: string) => {
-                setData(prev => ({ ...prev, [key]: newValue }));
-                setIsDirty(true);
-              };
-
-              React.useEffect(() => {
-                const newData = _.cloneDeep(item.data);
-                if (!isDirty && !_.isEqual(newData, lastDataRef.current)) {
-                  setData(newData);
-                  lastDataRef.current = newData;
-                }
-              }, [item.data, isDirty]);
-
-              const handleSave = () => {
-                const updatedConfigMap = { ...item.jsonData, data };
-                dispatch(
-                  clusterAction(() => item.update(updatedConfigMap), {
-                    startMessage: t('translation|Applying changes to {{ itemName }}…', {
-                      itemName: item.metadata.name,
-                    }),
-                    cancelledMessage: t('translation|Cancelled changes to {{ itemName }}.', {
-                      itemName: item.metadata.name,
-                    }),
-                    successMessage: t('translation|Applied changes to {{ itemName }}.', {
-                      itemName: item.metadata.name,
-                    }),
-                    errorMessage: t('translation|Failed to apply changes to {{ itemName }}.', {
-                      itemName: item.metadata.name,
-                    }),
-                  })
-                );
-                lastDataRef.current = _.cloneDeep(data);
-                setIsDirty(false);
-              };
-
-              const mainRows: NameValueTableRow[] = Object.entries(data).map((item: unknown[]) => ({
-                name: item[0] as string,
-                value: (
-                  <DataField
-                    label={item[0] as string}
-                    disableLabel
-                    value={item[1]}
-                    onChange={(newValue: string) => handleFieldChange(item[0] as string, newValue)}
-                  />
-                ),
-              }));
-
-              return (
-                <SectionBox title={t('translation|Data')}>
-                  {mainRows.length === 0 ? (
-                    <EmptyContent>{t('No data in this config map')}</EmptyContent>
-                  ) : (
-                    <>
-                      <NameValueTable rows={mainRows} />
-                      <Box mt={2} display="flex" justifyContent="flex-end">
-                        <Button variant="contained" color="primary" onClick={handleSave}>
-                          {t('translation|Save')}
-                        </Button>
-                      </Box>
-                    </>
-                  )}
-                </SectionBox>
-              );
-            },
+            section: () => <ConfigMapDataSection item={item} />,
           },
         ]
       }

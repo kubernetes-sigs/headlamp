@@ -27,7 +27,9 @@ import TableContainer from '@mui/material/TableContainer';
 import TableHead from '@mui/material/TableHead';
 import TablePagination from '@mui/material/TablePagination';
 import TableRow from '@mui/material/TableRow';
+import Tooltip from '@mui/material/Tooltip';
 import { SxProps } from '@mui/system';
+import { visuallyHidden } from '@mui/utils';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../helpers/tablesRowsPerPage';
@@ -96,21 +98,29 @@ function ColumnSortButtons(props: ColumnSortButtonProps) {
   const { t } = useTranslation();
   const { isDefaultSorted, isIncreasingOrder, clickHandler } = props;
   return isDefaultSorted ? (
-    <IconButton
-      aria-label={isIncreasingOrder ? t('translation|sort up') : t('translation|sort down')}
-      size="small"
-      onClick={() => clickHandler(!isIncreasingOrder)}
+    <Tooltip
+      title={isIncreasingOrder ? t('translation|Sort descending') : t('translation|Sort ascending')}
     >
-      <Icon icon={isIncreasingOrder ? 'mdi:menu-up' : 'mdi:menu-down'} />
-    </IconButton>
+      <IconButton
+        aria-label={
+          isIncreasingOrder ? t('translation|Sort descending') : t('translation|Sort ascending')
+        }
+        size="small"
+        onClick={() => clickHandler(!isIncreasingOrder)}
+      >
+        <Icon icon={isIncreasingOrder ? 'mdi:arrow-up' : 'mdi:arrow-down'} />
+      </IconButton>
+    </Tooltip>
   ) : (
-    <IconButton
-      aria-label={t('translation|sort swap')}
-      size="small"
-      onClick={() => clickHandler(true)}
-    >
-      <Icon icon="mdi:menu-swap" />
-    </IconButton>
+    <Tooltip title={t('translation|Sort ascending')}>
+      <IconButton
+        aria-label={t('translation|Sort ascending')}
+        size="small"
+        onClick={() => clickHandler(true)}
+      >
+        <Icon icon="mdi:swap-vertical" />
+      </IconButton>
+    </Tooltip>
   );
 }
 
@@ -136,6 +146,7 @@ function usePageURLState(
 
   React.useEffect(() => {
     setPage(zeroIndexPage + 1);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zeroIndexPage]);
 
   return [zeroIndexPage, setZeroIndexPage];
@@ -164,6 +175,7 @@ export default function SimpleTable(props: SimpleTableProps) {
   const [displayData, setDisplayData] = React.useState(data);
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const rowsPerPageOptions = props.rowsPerPage || storeRowsPerPageOptions;
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const defaultRowsPerPage = React.useMemo(() => getTablesRowsPerPage(rowsPerPageOptions[0]), []);
   const [rowsPerPage, setRowsPerPage] = useURLState(shouldReflectInURL ? 'perPage' : '', {
     defaultValue: defaultRowsPerPage,
@@ -205,6 +217,7 @@ export default function SimpleTable(props: SimpleTableProps) {
     if (displayData && page * rowsPerPage > displayData.length) {
       setPage(Math.floor(displayData.length / rowsPerPage));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, displayData, rowsPerPage]);
 
   function handleChangeRowsPerPage(
@@ -300,192 +313,221 @@ export default function SimpleTable(props: SimpleTableProps) {
     [sortColIndex, isIncreasingOrder, currentData]
   );
 
-  function getPagedRows() {
-    const startIndex = page * rowsPerPage;
-    return filteredData!.slice(startIndex, startIndex + rowsPerPage);
-  }
+  const emptyMsg = emptyMessage || t('No data to be shown.');
+  const isEmpty = displayData !== null && (!currentData || currentData.length === 0);
+  const statusMsg = isEmpty ? emptyMsg : '';
 
+  // Defer status text by one render so NVDA always sees a change ('' → message).
+  const [announcedStatus, setAnnouncedStatus] = React.useState('');
+  React.useEffect(() => {
+    setAnnouncedStatus(statusMsg);
+  }, [statusMsg]);
+
+  let content;
   if (displayData === null) {
     if (!!errorMessage) {
-      return <Empty color="error">{errorMessage}</Empty>;
+      content = <Empty color="error">{errorMessage}</Empty>;
+    } else {
+      content = <Loader title={t('Loading table data')} />;
+    }
+  } else {
+    let filteredData = displayData;
+    if (filterFunction) {
+      filteredData = displayData?.filter(filterFunction);
     }
 
-    return <Loader title={t('Loading table data')} />;
-  }
+    function getPagedRows() {
+      const startIndex = page * rowsPerPage;
+      return filteredData!.slice(startIndex, startIndex + rowsPerPage);
+    }
 
-  let filteredData = displayData;
-  if (filterFunction) {
-    filteredData = displayData?.filter(filterFunction);
-  }
+    if (
+      (filteredData?.length === 0 || (filteredData?.length ?? 0) < page * rowsPerPage) &&
+      page !== 0
+    ) {
+      setPage(0);
+    }
 
-  if (
-    (filteredData?.length === 0 || (filteredData?.length ?? 0) < page * rowsPerPage) &&
-    page !== 0
-  ) {
-    setPage(0);
-  }
+    function sortClickHandler(isIncreasingOrder: boolean, index: number) {
+      setIsIncreasingOrder(isIncreasingOrder);
+      setSortColIndex(index);
+    }
 
-  function sortClickHandler(isIncreasingOrder: boolean, index: number) {
-    setIsIncreasingOrder(isIncreasingOrder);
-    setSortColIndex(index);
-  }
-
-  return !currentData || currentData.length === 0 ? (
-    <Paper variant="outlined">
-      <Empty>{emptyMessage || t('No data to be shown.')}</Empty>
-    </Paper>
-  ) : (
-    <TableContainer
-      className={className}
-      sx={{
-        overflowY: 'hidden',
-        ...sx,
-      }}
-      component={Paper}
-      variant="outlined"
-      tabIndex={0}
-    >
-      {
-        // Show a refresh button if the data is not up to date, so we allow the user to keep
-        // reading the current data without "losing" it or being sent to the first page
-        currentData !== data && page !== 0 && (
-          <Box textAlign="center" p={2}>
-            <Button
-              variant="contained"
-              startIcon={<Icon icon="mdi:refresh" />}
-              onClick={() => {
-                setCurrentData(data);
-                setPage(0);
-              }}
-            >
-              {t('translation|Refresh')}
-            </Button>
-          </Box>
-        )
-      }
-      <Table
-        sx={theme => ({
-          minWidth: '100%',
-          width: 'auto',
-          display: 'grid',
-          gridTemplateColumns: gridTemplateColumns || '1fr',
-          background: theme.palette.background.default,
-          [theme.breakpoints.down('sm')]: {
-            overflowX: 'auto', // make it responsive
-          },
-          '& .MuiTableCell-root': {
-            borderColor: theme.palette.divider,
-            padding: '8px 16px 7px 16px',
-            [theme.breakpoints.down('sm')]: {
-              padding: '15px 24px 15px 16px',
-            },
-            overflow: 'hidden',
-            width: '100%',
-            wordWrap: 'break-word',
-          },
-          '& .MuiTableBody-root': {
-            '& .MuiTableRow-root:last-child': {
-              '& .MuiTableCell-root': {
-                borderBottom: 'none',
+    if (!currentData || currentData.length === 0) {
+      content = (
+        <Paper variant="outlined">
+          <Empty>{emptyMsg}</Empty>
+        </Paper>
+      );
+    } else {
+      content = (
+        <TableContainer
+          className={className}
+          sx={{
+            overflowY: 'hidden',
+            ...sx,
+          }}
+          component={Paper}
+          variant="outlined"
+          tabIndex={0}
+        >
+          {
+            // Show a refresh button if the data is not up to date, so we allow the user to keep
+            // reading the current data without "losing" it or being sent to the first page
+            currentData !== data && page !== 0 && (
+              <Box textAlign="center" p={2}>
+                <Button
+                  variant="contained"
+                  startIcon={<Icon icon="mdi:refresh" />}
+                  onClick={() => {
+                    setCurrentData(data);
+                    setPage(0);
+                  }}
+                >
+                  {t('translation|Refresh')}
+                </Button>
+              </Box>
+            )
+          }
+          <Table
+            sx={theme => ({
+              minWidth: '100%',
+              width: 'auto',
+              display: 'grid',
+              gridTemplateColumns: gridTemplateColumns || '1fr',
+              background: theme.palette.background.default,
+              [theme.breakpoints.down('sm')]: {
+                overflowX: 'auto', // make it responsive
               },
-            },
-          },
-          '& .MuiTableCell-head': {
-            overflow: 'hidden',
-            textOverflow: 'unset',
-            whiteSpace: 'nowrap',
-            color: theme.palette.tables.head.text,
-            background: theme.palette.background.muted,
-            width: '100%',
-            minWidth: 'max-content',
-          },
-          '& .MuiTableHead-root, & .MuiTableRow-root, & .MuiTableBody-root': {
-            display: 'contents',
-          },
-        })}
-        size="small"
-      >
-        {!noTableHeader && (
-          <TableHead>
-            <TableRow>
-              {columns.map(({ label, header, cellProps = {}, sort }, i) => {
-                const { className = '', ...otherProps } = cellProps;
-                return (
-                  <TableCell
-                    key={`tabletitle_${i}`}
-                    className={className}
-                    sx={theme => ({
-                      fontWeight: 'bold',
-                      paddingBottom: theme.spacing(0.5),
-                      ...(sort ? { whiteSpace: 'nowrap' } : {}),
+              '& .MuiTableCell-root': {
+                borderColor: theme.palette.divider,
+                padding: '8px 16px 7px 16px',
+                [theme.breakpoints.down('sm')]: {
+                  padding: '15px 24px 15px 16px',
+                },
+                overflow: 'hidden',
+                width: '100%',
+                wordWrap: 'break-word',
+              },
+              '& .MuiTableBody-root': {
+                '& .MuiTableRow-root:last-child': {
+                  '& .MuiTableCell-root': {
+                    borderBottom: 'none',
+                  },
+                },
+              },
+              '& .MuiTableCell-head': {
+                overflow: 'hidden',
+                textOverflow: 'unset',
+                whiteSpace: 'nowrap',
+                color: theme.palette.tables.head.text,
+                background: theme.palette.background.muted,
+                width: '100%',
+                minWidth: 'max-content',
+              },
+              '& .MuiTableHead-root, & .MuiTableRow-root, & .MuiTableBody-root': {
+                display: 'contents',
+              },
+            })}
+            size="small"
+          >
+            {!noTableHeader && (
+              <TableHead>
+                <TableRow>
+                  {columns.map(({ label, header, cellProps = {}, sort }, i) => {
+                    const { className = '', ...otherProps } = cellProps;
+                    return (
+                      <TableCell
+                        key={`tabletitle_${i}`}
+                        className={className}
+                        sx={theme => ({
+                          fontWeight: 'bold',
+                          paddingBottom: theme.spacing(0.5),
+                          ...(sort ? { whiteSpace: 'nowrap' } : {}),
+                        })}
+                        {...otherProps}
+                      >
+                        {header || label}
+                        {sort && (
+                          <ColumnSortButtons
+                            isIncreasingOrder={Boolean(isIncreasingOrder)}
+                            isDefaultSorted={sortColIndex === i}
+                            clickHandler={(isIncreasingOrder: boolean) =>
+                              sortClickHandler(isIncreasingOrder, i)
+                            }
+                          />
+                        )}
+                      </TableCell>
+                    );
+                  })}
+                </TableRow>
+              </TableHead>
+            )}
+            <TableBody>
+              {filteredData!.length > 0 ? (
+                getPagedRows().map((row: any, i: number) => (
+                  <TableRow key={i}>
+                    {columns.map((col, i) => {
+                      const { cellProps = {} } = col;
+                      return (
+                        <TableCell key={`cell_${i}`} {...cellProps}>
+                          {i === 0 && row.color && (
+                            <React.Fragment>
+                              <InlineIcon
+                                icon="mdi:square"
+                                color={row.color}
+                                height="15"
+                                width="15"
+                              />
+                              &nbsp;
+                            </React.Fragment>
+                          )}
+                          {'datum' in col ? row[col.datum] : col.getter(row)}
+                        </TableCell>
+                      );
                     })}
-                    {...otherProps}
-                  >
-                    {header || label}
-                    {sort && (
-                      <ColumnSortButtons
-                        isIncreasingOrder={Boolean(isIncreasingOrder)}
-                        isDefaultSorted={sortColIndex === i}
-                        clickHandler={(isIncreasingOrder: boolean) =>
-                          sortClickHandler(isIncreasingOrder, i)
-                        }
-                      />
-                    )}
+                  </TableRow>
+                ))
+              ) : (
+                <TableRow>
+                  <TableCell style={{ gridColumn: `span ${columns.length}` }}>
+                    <Empty>{t('No data matching the filter criteria.')}</Empty>
                   </TableCell>
-                );
-              })}
-            </TableRow>
-          </TableHead>
-        )}
-        <TableBody>
-          {filteredData!.length > 0 ? (
-            getPagedRows().map((row: any, i: number) => (
-              <TableRow key={i}>
-                {columns.map((col, i) => {
-                  const { cellProps = {} } = col;
-                  return (
-                    <TableCell key={`cell_${i}`} {...cellProps}>
-                      {i === 0 && row.color && (
-                        <React.Fragment>
-                          <InlineIcon icon="mdi:square" color={row.color} height="15" width="15" />
-                          &nbsp;
-                        </React.Fragment>
-                      )}
-                      {'datum' in col ? row[col.datum] : col.getter(row)}
-                    </TableCell>
-                  );
-                })}
-              </TableRow>
-            ))
-          ) : (
-            <TableRow>
-              <TableCell style={{ gridColumn: `span ${columns.length}` }}>
-                <Empty>{t('No data matching the filter criteria.')}</Empty>
-              </TableCell>
-            </TableRow>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+          {filteredData!.length > rowsPerPageOptions[0] && showPagination && (
+            <TablePagination
+              rowsPerPageOptions={rowsPerPageOptions}
+              component="div"
+              count={filteredData!.length}
+              rowsPerPage={rowsPerPage}
+              showFirstButton
+              showLastButton
+              page={page}
+              backIconButtonProps={{
+                'aria-label': 'previous page',
+              }}
+              nextIconButtonProps={{
+                'aria-label': 'next page',
+              }}
+              onPageChange={handleChangePage}
+              onRowsPerPageChange={handleChangeRowsPerPage}
+            />
           )}
-        </TableBody>
-      </Table>
-      {filteredData!.length > rowsPerPageOptions[0] && showPagination && (
-        <TablePagination
-          rowsPerPageOptions={rowsPerPageOptions}
-          component="div"
-          count={filteredData!.length}
-          rowsPerPage={rowsPerPage}
-          showFirstButton
-          showLastButton
-          page={page}
-          backIconButtonProps={{
-            'aria-label': 'previous page',
-          }}
-          nextIconButtonProps={{
-            'aria-label': 'next page',
-          }}
-          onPageChange={handleChangePage}
-          onRowsPerPageChange={handleChangeRowsPerPage}
-        />
-      )}
-    </TableContainer>
+        </TableContainer>
+      );
+    }
+  }
+
+  return (
+    <>
+      <Box role="status" aria-live="polite" aria-atomic="true" sx={visuallyHidden}>
+        {announcedStatus}
+      </Box>
+      {content}
+    </>
   );
 }
 

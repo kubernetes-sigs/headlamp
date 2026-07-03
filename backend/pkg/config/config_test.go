@@ -3,12 +3,44 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"runtime"
+	"strings"
 	"testing"
+	"time"
 
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+func TestMain(m *testing.M) {
+	clusterInventoryEnv := []string{
+		"HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY",
+		"HEADLAMP_CONFIG_CLUSTER_INVENTORY_PROVIDER_FILE",
+		"HEADLAMP_CONFIG_CLUSTER_INVENTORY_LABEL_SELECTOR",
+		"HEADLAMP_CONFIG_CLUSTER_INVENTORY_ROOT_RECONCILE_INTERVAL",
+		"HEADLAMP_CONFIG_CLUSTER_INVENTORY_NO_CRD_CACHE_TTL",
+	}
+
+	previous := map[string]string{}
+	for _, key := range clusterInventoryEnv {
+		previous[key] = os.Getenv(key)
+		_ = os.Unsetenv(key)
+	}
+
+	code := m.Run()
+
+	for _, key := range clusterInventoryEnv {
+		if previous[key] == "" {
+			_ = os.Unsetenv(key)
+		} else {
+			_ = os.Setenv(key, previous[key])
+		}
+	}
+
+	os.Exit(code)
+}
 
 // getTestDataPath returns the absolute path to the test data directory.
 func getTestDataPath() string {
@@ -25,6 +57,15 @@ func getTestDataPath() string {
 
 	// Otherwise, assume we're in the workspace root
 	return filepath.Join(cwd, "pkg", "config", "test_data")
+}
+
+func writeClusterInventoryProviderFile(t *testing.T) string {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "providers.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"providers":[]}`), 0o600))
+
+	return path
 }
 
 func TestParseBasic(t *testing.T) {
@@ -45,14 +86,37 @@ func TestParseBasic(t *testing.T) {
 				assert.Equal(t, config.DefaultMeEmailPath, conf.MeEmailPath)
 				assert.Equal(t, config.DefaultMeGroupsPath, conf.MeGroupsPath)
 				assert.Equal(t, "info", conf.LogLevel)
+				// proxy-auth defaults
+				assert.Equal(t, false, conf.ProxyAuthEnabled)
+				assert.Equal(t, "X-Forwarded-User", conf.ProxyAuthUsernameHeader)
+				assert.Equal(t, "X-Forwarded-Group", conf.ProxyAuthGroupHeader)
+				assert.Equal(t, "X-Forwarded-Email", conf.ProxyAuthEmailHeader)
+				assert.Equal(t, "X-Forwarded-Id-Token", conf.ProxyAuthTokenHeader)
+				assert.Equal(t, "", conf.ServiceAccountTokenPath)
 			},
 		},
 		{
 			name: "with_args",
-			args: []string{"go run ./cmd", "--port=3456"},
+			args: []string{
+				"go run ./cmd", "--port=3456",
+				"--pod-debug-image=registry.example.com/debug:latest",
+				"--node-shell-image=registry.example.com/shell:latest",
+				"--node-shell-namespace=custom-ns",
+			},
 			verify: func(t *testing.T, conf *config.Config) {
 				assert.Equal(t, uint(3456), conf.Port)
+				assert.Equal(t, "registry.example.com/debug:latest", conf.PodDebugImage)
+				assert.Equal(t, "registry.example.com/shell:latest", conf.NodeShellImage)
+				assert.Equal(t, "custom-ns", conf.NodeShellNamespace)
 				assert.Equal(t, config.DefaultMeUsernamePath, conf.MeUsernamePath)
+			},
+		},
+		{
+			name: "oidc_use_cookie",
+			args: []string{"go run ./cmd", "--oidc-use-cookie", "--oidc-client-id=my-id"},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, true, conf.OidcUseCookie)
+				assert.Equal(t, "my-id", conf.OidcClientID)
 			},
 		},
 	}
@@ -141,17 +205,45 @@ var ParseWithEnvTests = []struct {
 			assert.Equal(t, "warn", conf.LogLevel)
 		},
 	},
+	{
+		name: "proxy_auth_enabled_from_env",
+		args: []string{"go run ./cmd"},
+		env: map[string]string{
+			"HEADLAMP_CONFIG_PROXY_AUTH": "true",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.ProxyAuthEnabled)
+		},
+	},
+	{
+		name: "proxy_auth_headers_from_env",
+		args: []string{"go run ./cmd"},
+		env: map[string]string{
+			"HEADLAMP_CONFIG_PROXY_AUTH":                 "true",
+			"HEADLAMP_CONFIG_PROXY_AUTH_USERNAME_HEADER": "X-Env-User",
+			"HEADLAMP_CONFIG_PROXY_AUTH_GROUP_HEADER":    "X-Env-Group",
+			"HEADLAMP_CONFIG_PROXY_AUTH_EMAIL_HEADER":    "X-Env-Email",
+			"HEADLAMP_CONFIG_PROXY_AUTH_TOKEN_HEADER":    "X-Env-Token-Header", // #nosec G101
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.ProxyAuthEnabled)
+			assert.Equal(t, "X-Env-User", conf.ProxyAuthUsernameHeader)
+			assert.Equal(t, "X-Env-Group", conf.ProxyAuthGroupHeader)
+			assert.Equal(t, "X-Env-Email", conf.ProxyAuthEmailHeader)
+			assert.Equal(t, "X-Env-Token-Header", conf.ProxyAuthTokenHeader)
+		},
+	},
 }
 
 func TestParseWithEnv(t *testing.T) {
 	for _, tt := range ParseWithEnvTests {
 		t.Run(tt.name, func(t *testing.T) {
 			for key, value := range tt.env {
-				os.Setenv(key, value)
+				require.NoError(t, os.Setenv(key, value))
 			}
 			defer func(env map[string]string) {
 				for key := range env {
-					os.Unsetenv(key)
+					require.NoError(t, os.Unsetenv(key))
 				}
 			}(tt.env)
 
@@ -173,7 +265,29 @@ func TestParseErrors(t *testing.T) {
 		{
 			name:          "oidc_settings_without_incluster",
 			args:          []string{"go run ./cmd", "-oidc-client-id=noClient"},
-			errorContains: "are only meant to be used in inCluster mode",
+			errorContains: "flags are only meant to be used in inCluster mode or with --oidc-use-cookie",
+		},
+		{
+			name:          "unsafe_use_service_account_token_without_incluster",
+			args:          []string{"go run ./cmd", "--unsafe-use-service-account-token"},
+			errorContains: "are only meant to be used with --in-cluster",
+		},
+		{
+			name: "service_account_token_path_without_incluster",
+			args: []string{
+				"go run ./cmd",
+				"--service-account-token-path=/custom/token/path",
+			},
+			errorContains: "are only meant to be used with --in-cluster",
+		},
+		{
+			name: "service_account_token_path_requires_unsafe_flag",
+			args: []string{
+				"go run ./cmd",
+				"--in-cluster",
+				"--service-account-token-path=/custom/token/path",
+			},
+			errorContains: "--service-account-token-path requires --unsafe-use-service-account-token",
 		},
 		{
 			name:          "invalid_base_url",
@@ -202,52 +316,128 @@ func TestParseErrors(t *testing.T) {
 	}
 }
 
+type parseFlagTest struct {
+	name   string
+	args   []string
+	verify func(*testing.T, *config.Config)
+}
+
+var parseFlagTests = []parseFlagTest{
+	{
+		name: "enable_dynamic_clusters",
+		args: []string{"go run ./cmd", "--enable-dynamic-clusters"},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.EnableDynamicClusters)
+		},
+	},
+	{
+		name: "oidc_skip_tls_verify_flag",
+		args: []string{"go run ./cmd", "--oidc-skip-tls-verify"},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.OidcSkipTLSVerify)
+		},
+	},
+	{
+		name: "oidc_ca_file_flag",
+		args: []string{
+			"go run ./cmd",
+			"--oidc-ca-file=" + filepath.Join(getTestDataPath(), "valid_ca.pem"),
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, filepath.Join(getTestDataPath(), "valid_ca.pem"), conf.OidcCAFile)
+		},
+	},
+	{
+		name: "enable_helm",
+		args: []string{"go run ./cmd", "--enable-helm"},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.EnableHelm)
+		},
+	},
+	{
+		name: "in_cluster_context_name_flag",
+		args: []string{"go run ./cmd", "--in-cluster-context-name=mycluster"},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, "mycluster", conf.InClusterContextName)
+		},
+	},
+	{
+		name: "log_level_flag",
+		args: []string{"go run ./cmd", "--log-level=warn"},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, "warn", conf.LogLevel)
+		},
+	},
+	{
+		name: "unsafe_use_service_account_token_flag",
+		args: []string{
+			"go run ./cmd",
+			"--in-cluster",
+			"--unsafe-use-service-account-token",
+			"--service-account-token-path=/custom/token/path",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.UnsafeUseServiceAccountToken)
+			assert.Equal(t, "/custom/token/path", conf.ServiceAccountTokenPath)
+		},
+	},
+}
+
 func TestParseFlags(t *testing.T) {
+	runParseFlagTests(t, parseFlagTests)
+}
+
+func runParseFlagTests(t *testing.T, tests []parseFlagTest) {
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			require.NoError(t, err)
+			require.NotNil(t, conf)
+
+			tt.verify(t, conf)
+		})
+	}
+}
+
+func TestProxyAuthFlags(t *testing.T) {
 	tests := []struct {
 		name   string
 		args   []string
 		verify func(*testing.T, *config.Config)
 	}{
 		{
-			name: "enable_dynamic_clusters",
-			args: []string{"go run ./cmd", "--enable-dynamic-clusters"},
+			name: "proxy_auth_enabled_flag",
+			args: []string{"go run ./cmd", "--proxy-auth"},
 			verify: func(t *testing.T, conf *config.Config) {
-				assert.Equal(t, true, conf.EnableDynamicClusters)
+				assert.Equal(t, true, conf.ProxyAuthEnabled)
 			},
 		},
 		{
-			name: "oidc_skip_tls_verify_flag",
-			args: []string{"go run ./cmd", "--oidc-skip-tls-verify"},
+			name: "proxy_auth_username_header_flag",
+			args: []string{"go run ./cmd", "--proxy-auth-username-header=X-Custom-User"},
 			verify: func(t *testing.T, conf *config.Config) {
-				assert.Equal(t, true, conf.OidcSkipTLSVerify)
+				assert.Equal(t, "X-Custom-User", conf.ProxyAuthUsernameHeader)
 			},
 		},
 		{
-			name: "oidc_ca_file_flag",
-			args: []string{"go run ./cmd", "--oidc-ca-file=" + filepath.Join(getTestDataPath(), "valid_ca.pem")},
+			name: "proxy_auth_group_header_flag",
+			args: []string{"go run ./cmd", "--proxy-auth-group-header=X-Custom-Group"},
 			verify: func(t *testing.T, conf *config.Config) {
-				assert.Equal(t, filepath.Join(getTestDataPath(), "valid_ca.pem"), conf.OidcCAFile)
+				assert.Equal(t, "X-Custom-Group", conf.ProxyAuthGroupHeader)
 			},
 		},
 		{
-			name: "enable_helm",
-			args: []string{"go run ./cmd", "--enable-helm"},
+			name: "proxy_auth_email_header_flag",
+			args: []string{"go run ./cmd", "--proxy-auth-email-header=X-Custom-Email"},
 			verify: func(t *testing.T, conf *config.Config) {
-				assert.Equal(t, true, conf.EnableHelm)
+				assert.Equal(t, "X-Custom-Email", conf.ProxyAuthEmailHeader)
 			},
 		},
 		{
-			name: "in_cluster_context_name_flag",
-			args: []string{"go run ./cmd", "--in-cluster-context-name=mycluster"},
+			name: "proxy_auth_token_header_flag",
+			args: []string{"go run ./cmd", "--proxy-auth-token-header=X-Custom-Token"},
 			verify: func(t *testing.T, conf *config.Config) {
-				assert.Equal(t, "mycluster", conf.InClusterContextName)
-			},
-		},
-		{
-			name: "log_level_flag",
-			args: []string{"go run ./cmd", "--log-level=warn"},
-			verify: func(t *testing.T, conf *config.Config) {
-				assert.Equal(t, "warn", conf.LogLevel)
+				assert.Equal(t, "X-Custom-Token", conf.ProxyAuthTokenHeader)
 			},
 		},
 	}
@@ -261,6 +451,121 @@ func TestParseFlags(t *testing.T) {
 			tt.verify(t, conf)
 		})
 	}
+}
+
+func TestParseClusterInventoryFlags(t *testing.T) {
+	providerFile := writeClusterInventoryProviderFile(t)
+
+	conf, err := config.Parse([]string{
+		"go run ./cmd",
+		"--enable-cluster-inventory",
+		"--cluster-inventory-provider-file=" + providerFile,
+		"--cluster-inventory-label-selector=environment=prod,!headlamp.dev/ignore",
+		"--cluster-inventory-root-reconcile-interval=15s",
+		"--cluster-inventory-no-crd-cache-ttl=1m",
+	})
+	require.NoError(t, err)
+
+	assert.True(t, conf.EnableClusterInventory)
+	assert.Equal(t, providerFile, conf.ClusterInventoryProviderFile)
+	assert.Equal(t, "environment=prod,!headlamp.dev/ignore", conf.ClusterInventoryLabelSelector)
+	assert.Equal(t, 15*time.Second, conf.ClusterInventoryRootReconcileInterval)
+	assert.Equal(t, time.Minute, conf.ClusterInventoryNoCRDCacheTTL)
+}
+
+func TestParseClusterInventoryEnv(t *testing.T) {
+	providerFile := writeClusterInventoryProviderFile(t)
+	t.Setenv("HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY", "true")
+	t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_PROVIDER_FILE", providerFile)
+	t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_LABEL_SELECTOR", "!headlamp.dev/ignore")
+
+	conf, err := config.Parse([]string{"go run ./cmd"})
+	require.NoError(t, err)
+
+	assert.True(t, conf.EnableClusterInventory)
+	assert.Equal(t, providerFile, conf.ClusterInventoryProviderFile)
+	assert.Equal(t, "!headlamp.dev/ignore", conf.ClusterInventoryLabelSelector)
+}
+
+func TestParseClusterInventoryDefaultIntervals(t *testing.T) {
+	providerFile := writeClusterInventoryProviderFile(t)
+
+	conf, err := config.Parse([]string{
+		"go run ./cmd",
+		"--enable-cluster-inventory",
+		"--cluster-inventory-provider-file=" + providerFile,
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, clusterinventory.DefaultRootReconcileInterval, conf.ClusterInventoryRootReconcileInterval)
+	assert.Equal(t, clusterinventory.DefaultNoCRDCacheTTL, conf.ClusterInventoryNoCRDCacheTTL)
+	assert.Empty(t, conf.ClusterInventoryLabelSelector)
+}
+
+func TestClusterInventoryValidation(t *testing.T) {
+	t.Run("disabled allows empty provider file", func(t *testing.T) {
+		conf, err := config.Parse([]string{"go run ./cmd"})
+		require.NoError(t, err)
+		require.NotNil(t, conf)
+		assert.False(t, conf.EnableClusterInventory)
+	})
+
+	t.Run("enabled requires provider file", func(t *testing.T) {
+		conf, err := config.Parse([]string{"go run ./cmd", "--enable-cluster-inventory"})
+		require.Error(t, err)
+		require.Nil(t, conf)
+		assert.Contains(t, err.Error(), "cluster-inventory-provider-file is required")
+	})
+
+	t.Run("enabled rejects missing provider file", func(t *testing.T) {
+		conf, err := config.Parse([]string{
+			"go run ./cmd",
+			"--enable-cluster-inventory",
+			"--cluster-inventory-provider-file=/does/not/exist",
+		})
+		require.Error(t, err)
+		require.Nil(t, conf)
+		assert.Contains(t, err.Error(), "error reading cluster-inventory-provider-file")
+	})
+
+	t.Run("enabled rejects directory provider file", func(t *testing.T) {
+		conf, err := config.Parse([]string{
+			"go run ./cmd",
+			"--enable-cluster-inventory",
+			"--cluster-inventory-provider-file=" + t.TempDir(),
+		})
+		require.Error(t, err)
+		require.Nil(t, conf)
+		assert.Contains(t, err.Error(), "cluster-inventory-provider-file must be a regular file")
+	})
+
+	t.Run("enabled rejects invalid provider file", func(t *testing.T) {
+		providerFile := filepath.Join(t.TempDir(), "providers.json")
+		require.NoError(t, os.WriteFile(providerFile, []byte(`{`), 0o600))
+
+		conf, err := config.Parse([]string{
+			"go run ./cmd",
+			"--enable-cluster-inventory",
+			"--cluster-inventory-provider-file=" + providerFile,
+		})
+		require.Error(t, err)
+		require.Nil(t, conf)
+		assert.Contains(t, err.Error(), "invalid cluster-inventory-provider-file")
+	})
+}
+
+func TestClusterInventoryRejectsInvalidLabelSelector(t *testing.T) {
+	providerFile := writeClusterInventoryProviderFile(t)
+
+	conf, err := config.Parse([]string{
+		"go run ./cmd",
+		"--enable-cluster-inventory",
+		"--cluster-inventory-provider-file=" + providerFile,
+		"--cluster-inventory-label-selector=headlamp.dev/ignore in (",
+	})
+	require.Error(t, err)
+	require.Nil(t, conf)
+	assert.Contains(t, err.Error(), "invalid cluster-inventory-label-selector")
 }
 
 func TestOIDCTLSValidation(t *testing.T) {
@@ -362,11 +667,11 @@ func TestOIDCTLSEnvironmentVariables(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			for key, value := range tt.env {
-				os.Setenv(key, value)
+				require.NoError(t, os.Setenv(key, value))
 			}
 			defer func(env map[string]string) {
 				for key := range env {
-					os.Unsetenv(key)
+					require.NoError(t, os.Unsetenv(key))
 				}
 			}(tt.env)
 
@@ -377,4 +682,300 @@ func TestOIDCTLSEnvironmentVariables(t *testing.T) {
 			tt.verify(t, conf)
 		})
 	}
+}
+
+var applyMeDefaultsTests = []struct {
+	name             string
+	usernamePath     string
+	emailPath        string
+	groupsPath       string
+	userInfoURL      string
+	wantUsernamePath string
+	wantEmailPath    string
+	wantGroupsPath   string
+	wantUserInfoURL  string
+}{
+	{
+		name:             "all_empty_uses_defaults",
+		usernamePath:     "",
+		emailPath:        "",
+		groupsPath:       "",
+		userInfoURL:      "",
+		wantUsernamePath: config.DefaultMeUsernamePath,
+		wantEmailPath:    config.DefaultMeEmailPath,
+		wantGroupsPath:   config.DefaultMeGroupsPath,
+		wantUserInfoURL:  config.DefaultMeUserInfoURL,
+	},
+	{
+		name:             "whitespace_only_uses_defaults",
+		usernamePath:     "   ",
+		emailPath:        "  ",
+		groupsPath:       "\t",
+		userInfoURL:      "  ",
+		wantUsernamePath: config.DefaultMeUsernamePath,
+		wantEmailPath:    config.DefaultMeEmailPath,
+		wantGroupsPath:   config.DefaultMeGroupsPath,
+		wantUserInfoURL:  config.DefaultMeUserInfoURL,
+	},
+	{
+		name:             "all_custom_values_preserved",
+		usernamePath:     "custom.username",
+		emailPath:        "custom.email",
+		groupsPath:       "custom.groups",
+		userInfoURL:      "/oauth2/userinfo",
+		wantUsernamePath: "custom.username",
+		wantEmailPath:    "custom.email",
+		wantGroupsPath:   "custom.groups",
+		wantUserInfoURL:  "/oauth2/userinfo",
+	},
+	{
+		name:             "partial_empty_uses_defaults_for_empty",
+		usernamePath:     "my.user",
+		emailPath:        "",
+		groupsPath:       "my.groups",
+		userInfoURL:      "",
+		wantUsernamePath: "my.user",
+		wantEmailPath:    config.DefaultMeEmailPath,
+		wantGroupsPath:   "my.groups",
+		wantUserInfoURL:  config.DefaultMeUserInfoURL,
+	},
+	{
+		name:             "values_with_surrounding_whitespace_are_trimmed",
+		usernamePath:     "  trimmed.user  ",
+		emailPath:        "  trimmed.email  ",
+		groupsPath:       "  trimmed.groups  ",
+		userInfoURL:      "  /some/url  ",
+		wantUsernamePath: "trimmed.user",
+		wantEmailPath:    "trimmed.email",
+		wantGroupsPath:   "trimmed.groups",
+		wantUserInfoURL:  "/some/url",
+	},
+}
+
+func TestApplyMeDefaults(t *testing.T) {
+	for _, tt := range applyMeDefaultsTests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotUsername, gotEmail, gotGroups, gotUserInfo := config.ApplyMeDefaults(
+				tt.usernamePath, tt.emailPath, tt.groupsPath, tt.userInfoURL,
+			)
+			assert.Equal(t, tt.wantUsernamePath, gotUsername)
+			assert.Equal(t, tt.wantEmailPath, gotEmail)
+			assert.Equal(t, tt.wantGroupsPath, gotGroups)
+			assert.Equal(t, tt.wantUserInfoURL, gotUserInfo)
+		})
+	}
+}
+
+func TestValidateSessionTTL(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          []string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:          "session_ttl_zero",
+			args:          []string{"go run ./cmd", "--session-ttl=0"},
+			expectError:   true,
+			errorContains: "session-ttl cannot be negative or equal to zero",
+		},
+		{
+			name:          "session_ttl_negative",
+			args:          []string{"go run ./cmd", "--session-ttl=-1"},
+			expectError:   true,
+			errorContains: "session-ttl cannot be negative or equal to zero",
+		},
+		{
+			name:          "session_ttl_exceeds_one_year",
+			args:          []string{"go run ./cmd", "--session-ttl=31536001"},
+			expectError:   true,
+			errorContains: "session-ttl cannot be greater than 1 year",
+		},
+		{
+			name:        "session_ttl_exactly_one_year",
+			args:        []string{"go run ./cmd", "--session-ttl=31536000"},
+			expectError: false,
+		},
+		{
+			name:        "session_ttl_minimum_valid",
+			args:        []string{"go run ./cmd", "--session-ttl=1"},
+			expectError: false,
+		},
+		{
+			name:        "session_ttl_default",
+			args:        []string{"go run ./cmd"},
+			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, conf)
+				assert.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, conf)
+			}
+		})
+	}
+}
+
+var validateTracingTests = []struct {
+	name          string
+	args          []string
+	expectError   bool
+	errorContains string
+}{
+	{
+		name: "tracing_enabled_without_service_name",
+		args: []string{
+			"go run ./cmd",
+			"--tracing-enabled=true",
+			"--service-name=",
+		},
+		expectError:   true,
+		errorContains: "service-name is required when tracing is enabled",
+	},
+	{
+		name: "tracing_enabled_with_service_name",
+		args: []string{
+			"go run ./cmd",
+			"--tracing-enabled=true",
+			"--service-name=myapp",
+			"--otlp-endpoint=localhost:4317",
+		},
+		expectError: false,
+	},
+	{
+		name: "otlp_http_without_endpoint",
+		args: []string{
+			"go run ./cmd",
+			"--tracing-enabled=true",
+			"--service-name=myapp",
+			"--use-otlp-http=true",
+			"--otlp-endpoint=",
+		},
+		expectError:   true,
+		errorContains: "otlp-endpoint must be configured when use-otlp-http is enabled",
+	},
+	{
+		name: "tracing_disabled_no_validation",
+		args: []string{
+			"go run ./cmd",
+			"--tracing-enabled=false",
+		},
+		expectError: false,
+	},
+}
+
+func TestValidateTracing(t *testing.T) {
+	for _, tt := range validateTracingTests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, conf)
+				assert.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, conf)
+			}
+		})
+	}
+}
+
+func TestMakeHeadlampKubeConfigsDir(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	switch runtime.GOOS {
+	case "windows":
+		t.Setenv("APPDATA", tmpDir)
+	case "darwin":
+		t.Setenv("HOME", tmpDir)
+	default:
+		t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	}
+
+	dir, err := config.MakeHeadlampKubeConfigsDir()
+	require.NoError(t, err)
+	assert.NotEmpty(t, dir)
+
+	info, err := os.Stat(dir)
+	require.NoError(t, err)
+	assert.True(t, info.IsDir())
+	assert.True(t, strings.HasPrefix(dir, tmpDir))
+}
+
+func TestDefaultHeadlampKubeConfigFile(t *testing.T) {
+	tmpDir := t.TempDir()
+
+	switch runtime.GOOS {
+	case "windows":
+		t.Setenv("APPDATA", tmpDir)
+	case "darwin":
+		t.Setenv("HOME", tmpDir)
+	default:
+		t.Setenv("XDG_CONFIG_HOME", tmpDir)
+	}
+
+	path, err := config.DefaultHeadlampKubeConfigFile()
+	require.NoError(t, err)
+	assert.NotEmpty(t, path)
+	assert.Equal(t, "config", filepath.Base(path))
+	assert.True(t, strings.HasPrefix(path, tmpDir))
+
+	info, err := os.Stat(filepath.Dir(path))
+	require.NoError(t, err)
+	assert.True(t, info.IsDir())
+}
+
+func TestProxyAuthFlagOverridesEnv(t *testing.T) {
+	// Single header override.
+	t.Run("flag_overrides_env_username_header", func(t *testing.T) {
+		t.Setenv("HEADLAMP_CONFIG_PROXY_AUTH_USERNAME_HEADER", "X-Env-User")
+
+		conf, err := config.Parse([]string{"go run ./cmd", "--proxy-auth-username-header=X-Flag-User"})
+		require.NoError(t, err)
+		assert.Equal(t, "X-Flag-User", conf.ProxyAuthUsernameHeader)
+	})
+
+	// All proxy auth flags override corresponding env vars.
+	t.Run("flag_overrides_env_all_proxy_auth", func(t *testing.T) {
+		for k, v := range map[string]string{
+			"HEADLAMP_CONFIG_PROXY_AUTH":                 "false",
+			"HEADLAMP_CONFIG_PROXY_AUTH_USERNAME_HEADER": "X-Env-User",
+			"HEADLAMP_CONFIG_PROXY_AUTH_GROUP_HEADER":    "X-Env-Group",
+			"HEADLAMP_CONFIG_PROXY_AUTH_EMAIL_HEADER":    "X-Env-Email",
+			"HEADLAMP_CONFIG_PROXY_AUTH_TOKEN_HEADER":    "X-Env-Token-Header", // #nosec G101
+		} {
+			t.Setenv(k, v)
+		}
+
+		conf, err := config.Parse([]string{
+			"go run ./cmd", "--proxy-auth",
+			"--proxy-auth-username-header=X-Flag-User",
+			"--proxy-auth-group-header=X-Flag-Group",
+			"--proxy-auth-email-header=X-Flag-Email",
+			"--proxy-auth-token-header=X-Flag-Token",
+		})
+		require.NoError(t, err)
+		assert.Equal(t, true, conf.ProxyAuthEnabled)
+		assert.Equal(t, "X-Flag-User", conf.ProxyAuthUsernameHeader)
+		assert.Equal(t, "X-Flag-Group", conf.ProxyAuthGroupHeader)
+		assert.Equal(t, "X-Flag-Email", conf.ProxyAuthEmailHeader)
+		assert.Equal(t, "X-Flag-Token", conf.ProxyAuthTokenHeader)
+	})
+}
+
+func TestGetDefaultKubeConfigPath(t *testing.T) {
+	tmpDir := t.TempDir()
+	t.Setenv("HOME", tmpDir)
+	t.Setenv("USERPROFILE", tmpDir)
+
+	path, err := config.GetDefaultKubeConfigPath()
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(tmpDir, ".kube", "config"), path)
 }

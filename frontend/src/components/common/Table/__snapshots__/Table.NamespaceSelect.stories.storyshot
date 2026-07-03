@@ -129,10 +129,10 @@
                     </div>
                     <fieldset
                       aria-hidden="true"
-                      class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                      class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                     >
                       <legend
-                        class="css-14lo706"
+                        class="css-sl37lx-MuiNotchedOutlined-root"
                       >
                         <span>
                           Namespaces
@@ -147,6 +147,12 @@
         </div>
       </div>
     </div>
+    <div
+      aria-atomic="true"
+      aria-live="polite"
+      class="MuiBox-root css-ty8jgw"
+      role="status"
+    />
     <div
       class="MuiBox-root css-1ipmh7v"
     >

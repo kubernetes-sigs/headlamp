@@ -90,6 +90,12 @@
                 </div>
               </div>
               <div
+                aria-atomic="true"
+                aria-live="polite"
+                class="MuiBox-root css-ty8jgw"
+                role="status"
+              />
+              <div
                 class="MuiBox-root css-1ipmh7v"
               >
                 <div
@@ -215,7 +221,7 @@
                 </div>
               </div>
               <table
-                class="MuiTable-root css-tvuahe-MuiTable-root"
+                class="MuiTable-root css-g0cegk-MuiTable-root"
               >
                 <thead
                   class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
@@ -241,12 +247,12 @@
                           >
                             <span
                               aria-label="Toggle select all"
-                              class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                              class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
                               data-mui-internal-clone-element="true"
                             >
                               <input
                                 aria-label="Toggle select all"
-                                class="PrivateSwitchBase-input css-1m9pwf3"
+                                class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
                                 data-indeterminate="false"
                                 type="checkbox"
                               />
@@ -329,7 +335,7 @@
                     </th>
                     <th
                       aria-sort="none"
-                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-11ihby4-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-4ks04s-MuiTableCell-root"
                       colspan="1"
                       data-can-sort="true"
                       data-index="-1"
@@ -384,7 +390,7 @@
                     </th>
                     <th
                       aria-sort="none"
-                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-9s5e2s-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-13c0hsi-MuiTableCell-root"
                       colspan="1"
                       data-can-sort="true"
                       data-index="-1"
@@ -402,12 +408,12 @@
                             Status
                           </div>
                           <span
-                            aria-label="Sort by Status descending"
+                            aria-label="Sort by Status ascending"
                             class="MuiBadge-root css-1c32n2y-MuiBadge-root"
                             data-mui-internal-clone-element="true"
                           >
                             <span
-                              aria-label="Sort by Status descending"
+                              aria-label="Sort by Status ascending"
                               class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                               role="button"
                               tabindex="0"
@@ -439,7 +445,7 @@
                     </th>
                     <th
                       aria-sort="none"
-                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-usbwln-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-rymsnu-MuiTableCell-root"
                       colspan="1"
                       data-can-sort="true"
                       data-index="-1"
@@ -457,12 +463,12 @@
                             Warnings
                           </div>
                           <span
-                            aria-label="Sort by Warnings descending"
+                            aria-label="Sort by Warnings ascending"
                             class="MuiBadge-root css-1c32n2y-MuiBadge-root"
                             data-mui-internal-clone-element="true"
                           >
                             <span
-                              aria-label="Sort by Warnings descending"
+                              aria-label="Sort by Warnings ascending"
                               class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                               role="button"
                               tabindex="0"
@@ -494,7 +500,7 @@
                     </th>
                     <th
                       aria-sort="none"
-                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-19o1a0j-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1bc3cd9-MuiTableCell-root"
                       colspan="1"
                       data-can-sort="true"
                       data-index="-1"
@@ -584,14 +590,17 @@
                       class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
                     >
                       <span
+                        aria-disabled="true"
                         aria-label="Toggle select row"
-                        class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                        class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall Mui-disabled PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall Mui-disabled MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
                         data-mui-internal-clone-element="true"
+                        tabindex="-1"
                       >
                         <input
                           aria-label="Toggle select row"
-                          class="PrivateSwitchBase-input css-1m9pwf3"
+                          class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
                           data-indeterminate="false"
+                          disabled=""
                           type="checkbox"
                         />
                         <svg
@@ -605,31 +614,34 @@
                             d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
                           />
                         </svg>
-                        <span
-                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                        />
                       </span>
                     </td>
                     <td
                       class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                     >
-                      <a
-                        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                        href="/c/cluster0/"
+                      <span
+                        aria-label="cluster0"
+                        class=""
+                        data-mui-internal-clone-element="true"
                       >
-                        <div
-                          class="MuiBox-root css-172hjuw"
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                          href="/c/cluster0/"
                         >
-                          <span
-                            class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                          <div
+                            class="MuiBox-root css-172hjuw"
                           >
-                            cluster0
-                          </span>
-                        </div>
-                      </a>
+                            <span
+                              class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                            >
+                              cluster0
+                            </span>
+                          </div>
+                        </a>
+                      </span>
                     </td>
                     <td
-                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
                     >
                       <p
                         class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
@@ -638,33 +650,31 @@
                       </p>
                     </td>
                     <td
-                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
                     >
                       <div
-                        class="MuiBox-root css-1gtanqs"
+                        aria-label="Not connected. Connect to load this cluster."
+                        class="MuiBox-root css-1rnoxx5"
+                        data-mui-internal-clone-element="true"
                       >
-                        <div
-                          class="MuiBox-root css-gmuwbf"
+                        <button
+                          class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1qnd4bl-MuiButtonBase-root-MuiButton-root"
+                          tabindex="0"
+                          type="button"
                         >
-                          <p
-                            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
-                            style="margin-left: 8px; color: rgb(16, 124, 16);"
-                          >
-                            Active
-                          </p>
-                        </div>
+                          Connect
+                          <span
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          />
+                        </button>
                       </div>
                     </td>
                     <td
-                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
-                    >
-                      0
-                    </td>
+                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-17iljsw-MuiTableCell-root"
+                    />
                     <td
-                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
-                    >
-                      ⋯
-                    </td>
+                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qb9npk-MuiTableCell-root"
+                    />
                     <td
                       class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
                     >
@@ -692,14 +702,17 @@
                       class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
                     >
                       <span
+                        aria-disabled="true"
                         aria-label="Toggle select row"
-                        class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                        class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall Mui-disabled PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall Mui-disabled MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
                         data-mui-internal-clone-element="true"
+                        tabindex="-1"
                       >
                         <input
                           aria-label="Toggle select row"
-                          class="PrivateSwitchBase-input css-1m9pwf3"
+                          class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
                           data-indeterminate="false"
+                          disabled=""
                           type="checkbox"
                         />
                         <svg
@@ -713,31 +726,34 @@
                             d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
                           />
                         </svg>
-                        <span
-                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                        />
                       </span>
                     </td>
                     <td
                       class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                     >
-                      <a
-                        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                        href="/c/cluster1/"
+                      <span
+                        aria-label="cluster1"
+                        class=""
+                        data-mui-internal-clone-element="true"
                       >
-                        <div
-                          class="MuiBox-root css-172hjuw"
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                          href="/c/cluster1/"
                         >
-                          <span
-                            class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                          <div
+                            class="MuiBox-root css-172hjuw"
                           >
-                            cluster1
-                          </span>
-                        </div>
-                      </a>
+                            <span
+                              class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                            >
+                              cluster1
+                            </span>
+                          </div>
+                        </a>
+                      </span>
                     </td>
                     <td
-                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
                     >
                       <p
                         class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
@@ -746,33 +762,31 @@
                       </p>
                     </td>
                     <td
-                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
                     >
                       <div
-                        class="MuiBox-root css-1gtanqs"
+                        aria-label="Not connected. Connect to load this cluster."
+                        class="MuiBox-root css-1rnoxx5"
+                        data-mui-internal-clone-element="true"
                       >
-                        <div
-                          class="MuiBox-root css-gmuwbf"
+                        <button
+                          class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1qnd4bl-MuiButtonBase-root-MuiButton-root"
+                          tabindex="0"
+                          type="button"
                         >
-                          <p
-                            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
-                            style="margin-left: 8px; color: rgb(16, 124, 16);"
-                          >
-                            Active
-                          </p>
-                        </div>
+                          Connect
+                          <span
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          />
+                        </button>
                       </div>
                     </td>
                     <td
-                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
-                    >
-                      0
-                    </td>
+                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-17iljsw-MuiTableCell-root"
+                    />
                     <td
-                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
-                    >
-                      ⋯
-                    </td>
+                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qb9npk-MuiTableCell-root"
+                    />
                     <td
                       class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
                     >
@@ -800,14 +814,17 @@
                       class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
                     >
                       <span
+                        aria-disabled="true"
                         aria-label="Toggle select row"
-                        class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                        class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall Mui-disabled PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall Mui-disabled MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
                         data-mui-internal-clone-element="true"
+                        tabindex="-1"
                       >
                         <input
                           aria-label="Toggle select row"
-                          class="PrivateSwitchBase-input css-1m9pwf3"
+                          class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
                           data-indeterminate="false"
+                          disabled=""
                           type="checkbox"
                         />
                         <svg
@@ -821,31 +838,34 @@
                             d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
                           />
                         </svg>
-                        <span
-                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                        />
                       </span>
                     </td>
                     <td
                       class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                     >
-                      <a
-                        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                        href="/c/cluster2/"
+                      <span
+                        aria-label="cluster2"
+                        class=""
+                        data-mui-internal-clone-element="true"
                       >
-                        <div
-                          class="MuiBox-root css-172hjuw"
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                          href="/c/cluster2/"
                         >
-                          <span
-                            class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                          <div
+                            class="MuiBox-root css-172hjuw"
                           >
-                            cluster2
-                          </span>
-                        </div>
-                      </a>
+                            <span
+                              class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+                            >
+                              cluster2
+                            </span>
+                          </div>
+                        </a>
+                      </span>
                     </td>
                     <td
-                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1fu0nlf-MuiTableCell-root"
                     >
                       <p
                         class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
@@ -854,33 +874,31 @@
                       </p>
                     </td>
                     <td
-                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1n4xkg0-MuiTableCell-root"
                     >
                       <div
-                        class="MuiBox-root css-1gtanqs"
+                        aria-label="Not connected. Connect to load this cluster."
+                        class="MuiBox-root css-1rnoxx5"
+                        data-mui-internal-clone-element="true"
                       >
-                        <div
-                          class="MuiBox-root css-gmuwbf"
+                        <button
+                          class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1qnd4bl-MuiButtonBase-root-MuiButton-root"
+                          tabindex="0"
+                          type="button"
                         >
-                          <p
-                            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
-                            style="margin-left: 8px; color: rgb(16, 124, 16);"
-                          >
-                            Active
-                          </p>
-                        </div>
+                          Connect
+                          <span
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          />
+                        </button>
                       </div>
                     </td>
                     <td
-                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
-                    >
-                      0
-                    </td>
+                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-17iljsw-MuiTableCell-root"
+                    />
                     <td
-                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
-                    >
-                      ⋯
-                    </td>
+                      class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qb9npk-MuiTableCell-root"
+                    />
                     <td
                       class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-133cxkx-MuiTableCell-root"
                     >

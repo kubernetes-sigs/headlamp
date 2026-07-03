@@ -29,7 +29,7 @@ import {
   useTheme,
 } from '@mui/material';
 import { uniq } from 'lodash';
-import { ReactNode, useCallback, useMemo, useState } from 'react';
+import { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useHistory } from 'react-router';
 import { useClustersConf } from '../../lib/k8s';
@@ -54,7 +54,7 @@ function ProjectTypeButton({
   icon: ReactNode;
   title: ReactNode;
   description: ReactNode;
-  onClick?: any;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
 }) {
   return (
     <Button
@@ -88,7 +88,7 @@ function ProjectTypeButton({
     >
       <Box sx={{ width: '52px', height: '52px', alignSelf: 'center' }}>{icon}</Box>
       <Box>
-        <Typography variant="h6" sx={{ display: 'flex' }}>
+        <Typography variant="h6" component="span" sx={{ display: 'flex' }}>
           {title}
         </Typography>
         <Typography variant="body2" color="text.secondary">
@@ -136,12 +136,35 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
   // Check if project name already exists (using normalized form to match existing entries)
   const projectNameExists =
     projectName.length > 0 && existingProjectNames.has(toKubernetesName(projectName));
+  const namespaceToProjectMap = useMemo(() => {
+    const map = new Map<string, string>();
+    if (!namespaces) return map;
+    namespaces.forEach(ns => {
+      const projectId = ns.metadata?.labels?.[PROJECT_ID_LABEL];
+      if (projectId) {
+        map.set(ns.metadata.name, projectId);
+      }
+    });
+    return map;
+  }, [namespaces]);
+
+  const effectiveNamespace = selectedNamespace || toKubernetesName(typedNamespace);
+  const isNamespaceAlreadyAssigned = effectiveNamespace
+    ? namespaceToProjectMap.has(effectiveNamespace)
+    : false;
 
   const isReadyToCreate =
     selectedClusters.length &&
     (selectedNamespace || typedNamespace) &&
     projectName &&
-    !projectNameExists;
+    !projectNameExists &&
+    !isNamespaceAlreadyAssigned;
+
+  useEffect(() => {
+    if (selectedNamespace && namespaceToProjectMap.has(selectedNamespace)) {
+      setSelectedNamespace(undefined);
+    }
+  }, [selectedNamespace, namespaceToProjectMap]);
 
   /**
    * Creates or updates namespaces for the project
@@ -279,12 +302,12 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
           options={uniq(namespaces?.map(it => it.metadata.name)) ?? []}
           value={selectedNamespace}
           onChange={(event, newValue) => {
-            console.log({ newValue });
             setSelectedNamespace(newValue ?? undefined);
           }}
           onInputChange={(e, v) => {
             setTypedNamespace(v);
           }}
+          getOptionDisabled={option => namespaceToProjectMap.has(option)}
           renderInput={params => (
             <TextField
               {...params}
@@ -346,7 +369,9 @@ export function NewProjectPopup({ open, onClose }: { open: boolean; onClose: () 
     <Dialog open={open} maxWidth={false} onClose={onClose}>
       {projectStep === undefined && (
         <>
-          <DialogTitle sx={{ display: 'flex' }}>{t('Create a Project')}</DialogTitle>
+          <DialogTitle component="h1" sx={{ display: 'flex' }}>
+            {t('Create a Project')}
+          </DialogTitle>
           <DialogContent sx={{ maxWidth: '540px' }}>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
               <Trans>

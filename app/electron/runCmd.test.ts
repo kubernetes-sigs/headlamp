@@ -14,9 +14,27 @@
  * limitations under the License.
  */
 
-import { describe, expect, it } from '@jest/globals';
+import { EventEmitter } from 'events';
 import path from 'path';
-import { checkPermissionSecret, validateCommandData } from './runCmd';
+import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
+import { checkPermissionSecret, handleRunCommand, validateCommandData } from './runCmd';
+
+vi.mock('./plugin-management', () => ({
+  defaultPluginsDir: vi.fn(() => '/plugins/default'),
+  defaultUserPluginsDir: vi.fn(() => '/plugins/user'),
+}));
+
+vi.mock('./settings', () => ({
+  loadSettings: vi.fn(() => ({
+    confirmedCommands: { 'minikube start': true, gh: true, az: true },
+  })),
+  saveSettings: vi.fn(),
+  SETTINGS_PATH: '/fake/settings.json',
+}));
+
+vi.mock('./i18next.config', () => ({
+  default: { t: (s: string) => s },
+}));
 
 describe('checkPermissionSecret', () => {
   const baseCommandData = {
@@ -222,27 +240,64 @@ describe('validateCommandData', () => {
   });
 });
 
+describe('handleRunCommand - child process error event', () => {
+  it('sends command-stderr and command-exit with -1 when child emits error', async () => {
+    const childEmitter = new EventEmitter() as any;
+    childEmitter.stdout = new EventEmitter();
+    childEmitter.stderr = new EventEmitter();
+
+    vi.mock('child_process', () => ({
+      spawn: vi.fn(() => childEmitter),
+    }));
+
+    const { spawn } = await import('child_process');
+    (spawn as Mock).mockReturnValue(childEmitter);
+
+    const sentMessages: Array<[string, ...unknown[]]> = [];
+    const fakeEvent = {
+      sender: {
+        send: vi.fn((...args: [string, ...unknown[]]) => sentMessages.push(args)),
+      },
+    } as any;
+
+    const fakeMainWindow = { id: 1 } as any;
+    const permissionSecrets = { 'runCmd-minikube': 99 };
+
+    const eventData = {
+      id: 'test-id',
+      command: 'minikube',
+      args: ['start'],
+      options: {},
+      permissionSecrets: { 'runCmd-minikube': 99 },
+    };
+
+    handleRunCommand(fakeEvent, eventData, fakeMainWindow, permissionSecrets);
+
+    const err = new Error('spawn error');
+    childEmitter.emit('error', err);
+
+    expect(sentMessages).toContainEqual(['command-stderr', 'test-id', 'spawn error']);
+    expect(sentMessages).toContainEqual(['command-exit', 'test-id', -1]);
+  });
+});
+
 describe('runScript', () => {
   const originalArgv = process.argv;
   const originalExit = process.exit;
   const originalConsoleError = console.error;
   const originalResourcesPath = process.resourcesPath;
 
-  let exitMock: jest.Mock;
-  let consoleErrorMock: jest.Mock;
+  let exitMock: Mock;
+  let consoleErrorMock: Mock;
   beforeEach(() => {
-    jest.resetModules();
+    vi.resetModules();
     // @ts-ignore this is fine for tests
     process.resourcesPath = '/resources';
-    jest.mock('./plugin-management', () => ({
-      defaultPluginsDir: jest.fn(() => '/plugins/default'),
-      defaultUserPluginsDir: jest.fn(() => '/plugins/user'),
-    }));
 
-    exitMock = jest.fn() as any;
+    exitMock = vi.fn() as any;
     // @ts-expect-error overriding for test
     process.exit = exitMock;
-    consoleErrorMock = jest.fn();
+    consoleErrorMock = vi.fn();
     console.error = consoleErrorMock;
   });
 
@@ -252,14 +307,13 @@ describe('runScript', () => {
     console.error = originalConsoleError;
     // @ts-ignore
     process.resourcesPath = originalResourcesPath;
-    jest.unmock('./plugin-management');
-    jest.restoreAllMocks();
+    vi.restoreAllMocks();
   });
 
   const testScriptImport = async (scriptPath: string) => {
     const resolvedPath = path.resolve(scriptPath);
     process.argv = ['node', resolvedPath];
-    jest.doMock(resolvedPath, () => ({}), { virtual: true });
+    vi.doMock(resolvedPath, () => ({}));
     const runCmdModule = await import('./runCmd');
     runCmdModule.runScript();
     expect(exitMock).not.toHaveBeenCalled();
@@ -277,7 +331,7 @@ describe('runScript', () => {
   it('exits with error when script is outside allowed directories', async () => {
     const scriptPath = path.resolve('/not-allowed/my-script.js');
     process.argv = ['node', scriptPath];
-    jest.doMock(scriptPath, () => ({}), { virtual: true });
+    vi.doMock(scriptPath, () => ({}));
 
     const runCmdModule = await import('./runCmd');
     runCmdModule.runScript();

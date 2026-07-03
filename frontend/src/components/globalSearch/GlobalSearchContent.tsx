@@ -17,16 +17,17 @@
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import CircularProgress from '@mui/material/CircularProgress';
+import IconButton from '@mui/material/IconButton';
 import Paper from '@mui/material/Paper';
 import Popper from '@mui/material/Popper';
 import TextField from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
 import Typography from '@mui/material/Typography';
 import useAutocomplete from '@mui/material/useAutocomplete';
 import { UseAutocompleteReturnValue } from '@mui/material/useAutocomplete';
 import Fuse, { Expression, FuseResultMatch } from 'fuse.js';
-import { capitalize } from 'lodash';
 import { lazy, Suspense, useMemo, useRef, useState } from 'react';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation, useRouteMatch } from 'react-router';
 import { FixedSizeList } from 'react-window';
@@ -39,6 +40,7 @@ import Endpoints from '../../lib/k8s/endpoints';
 import EndpointSlice from '../../lib/k8s/endpointSlices';
 import Ingress from '../../lib/k8s/ingress';
 import Job from '../../lib/k8s/job';
+import JobSet from '../../lib/k8s/jobSet';
 import { KubeObject, KubeObjectClass } from '../../lib/k8s/KubeObject';
 import Namespace from '../../lib/k8s/namespace';
 import Node from '../../lib/k8s/node';
@@ -58,6 +60,7 @@ import { Activity } from '../activity/Activity';
 import { ADVANCED_SEARCH_QUERY_KEY } from '../advancedSearch/AdvancedSearch';
 import { ThemePreview } from '../App/Settings/ThemePreview';
 import { setTheme, useAppThemes } from '../App/themeSlice';
+import { LightTooltip } from '../common/Tooltip';
 import { KubeObjectDetails } from '../resourceMap/details/KubeNodeDetails';
 import { KubeIcon } from '../resourceMap/kubeIcon/KubeIcon';
 import { Delayed } from './Delayed';
@@ -102,6 +105,7 @@ const classes: KubeObjectClass[] = [
   Ingress,
   ServiceAccount,
   Node,
+  JobSet,
 ];
 
 /**
@@ -119,6 +123,7 @@ function useSearchResources() {
         kind: classes[index].kind,
       };
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [results.map(it => it.data)]);
 }
 
@@ -149,24 +154,24 @@ function makeKubeObjectResults(
   );
 }
 
-/**
- * Global search component
- *
- * Can search:
- *  - Kubernetes objects
- *  - Clusters
- *  - App Pages
- *  - Custom Actions
- */
-export function GlobalSearchContent({
-  maxWidth,
-  defaultValue,
-  onBlur,
-}: {
+interface GlobalSearchContentProps {
+  /** The maximum width of the results list. */
   maxWidth: number;
+  /** The initial search query to display in the search field. */
   defaultValue: string;
+  /** Callback called when the search field loses focus. */
   onBlur: () => void;
-}) {
+}
+
+/**
+ * The `GlobalSearchContent` component provides the search field and results list for global search.
+ * The default results include Kubernetes objects, clusters, app pages, namespace filters,
+ * theme switching, keyboard shortcut settings, and advanced search suggestions.
+ *
+ * @param props - The component props.
+ */
+export function GlobalSearchContent(props: GlobalSearchContentProps) {
+  const { maxWidth, defaultValue, onBlur } = props;
   const { t } = useTranslation();
   const history = useHistory();
   const dispatch = useDispatch();
@@ -253,6 +258,7 @@ export function GlobalSearchContent({
           history.push(url);
         }
       }),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [resources, isMap, location.search]
   );
 
@@ -271,6 +277,7 @@ export function GlobalSearchContent({
             }),
           }),
       })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     []
   );
 
@@ -307,6 +314,7 @@ export function GlobalSearchContent({
             history.push(createRouteURL(name));
           },
         })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [location.pathname, history, selectedClusters]
   );
 
@@ -317,9 +325,10 @@ export function GlobalSearchContent({
       id: 'switch-theme-' + theme.name,
       subLabel: 'Theme',
       icon: <ThemePreview theme={theme} size={32} />,
-      label: capitalize(theme.name),
+      label: theme.name,
       onClick: () => dispatch(setTheme(theme.name)),
     }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appThemes]);
 
   // Advanced Search
@@ -338,6 +347,7 @@ export function GlobalSearchContent({
         history.push(createRouteURL('advancedSearch') + '?' + params.toString());
       },
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [query, selectedClusters]);
   const configureShortcutsAction: SearchResult = useMemo(
     () => ({
@@ -428,6 +438,7 @@ export function GlobalSearchContent({
     if (query) return [];
 
     return allOptions.filter(it => recent[it.id]).sort((a, b) => recent[b.id] - recent[a.id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recent, results, query]);
 
   const autocomplete = useAutocomplete<SearchResult, false, false, true>({
@@ -486,6 +497,11 @@ export function GlobalSearchContent({
             autoFocus: true,
             endAdornment: (
               <>
+                <Tooltip title={<Trans>Clear</Trans>} sx={{ opacity: query.length ? 1 : 0 }}>
+                  <IconButton onClick={() => setQuery('')} aria-label={t('Clear')} size="small">
+                    <Icon icon="mdi:close" />
+                  </IconButton>
+                </Tooltip>
                 {loading.length > 0 && (
                   <Delayed display="flex" mr={1}>
                     <CircularProgress size="16px" />
@@ -571,6 +587,7 @@ function SearchRow({
         padding: '8px !important',
         alignItems: 'center',
         lineHeight: 1,
+        cursor: 'pointer',
         overflow: 'hidden',
         '&.Mui-focused': {
           backgroundColor:
@@ -599,29 +616,30 @@ function SearchRow({
         </Box>
       </Box>
       {option.k8sLabelsMatch && option.k8sLabelsMatch.value && (
-        <Typography
-          title={option.k8sLabelsMatch.value}
-          sx={theme => ({
-            color: theme.palette.text.primary,
-            borderRadius: theme.shape.borderRadius + 'px',
-            backgroundColor: theme.palette.background.muted,
-            border: '1px solid',
-            borderColor: theme.palette.divider,
-            fontSize: theme.typography.pxToRem(14),
-            wordBreak: 'break-word',
-            paddingTop: 0.25,
-            paddingBottom: 0.25,
-            paddingLeft: 0.5,
-            paddingRight: 0.5,
-            overflow: 'hidden',
-            whiteSpace: 'nowrap',
-            overflowWrap: 'anywhere',
-            textOverflow: 'ellipsis',
-            maxWidth: '220px',
-          })}
-        >
-          <HighlightText text={option.k8sLabelsMatch.value} match={option.k8sLabelsMatch} />
-        </Typography>
+        <LightTooltip title={option.k8sLabelsMatch.value}>
+          <Typography
+            sx={theme => ({
+              color: theme.palette.text.primary,
+              borderRadius: theme.shape.borderRadius + 'px',
+              backgroundColor: theme.palette.background.muted,
+              border: '1px solid',
+              borderColor: theme.palette.divider,
+              fontSize: theme.typography.pxToRem(14),
+              wordBreak: 'break-word',
+              paddingTop: 0.25,
+              paddingBottom: 0.25,
+              paddingLeft: 0.5,
+              paddingRight: 0.5,
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              overflowWrap: 'anywhere',
+              textOverflow: 'ellipsis',
+              maxWidth: '220px',
+            })}
+          >
+            <HighlightText text={option.k8sLabelsMatch.value} match={option.k8sLabelsMatch} />
+          </Typography>
+        </LightTooltip>
       )}
     </Box>
   );

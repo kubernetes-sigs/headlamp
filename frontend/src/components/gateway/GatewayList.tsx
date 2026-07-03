@@ -58,8 +58,9 @@ export default function GatewayList() {
         {
           id: 'listeners',
           label: t('translation|Listeners'),
-          getValue: (gateway: Gateway) => gateway.spec.listeners.length,
+          getValue: (gateway: Gateway) => gateway.spec?.listeners?.length ?? 0,
         },
+        'labels',
         'age',
       ]}
     />

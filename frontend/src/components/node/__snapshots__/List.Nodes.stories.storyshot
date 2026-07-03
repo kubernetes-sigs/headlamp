@@ -42,6 +42,12 @@
           class="MuiBox-root css-1txv3mw"
         >
           <div
+            aria-atomic="true"
+            aria-live="polite"
+            class="MuiBox-root css-ty8jgw"
+            role="status"
+          />
+          <div
             class="MuiBox-root css-1ipmh7v"
           >
             <div
@@ -166,7 +172,7 @@
             </div>
           </div>
           <table
-            class="MuiTable-root css-1drzxj3-MuiTable-root"
+            class="MuiTable-root css-r4i8ha-MuiTable-root"
           >
             <thead
               class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
@@ -192,12 +198,12 @@
                       >
                         <span
                           aria-label="Toggle select all"
-                          class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                          class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
                           data-mui-internal-clone-element="true"
                         >
                           <input
                             aria-label="Toggle select all"
-                            class="PrivateSwitchBase-input css-1m9pwf3"
+                            class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
                             data-indeterminate="false"
                             type="checkbox"
                           />
@@ -555,6 +561,61 @@
                 </th>
                 <th
                   aria-sort="none"
+                  class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2288ty-MuiTableCell-root"
+                  colspan="1"
+                  data-can-sort="true"
+                  data-index="-1"
+                  scope="col"
+                >
+                  <div
+                    class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                  >
+                    <div
+                      class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
+                    >
+                      <div
+                        class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
+                      >
+                        Node Pool
+                      </div>
+                      <span
+                        aria-label="Sort by Node Pool ascending"
+                        class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                        data-mui-internal-clone-element="true"
+                      >
+                        <span
+                          aria-label="Sort by Node Pool ascending"
+                          class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                          role="button"
+                          tabindex="0"
+                        >
+                          <svg
+                            aria-hidden="true"
+                            class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium MuiTableSortLabel-icon MuiTableSortLabel-iconDirectionAsc css-1vweko9-MuiSvgIcon-root-MuiTableSortLabel-icon"
+                            data-testid="SyncAltIcon"
+                            focusable="false"
+                            style="transform: rotate(-90deg) scaleX(0.9) translateX(-1px);"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              d="m18 12 4-4-4-4v3H3v2h15zM6 12l-4 4 4 4v-3h15v-2H6z"
+                            />
+                          </svg>
+                        </span>
+                        <span
+                          class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                        >
+                          0
+                        </span>
+                      </span>
+                    </div>
+                    <div
+                      class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                    />
+                  </div>
+                </th>
+                <th
+                  aria-sort="none"
                   class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1lfzwg-MuiTableCell-root"
                   colspan="1"
                   data-can-sort="true"
@@ -811,12 +872,12 @@
                 >
                   <span
                     aria-label="Toggle select row"
-                    class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                    class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
                     data-mui-internal-clone-element="true"
                   >
                     <input
                       aria-label="Toggle select row"
-                      class="PrivateSwitchBase-input css-1m9pwf3"
+                      class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
                       data-indeterminate="false"
                       type="checkbox"
                     />
@@ -882,6 +943,11 @@
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1ibx802-MuiTableCell-root"
                 />
                 <td
+                  class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-l7wb3v-MuiTableCell-root"
+                >
+                  default-pool
+                </td>
+                <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-kxj8ha-MuiTableCell-root"
                 />
                 <td
@@ -900,7 +966,7 @@
                     class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
                     data-mui-internal-clone-element="true"
                   >
-                    3mo
+                    90d
                   </p>
                 </td>
                 <td
@@ -913,17 +979,6 @@
                     tabindex="0"
                     type="button"
                   >
-                    <svg
-                      aria-hidden="true"
-                      class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
-                      data-testid="MoreVertIcon"
-                      focusable="false"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2m0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2"
-                      />
-                    </svg>
                     <span
                       class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                     />
@@ -939,12 +994,12 @@
                 >
                   <span
                     aria-label="Toggle select row"
-                    class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-1li6ni2-MuiButtonBase-root-MuiCheckbox-root"
+                    class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
                     data-mui-internal-clone-element="true"
                   >
                     <input
                       aria-label="Toggle select row"
-                      class="PrivateSwitchBase-input css-1m9pwf3"
+                      class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
                       data-indeterminate="false"
                       type="checkbox"
                     />
@@ -1010,6 +1065,9 @@
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1ibx802-MuiTableCell-root"
                 />
                 <td
+                  class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-l7wb3v-MuiTableCell-root"
+                />
+                <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-kxj8ha-MuiTableCell-root"
                 />
                 <td
@@ -1028,7 +1086,7 @@
                     class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
                     data-mui-internal-clone-element="true"
                   >
-                    3mo
+                    90d
                   </p>
                 </td>
                 <td
@@ -1041,17 +1099,6 @@
                     tabindex="0"
                     type="button"
                   >
-                    <svg
-                      aria-hidden="true"
-                      class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
-                      data-testid="MoreVertIcon"
-                      focusable="false"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M12 8c1.1 0 2-.9 2-2s-.9-2-2-2-2 .9-2 2 .9 2 2 2m0 2c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2m0 6c-1.1 0-2 .9-2 2s.9 2 2 2 2-.9 2-2-.9-2-2-2"
-                      />
-                    </svg>
                     <span
                       class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                     />

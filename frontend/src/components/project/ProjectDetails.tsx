@@ -86,11 +86,15 @@ export default function ProjectDetails() {
   const { name } = useParams<ProjectDetailsParams>();
   const { project, isLoading: isProjectLoading } = useProject(name);
 
+  const pluginApiResources = useTypedSelector(state => state.projects.apiResources);
+
   if (isProjectLoading || !project || !name) {
     return <Loader title={t('Loading')} />;
   }
-  // Key is provided to make sure we remount this component
-  return <ProjectDetailsContent key={name} project={project} />;
+  // Key forces remount when project name or plugin resource list changes,
+  // which is required because useProjectItems → useKubeLists calls hooks
+  // per resource in a loop (the array length must stay stable per mount).
+  return <ProjectDetailsContent key={`${name}-${pluginApiResources.length}`} project={project} />;
 }
 
 function ProjectOverview({
@@ -394,9 +398,10 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
           }
         })
         .catch(e => {
-          console.log(`Failed to check if custom delete button is ready`, e);
+          console.error(`Failed to check if custom delete button is ready`, e);
         });
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setDeleteButton(() => customDeleteButton.component);
     }
 
@@ -590,6 +595,7 @@ function ProjectGraph({ project: { namespaces, clusters } }: { project: ProjectD
             }
           : undefined,
       ].filter(Boolean) as GraphFilter[],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [namespaces, clusters]
   );
   return (

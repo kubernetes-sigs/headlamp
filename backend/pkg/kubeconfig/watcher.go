@@ -1,22 +1,34 @@
 package kubeconfig
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
-	"k8s.io/utils/strings/slices"
 )
 
 const watchInterval = 10 * time.Second
 
+// logFieldPath is the structured-log field name for filesystem paths.
+const logFieldPath = "path"
+
 // LoadAndWatchFiles loads kubeconfig files and watches them for changes.
-func LoadAndWatchFiles(kubeConfigStore ContextStore, paths string, source int, ignoreFunc shouldBeSkippedFunc) {
+// It runs until the provided context is cancelled.
+func LoadAndWatchFiles(
+	ctx context.Context,
+	kubeConfigStore ContextStore,
+	paths string,
+	source int,
+	ignoreFunc shouldBeSkippedFunc,
+) {
 	// create ticker
 	ticker := time.NewTicker(watchInterval)
+	defer ticker.Stop()
 
 	// create watcher
 	watcher, err := fsnotify.NewWatcher()
@@ -26,7 +38,7 @@ func LoadAndWatchFiles(kubeConfigStore ContextStore, paths string, source int, i
 		return
 	}
 
-	defer watcher.Close()
+	defer func() { _ = watcher.Close() }()
 
 	kubeConfigPaths := splitKubeConfigPath(paths)
 
@@ -35,6 +47,10 @@ func LoadAndWatchFiles(kubeConfigStore ContextStore, paths string, source int, i
 
 	for {
 		select {
+		case <-ctx.Done():
+			logger.Log(logger.LevelInfo, nil, nil, "watcher: shutting down kubeconfig watcher")
+
+			return
 		case <-ticker.C:
 			if len(watcher.WatchList()) != len(kubeConfigPaths) {
 				logger.Log(logger.LevelInfo, nil, nil, "watcher: re-adding missing files")
@@ -72,7 +88,7 @@ func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
 		if !filepath.IsAbs(path) {
 			absPath, err := filepath.Abs(path)
 			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{"path": path},
+				logger.Log(logger.LevelError, map[string]string{logFieldPath: path},
 					err, "getting absolute path")
 
 				continue
@@ -83,7 +99,7 @@ func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
 
 		// check if path exists
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			logger.Log(logger.LevelError, map[string]string{"path": path},
+			logger.Log(logger.LevelError, map[string]string{logFieldPath: path},
 				err, "Path does not exist")
 
 			continue
@@ -99,7 +115,7 @@ func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
 		// if it isn't, add it to the watcher
 		err := watcher.Add(path)
 		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"path": path},
+			logger.Log(logger.LevelError, map[string]string{logFieldPath: path},
 				err, "adding path to watcher")
 		}
 	}
@@ -110,13 +126,13 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 	// First read all kubeconfig files to get new contexts
 	newContexts, _, err := LoadContextsFromMultipleFiles(paths, source)
 	if err != nil {
-		return fmt.Errorf("error reading kubeconfig files: %v", err)
+		return fmt.Errorf("error reading kubeconfig files: %w", err)
 	}
 
 	// Get existing contexts from store
 	existingContexts, err := kubeConfigStore.GetContexts()
 	if err != nil {
-		return fmt.Errorf("error getting existing contexts: %v", err)
+		return fmt.Errorf("error getting existing contexts: %w", err)
 	}
 
 	// Find and remove contexts that no longer exist in the kubeconfig
@@ -148,7 +164,7 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 	// Now load and store the new configurations
 	err = LoadAndStoreKubeConfigs(kubeConfigStore, paths, source, ignoreFunc)
 	if err != nil {
-		return fmt.Errorf("error loading kubeconfig files: %v", err)
+		return fmt.Errorf("error loading kubeconfig files: %w", err)
 	}
 
 	return nil

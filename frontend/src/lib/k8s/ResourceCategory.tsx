@@ -42,7 +42,7 @@ export const categoriesConfig: ResourceCategory[] = [
     label: 'Workloads',
     icon: 'mdi:circle-slice-2',
     description: 'Applications and compute resources',
-    apiGroups: ['apps', 'batch'],
+    apiGroups: ['apps', 'batch', 'jobset.x-k8s.io'],
     coreKinds: ['Pod'],
     excludeKinds: ['ControllerRevision'],
   },

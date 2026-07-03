@@ -1,11 +1,8 @@
 <body>
   <div>
-    <div>
-      <h1
-        style="position: absolute; left: -10000px;"
-      >
-        Plugin Settings Test Page
-      </h1>
+    <div
+      aria-label="Plugin Settings Test Page"
+    >
       <div
         class="MuiBox-root css-j1fy4m"
       >
@@ -32,6 +29,12 @@
         <div
           class="MuiBox-root css-1txv3mw"
         >
+          <div
+            aria-atomic="true"
+            aria-live="polite"
+            class="MuiBox-root css-ty8jgw"
+            role="status"
+          />
           <div
             class="MuiBox-root css-1ipmh7v"
           >
@@ -390,7 +393,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -399,7 +402,7 @@
                     >
                       prometheus
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -413,7 +416,7 @@
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
                 >
                   <div
-                    class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-1qavl4s-MuiChip-root"
+                    class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-17z0rci-MuiChip-root"
                   >
                     <span
                       class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
@@ -453,7 +456,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -462,7 +465,7 @@
                     >
                       flux
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -476,7 +479,7 @@
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
                 >
                   <div
-                    class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-1qavl4s-MuiChip-root"
+                    class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-17z0rci-MuiChip-root"
                   >
                     <span
                       class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
@@ -516,7 +519,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -525,7 +528,7 @@
                     >
                       my-dev-plugin
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />
@@ -579,7 +582,7 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                 >
-                  <h6
+                  <div
                     class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                   >
                     <a
@@ -588,7 +591,7 @@
                     >
                       default-dashboard
                     </a>
-                  </h6>
+                  </div>
                   <span
                     class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                   />

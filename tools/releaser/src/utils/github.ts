@@ -851,7 +851,7 @@ export async function triggerBuildWorkflows(
       workflowId: 'app-artifacts-mac.yml',
       inputs: {
         buildBranch: gitRef,
-        signBinaries: 'false'
+        signBinaries: 'true'
       }
     });
   }

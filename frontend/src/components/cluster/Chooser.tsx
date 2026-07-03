@@ -31,6 +31,7 @@ import { useTheme } from '@mui/material/styles';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
+import { visuallyHidden } from '@mui/utils';
 import _ from 'lodash';
 import React, { isValidElement, PropsWithChildren } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -52,6 +53,7 @@ import ActionButton from '../common/ActionButton';
 import { DialogTitle } from '../common/Dialog';
 import ErrorBoundary from '../common/ErrorBoundary';
 import Loader from '../common/Loader';
+import { LightTooltip } from '../common/Tooltip';
 import ClusterChooser from './ClusterChooser';
 import ClusterChooserPopup from './ClusterChooserPopup';
 
@@ -60,11 +62,12 @@ export interface ClusterTitleProps {
     [clusterName: string]: Cluster;
   };
   cluster?: string;
+  selectedClusters?: string[];
   onClick?: (event?: React.MouseEvent<HTMLButtonElement, MouseEvent>) => void;
 }
 
 export function ClusterTitle(props: ClusterTitleProps) {
-  const { cluster, clusters, onClick } = props;
+  const { cluster, clusters, selectedClusters, onClick } = props;
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
   const buttonRef = React.useRef<HTMLButtonElement>(null);
   const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
@@ -92,12 +95,14 @@ export function ClusterTitle(props: ClusterTitleProps) {
         isValidElement(ChooserButton) ? (
           ChooserButton
         ) : (
+          // eslint-disable-next-line react-hooks/static-components
           <ChooserButton
             clickHandler={e => {
               onClick && onClick(e);
               e?.currentTarget && setAnchorEl(e.currentTarget);
             }}
             cluster={cluster}
+            selectedClusters={selectedClusters}
           />
         )
       ) : (
@@ -108,6 +113,7 @@ export function ClusterTitle(props: ClusterTitleProps) {
             e?.currentTarget && setAnchorEl(e.currentTarget);
           }}
           cluster={cluster}
+          selectedClusters={selectedClusters}
           icon={getClusterAppearanceFromMeta(cluster).icon}
           accentColor={getClusterAppearanceFromMeta(cluster).accentColor}
         />
@@ -120,18 +126,17 @@ export function ClusterTitle(props: ClusterTitleProps) {
 interface ClusterButtonProps extends PropsWithChildren<{}> {
   cluster: Cluster;
   onClick?: (...args: any[]) => void;
-  focusedRef?: (node: any) => void;
 }
 
-function ClusterButton(props: ClusterButtonProps) {
+const ClusterButton = React.forwardRef<HTMLButtonElement, ClusterButtonProps>((props, ref) => {
   const theme = useTheme();
-  const { cluster, onClick = undefined, focusedRef } = props;
+  const { cluster, onClick = undefined } = props;
   const appearance = getClusterAppearanceFromMeta(cluster?.name || '');
   const icon = appearance.icon || 'mdi:kubernetes';
   const iconColor = appearance.accentColor || theme.palette.primaryColor;
 
   return (
-    <ButtonBase focusRipple ref={focusedRef} onClick={onClick}>
+    <ButtonBase focusRipple ref={ref} onClick={onClick}>
       <Card
         sx={{
           width: 128,
@@ -146,24 +151,25 @@ function ClusterButton(props: ClusterButtonProps) {
           }}
         >
           <Icon icon={icon} width="50" height="50" color={iconColor} />
-          <Typography
-            color="textSecondary"
-            gutterBottom
-            sx={{
-              textOverflow: 'ellipsis',
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              display: 'block',
-            }}
-            title={cluster.name}
-          >
-            {cluster.name}
-          </Typography>
+          <LightTooltip title={cluster.name}>
+            <Typography
+              color="textSecondary"
+              gutterBottom
+              sx={{
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                overflow: 'hidden',
+                display: 'block',
+              }}
+            >
+              {cluster.name}
+            </Typography>
+          </LightTooltip>
         </CardContent>
       </Card>
     </ButtonBase>
   );
-}
+});
 
 interface ClusterListProps {
   clusters: Cluster[];
@@ -173,7 +179,7 @@ interface ClusterListProps {
 function ClusterList(props: ClusterListProps) {
   const { clusters, onButtonClick } = props;
   const theme = useTheme();
-  const focusedRef = React.useCallback((node: HTMLElement) => {
+  const focusedRef = React.useCallback((node: HTMLButtonElement | null) => {
     if (node !== null) {
       node.focus();
     }
@@ -187,12 +193,17 @@ function ClusterList(props: ClusterListProps) {
 
   let recentClusters: Cluster[] = [];
 
-  // If we have more than the maximum number of recent clusters allowed, we show the most
-  // recent ones. Otherwise, just show the clusters in the order they are received.
+  const clustersByName = React.useMemo(() => {
+    if (clusters.length <= maxRecentClusters) {
+      return new Map<string, Cluster>();
+    }
+    return new Map<string, Cluster>(clusters.map(cluster => [cluster.name, cluster] as const));
+  }, [clusters]);
+
   if (clusters.length > maxRecentClusters) {
     // Get clusters matching the recent cluster names, if they exist still.
     recentClusters = recentClusterNames
-      .map(name => clusters.find(cluster => cluster.name === name))
+      .map(name => clustersByName.get(name))
       .filter(item => !!item) as Cluster[];
     // See whether we need to fill with new clusters (when the recent clusters were less than the
     // maximum/wanted).
@@ -223,7 +234,9 @@ function ClusterList(props: ClusterListProps) {
           </Grid>
         )}
         <Grid
-          aria-labelledby={`#${recentClustersLabelId}`}
+          aria-labelledby={
+            recentClusters.length !== clusters.length ? recentClustersLabelId : undefined
+          }
           item
           container
           alignItems="center"
@@ -233,7 +246,7 @@ function ClusterList(props: ClusterListProps) {
           {recentClusters.map((cluster, i) => (
             <Grid item key={cluster.name}>
               <ClusterButton
-                focusedRef={i === 0 ? focusedRef : undefined}
+                ref={i === 0 ? focusedRef : undefined}
                 cluster={cluster}
                 onClick={() => onButtonClick(cluster)}
               />
@@ -313,6 +326,7 @@ export function ClusterDialog(props: ClusterDialogProps) {
       {...otherProps}
     >
       <DialogTitle
+        disableTypography
         sx={{
           textAlign: 'center',
           alignItems: 'center',
@@ -340,6 +354,9 @@ export function ClusterDialog(props: ClusterDialogProps) {
             width: 'auto',
           }}
         />
+        <Box component="span" sx={visuallyHidden}>
+          Headlamp
+        </Box>
       </DialogTitle>
       <DialogContent
         dividers

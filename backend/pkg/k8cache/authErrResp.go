@@ -31,12 +31,43 @@ type AuthErrResponse struct {
 }
 
 // IsAuthBypassURL returns true if the given URL path should be checked for authorization errors,
-// excluding known public or health-check endpoints.
+// excluding known public, health-check, or self-subject review endpoints.
 func IsAuthBypassURL(urlPath string) bool {
-	return !strings.Contains(urlPath, "/version") &&
-		!strings.Contains(urlPath, "/healthz") &&
-		!strings.Contains(urlPath, "/selfsubjectrulesreviews") &&
-		!strings.Contains(urlPath, "/selfsubjectaccessreviews")
+	urlPath = strings.TrimRight(urlPath, "/")
+
+	if isDirectOrProxiedEndpoint(urlPath, "version") ||
+		isDirectOrProxiedEndpoint(urlPath, "healthz") ||
+		IsSelfSubjectReviewAPIPath(urlPath) {
+		return false
+	}
+
+	return true
+}
+
+// IsSelfSubjectReviewAPIPath returns true when path targets a self-subject review API endpoint
+// under /apis/authorization.k8s.io/{version} (either directly, or proxied via
+// /clusters/{name}/...). The version segment is intentionally not enumerated so
+// future authorization API versions keep the same cache-bypass behavior.
+func IsSelfSubjectReviewAPIPath(urlPath string) bool {
+	urlPath = strings.TrimRight(urlPath, "/")
+
+	return isDirectOrProxiedAPIResourceEndpoint(urlPath, "authorization.k8s.io", "selfsubjectaccessreviews") ||
+		isDirectOrProxiedAPIResourceEndpoint(urlPath, "authorization.k8s.io", "selfsubjectrulesreviews")
+}
+
+func isDirectOrProxiedEndpoint(urlPath, endpoint string) bool {
+	parts := strings.Split(urlPath, "/")
+
+	return len(parts) == 2 && parts[1] == endpoint ||
+		len(parts) == 4 && parts[1] == "clusters" && parts[3] == endpoint
+}
+
+func isDirectOrProxiedAPIResourceEndpoint(urlPath, group, resource string) bool {
+	parts := strings.Split(urlPath, "/")
+
+	return len(parts) == 5 && parts[1] == "apis" && parts[2] == group && parts[3] != "" && parts[4] == resource ||
+		len(parts) == 7 && parts[1] == "clusters" && parts[3] == "apis" && parts[4] == group &&
+			parts[5] != "" && parts[6] == resource
 }
 
 // ReturnAuthErrorResponse return the AuthErrorResponse if the user is not Authorized

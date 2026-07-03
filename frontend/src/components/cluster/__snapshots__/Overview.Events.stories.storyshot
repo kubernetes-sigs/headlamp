@@ -45,7 +45,7 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-18ph6tx-MuiGrid-root"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
                     >
                       <div
                         class="MuiBox-root css-qrw4x1"
@@ -161,7 +161,7 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-18ph6tx-MuiGrid-root"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
                     >
                       <div
                         class="MuiBox-root css-qrw4x1"
@@ -277,7 +277,7 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-18ph6tx-MuiGrid-root"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
                     >
                       <div
                         class="MuiBox-root css-qrw4x1"
@@ -399,7 +399,7 @@
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-18ph6tx-MuiGrid-root"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1oobngp-MuiPaper-root"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
                     >
                       <div
                         class="MuiBox-root css-qrw4x1"
@@ -548,6 +548,17 @@
                     <div
                       class="MuiBox-root css-ldp2l3"
                     >
+                      <button
+                        aria-label="Events lifetime information"
+                        class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ai5t7w-MuiButtonBase-root-MuiIconButton-root"
+                        data-mui-internal-clone-element="true"
+                        tabindex="0"
+                        type="button"
+                      >
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
                       <label
                         class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
                       >
@@ -555,11 +566,11 @@
                           class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
                         >
                           <span
-                            class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-1emuodk-MuiButtonBase-root-MuiSwitch-switchBase"
+                            class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-po6g13-MuiButtonBase-root-MuiSwitchBase-root-MuiSwitch-switchBase"
                           >
                             <input
                               checked=""
-                              class="PrivateSwitchBase-input MuiSwitch-input css-1m9pwf3"
+                              class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
                               type="checkbox"
                             />
                             <span
@@ -654,10 +665,10 @@
                               </div>
                               <fieldset
                                 aria-hidden="true"
-                                class="MuiOutlinedInput-notchedOutline css-1d3z3hw-MuiOutlinedInput-notchedOutline"
+                                class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                               >
                                 <legend
-                                  class="css-14lo706"
+                                  class="css-sl37lx-MuiNotchedOutlined-root"
                                 >
                                   <span>
                                     Namespaces
@@ -675,6 +686,14 @@
               <div
                 class="MuiBox-root css-1txv3mw"
               >
+                <div
+                  aria-atomic="true"
+                  aria-live="polite"
+                  class="MuiBox-root css-ty8jgw"
+                  role="status"
+                >
+                  No data to be shown.
+                </div>
                 <div
                   class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
                 >

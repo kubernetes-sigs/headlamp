@@ -16,9 +16,9 @@
 
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
-import Chip from '@mui/material/Chip';
+import Chip, { ChipProps } from '@mui/material/Chip';
 import Link from '@mui/material/Link';
-import { useTheme } from '@mui/material/styles';
+import { SxProps, Theme, useTheme } from '@mui/material/styles';
 import { SwitchProps } from '@mui/material/Switch';
 import Switch from '@mui/material/Switch';
 import Tooltip from '@mui/material/Tooltip';
@@ -32,9 +32,11 @@ import { useFilterFunc } from '../../../lib/util';
 import { PluginInfo, reloadPage, setPluginSettings } from '../../../plugin/pluginsSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { Link as HeadlampLink } from '../../common/';
+import ActionButton from '../../common/ActionButton';
 import SectionBox from '../../common/SectionBox';
 import SectionFilterHeader from '../../common/SectionFilterHeader';
 import Table from '../../common/Table';
+import { usePluginDelete } from './usePluginDelete';
 
 /**
  * Interface of the component's props structure.
@@ -48,6 +50,7 @@ import Table from '../../common/Table';
 export interface PluginSettingsPureProps {
   plugins: PluginInfo[];
   onSave: (plugins: PluginInfo[]) => void;
+  onDelete?: (plugin: PluginInfo) => Promise<void> | void;
   saveAlwaysEnable?: boolean;
 }
 
@@ -162,7 +165,9 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
      * If both arrays are identical in this scope, then no changes need to be saved.
      * If they do not match, there are changes in the pluginChanges array that can be saved and thus enableSave should be enabled.
      */
-    const arrayComp = props.plugins.every((val, key) => matcher(val, pluginChanges[key]));
+    const arrayComp =
+      props.plugins.length === pluginChanges.length &&
+      props.plugins.every((val, key) => matcher(val, pluginChanges[key]));
 
     /** For storybook usage, determines if the save button should be enabled by default */
     if (props.saveAlwaysEnable) {
@@ -175,6 +180,7 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
         setEnableSave(true);
       }
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pluginChanges]);
 
   /**
@@ -183,6 +189,30 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
    */
   function onSaveButtonHandler() {
     props.onSave(pluginChanges);
+  }
+
+  /**
+   * Confirm with the user, optimistically remove the plugin row, and call onDelete.
+   * Restores the row if onDelete rejects so the list stays in sync with the backend.
+   */
+  async function handleDeleteClick(plugin: PluginInfo) {
+    if (!window.confirm(t('translation|Are you sure you want to delete this plugin?'))) return;
+
+    // Optimistic update: remove the row immediately so the user gets feedback.
+    // Match by both name and type so we don't remove other versions of the same plugin.
+    const previous = pluginChanges;
+    setPluginChanges((current: any[]) =>
+      current.filter((p: any) => !(p.name === plugin.name && p.type === plugin.type))
+    );
+
+    if (!props.onDelete) return;
+
+    try {
+      await props.onDelete(plugin);
+    } catch {
+      // Restore the row if deletion fails.
+      setPluginChanges(previous);
+    }
   }
 
   /**
@@ -237,7 +267,7 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
 
                 return (
                   <>
-                    <Typography variant="subtitle1">
+                    <Typography variant="subtitle1" component="div">
                       <HeadlampLink
                         routeName={'pluginDetails'}
                         params={{ name: plugin.name, type: plugin.type || 'shipped' }}
@@ -268,7 +298,10 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
               header: t('translation|Type'),
               accessorFn: (plugin: PluginInfo) => plugin.type || 'unknown',
               Cell: ({ row: { original: plugin } }: { row: MRT_Row<PluginInfo> }) => {
-                const typeLabels: Record<string, { label: string; color: any }> = {
+                const typeLabels: Record<
+                  string,
+                  { label: string; color: ChipProps['color']; sx?: SxProps<Theme> }
+                > = {
                   development: {
                     label: t('translation|Development'),
                     color: 'primary',
@@ -276,6 +309,13 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
                   user: {
                     label: t('translation|User-installed'),
                     color: 'info',
+                    // info.main is a light blue whose default white text only
+                    // reaches 3.85:1. Use dark text so the chip meets the WCAG
+                    // AA 4.5:1 minimum (5.44:1 on light, 9.1:1 on dark themes).
+                    sx: (theme: Theme) => ({
+                      backgroundColor: theme.palette.info.main,
+                      color: theme.palette.common.black,
+                    }),
                   },
                   shipped: {
                     label: t('translation|Shipped'),
@@ -283,7 +323,14 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
                   },
                 };
                 const typeInfo = typeLabels[plugin.type || 'shipped'];
-                return <Chip label={typeInfo.label} size="small" color={typeInfo.color} />;
+                return (
+                  <Chip
+                    label={typeInfo.label}
+                    size="small"
+                    color={typeInfo.color}
+                    sx={typeInfo.sx}
+                  />
+                );
               },
             },
             {
@@ -382,10 +429,25 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
                 );
               },
             },
+            {
+              header: t('translation|Delete'),
+              accessorKey: 'delete',
+              enableSorting: false,
+              Cell: ({ row: { original: plugin } }: { row: MRT_Row<PluginInfo> }) =>
+                plugin.type === 'shipped' ? null : (
+                  <ActionButton
+                    description={t('translation|Delete Plugin')}
+                    icon="mdi:delete"
+                    onClick={() => handleDeleteClick(plugin)}
+                  />
+                ),
+            },
           ]
-            // remove the enable column if we're not in app mode
-            .filter(el => !(el.header === t('translation|Enable') && !isElectron()))}
+            // remove the enable and delete columns if we're not in app mode
+            .filter(el => !(el.header === t('translation|Enable') && !isElectron()))
+            .filter(el => !(el.header === t('translation|Delete') && !isElectron()))}
           data={pluginChanges}
+          getRowId={(row: PluginInfo) => `${row.name}-${row.type}`}
           filterFunction={useFilterFunc<PluginInfo>(['.name'])}
           muiTableBodyRowProps={({ row }) => {
             const plugin = row.original as PluginInfo;
@@ -446,8 +508,8 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
 /** Container function for the PluginSettingsPure, onSave prop returns plugins */
 export default function PluginSettings() {
   const dispatch = useDispatch();
-
   const pluginSettings = useTypedSelector(state => state.plugins.pluginSettings);
+  const handleDelete = usePluginDelete();
 
   return (
     <PluginSettingsPure
@@ -456,6 +518,7 @@ export default function PluginSettings() {
         dispatch(setPluginSettings(plugins));
         dispatch(reloadPage());
       }}
+      onDelete={handleDelete}
     />
   );
 }

@@ -15,10 +15,18 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
+import { SnackbarProvider } from 'notistack';
 import { PropsWithChildren } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route } from 'react-router-dom';
 import defaultStore from '../redux/stores/store';
+
+/**
+ * Origin (scheme/host/port) of the dev/test backend that MSW handlers intercept
+ * in stories and tests. Matches the default dev backend port used by `getAppUrl`
+ * (4466) but intentionally omits any baseUrl/trailing slash.
+ */
+export const API_BASE = 'http://localhost:4466';
 
 export type TestContextProps = PropsWithChildren<{
   store?: ReturnType<typeof configureStore>;
@@ -52,9 +60,11 @@ export function TestContext(props: TestContextProps) {
 
   return (
     <Provider store={store || defaultStore}>
-      <MemoryRouter initialEntries={url ? [url] : undefined}>
-        {routePath ? <Route path={routePath}>{children}</Route> : children}
-      </MemoryRouter>
+      <SnackbarProvider>
+        <MemoryRouter initialEntries={url ? [url] : undefined}>
+          {routePath ? <Route path={routePath}>{children}</Route> : children}
+        </MemoryRouter>
+      </SnackbarProvider>
     </Provider>
   );
 }

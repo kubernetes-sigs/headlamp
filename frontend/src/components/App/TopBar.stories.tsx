@@ -18,11 +18,13 @@ import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { get } from 'lodash';
+import { http, HttpResponse } from 'msw';
 import { PropsWithChildren } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import { AppBarActionsProcessor } from '../../redux/actionButtonsSlice';
 import { uiSlice } from '../../redux/uiSlice';
+import { API_BASE } from '../../test';
 import { initialState as themeInitialState } from './themeSlice';
 import { processAppBarActions, PureTopBar, PureTopBarProps } from './TopBar';
 
@@ -43,18 +45,25 @@ const store = configureStore({
   },
 });
 
-const queryClient = new QueryClient();
-
 export default {
   title: 'TopBar',
   component: PureTopBar,
   argTypes: {},
   decorators: [
     Story => {
+      // Create a fresh QueryClient per story to prevent cache bleeding
+      // between stories (PureTopBar caches ['clusterMe', clusterName] with staleTime).
+      const storyQueryClient = new QueryClient({
+        defaultOptions: {
+          queries: {
+            retry: false,
+          },
+        },
+      });
       return (
         <MemoryRouter>
           <Provider store={store}>
-            <QueryClientProvider client={queryClient}>
+            <QueryClientProvider client={storyQueryClient}>
               <Story />
             </QueryClientProvider>
           </Provider>
@@ -62,6 +71,7 @@ export default {
       );
     },
   ],
+  parameters: {},
 } as Meta;
 
 function OurTopBar(args: PropsWithChildren<PureTopBarProps>) {
@@ -116,6 +126,20 @@ OneCluster.args = {
   cluster: 'ak8s-desktop',
   clusters: { 'ak8s-desktop': '' },
 };
+OneCluster.parameters = {
+  msw: {
+    handlers: [
+      http.get(
+        `${API_BASE}/clusters/ak8s-desktop/me`,
+        () => new HttpResponse(null, { status: 404 })
+      ),
+      http.post(
+        `${API_BASE}/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews`,
+        () => HttpResponse.json({ status: { userInfo: { username: 'one-cluster-user' } } })
+      ),
+    ],
+  },
+};
 
 export const TwoCluster = PureTemplate.bind({});
 TwoCluster.args = {
@@ -124,6 +148,20 @@ TwoCluster.args = {
   cluster: 'ak8s-desktop',
   clusters: { 'ak8s-desktop': '', 'ak8s-desktop2': '' },
 };
+TwoCluster.parameters = {
+  msw: {
+    handlers: [
+      http.get(
+        `${API_BASE}/clusters/ak8s-desktop/me`,
+        () => new HttpResponse(null, { status: 404 })
+      ),
+      http.post(
+        `${API_BASE}/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews`,
+        () => HttpResponse.json({ status: { userInfo: { username: 'two-cluster-user' } } })
+      ),
+    ],
+  },
+};
 
 export const WithUserInfo = PureTemplate.bind({});
 WithUserInfo.args = {
@@ -131,9 +169,26 @@ WithUserInfo.args = {
   logout: () => {},
   cluster: 'ak8s-desktop',
   clusters: { 'ak8s-desktop': '' },
-  userInfo: {
-    username: 'Ada Lovelace',
-    email: 'ada@example.com',
+};
+WithUserInfo.parameters = {
+  msw: {
+    handlers: [
+      http.get(
+        `${API_BASE}/clusters/ak8s-desktop/me`,
+        () => new HttpResponse(null, { status: 404 })
+      ),
+      http.post(
+        `${API_BASE}/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews`,
+        () =>
+          HttpResponse.json({
+            status: {
+              userInfo: {
+                username: 'Ada Lovelace',
+              },
+            },
+          })
+      ),
+    ],
   },
 };
 
@@ -143,8 +198,26 @@ WithEmailOnly.args = {
   logout: () => {},
   cluster: 'ak8s-desktop',
   clusters: { 'ak8s-desktop': '' },
-  userInfo: {
-    email: 'grace@example.com',
+};
+WithEmailOnly.parameters = {
+  msw: {
+    handlers: [
+      http.get(
+        `${API_BASE}/clusters/ak8s-desktop/me`,
+        () => new HttpResponse(null, { status: 404 })
+      ),
+      http.post(
+        `${API_BASE}/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews`,
+        () =>
+          HttpResponse.json({
+            status: {
+              userInfo: {
+                username: 'grace@example.com',
+              },
+            },
+          })
+      ),
+    ],
   },
 };
 
@@ -154,7 +227,21 @@ UndefinedData.args = {
   logout: () => {},
   cluster: 'ak8s-desktop',
   clusters: { 'ak8s-desktop': '' },
-  userInfo: undefined,
+};
+UndefinedData.parameters = {
+  msw: {
+    handlers: [
+      http.get(
+        `${API_BASE}/clusters/ak8s-desktop/me`,
+        () => new HttpResponse(null, { status: 404 })
+      ),
+      // Return 404 to simulate missing API or data
+      http.post(
+        `${API_BASE}/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews`,
+        () => new HttpResponse(null, { status: 404 })
+      ),
+    ],
+  },
 };
 
 export const EmptyUserInfo = PureTemplate.bind({});
@@ -163,8 +250,69 @@ EmptyUserInfo.args = {
   logout: () => {},
   cluster: 'ak8s-desktop',
   clusters: { 'ak8s-desktop': '' },
-  userInfo: {
-    email: '',
-    username: '',
+};
+EmptyUserInfo.parameters = {
+  msw: {
+    handlers: [
+      http.get(
+        `${API_BASE}/clusters/ak8s-desktop/me`,
+        () => new HttpResponse(null, { status: 404 })
+      ),
+      http.post(
+        `${API_BASE}/clusters/ak8s-desktop/apis/authentication.k8s.io/v1/selfsubjectreviews`,
+        () => HttpResponse.json({})
+      ),
+    ],
+  },
+};
+
+export const MultiCluster = PureTemplate.bind({});
+MultiCluster.args = {
+  appBarActions: [],
+  logout: () => {},
+  cluster: 'admin-cluster',
+  clusters: {
+    'admin-cluster': '',
+    'view-cluster': '',
+    'other-cluster': '',
+  },
+  selectedClusters: ['admin-cluster', 'view-cluster'],
+};
+MultiCluster.parameters = {
+  msw: {
+    handlers: [
+      http.get(
+        `${API_BASE}/clusters/admin-cluster/me`,
+        () => new HttpResponse(null, { status: 404 })
+      ),
+      http.get(
+        `${API_BASE}/clusters/view-cluster/me`,
+        () => new HttpResponse(null, { status: 404 })
+      ),
+      http.post(
+        `${API_BASE}/clusters/admin-cluster/apis/authentication.k8s.io/v1/selfsubjectreviews`,
+        () =>
+          HttpResponse.json({
+            status: {
+              userInfo: {
+                username: 'admin-user',
+                groups: ['system:masters'],
+              },
+            },
+          })
+      ),
+      http.post(
+        `${API_BASE}/clusters/view-cluster/apis/authentication.k8s.io/v1/selfsubjectreviews`,
+        () =>
+          HttpResponse.json({
+            status: {
+              userInfo: {
+                username: 'view-user',
+                groups: ['view-group'],
+              },
+            },
+          })
+      ),
+    ],
   },
 };

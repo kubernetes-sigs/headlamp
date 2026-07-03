@@ -29,4 +29,5 @@ export interface DeleteParameters {
    * @see https://kubernetes.io/docs/reference/using-api/api-concepts/#dry-run
    */
   dryRun?: string;
+  propagationPolicy?: 'Foreground' | 'Background' | 'Orphan';
 }

@@ -28,12 +28,15 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"net"
 	"net/http"
 	"net/url"
 	"os"
+	"os/signal"
 	"path"
 	"path/filepath"
 	"runtime"
+	"sort"
 	"strings"
 	"sync"
 	"syscall"
@@ -46,24 +49,27 @@ import (
 	"github.com/gorilla/mux"
 	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
-
-	headlampcfg "github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/portforward"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
+	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
@@ -71,30 +77,50 @@ import (
 )
 
 type HeadlampConfig struct {
-	*headlampcfg.HeadlampCFG
-	oidcClientID              string
-	oidcValidatorClientID     string
-	oidcClientSecret          string
-	oidcIdpIssuerURL          string
-	oidcCallbackURL           string
-	oidcValidatorIdpIssuerURL string
-	oidcUseAccessToken        bool
-	oidcSkipTLSVerify         bool
-	oidcCACert                string
-	oidcUsePKCE               bool
-	cache                     cache.Cache[interface{}]
-	multiplexer               *Multiplexer
-	telemetryConfig           cfg.Config
-	oidcScopes                []string
-	telemetryHandler          *telemetry.RequestHandler
-	// meUsernamePaths lists the JMESPath expressions tried for the username in /clusters/{cluster}/me.
-	meUsernamePaths string
-	// meEmailPaths lists the JMESPath expressions tried for the email in /clusters/{cluster}/me.
-	meEmailPaths string
-	// meGroupsPaths lists the JMESPath expressions tried for the groups in /clusters/{cluster}/me.
-	meGroupsPaths string
-	// meUserInfoURL is the URL to fetch additional user info for the /me endpoint. /oauth2/userinfo
-	meUserInfoURL string
+	*headlampconfig.HeadlampConfig
+	proxyURLMu        sync.Mutex
+	compiledProxyURLs []glob.Glob
+}
+
+func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
+	compiledProxyURLs := make([]glob.Glob, 0, len(patterns))
+
+	for _, pattern := range patterns {
+		g, err := glob.Compile(pattern)
+		if err != nil {
+			return nil, fmt.Errorf("compiling proxy URL pattern %q: %w", pattern, err)
+		}
+
+		compiledProxyURLs = append(compiledProxyURLs, g)
+	}
+
+	return compiledProxyURLs, nil
+}
+
+func (c *HeadlampConfig) proxyURLAllowed(proxyURL string) (bool, error) {
+	c.proxyURLMu.Lock()
+
+	if c.compiledProxyURLs == nil && len(c.ProxyURLs) > 0 {
+		compiledProxyURLs, err := compileProxyURLPatterns(c.ProxyURLs)
+		if err != nil {
+			c.proxyURLMu.Unlock()
+
+			return false, err
+		}
+
+		c.compiledProxyURLs = compiledProxyURLs
+	}
+
+	compiledProxyURLs := c.compiledProxyURLs
+	c.proxyURLMu.Unlock()
+
+	for _, g := range compiledProxyURLs {
+		if g.Match(proxyURL) {
+			return true, nil
+		}
+	}
+
+	return false, nil
 }
 
 const DrainNodeCacheTTL = 20 // seconds
@@ -107,6 +133,29 @@ const ContextUpdateCacheTTL = 20 * time.Second // seconds
 
 const JWTExpirationTTL = 10 * time.Second // seconds
 
+// OidcStateTTL is the maximum time an OIDC state token is kept in memory
+// waiting for the callback. Entries that are never completed are evicted after
+// this duration to prevent unbounded growth while still allowing slow/manual
+// login flows enough time to complete.
+const OidcStateTTL = 60 * time.Minute
+
+const (
+	// serverReadHeaderTimeout is the maximum time to read the request headers.
+	serverReadHeaderTimeout = 10 * time.Second
+	// serverIdleTimeout is the maximum time to wait for the next request on a keep-alive connection.
+	serverIdleTimeout = 120 * time.Second
+)
+
+// maxProxyResponseSize is the maximum size (in bytes) for proxied responses.
+//
+//nolint:gochecknoglobals // allow test override
+var maxProxyResponseSize int64 = 100 * 1024 * 1024
+
+// externalProxyTimeout is the maximum time to wait for a proxy response.
+//
+//nolint:gochecknoglobals // allow test override
+var externalProxyTimeout = 30 * time.Second
+
 const kubeConfigSource = "kubeconfig" // source for kubeconfig contexts
 
 const (
@@ -116,9 +165,23 @@ const (
 	TokenCacheFileName = "headlamp-token-cache"
 )
 
+// Structured-log field names that recur across many log sites in the cmd package.
+const (
+	logFieldCluster    = "cluster"
+	logFieldClusterID  = "clusterID"
+	logFieldDurationMs = "duration_ms"
+)
+
 type clientConfig struct {
-	Clusters                []Cluster `json:"clusters"`
-	IsDynamicClusterEnabled bool      `json:"isDynamicClusterEnabled"`
+	Clusters                  []Cluster `json:"clusters"`
+	IsDynamicClusterEnabled   bool      `json:"isDynamicClusterEnabled"`
+	AllowKubeconfigChanges    bool      `json:"allowKubeconfigChanges"`
+	DefaultPodDebugImage      string    `json:"defaultPodDebugImage"`
+	DefaultNodeShellImage     string    `json:"defaultNodeShellImage"`
+	DefaultNodeShellNamespace string    `json:"defaultNodeShellNamespace"`
+	DefaultLightTheme         string    `json:"defaultLightTheme,omitempty"`
+	DefaultDarkTheme          string    `json:"defaultDarkTheme,omitempty"`
+	ForceTheme                string    `json:"forceTheme,omitempty"`
 }
 
 type OauthConfig struct {
@@ -127,6 +190,24 @@ type OauthConfig struct {
 	Ctx          context.Context
 	CodeVerifier string // PKCE code verifier
 	Cluster      string // cluster context name this is associated with
+	createdAt    time.Time
+}
+
+// evictExpiredOidcStates removes entries from m whose createdAt timestamp is
+// older than ttl. It is called by the background cleanup goroutine in
+// createHeadlampHandler and is also used directly in tests so that both paths
+// exercise the same production logic.
+func evictExpiredOidcStates(m map[string]*OauthConfig, mu *sync.Mutex, ttl time.Duration) {
+	cutoff := time.Now().Add(-ttl)
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	for state, entry := range m {
+		if entry.createdAt.Before(cutoff) {
+			delete(m, state)
+		}
+	}
 }
 
 // returns True if a file exists.
@@ -140,7 +221,7 @@ func fileExists(filename string) bool {
 }
 
 func mustReadFile(path string) []byte {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec
 	if err != nil {
 		// Error Reading the file
 		logger.Log(logger.LevelError, nil, err, "reading file")
@@ -211,8 +292,8 @@ func baseURLReplace(staticDir string, baseURL string) {
 
 func getOidcCallbackURL(r *http.Request, config *HeadlampConfig) string {
 	// If callback URL is configured, use it
-	if config.oidcCallbackURL != "" {
-		return config.oidcCallbackURL
+	if config.OidcCallbackURL != "" {
+		return config.OidcCallbackURL
 	}
 
 	// Otherwise, generate callback URL dynamically
@@ -300,7 +381,9 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 	r.HandleFunc("/plugins/{name}", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+
 		var span trace.Span
+
 		pluginName := mux.Vars(r)["name"]
 
 		// Get plugin type from query parameter (optional)
@@ -323,22 +406,40 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 		logger.Log(logger.LevelInfo, nil, nil, "Received DELETE request for plugin: "+mux.Vars(r)["name"])
 
 		if err := config.checkHeadlampBackendToken(w, r); err != nil {
-			config.telemetryHandler.RecordError(span, err, " Invalid backend token")
+			if config.TelemetryHandler != nil {
+				config.TelemetryHandler.RecordError(span, err, "Invalid backend token")
+			}
+
 			logger.Log(logger.LevelWarn, nil, err, "Invalid backend token for DELETE /plugins/{name}")
+
 			return
 		}
 
 		err := plugins.Delete(config.UserPluginDir, config.PluginDir, pluginName, pluginType)
 		if err != nil {
-			config.telemetryHandler.RecordError(span, err, "Failed to delete plugin")
+			if config.TelemetryHandler != nil {
+				config.TelemetryHandler.RecordError(span, err, "Failed to delete plugin")
+			}
 
 			logger.Log(logger.LevelError, nil, err, "Error deleting plugin: "+pluginName)
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusInternalServerError)
+
+			if err := json.NewEncoder(w).Encode(map[string]any{"success": false, "message": err.Error()}); err != nil {
+				logger.Log(logger.LevelError, nil, err, "Error writing delete error response")
+			}
+
 			return
 		}
+
 		logger.Log(logger.LevelInfo, nil, nil, "Plugin deleted successfully: "+pluginName)
 
-		w.WriteHeader(http.StatusOK)
+		w.Header().Set("Content-Type", "application/json")
+
+		if err := json.NewEncoder(w).Encode(map[string]any{"success": true}); err != nil {
+			logger.Log(logger.LevelError, nil, err, "Error writing delete response")
+		}
 	}).Methods("DELETE")
 }
 
@@ -347,6 +448,7 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 	r.HandleFunc("/plugins", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+
 		var span trace.Span
 
 		// Start tracing for listPlugins.
@@ -364,8 +466,9 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 		logger.Log(logger.LevelInfo, nil, nil, "Received GET request for plugin list")
 
 		w.Header().Set("Content-Type", "application/json")
-		pluginsList, err := config.cache.Get(context.Background(), plugins.PluginListKey)
-		if err != nil && err == cache.ErrNotFound {
+
+		pluginsList, err := config.Cache.Get(context.Background(), plugins.PluginListKey)
+		if err != nil && errors.Is(err, cache.ErrNotFound) {
 			pluginsList = []plugins.PluginMetadata{}
 
 			if config.Telemetry != nil {
@@ -376,13 +479,14 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 				span.SetAttributes(attribute.Int("plugins.count", len(list)))
 			}
 		}
+
 		if err := json.NewEncoder(w).Encode(pluginsList); err != nil {
 			logger.Log(logger.LevelError, nil, err, "encoding plugins base paths list")
 		} else {
 			// Notify that the client has requested the plugins list. So we can start sending
 			// refresh requests.
-			if err := config.cache.Set(context.Background(), plugins.PluginCanSendRefreshKey, true); err != nil {
-				config.telemetryHandler.RecordError(span, err, "Failed to set plugin-can-send-refresh key")
+			if err := config.Cache.Set(context.Background(), plugins.PluginCanSendRefreshKey, true); err != nil {
+				config.TelemetryHandler.RecordError(span, err, "Failed to set plugin-can-send-refresh key")
 				logger.Log(logger.LevelError, nil, err, "setting plugin-can-send-refresh key failed")
 			} else if config.Telemetry != nil {
 				span.SetStatus(codes.Ok, "Plugin list retrieved successfully")
@@ -391,10 +495,83 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 	}).Methods("GET")
 }
 
+func startClusterInventory(ctx context.Context, config *HeadlampConfig) error {
+	if !config.EnableClusterInventory {
+		return nil
+	}
+
+	var hubConfig *rest.Config
+
+	if config.UseInCluster {
+		inClusterConfig, err := rest.InClusterConfig()
+		if err != nil {
+			return fmt.Errorf("get in-cluster config for cluster inventory: %w", err)
+		}
+
+		hubConfig = inClusterConfig
+	}
+
+	runner, err := clusterinventory.NewRunner(clusterinventory.Options{
+		Store:                 config.KubeConfigStore,
+		ProviderFile:          config.ClusterInventoryProviderFile,
+		LabelSelector:         config.ClusterInventoryLabelSelector,
+		RootReconcileInterval: config.ClusterInventoryRootReconcileInterval,
+		NoCRDCacheTTL:         config.ClusterInventoryNoCRDCacheTTL,
+		HubConfig:             hubConfig,
+		DiscoverFromStore:     !config.UseInCluster,
+	})
+	if err != nil {
+		return err
+	}
+
+	go runner.Run(ctx)
+
+	return nil
+}
+
+func setupInClusterContext(config *HeadlampConfig) {
+	if config.UnsafeUseServiceAccountToken {
+		logger.Log(
+			logger.LevelWarn,
+			nil,
+			nil,
+			"UNSAFE: authenticating all users with the pod's service account token. "+
+				"This disables per-user auth and is only safe behind an auth proxy.",
+		)
+	}
+
+	inClusterContext, err := kubeconfig.GetInClusterContext(
+		config.InClusterContextName,
+		config.OidcIdpIssuerURL,
+		config.OidcClientID, config.OidcClientSecret,
+		strings.Join(config.OidcScopes, ","),
+		config.OidcSkipTLSVerify,
+		config.OidcCACert,
+		config.UnsafeUseServiceAccountToken,
+		config.ServiceAccountTokenPath,
+	)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
+
+		return
+	}
+
+	if err := inClusterContext.SetupProxy(); err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
+
+		return
+	}
+
+	if err := config.KubeConfigStore.AddContext(inClusterContext); err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
+	}
+}
+
 //nolint:gocognit,funlen,gocyclo
-func createHeadlampHandler(config *HeadlampConfig) http.Handler {
+func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
 
+	config.ServerCtx = ctx
 	config.StaticPluginDir = os.Getenv("HEADLAMP_STATIC_PLUGINS_DIR")
 
 	logger.Log(logger.LevelInfo, nil, nil, "Creating Headlamp handler")
@@ -408,27 +585,28 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	logger.Log(logger.LevelInfo, nil, nil, "Proxy URLs: "+fmt.Sprint(config.ProxyURLs))
 	logger.Log(logger.LevelInfo, nil, nil, "TLS certificate path: "+config.TLSCertPath)
 	logger.Log(logger.LevelInfo, nil, nil, "TLS key path: "+config.TLSKeyPath)
-	logger.Log(logger.LevelInfo, nil, nil, "me Username Paths: "+config.meUsernamePaths)
-	logger.Log(logger.LevelInfo, nil, nil, "me Email Paths: "+config.meEmailPaths)
-	logger.Log(logger.LevelInfo, nil, nil, "me Groups Paths: "+config.meGroupsPaths)
-	logger.Log(logger.LevelInfo, nil, nil, "me User Info URL: "+config.meUserInfoURL)
+	logger.Log(logger.LevelInfo, nil, nil, "me Username Paths: "+config.MeUsernamePaths)
+	logger.Log(logger.LevelInfo, nil, nil, "me Email Paths: "+config.MeEmailPaths)
+	logger.Log(logger.LevelInfo, nil, nil, "me Groups Paths: "+config.MeGroupsPaths)
+	logger.Log(logger.LevelInfo, nil, nil, "me User Info URL: "+config.MeUserInfoURL)
 	logger.Log(logger.LevelInfo, nil, nil, "Base URL: "+config.BaseURL)
+	logger.Log(logger.LevelInfo, nil, nil, "Session TTL: "+fmt.Sprint(config.SessionTTL))
 	logger.Log(logger.LevelInfo, nil, nil, "Use In Cluster: "+fmt.Sprint(config.UseInCluster))
 	logger.Log(logger.LevelInfo, nil, nil, "Watch Plugins Changes: "+fmt.Sprint(config.WatchPluginsChanges))
 
-	plugins.PopulatePluginsCache(config.StaticPluginDir, config.UserPluginDir, config.PluginDir, config.cache)
+	plugins.PopulatePluginsCache(config.StaticPluginDir, config.UserPluginDir, config.PluginDir, config.Cache)
 
 	skipFunc := kubeconfig.SkipKubeContextInCommaSeparatedString(config.SkippedKubeContexts)
 
 	if !config.UseInCluster || config.WatchPluginsChanges {
 		// in-cluster mode is unlikely to want reloading plugins.
 		pluginEventChan := make(chan string)
-		go plugins.Watch(config.PluginDir, pluginEventChan)
+		go plugins.Watch(ctx, config.PluginDir, pluginEventChan)
 
 		// Watch user-plugins directory for catalog-installed plugins
 		if config.UserPluginDir != "" {
 			userPluginEventChan := make(chan string)
-			go plugins.Watch(config.UserPluginDir, userPluginEventChan)
+			go plugins.Watch(ctx, config.UserPluginDir, userPluginEventChan)
 			// Merge both event channels into one
 			go func() {
 				for event := range userPluginEventChan {
@@ -442,36 +620,15 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			config.UserPluginDir,
 			config.PluginDir,
 			pluginEventChan,
-			config.cache,
+			config.Cache,
 		)
 		// in-cluster mode is unlikely to want reloading kubeconfig.
-		go kubeconfig.LoadAndWatchFiles(config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
+		go kubeconfig.LoadAndWatchFiles(ctx, config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
 	}
 
 	// In-cluster
 	if config.UseInCluster {
-		context, err := kubeconfig.GetInClusterContext(
-			config.InClusterContextName,
-			config.oidcIdpIssuerURL,
-			config.oidcClientID, config.oidcClientSecret,
-			strings.Join(config.oidcScopes, ","),
-			config.oidcSkipTLSVerify,
-			config.oidcCACert)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to get in-cluster context")
-		}
-
-		context.Source = kubeconfig.InCluster
-
-		err = context.SetupProxy()
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to setup proxy for in-cluster context")
-		}
-
-		err = config.KubeConfigStore.AddContext(context)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to add in-cluster context")
-		}
+		setupInClusterContext(config)
 	}
 
 	if config.StaticDir != "" {
@@ -487,8 +644,8 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		r = baseRoute.PathPrefix(config.BaseURL).Subrouter()
 	}
 
-	fmt.Println("*** Headlamp Server ***")
-	fmt.Println("  API Routers:")
+	logger.Log(logger.LevelInfo, nil, nil, "*** Headlamp Server ***")
+	logger.Log(logger.LevelInfo, nil, nil, "  API Routers:")
 
 	// load kubeConfig clusters
 	err := kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
@@ -499,7 +656,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	// Prometheus metrics endpoint
 	// to enable this endpoint, run command run-backend-with-metrics
 	// or set the environment variable HEADLAMP_CONFIG_METRICS_ENABLED=true
-	if config.Metrics != nil && config.telemetryConfig.MetricsEnabled != nil && *config.telemetryConfig.MetricsEnabled {
+	if config.Metrics != nil && config.TelemetryConfig.MetricsEnabled != nil && *config.TelemetryConfig.MetricsEnabled {
 		r.Handle("/metrics", promhttp.Handler())
 		logger.Log(logger.LevelInfo, nil, nil, "prometheus metrics endpoint: /metrics")
 	}
@@ -520,27 +677,37 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 	// Setup port forwarding handlers.
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
-		portforward.StartPortForward(config.KubeConfigStore, config.cache, w, r)
+		portforward.StartPortForward(
+			config.KubeConfigStore,
+			config.Cache,
+			config.shouldUseUnsafeServiceAccountToken(),
+			w,
+			r,
+		)
 	}).Methods("POST")
 
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
-		portforward.StopOrDeletePortForward(config.cache, w, r)
+		portforward.StopOrDeletePortForward(config.Cache, w, r)
 	}).Methods("DELETE")
 
 	r.HandleFunc("/clusters/{clusterName}/portforward/list", func(w http.ResponseWriter, r *http.Request) {
-		portforward.GetPortForwards(config.cache, w, r)
+		portforward.GetPortForwards(config.Cache, w, r)
 	})
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
-		portforward.GetPortForwardByID(config.cache, w, r)
+		portforward.GetPortForwardByID(config.Cache, w, r)
 	}).Methods("GET")
 
 	// Expose user info so the frontend can show the current user in the top bar using the per-cluster auth cookie.
 	r.HandleFunc("/clusters/{clusterName}/me",
 		auth.HandleMe(auth.MeHandlerOptions{
-			UsernamePaths: config.meUsernamePaths,
-			EmailPaths:    config.meEmailPaths,
-			GroupsPaths:   config.meGroupsPaths,
-			UserInfoURL:   config.meUserInfoURL,
+			UsernamePaths:           config.MeUsernamePaths,
+			EmailPaths:              config.MeEmailPaths,
+			GroupsPaths:             config.MeGroupsPaths,
+			UserInfoURL:             config.MeUserInfoURL,
+			ProxyAuthEnabled:        config.ProxyAuthEnabled,
+			ProxyAuthUsernameHeader: config.ProxyAuthUsernameHeader,
+			ProxyAuthGroupHeader:    config.ProxyAuthGroupHeader,
+			ProxyAuthEmailHeader:    config.ProxyAuthEmailHeader,
 		}),
 	).Methods("GET")
 
@@ -569,14 +736,12 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			return
 		}
 
-		isURLContainedInProxyURLs := false
+		isURLContainedInProxyURLs, err := config.proxyURLAllowed(url.String())
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL}, err, "compiling proxy URL patterns")
+			http.Error(w, "failed to compile proxy URL patterns", http.StatusInternalServerError)
 
-		for _, proxyURL := range config.ProxyURLs {
-			g := glob.MustCompile(proxyURL)
-			if g.Match(url.String()) {
-				isURLContainedInProxyURLs = true
-				break
-			}
+			return
 		}
 
 		if !isURLContainedInProxyURLs {
@@ -586,9 +751,10 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			return
 		}
 
-		ctx := context.Background()
+		proxyCtx, cancel := context.WithTimeout(r.Context(), externalProxyTimeout)
+		defer cancel()
 
-		proxyReq, err := http.NewRequestWithContext(ctx, r.Method, proxyURL, r.Body)
+		proxyReq, err := http.NewRequestWithContext(proxyCtx, r.Method, proxyURL, r.Body) //nolint:gosec
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "creating request")
 			http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -610,7 +776,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 		client := http.Client{}
 
-		resp, err := client.Do(proxyReq)
+		resp, err := client.Do(proxyReq) //nolint:gosec
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "making request")
 			http.Error(w, err.Error(), http.StatusBadGateway)
@@ -618,7 +784,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			return
 		}
 
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		// Check that the server actually sent compressed data
 		var reader io.ReadCloser
@@ -632,28 +798,48 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 				return
 			}
-			defer reader.Close()
+
+			defer func() { _ = reader.Close() }()
 		default:
 			reader = resp.Body
 		}
 
-		respBody, err := io.ReadAll(reader)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "reading response")
-			http.Error(w, err.Error(), http.StatusBadGateway)
+		// Read the first chunk before committing the response so early upstream
+		// failures can still return a 502 instead of an empty success response.
+		firstChunk := make([]byte, 32*1024)
+
+		n, readErr := reader.Read(firstChunk)
+		if readErr != nil && !errors.Is(readErr, io.EOF) && n == 0 {
+			logger.Log(logger.LevelError, nil, readErr, "reading response")
+			http.Error(w, readErr.Error(), http.StatusBadGateway)
 
 			return
 		}
 
-		_, err = w.Write(respBody)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "writing response")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+		if contentType := resp.Header.Get("Content-Type"); contentType != "" {
+			w.Header().Set("Content-Type", contentType)
+		}
+
+		// Reject early if Content-Length exceeds the maximum allowed size.
+		if resp.ContentLength > maxProxyResponseSize {
+			logger.Log(logger.LevelError, nil, nil, "proxy response exceeded maximum allowed size (Content-Length)")
+			http.Error(w, "response too large", http.StatusBadGateway)
 
 			return
 		}
 
-		defer resp.Body.Close()
+		w.WriteHeader(resp.StatusCode)
+
+		// Stream the body, putting the already-read first chunk back in front of
+		// the reader so a single size limit covers the whole response. The limit
+		// prevents memory exhaustion and decompression bombs; if the length is
+		// unknown and the limit is reached, the response is truncated.
+		body := io.MultiReader(bytes.NewReader(firstChunk[:n]), reader)
+		if _, err := io.Copy(w, io.LimitReader(body, maxProxyResponseSize)); err != nil {
+			logger.Log(logger.LevelError, nil, err, "streaming response")
+
+			return
+		}
 	})
 
 	// Configuration
@@ -663,7 +849,9 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	r.HandleFunc("/auth/set-token", config.handleSetToken).Methods("POST")
 
 	// Websocket connections
-	r.HandleFunc("/wsMultiplexer", config.multiplexer.HandleClientWebSocket)
+	if config.Multiplexer != nil {
+		r.HandleFunc("/wsMultiplexer", config.Multiplexer.HandleClientWebSocket)
+	}
 
 	config.addClusterSetupRoute(r)
 
@@ -672,42 +860,78 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		oauthMu         sync.Mutex
 	)
 
+	// Evict OIDC state entries that were never completed (e.g. the user closed
+	// the browser tab before finishing the auth flow). Without this, every
+	// abandoned /oidc request would leak an OauthConfig in memory forever.
+	go func() {
+		ticker := time.NewTicker(OidcStateTTL / 2)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				evictExpiredOidcStates(oauthRequestMap, &oauthMu, OidcStateTTL)
+			}
+		}
+	}()
+
 	r.HandleFunc("/oidc", func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
 		cluster := r.URL.Query().Get("cluster")
+
 		if config.Insecure {
-			tr := &http.Transport{
-				TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+			baseTransport, ok := http.DefaultTransport.(*http.Transport)
+			if !ok {
+				err := errors.New("http.DefaultTransport is not an *http.Transport")
+				logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
+					err, "failed to configure insecure oidc client transport")
+				http.Error(w, "Failed to configure oidc transport", http.StatusInternalServerError)
+
+				return
 			}
+
+			tr := baseTransport.Clone()
+
+			tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+			if baseTransport.TLSClientConfig != nil {
+				tlsCfg = baseTransport.TLSClientConfig.Clone()
+				tlsCfg.InsecureSkipVerify = true
+			}
+
+			tr.TLSClientConfig = tlsCfg
 			InsecureClient := &http.Client{Transport: tr}
 			ctx = oidc.ClientContext(ctx, InsecureClient)
 		}
 
 		kContext, err := config.KubeConfigStore.GetContext(cluster)
 		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+			logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
 				err, "failed to get context")
 
 			http.NotFound(w, r)
+
 			return
 		}
 
 		oidcAuthConfig, err := kContext.OidcConfig()
 		if err != nil {
 			// Avoid the noise in the pod log while accessing Headlamp using Service Token
-			if config.oidcIdpIssuerURL != "" {
-				logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
+			if config.OidcIdpIssuerURL != "" {
+				logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster},
 					err, "failed to get oidc config")
 			}
 
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+
 			return
 		}
 
 		ctx = auth.ConfigureTLSContext(ctx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
 
-		if config.oidcValidatorIdpIssuerURL != "" {
-			ctx = oidc.InsecureIssuerURLContext(ctx, config.oidcValidatorIdpIssuerURL)
+		if config.OidcValidatorIdpIssuerURL != "" {
+			ctx = oidc.InsecureIssuerURLContext(ctx, config.OidcValidatorIdpIssuerURL)
 		}
 
 		provider, err := oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
@@ -716,13 +940,15 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 				err, "failed to get provider")
 
 			http.Error(w, err.Error(), http.StatusInternalServerError)
+
 			return
 		}
 
 		validatorClientID := oidcAuthConfig.ClientID
-		if config.oidcValidatorClientID != "" {
-			validatorClientID = config.oidcValidatorClientID
+		if config.OidcValidatorClientID != "" {
+			validatorClientID = config.OidcValidatorClientID
 		}
+
 		oidcConfig := &oidc.Config{
 			ClientID: validatorClientID,
 		}
@@ -737,24 +963,32 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		}
 
 		// state should be unique per request, cryptographically secure random, url safe
-		state := func() string {
+		state, err := func() (string, error) {
 			b := make([]byte, 32)
 			if _, err := rand.Read(b); err != nil {
-				panic(err)
+				return "", fmt.Errorf("generating OIDC state: %w", err)
 			}
-			return base64.RawURLEncoding.EncodeToString(b)
+
+			return base64.RawURLEncoding.EncodeToString(b), nil
 		}()
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster}, err, "failed to generate OIDC state")
+			http.Error(w, "failed to generate OIDC state", http.StatusInternalServerError)
+
+			return
+		}
 
 		entry := &OauthConfig{
-			Config:   oauthConfig,
-			Verifier: verifier,
-			Ctx:      ctx,
-			Cluster:  cluster,
+			Config:    oauthConfig,
+			Verifier:  verifier,
+			Ctx:       ctx,
+			Cluster:   cluster,
+			createdAt: time.Now(),
 		}
 
 		var authURL string
 
-		if config.oidcUsePKCE {
+		if config.OidcUsePKCE {
 			entry.CodeVerifier = oauth2.GenerateVerifier()
 			authURL = oauthConfig.AuthCodeURL(state, oauth2.S256ChallengeOption(entry.CodeVerifier))
 		} else {
@@ -774,10 +1008,15 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		config.handleNodeDrainStatus).Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
 
 	r.HandleFunc("/oidc-callback", func(w http.ResponseWriter, r *http.Request) {
+		// Shadow createHeadlampHandler's outer-scope err so any log call in
+		// this handler is guaranteed to reference this closure's err and
+		// never the startup kubeconfig-load error. See issue #4839.
+		var err error
+
 		state := r.URL.Query().Get("state")
 
 		if state == "" {
-			logger.Log(logger.LevelError, nil, err, "invalid request state is empty")
+			logger.Log(logger.LevelError, nil, nil, "invalid request state is empty")
 			http.Error(w, "invalid request state is empty", http.StatusBadRequest)
 
 			return
@@ -800,10 +1039,8 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 
 		var oauth2Token *oauth2.Token
 
-		var err error
-
 		// Exchange authorization code for token, with or without PKCE
-		if config.oidcUsePKCE && oauthConfig.CodeVerifier != "" {
+		if config.OidcUsePKCE && oauthConfig.CodeVerifier != "" {
 			// Use PKCE code verifier for token exchange
 			oauth2Token, err = oauthConfig.Config.Exchange(
 				oauthConfig.Ctx,
@@ -826,7 +1063,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		}
 
 		tokenType := "id_token"
-		if config.oidcUseAccessToken {
+		if config.OidcUseAccessToken {
 			tokenType = "access_token"
 		}
 
@@ -838,7 +1075,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 			return
 		}
 
-		if err := config.cache.Set(context.Background(),
+		if err := config.Cache.Set(context.Background(),
 			fmt.Sprintf("oidc-token-%s", rawUserToken), oauth2Token.RefreshToken); err != nil {
 			logger.Log(logger.LevelError, nil, err, "failed to cache refresh token")
 			http.Error(w, "Failed to cache refresh token: "+err.Error(), http.StatusInternalServerError)
@@ -879,7 +1116,7 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 		}
 
 		// Set auth cookie
-		auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL)
+		auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
 
 		redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
 
@@ -925,199 +1162,218 @@ func createHeadlampHandler(config *HeadlampConfig) http.Handler {
 	return r
 }
 
-func (c *HeadlampConfig) refreshAndSetToken(oidcAuthConfig *kubeconfig.OidcConfig,
-	cache cache.Cache[interface{}], token string,
-	w http.ResponseWriter, r *http.Request, cluster string, span trace.Span, ctx context.Context,
-) {
-	// The token type to use
-	tokenType := "id_token"
-	if c.oidcUseAccessToken {
-		tokenType = "access_token"
-	}
+func clearRequestAuthorization(r *http.Request) {
+	r.Header.Del("Authorization")
+	r.Header.Del("Cookie")
+}
 
-	idpIssuerURL := c.oidcIdpIssuerURL
-	if idpIssuerURL == "" {
-		idpIssuerURL = oidcAuthConfig.IdpIssuerURL
-	}
-
-	newToken, err := auth.RefreshAndCacheNewToken(
-		ctx,
-		oidcAuthConfig,
-		cache,
-		tokenType,
-		token,
-		idpIssuerURL,
-	)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
-			err, "failed to refresh token")
-		c.telemetryHandler.RecordError(span, err, "Token refresh failed")
-		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error", "token_refresh_failure"))
-	} else if newToken != nil {
-		var newTokenString string
-		if c.oidcUseAccessToken {
-			newTokenString = newToken.Extra("access_token").(string)
-		} else {
-			newTokenString = newToken.Extra("id_token").(string)
-		}
-
-		// Set refreshed token in cookie
-		auth.SetTokenCookie(w, r, cluster, newTokenString, c.BaseURL)
-
-		c.telemetryHandler.RecordEvent(span, "Token refreshed successfully")
+func clearConfiguredProxyTokenHeader(r *http.Request, proxyAuthTokenHeader string) {
+	proxyAuthTokenHeader = strings.TrimSpace(proxyAuthTokenHeader)
+	if proxyAuthTokenHeader != "" {
+		r.Header.Del(proxyAuthTokenHeader)
 	}
 }
 
-// setTokenFromCookie attempts to get a token from the cookie and set it as Authorization header.
-func setTokenFromCookie(r *http.Request, clusterName string) {
-	tokenFromCookie, err := auth.GetTokenFromCookie(r, clusterName)
-	// Set bearer token from cookie if it exists
-	if err == nil && tokenFromCookie != "" {
-		r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", tokenFromCookie))
-	}
+func (c *HeadlampConfig) shouldUseUnsafeServiceAccountToken() bool {
+	return c != nil && c.UseInCluster && c.UnsafeUseServiceAccountToken
 }
 
-func (c *HeadlampConfig) incrementRequestCounter(ctx context.Context) {
-	if c.Metrics != nil {
-		c.Metrics.RequestCounter.Add(ctx, 1,
-			metric.WithAttributes(
-				attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
-				attribute.String("status", "start"),
-			))
-	}
+func (c *HeadlampConfig) shouldUseUnsafeServiceAccountTokenForContext(kContext *kubeconfig.Context) bool {
+	return c.shouldUseUnsafeServiceAccountToken() && kContext.UsesInClusterServiceAccountToken()
 }
 
-func (c *HeadlampConfig) shouldSkipOIDCRefresh(w http.ResponseWriter, r *http.Request, span trace.Span,
-	ctx context.Context, start time.Time, next http.Handler,
-) bool {
-	if !strings.HasPrefix(r.URL.String(), "/clusters/") {
-		c.telemetryHandler.RecordEvent(span, "Not a cluster request, skipping OIDC refresh")
-		next.ServeHTTP(w, r)
-		c.telemetryHandler.RecordDuration(ctx, start,
-			attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
-			attribute.String("status", "skipped"))
-
-		return true
+func tokenFromCookie(r *http.Request, clusterName string) string {
+	if cookieToken, err := auth.GetTokenFromCookie(r, clusterName); err == nil && cookieToken != "" {
+		return cookieToken
 	}
 
-	return false
+	return ""
 }
 
-func (c *HeadlampConfig) shouldBypassOIDCRefresh(cluster, token string, w http.ResponseWriter, r *http.Request,
-	span trace.Span, ctx context.Context, start time.Time, next http.Handler,
-) bool {
-	if cluster == "" || token == "" {
-		c.telemetryHandler.RecordEvent(span, "Missing cluster or token, bypassing OIDC refresh")
-		next.ServeHTTP(w, r)
-		c.telemetryHandler.RecordDuration(ctx, start,
-			attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
-			attribute.String("status", "missing"))
-
-		return true
+func (c *HeadlampConfig) requestTokenForContext(
+	r *http.Request,
+	clusterName string,
+	kContext *kubeconfig.Context,
+) string {
+	if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+		return ""
 	}
 
-	return false
-}
-
-func (c *HeadlampConfig) handleGetContextError(err error, cluster string, w http.ResponseWriter, r *http.Request,
-	span trace.Span, ctx context.Context, start time.Time, next http.Handler,
-) bool {
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": cluster},
-			err, "failed to get context")
-		c.telemetryHandler.RecordError(span, err, "Failed to get context")
-		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error", "get_context_failure"))
-		next.ServeHTTP(w, r)
-		c.telemetryHandler.RecordDuration(ctx, start,
-			attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
-			attribute.String("status", "get_context_failure"))
-
-		return true
+	token := auth.BearerTokenValue(r.Header.Get("Authorization"))
+	if token == "" {
+		token = tokenFromCookie(r, clusterName)
 	}
 
-	return false
-}
-
-func (c *HeadlampConfig) handleOIDCAuthConfigError(err error, w http.ResponseWriter, r *http.Request, span trace.Span,
-	ctx context.Context, start time.Time, next http.Handler,
-) bool {
-	if err != nil {
-		c.telemetryHandler.RecordEvent(span, "OIDC auth not enabled for cluster")
-		next.ServeHTTP(w, r)
-		c.telemetryHandler.RecordDuration(ctx, start,
-			attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
-			attribute.String("status", "oidc_auth_not_enabled"))
-
-		return true
+	if token == "" && kContext != nil && kContext.Name != clusterName {
+		token = tokenFromCookie(r, kContext.Name)
 	}
 
-	return false
+	return token
 }
 
+func applyRequestTokenToContext(r *http.Request, clusterName string, context *kubeconfig.Context) {
+	// Only promote a cookie token when the request does not already provide Authorization.
+	if strings.TrimSpace(r.Header.Get("Authorization")) == "" {
+		auth.SetTokenFromCookie(r, clusterName)
+	}
+
+	bearerToken := auth.BearerTokenValue(r.Header.Get("Authorization"))
+	if bearerToken == "" {
+		return
+	}
+
+	if context.AuthInfo == nil {
+		context.AuthInfo = &api.AuthInfo{}
+	}
+
+	context.AuthInfo.Token = bearerToken
+}
+
+// OIDCTokenRefreshMiddleware is a thin wrapper around auth.NewOIDCTokenRefreshMiddleware.
+// The middleware logic was relocated to the auth package to keep authentication
+// concerns together.
 func (c *HeadlampConfig) OIDCTokenRefreshMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		start := time.Now()
+	config := auth.OIDCTokenRefreshConfig{
+		KubeConfigStore:              c.KubeConfigStore,
+		Cache:                        c.Cache,
+		Telemetry:                    c.Telemetry,
+		TelemetryHandler:             c.TelemetryHandler,
+		Metrics:                      c.Metrics,
+		OidcUseAccessToken:           c.OidcUseAccessToken,
+		OidcIdpIssuerURL:             c.OidcIdpIssuerURL,
+		OidcValidatorIdpIssuerURL:    c.OidcValidatorIdpIssuerURL,
+		BaseURL:                      c.BaseURL,
+		SessionTTL:                   c.SessionTTL,
+		UseInCluster:                 c.UseInCluster,
+		UnsafeUseServiceAccountToken: c.UnsafeUseServiceAccountToken,
+	}
 
-		var span trace.Span
-		if c.Telemetry != nil {
-			_, span = telemetry.CreateSpan(ctx, r, "auth", "OIDCTokenRefreshMiddleware")
+	return auth.NewOIDCTokenRefreshMiddleware(config)(next)
+}
 
-			c.telemetryHandler.RecordEvent(span, "Middleware started")
+// isLoopbackAddr reports whether the given listen address is a loopback address.
+func isLoopbackAddr(addr string) bool {
+	if strings.EqualFold(addr, "localhost") {
+		return true
+	}
 
-			defer span.End()
+	// Strip brackets from IPv6 addresses like "[::1]".
+	ip := net.ParseIP(strings.Trim(addr, "[]"))
+
+	return ip != nil && ip.IsLoopback()
+}
+
+// allowedHosts returns the set of normalized host values that are considered
+// valid for the given listen address and port. All entries are lowercased and
+// host:port pairs are built with net.JoinHostPort so that IPv6 literals are
+// always bracketed correctly.
+func allowedHosts(listenAddr string, port uint) map[string]bool {
+	portStr := fmt.Sprintf("%d", port)
+
+	loopbackHosts := []string{"localhost", "127.0.0.1", "::1"}
+
+	hosts := make(map[string]bool, len(loopbackHosts)*2+2)
+
+	for _, h := range loopbackHosts {
+		hosts[net.JoinHostPort(h, portStr)] = true
+		hosts[h] = true
+	}
+
+	// If the server was told to listen on a specific address, accept that too.
+	// Normalize via net.ParseIP so non-canonical IPv6 forms (e.g.
+	// "0:0:0:0:0:0:0:1") are reduced to their canonical representation ("::1")
+	// before being added to the set.
+	rawAddr := strings.ToLower(strings.Trim(listenAddr, "[]"))
+	normAddr := rawAddr
+
+	if ip := net.ParseIP(rawAddr); ip != nil {
+		normAddr = ip.String()
+	}
+
+	if normAddr != "" && !hosts[normAddr] {
+		hosts[net.JoinHostPort(normAddr, portStr)] = true
+		hosts[normAddr] = true
+	}
+
+	return hosts
+}
+
+// normalizeHost canonicalizes the Host header value. The host portion is
+// lowercased and, if it is an IP address, reduced to its canonical string form
+// so that e.g. "[0:0:0:0:0:0:0:1]" and "[::1]" are treated identically.
+// When a port is present the result is re-joined with net.JoinHostPort.
+func normalizeHost(raw string) string {
+	if raw == "" {
+		return ""
+	}
+
+	host, port, err := net.SplitHostPort(raw)
+	if err != nil {
+		// No port — strip brackets from IPv6 literals (e.g. "[::1]" → "::1"),
+		// then normalize to canonical IP form if applicable.
+		stripped := strings.ToLower(strings.Trim(raw, "[]"))
+		if ip := net.ParseIP(stripped); ip != nil {
+			return ip.String()
 		}
 
-		c.incrementRequestCounter(ctx)
+		return stripped
+	}
 
-		// skip if not cluster request
-		if c.shouldSkipOIDCRefresh(w, r, span, ctx, start, next) {
-			return
-		}
+	// Normalize the host part: lowercase, then canonicalize if it's an IP.
+	lower := strings.ToLower(host)
+	if ip := net.ParseIP(lower); ip != nil {
+		lower = ip.String()
+	}
 
-		// parse cluster and token
-		cluster, token := auth.ParseClusterAndToken(r)
-		if c.shouldBypassOIDCRefresh(cluster, token, w, r, span, ctx, start, next) {
-			return
-		}
+	return net.JoinHostPort(lower, port)
+}
 
-		// get oidc config
-		kContext, err := c.KubeConfigStore.GetContext(cluster)
-		if c.handleGetContextError(err, cluster, w, r, span, ctx, start, next) {
-			return
-		}
+// hostValidationMiddleware rejects requests whose Host header is not in the
+// allowlist derived from the configured port's loopback hostnames/IPs
+// (localhost, 127.0.0.1, and ::1, with or without the port) and, when
+// provided, the server's explicit listen address.
+func hostValidationMiddleware(listenAddr string, port uint) func(http.Handler) http.Handler {
+	allowed := allowedHosts(listenAddr, port)
 
-		// skip if cluster is not using OIDC auth
-		oidcAuthConfig, err := kContext.OidcConfig()
-		if c.handleOIDCAuthConfigError(err, w, r, span, ctx, start, next) {
-			return
-		}
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			normalized := normalizeHost(r.Host)
 
-		// skip if token is not about to expire
-		if !auth.IsTokenAboutToExpire(token) {
-			c.telemetryHandler.RecordEvent(span, "Token not about to expire, skipping refresh")
+			if !allowed[normalized] {
+				logger.Log(logger.LevelWarn, map[string]string{"host": r.Host},
+					nil, "Rejected request with unexpected Host header")
+				http.Error(w, "invalid Host header", http.StatusForbidden)
+
+				return
+			}
+
 			next.ServeHTTP(w, r)
-			c.telemetryHandler.RecordDuration(ctx, start,
-				attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
-				attribute.String("status", "token_valid"))
+		})
+	}
+}
 
-			return
-		}
+func serverHandler(ctx context.Context, config *HeadlampConfig) (http.Handler, error) {
+	handler := createHeadlampHandler(ctx, config)
 
-		// refresh and cache new token
-		c.refreshAndSetToken(oidcAuthConfig, c.cache, token, w, r, cluster, span, ctx)
+	if err := startClusterInventory(ctx, config); err != nil {
+		return nil, err
+	}
 
-		next.ServeHTTP(w, r)
-		c.telemetryHandler.RecordDuration(ctx, start,
-			attribute.String("api.route", "OIDCTokenRefreshMiddleware"),
-			attribute.String("status", "success"))
-	})
+	handler = config.OIDCTokenRefreshMiddleware(handler)
+
+	// Only validate the Host header when listening on a loopback address.
+	// When bound to a non-loopback address (e.g. behind a reverse proxy),
+	// arbitrary Host headers are expected and must be allowed through.
+	if isLoopbackAddr(config.ListenAddr) {
+		handler = hostValidationMiddleware(config.ListenAddr, config.Port)(handler)
+	}
+
+	return handler, nil
 }
 
 func StartHeadlampServer(config *HeadlampConfig) {
-	tel, err := telemetry.NewTelemetry(config.telemetryConfig)
+	tel, err := initTelemetry(config)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "Failed to initialize telemetry")
 		os.Exit(1)
 	}
 
@@ -1130,15 +1386,6 @@ func StartHeadlampServer(config *HeadlampConfig) {
 		}
 	}()
 
-	metrics, err := telemetry.NewMetrics()
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "Failed to initialize metrics")
-	}
-
-	config.Telemetry = tel
-	config.Metrics = metrics
-	config.telemetryHandler = telemetry.NewRequestHandler(tel, metrics)
-
 	router := mux.NewRouter()
 
 	if config.Telemetry != nil && config.Metrics != nil {
@@ -1146,38 +1393,129 @@ func StartHeadlampServer(config *HeadlampConfig) {
 		router.Use(config.Metrics.RequestCounterMiddleware)
 	}
 
-	// Copy static files as squashFS is read-only (AppImage)
 	if config.StaticDir != "" {
-		dir, err := os.MkdirTemp(os.TempDir(), ".headlamp")
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to create static dir")
+		if err := copyStaticFiles(config); err != nil {
 			return
 		}
-
-		err = os.CopyFS(dir, os.DirFS(config.StaticDir))
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "Failed to copy files from static dir")
-			return
-		}
-
-		config.StaticDir = dir
 	}
 
-	handler := createHeadlampHandler(config)
-	handler = config.OIDCTokenRefreshMiddleware(handler)
+	// Create a cancellable context for watcher goroutines
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	addr := fmt.Sprintf("%s:%d", config.ListenAddr, config.Port)
+	handler, err := serverHandler(ctx, config)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "starting cluster inventory discovery")
+		return
+	}
+
+	runServer(config, cancel, handler)
+}
+
+// runServer creates the HTTP server, sets up graceful shutdown, starts
+// listening (TLS or plain), and handles the server completion and errors.
+func runServer(config *HeadlampConfig, cancel context.CancelFunc, handler http.Handler) {
+	listenHost := strings.TrimPrefix(strings.TrimSuffix(config.ListenAddr, "]"), "[")
+	addr := net.JoinHostPort(listenHost, fmt.Sprintf("%d", config.Port))
+
+	server := &http.Server{
+		Addr:              addr,
+		Handler:           handler,
+		ReadHeaderTimeout: serverReadHeaderTimeout,
+		IdleTimeout:       serverIdleTimeout,
+	}
+
+	serverDone := make(chan struct{})
+	setupGracefulShutdown(server, cancel, serverDone)
+
+	var err error
 
 	if config.TLSCertPath != "" && config.TLSKeyPath != "" {
-		err = http.ListenAndServeTLS(addr, config.TLSCertPath, config.TLSKeyPath, handler) //nolint:gosec
+		err = server.ListenAndServeTLS(config.TLSCertPath, config.TLSKeyPath)
 	} else {
-		err = http.ListenAndServe(addr, handler) //nolint:gosec
+		err = server.ListenAndServe()
 	}
 
-	if err != nil {
+	close(serverDone)
+
+	if err != nil && err != http.ErrServerClosed {
 		logger.Log(logger.LevelError, nil, err, "Failed to start server")
 		HandleServerStartError(&err)
 	}
+}
+
+// initTelemetry initializes telemetry and metrics for the server.
+func initTelemetry(config *HeadlampConfig) (*telemetry.Telemetry, error) {
+	tel, err := telemetry.NewTelemetry(config.TelemetryConfig)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to initialize telemetry")
+
+		return nil, err
+	}
+
+	metrics, err := telemetry.NewMetrics()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to initialize metrics")
+	}
+
+	config.Telemetry = tel
+	config.Metrics = metrics
+	config.TelemetryHandler = telemetry.NewRequestHandler(tel, metrics)
+
+	return tel, nil
+}
+
+// copyStaticFiles copies static files to a temporary directory.
+// This is needed because squashFS is read-only (AppImage).
+func copyStaticFiles(config *HeadlampConfig) error {
+	dir, err := os.MkdirTemp(os.TempDir(), ".headlamp")
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to create static dir")
+
+		return err
+	}
+
+	err = os.CopyFS(dir, os.DirFS(config.StaticDir))
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "Failed to copy files from static dir")
+
+		return err
+	}
+
+	config.StaticDir = dir
+
+	return nil
+}
+
+// setupGracefulShutdown starts a goroutine that listens for OS signals
+// (SIGINT, SIGTERM) and gracefully shuts down the server. It cancels
+// the context to stop all watcher goroutines. The serverDone channel
+// is used to stop this goroutine if the server exits for a non-signal reason.
+func setupGracefulShutdown(server *http.Server, cancel context.CancelFunc, serverDone <-chan struct{}) {
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	go func() {
+		defer signal.Stop(sigChan)
+
+		select {
+		case <-sigChan:
+			logger.Log(logger.LevelInfo, nil, nil, "Received shutdown signal, stopping watchers...")
+
+			cancel() // Cancel context to stop all watcher goroutines
+
+			shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer shutdownCancel()
+
+			if err := server.Shutdown(shutdownCtx); err != nil {
+				logger.Log(logger.LevelError, nil, err, "Failed to gracefully shutdown server")
+			}
+		case <-serverDone:
+			// Server exited on its own, clean up watchers and stop the signal goroutine
+			cancel()
+			return
+		}
+	}()
 }
 
 // Handle common server startup errors.
@@ -1196,28 +1534,29 @@ func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (
 	start := time.Now()
 
 	_, span := telemetry.CreateSpan(ctx, r, "headlamp-server", "getHelmHandler")
-	c.telemetryHandler.RecordEvent(span, "Get helm handler started")
+	c.TelemetryHandler.RecordEvent(span, "Get helm handler started")
 
 	defer span.End()
-	c.telemetryHandler.RecordRequestCount(ctx, r)
+
+	c.TelemetryHandler.RecordRequestCount(ctx, r)
 
 	clusterName := mux.Vars(r)["clusterName"]
 	telemetry.AddSpanAttributes(ctx, attribute.String("clusterName", clusterName))
 
-	helmHandler, err := helm.NewHandler(c.cache)
+	helmHandler, err := helm.NewHandler(c.Cache)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"clusterName": clusterName},
 			err, "failed to create helm handler")
-		c.telemetryHandler.RecordError(span, err, "failed to create helm handler")
-		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error", "helm handler creation failure"))
-		c.telemetryHandler.RecordDuration(ctx, start, attribute.String("status", "failure"))
+		c.TelemetryHandler.RecordError(span, err, "failed to create helm handler")
+		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error", "helm handler creation failure"))
+		c.TelemetryHandler.RecordDuration(ctx, start, attribute.String("status", "failure"))
 		http.Error(w, "failed to create helm handler", http.StatusInternalServerError)
 
 		return nil, err
 	}
 
-	c.telemetryHandler.RecordDuration(ctx, start, attribute.String("status", "success"))
-	c.telemetryHandler.RecordEvent(span, "Successfully created helm handler")
+	c.TelemetryHandler.RecordDuration(ctx, start, attribute.String("status", "success"))
+	c.TelemetryHandler.RecordEvent(span, "Successfully created helm handler")
 
 	return helmHandler, nil
 }
@@ -1246,7 +1585,7 @@ func (c *HeadlampConfig) checkHeadlampBackendToken(w http.ResponseWriter, r *htt
 func handleClusterServiceProxy(c *HeadlampConfig, router *mux.Router) {
 	router.HandleFunc("/clusters/{clusterName}/serviceproxy/{namespace}/{name}",
 		func(w http.ResponseWriter, r *http.Request) {
-			serviceproxy.RequestHandler(c.KubeConfigStore, w, r)
+			serviceproxy.RequestHandler(c.KubeConfigStore, c.shouldUseUnsafeServiceAccountToken(), w, r)
 		}).Queries("request", "{request}").
 		Methods("GET")
 }
@@ -1260,10 +1599,11 @@ func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 		_, span := telemetry.CreateSpan(ctx, r, "helm", "handleClusterHelm",
 			attribute.String("cluster", clusterName),
 		)
-		c.telemetryHandler.RecordEvent(span, "Starting Helm operation request")
+
+		c.TelemetryHandler.RecordEvent(span, "Starting Helm operation request")
 		defer span.End()
 
-		c.telemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", clusterName))
+		c.TelemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", clusterName))
 
 		if err := c.checkHeadlampBackendToken(w, r); err != nil {
 			c.handleError(w, ctx, span, err, "failed to check headlamp backend token", http.StatusForbidden)
@@ -1288,10 +1628,10 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 	clusterName, route, operation string,
 	handler func(clientcmd.ClientConfig, http.ResponseWriter, *http.Request),
 ) {
-	c.telemetryHandler.RecordEvent(span, "Executing route",
+	c.TelemetryHandler.RecordEvent(span, "Executing route",
 		attribute.String("route", route),
 		attribute.String("operation", operation))
-	c.telemetryHandler.RecordRequestCount(ctx, r)
+	c.TelemetryHandler.RecordRequestCount(ctx, r)
 
 	logger.Log(logger.LevelInfo, map[string]string{"route": route}, nil, "Dispatching helm operation: "+operation)
 
@@ -1304,22 +1644,12 @@ func (c *HeadlampConfig) helmRouteReleaseHandler(
 	// Create a copy of the context to avoid modifying the cached context
 	context = context.Copy()
 
-	// If headlamp is running in cluster, use the token from the cookie for oidc auth
-	if c.UseInCluster && context.OidcConf != nil {
-		setTokenFromCookie(r, clusterName)
-	}
+	unsafeUseServiceAccountToken := c.shouldUseUnsafeServiceAccountTokenForContext(context)
 
-	bearerToken := r.Header.Get("Authorization")
-
-	if bearerToken != "" {
-		// Remove "Bearer " prefix if present
-		bearerToken = strings.TrimPrefix(bearerToken, "Bearer ")
-
-		if context.AuthInfo == nil {
-			context.AuthInfo = &api.AuthInfo{}
-		}
-
-		context.AuthInfo.Token = bearerToken
+	if unsafeUseServiceAccountToken {
+		clearRequestAuthorization(r)
+	} else {
+		applyRequestTokenToContext(r, clusterName, context)
 	}
 
 	handler(context.ClientConfig(), w, r)
@@ -1333,19 +1663,23 @@ func (c *HeadlampConfig) helmRouteRepositoryHandler(
 	clusterName, route, operation string,
 	handler func(http.ResponseWriter, *http.Request),
 ) {
-	c.telemetryHandler.RecordEvent(span, "Executing route",
+	c.TelemetryHandler.RecordEvent(span, "Executing route",
 		attribute.String("route", route),
 		attribute.String("operation", operation))
-	c.telemetryHandler.RecordRequestCount(ctx, r)
+	c.TelemetryHandler.RecordRequestCount(ctx, r)
 
-	// fetch token from cookie
-	setTokenFromCookie(r, clusterName)
+	context, err := c.KubeConfigStore.GetContext(clusterName)
+	unsafeUseServiceAccountToken := err == nil && c.shouldUseUnsafeServiceAccountTokenForContext(context)
 
-	// fetch token from header
-	bearerToken := r.Header.Get("Authorization")
+	if unsafeUseServiceAccountToken {
+		clearRequestAuthorization(r)
+	} else {
+		// fetch token from cookie
+		auth.SetTokenFromCookie(r, clusterName)
+	}
 
 	// if no token present in in-cluster mode, return error
-	if c.UseInCluster && bearerToken == "" {
+	if c.UseInCluster && !unsafeUseServiceAccountToken && r.Header.Get("Authorization") == "" {
 		c.handleError(
 			w, ctx, span,
 			errors.New("no authentication token provided"),
@@ -1418,9 +1752,9 @@ func (c *HeadlampConfig) dispatchHelmRoute(
 	default:
 		logger.Log(logger.LevelError, map[string]string{"path": path}, nil, "Unknown helm API route")
 
-		c.telemetryHandler.RecordEvent(span, "Unknown API route", attribute.String("path", path))
+		c.TelemetryHandler.RecordEvent(span, "Unknown API route", attribute.String("path", path))
 		span.SetStatus(codes.Error, "Unknown API route")
-		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error", "unknown_route"))
+		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error", "unknown_route"))
 
 		http.NotFound(w, r)
 	}
@@ -1430,8 +1764,8 @@ func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,
 	span trace.Span, err error, msg string, status int,
 ) {
 	logger.Log(logger.LevelError, nil, err, msg)
-	c.telemetryHandler.RecordError(span, err, msg)
-	c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", msg))
+	c.TelemetryHandler.RecordError(span, err, msg)
+	c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", msg))
 	http.Error(w, err.Error(), status)
 }
 
@@ -1445,8 +1779,8 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 		)
 		defer span.End()
 
-		c.telemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", mux.Vars(r)["clusterName"]))
-		c.telemetryHandler.RecordEvent(span, "Cluster API request started")
+		c.TelemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", mux.Vars(r)["clusterName"]))
+		c.TelemetryHandler.RecordEvent(span, "Cluster API request started")
 
 		// A deferred function to record duration metrics & log the request completion
 		defer recordRequestCompletion(c, ctx, start, r)
@@ -1479,7 +1813,7 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 			attribute.String("cluster.server", kContext.Cluster.Server),
 			attribute.String("cluster.api_path", mux.Vars(r)["api"]),
 		)
-		c.telemetryHandler.RecordClusterProxyRequestsCount(ctx, attribute.String("cluster", contextKey),
+		c.TelemetryHandler.RecordClusterProxyRequestsCount(ctx, attribute.String("cluster", contextKey),
 			attribute.String("http.method", r.Method))
 
 		r.Host = clusterURL.Host
@@ -1495,17 +1829,33 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 		r.URL.Path = mux.Vars(r)["api"]
 		r.URL.Scheme = clusterURL.Scheme
 
-		token, err := auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
-		if err == nil && token != "" {
-			r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-		}
-
 		// Process WebSocket protocol headers if present
 		processWebSocketProtocolHeader(r)
-		plugins.HandlePluginReload(c.cache, w)
+
+		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+			clearRequestAuthorization(r)
+		} else {
+			var token string
+
+			if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
+				token = strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
+			}
+
+			if token == "" {
+				token, _ = auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
+			}
+
+			if token != "" {
+				r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
+			}
+		}
+
+		clearConfiguredProxyTokenHeader(r, c.ProxyAuthTokenHeader)
+
+		plugins.HandlePluginReload(c.Cache, w)
 
 		if err = kContext.ProxyRequest(w, r); err != nil {
-			c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "proxy_error"),
+			c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "proxy_error"),
 				attribute.String("cluster", contextKey))
 			c.handleError(w, ctx, span, err, "failed to proxy request", http.StatusInternalServerError)
 
@@ -1514,7 +1864,7 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 
 		if c.Telemetry != nil {
 			span.SetStatus(codes.Ok, "")
-			c.telemetryHandler.RecordEvent(span, "Cluster API request completed")
+			c.TelemetryHandler.RecordEvent(span, "Cluster API request completed")
 		}
 	})
 }
@@ -1538,12 +1888,12 @@ func recordRequestCompletion(c *HeadlampConfig, ctx context.Context,
 	start time.Time, r *http.Request,
 ) {
 	duration := time.Since(start).Seconds() * 1000 // duration in ms
-	c.telemetryHandler.RecordDuration(ctx, start,
+	c.TelemetryHandler.RecordDuration(ctx, start,
 		attribute.String("http.method", r.Method),
 		attribute.String("http.path", r.URL.Path),
 		attribute.String("cluster", mux.Vars(r)["clusterName"]))
 	logger.Log(logger.LevelInfo,
-		map[string]string{"duration_ms": fmt.Sprintf("%.2f", duration)},
+		map[string]string{logFieldDurationMs: fmt.Sprintf("%.2f", duration)},
 		nil, "Request completed successfully")
 }
 
@@ -1650,6 +2000,7 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 		if context.KubeContext == nil {
 			logger.Log(logger.LevelError, map[string]string{"context": context.Name},
 				errors.New("context.KubeContext is nil"), "error adding context")
+
 			continue
 		}
 
@@ -1659,20 +2010,26 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 
 		clusterID := context.ClusterID
 
+		metadata := map[string]interface{}{
+			"source":     source,
+			"namespace":  context.KubeContext.Namespace,
+			"extensions": context.KubeContext.Extensions,
+			"origin": map[string]interface{}{
+				"kubeconfig": kubeconfigPath,
+			},
+			"originalName":    context.Name,
+			logFieldClusterID: clusterID,
+		}
+
+		if context.Source == kubeconfig.ClusterInventory && context.ClusterInventory != nil {
+			metadata["clusterInventory"] = context.ClusterInventory
+		}
+
 		clusters = append(clusters, Cluster{
 			Name:     context.Name,
 			Server:   context.Cluster.Server,
 			AuthType: context.AuthType(),
-			Metadata: map[string]interface{}{
-				"source":     source,
-				"namespace":  context.KubeContext.Namespace,
-				"extensions": context.KubeContext.Extensions,
-				"origin": map[string]interface{}{
-					"kubeconfig": kubeconfigPath,
-				},
-				"originalName": context.Name,
-				"clusterID":    clusterID,
-			},
+			Metadata: metadata,
 		})
 	}
 
@@ -1691,7 +2048,7 @@ func parseCustomNameClusters(contexts []kubeconfig.Context) ([]Cluster, []error)
 			// Convert the runtime.Unknown object to a byte slice
 			unknownBytes, err := json.Marshal(info)
 			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{"cluster": context.Name},
+				logger.Log(logger.LevelError, map[string]string{logFieldCluster: context.Name},
 					err, "unmarshaling context data")
 
 				setupErrors = append(setupErrors, err)
@@ -1704,7 +2061,7 @@ func parseCustomNameClusters(contexts []kubeconfig.Context) ([]Cluster, []error)
 
 			err = json.Unmarshal(unknownBytes, &customObj)
 			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{"cluster": context.Name},
+				logger.Log(logger.LevelError, map[string]string{logFieldCluster: context.Name},
 					err, "unmarshaling into CustomObject")
 
 				setupErrors = append(setupErrors, err)
@@ -1759,17 +2116,30 @@ func parseClusterFromKubeConfig(kubeConfigs []string) ([]Cluster, []error) {
 	}
 
 	if len(setupErrors) > 0 {
-		logger.Log(logger.LevelError, nil, setupErrors, "setting up contexts from kubeconfig")
-		return nil, setupErrors
+		if len(clusters) == 0 {
+			logger.Log(logger.LevelError, nil, setupErrors, "setting up contexts from kubeconfig")
+		} else {
+			logger.Log(logger.LevelWarn, nil, setupErrors, "setting up contexts from kubeconfig")
+		}
 	}
 
-	return clusters, nil
+	return clusters, setupErrors
 }
 
 func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
-	clientConfig := clientConfig{c.getClusters(), c.EnableDynamicClusters}
+	clientConfig := clientConfig{
+		Clusters:                  c.getClusters(),
+		IsDynamicClusterEnabled:   c.EnableDynamicClusters,
+		AllowKubeconfigChanges:    c.AllowKubeconfigChanges,
+		DefaultPodDebugImage:      c.PodDebugImage,
+		DefaultNodeShellImage:     c.NodeShellImage,
+		DefaultNodeShellNamespace: c.NodeShellNamespace,
+		DefaultLightTheme:         c.DefaultLightTheme,
+		DefaultDarkTheme:          c.DefaultDarkTheme,
+		ForceTheme:                c.ForceTheme,
+	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {
 		logger.Log(logger.LevelError, nil, err, "encoding config")
@@ -1777,20 +2147,22 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 }
 
 // addCluster adds cluster to store and updates the kubeconfig file.
-func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) {
+func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) { //nolint:funlen
 	ctx := r.Context()
 	start := time.Now()
 
 	_, span := telemetry.CreateSpan(ctx, r, "cluster-management", "addCluster")
-	c.telemetryHandler.RecordEvent(span, "Add cluster request started")
+
+	c.TelemetryHandler.RecordEvent(span, "Add cluster request started")
 	defer span.End()
 	// Defer recording the duration and logging when the request is complete.
 	defer recordRequestCompletion(c, ctx, start, r)
-	c.telemetryHandler.RecordRequestCount(ctx, r)
+
+	c.TelemetryHandler.RecordRequestCount(ctx, r)
 
 	if err := c.checkHeadlampBackendToken(w, r); err != nil {
-		c.telemetryHandler.RecordError(span, err, "invalid backend token")
-		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "invalid token"))
+		c.TelemetryHandler.RecordError(span, err, "invalid backend token")
+		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "invalid token"))
 		logger.Log(logger.LevelError, nil, err, "invalid token")
 
 		return
@@ -1798,8 +2170,8 @@ func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) {
 
 	clusterReq, err := decodeClusterRequest(r)
 	if err != nil {
-		c.telemetryHandler.RecordError(span, err, "failed to decode cluster request")
-		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "decode error"))
+		c.TelemetryHandler.RecordError(span, err, "failed to decode cluster request")
+		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "decode error"))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
 		return
@@ -1819,8 +2191,8 @@ func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) {
 
 	contexts, setupErrors := c.processClusterRequest(clusterReq)
 	if len(contexts) == 0 {
-		c.telemetryHandler.RecordError(span, errors.New("no contexts found in kubeconfig"), "no contexts found in kubeconfig")
-		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "no_contexts_found"))
+		c.TelemetryHandler.RecordError(span, errors.New("no contexts found in kubeconfig"), "no contexts found in kubeconfig")
+		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "no_contexts_found"))
 		http.Error(w, "getting contexts from kubeconfig", http.StatusBadRequest)
 		logger.Log(logger.LevelError, nil, errors.New("no contexts found in kubeconfig"), "getting contexts from kubeconfig")
 
@@ -1869,11 +2241,11 @@ func (c *HeadlampConfig) handleSetupErrors(setupErrors []error,
 			span.SetAttributes(attribute.String("error.message", errMsg))
 
 			for _, setupErr := range setupErrors {
-				c.telemetryHandler.RecordError(span, setupErr, "setup error")
+				c.TelemetryHandler.RecordError(span, setupErr, "setup error")
 			}
 		}
 
-		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "setup_context_error"))
+		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "setup_context_error"))
 		http.Error(w, "setting up contexts from kubeconfig", http.StatusBadRequest)
 
 		return setupErrors
@@ -1930,7 +2302,7 @@ func (c *HeadlampConfig) processManualConfig(clusterReq ClusterReq) ([]kubeconfi
 
 // handleLoadErrors handles the load errors.
 func (c *HeadlampConfig) handleLoadErrors(err error, contextLoadErrors []kubeconfig.ContextLoadError) []error {
-	var setupErrors []error //nolint:prealloc
+	var setupErrors []error
 
 	if err != nil {
 		setupErrors = append(setupErrors, err)
@@ -1982,23 +2354,24 @@ func (c *HeadlampConfig) deleteCluster(w http.ResponseWriter, r *http.Request) {
 
 	_, span := telemetry.CreateSpan(ctx, r, "cluster-management", "deleteCluster")
 	defer span.End()
-	c.telemetryHandler.RecordRequestCount(ctx, r)
+
+	c.TelemetryHandler.RecordRequestCount(ctx, r)
 
 	defer func() {
 		duration := time.Since(start).Milliseconds()
 
-		c.telemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "/cluster/delete"))
+		c.TelemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "/cluster/delete"))
 		logger.Log(logger.LevelInfo, map[string]string{
-			"duration_ms": fmt.Sprintf("%d", duration),
-			"api.route":   "/cluster/delete",
+			logFieldDurationMs: fmt.Sprintf("%d", duration),
+			"api.route":        "/cluster/delete",
 		}, nil, "Completed deleteCluster request")
 	}()
 
 	name := mux.Vars(r)["name"]
 
 	if err := c.checkHeadlampBackendToken(w, r); err != nil {
-		c.telemetryHandler.RecordError(span, err, "invalid backend token")
-		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "invalid_token"))
+		c.TelemetryHandler.RecordError(span, err, "invalid backend token")
+		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "invalid_token"))
 		logger.Log(logger.LevelError, nil, err, "invalid token")
 
 		return
@@ -2030,7 +2403,7 @@ func (c *HeadlampConfig) handleDeleteCluster(
 		return
 	}
 
-	logger.Log(logger.LevelInfo, map[string]string{"cluster": name, "proxy": name},
+	logger.Log(logger.LevelInfo, map[string]string{logFieldCluster: name, "proxy": name},
 		nil, "removed cluster successfully")
 }
 
@@ -2073,19 +2446,19 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 	ctx := r.Context()
 	start := time.Now()
 
-	c.telemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", clusterName))
+	c.TelemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", clusterName))
 	_, span := telemetry.CreateSpan(ctx, r, "cluster-rename", "handleStatelessClusterRename",
 		attribute.String("cluster", clusterName),
 	)
-	c.telemetryHandler.RecordEvent(span, "Stateless cluster rename request started")
+	c.TelemetryHandler.RecordEvent(span, "Stateless cluster rename request started")
 
 	defer span.End()
 
 	if err := c.KubeConfigStore.RemoveContext(clusterName); err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: clusterName},
 			err, "decoding request body")
-		c.telemetryHandler.RecordError(span, err, "decoding request body")
-		c.telemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "remove_context_failure"))
+		c.TelemetryHandler.RecordError(span, err, "decoding request body")
+		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "remove_context_failure"))
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
 		return
@@ -2095,21 +2468,21 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 	c.getConfig(w, r)
 
 	duration := time.Since(start).Milliseconds()
-	c.telemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "handleStatelessClusterRename"))
+	c.TelemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "handleStatelessClusterRename"))
 	logger.Log(logger.LevelInfo, map[string]string{
-		"duration_ms": fmt.Sprintf("%d", duration),
-		"api.route":   "handleStatelessClusterRename",
+		logFieldDurationMs: fmt.Sprintf("%d", duration),
+		"api.route":        "handleStatelessClusterRename",
 	}, nil, "Completed stateless cluster rename")
 }
 
-// customNameToExtenstions writes the custom name to the Extensions map in the kubeconfig.
-func customNameToExtenstions(config *api.Config, contextName, newClusterName, path string) error {
+// customNameToExtensions writes the custom name to the Extensions map in the kubeconfig.
+func customNameToExtensions(config *api.Config, contextName, newClusterName, path string) error {
 	var err error
 
 	// Get the context with the given cluster name
 	contextConfig, ok := config.Contexts[contextName]
 	if !ok {
-		logger.Log(logger.LevelError, map[string]string{"cluster": contextName},
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: contextName},
 			err, "getting context from kubeconfig")
 
 		return err
@@ -2122,11 +2495,17 @@ func customNameToExtenstions(config *api.Config, contextName, newClusterName, pa
 		CustomName: newClusterName,
 	}
 
-	// Assign the CustomObject to the Extensions map
+	// Assign the CustomObject to the Extensions map.
+	// Extensions is nil for contexts that have never had extensions set; initialize
+	// it before writing to avoid a nil-map panic.
+	if contextConfig.Extensions == nil {
+		contextConfig.Extensions = make(map[string]k8sruntime.Object)
+	}
+
 	contextConfig.Extensions["headlamp_info"] = customObj
 
 	if err := clientcmd.WriteToFile(*config, path); err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": contextName},
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: contextName},
 			err, "writing kubeconfig file")
 
 		return err
@@ -2171,7 +2550,7 @@ func (c *HeadlampConfig) getPathAndLoadKubeconfig(source, clusterName string) (s
 	// Get path of kubeconfig from source
 	path, err := c.getKubeConfigPath(source)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: clusterName},
 			err, "getting kubeconfig file")
 
 		return "", nil, err
@@ -2180,7 +2559,7 @@ func (c *HeadlampConfig) getPathAndLoadKubeconfig(source, clusterName string) (s
 	// Load kubeconfig file
 	config, err := clientcmd.LoadFromFile(path)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: clusterName},
 			err, "loading kubeconfig file")
 
 		return "", nil, err
@@ -2201,8 +2580,8 @@ func (c *HeadlampConfig) renameCluster(w http.ResponseWriter, r *http.Request) {
 	)
 	defer span.End()
 
-	c.telemetryHandler.RecordEvent(span, "Rename cluster request started")
-	c.telemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", clusterName))
+	c.TelemetryHandler.RecordEvent(span, "Rename cluster request started")
+	c.TelemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", clusterName))
 
 	// Parse request and validate
 	var reqBody RenameClusterRequest
@@ -2213,7 +2592,7 @@ func (c *HeadlampConfig) renameCluster(w http.ResponseWriter, r *http.Request) {
 
 	// Handle stateless clusters separately
 	if reqBody.Stateless {
-		c.telemetryHandler.RecordEvent(span, "Delegating to handleStatelessClusterRename")
+		c.TelemetryHandler.RecordEvent(span, "Delegating to handleStatelessClusterRename")
 		c.handleStatelessClusterRename(w, r, clusterName)
 
 		return
@@ -2224,10 +2603,10 @@ func (c *HeadlampConfig) renameCluster(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Record success metrics and logging
-	c.telemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "renameCluster"))
+	c.TelemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "renameCluster"))
 	logger.Log(logger.LevelInfo, map[string]string{
-		"duration_ms": fmt.Sprintf("%d", time.Since(start).Milliseconds()),
-		"api.route":   "renameCluster",
+		logFieldDurationMs: fmt.Sprintf("%d", time.Since(start).Milliseconds()),
+		"api.route":        "renameCluster",
 	}, nil, "Completed renameCluster request")
 }
 
@@ -2244,22 +2623,26 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 	isUnique := CheckUniqueName(config.Contexts, clusterName, reqBody.NewClusterName)
 	if !isUnique {
 		http.Error(w, "custom name already in use", http.StatusBadRequest)
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
-			err, "cluster name already exists in the kubeconfig")
 
-		return err
+		renameErr := errors.New("cluster name already in use")
+		logger.Log(logger.LevelError, map[string]string{logFieldCluster: clusterName},
+			renameErr, "cluster name already exists in the kubeconfig")
+
+		return renameErr
 	}
 
 	contextName := findMatchingContextName(config, clusterName)
 
-	if err := customNameToExtenstions(config, contextName, reqBody.NewClusterName, path); err != nil {
+	if err := customNameToExtensions(config, contextName, reqBody.NewClusterName, path); err != nil {
 		c.handleError(w, ctx, span, err, "failed to write custom extension", http.StatusInternalServerError)
 		return err
 	}
 
 	if errs := c.updateCustomContextToCache(config, clusterName); len(errs) > 0 {
-		c.handleError(w, ctx, span, err, "failed to update context to cache", http.StatusInternalServerError)
-		return errors.New("failed to update context cache")
+		cacheErr := errors.Join(errs...)
+		c.handleError(w, ctx, span, cacheErr, "failed to update context to cache", http.StatusInternalServerError)
+
+		return cacheErr
 	}
 
 	w.WriteHeader(http.StatusCreated)
@@ -2269,27 +2652,67 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 }
 
 // findMatchingContextName checks all contexts, returning the key for whichever
-// has a matching customObj.CustomName, if any.
+// has a matching customObj.CustomName, if any. It also handles the case where
+// the clusterName is a DNS-friendly version of the original context key
+// (e.g. slashes replaced with double dashes by MakeDNSFriendly).
+//
+// Resolution order:
+//  1. Custom name match (headlamp_info extension) — highest priority, returns immediately.
+//  2. Exact key match — avoids DNS-friendly ambiguity when the name already exists verbatim.
+//  3. DNS-friendly match — collects all candidates; warns and picks the
+//     lexicographically first one when multiple keys map to the same form.
 func findMatchingContextName(config *api.Config, clusterName string) string {
-	contextName := clusterName
-
+	// 1. Custom name takes priority: return the real context key immediately.
 	for k, v := range config.Contexts {
 		info := v.Extensions["headlamp_info"]
-		if info != nil {
-			customObj, err := MarshalCustomObject(info, contextName)
-			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{"cluster": contextName},
-					err, "marshaling custom object")
-				continue
-			}
+		if info == nil {
+			continue
+		}
 
-			if customObj.CustomName != "" && customObj.CustomName == clusterName {
-				contextName = k
-			}
+		customObj, err := MarshalCustomObject(info, k)
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{logFieldCluster: k},
+				err, "marshaling custom object")
+
+			continue
+		}
+
+		if customObj.CustomName != "" && customObj.CustomName == clusterName {
+			return k
 		}
 	}
 
-	return contextName
+	// 2. Exact key match: clusterName is already a verbatim context key.
+	if _, ok := config.Contexts[clusterName]; ok {
+		return clusterName
+	}
+
+	// 3. DNS-friendly match: collect all keys whose DNS-friendly form matches.
+	// Sorting makes the selection deterministic when multiple keys collide.
+	var matches []string
+
+	for k := range config.Contexts {
+		if kubeconfig.MakeDNSFriendly(k) == clusterName {
+			matches = append(matches, k)
+		}
+	}
+
+	switch len(matches) {
+	case 1:
+		return matches[0]
+	case 0:
+		return clusterName
+	default:
+		sort.Strings(matches)
+		logger.Log(logger.LevelWarn,
+			map[string]string{"clusterName": clusterName},
+			nil,
+			fmt.Sprintf("ambiguous DNS-friendly cluster name %q matches multiple context keys %v; using %q",
+				clusterName, matches, matches[0]),
+		)
+
+		return matches[0]
+	}
 }
 
 // checkUniqueName returns false if 'newName' is already in 'names', otherwise returns true.
@@ -2355,11 +2778,11 @@ func (c *HeadlampConfig) addClusterSetupRoute(r *mux.Router) {
 /*
 This function is used to handle the node drain request.
 */
-func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request) {
+func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request) { //nolint:funlen
 	ctx := r.Context()
 	_, span := telemetry.CreateSpan(ctx, r, "node-management", "handleNodeDrain")
-	c.telemetryHandler.RecordRequestCount(ctx, r)
-	c.telemetryHandler.RecordEvent(span, "node drain request started")
+	c.TelemetryHandler.RecordRequestCount(ctx, r)
+	c.TelemetryHandler.RecordEvent(span, "node drain request started")
 
 	defer span.End()
 
@@ -2384,8 +2807,6 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 
 		return
 	}
-	// get token from header
-	token := r.Header.Get("Authorization")
 
 	ctxtProxy, err := c.KubeConfigStore.GetContext(drainPayload.Cluster)
 	if err != nil {
@@ -2393,6 +2814,8 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 
 		return
 	}
+
+	token := c.requestTokenForContext(r, drainPayload.Cluster, ctxtProxy)
 
 	clientset, err := ctxtProxy.ClientSetWithToken(token)
 	if err != nil {
@@ -2415,52 +2838,112 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	c.drainNode(clientset, drainPayload.NodeName, drainPayload.Cluster)
+	serverCtx := c.ServerCtx
+	if serverCtx == nil {
+		serverCtx = context.Background()
+	}
+
+	c.drainNode(serverCtx, clientset, drainPayload.NodeName, drainPayload.Cluster)
 }
 
-func (c *HeadlampConfig) drainNode(clientset *kubernetes.Clientset, nodeName string, cluster string) {
+func (c *HeadlampConfig) drainNode(
+	ctx context.Context,
+	clientset kubernetes.Interface,
+	nodeName string,
+	cluster string,
+) {
 	go func() {
-		nodeClient := clientset.CoreV1().Nodes()
-		ctx := context.Background()
-		cacheKey := uuid.NewSHA1(uuid.Nil, []byte(nodeName+cluster)).String()
-		cacheItemTTL := DrainNodeCacheTTL * time.Minute
+		if ctx.Err() != nil {
+			return
+		}
 
-		node, err := nodeClient.Get(context.TODO(), nodeName, v1.GetOptions{})
+		nodeClient := clientset.CoreV1().Nodes()
+		cacheKey := uuid.NewSHA1(uuid.Nil, []byte(nodeName+"\x00"+cluster)).String()
+		cacheItemTTL := DrainNodeCacheTTL * time.Second
+
+		node, err := nodeClient.Get(ctx, nodeName, v1.GetOptions{})
 		if err != nil {
-			_ = c.cache.SetWithTTL(ctx, cacheKey, "error: "+err.Error(), cacheItemTTL)
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return
+			}
+
+			_ = c.Cache.SetWithTTL(ctx, cacheKey, "error: "+err.Error(), cacheItemTTL)
+
 			return
 		}
 
 		// cordon the node first
 		node.Spec.Unschedulable = true
 
-		_, err = nodeClient.Update(context.TODO(), node, v1.UpdateOptions{})
+		_, err = nodeClient.Update(ctx, node, v1.UpdateOptions{})
 		if err != nil {
-			_ = c.cache.SetWithTTL(ctx, cacheKey, "error: "+err.Error(), cacheItemTTL)
-			return
-		}
-
-		pods, err := clientset.CoreV1().Pods("").List(context.TODO(),
-			v1.ListOptions{FieldSelector: "spec.nodeName=" + nodeName})
-		if err != nil {
-			_ = c.cache.SetWithTTL(ctx, cacheKey, "error: "+err.Error(), cacheItemTTL)
-			return
-		}
-
-		var gracePeriod int64 = 0
-
-		for _, pod := range pods.Items {
-			// ignore daemonsets
-			if pod.ObjectMeta.Labels["kubernetes.io/created-by"] == "daemonset-controller" {
-				continue
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return
 			}
 
-			_ = clientset.CoreV1().Pods(pod.Namespace).Delete(context.TODO(),
-				pod.Name, v1.DeleteOptions{GracePeriodSeconds: &gracePeriod})
+			_ = c.Cache.SetWithTTL(ctx, cacheKey, "error: "+err.Error(), cacheItemTTL)
+
+			return
 		}
 
-		_ = c.cache.SetWithTTL(ctx, cacheKey, "success", cacheItemTTL)
+		pods, err := clientset.CoreV1().Pods("").List(ctx,
+			v1.ListOptions{FieldSelector: "spec.nodeName=" + nodeName})
+		if err != nil {
+			if errors.Is(err, context.Canceled) || errors.Is(err, context.DeadlineExceeded) {
+				return
+			}
+
+			_ = c.Cache.SetWithTTL(ctx, cacheKey, "error: "+err.Error(), cacheItemTTL)
+
+			return
+		}
+
+		c.drainNodePods(ctx, clientset, pods.Items, cacheKey, cacheItemTTL)
 	}()
+}
+
+func (c *HeadlampConfig) drainNodePods(
+	ctx context.Context,
+	clientset kubernetes.Interface,
+	pods []corev1.Pod,
+	cacheKey string,
+	cacheItemTTL time.Duration,
+) {
+	var gracePeriod int64 = 0
+
+	var deleteErrors []string
+
+	for _, pod := range pods {
+		if ctx.Err() != nil {
+			return
+		}
+
+		// ignore daemonsets
+		if pod.Labels["kubernetes.io/created-by"] == "daemonset-controller" {
+			continue
+		}
+
+		if err := clientset.CoreV1().Pods(pod.Namespace).Delete(ctx,
+			pod.Name, v1.DeleteOptions{GracePeriodSeconds: &gracePeriod}); err != nil &&
+			!apierrors.IsNotFound(err) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			deleteErrors = append(deleteErrors, fmt.Sprintf("%s/%s: %v", pod.Namespace, pod.Name, err))
+		}
+	}
+
+	if ctx.Err() != nil {
+		return
+	}
+
+	if len(deleteErrors) > 0 {
+		errMsg := fmt.Sprintf("error: failed to delete %d pod(s)", len(deleteErrors))
+		logger.Log(logger.LevelError, nil, nil,
+			fmt.Sprintf("node drain: failed to delete %d pod(s): %s",
+				len(deleteErrors), strings.Join(deleteErrors, "; ")))
+
+		_ = c.Cache.SetWithTTL(ctx, cacheKey, errMsg, cacheItemTTL)
+	} else {
+		_ = c.Cache.SetWithTTL(ctx, cacheKey, "success", cacheItemTTL)
+	}
 }
 
 /*
@@ -2476,8 +2959,8 @@ func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Re
 		attribute.String("cluster", r.URL.Query().Get("cluster")),
 		attribute.String("nodeName", r.URL.Query().Get("nodeName")),
 	)
-	c.telemetryHandler.RecordEvent(span, "handleNodeDrainStatus request started")
-	c.telemetryHandler.RecordRequestCount(ctx, r)
+	c.TelemetryHandler.RecordEvent(span, "handleNodeDrainStatus request started")
+	c.TelemetryHandler.RecordRequestCount(ctx, r)
 
 	defer span.End()
 
@@ -2501,9 +2984,9 @@ func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Re
 		return
 	}
 
-	cacheKey := uuid.NewSHA1(uuid.Nil, []byte(drainPayload.NodeName+drainPayload.Cluster)).String()
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte(drainPayload.NodeName+"\x00"+drainPayload.Cluster)).String()
 
-	cacheItem, err := c.cache.Get(ctx, cacheKey)
+	cacheItem, err := c.Cache.Get(ctx, cacheKey)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "failed to get cache item", http.StatusNotFound)
 
@@ -2518,16 +3001,17 @@ func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Re
 		Cluster: drainPayload.Cluster,
 	}
 
-	c.telemetryHandler.RecordEvent(span, "Drain status found", attribute.String("cache.key", cacheKey))
+	c.TelemetryHandler.RecordEvent(span, "Drain status found", attribute.String("cache.key", cacheKey))
 
 	if err = json.NewEncoder(w).Encode(responsePayload); err != nil {
-		c.handleError(w, ctx, span, err, "failed to encode repsone", http.StatusInternalServerError)
+		c.handleError(w, ctx, span, err, "failed to encode response", http.StatusInternalServerError)
 
 		return
 	}
 
-	c.telemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "handleNodeDrainStatus"))
-	logger.Log(logger.LevelInfo, map[string]string{"duration_ms": fmt.Sprintf("%d", time.Since(start).Milliseconds())},
+	c.TelemetryHandler.RecordDuration(ctx, start, attribute.String("api.route", "handleNodeDrainStatus"))
+	logger.Log(logger.LevelInfo,
+		map[string]string{logFieldDurationMs: fmt.Sprintf("%d", time.Since(start).Milliseconds())},
 		nil, "handleNodeDrainStatus completed")
 }
 
@@ -2554,7 +3038,7 @@ func (c *HeadlampConfig) handleSetToken(w http.ResponseWriter, r *http.Request) 
 	if req.Token == "" {
 		auth.ClearTokenCookie(w, r, cluster, c.BaseURL)
 	} else {
-		auth.SetTokenCookie(w, r, cluster, req.Token, c.BaseURL)
+		auth.SetTokenCookie(w, r, cluster, req.Token, c.BaseURL, c.SessionTTL)
 	}
 
 	w.WriteHeader(http.StatusOK)
