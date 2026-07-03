@@ -186,14 +186,13 @@ jobs:
           mkdir -p ./temp-checksums
 
           # Download the checksums.txt file that was just uploaded
-          gh release download "${{ inputs.release_name }}" --repo "${{ github.repository }}" --pattern "checksums.txt" --dir ./temp-checksums --clobber
+          gh release download "${{ steps.validate_run_shas.outputs.tag_name }}" --repo "${{ github.repository }}" --pattern "checksums.txt" --dir ./temp-checksums --clobber
 
           # Create detached signature for checksums.txt
           gpg --batch --yes --passphrase-file "$CR_PASSPHRASE_FILE" --default-key "${{ secrets.GPG_SIGNING_KEY_NAME }}" --armor --detach-sign ./temp-checksums/checksums.txt
 
           # Upload the signature file
-          gh release upload "${{ inputs.release_name }}" --repo "${{ github.repository }}" ./temp-checksums/checksums.txt.asc --clobber
-
+          gh release upload "${{ steps.validate_run_shas.outputs.tag_name }}" --repo "${{ github.repository }}" ./temp-checksums/checksums.txt.asc --clobber           
           echo "Checksums signature created and uploaded successfully"
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_UPDATE_TOKEN }}
