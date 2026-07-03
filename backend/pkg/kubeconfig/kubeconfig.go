@@ -1081,7 +1081,7 @@ func deriveInClusterName(ctx context.Context, clientset kubernetes.Interface) (s
 	}
 
 	name := strings.TrimSpace(parsed.ClusterName)
-	if name == "" {
+	if name == "" || strings.EqualFold(name, "kubernetes") {
 		return "", errors.New("kubeadm ClusterConfiguration has no clusterName")
 	}
 
