@@ -57,7 +57,7 @@ export function drainNode(cluster: string, nodeName: string) {
  * Represents the current status of a node drain operation.
  */
 interface DrainNodeStatus {
-  /** The unique identifier representing the drain operation. */
+  /** Status of the drain operation (e.g., 'success' or an 'error: ...' message). */
   id: string;
   /** The name of the cluster where the node is being drained. */
   cluster: string;

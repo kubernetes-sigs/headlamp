@@ -116,7 +116,7 @@ export function streamResult<T extends KubeObjectInterface>(
  * @param errCb - The callback function to execute when an error occurs.
  * @param queryParams - The query parameters to include in the API request.
  *
- * @returns A function to cancel the stream.
+ * @returns A promise that resolves to a function which can be called to cancel the stream.
  */
 export function streamResults<T extends KubeObjectInterface>(
   url: string,
@@ -400,11 +400,15 @@ export async function connectStream<T>(
   });
 }
 
-// @todo: needs documenting.
-
+/**
+ * Configuration options for establishing a stream.
+ */
 interface StreamParams {
+  /** The name of the cluster to connect to. */
   cluster?: string;
+  /** Whether the stream is expected to receive JSON data. */
   isJson?: boolean;
+  /** Additional WebSocket protocols to use when connecting. */
   additionalProtocols?: string[];
 }
 
