@@ -128,7 +128,10 @@ export function streamResults<T extends KubeObjectInterface>(
   return streamResultsForCluster(url, { cb, errCb, cluster }, queryParams);
 }
 
-// @todo: this interface needs documenting.
+/**
+ * Configuration options for establishing a stream to a cluster.
+ * Groups the cluster name along with the callbacks used to process incoming data and errors.
+ */
 
 export interface StreamResultsParams {
   cb: StreamResultsCb;
@@ -136,7 +139,14 @@ export interface StreamResultsParams {
   cluster?: string;
 }
 
-// @todo: needs documenting
+/**
+ * Establishes a stream to the Kubernetes API for a specific cluster.
+ *
+ * @param url - The Kubernetes API endpoint to stream from.
+ * @param params - The callback functions and cluster information.
+ * @param queryParams - Optional query parameters to append to the request.
+ * @returns A promise that resolves to a function which can be called to cancel the stream.
+ */
 
 export function streamResultsForCluster(
   url: string,
