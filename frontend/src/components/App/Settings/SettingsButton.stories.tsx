@@ -15,7 +15,7 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
-import { useEffect } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { TestContext } from '../../../test';
 import SettingsButton from './SettingsButton';
 
@@ -23,9 +23,21 @@ import SettingsButton from './SettingsButton';
 // renders nothing when there is none. Point the URL at a cluster for the story,
 // restoring it afterwards so other stories are unaffected.
 function WithCluster({ children }: { children: React.ReactNode }) {
-  const previous = window.location.pathname;
-  window.history.replaceState({}, '', '/c/mock-cluster/settings');
-  useEffect(() => () => window.history.replaceState({}, '', previous), [previous]);
+  const [ready, setReady] = useState(false);
+  const previous = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    previous.current = window.location.pathname;
+    window.history.replaceState({}, '', '/c/mock-cluster/settings');
+    setReady(true);
+    return () => {
+      if (previous.current !== null) {
+        window.history.replaceState({}, '', previous.current);
+      }
+    };
+  }, []);
+  if (!ready) {
+    return null;
+  }
   return <>{children}</>;
 }
 

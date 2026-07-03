@@ -15,7 +15,7 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
-import { useEffect } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { TestContext } from '../../../test';
 import NumRowsInput from './NumRowsInput';
 
@@ -26,18 +26,23 @@ const TABLES_ROWS_PER_PAGE_KEY = 'tables_rows_per_page';
 // a fixed value before the child renders and restore it on unmount so the
 // snapshot is deterministic and does not leak into other stories.
 function WithFixedRowsPerPage({ children }: { children: React.ReactNode }) {
-  const previous = localStorage.getItem(TABLES_ROWS_PER_PAGE_KEY);
-  localStorage.setItem(TABLES_ROWS_PER_PAGE_KEY, '15');
-  useEffect(
-    () => () => {
-      if (previous === null) {
+  const [ready, setReady] = useState(false);
+  const previous = useRef<string | null>(null);
+  useLayoutEffect(() => {
+    previous.current = localStorage.getItem(TABLES_ROWS_PER_PAGE_KEY);
+    localStorage.setItem(TABLES_ROWS_PER_PAGE_KEY, '15');
+    setReady(true);
+    return () => {
+      if (previous.current === null) {
         localStorage.removeItem(TABLES_ROWS_PER_PAGE_KEY);
       } else {
-        localStorage.setItem(TABLES_ROWS_PER_PAGE_KEY, previous);
+        localStorage.setItem(TABLES_ROWS_PER_PAGE_KEY, previous.current);
       }
-    },
-    [previous]
-  );
+    };
+  }, []);
+  if (!ready) {
+    return null;
+  }
   return <>{children}</>;
 }
 
