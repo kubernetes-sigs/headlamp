@@ -15,34 +15,34 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { TestContext } from '../../../test';
 import NumRowsInput from './NumRowsInput';
 
 const TABLES_ROWS_PER_PAGE_KEY = 'tables_rows_per_page';
 
-// NumRowsInput reads tables_rows_per_page from localStorage on mount, and the
-// storyshot harness does not reset localStorage between stories. Pin the key to
-// a fixed value before the child renders and restore it on unmount so the
-// snapshot is deterministic and does not leak into other stories.
+// NumRowsInput reads tables_rows_per_page from localStorage in a render-phase
+// initializer, and the storyshot harness does not reset localStorage between
+// stories. Pin the key to a fixed value before the child renders and restore it
+// on unmount so the snapshot is deterministic and does not leak into other
+// stories. The ref guard captures the real previous value exactly once, so a
+// double render (StrictMode) doesn't record the mocked value as the original.
 function WithFixedRowsPerPage({ children }: { children: React.ReactNode }) {
-  const [ready, setReady] = useState(false);
-  const previous = useRef<string | null>(null);
-  useLayoutEffect(() => {
+  const previous = useRef<string | null | undefined>(undefined);
+  if (previous.current === undefined) {
     previous.current = localStorage.getItem(TABLES_ROWS_PER_PAGE_KEY);
     localStorage.setItem(TABLES_ROWS_PER_PAGE_KEY, '15');
-    setReady(true);
-    return () => {
-      if (previous.current === null) {
+  }
+  useEffect(
+    () => () => {
+      if (previous.current === null || previous.current === undefined) {
         localStorage.removeItem(TABLES_ROWS_PER_PAGE_KEY);
       } else {
         localStorage.setItem(TABLES_ROWS_PER_PAGE_KEY, previous.current);
       }
-    };
-  }, []);
-  if (!ready) {
-    return null;
-  }
+    },
+    []
+  );
   return <>{children}</>;
 }
 
