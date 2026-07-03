@@ -23,27 +23,29 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const directoryPath = path.join(__dirname, sharedConfig.localesPath);
 const currentLocales = [];
 
-fs.readdirSync(directoryPath).forEach(file => currentLocales.push(file));
+if (fs.existsSync(directoryPath)) {
+  fs.readdirSync(directoryPath).forEach(file => currentLocales.push(file));
+}
 
 export default {
-  lexers: {
-    default: ['JsxLexer'],
-  },
-  namespaceSeparator: '|',
-  keySeparator: false,
-  output: path.join(directoryPath, './$LOCALE/$NAMESPACE.json'),
-  locales: currentLocales,
-  contextSeparator: sharedConfig.contextSeparator,
-  defaultValue: (locale, _namespace, key) => {
-    // The English catalog has "SomeKey": "SomeKey" so we stop warnings about
-    // missing values.
-    if (locale === 'en') {
-      const contextSepIdx = key.indexOf(sharedConfig.contextSeparator);
-      if (contextSepIdx >= 0) {
-        return key.substring(0, contextSepIdx);
+  locales: currentLocales.length > 0 ? currentLocales : ['en'],
+  extract: {
+    input: ['src/**/*.{ts,tsx}'],
+    output: path.join(directoryPath, './{{language}}/{{namespace}}.json'),
+    contextSeparator: sharedConfig.contextSeparator,
+    keySeparator: false,
+    nsSeparator: '|',
+    defaultValue: (key, _namespace, language) => {
+      // The English catalog has "SomeKey": "SomeKey" so we stop warnings about
+      // missing values.
+      if (language === 'en') {
+        const contextSepIdx = key.indexOf(sharedConfig.contextSeparator);
+        if (contextSepIdx >= 0) {
+          return key.substring(0, contextSepIdx);
+        }
+        return key;
       }
-      return key;
-    }
-    return '';
+      return '';
+    },
   },
 };

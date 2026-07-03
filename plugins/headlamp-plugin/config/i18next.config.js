@@ -50,24 +50,24 @@ const localesToUse =
     : ['en'];
 
 module.exports = {
-  lexers: {
-    default: ['JsxLexer'],
-  },
-  namespaceSeparator: '|',
-  keySeparator: false,
-  output: path.join(directoryPath, './$LOCALE/$NAMESPACE.json'),
   locales: localesToUse,
-  contextSeparator: '//context:',
-  defaultValue: (locale, _namespace, key) => {
-    // The English catalog has "SomeKey": "SomeKey" so we stop warnings about
-    // missing values.
-    if (locale === 'en') {
-      const contextSepIdx = key.indexOf('//context:');
-      if (contextSepIdx >= 0) {
-        return key.substring(0, contextSepIdx);
+  extract: {
+    input: ['src/**/*.{ts,tsx,js,jsx}'],
+    output: path.join(directoryPath, './{{language}}/{{namespace}}.json'),
+    contextSeparator: '//context:',
+    keySeparator: false,
+    nsSeparator: '|',
+    defaultValue: (key, _namespace, language) => {
+      // The English catalog has "SomeKey": "SomeKey" so we stop warnings about
+      // missing values.
+      if (language === 'en') {
+        const contextSepIdx = key.indexOf('//context:');
+        if (contextSepIdx >= 0) {
+          return key.substring(0, contextSepIdx);
+        }
+        return key;
       }
-      return key;
-    }
-    return '';
+      return '';
+    },
   },
 };

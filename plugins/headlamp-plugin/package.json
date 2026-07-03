@@ -79,7 +79,7 @@
     "humanize-duration": "^3.27.2",
     "i18next": "^23.15.1",
     "i18next-browser-languagedetector": "^8.0.0",
-    "i18next-parser": "^9.1.0",
+    "i18next-cli": "^1.65.0",
     "js-base64": "^3.7.2",
     "js-yaml": "^4.1.1",
     "jsdom": "^24.0.0",

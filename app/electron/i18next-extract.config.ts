@@ -19,16 +19,25 @@ import sharedConfig from '../../frontend/src/i18n/i18nextSharedConfig.mjs';
 import { CURRENT_LOCALES, LOCALES_DIR } from './i18n-helper';
 
 export default {
-  lexers: {
-    default: ['JsxLexer'],
-  },
-  namespaceSeparator: '|',
-  keySeparator: false,
-  defaultNamespace: 'app',
-  contextSeparator: sharedConfig.contextSeparator,
-  output: path.join(LOCALES_DIR, '$LOCALE/$NAMESPACE.json'),
   locales: CURRENT_LOCALES.length > 0 ? CURRENT_LOCALES : ['en'],
-  // The English catalog has "SomeKey": "SomeKey" so we stop warnings about
-  // missing values.
-  useKeysAsDefaultValue: (locale: string) => locale === 'en',
+  extract: {
+    input: ['electron/**/*.ts'],
+    output: path.join(LOCALES_DIR, '{{language}}/{{namespace}}.json'),
+    defaultNamespace: 'app',
+    contextSeparator: sharedConfig.contextSeparator,
+    keySeparator: false,
+    nsSeparator: '|',
+    defaultValue: (key: string, _namespace: string, language: string) => {
+      // The English catalog has "SomeKey": "SomeKey" so we stop warnings about
+      // missing values.
+      if (language === 'en') {
+        const contextSepIdx = key.indexOf(sharedConfig.contextSeparator);
+        if (contextSepIdx >= 0) {
+          return key.substring(0, contextSepIdx);
+        }
+        return key;
+      }
+      return '';
+    },
+  },
 };
