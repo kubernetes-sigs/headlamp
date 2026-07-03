@@ -631,9 +631,6 @@ async function fetchPluginInfo(URL, progressCallback, signal, pluginVersion) {
     }
     return pluginInfo;
   } catch (e) {
-    if (progressCallback) {
-      progressCallback({ type: 'error', message: e.message });
-    }
     throw e;
   }
 }

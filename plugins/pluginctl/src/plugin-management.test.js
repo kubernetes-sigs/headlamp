@@ -96,9 +96,9 @@ describe('PluginManager Test Cases', () => {
 
   test('Update Plugin Rollback on Move Failure', async () => {
     // Set a lower version first in the installed plugin
-    const pluginDir = `${tempDir}/headlamp_flux`;
+    const pluginDir = path.join(tempDir, 'headlamp_flux');
     const backupDir = `${pluginDir}.backup`;
-    const packageJSONPath = `${pluginDir}/package.json`;
+    const packageJSONPath = path.join(pluginDir, 'package.json');
     const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath, 'utf8'));
     packageJSON.artifacthub.version = '0.0.1'; // Lower version to trigger update
     fs.writeFileSync(packageJSONPath, JSON.stringify(packageJSON, null, 2));

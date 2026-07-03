@@ -1086,10 +1086,6 @@ async function fetchPluginInfo(
 
     return pkg;
   } catch (e) {
-    if (progressCallback) {
-      progressCallback({ type: 'error', message: e instanceof Error ? e.message : String(e) });
-    }
-
     throw e;
   }
 }
