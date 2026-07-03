@@ -53,10 +53,13 @@ export function drainNode(cluster: string, nodeName: string) {
   });
 }
 
-// @todo: needs documenting.
-
+/**
+ * Represents the current status of a node drain operation.
+ */
 interface DrainNodeStatus {
-  id: string; //@todo: what is this and what is it for?
+  /** The unique identifier representing the drain operation. */
+  id: string;
+  /** The name of the cluster where the node is being drained. */
   cluster: string;
 }
 
@@ -70,7 +73,7 @@ interface DrainNodeStatus {
  * @param cluster - The cluster to get the status of the drain node process for.
  * @param nodeName - The node name to get the status of the drain node process for.
  *
- * @returns - The response from the API. @todo: what response?
+ * @returns A promise that resolves to the current status of the drain node process.
  * @throws {Error} if the request fails
  * @throws {Error} if the response is not ok
  */
