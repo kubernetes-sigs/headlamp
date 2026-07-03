@@ -15,29 +15,29 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useRef } from 'react';
 import { TestContext } from '../../../test';
 import SettingsButton from './SettingsButton';
 
-// SettingsButton reads the active cluster from window.location (getCluster) and
-// renders nothing when there is none. Point the URL at a cluster for the story,
-// restoring it afterwards so other stories are unaffected.
+// SettingsButton reads the active cluster from window.location (getCluster) in
+// render and renders nothing when there is none. Point the URL at a cluster
+// before the child renders, restoring it on unmount so other stories are
+// unaffected. The ref guard captures the real previous path exactly once, so a
+// double render (StrictMode) doesn't record the mocked path as the original.
 function WithCluster({ children }: { children: React.ReactNode }) {
-  const [ready, setReady] = useState(false);
-  const previous = useRef<string | null>(null);
-  useLayoutEffect(() => {
+  const previous = useRef<string | undefined>(undefined);
+  if (previous.current === undefined) {
     previous.current = window.location.pathname;
     window.history.replaceState({}, '', '/c/mock-cluster/settings');
-    setReady(true);
-    return () => {
-      if (previous.current !== null) {
+  }
+  useEffect(
+    () => () => {
+      if (previous.current !== undefined) {
         window.history.replaceState({}, '', previous.current);
       }
-    };
-  }, []);
-  if (!ready) {
-    return null;
-  }
+    },
+    []
+  );
   return <>{children}</>;
 }
 
