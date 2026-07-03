@@ -22,7 +22,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
 import Event from '../../lib/k8s/event';
-import Node from '../../lib/k8s/node';
+import Node, { useNodeMetrics } from '../../lib/k8s/node';
 import Pod from '../../lib/k8s/pod';
 import { useFilterFunc } from '../../lib/util';
 import { useNamespaces } from '../../redux/filterSlice';
@@ -53,7 +53,7 @@ export default function Overview() {
   // watches here because large clusters can stream enough events to exhaust the tab.
   const [pods] = Pod.useList({ refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS });
   const [nodes] = Node.useList({ refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS });
-  const [nodeMetrics, metricsError] = Node.useMetrics();
+  const [nodeMetrics, metricsError] = useNodeMetrics();
   const chartProcessors = useTypedSelector(state => state.overviewCharts.processors);
 
   const noMetrics = metricsError?.status === 404;

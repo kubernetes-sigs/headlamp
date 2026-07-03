@@ -30,7 +30,7 @@ import { drainNode, drainNodeStatus } from '../../lib/k8s/api/v1/drainNode';
 import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import type { KubeNodeSummaryStats } from '../../lib/k8s/api/v2/nodeSummaryApi';
 import { KubeContainer, KubeMetrics } from '../../lib/k8s/cluster';
-import Node from '../../lib/k8s/node';
+import Node, { useNodeMetrics, useNodeSummaryStats } from '../../lib/k8s/node';
 import type { KubePod } from '../../lib/k8s/pod';
 import Pod from '../../lib/k8s/pod';
 import * as units from '../../lib/units';
@@ -80,8 +80,8 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
   const dispatch: AppDispatch = useDispatch();
 
   const { enqueueSnackbar } = useSnackbar();
-  const [nodeMetrics, metricsError] = Node.useMetrics(cluster);
-  const [nodeSummaryStats, nodeSummaryError] = Node.useNodeSummaryStats(name, cluster);
+  const [nodeMetrics, metricsError] = useNodeMetrics(cluster);
+  const [nodeSummaryStats, nodeSummaryError] = useNodeSummaryStats(name, cluster);
   const [isupdatingNodeScheduleProperty, setisUpdatingNodeScheduleProperty] = React.useState(false);
   const [isNodeDrainInProgress, setisNodeDrainInProgress] = React.useState(false);
   const [pollingDrainNodeName, setPollingDrainNodeName] = React.useState<string | null>(null);
