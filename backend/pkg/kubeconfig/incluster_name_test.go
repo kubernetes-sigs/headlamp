@@ -62,6 +62,13 @@ func TestDeriveInClusterName(t *testing.T) {
 			expectErr: true,
 		},
 		{
+			name: "kubeadm default clusterName is treated as unset",
+			configMap: kubeadmConfigMap(map[string]string{
+				"ClusterConfiguration": "clusterName: kubernetes\n",
+			}),
+			expectErr: true,
+		},
+		{
 			name: "malformed YAML",
 			configMap: kubeadmConfigMap(map[string]string{
 				"ClusterConfiguration": "clusterName: [unterminated",
