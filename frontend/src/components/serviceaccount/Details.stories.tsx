@@ -17,35 +17,40 @@
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { API_BASE, TestContext } from '../../test';
-import ServiceAccountDetails from './Details';
-import { BASE_EMPTY_SERVICE_ACCOUNT, BASE_SERVICE_ACCOUNT } from './storyHelper';
+import Details from './Details';
+import { SERVICE_ACCOUNT_DUMMY_DATA } from './storyHelper';
 
 export default {
   title: 'ServiceAccount/DetailsView',
-  component: ServiceAccountDetails,
-  argTypes: {},
+  component: Details,
   decorators: [
-    Story => {
+    (Story, context) => {
+      const routerMap = context.parameters.routerMap ?? {
+        namespace: 'default',
+        name: 'my-service-account',
+      };
       return (
-        <TestContext routerMap={{ namespace: 'default', name: 'my-sa' }}>
+        <TestContext routerMap={routerMap}>
           <Story />
         </TestContext>
       );
     },
   ],
+
   parameters: {
     msw: {
       handlers: {
         storyBase: [
           http.get(`${API_BASE}/api/v1/namespaces/default/serviceaccounts`, () =>
-            HttpResponse.error()
-          ),
-          http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
             HttpResponse.json({
-              kind: 'EventList',
+              kind: 'ServiceAccountList',
+              apiVersion: 'v1',
               items: [],
               metadata: {},
             })
+          ),
+          http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
+            HttpResponse.json({ kind: 'EventList', apiVersion: 'v1', items: [], metadata: {} })
           ),
         ],
       },
@@ -53,30 +58,76 @@ export default {
   },
 } as Meta;
 
-const Template: StoryFn = () => {
-  return <ServiceAccountDetails />;
-};
+const Template: StoryFn = () => <Details />;
 
-export const WithBase = Template.bind({});
-WithBase.parameters = {
+export const Loading = Template.bind({});
+Loading.parameters = {
+  storyshots: { disable: true },
   msw: {
     handlers: {
       story: [
-        http.get(`${API_BASE}/api/v1/namespaces/default/serviceaccounts/my-sa`, () =>
-          HttpResponse.json(BASE_SERVICE_ACCOUNT)
+        http.get(
+          `${API_BASE}/api/v1/namespaces/default/serviceaccounts/my-service-account`,
+          () => new Promise(() => {})
         ),
       ],
     },
   },
 };
 
-export const Empty = Template.bind({});
-Empty.parameters = {
+export const WithData = Template.bind({});
+WithData.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get(`${API_BASE}/api/v1/namespaces/default/serviceaccounts/my-sa`, () =>
-          HttpResponse.json(BASE_EMPTY_SERVICE_ACCOUNT)
+        http.get(`${API_BASE}/api/v1/namespaces/default/serviceaccounts/my-service-account`, () =>
+          HttpResponse.json(SERVICE_ACCOUNT_DUMMY_DATA[0])
+        ),
+      ],
+    },
+  },
+};
+
+export const NoSecrets = Template.bind({});
+NoSecrets.parameters = {
+  routerMap: { name: 'no-secrets-account', namespace: 'default' },
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/api/v1/namespaces/default/serviceaccounts/no-secrets-account`, () =>
+          HttpResponse.json(SERVICE_ACCOUNT_DUMMY_DATA[2])
+        ),
+      ],
+    },
+  },
+};
+
+export const AutomountDisabled = Template.bind({});
+AutomountDisabled.parameters = {
+  routerMap: { name: 'automount-disabled-account', namespace: 'default' },
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          `${API_BASE}/api/v1/namespaces/default/serviceaccounts/automount-disabled-account`,
+          () =>
+            HttpResponse.json({
+              ...SERVICE_ACCOUNT_DUMMY_DATA[1],
+              secrets: SERVICE_ACCOUNT_DUMMY_DATA[0].secrets,
+            })
+        ),
+      ],
+    },
+  },
+};
+
+export const Error = Template.bind({});
+Error.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/api/v1/namespaces/default/serviceaccounts/my-service-account`, () =>
+          HttpResponse.json({ message: 'Not found' }, { status: 404 })
         ),
       ],
     },
