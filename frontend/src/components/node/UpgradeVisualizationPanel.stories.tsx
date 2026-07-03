@@ -25,7 +25,7 @@ import { UpgradeProgress } from './UpgradeVisualizationPanel';
 // upgrade events; UpgradeProgress is the pure renderer it ends up showing, so
 // the stories drive it directly with the nodes and events as fixtures.
 const nodes = AKS_UPGRADE_NODES.map(data => new Node(data));
-const events = AKS_UPGRADE_EVENTS.map(data => new Event(data as any));
+const events = AKS_UPGRADE_EVENTS.map(data => new Event(data));
 
 export default {
   title: 'node/UpgradeVisualizationPanel',

@@ -15,6 +15,7 @@
  */
 
 import type { KubeMetrics } from '../../lib/k8s/cluster';
+import type { KubeEvent } from '../../lib/k8s/event';
 import type { KubeNode } from '../../lib/k8s/node';
 import { NODE_POOL_LABEL_KEYS } from '../../lib/k8s/nodeConstants';
 
@@ -253,21 +254,31 @@ export const AKS_UPGRADE_NODES: KubeNode[] = [
   makeAKSNode('aks-node-idle'),
 ];
 
-function makeUpgradeEvent(reason: string, message: string, nodeName: string) {
-  // No timestamps: the stepper renders stage times via toLocaleTimeString, which
-  // is timezone-dependent and would make snapshots differ between machines/CI.
-  // Omitting them keeps the snapshot deterministic; event order below is fixed.
+function makeUpgradeEvent(reason: string, message: string, nodeName: string): KubeEvent {
+  // Timestamps are left empty: the stepper renders stage times via
+  // toLocaleTimeString, which is timezone-dependent and would make snapshots
+  // differ between machines/CI. Empty keeps the snapshot deterministic; event
+  // order below is fixed.
   return {
     kind: 'Event',
     apiVersion: 'v1',
     type: 'Normal',
     reason,
     message,
-    involvedObject: { kind: 'Node', name: nodeName },
+    involvedObject: {
+      kind: 'Node',
+      namespace: '',
+      name: nodeName,
+      uid: `${nodeName}-uid`,
+      apiVersion: 'v1',
+      resourceVersion: '',
+      fieldPath: '',
+    },
     metadata: {
       name: `${nodeName}-${reason}`,
       namespace: 'default',
       uid: `${nodeName}-${reason}-uid`,
+      creationTimestamp: '',
     },
   };
 }
@@ -277,7 +288,7 @@ function makeUpgradeEvent(reason: string, message: string, nodeName: string) {
  * event (so an upgrade is detected), cordon + drain events for the upgrading
  * node, and a surge event for the surge node.
  */
-export const AKS_UPGRADE_EVENTS = [
+export const AKS_UPGRADE_EVENTS: KubeEvent[] = [
   makeUpgradeEvent('Upgrade', 'Upgrade started for agent pool nodepool1', 'aks-node-upgrading'),
   makeUpgradeEvent('Cordon', 'Cordoning node aks-node-upgrading', 'aks-node-upgrading'),
   makeUpgradeEvent('Drain', 'Draining node aks-node-upgrading', 'aks-node-upgrading'),
