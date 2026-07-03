@@ -92,6 +92,43 @@ you can run:
 kubectl apply -f https://raw.githubusercontent.com/kubernetes-sigs/headlamp/main/kubernetes-headlamp.yaml
 ```
 
+### Configuring WebSocket mode
+
+Headlamp supports three WebSocket modes for real-time updates:
+
+- `websockets` (default): Standard WebSocket connections.
+- `multiplexer`: **experimental** multiplexed connection for improved performance.
+- `off`: Disable real-time updates entirely (useful for very busy clusters).
+
+To configure it in your YAML deployment, set the `HEADLAMP_CONFIG_WEBSOCKET_MODE` environment variable:
+
+```yaml
+spec:
+  containers:
+    - name: headlamp
+      image: ghcr.io/headlamp-k8s/headlamp:latest
+      args:
+        - "-in-cluster"
+        - "-plugins-dir=/headlamp/plugins"
+      env:
+        - name: HEADLAMP_CONFIG_WEBSOCKET_MODE
+          value: "multiplexer"
+```
+
+**Using Helm:**
+
+```bash
+helm install my-headlamp headlamp/headlamp --namespace kube-system \
+  --set config.websocketMode=multiplexer
+```
+
+Or in your values.yaml:
+
+```yaml
+config:
+  websocketMode: multiplexer
+```
+
 ## Optional TLS Backend Termination
 
 Headlamp supports optional TLS termination at the backend server. The default is to terminate at the ingress (default) or optionally directly at the Headlamp container. This enables use cases such as NGINX TLS passthrough and transport server. See [tls](./tls.md) for details and usage.

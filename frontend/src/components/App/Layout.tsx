@@ -147,7 +147,11 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
       clustersToConfig[cluster.name] = cluster;
     });
 
-    const configToStore = { ...config, clusters: clustersToConfig };
+    const configToStore = {
+      ...config,
+      clusters: clustersToConfig,
+      websocketMode: config?.websocketMode ?? 'websockets',
+    };
 
     if (clusters === null) {
       dispatch(setConfig(configToStore));

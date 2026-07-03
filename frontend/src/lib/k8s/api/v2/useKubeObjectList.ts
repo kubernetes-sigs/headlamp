@@ -16,7 +16,17 @@
 
 import type { QueryObserverOptions } from '@tanstack/react-query';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import {
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from 'react';
+import { ReactReduxContext } from 'react-redux';
+import store from '../../../../redux/stores/store';
 import type { KubeObject, KubeObjectClass } from '../../KubeObject';
 import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError } from './ApiError';
@@ -31,12 +41,130 @@ import { WebSocketManager } from './multiplexer';
 import { kubeRequestRetry } from './retry';
 import { BASE_WS_URL, useWebSockets } from './webSocket';
 
+/** Valid values for the WebSocket mode setting. */
+export type WebsocketMode = 'websockets' | 'off' | 'multiplexer';
+
 /**
- * @returns true if the websocket multiplexer is enabled.
- * defaults to true. This is a feature flag to enable the websocket multiplexer.
+ * React hook that returns the current WebSocket mode.
+ *
+ * Priority order (highest wins):
+ *  1. User preference from General Settings UI (persisted in localStorage) — so users can always
+ *     override any deployment-time configuration.
+ *  2. Build-time env var `REACT_APP_WEBSOCKET_MODE` (or legacy `REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER`)
+ *     — used as a fallback when the user is on "Default" (no explicit preference set).
+ *  3. Server-configured value via `HEADLAMP_CONFIG_WEBSOCKET_MODE` / `websocketMode` Helm value.
+ *  4. Default: `'websockets'` once runtime config has loaded. Returns `'off'` while runtime config
+ *     is still `null` (before the `/config` response arrives) to avoid opening WebSocket
+ *     connections before the server-configured mode is known.
+ *
+ * This is a hook because the returned value is reactive: it re-renders callers
+ * when the user changes the General Settings preference or when runtime config loads.
+ *
+ * @returns 'websockets' (default), 'multiplexer' (experimental), or 'off'.
  */
-export function getWebsocketMultiplexerEnabled(): boolean {
-  return import.meta.env.REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER === 'true';
+export function useWebsocketMode(): WebsocketMode {
+  const reduxContext = useContext(ReactReduxContext);
+  const activeStore = reduxContext?.store ?? store;
+  const websocketModeFromConfig = useSyncExternalStore(
+    activeStore.subscribe,
+    () => activeStore.getState().config.websocketMode,
+    () => activeStore.getState().config.websocketMode
+  );
+  const userOverride = useSyncExternalStore(
+    activeStore.subscribe,
+    () => activeStore.getState().config.settings?.websocketModeUserOverride,
+    () => activeStore.getState().config.settings?.websocketModeUserOverride
+  );
+  // 1. User preference from General Settings UI (highest priority — overrides env vars).
+  const valid: WebsocketMode[] = ['websockets', 'off', 'multiplexer'];
+  if (userOverride && valid.includes(userOverride as WebsocketMode)) {
+    return userOverride as WebsocketMode;
+  }
+  // 2. Build-time env var fallback (only when user is on Default).
+  const envMode = resolveEnvMode();
+  if (envMode !== null) {
+    return envMode;
+  }
+  const configMode = websocketModeFromConfig as string | null;
+  // If runtime config hasn't loaded yet, avoid opening any WebSocket connections.
+  if (configMode === null) {
+    return 'off';
+  }
+  const resolved = valid.includes(configMode as WebsocketMode)
+    ? (configMode as WebsocketMode)
+    : 'websockets';
+  // Legacy false: disable multiplexer only; runtime 'off' is still respected.
+  if (
+    import.meta.env.REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER === 'false' &&
+    resolved === 'multiplexer'
+  ) {
+    return 'websockets';
+  }
+  return resolved;
+}
+
+/**
+ * Non-hook version for use outside React components.
+ * Priority order matches useWebsocketMode: user preference > env var > server config > default.
+ * @returns 'websockets' (default), 'multiplexer' (experimental), or 'off'.
+ */
+export function getWebsocketMode(): WebsocketMode {
+  const state = store.getState();
+  const valid: WebsocketMode[] = ['websockets', 'off', 'multiplexer'];
+  // 1. User preference from General Settings UI (highest priority — overrides env vars).
+  const userOverride = state.config.settings?.websocketModeUserOverride;
+  if (userOverride && valid.includes(userOverride as WebsocketMode)) {
+    return userOverride as WebsocketMode;
+  }
+  // 2. Build-time env var fallback (only when user is on Default).
+  const envMode = resolveEnvMode();
+  if (envMode !== null) {
+    return envMode;
+  }
+  const configMode = state.config.websocketMode as string | null;
+  // If runtime config hasn't loaded yet, avoid opening any WebSocket connections.
+  if (configMode === null) {
+    return 'off';
+  }
+  const resolved = valid.includes(configMode as WebsocketMode)
+    ? (configMode as WebsocketMode)
+    : 'websockets';
+  // Legacy false: disable multiplexer only; runtime 'off' is still respected.
+  if (
+    import.meta.env.REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER === 'false' &&
+    resolved === 'multiplexer'
+  ) {
+    return 'websockets';
+  }
+  return resolved;
+}
+
+/**
+ * Resolves the websocket mode from environment variables.
+ * Checks REACT_APP_WEBSOCKET_MODE first, then falls back to the legacy
+ * REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER for backwards compatibility.
+ * Returns null when no env var is set, so runtime config takes precedence.
+ *
+ * Legacy mapping:
+ *   REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER=true  -> 'multiplexer'
+ *   REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER=false -> null (falls through to server config;
+ *     callers then downgrade 'multiplexer' to 'websockets', but 'off' is still respected)
+ */
+function resolveEnvMode(): WebsocketMode | null {
+  const envMode = import.meta.env.REACT_APP_WEBSOCKET_MODE;
+  if (envMode === 'off' || envMode === 'multiplexer' || envMode === 'websockets') {
+    return envMode;
+  }
+  // Legacy env var: honour explicit true/false to maintain backwards compatibility.
+  const legacyEnv = import.meta.env.REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER;
+  if (legacyEnv === 'true') {
+    return 'multiplexer';
+  }
+  if (legacyEnv === 'false') {
+    // Return null so runtime config is respected; callers handle the downgrade.
+    return null;
+  }
+  return null;
 }
 
 /**
@@ -141,23 +269,25 @@ export function useWatchKubeObjectLists<K extends KubeObject>({
   endpoint?: KubeObjectEndpoint | null;
   /** Which clusters and namespaces to watch */
   lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
-}) {
-  const multiplexerEnabled = getWebsocketMultiplexerEnabled();
+}): void {
+  const mode = useWebsocketMode();
 
+  // Call both hooks unconditionally to comply with Rules of Hooks,
+  // but only the active mode receives the actual lists.
+  // 'off' passes empty lists to both, disabling all real-time updates.
   useWatchKubeObjectListsMultiplexed({
     kubeObjectClass,
     endpoint,
-    lists: multiplexerEnabled ? lists : [],
-    queryParams: multiplexerEnabled ? queryParams : undefined,
-    enabled: multiplexerEnabled,
+    lists: mode === 'multiplexer' ? lists : [],
+    queryParams,
+    enabled: mode === 'multiplexer',
   });
-
   useWatchKubeObjectListsLegacy({
     kubeObjectClass,
     endpoint,
-    lists: !multiplexerEnabled ? lists : [],
-    queryParams: !multiplexerEnabled ? queryParams : undefined,
-    enabled: !multiplexerEnabled,
+    lists: mode === 'websockets' ? lists : [],
+    queryParams,
+    enabled: mode === 'websockets',
   });
 }
 
