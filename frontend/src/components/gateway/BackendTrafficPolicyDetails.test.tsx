@@ -63,6 +63,7 @@ vi.mock('../common/Resource', () => ({
 
 describe('BackendTrafficPolicyDetails', () => {
   it('renders DetailsGrid and handles extraSections with fully populated policy details', () => {
+    extraSectionsFn = null;
     render(
       <TestContext routerMap={{ namespace: 'default', name: 'test-policy' }}>
         <BackendTrafficPolicyDetails {...mockProps} />
@@ -122,6 +123,7 @@ describe('BackendTrafficPolicyDetails', () => {
   });
 
   it('renders empty content states when optional specs are omitted', () => {
+    extraSectionsFn = null;
     render(
       <TestContext routerMap={{ namespace: 'default', name: 'test-policy' }}>
         <BackendTrafficPolicyDetails {...mockProps} />

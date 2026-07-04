@@ -63,6 +63,7 @@ vi.mock('../common/Resource', () => ({
 
 describe('ReferenceGrantDetails', () => {
   it('registers extraSections with populated reference grant details', () => {
+    extraSectionsFn = null;
     render(
       <TestContext routerMap={{ namespace: 'default', name: 'test-grant' }}>
         <ReferenceGrantDetails {...mockProps} />
@@ -110,6 +111,7 @@ describe('ReferenceGrantDetails', () => {
   });
 
   it('renders empty states when from and to specifications are omitted', () => {
+    extraSectionsFn = null;
     render(
       <TestContext routerMap={{ namespace: 'default', name: 'test-grant' }}>
         <ReferenceGrantDetails {...mockProps} />

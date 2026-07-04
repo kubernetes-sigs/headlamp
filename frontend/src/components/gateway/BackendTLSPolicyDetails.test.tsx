@@ -63,6 +63,7 @@ vi.mock('../common/Resource', () => ({
 
 describe('BackendTLSPolicyDetails', () => {
   it('renders DetailsGrid and handles extraSections correctly on the happy path', () => {
+    extraSectionsFn = null;
     render(
       <TestContext routerMap={{ namespace: 'default', name: 'test-policy' }}>
         <BackendTLSPolicyDetails {...mockProps} />
@@ -106,6 +107,7 @@ describe('BackendTLSPolicyDetails', () => {
   });
 
   it('renders empty content when targets and validation are missing', () => {
+    extraSectionsFn = null;
     render(
       <TestContext routerMap={{ namespace: 'default', name: 'test-policy' }}>
         <BackendTLSPolicyDetails {...mockProps} />

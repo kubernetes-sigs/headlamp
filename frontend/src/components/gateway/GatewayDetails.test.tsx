@@ -65,6 +65,8 @@ vi.mock('../common/Resource', () => ({
 
 describe('GatewayDetails', () => {
   it('registers extraInfo and extraSections with populated gateway details', () => {
+    extraInfoFn = null;
+    extraSectionsFn = null;
     render(
       <TestContext routerMap={{ namespace: 'default', name: 'test-gateway' }}>
         <GatewayDetails name="test-gateway" namespace="default" />
@@ -141,6 +143,8 @@ describe('GatewayDetails', () => {
   });
 
   it('renders empty content when gateway is empty', () => {
+    extraInfoFn = null;
+    extraSectionsFn = null;
     render(
       <TestContext routerMap={{ namespace: 'default', name: 'test-gateway' }}>
         <GatewayDetails name="test-gateway" namespace="default" />

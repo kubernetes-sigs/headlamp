@@ -147,6 +147,8 @@ describe('GRPCRouteDetails and sub-components', () => {
 
   describe('GRPCRouteDetails Component', () => {
     it('registers extraInfo and extraSections with populated route details', () => {
+      extraInfoFn = null;
+      extraSectionsFn = null;
       render(
         <TestContext routerMap={{ namespace: 'default', name: 'test-route' }}>
           <GRPCRouteDetails name="test-route" namespace="default" />
@@ -206,6 +208,8 @@ describe('GRPCRouteDetails and sub-components', () => {
     });
 
     it('renders empty content when rules is empty', () => {
+      extraInfoFn = null;
+      extraSectionsFn = null;
       render(
         <TestContext routerMap={{ namespace: 'default', name: 'test-route' }}>
           <GRPCRouteDetails name="test-route" namespace="default" />

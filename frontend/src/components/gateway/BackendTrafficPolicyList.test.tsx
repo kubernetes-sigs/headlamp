@@ -32,7 +32,7 @@ vi.mock('react-i18next', () => ({
       let result = key.split('|').pop() || key;
       if (opts) {
         Object.entries(opts).forEach(([k, v]) => {
-          result = result.replace(new RegExp(`{{${k}}}`, 'g'), String(v));
+          result = result.replaceAll(`{{${k}}}`, String(v));
         });
       }
       return result;
