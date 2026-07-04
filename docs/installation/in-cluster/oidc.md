@@ -92,6 +92,7 @@ When a single Headlamp instance serves several Kubernetes clusters that all trus
 
 - The flag is **disabled by default**; existing deployments see zero behavior change.
 - Audience overrides via `--oidc-extra-audience` on a target apiserver are not detected here. If you've configured `--oidc-extra-audience` on one cluster but not another, the broadcast cookie may be set but the target apiserver could reject the token. Align deployment configuration in that case.
+- When `-oidc-use-access-token=true`, the broadcast carries the `access_token` rather than the `id_token`. Unlike the `id_token`, an access token's audience is provider-specific and is frequently **not** the client ID (many IdPs — Okta, Entra ID, Auth0 — set it to a resource/API identifier). Matching issuer + client ID therefore does not by itself guarantee the access token is accepted by a sibling apiserver; ensure the access-token audience is honored fleet-wide before relying on broadcast with this flag.
 - Each target cluster receives one or more `Set-Cookie` headers per login, so enabling this with very large multi-cluster kubeconfigs may approach browser and proxy cookie count / size limits.
 - Pre-existing chunk-cookie limitation: stale chunk cookies on cluster paths are not actively cleared during login because cookies live under `/clusters/<cluster>` while OIDC login completes on `/oidc-callback`. In the rare case a re-issued token uses fewer chunks than the previous one, the affected cluster(s) may need a one-time re-login.
 

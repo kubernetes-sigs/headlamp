@@ -1194,12 +1194,18 @@ func isOIDCAuthContext(kCtx *kubeconfig.Context) bool {
 // OIDC auth-provider has the same idp-issuer-url AND client-id as sourceCluster.
 //
 // Precondition: the kube-apiserver of each target cluster must trust the same
-// OIDC application (issuer + client-id) as sourceCluster. The token's audience
-// (aud) claim defaults to the client-id; broadcasting only when both issuer and
-// client-id match keeps the token valid against the target cluster's apiserver
-// without re-validating per cluster. Audience mismatches caused by
-// --oidc-extra-audience on a target apiserver are not detected here and must be
-// validated by deployment configuration.
+// OIDC application (issuer + client-id) as sourceCluster. For the default
+// id_token the audience (aud) claim is the client-id, so broadcasting only when
+// both issuer and client-id match keeps the token valid against the target
+// cluster's apiserver without re-validating per cluster. Two audience caveats
+// are NOT detected here and must be ensured by deployment configuration:
+//   - --oidc-extra-audience on a target apiserver: the broadcast cookie may be
+//     set but the target apiserver could reject the token.
+//   - --oidc-use-access-token: the broadcast then carries the access_token,
+//     whose audience is provider-specific and frequently NOT the client-id
+//     (e.g. a resource/API identifier on Okta, Entra ID, Auth0). A matching
+//     issuer+client-id therefore does not by itself guarantee the access token
+//     is accepted by the target apiserver; align token audiences fleet-wide.
 //
 // Refresh-path caveat: this runs only at initial OIDC login. The token-refresh
 // middleware (OIDCTokenRefreshMiddleware, backed by auth.RefreshAndSetToken in
