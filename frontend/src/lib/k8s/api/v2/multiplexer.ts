@@ -34,6 +34,12 @@ export const WebSocketManager = {
   /** Flag to track if we're reconnecting after a disconnect */
   isReconnecting: false,
 
+  /** Number of consecutive automatic reconnect attempts made since the last successful open */
+  reconnectAttempts: 0,
+
+  /** Timer handle for the pending automatic reconnect attempt, if any */
+  reconnectTimer: null as ReturnType<typeof setTimeout> | null,
+
   /** Map of message handlers for each subscription path */
   listeners: new Map<string, Set<(data: any) => void>>(),
 
@@ -80,6 +86,12 @@ export const WebSocketManager = {
    * @returns Promise resolving to WebSocket connection
    */
   async connect(): Promise<WebSocket> {
+    // An explicit connect (e.g. a new subscriber) supersedes any pending automatic reconnect.
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+
     // Return existing connection if available
     if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
       return this.socketMultiplexer;
@@ -116,6 +128,7 @@ export const WebSocketManager = {
       socket.onopen = () => {
         this.socketMultiplexer = socket;
         this.connecting = false;
+        this.reconnectAttempts = 0;
 
         // Only resubscribe if we're reconnecting after a disconnect
         if (this.isReconnecting) {
@@ -271,6 +284,14 @@ export const WebSocketManager = {
               };
               this.socketMultiplexer.send(JSON.stringify(closeMsg));
             }
+
+            // Nothing left to reconnect for - cancel any pending automatic reconnect.
+            if (this.activeSubscriptions.size === 0 && this.reconnectTimer) {
+              clearTimeout(this.reconnectTimer);
+              this.reconnectTimer = null;
+              this.reconnectAttempts = 0;
+              this.isReconnecting = false;
+            }
           }
           this.pendingUnsubscribes.delete(key);
         }, 100); // 100ms debounce
@@ -292,16 +313,54 @@ export const WebSocketManager = {
   },
 
   /**
-   * Handles WebSocket connection close event
-   * Sets up state for potential reconnection
+   * Handles WebSocket connection close event.
+   * Schedules an automatic reconnect (with backoff) if there are still active
+   * subscriptions that need the connection.
    */
   handleWebSocketClose(): void {
     this.socketMultiplexer = null;
     this.connecting = false;
     this.completedPaths.clear();
 
-    // Only log reconnecting if we have active subscriptions
     this.isReconnecting = this.activeSubscriptions.size > 0;
+
+    if (this.isReconnecting) {
+      this.scheduleReconnect();
+    } else {
+      this.reconnectAttempts = 0;
+    }
+  },
+
+  /**
+   * Schedules an automatic reconnect attempt with exponential backoff
+   * (starting at 1s, capped at 30s). No-op if a reconnect is already scheduled.
+   *
+   * Intended to be called from handleWebSocketClose(), so reconnect scheduling has a single
+   * source of truth. A failed attempt below re-fires onclose (WebSockets often emit close
+   * even for failed handshakes), which schedules the next attempt from there - the catch here
+   * must not call scheduleReconnect() itself.
+   */
+  scheduleReconnect(): void {
+    if (this.reconnectTimer) {
+      return;
+    }
+
+    const delay = Math.min(1000 * 2 ** this.reconnectAttempts, 30000);
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      // Subscriptions may have been removed while we were waiting to reconnect.
+      if (this.activeSubscriptions.size === 0) {
+        this.reconnectAttempts = 0;
+        this.isReconnecting = false;
+        return;
+      }
+      this.reconnectAttempts += 1;
+
+      this.connect().catch(err => {
+        console.error('WebSocketManager: reconnect attempt failed', err);
+      });
+    }, delay);
   },
 
   /**
