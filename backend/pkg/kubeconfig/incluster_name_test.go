@@ -21,63 +21,63 @@ func kubeadmConfigMap(data map[string]string) *corev1.ConfigMap {
 	}
 }
 
-func TestDeriveInClusterName(t *testing.T) {
-	tests := []struct {
-		name      string
-		configMap *corev1.ConfigMap
-		expected  string
-		expectErr bool
-	}{
-		{
-			name: "derives clusterName from ClusterConfiguration",
-			configMap: kubeadmConfigMap(map[string]string{
-				"ClusterConfiguration": "apiVersion: kubeadm.k8s.io/v1beta3\nkind: ClusterConfiguration\nclusterName: my-cluster\n",
-			}),
-			expected: "my-cluster",
-		},
-		{
-			name:      "ConfigMap not found",
-			configMap: nil,
-			expectErr: true,
-		},
-		{
-			name: "missing ClusterConfiguration entry",
-			configMap: kubeadmConfigMap(map[string]string{
-				"other": "value",
-			}),
-			expectErr: true,
-		},
-		{
-			name: "ClusterConfiguration without clusterName",
-			configMap: kubeadmConfigMap(map[string]string{
-				"ClusterConfiguration": "apiVersion: kubeadm.k8s.io/v1beta3\nkind: ClusterConfiguration\n",
-			}),
-			expectErr: true,
-		},
-		{
-			name: "empty clusterName",
-			configMap: kubeadmConfigMap(map[string]string{
-				"ClusterConfiguration": "clusterName: \"   \"\n",
-			}),
-			expectErr: true,
-		},
-		{
-			name: "kubeadm default clusterName is treated as unset",
-			configMap: kubeadmConfigMap(map[string]string{
-				"ClusterConfiguration": "clusterName: kubernetes\n",
-			}),
-			expectErr: true,
-		},
-		{
-			name: "malformed YAML",
-			configMap: kubeadmConfigMap(map[string]string{
-				"ClusterConfiguration": "clusterName: [unterminated",
-			}),
-			expectErr: true,
-		},
-	}
+var deriveInClusterNameTests = []struct {
+	name      string
+	configMap *corev1.ConfigMap
+	expected  string
+	expectErr bool
+}{
+	{
+		name: "derives clusterName from ClusterConfiguration",
+		configMap: kubeadmConfigMap(map[string]string{
+			"ClusterConfiguration": "apiVersion: kubeadm.k8s.io/v1beta3\nkind: ClusterConfiguration\nclusterName: my-cluster\n",
+		}),
+		expected: "my-cluster",
+	},
+	{
+		name:      "ConfigMap not found",
+		configMap: nil,
+		expectErr: true,
+	},
+	{
+		name: "missing ClusterConfiguration entry",
+		configMap: kubeadmConfigMap(map[string]string{
+			"other": "value",
+		}),
+		expectErr: true,
+	},
+	{
+		name: "ClusterConfiguration without clusterName",
+		configMap: kubeadmConfigMap(map[string]string{
+			"ClusterConfiguration": "apiVersion: kubeadm.k8s.io/v1beta3\nkind: ClusterConfiguration\n",
+		}),
+		expectErr: true,
+	},
+	{
+		name: "empty clusterName",
+		configMap: kubeadmConfigMap(map[string]string{
+			"ClusterConfiguration": "clusterName: \"   \"\n",
+		}),
+		expectErr: true,
+	},
+	{
+		name: "kubeadm default clusterName is treated as unset",
+		configMap: kubeadmConfigMap(map[string]string{
+			"ClusterConfiguration": "clusterName: kubernetes\n",
+		}),
+		expectErr: true,
+	},
+	{
+		name: "malformed YAML",
+		configMap: kubeadmConfigMap(map[string]string{
+			"ClusterConfiguration": "clusterName: [unterminated",
+		}),
+		expectErr: true,
+	},
+}
 
-	for _, tt := range tests {
+func TestDeriveInClusterName(t *testing.T) {
+	for _, tt := range deriveInClusterNameTests {
 		t.Run(tt.name, func(t *testing.T) {
 			var clientset *fake.Clientset
 			if tt.configMap != nil {
