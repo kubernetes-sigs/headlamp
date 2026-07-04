@@ -20,6 +20,8 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"sort"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -35,33 +37,81 @@ const (
 	testIssuerB   = "https://idp-b.example.com"
 	testClientFoo = "client-foo"
 	testClientBar = "client-bar"
+	testToken     = "test-token"
 )
 
-// broadcastCookieClusters returns the set of clusters for which a non-empty
-// headlamp-auth-* cookie was set on w. Clearing cookies (empty value, negative
-// MaxAge emitted by SetTokenCookie's ClearTokenCookie pre-step) are ignored.
-func broadcastCookieClusters(t *testing.T, w *httptest.ResponseRecorder) map[string]bool {
+// broadcastCookieInfo is the reassembled auth cookie for one cluster: the full
+// token value (all chunks concatenated in order) and the cookie Path.
+type broadcastCookieInfo struct {
+	value string
+	path  string
+}
+
+// broadcastCookies reassembles the chunked headlamp-auth-<cluster>.<i> cookies
+// set on w into a per-cluster {value, path}. Clearing cookies (empty value,
+// non-positive MaxAge emitted by SetTokenCookie's ClearTokenCookie pre-step) are
+// ignored. Reassembling the value and path lets tests assert that the broadcast
+// carried the exact source token, scoped to the target cluster — not merely that
+// some cookie was set for the cluster.
+func broadcastCookies(t *testing.T, w *httptest.ResponseRecorder) map[string]broadcastCookieInfo {
 	t.Helper()
 
 	resp := w.Result()
 	defer func() { _ = resp.Body.Close() }()
 
-	set := make(map[string]bool)
+	type chunk struct {
+		idx int
+		val string
+	}
+
+	chunks := make(map[string][]chunk)
+	paths := make(map[string]string)
 
 	for _, ck := range resp.Cookies() {
 		if !strings.HasPrefix(ck.Name, "headlamp-auth-") || ck.Value == "" || ck.MaxAge <= 0 {
 			continue
 		}
-		// Strip "headlamp-auth-" prefix and ".<chunkIndex>" suffix.
+
+		// Split "headlamp-auth-<cluster>.<chunkIndex>" into cluster name + index.
 		name := strings.TrimPrefix(ck.Name, "headlamp-auth-")
+		idx := 0
+
 		if dot := strings.LastIndex(name, "."); dot >= 0 {
-			name = name[:dot]
+			if n, err := strconv.Atoi(name[dot+1:]); err == nil {
+				idx = n
+				name = name[:dot]
+			}
 		}
 
-		set[name] = true
+		chunks[name] = append(chunks[name], chunk{idx: idx, val: ck.Value})
+		paths[name] = ck.Path
 	}
 
-	return set
+	out := make(map[string]broadcastCookieInfo, len(chunks))
+
+	for name, cs := range chunks {
+		sort.Slice(cs, func(i, j int) bool { return cs[i].idx < cs[j].idx })
+
+		var b strings.Builder
+		for _, c := range cs {
+			b.WriteString(c.val)
+		}
+
+		out[name] = broadcastCookieInfo{value: b.String(), path: paths[name]}
+	}
+
+	return out
+}
+
+// broadcastClusters returns just the cluster names present in got, for readable
+// assertion-failure messages.
+func broadcastClusters(got map[string]broadcastCookieInfo) []string {
+	names := make([]string, 0, len(got))
+	for name := range got {
+		names = append(names, name)
+	}
+
+	return names
 }
 
 func newOIDCContext(name, issuer, clientID string) *kubeconfig.Context {
@@ -284,22 +334,36 @@ func runBroadcastCase(t *testing.T, tc broadcastTestCase) {
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 
-	c.broadcastOIDCToken(w, r, tc.source, "test-token")
+	c.broadcastOIDCToken(w, r, tc.source, testToken)
 
-	got := broadcastCookieClusters(t, w)
+	got := broadcastCookies(t, w)
 	assertBroadcastResult(t, tc, got)
 }
 
-func assertBroadcastResult(t *testing.T, tc broadcastTestCase, got map[string]bool) {
+func assertBroadcastResult(t *testing.T, tc broadcastTestCase, got map[string]broadcastCookieInfo) {
 	t.Helper()
 
-	assert.Falsef(t, got[tc.source],
+	_, gotSource := got[tc.source]
+	assert.Falsef(t, gotSource,
 		"source cluster %s must not receive a broadcast cookie", tc.source)
 
 	wantSet := make(map[string]bool, len(tc.wantBroadcast))
+
 	for _, e := range tc.wantBroadcast {
 		wantSet[e] = true
-		assert.Truef(t, got[e], "expected broadcast cookie for %q, got cookies for: %v", e, got)
+
+		info, ok := got[e]
+		if !assert.Truef(t, ok, "expected broadcast cookie for %q, got cookies for: %v",
+			e, broadcastClusters(got)) {
+			continue
+		}
+
+		// The broadcast must carry the exact source token (not empty, truncated,
+		// or some other value) and be scoped to the target cluster's cookie path.
+		assert.Equalf(t, testToken, info.value,
+			"broadcast cookie for %q must carry the source token", e)
+		assert.Equalf(t, "/clusters/"+e, info.path,
+			"broadcast cookie for %q must be scoped to /clusters/%s", e, e)
 	}
 
 	for _, ctx := range tc.contexts {
@@ -307,8 +371,10 @@ func assertBroadcastResult(t *testing.T, tc broadcastTestCase, got map[string]bo
 			continue
 		}
 
-		assert.Falsef(t, got[ctx.Name],
-			"did not expect broadcast cookie for %q, got cookies for: %v", ctx.Name, got)
+		_, unexpected := got[ctx.Name]
+		assert.Falsef(t, unexpected,
+			"did not expect broadcast cookie for %q, got cookies for: %v",
+			ctx.Name, broadcastClusters(got))
 	}
 }
 
@@ -335,7 +401,7 @@ func TestBroadcastOIDCToken_NoContextsReturnsCleanly(t *testing.T) {
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
 
 	// Should not panic even when the source cluster doesn't exist.
-	c.broadcastOIDCToken(w, r, "missing", "test-token")
+	c.broadcastOIDCToken(w, r, "missing", testToken)
 
-	assert.Empty(t, broadcastCookieClusters(t, w))
+	assert.Empty(t, broadcastCookies(t, w))
 }
