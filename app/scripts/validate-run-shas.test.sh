@@ -274,7 +274,7 @@ test_validate_runs_empty_run_ids() {
   assert_output_contains "Error: No workflow run IDs provided." "$out" "validate_runs: empty run IDs prints error"
 }
 
-test_validate_runs_get_run_sha_failure() {
+test_validate_runs_get_run_sha_failure() (
   # Simulate `gh`/API failure by making get_run_sha return non-zero.
   get_run_sha() { return 2; }
   local out rc
@@ -284,7 +284,7 @@ test_validate_runs_get_run_sha_failure() {
   set -e
   assert_exit 1 "$rc" "validate_runs: get_run_sha failure fails"
   assert_output_contains "Failed to query SHA" "$out" "validate_runs: get_run_sha failure prints error"
- }
+  )
 
 test_validate_runs_matching_sha
 test_validate_runs_mismatched_sha

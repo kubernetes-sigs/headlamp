@@ -170,7 +170,11 @@ jobs:
           if [ "${{ inputs.force }}" == "true" ]; then
             ARGS+=("--force")
           fi
-          ARGS+=("${{ steps.validate_run_shas.outputs.tag_name }}")
+          RELEASE_NAME="${{ inputs.release_name }}"
+          if [[ "$RELEASE_NAME" == v* ]]; then
+            RELEASE_NAME="${RELEASE_NAME#v}"
+          fi
+          ARGS+=("$RELEASE_NAME")
           ARGS+=("${ASSETS[@]}")
 
           echo "Executing: node push-release-assets.js ${ARGS[*]}"
