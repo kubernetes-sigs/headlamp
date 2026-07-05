@@ -123,6 +123,7 @@
   "Leader Worker Sets": "",
   "Lease": "Lease",
   "LimitRange": "LimitRange",
+  "Namespaces": "Namespaces",
   "Ingress": "Ingress",
   "ipBlock": "blocoIP",
   "namespaceSelector": "seletor de Namespace",
