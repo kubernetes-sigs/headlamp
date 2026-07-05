@@ -31,7 +31,7 @@ import type {
   RecursivePartial,
 } from './api/v1/factories';
 import { apiFactory, apiFactoryWithNamespace } from './api/v1/factories';
-import { useConnectApi, useSelectedClusters } from './api/v1/hooks';
+import { type CancellablePromise, useConnectApi, useSelectedClusters } from './api/v1/hooks';
 import type { QueryParameters } from './api/v1/queryParameters';
 import type { ApiError } from './api/v2/ApiError';
 import { useKubeObject } from './api/v2/hooks';
@@ -746,9 +746,9 @@ export interface AuthRequestResourceAttrs {
  *
  * @example
  * ```tsx
- * const [pods, error] = Pod.useList({ namespace: 'default' });
+ * const { items: pods, error } = Pod.useList({ namespace: 'default' });
  * // or as a standalone hook:
- * const result = useKubeList(Pod, { namespace: 'default' });
+ * const { items: pods, error } = useKubeList(Pod, { namespace: 'default' });
  * ```
  */
 export function useKubeList<K extends KubeObject>(
@@ -769,7 +769,6 @@ export function useKubeList<K extends KubeObject>(
 ) {
   const fallbackClusters = useSelectedClusters();
 
-  // Create requests for each cluster and namespace
   const requests = useMemo(() => {
     const clusterList = cluster
       ? [cluster]
@@ -788,8 +787,7 @@ export function useKubeList<K extends KubeObject>(
       kubeObjectClass.isNamespaced,
       namespacesFromParams
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [cluster, clusters, fallbackClusters, namespace, kubeObjectClass.isNamespaced]);
+  }, [cluster, clusters, fallbackClusters, namespace, kubeObjectClass]);
 
   const result = useKubeObjectList<K>({
     queryParams: queryParams,
@@ -877,7 +875,7 @@ export function useKubeApiList<K extends KubeObject>(
     listCallback(allObjs);
   }
 
-  const listCalls = [];
+  const listCalls: (() => CancellablePromise)[] = [];
   const queryParams = cloneDeep(opts);
   let namespaces: string[] = [];
   unset(queryParams, 'namespace');
@@ -905,7 +903,6 @@ export function useKubeApiList<K extends KubeObject>(
     // namespace and then set the objects once we have all of the responses.
     for (const namespace of namespaces) {
       listCalls.push(
-        // eslint-disable-next-line react-hooks/refs
         kubeObjectClass.apiList(objList => onObjs(namespace, objList as K[]), onError, {
           namespace,
           queryParams,
