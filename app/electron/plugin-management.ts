@@ -327,7 +327,14 @@ export class PluginManager {
 
         if (fs.existsSync(pluginDir)) {
           if (fs.existsSync(backupDir)) {
-            fs.rmSync(backupDir, { recursive: true, force: true });
+            // Only discard a leftover backup if the current plugin dir looks valid.
+            // Otherwise, restore first to avoid losing the last known-good copy.
+            if (!checkValidPluginFolder(pluginDir)) {
+              fs.rmSync(pluginDir, { recursive: true, force: true });
+              fs.renameSync(backupDir, pluginDir);
+            } else {
+               fs.rmSync(backupDir, { recursive: true, force: true });
+            }
           }
           fs.renameSync(pluginDir, backupDir);
           backupCreated = true;
