@@ -103,6 +103,52 @@ export const baseMocks = [
   http.post('http://localhost:4466/apis/authorization.k8s.io/v1/selfsubjectaccessreviews', () =>
     HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
   ),
+  http.post('http://localhost:4466/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', () =>
+    HttpResponse.json({ status: { allowed: true } })
+  ),
+  http.post('http://localhost:4466/clusters/*/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', () =>
+    HttpResponse.json({ status: { allowed: true } })
+  ),
+  http.post('http://localhost:4466/clusters/*/apis/authentication.k8s.io/v1/selfsubjectreviews', () =>
+    HttpResponse.json({
+      status: {
+        userInfo: {
+          username: 'storybook-user',
+          groups: [],
+        },
+      },
+    })
+  ),
+  http.post(
+    'http://localhost:4466/clusters/*/apis/authorization.k8s.io/v1/selfsubjectaccessreviews',
+    () => HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
+  ),
+  http.get('http://localhost:4466/clusters/*/apis/rbac.authorization.k8s.io/v1/rolebindings', () =>
+    HttpResponse.json({ kind: 'RoleBindingList', items: [], metadata: {} })
+  ),
+  http.get('http://localhost:4466/clusters/*/api/v1/namespaces', () =>
+    HttpResponse.json({
+      kind: 'NamespacesList',
+      items: [
+        {
+          kind: 'Namespace',
+          apiVersion: 'v1',
+          metadata: {
+            name: 'default',
+            creationTimestamp: '2024-08-16T11:12:37.179Z',
+            uid: '123456',
+          },
+          spec: {
+            finalizers: ['kubernetes'],
+          },
+          status: {
+            phase: 'Active',
+          },
+        },
+      ],
+      metadata: {},
+    })
+  ),
   http.get('http://localhost:4466/api/v1/namespaces', () =>
     HttpResponse.json({
       kind: 'NamespacesList',
@@ -182,6 +228,20 @@ export const baseMocks = [
       metadata: {},
       items: [],
     })
+  ),
+  http.get('http://localhost:4466/clusters/*/apis/networking.k8s.io/v1/ingresses', () =>
+    HttpResponse.json({
+      kind: 'IngressList',
+      apiVersion: 'networking.k8s.io/v1',
+      metadata: {},
+      items: [],
+    })
+  ),
+  http.get('http://localhost:4466/clusters/*/apis/extensions/v1beta1/ingresses', () =>
+    HttpResponse.error()
+  ),
+  http.post('http://localhost:4466/clusters/*/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', () =>
+    HttpResponse.json({ status: { resourceRules: [] } })
   ),
   http.get('http://localhost:4466/apis/metrics.k8s.io/v1beta1/nodes', () =>
     HttpResponse.json({
