@@ -115,15 +115,16 @@ func (c *contextStore) AddContext(headlampContext *Context) error {
 
 // GetContexts returns all contexts in the store.
 func (c *contextStore) GetContexts() ([]*Context, error) {
-	contexts := []*Context{}
-
 	contextMap, err := c.cache.GetAll(context.Background(), nil)
 	if err != nil {
 		return nil, err
 	}
 
+	contexts := make([]*Context, len(contextMap))
+	i := 0
 	for _, ctx := range contextMap {
-		contexts = append(contexts, ctx)
+		contexts[i] = ctx
+		i++
 	}
 
 	return contexts, nil
@@ -131,15 +132,16 @@ func (c *contextStore) GetContexts() ([]*Context, error) {
 
 // GetContextKeys returns all context keys in the store.
 func (c *contextStore) GetContextKeys() ([]string, error) {
-	var keys []string
-
 	contextMap, err := c.cache.GetAll(context.Background(), nil)
 	if err != nil {
 		return nil, err
 	}
 
+	keys := make([]string, len(contextMap))
+	i := 0
 	for key := range contextMap {
-		keys = append(keys, key)
+		keys[i] = key
+		i++
 	}
 
 	return keys, nil
