@@ -70,7 +70,7 @@ export HEADLAMP_CONFIG_FAVICON=/branding/favicon.png
 Useful in containers where mounting a file is inconvenient:
 
 ```bash
-export HEADLAMP_CONFIG_FAVICON_BASE64="$(base64 -w0 favicon.png)"
+export HEADLAMP_CONFIG_FAVICON_BASE64="$(base64 < favicon.png | tr -d '\n')"
 ./backend/headlamp-server -html-static-dir frontend/build
 ```
 
@@ -89,7 +89,7 @@ Or pass it inline as base64, with no volume:
 
 ```bash
 docker run -p 127.0.0.1:4466:4466 \
-  -e HEADLAMP_CONFIG_FAVICON_BASE64="$(base64 -w0 favicon.png)" \
+  -e HEADLAMP_CONFIG_FAVICON_BASE64="$(base64 < favicon.png | tr -d '\n')" \
   ghcr.io/headlamp-k8s/headlamp:latest -in-cluster
 ```
 
@@ -122,7 +122,7 @@ where the `headlamp-branding` Secret (or ConfigMap) holds the base64 string:
 
 ```bash
 kubectl create secret generic headlamp-branding \
-  --from-literal=favicon-base64="$(base64 -w0 favicon.png)"
+  --from-literal=favicon-base64="$(base64 < favicon.png | tr -d '\n')"
 ```
 
 Alternatively, mount the icon file from a ConfigMap and use `-favicon`:

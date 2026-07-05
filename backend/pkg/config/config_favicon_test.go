@@ -1,7 +1,6 @@
 package config_test
 
 import (
-	"os"
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
@@ -41,13 +40,9 @@ func TestParseFaviconConfiguration_Both(t *testing.T) {
 }
 
 func TestParseFaviconConfiguration_FromEnv(t *testing.T) {
-	require.NoError(t, os.Setenv("HEADLAMP_CONFIG_FAVICON", "/env/favicon.ico"))
-	require.NoError(t, os.Setenv("HEADLAMP_CONFIG_FAVICON_BASE64", "ZW52"))
-
-	defer func() {
-		require.NoError(t, os.Unsetenv("HEADLAMP_CONFIG_FAVICON"))
-		require.NoError(t, os.Unsetenv("HEADLAMP_CONFIG_FAVICON_BASE64"))
-	}()
+	// t.Setenv restores any prior value (or unsets) at test end, keeping the test isolated.
+	t.Setenv("HEADLAMP_CONFIG_FAVICON", "/env/favicon.ico")
+	t.Setenv("HEADLAMP_CONFIG_FAVICON_BASE64", "ZW52")
 
 	conf, err := config.Parse([]string{"go run ./cmd"})
 	require.NoError(t, err)
@@ -58,9 +53,7 @@ func TestParseFaviconConfiguration_FromEnv(t *testing.T) {
 }
 
 func TestParseFaviconConfiguration_ArgsOverrideEnv(t *testing.T) {
-	require.NoError(t, os.Setenv("HEADLAMP_CONFIG_FAVICON", "/env/favicon.ico"))
-
-	defer func() { require.NoError(t, os.Unsetenv("HEADLAMP_CONFIG_FAVICON")) }()
+	t.Setenv("HEADLAMP_CONFIG_FAVICON", "/env/favicon.ico")
 
 	conf, err := config.Parse([]string{"go run ./cmd", "--favicon=/cli/favicon.ico"})
 	require.NoError(t, err)

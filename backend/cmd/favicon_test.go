@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/gorilla/mux"
@@ -99,6 +100,15 @@ func TestResolveFavicon_Base64NotPNG(t *testing.T) {
 
 func TestResolveFavicon_Base64Invalid(t *testing.T) {
 	_, _, ok := resolveFavicon(faviconTestConfig("", "this is not base64!!!"))
+	assert.False(t, ok)
+}
+
+func TestResolveFavicon_Base64TooLarge(t *testing.T) {
+	// A base64 string whose decoded size exceeds the cap must be rejected before
+	// it is decoded into memory.
+	oversized := strings.Repeat("A", maxFaviconSize*2)
+
+	_, _, ok := resolveFavicon(faviconTestConfig("", oversized))
 	assert.False(t, ok)
 }
 
