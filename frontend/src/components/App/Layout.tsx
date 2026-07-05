@@ -156,7 +156,8 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
       // Check if the config is different
       const configDifferent =
         isEqualClusterConfigs(clusters, clustersToConfig) ||
-        !_.isEqual(store.getState().config.externalLinks, configToStore.externalLinks) ||
+        (configToStore.externalLinks !== undefined &&
+          !_.isEqual(store.getState().config.externalLinks, configToStore.externalLinks)) ||
         store.getState().config.isDynamicClusterEnabled !== configToStore.isDynamicClusterEnabled ||
         store.getState().config.allowKubeconfigChanges !== configToStore.allowKubeconfigChanges ||
         store.getState().config.defaultPodDebugImage !== configToStore.defaultPodDebugImage ||
