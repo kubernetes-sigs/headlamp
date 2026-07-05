@@ -843,7 +843,7 @@
   "Selects which pods belong to this ReplicaSet. Entries are mirrored read-only into the pod template labels below; extra pod-template-only labels can be added there.": "",
   "Current//context:replicas": "Current",
   "Desired//context:replicas": "Desired",
-  "Graph controls": "",
+  "Vertical button group": "",
   "Zoom in": "Zoom in",
   "Zoom out": "Zoom out",
   "No data to be shown. Try to change filters or select a different namespace.": "No data to be shown. Try to change filters or select a different namespace.",
