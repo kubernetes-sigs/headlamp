@@ -406,7 +406,7 @@ export default function SettingsCluster() {
             {
               name: (
                 <Typography id={allowedNamespaceLabelID}>
-                  {t('translation|Allowed namespaces')}
+                  {t('translation|Additional namespaces (override)')}
                 </Typography>
               ),
               value: (
@@ -423,7 +423,7 @@ export default function SettingsCluster() {
                     helperText={
                       isValidNewAllowedNamespace
                         ? t(
-                            'translation|The list of namespaces you are allowed to access in this cluster.'
+                            'translation|Optional override when automatic namespace discovery is insufficient. Leave empty to use RBAC-based discovery.'
                           )
                         : invalidNamespaceMessage
                     }
