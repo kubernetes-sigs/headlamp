@@ -36,8 +36,11 @@ describe('jobExtraInfo duration', () => {
   });
 
   it('shows the Duration row once the job has a real duration', () => {
-    const row = durationRow(jobWithDuration(5000));
-    expect(row?.hide).toBeFalsy();
-    expect(row?.value).toBeTruthy();
+    // 0ms is a legitimate completed-job duration (startTime === completionTime).
+    for (const durationMs of [0, 5000]) {
+      const row = durationRow(jobWithDuration(durationMs));
+      expect(row?.hide).toBeFalsy();
+      expect(row?.value).toBeTruthy();
+    }
   });
 });
