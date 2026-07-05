@@ -14,10 +14,7 @@
  * limitations under the License.
  */
 
-import { KubeObject, type KubeObjectClass } from '../../lib/k8s/KubeObject';
-
-// Ensure the base class is initialized before resource models are loaded dynamically.
-void KubeObject;
+import type { KubeObjectClass } from '../../lib/k8s/KubeObject';
 
 let searchResourceClassesPromise: Promise<KubeObjectClass[]> | null = null;
 
