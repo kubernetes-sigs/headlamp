@@ -18,7 +18,6 @@ import { JSONPath } from 'jsonpath-plus';
 import cloneDeep from 'lodash/cloneDeep';
 import unset from 'lodash/unset';
 import React, { useMemo } from 'react';
-import { loadClusterSettings } from '../../helpers/clusterSettings';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../cluster';
 import { createRouteURL } from '../router/createRouteURL';
 import { timeAgo } from '../util';
@@ -39,15 +38,11 @@ import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList'
 import type { KubeEvent } from './event';
 import type { KubeMetadata, KubeMetadataCreate } from './KubeMetadata';
 import { computePatchOperations, computeRawPatchCount } from './patchUtils';
-
-function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
-  if (!cluster) {
-    return [];
-  }
-
-  const clusterSettings = loadClusterSettings(cluster);
-  return clusterSettings.allowedNamespaces || [];
-}
+import {
+  getNamespaceListConfig,
+  useDiscoveredNamespaces,
+  useDiscoveredNamespacesMap,
+} from './useDiscoveredNamespaces';
 
 export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
   jsonData: T;
@@ -333,6 +328,11 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     unset(queryParams, 'namespace');
 
     const cluster = opts?.cluster;
+    const activeCluster = cluster || getCluster();
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { data: discovery, isLoading: discoveryLoading } = useDiscoveredNamespaces(
+      this.isNamespaced ? activeCluster : null
+    );
 
     if (!!opts?.namespace) {
       if (typeof opts.namespace === 'string') {
@@ -344,10 +344,9 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       }
     }
 
-    // If the request itself has no namespaces set, we check whether to apply the
-    // allowed namespaces.
-    if (namespaces.length === 0 && this.isNamespaced) {
-      namespaces = getAllowedNamespaces();
+    // If the request itself has no namespaces set, use discovered namespaces.
+    if (namespaces.length === 0 && this.isNamespaced && !discoveryLoading) {
+      namespaces = getNamespaceListConfig(activeCluster, discovery, false).namespaces;
     }
 
     if (namespaces.length > 0) {
@@ -391,12 +390,23 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const fallbackClusters = useSelectedClusters();
 
+    const isNamespaced = this.isNamespaced;
+
+    const clusterList = cluster
+      ? [cluster]
+      : clusters || (fallbackClusters.length === 0 ? [''] : fallbackClusters);
+
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    const { map: discoveryMap, isLoading: discoveryLoading } = useDiscoveredNamespacesMap(
+      isNamespaced ? clusterList : []
+    );
+
     // Create requests for each cluster and namespace
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const requests = useMemo(() => {
-      const clusterList = cluster
-        ? [cluster]
-        : clusters || (fallbackClusters.length === 0 ? [''] : fallbackClusters);
+      if (isNamespaced && discoveryLoading) {
+        return [];
+      }
 
       const namespacesFromParams =
         typeof namespace === 'string'
@@ -407,12 +417,25 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
       return makeListRequests(
         clusterList,
-        getAllowedNamespaces,
-        this.isNamespaced,
+        currentCluster =>
+          getNamespaceListConfig(
+            currentCluster,
+            discoveryMap[currentCluster ?? ''],
+            (namespacesFromParams?.length ?? 0) > 0
+          ),
+        isNamespaced,
         namespacesFromParams
       );
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [cluster, clusters, fallbackClusters, namespace, this.isNamespaced]);
+    }, [
+      cluster,
+      clusters,
+      fallbackClusters,
+      namespace,
+      isNamespaced,
+      discoveryMap,
+      discoveryLoading,
+    ]);
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const result = useKubeObjectList<K>({

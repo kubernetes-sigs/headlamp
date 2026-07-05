@@ -56,10 +56,12 @@ const mockJsonResponse = (data: unknown) =>
   } as Response);
 
 describe('makeListRequests', () => {
+  const withNamespaces = (namespaces: string[]) => ({ namespaces });
+
   describe('for non namespaced resource', () => {
     it('should not include namespace in requests', () => {
-      const requests = makeListRequests(['default'], () => ['namespace-a'], false, [
-        'namepspace-a',
+      const requests = makeListRequests(['default'], () => withNamespaces(['namespace-a']), false, [
+        'namespace-a',
         'namespace-b',
       ]);
       expect(requests).toEqual([{ cluster: 'default', namespaces: undefined }]);
@@ -67,17 +69,17 @@ describe('makeListRequests', () => {
   });
   describe('for namespaced resource', () => {
     it('should make request with no namespaces provided', () => {
-      const requests = makeListRequests(['default'], () => [], true);
+      const requests = makeListRequests(['default'], () => withNamespaces([]), true);
       expect(requests).toEqual([{ cluster: 'default', namespaces: [] }]);
     });
 
     it('should make requests for allowed namespaces only', () => {
-      const requests = makeListRequests(['default'], () => ['namespace-a'], true);
+      const requests = makeListRequests(['default'], () => withNamespaces(['namespace-a']), true);
       expect(requests).toEqual([{ cluster: 'default', namespaces: ['namespace-a'] }]);
     });
 
     it('should make requests for allowed namespaces only, even when requested other', () => {
-      const requests = makeListRequests(['default'], () => ['namespace-a'], true, [
+      const requests = makeListRequests(['default'], () => withNamespaces(['namespace-a']), true, [
         'namespace-a',
         'namespace-b',
       ]);
@@ -87,7 +89,8 @@ describe('makeListRequests', () => {
     it('should make requests for allowed namespaces per cluster', () => {
       const requests = makeListRequests(
         ['cluster-a', 'cluster-b'],
-        (cluster: string | null) => (cluster === 'cluster-a' ? ['namespace-a'] : ['namespace-b']),
+        (cluster: string | null) =>
+          withNamespaces(cluster === 'cluster-a' ? ['namespace-a'] : ['namespace-b']),
         true
       );
       expect(requests).toEqual([
@@ -99,7 +102,8 @@ describe('makeListRequests', () => {
     it('should make requests for allowed namespaces per cluster, even if requested other', () => {
       const requests = makeListRequests(
         ['cluster-a', 'cluster-b'],
-        (cluster: string | null) => (cluster === 'cluster-a' ? ['namespace-a'] : ['namespace-b']),
+        (cluster: string | null) =>
+          withNamespaces(cluster === 'cluster-a' ? ['namespace-a'] : ['namespace-b']),
         true,
         ['namespace-a', 'namespace-b', 'namespace-c']
       );
@@ -112,7 +116,7 @@ describe('makeListRequests', () => {
     it('should make requests for allowed namespaces per cluster, with one cluster without allowed namespaces', () => {
       const requests = makeListRequests(
         ['cluster-a', 'cluster-b'],
-        (cluster: string | null) => (cluster === 'cluster-a' ? ['namespace-a'] : []),
+        (cluster: string | null) => withNamespaces(cluster === 'cluster-a' ? ['namespace-a'] : []),
         true,
         ['namespace-a', 'namespace-b', 'namespace-c']
       );

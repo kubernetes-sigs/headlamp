@@ -18,6 +18,7 @@ import type { QueryObserverOptions } from '@tanstack/react-query';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KubeObject, KubeObjectClass } from '../../KubeObject';
+import type { NamespaceListConfig } from '../../useDiscoveredNamespaces';
 import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
@@ -379,12 +380,17 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
   });
 }
 
+export type KubeListRequest = {
+  cluster: string;
+  namespaces?: string[];
+};
+
 /**
  * Creates multiple requests to list Kube objects
- * Handles multiple clusters, namespaces and allowed namespaces
+ * Handles multiple clusters, namespaces and discovered namespaces
  *
  * @param clusters - list of clusters
- * @param getAllowedNamespaces -  function to get allowed namespaces for a cluster
+ * @param getNamespaceConfig - function to get namespace routing config for a cluster
  * @param isResourceNamespaced - if the resource is namespaced
  * @param requestedNamespaces - requested namespaces(optional)
  *
@@ -392,12 +398,12 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
  */
 export function makeListRequests(
   clusters: string[],
-  getAllowedNamespaces: (cluster: string | null) => string[],
+  getNamespaceConfig: (cluster: string | null) => NamespaceListConfig,
   isResourceNamespaced: boolean,
   requestedNamespaces: string[] = []
-): Array<{ cluster: string; namespaces?: string[] }> {
+): KubeListRequest[] {
   return clusters.map(cluster => {
-    const allowedNamespaces = getAllowedNamespaces(cluster);
+    const { namespaces: allowedNamespaces } = getNamespaceConfig(cluster);
 
     let namespaces = requestedNamespaces.length > 0 ? requestedNamespaces : allowedNamespaces;
 
@@ -422,7 +428,7 @@ export function useKubeObjectList<K extends KubeObject>({
   watch = true,
   refetchInterval,
 }: {
-  requests: Array<{ cluster: string; namespaces?: string[] }>;
+  requests: KubeListRequest[];
   /** Class to instantiate the object with */
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
   queryParams?: QueryParameters;
@@ -449,8 +455,8 @@ export function useKubeObjectList<K extends KubeObject>({
   const queries = useMemo(
     () =>
       endpoint
-        ? requests.flatMap(({ cluster, namespaces }) =>
-            namespaces && namespaces.length > 0
+        ? requests.flatMap(({ cluster, namespaces }) => {
+            return namespaces && namespaces.length > 0
               ? namespaces.map(namespace =>
                   kubeObjectListQuery<K>(
                     kubeObjectClass,
@@ -461,15 +467,17 @@ export function useKubeObjectList<K extends KubeObject>({
                     refetchInterval
                   )
                 )
-              : kubeObjectListQuery<K>(
-                  kubeObjectClass,
-                  endpoint,
-                  undefined,
-                  cluster,
-                  cleanedUpQueryParams,
-                  refetchInterval
-                )
-          )
+              : [
+                  kubeObjectListQuery<K>(
+                    kubeObjectClass,
+                    endpoint,
+                    undefined,
+                    cluster,
+                    cleanedUpQueryParams,
+                    refetchInterval
+                  ),
+                ];
+          })
         : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [requests, kubeObjectClass, endpoint, cleanedUpQueryParams]
