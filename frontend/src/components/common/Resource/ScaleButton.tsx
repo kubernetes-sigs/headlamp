@@ -139,14 +139,16 @@ function getNumReplicas(resource: Deployment | StatefulSet | ReplicaSet) {
 
 function ScaleDialog(props: ScaleDialogProps) {
   const { open, resource, onClose, onSave } = props;
-  const [numReplicas, setNumReplicas] = React.useState<number>(() => getNumReplicas(resource));
+  const [numReplicas, setNumReplicas] = React.useState<number>(() =>
+    Math.max(0, getNumReplicas(resource))
+  );
   const { t } = useTranslation(['translation']);
   const theme = useTheme();
   const desiredNumReplicasLabel = 'desired-number-replicas-label';
   const numReplicasForWarning = 100;
   const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.SCALE_RESOURCE);
 
-  const currentNumReplicas = getNumReplicas(resource);
+  const currentNumReplicas = React.useMemo(() => getNumReplicas(resource), [resource]);
 
   return (
     <Dialog open={open} onClose={onClose} fullWidth maxWidth="sm">
