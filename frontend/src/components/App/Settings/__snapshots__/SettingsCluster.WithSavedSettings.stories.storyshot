@@ -283,7 +283,7 @@
               class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
               id="allowed-namespace-label"
             >
-              Allowed namespaces
+              Additional namespaces (override)
             </p>
           </dt>
           <dd
@@ -333,7 +333,7 @@
                 class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained css-153yz37-MuiFormHelperText-root"
                 id=":mock-test-id:"
               >
-                The list of namespaces you are allowed to access in this cluster.
+                Optional override when automatic namespace discovery is insufficient. Leave empty to use RBAC-based discovery.
               </p>
             </div>
             <div
