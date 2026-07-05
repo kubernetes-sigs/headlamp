@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -211,8 +212,9 @@ func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolin
 		enabledTypes = append(enabledTypes, "Jaeger")
 
 		if !isOTLPConfigured {
+			otlpEndpoint := normalizeEndpoint(*cfg.JaegerEndpoint)
+			cfg.OTLPEndpoint = &otlpEndpoint
 			isOTLPConfigured = true
-			cfg.OTLPEndpoint = cfg.JaegerEndpoint
 		}
 	}
 
@@ -254,6 +256,24 @@ func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolin
 	}
 
 	return exporter, nil
+}
+
+func normalizeEndpoint(endpoint string) string {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		return endpoint
+	}
+
+	parsedURL, err := url.Parse(endpoint)
+	if err == nil && parsedURL.Host != "" {
+		return parsedURL.Host
+	}
+
+	endpoint, _, _ = strings.Cut(endpoint, "/")
+	endpoint, _, _ = strings.Cut(endpoint, "?")
+	endpoint, _, _ = strings.Cut(endpoint, "#")
+
+	return endpoint
 }
 
 // createOTLPExporter creates an OpenTelemetry Protocol (OTLP) exporter

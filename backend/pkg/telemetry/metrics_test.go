@@ -17,8 +17,9 @@ import (
 )
 
 const (
-	metricRequestCount   = "http.server.request_count"
-	metricActiveRequests = "http.server.active_requests"
+	metricRequestCount    = "http.server.request_count"
+	metricActiveRequests  = "http.server.active_requests"
+	metricRequestDuration = "http.server.duration"
 )
 
 func TestResponseWriter(t *testing.T) {
@@ -173,6 +174,7 @@ func TestRequestCounterMiddleware(t *testing.T) { //nolint:funlen // long functi
 
 	requestCountFound := false
 	activeRequestsFound := false
+	requestDurationFound := false
 
 	for _, scopeMetric := range data.ScopeMetrics {
 		for _, m := range scopeMetric.Metrics {
@@ -189,11 +191,19 @@ func TestRequestCounterMiddleware(t *testing.T) { //nolint:funlen // long functi
 				sumActive := sumDataPoints(m.Data)
 				assert.Equal(t, int64(0), sumActive, "Expected active requests to be 0 after all requests completed")
 			}
+
+			if m.Name == metricRequestDuration {
+				requestDurationFound = true
+
+				sumDuration := sumDataPoints(m.Data)
+				assert.GreaterOrEqual(t, sumDuration, int64(2), "Expected at least 2 request duration data points")
+			}
 		}
 	}
 
 	assert.True(t, requestCountFound, "Expected to find http.server.request_count metric")
 	assert.True(t, activeRequestsFound, "Expected to find http.server.active_requests metric")
+	assert.True(t, requestDurationFound, "Expected to find http.server.duration metric")
 }
 
 func TestRequestCounterMiddlewarePanic(t *testing.T) {
@@ -361,6 +371,7 @@ func verifyPanicMetrics(t *testing.T, ctx context.Context, reader *sdkmetric.Man
 
 	verifyRequestCountMetric(t, data)
 	verifyActiveRequestsMetric(t, data)
+	verifyRequestDurationMetric(t, data)
 }
 
 func verifyRequestCountMetric(t *testing.T, data metricdata.ResourceMetrics) {
@@ -369,6 +380,22 @@ func verifyRequestCountMetric(t *testing.T, data metricdata.ResourceMetrics) {
 
 func verifyActiveRequestsMetric(t *testing.T, data metricdata.ResourceMetrics) {
 	// Implementation specific to checking active requests metric
+}
+
+func verifyRequestDurationMetric(t *testing.T, data metricdata.ResourceMetrics) {
+	found := false
+
+	for _, scopeMetric := range data.ScopeMetrics {
+		for _, m := range scopeMetric.Metrics {
+			if m.Name == metricRequestDuration {
+				found = true
+				sum := sumDataPoints(m.Data)
+				assert.GreaterOrEqual(t, sum, int64(2), "Expected at least 2 request duration data points")
+			}
+		}
+	}
+
+	assert.True(t, found, "Expected to find http.server.duration metric")
 }
 
 func sumDataPoints(data metricdata.Aggregation) int64 {
@@ -392,6 +419,13 @@ func sumDataPoints(data metricdata.Aggregation) int64 {
 		if len(v.DataPoints) > 0 {
 			return v.DataPoints[len(v.DataPoints)-1].Value
 		}
+	case metricdata.Histogram[float64]:
+		count := uint64(0)
+		for _, dp := range v.DataPoints {
+			count += dp.Count
+		}
+
+		return int64(count)
 	}
 
 	return 0
