@@ -9,19 +9,40 @@
         <span
           class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
         >
-          API_KEY
-          :
-           
-          <a
-            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-            href="/c/minikube/secrets/default/my-secret"
-            style="text-decoration: underline; font-weight: bold;"
+          <div
+            class="MuiBox-root css-1dcp2hx"
           >
-            Secret: 
-            my-secret
-             
-            (Key: api-key)
-          </a>
+            <span
+              class="MuiTypography-root MuiTypography-body1 css-efjbvk-MuiTypography-root"
+            >
+              API_KEY
+              :
+            </span>
+            <div
+              class="MuiBox-root css-18biwo"
+            >
+              <a
+                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                href="/c/minikube/secrets/default/my-secret"
+                style="text-decoration: underline; font-weight: bold;"
+              >
+                Secret: 
+                my-secret
+                 
+                (Key: api-key)
+              </a>
+            </div>
+            <button
+              aria-label="Show"
+              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-qsifm6-MuiButtonBase-root-MuiIconButton-root"
+              tabindex="0"
+              type="button"
+            >
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+          </div>
         </span>
         <span
           class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
