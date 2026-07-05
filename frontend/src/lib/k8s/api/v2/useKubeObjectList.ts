@@ -467,7 +467,7 @@ export function useKubeObjectList<K extends KubeObject>({
                     refetchInterval
                   )
                 )
-                : [
+              : [
                   kubeObjectListQuery<K>(
                     kubeObjectClass,
                     endpoint,
