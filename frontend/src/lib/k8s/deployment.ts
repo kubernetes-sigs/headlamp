@@ -177,8 +177,16 @@ class Deployment extends KubeObject<KubeDeployment> {
       const targetRS = targetEntry.rs;
       const targetRevision = targetEntry.revision;
 
+      const templateSpec = targetRS.spec?.template;
+      if (!templateSpec || !templateSpec.spec) {
+        return {
+          success: false,
+          message: `Revision ${targetRevision} template not found`,
+        };
+      }
+
       const template = JSON.parse(
-        JSON.stringify(targetRS.spec.template)
+        JSON.stringify(templateSpec)
       ) as KubeReplicaSet['spec']['template'];
 
       if (template.metadata?.labels?.['pod-template-hash']) {
