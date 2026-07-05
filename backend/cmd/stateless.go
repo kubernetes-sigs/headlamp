@@ -33,7 +33,7 @@ const statelessContextKeySep = "\x00"
 
 // statelessContextKey generates a structured context key by joining the cluster name
 // and user ID with a NUL character separator (statelessContextKeySep) to keep the stateless keyspace disjoint.
-// Format: "<clusterName>\x00<userID>".
+// Format (when userID is non-empty): "<clusterName>\x00<userID>".
 // If userID is empty, it returns the clusterName.
 func statelessContextKey(clusterName, userID string) string {
 	if userID == "" {
