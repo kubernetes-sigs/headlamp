@@ -59,6 +59,7 @@ const LazyKubeIcon = lazy(() =>
 const NAMESPACE_KIND = 'Namespace';
 const MAX_RESOURCE_CLASS_LOAD_ATTEMPTS = 5;
 const LOAD_RETRY_DELAY_MS = 3000;
+const NO_SELECTED_CLUSTERS: string[] = [];
 
 /**
  * Object representing a single search result
@@ -201,7 +202,7 @@ interface GlobalSearchContentLoadedProps extends GlobalSearchContentProps {
 function useSearchResources(resourceClasses: KubeObjectClass[]) {
   const inACluster = useSelectedClusters().length > 0;
   const results = resourceClasses.map(cls =>
-    cls.useList({ clusters: inACluster ? undefined : [] })
+    cls.useList({ clusters: inACluster ? undefined : NO_SELECTED_CLUSTERS })
   );
 
   return results.map((result, index) => ({
