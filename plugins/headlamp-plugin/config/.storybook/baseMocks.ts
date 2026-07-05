@@ -110,15 +110,17 @@ export const baseMocks = [
     'http://localhost:4466/clusters/*/apis/authorization.k8s.io/v1/selfsubjectrulesreviews',
     () => HttpResponse.json({ status: { resourceRules: [] } })
   ),
-  http.post('http://localhost:4466/clusters/*/apis/authentication.k8s.io/v1/selfsubjectreviews', () =>
-    HttpResponse.json({
-      status: {
-        userInfo: {
-          username: 'storybook-user',
-          groups: [],
+  http.post(
+    'http://localhost:4466/clusters/*/apis/authentication.k8s.io/v1/selfsubjectreviews',
+    () =>
+      HttpResponse.json({
+        status: {
+          userInfo: {
+            username: 'storybook-user',
+            groups: [],
+          },
         },
-      },
-    })
+      })
   ),
   http.post(
     'http://localhost:4466/clusters/*/apis/authorization.k8s.io/v1/selfsubjectaccessreviews',
