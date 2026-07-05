@@ -30,11 +30,11 @@
           <div
             class="MuiBox-root css-70qvj9"
           >
-            <h2
-              class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+            <h1
+              class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
             >
               Example Plugin AutoSave
-            </h2>
+            </h1>
             <div
               class="MuiBox-root css-ldp2l3"
             />
