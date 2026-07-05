@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { act,renderHook } from '@testing-library/react';
+import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { NAMESPACE_DISCOVERY_QUERY_KEY } from '../../../lib/k8s/useDiscoveredNamespaces';
 import { queryClient } from '../../../lib/queryClient';
