@@ -895,7 +895,7 @@ export function useKubeApiList<K extends KubeObject>(
   // If the request itself has no namespaces set, we check whether to apply the
   // allowed namespaces.
   if (namespaces.length === 0 && kubeObjectClass.isNamespaced) {
-    namespaces = getAllowedNamespaces(cluster ?? getCluster());
+    namespaces = getAllowedNamespaces(getCluster());
   }
 
   if (namespaces.length > 0) {
@@ -903,6 +903,7 @@ export function useKubeApiList<K extends KubeObject>(
     // namespace and then set the objects once we have all of the responses.
     for (const namespace of namespaces) {
       listCalls.push(
+        // eslint-disable-next-line react-hooks/refs
         kubeObjectClass.apiList(objList => onObjs(namespace, objList as K[]), onError, {
           namespace,
           queryParams,
