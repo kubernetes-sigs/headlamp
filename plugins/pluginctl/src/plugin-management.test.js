@@ -22,7 +22,6 @@ const path = require('path');
 const PluginManager = pluginManagement.PluginManager;
 const validateArchiveURL = pluginManagement.validateArchiveURL;
 
-
 // Mocking progressCallback function for testing
 // eslint-disable-next-line
 const mockProgressCallback = jest.fn(args => {
@@ -95,9 +94,19 @@ describe('PluginManager Test Cases', () => {
   });
 
   test('Update Plugin Rollback on Move Failure', async () => {
-    // Set a lower version first in the installed plugin
     const pluginDir = path.join(tempDir, 'headlamp_flux');
     const backupDir = `${pluginDir}.backup`;
+    // Ensure the plugin exists for this test so it can run in isolation.
+    if (!fs.existsSync(pluginDir)) {
+      await PluginManager.install(
+        'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux',
+        tempDir,
+        '',
+        mockProgressCallback
+      );
+      jest.clearAllMocks();
+    }
+    // Set a lower version first in the installed plugin
     const packageJSONPath = path.join(pluginDir, 'package.json');
     const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath, 'utf8'));
     packageJSON.artifacthub.version = '0.0.1'; // Lower version to trigger update
@@ -154,7 +163,7 @@ describe('PluginManager Test Cases', () => {
 
   test('Error propagation when progressCallback is provided', async () => {
     const errorCallback = jest.fn();
-    
+
     // install should resolve to undefined when progressCallback is provided, as it catches the error and reports it via callback
     await expect(
       PluginManager.install(
@@ -194,9 +203,7 @@ describe('PluginManager Test Cases', () => {
     PluginManager.list(tempDir, listCallback);
 
     // The list should not contain the ghost-plugin
-    const listedPlugins = listCallback.mock.calls.find(
-      call => call[0].type === 'success'
-    )[0].data;
+    const listedPlugins = listCallback.mock.calls.find(call => call[0].type === 'success')[0].data;
 
     const ghostFound = listedPlugins.some(p => p.folderName === 'ghost-plugin.backup');
     expect(ghostFound).toBe(false);
@@ -208,15 +215,23 @@ describe('PluginManager Test Cases', () => {
 
 describe('validateArchiveURL', () => {
   test('valid GitHub release URL', () => {
-    expect(validateArchiveURL('https://github.com/kubernetes-sigs/headlamp/releases/download/v0.24.1/Headlamp-0.24.1-win-x64.exe')).toBe(true);
+    expect(
+      validateArchiveURL(
+        'https://github.com/kubernetes-sigs/headlamp/releases/download/v0.24.1/Headlamp-0.24.1-win-x64.exe'
+      )
+    ).toBe(true);
   });
 
   test('valid GitHub archive URL', () => {
-    expect(validateArchiveURL('https://github.com/owner/repo/archive/refs/tags/v1.0.0.zip')).toBe(true);
+    expect(validateArchiveURL('https://github.com/owner/repo/archive/refs/tags/v1.0.0.zip')).toBe(
+      true
+    );
   });
 
   test('valid Bitbucket download URL', () => {
-    expect(validateArchiveURL('https://bitbucket.org/owner/repo/downloads/package-1.0.0.zip')).toBe(true);
+    expect(validateArchiveURL('https://bitbucket.org/owner/repo/downloads/package-1.0.0.zip')).toBe(
+      true
+    );
   });
 
   test('valid Bitbucket get archive URL', () => {
@@ -224,7 +239,11 @@ describe('validateArchiveURL', () => {
   });
 
   test('valid GitLab release URL', () => {
-    expect(validateArchiveURL('https://gitlab.com/gitlab-org/gitlab/-/archive/v17.2.0-ee/gitlab-v17.2.0-ee.tar.gz')).toBe(true);
+    expect(
+      validateArchiveURL(
+        'https://gitlab.com/gitlab-org/gitlab/-/archive/v17.2.0-ee/gitlab-v17.2.0-ee.tar.gz'
+      )
+    ).toBe(true);
   });
 
   test('invalid URL', () => {

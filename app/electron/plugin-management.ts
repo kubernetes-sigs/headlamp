@@ -333,7 +333,7 @@ export class PluginManager {
               fs.rmSync(pluginDir, { recursive: true, force: true });
               fs.renameSync(backupDir, pluginDir);
             } else {
-               fs.rmSync(backupDir, { recursive: true, force: true });
+              fs.rmSync(backupDir, { recursive: true, force: true });
             }
           }
           fs.renameSync(pluginDir, backupDir);
