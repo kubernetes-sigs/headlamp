@@ -44,8 +44,18 @@ Error.args = {
   phase: 'Terminating',
 };
 
-// empty phase renders nothing
+// empty/undefined/null phase all render nothing
 export const Empty = Template.bind({});
 Empty.args = {
   phase: '',
+};
+
+export const EmptyUndefined = Template.bind({});
+EmptyUndefined.args = {
+  phase: undefined,
+};
+
+export const EmptyNull = Template.bind({});
+EmptyNull.args = {
+  phase: null,
 };
