@@ -625,6 +625,11 @@ func faviconFromFile(path string) (data []byte, contentType string, ok bool) {
 		return nil, "", false
 	}
 
+	if !info.Mode().IsRegular() {
+		logger.Log(logger.LevelWarn, logFields, nil, "favicon path is not a regular file; serving default icon")
+		return nil, "", false
+	}
+
 	if info.Size() > maxFaviconSize {
 		logger.Log(logger.LevelWarn, logFields, nil, "favicon file too large; serving default icon")
 		return nil, "", false
