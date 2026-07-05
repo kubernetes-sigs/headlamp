@@ -39,7 +39,7 @@ vi.mock('../common/Resource', () => ({
       setItem(fakeDeployment);
     }, [onResourceUpdate]);
     if (!item) return null;
-    const sections = typeof extraSections === 'function' ? extraSections(item) : [];
+    const sections = typeof extraSections === 'function' ? extraSections(item, { events: [] }) : [];
     return (
       <>
         {sections.map((s: any) => (
