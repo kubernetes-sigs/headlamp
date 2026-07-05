@@ -42,6 +42,25 @@ import envPaths from './env-paths';
 // }
 
 /**
+ * Extracts TLS error code from an error object.
+ * Checks both err.code directly and err.cause.code for TLS error codes.
+ *
+ * @param err - The error object to extract the code from
+ * @param tlsErrorCodes - Array of TLS error codes to match against
+ * @returns The TLS error code if found, undefined otherwise
+ */
+function extractTlsErrorCode(err: unknown, tlsErrorCodes: string[]): string | undefined {
+  if (!(err instanceof Error)) return undefined;
+  const directCode = 'code' in err ? (err as { code?: string }).code : undefined;
+  const causeCode =
+    err.cause && typeof err.cause === 'object' && 'code' in err.cause
+      ? (err.cause as { code: string }).code
+      : undefined;
+  const code = directCode ?? causeCode;
+  return code && tlsErrorCodes.includes(code) ? code : undefined;
+}
+
+/**
  * `ProgressResp` is an interface for progress response.
  *
  * @interface
@@ -718,6 +737,21 @@ async function downloadAndExtractSingleArchive(
   try {
     archResponse = await fetch(archiveURL, { redirect: 'follow', signal });
   } catch (err) {
+    const tlsErrorCodes = [
+      'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+      'SELF_SIGNED_CERT_IN_CHAIN',
+      'CERT_UNTRUSTED',
+      'CERT_REJECTED',
+    ];
+
+    const tlsCode = extractTlsErrorCode(err, tlsErrorCodes);
+    if (tlsCode) {
+      throw new Error(
+        `TLS certificate verification failed (${tlsCode}). This may be due to a corporate TLS-inspecting proxy. ` +
+          'Ensure the proxy root CA is trusted by your OS certificate store, or configure a custom CA bundle (settings.json: customCAPath).',
+        { cause: err }
+      );
+    }
     throw new Error('Failed to fetch archive. Please check the URL and your network connection.');
   }
 
@@ -944,7 +978,28 @@ async function fetchPluginInfo(
     if (progressCallback) {
       progressCallback({ type: 'info', message: 'Fetching Plugin Metadata' });
     }
-    const response = await fetch(apiURL, { redirect: 'follow', signal });
+    let response;
+    try {
+      response = await fetch(apiURL, { redirect: 'follow', signal });
+    } catch (err) {
+      const tlsErrorCodes = [
+        'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+        'SELF_SIGNED_CERT_IN_CHAIN',
+        'CERT_UNTRUSTED',
+        'CERT_REJECTED',
+      ];
+
+      const tlsCode = extractTlsErrorCode(err, tlsErrorCodes);
+      if (tlsCode) {
+        throw new Error(
+          `TLS certificate verification failed (${tlsCode}). This may be due to a corporate TLS-inspecting proxy. ` +
+            'Ensure the proxy root CA is trusted by your OS certificate store, or configure a custom CA bundle (settings.json: customCAPath).',
+          { cause: err }
+        );
+      }
+      throw new Error('Failed to fetch plugin metadata. Please check your network connection.');
+    }
+
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
