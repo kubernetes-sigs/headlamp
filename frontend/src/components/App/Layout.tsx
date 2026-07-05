@@ -23,6 +23,7 @@ import Link from '@mui/material/Link';
 import { styled } from '@mui/material/styles';
 import { Dispatch, UnknownAction } from '@reduxjs/toolkit';
 import { useQuery } from '@tanstack/react-query';
+import _ from 'lodash';
 import { useEffect } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -153,7 +154,15 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
       dispatch(setConfig(configToStore));
     } else {
       // Check if the config is different
-      const configDifferent = isEqualClusterConfigs(clusters, clustersToConfig);
+      const configDifferent =
+        isEqualClusterConfigs(clusters, clustersToConfig) ||
+        !_.isEqual(store.getState().config.externalLinks, configToStore.externalLinks) ||
+        store.getState().config.isDynamicClusterEnabled !== configToStore.isDynamicClusterEnabled ||
+        store.getState().config.allowKubeconfigChanges !== configToStore.allowKubeconfigChanges ||
+        store.getState().config.defaultPodDebugImage !== configToStore.defaultPodDebugImage ||
+        store.getState().config.defaultNodeShellImage !== configToStore.defaultNodeShellImage ||
+        store.getState().config.defaultNodeShellNamespace !==
+          configToStore.defaultNodeShellNamespace;
 
       if (configDifferent) {
         // Merge the new config with the current config

@@ -467,10 +467,11 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     }
 
     if (externalLinks.length > 0) {
+      const validLinks: SidebarItemProps[] = [];
       externalLinks.forEach((link, i) => {
         const url = safeLinkUrl(link.url);
         if (url) {
-          inClusterItems.push({
+          validLinks.push({
             name: `external-link-${i}`,
             label: link.label,
             url,
@@ -478,6 +479,15 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
           });
         }
       });
+
+      if (validLinks.length > 0) {
+        inClusterItems.push({
+          name: 'external-links-header',
+          label: t('translation|External Links'),
+          entryType: 'subheader',
+        });
+        inClusterItems.push(...validLinks);
+      }
     }
 
     // List of sidebars, they act as roots for the sidebar tree

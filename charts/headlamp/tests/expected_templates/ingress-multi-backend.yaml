@@ -11,6 +11,7 @@ metadata:
     app.kubernetes.io/instance: headlamp
     app.kubernetes.io/version: "0.43.0"
     app.kubernetes.io/managed-by: Helm
+
 ---
 # Source: headlamp/templates/secret.yaml
 apiVersion: v1
@@ -20,6 +21,7 @@ metadata:
   namespace: default
 type: Opaque
 data:
+
 ---
 # Source: headlamp/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -40,6 +42,7 @@ subjects:
 - kind: ServiceAccount
   name: headlamp
   namespace: default
+
 ---
 # Source: headlamp/templates/service.yaml
 apiVersion: v1
@@ -68,6 +71,7 @@ spec:
   selector:
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
+
 ---
 # Source: headlamp/templates/deployment.yaml
 # This block of code is used to extract the values from the env.
@@ -142,6 +146,7 @@ spec:
             failureThreshold: 3
           resources:
             {}
+
 ---
 # Source: headlamp/templates/ingress.yaml
 apiVersion: networking.k8s.io/v1

@@ -281,6 +281,11 @@ describe('useSidebarItems', () => {
       wrapper: wrapper(store),
     });
 
+    const headerLink = result.current.find(it => it.name === 'external-links-header');
+    expect(headerLink).toBeDefined();
+    expect(headerLink?.label).toBe('External Links');
+    expect(headerLink?.entryType).toBe('subheader');
+
     const googleLink = result.current.find(it => it.name === 'external-link-0');
     expect(googleLink).toBeDefined();
     expect(googleLink?.label).toBe('Google');
