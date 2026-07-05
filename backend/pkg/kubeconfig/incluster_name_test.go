@@ -1,4 +1,4 @@
-package kubeconfig //nolint:testpackage
+package kubeconfig_test
 
 import (
 	"context"
@@ -9,6 +9,8 @@ import (
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
+
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 )
 
 func kubeadmConfigMap(data map[string]string) *corev1.ConfigMap {
@@ -86,7 +88,7 @@ func TestDeriveInClusterName(t *testing.T) {
 				clientset = fake.NewSimpleClientset()
 			}
 
-			name, err := deriveInClusterName(context.Background(), clientset)
+			name, err := kubeconfig.DeriveInClusterName(context.Background(), clientset)
 			if tt.expectErr {
 				require.Error(t, err)
 				assert.Empty(t, name)

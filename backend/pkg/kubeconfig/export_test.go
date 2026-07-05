@@ -1,12 +1,16 @@
 package kubeconfig
 
-import "net/http"
+import (
+	"net/http"
+)
 
 // This file exports internal functions and types for testing purposes only.
 // These exports are only available during testing and won't be included in production builds.
 
 // BuildUserAgent is exported for testing.
 var BuildUserAgent = buildUserAgent
+
+var DeriveInClusterName = deriveInClusterName
 
 // UserAgentRoundTripper is exported for testing.
 type UserAgentRoundTripper struct {
