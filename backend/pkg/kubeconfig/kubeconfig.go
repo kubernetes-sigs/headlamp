@@ -1055,12 +1055,13 @@ func resolveServiceAccountTokenPath(clusterConfig *rest.Config, serviceAccountTo
 	return "/var/run/secrets/kubernetes.io/serviceaccount/token" // #nosec G101
 }
 
-// deriveInClusterNameTimeout bounds the kubeadm-config lookup so it cannot block startup.
-const deriveInClusterNameTimeout = 10 * time.Second
+// deriveInClusterNameTimeout bounds the kubeadm-config lookup so it cannot block startup indefinitely.
+const deriveInClusterNameTimeout = 2 * time.Second
 
 // deriveInClusterName reads the cluster name from the kube-system/kubeadm-config
 // ConfigMap, which kubeadm and KiND populate at creation time. It returns an error
-// when the ConfigMap, the ClusterConfiguration key, or the clusterName field is missing.
+// when the ConfigMap, the ClusterConfiguration key, or the clusterName field is missing
+// (or when clusterName is kubeadm's default "kubernetes").
 func deriveInClusterName(ctx context.Context, clientset kubernetes.Interface) (string, error) {
 	cm, err := clientset.CoreV1().ConfigMaps("kube-system").Get(ctx, "kubeadm-config", metav1.GetOptions{})
 	if err != nil {
@@ -1082,7 +1083,7 @@ func deriveInClusterName(ctx context.Context, clientset kubernetes.Interface) (s
 
 	name := strings.TrimSpace(parsed.ClusterName)
 	if name == "" || strings.EqualFold(name, "kubernetes") {
-		return "", errors.New("kubeadm ClusterConfiguration has no clusterName")
+		return "", errors.New("kubeadm ClusterConfiguration clusterName is empty or default (kubernetes)")
 	}
 
 	return name, nil
