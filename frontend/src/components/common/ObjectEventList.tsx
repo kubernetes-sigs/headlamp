@@ -91,13 +91,16 @@ export default function ObjectEventList(props: ObjectEventListProps) {
   const fetchedEvents = useObjectEvents(props.events === undefined ? props.object : null);
   const events = props.events ?? fetchedEvents;
   const dispatchEventList = useEventCallback(HeadlampEventType.OBJECT_EVENTS);
+  // Stable identity so a changed object re-dispatches even when events stays
+  // referentially equal (e.g. an empty array reused across objects).
+  const objectKey = getObjectEventsKey(props.object);
 
   useEffect(() => {
     if (events) {
       dispatchEventList(events, props.object);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [events]);
+  }, [events, objectKey]);
 
   const { t } = useTranslation(['translation', 'glossary']);
 
