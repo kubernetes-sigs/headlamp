@@ -182,9 +182,9 @@ For each module we have a test file. For example config.go comes with config_tes
 - Entry point is [app/electron/main.ts](https://github.com/kubernetes-sigs/headlamp/blob/main/app/electron/main.ts)
 
 A few key dependencies:
-**TypeScript**: Language in which the app's code is written.
-**Electron**: Used to create a native desktop application for Headlamp.
-**Yargs**: Used for command line argument processing.
+- **TypeScript**: Language in which the app's code is written.
+- **Electron**: Used to create a native desktop application for Headlamp.
+- **Yargs**: Used for command line argument processing.
 
 ### Plugins
 
