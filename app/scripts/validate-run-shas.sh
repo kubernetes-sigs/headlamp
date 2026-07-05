@@ -36,7 +36,9 @@
 # Environment variables:
 #   GH_TOKEN or GITHUB_TOKEN  - Required. GitHub token with 'actions: read' permission.
 
-set -euo pipefail
+if [[ "${BASH_SOURCE[0]}" == "${0}" ]]; then
+  set -euo pipefail
+fi
 
 # ---------------------------------------------------------------------------
 # resolve_tag
