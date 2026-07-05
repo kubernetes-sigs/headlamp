@@ -1199,8 +1199,10 @@ func isOIDCAuthContext(kCtx *kubeconfig.Context) bool {
 // both issuer and client-id match keeps the token valid against the target
 // cluster's apiserver without re-validating per cluster. Two audience caveats
 // are NOT detected here and must be ensured by deployment configuration:
-//   - --oidc-extra-audience on a target apiserver: the broadcast cookie may be
-//     set but the target apiserver could reject the token.
+//   - A target apiserver configured to accept a different or additional
+//     audience than the client-id (via the "audiences" list in a structured
+//     AuthenticationConfiguration): the broadcast cookie may be set but the
+//     target apiserver could reject the token.
 //   - --oidc-use-access-token: the broadcast then carries the access_token,
 //     whose audience is provider-specific and frequently NOT the client-id
 //     (e.g. a resource/API identifier on Okta, Entra ID, Auth0). A matching
