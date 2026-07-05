@@ -205,15 +205,30 @@ function useSearchResources(resourceClasses: KubeObjectClass[]) {
     cls.useList({ clusters: inACluster ? undefined : NO_SELECTED_CLUSTERS })
   );
 
-  return useMemo(
-    () =>
-      results.map((result, index) => ({
-        isLoading: result.isFetching,
-        items: result.items,
-        kind: resourceClasses[index].kind,
-      })),
-    [resourceClasses, ...results.flatMap(result => [result.isFetching, result.items])]
-  );
+  const resourcesRef = useRef<
+    { isLoading: boolean; items: KubeObject<any>[] | null; kind: string }[]
+  >([]);
+
+  const nextResources = results.map((result, index) => ({
+    isLoading: result.isFetching,
+    items: result.items,
+    kind: resourceClasses[index].kind,
+  }));
+
+  const prevResources = resourcesRef.current;
+  if (
+    nextResources.length !== prevResources.length ||
+    nextResources.some(
+      (resource, index) =>
+        resource.isLoading !== prevResources[index]?.isLoading ||
+        resource.items !== prevResources[index]?.items ||
+        resource.kind !== prevResources[index]?.kind
+    )
+  ) {
+    resourcesRef.current = nextResources;
+  }
+
+  return resourcesRef.current;
 }
 
 function makeKubeObjectResults(
