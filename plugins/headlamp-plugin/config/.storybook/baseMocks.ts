@@ -104,10 +104,11 @@ export const baseMocks = [
     HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
   ),
   http.post('http://localhost:4466/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', () =>
-    HttpResponse.json({ status: { allowed: true } })
+    HttpResponse.json({ status: { resourceRules: [] } })
   ),
-  http.post('http://localhost:4466/clusters/*/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', () =>
-    HttpResponse.json({ status: { allowed: true } })
+  http.post(
+    'http://localhost:4466/clusters/*/apis/authorization.k8s.io/v1/selfsubjectrulesreviews',
+    () => HttpResponse.json({ status: { resourceRules: [] } })
   ),
   http.post('http://localhost:4466/clusters/*/apis/authentication.k8s.io/v1/selfsubjectreviews', () =>
     HttpResponse.json({
