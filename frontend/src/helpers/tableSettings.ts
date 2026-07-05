@@ -27,12 +27,19 @@ export function storeTableSettings(tableId: string, columns: { id?: string; show
   }
 
   const columnsWithIds = columns.map((c, i) => ({ id: i.toString(), ...c }));
-  // Delete the entry if there are no settings to store.
-  if (columnsWithIds.length === 0) {
-    localStorage.removeItem(`table_settings.${tableId}`);
-    return;
+  try {
+    // Delete the entry if there are no settings to store.
+    if (columnsWithIds.length === 0) {
+      localStorage.removeItem(`table_settings.${tableId}`);
+      return;
+    }
+    localStorage.setItem(`table_settings.${tableId}`, JSON.stringify(columnsWithIds));
+  } catch (error) {
+    console.error(
+      `Error occurred while updating table_settings.${tableId} in local storage:`,
+      error
+    );
   }
-  localStorage.setItem(`table_settings.${tableId}`, JSON.stringify(columnsWithIds));
 }
 
 /**
@@ -47,6 +54,33 @@ export function loadTableSettings(tableId: string): { id: string; show: boolean 
     return [];
   }
 
-  const settings = JSON.parse(localStorage.getItem(`table_settings.${tableId}`) || '[]');
-  return settings;
+  try {
+    const item = localStorage.getItem(`table_settings.${tableId}`);
+    if (item === null) {
+      return [];
+    }
+    const settings = JSON.parse(item);
+    if (!Array.isArray(settings)) {
+      console.warn(`table_settings.${tableId} is not an array, falling back to empty array.`);
+      return [];
+    }
+    const validSettings = settings.filter(
+      (entry): entry is { id: string; show: boolean } =>
+        entry !== null &&
+        typeof entry === 'object' &&
+        typeof entry.id === 'string' &&
+        typeof entry.show === 'boolean'
+    );
+    if (validSettings.length !== settings.length) {
+      console.warn(`table_settings.${tableId} has invalid entries, falling back to empty array.`);
+      return [];
+    }
+    return validSettings;
+  } catch (error) {
+    console.warn(
+      `Failed to read table_settings.${tableId} from local storage, falling back to empty array:`,
+      error
+    );
+    return [];
+  }
 }
