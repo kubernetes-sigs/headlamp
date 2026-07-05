@@ -40,6 +40,7 @@ import path from 'path';
 import url from 'url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import { setupCustomCAs, setupSystemCAs } from './certificates';
 import i18n from './i18next.config';
 import MCPClient from './mcp/MCPClient';
 import {
@@ -52,6 +53,7 @@ import {
   PluginManager,
 } from './plugin-management';
 import { addRunCmdConsent, removeRunCmdConsent, runScript, setupRunCmdHandlers } from './runCmd';
+import { loadSettings, SETTINGS_PATH } from './settings';
 import {
   cleanupHeadlampTray,
   createHeadlampTray,
@@ -83,6 +85,13 @@ if (process.env.HEADLAMP_RUN_SCRIPT) {
 const ENABLE_MCP = process.env.HEADLAMP_MCP_ENABLE !== 'false';
 
 dotenv.config({ path: path.join(process.resourcesPath, '.env') });
+
+const settings = loadSettings(SETTINGS_PATH);
+setupSystemCAs(settings);
+
+if (settings.customCAPath) {
+  setupCustomCAs(settings.customCAPath);
+}
 
 const isDev = !!process.env.ELECTRON_DEV;
 let frontendPath = '';
