@@ -57,6 +57,8 @@ const LazyKubeIcon = lazy(() =>
 );
 
 const NAMESPACE_KIND = 'Namespace';
+const MAX_RESOURCE_CLASS_LOAD_ATTEMPTS = 5;
+const LOAD_RETRY_DELAY_MS = 3000;
 
 /**
  * Object representing a single search result
@@ -93,6 +95,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
   const [resourceClasses, setResourceClasses] = useState<KubeObjectClass[] | null>(null);
   const [queryDraft, setQueryDraft] = useState(props.defaultValue ?? '');
   const [loadAttempt, setLoadAttempt] = useState(0);
+  const [loadFailed, setLoadFailed] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -101,17 +104,22 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
     loadSearchResourceClasses()
       .then(classes => {
         if (!cancelled) {
+          setLoadFailed(false);
           setResourceClasses(classes);
         }
       })
-      .catch(() => {
+      .catch(error => {
+        console.error('Failed to load global search resource classes', error);
         if (cancelled) {
           return;
         }
-        // Keep the input responsive and retry after a short delay when chunk loading fails.
+        if (loadAttempt + 1 >= MAX_RESOURCE_CLASS_LOAD_ATTEMPTS) {
+          setLoadFailed(true);
+          return;
+        }
         retryTimer = setTimeout(() => {
           setLoadAttempt(attempt => attempt + 1);
-        }, 3000);
+        }, LOAD_RETRY_DELAY_MS);
       });
 
     return () => {
@@ -124,7 +132,12 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
 
   if (!resourceClasses) {
     return (
-      <GlobalSearchContentPlaceholder {...props} query={queryDraft} onQueryChange={setQueryDraft} />
+      <GlobalSearchContentPlaceholder
+        {...props}
+        query={queryDraft}
+        onQueryChange={setQueryDraft}
+        loadFailed={loadFailed}
+      />
     );
   }
 
@@ -140,10 +153,11 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
 interface GlobalSearchContentPlaceholderProps extends GlobalSearchContentProps {
   query: string;
   onQueryChange: (value: string) => void;
+  loadFailed?: boolean;
 }
 
 function GlobalSearchContentPlaceholder(props: GlobalSearchContentPlaceholderProps) {
-  const { onBlur, query, onQueryChange } = props;
+  const { onBlur, query, onQueryChange, loadFailed } = props;
   const { t } = useTranslation();
 
   return (
@@ -155,12 +169,18 @@ function GlobalSearchContentPlaceholder(props: GlobalSearchContentPlaceholderPro
       value={query}
       onChange={event => onQueryChange(event.target.value)}
       onBlur={onBlur}
+      helperText={
+        loadFailed
+          ? t('Unable to load search resources. Refresh the page and try again.')
+          : undefined
+      }
+      error={loadFailed}
       InputProps={{
         autoFocus: true,
         sx: theme => ({
           background: theme.palette.background.default,
         }),
-        endAdornment: (
+        endAdornment: loadFailed ? undefined : (
           <Delayed display="flex" mr={1}>
             <CircularProgress size="16px" />
           </Delayed>
@@ -184,16 +204,11 @@ function useSearchResources(resourceClasses: KubeObjectClass[]) {
     cls.useList({ clusters: inACluster ? undefined : [] })
   );
 
-  return useMemo(() => {
-    return results.map((result, index) => {
-      return {
-        isLoading: result.isFetching,
-        items: result.items,
-        kind: resourceClasses[index].kind,
-      };
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results.map(it => it.data), resourceClasses]);
+  return results.map((result, index) => ({
+    isLoading: result.isFetching,
+    items: result.items,
+    kind: resourceClasses[index].kind,
+  }));
 }
 
 function makeKubeObjectResults(
