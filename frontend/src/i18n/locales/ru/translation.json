@@ -875,6 +875,7 @@
   "Main Navigation": "Основная навигация",
   "Navigation Tabs": "Вкладки навигации",
   "Instances": "Экземпляры",
+  "External Links": "",
   "Cluster version upgraded to {{ gitVersion }}": "Версия кластера обновлена \u200b\u200bдо {{ gitVersion }}.",
   "Cluster version downgraded to {{ gitVersion }}": "Версия кластера понижена до {{ gitVersion }}",
   "Controlled Resources": "Контролируемые ресурсы",
