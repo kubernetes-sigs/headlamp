@@ -208,7 +208,16 @@ export function PercentageBar(props: PercentageBarProps) {
   }, []);
 
   const handleMouseEnter = useCallback(() => {
-    setContainerRect(containerRef.current?.getBoundingClientRect() ?? null);
+    const next = containerRef.current?.getBoundingClientRect() ?? null;
+
+    setContainerRect(prev =>
+      prev?.left === next?.left &&
+      prev?.top === next?.top &&
+      prev?.width === next?.width &&
+      prev?.height === next?.height
+        ? prev
+        : next
+    );
   }, []);
 
   function formatData() {
