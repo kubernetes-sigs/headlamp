@@ -76,7 +76,7 @@ export function GraphControls({ children }: { children?: React.ReactNode }) {
           },
         }}
         orientation="vertical"
-        aria-label={t('Zoom controls')}
+        aria-label={t('Vertical button group')}
         variant="contained"
       >
         <GraphControlButton disabled={maxZoomReached} title={t('Zoom in')} onClick={() => zoomIn()}>
