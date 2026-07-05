@@ -619,7 +619,17 @@ func faviconFromFile(path string) (data []byte, contentType string, ok bool) {
 
 	logFields := map[string]string{"path": path}
 
-	info, err := os.Stat(path) //nolint:gosec // path is admin-provided configuration
+	file, err := os.Open(path) //nolint:gosec // path is admin-provided configuration
+	if err != nil {
+		logger.Log(logger.LevelWarn, logFields, err, "favicon file not accessible; serving default icon")
+		return nil, "", false
+	}
+
+	defer func() { _ = file.Close() }()
+
+	// Stat the open descriptor rather than the path so the regular-file check
+	// applies to exactly what we read.
+	info, err := file.Stat()
 	if err != nil {
 		logger.Log(logger.LevelWarn, logFields, err, "favicon file not accessible; serving default icon")
 		return nil, "", false
@@ -630,14 +640,16 @@ func faviconFromFile(path string) (data []byte, contentType string, ok bool) {
 		return nil, "", false
 	}
 
-	if info.Size() > maxFaviconSize {
-		logger.Log(logger.LevelWarn, logFields, nil, "favicon file too large; serving default icon")
+	// Read through a LimitReader so the size cap is enforced on the bytes we
+	// actually read, not on a possibly-stale stat size (avoids a TOCTOU bypass).
+	data, err = io.ReadAll(io.LimitReader(file, maxFaviconSize+1))
+	if err != nil {
+		logger.Log(logger.LevelWarn, logFields, err, "reading favicon file; serving default icon")
 		return nil, "", false
 	}
 
-	data, err = os.ReadFile(path) //nolint:gosec // path is admin-provided configuration
-	if err != nil {
-		logger.Log(logger.LevelWarn, logFields, err, "reading favicon file; serving default icon")
+	if len(data) > maxFaviconSize {
+		logger.Log(logger.LevelWarn, logFields, nil, "favicon file too large; serving default icon")
 		return nil, "", false
 	}
 
@@ -654,14 +666,19 @@ func faviconFromFile(path string) (data []byte, contentType string, ok bool) {
 // faviconFromBase64 decodes a base64 PNG. The content type is fixed to
 // image/png and the decoded bytes are validated against the PNG signature.
 func faviconFromBase64(encoded string) (data []byte, contentType string, ok bool) {
-	data, err := base64.StdEncoding.DecodeString(strings.TrimSpace(encoded))
-	if err != nil {
-		logger.Log(logger.LevelWarn, nil, err, "decoding favicon-base64; serving default icon")
+	trimmed := strings.TrimSpace(encoded)
+
+	// Reject oversized input before decoding it. DecodedLen is an upper bound on
+	// the decoded size, so this caps the allocation instead of decoding a huge
+	// string into memory first.
+	if base64.StdEncoding.DecodedLen(len(trimmed)) > maxFaviconSize {
+		logger.Log(logger.LevelWarn, nil, nil, "favicon-base64 too large; serving default icon")
 		return nil, "", false
 	}
 
-	if len(data) > maxFaviconSize {
-		logger.Log(logger.LevelWarn, nil, nil, "favicon-base64 too large; serving default icon")
+	data, err := base64.StdEncoding.DecodeString(trimmed)
+	if err != nil {
+		logger.Log(logger.LevelWarn, nil, err, "decoding favicon-base64; serving default icon")
 		return nil, "", false
 	}
 
