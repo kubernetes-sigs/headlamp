@@ -18,6 +18,8 @@ import { Icon } from '@iconify/react';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import TextField, { TextFieldProps } from '@mui/material/TextField';
@@ -48,7 +50,7 @@ export interface FormField {
   /** Display label for the field. */
   label: string;
   /** Input type – defaults to 'text'. */
-  type?: 'text' | 'number' | 'labels' | 'select' | 'containers' | 'namespace';
+  type?: 'text' | 'number' | 'boolean' | 'labels' | 'select' | 'containers' | 'namespace';
   /** Whether the field is required. */
   required?: boolean;
   /** For 'number' fields: minimum allowed value. */
@@ -97,9 +99,9 @@ export interface CreateResourceFormProps {
 }
 
 /** Data-driven resource creation form. Renders labelled sections of typed
- *  fields (text, number, labels, containers, namespace, select) from a
- *  declarative descriptor and keeps a plain JS resource object in sync
- *  via `onChange`. */
+ *  fields (text, number, boolean, labels, containers, namespace, select)
+ *  from a declarative descriptor and keeps a plain JS resource object in
+ *  sync via `onChange`. */
 /** Standard metadata section (name, namespace, labels) for resource forms.
  *  Import and prepend to your `sections` array. */
 export function metadataSection(t: (key: string) => string): FormSection {
@@ -287,6 +289,37 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
                 </MenuItem>
               ))}
             </FormTextField>
+          </Box>
+        );
+      case 'boolean':
+        return (
+          <Box>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={!!value}
+                  onChange={e => handleFieldChange(field.path, e.target.checked)}
+                  inputProps={{ 'aria-label': field.label }}
+                />
+              }
+              label={field.label}
+            />
+            {field.helperText && (
+              <Tooltip title={field.helperText} arrow>
+                <IconButton
+                  size="small"
+                  aria-label={field.helperText}
+                  sx={{ p: 0, display: 'inline-flex', lineHeight: 0 }}
+                >
+                  <Icon
+                    icon="mdi:information-outline"
+                    width={16}
+                    height={16}
+                    style={{ display: 'block' }}
+                  />
+                </IconButton>
+              </Tooltip>
+            )}
           </Box>
         );
       default:
