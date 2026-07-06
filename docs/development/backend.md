@@ -27,6 +27,10 @@ Once built, it can be run in development mode (insecure / don't use in productio
 npm run backend:start
 ```
 
+## Telemetry
+
+Headlamp's backend supports OpenTelemetry for distributed tracing and Prometheus metrics. See the [Telemetry guide](./telemetry.md) for configuration, local setup with Jaeger and Prometheus, and in-cluster deployment.
+
 ## Logging configuration
 
 Headlamp’s backend supports configurable log levels to control verbosity.
