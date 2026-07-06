@@ -579,7 +579,7 @@ func TestIsAllowed_EmptyKind(t *testing.T) {
 	)
 	// No mux vars → GetKindAndVerb returns ("", "unknown") →
 	// IsAllowed must return (false, non-nil error).
-	allowed, err := k8cache.IsAllowed("kind-auth-test", k, req)
+	allowed, err := k8cache.IsAllowed(k, req)
 	assert.False(t, allowed)
 	assert.Error(t, err)
 }
@@ -873,7 +873,7 @@ func TestSyncWatchers(t *testing.T) {
 	}
 
 	// Sync with only ctx1 and ctx3 active
-	k8cache.SyncWatchers(nil, []string{"ctx1", "ctx3"})
+	k8cache.SyncWatchers([]string{"ctx1", "ctx3"})
 
 	mu.Lock()
 	defer mu.Unlock()

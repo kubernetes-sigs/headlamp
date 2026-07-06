@@ -116,7 +116,7 @@ export function streamResult<T extends KubeObjectInterface>(
  * @param errCb - The callback function to execute when an error occurs.
  * @param queryParams - The query parameters to include in the API request.
  *
- * @returns A promise that resolves to a function which can be called to cancel the stream.
+ * @returns A function to cancel the stream.
  */
 export function streamResults<T extends KubeObjectInterface>(
   url: string,
@@ -128,10 +128,7 @@ export function streamResults<T extends KubeObjectInterface>(
   return streamResultsForCluster(url, { cb, errCb, cluster }, queryParams);
 }
 
-/**
- * Configuration options for establishing a stream to a cluster.
- * Groups the cluster name along with the callbacks used to process incoming data and errors.
- */
+// @todo: this interface needs documenting.
 
 export interface StreamResultsParams {
   cb: StreamResultsCb;
@@ -139,14 +136,7 @@ export interface StreamResultsParams {
   cluster?: string;
 }
 
-/**
- * Establishes a stream to the Kubernetes API for a specific cluster.
- *
- * @param url - The Kubernetes API endpoint to stream from.
- * @param params - The callback functions and cluster information.
- * @param queryParams - Optional query parameters to append to the request.
- * @returns A promise that resolves to a function which can be called to cancel the stream.
- */
+// @todo: needs documenting
 
 export function streamResultsForCluster(
   url: string,
@@ -400,15 +390,11 @@ export async function connectStream<T>(
   });
 }
 
-/**
- * Configuration options for establishing a stream.
- */
+// @todo: needs documenting.
+
 interface StreamParams {
-  /** The name of the cluster to connect to. */
   cluster?: string;
-  /** Whether the stream is expected to receive JSON data. */
   isJson?: boolean;
-  /** Additional WebSocket protocols to use when connecting. */
   additionalProtocols?: string[];
 }
 

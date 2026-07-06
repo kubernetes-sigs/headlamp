@@ -98,6 +98,8 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		EnableClusterInventory: conf.EnableClusterInventory,
 		AllowKubeconfigChanges: conf.AllowKubeconfigChanges,
 		WatchPluginsChanges:    conf.WatchPluginsChanges,
+		EnablePluginManager:    conf.EnablePluginManager,
+		PluginManagerConfigMap: conf.PluginManagerConfigMap,
 		KubeConfigStore:        kubeConfigStore,
 		BaseURL:                conf.BaseURL,
 		ProxyURLs: func() []string {
@@ -175,7 +177,7 @@ func setupKubeConfigStoreWatcher(kubeConfigStore kubeconfig.ContextStore) {
 				return
 			}
 
-			k8cache.SyncWatchers(k8sResponseCache, active)
+			k8cache.SyncWatchers(active)
 		})
 	})
 }
@@ -347,7 +349,7 @@ func handleCacheAuthorization(
 		clearRequestAuthorization(r)
 	}
 
-	isAllowed, authErr := k8cache.IsAllowed(contextKey, kContext, r)
+	isAllowed, authErr := k8cache.IsAllowed(kContext, r)
 	if authErr != nil {
 		k8cache.ServeFromCacheOrForwardToK8s(k8sResponseCache, isAllowed, next, key, w, r, rcw)
 

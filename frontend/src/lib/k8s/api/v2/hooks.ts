@@ -15,7 +15,7 @@
  */
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useCallback, useMemo } from 'react';
+import { useMemo } from 'react';
 import { getCluster } from '../../../cluster';
 import type { QueryParameters } from '../../api/v1/queryParameters';
 import type { KubeObject, KubeObjectInterface } from '../../KubeObject';
@@ -124,18 +124,15 @@ export function useKubeObject<K extends KubeObject>({
     name
   );
 
-  const queryParamsString = JSON.stringify(queryParams);
-  const cleanedUpQueryParams = useMemo(() => {
-    return Object.fromEntries(
-      Object.entries(queryParams ?? {}).filter(([, value]) => value !== undefined && value !== '')
-    );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [queryParamsString]);
+  const cleanedUpQueryParams = Object.fromEntries(
+    Object.entries(queryParams ?? {}).filter(([, value]) => value !== undefined && value !== '')
+  );
 
   const queryKey = useMemo(
     () =>
       kubeObjectQueryKey({ cluster, name, namespace, endpoint, queryParams: cleanedUpQueryParams }),
-    [cluster, name, namespace, endpoint, cleanedUpQueryParams]
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [endpoint, namespace, name]
   );
 
   const client = useQueryClient();
@@ -159,15 +156,6 @@ export function useKubeObject<K extends KubeObject>({
 
   const data: Instance | null = query.error ? null : query.data ?? null;
 
-  const handleMessage = useCallback(
-    (update: KubeListUpdateEvent<K>) => {
-      if (update.type !== 'ADDED' && update.object) {
-        client.setQueryData(queryKey, new kubeObjectClass(update.object));
-      }
-    },
-    [client, queryKey, kubeObjectClass]
-  );
-
   const connectionsRequests = useMemo(() => {
     if (!endpoint) return [];
 
@@ -179,26 +167,32 @@ export function useKubeObject<K extends KubeObject>({
           fieldSelector: `metadata.name=${name}`,
         }),
         cluster,
-        onMessage: handleMessage,
+        onMessage(update: KubeListUpdateEvent<K>) {
+          if (update.type !== 'ADDED' && update.object) {
+            client.setQueryData(queryKey, new kubeObjectClass(update.object));
+          }
+        },
       },
     ];
-  }, [endpoint, namespace, name, cleanedUpQueryParams, cluster, handleMessage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [endpoint]);
 
   const multiplexerEnabled = getWebsocketMultiplexerEnabled();
 
   useWebSocket<KubeListUpdateEvent<K>>({
-    url: useCallback(
-      () =>
-        makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], {
-          ...cleanedUpQueryParams,
-          watch: 1,
-          fieldSelector: `metadata.name=${name}`,
-        }),
-      [endpoint, namespace, cleanedUpQueryParams, name]
-    ),
+    url: () =>
+      makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], {
+        ...cleanedUpQueryParams,
+        watch: 1,
+        fieldSelector: `metadata.name=${name}`,
+      }),
     enabled: multiplexerEnabled && !!endpoint && !!data,
     cluster,
-    onMessage: handleMessage,
+    onMessage(update: KubeListUpdateEvent<K>) {
+      if (update.type !== 'ADDED' && update.object) {
+        client.setQueryData(queryKey, new kubeObjectClass(update.object));
+      }
+    },
   });
 
   useWebSockets({

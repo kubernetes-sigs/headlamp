@@ -57,6 +57,8 @@ type HeadlampCFG struct {
 	EnableDynamicClusters  bool
 	AllowKubeconfigChanges bool
 	WatchPluginsChanges    bool
+	EnablePluginManager    bool
+	PluginManagerConfigMap string
 	Port                   uint
 	KubeConfigPath         string
 	SkippedKubeContexts    string

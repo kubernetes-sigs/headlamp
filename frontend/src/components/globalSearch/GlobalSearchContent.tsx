@@ -79,13 +79,11 @@ interface SearchResult {
   label: string;
   icon?: JSX.Element;
   subLabel?: string;
-  namespace?: string;
   k8sLabels?: string[];
   onClick: () => void;
   labelMatch?: FuseResultMatch;
   subLabelMatch?: FuseResultMatch;
   k8sLabelsMatch?: FuseResultMatch;
-  namespaceMatch?: FuseResultMatch;
 }
 
 /**
@@ -150,8 +148,7 @@ function makeKubeObjectResults(
             <LazyKubeIcon kind={item.kind} width="24px" height="24px" />
           </Suspense>
         ),
-        namespace: item.metadata.namespace,
-        subLabel: item.metadata.namespace ? `${item.kind} • ${item.metadata.namespace}` : item.kind,
+        subLabel: item.kind,
         onClick: () => onClick(item),
       })) ?? []
   );
@@ -394,7 +391,6 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
         keys: [
           'label',
           'k8sLabels',
-          'namespace',
           // We also want to search by subLabel sometimes
           // For example 'default namespace' (there are a lot of objects with 'default' name)
           // But it shouldn't be main field so it has half the weight (1/2)
@@ -422,7 +418,6 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
                 // Only search labels if there's an "=" character in the query
                 it.includes('=') ? { k8sLabels: it } : undefined,
                 { subLabel: it },
-                { namespace: it },
               ].filter(Boolean) as Expression[],
             })),
         },
@@ -435,7 +430,6 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
             labelMatch: matches?.find(it => it.key === 'label'),
             subLabelMatch: matches?.find(it => it.key === 'subLabel'),
             k8sLabelsMatch: matches?.find(it => it.key === 'k8sLabels'),
-            namespaceMatch: matches?.find(it => it.key === 'namespace'),
           } satisfies SearchResult)
       );
   }, [query, fuse]);

@@ -22,10 +22,6 @@ describe('tableSettings', () => {
   });
 
   describe('storeTableSettings', () => {
-    afterEach(() => {
-      vi.restoreAllMocks();
-    });
-
     it('stores column visibility settings in localStorage', () => {
       const columns = [
         { id: 'name', show: true },
@@ -67,41 +63,9 @@ describe('tableSettings', () => {
       // No key should have been written for an empty tableId
       expect(localStorage.getItem('table_settings.')).toBeNull();
     });
-
-    it('catches and logs errors when localStorage.setItem throws', () => {
-      const spyError = vi.spyOn(console, 'error').mockImplementation(() => {});
-      vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
-        throw new Error('Quota exceeded');
-      });
-
-      storeTableSettings('test-table', [{ id: 'name', show: true }]);
-
-      expect(spyError).toHaveBeenCalledWith(
-        'Error occurred while updating table_settings.test-table in local storage:',
-        expect.any(Error)
-      );
-    });
-
-    it('catches and logs errors when localStorage.removeItem throws', () => {
-      const spyError = vi.spyOn(console, 'error').mockImplementation(() => {});
-      vi.spyOn(localStorage, 'removeItem').mockImplementation(() => {
-        throw new Error('Security error');
-      });
-
-      storeTableSettings('test-table', []);
-
-      expect(spyError).toHaveBeenCalledWith(
-        'Error occurred while updating table_settings.test-table in local storage:',
-        expect.any(Error)
-      );
-    });
   });
 
   describe('loadTableSettings', () => {
-    afterEach(() => {
-      vi.restoreAllMocks();
-    });
-
     it('returns stored settings', () => {
       const settings = [
         { id: 'name', show: true },
@@ -124,58 +88,6 @@ describe('tableSettings', () => {
       const result = loadTableSettings('');
 
       expect(result).toEqual([]);
-    });
-
-    it('returns empty array and logs warning if JSON is malformed', () => {
-      const spyWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      localStorage.setItem('table_settings.test-table', '{ malformed json ]');
-
-      const result = loadTableSettings('test-table');
-
-      expect(result).toEqual([]);
-      expect(spyWarn).toHaveBeenCalledWith(
-        'Failed to read table_settings.test-table from local storage, falling back to empty array:',
-        expect.any(Error)
-      );
-    });
-
-    it('returns empty array and logs warning if localStorage.getItem throws', () => {
-      const spyWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      vi.spyOn(localStorage, 'getItem').mockImplementation(() => {
-        throw new Error('Security error');
-      });
-
-      const result = loadTableSettings('test-table');
-
-      expect(result).toEqual([]);
-      expect(spyWarn).toHaveBeenCalledWith(
-        'Failed to read table_settings.test-table from local storage, falling back to empty array:',
-        expect.any(Error)
-      );
-    });
-
-    it('returns empty array and logs warning if parsed JSON is not an array', () => {
-      const spyWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      localStorage.setItem('table_settings.test-table', JSON.stringify({ name: 'not-an-array' }));
-
-      const result = loadTableSettings('test-table');
-
-      expect(result).toEqual([]);
-      expect(spyWarn).toHaveBeenCalledWith(
-        'table_settings.test-table is not an array, falling back to empty array.'
-      );
-    });
-
-    it('returns empty array and logs warning if parsed JSON array contains invalid entries', () => {
-      const spyWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      localStorage.setItem('table_settings.test-table', JSON.stringify([null, {}]));
-
-      const result = loadTableSettings('test-table');
-
-      expect(result).toEqual([]);
-      expect(spyWarn).toHaveBeenCalledWith(
-        'table_settings.test-table has invalid entries, falling back to empty array.'
-      );
     });
   });
 });

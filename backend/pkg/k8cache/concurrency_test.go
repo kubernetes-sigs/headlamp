@@ -74,7 +74,7 @@ func TestGetClientSet_InFlightDedup(t *testing.T) {
 		go func(idx int) {
 			defer wg.Done()
 
-			_, errs[idx] = k8cache.GetClientSet("test-cluster", ctx, "same-token")
+			_, errs[idx] = k8cache.GetClientSet(ctx, "same-token")
 		}(i)
 	}
 
@@ -123,7 +123,7 @@ func TestGetClientSet_InFlightDedupDifferentKeys(t *testing.T) {
 				KubeContext: &api.Context{Cluster: "test-cluster"},
 			}
 
-			_, errs[idx] = k8cache.GetClientSet("test-cluster", ctx, token)
+			_, errs[idx] = k8cache.GetClientSet(ctx, token)
 		}(i, tok)
 	}
 
