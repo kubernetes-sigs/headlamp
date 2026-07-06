@@ -899,6 +899,7 @@
   "resource {{resourceName}} on pods": "resource {{resourceName}} on pods",
   "resource {{resourceName}} of container {{containerName}} on pods": "resource {{resourceName}} of container {{containerName}} on pods",
   "Warning. Incompatible plugins disabled: ({{ pluginList }})": "Warning. Incompatible plugins disabled: ({{ pluginList }})",
+  "Failed to load plugins. Please try reloading the app.": "",
   "Global Search": "Global Search",
   "Open the global search dialog": "Open the global search dialog",
   "Cluster Chooser": "Cluster Chooser",

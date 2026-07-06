@@ -892,6 +892,7 @@
   "resource {{resourceName}} on pods": "resource {{resourceName}} pod এ",
   "resource {{resourceName}} of container {{containerName}} on pods": "resource {{resourceName}} of container {{containerName}} on pods",
   "Warning. Incompatible plugins disabled: ({{ pluginList }})": "সতর্কতা। অ-সঙ্গতিপূর্ণ plugin গুলো বন্ধ: {{ pluginList }})",
+  "Failed to load plugins. Please try reloading the app.": "",
   "Global Search": "গ্লোবাল অনুসন্ধান",
   "Open the global search dialog": "গ্লোবাল অনুসন্ধান ডায়ালগ খুলুন",
   "Cluster Chooser": "Cluster চয়নকারী",

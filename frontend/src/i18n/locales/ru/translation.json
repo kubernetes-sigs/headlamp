@@ -906,6 +906,7 @@
   "resource {{resourceName}} on pods": "ресурс {{resourceName}} для Pod",
   "resource {{resourceName}} of container {{containerName}} on pods": "ресурс {{resourceName}} контейнера {{containerName}} для Pod",
   "Warning. Incompatible plugins disabled: ({{ pluginList }})": "Предупреждение. Несовместимые плагины отключены: ({{ pluginList }})",
+  "Failed to load plugins. Please try reloading the app.": "",
   "Global Search": "Глобальный поиск",
   "Open the global search dialog": "Откройте диалоговое окно глобального поиска",
   "Cluster Chooser": "Выбор кластера",

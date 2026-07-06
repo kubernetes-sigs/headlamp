@@ -892,6 +892,7 @@
   "resource {{resourceName}} on pods": "وسیلہ {{resourceName}} پوڈز پر",
   "resource {{resourceName}} of container {{containerName}} on pods": "وسیلہ {{resourceName}} کنٹینر {{containerName}} کا پوڈز پر",
   "Warning. Incompatible plugins disabled: ({{ pluginList }})": "انتباہ غیر مطابقت رکھنے والے پلگ ان غیر فعال کر دیے گئے: ({{ pluginList }})",
+  "Failed to load plugins. Please try reloading the app.": "",
   "Global Search": "عالمی تلاش",
   "Open the global search dialog": "عالمی تلاش کا ڈائیلاگ کھولیں",
   "Cluster Chooser": "کلسٹر منتخب کنندہ",

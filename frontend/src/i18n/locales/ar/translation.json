@@ -920,6 +920,7 @@
   "resource {{resourceName}} on pods": "المورد {{resourceName}} على البودات",
   "resource {{resourceName}} of container {{containerName}} on pods": "المورد {{resourceName}} للحاوية {{containerName}} على البودات",
   "Warning. Incompatible plugins disabled: ({{ pluginList }})": "تحذير تم تعطيل الإضافات غير المتوافقة: ({{ pluginList }})",
+  "Failed to load plugins. Please try reloading the app.": "",
   "Global Search": "البحث العام",
   "Open the global search dialog": "فتح نافذة البحث العام",
   "Cluster Chooser": "محدد الكتلة",
