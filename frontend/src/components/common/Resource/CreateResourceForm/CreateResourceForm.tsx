@@ -59,6 +59,9 @@ export interface FormField {
   helperText?: string;
   /** Options for 'select' type fields. */
   options?: SelectOption[];
+  /** For 'containers' fields: show a `Command` column editing
+   *  `container.command` (string[]). Off by default. */
+  showCommand?: boolean;
   /** Extra top margin (theme spacing units) to visually separate from the field above. */
   spacingTop?: number;
   /** Optional custom renderer. When provided, this replaces the built-in input
@@ -85,18 +88,57 @@ export interface FormSection {
 export interface CreateResourceFormProps {
   /** Sections containing the form field descriptors. */
   sections: FormSection[];
-  /** The resource as a plain JS object. */
-  resource: Record<string, any>;
+  /** The resource as a plain JS object (defaults to {} if undefined). */
+  resource?: Record<string, any>;
   /** Called with the updated resource object when any field changes. */
   onChange: (resource: Record<string, any>) => void;
+  /** Called when the validity of required fields changes. */
+  onValidChange?: (valid: boolean) => void;
 }
 
 /** Data-driven resource creation form. Renders labelled sections of typed
- *  fields (text, labels, containers, namespace, select) from a declarative
- *  descriptor and keeps a plain JS resource object in sync via `onChange`. */
+ *  fields (text, number, labels, containers, namespace, select) from a
+ *  declarative descriptor and keeps a plain JS resource object in sync
+ *  via `onChange`. */
+/** Standard metadata section (name, namespace, labels) for resource forms.
+ *  Import and prepend to your `sections` array. */
+export function metadataSection(t: (key: string) => string): FormSection {
+  return {
+    title: t('translation|Metadata'),
+    fields: [
+      { key: 'name', path: 'metadata.name', label: t('translation|Name') },
+      {
+        key: 'namespace',
+        path: 'metadata.namespace',
+        label: t('glossary|Namespace'),
+        type: 'namespace' as const,
+      },
+      {
+        key: 'labels',
+        path: 'metadata.labels',
+        label: t('translation|Labels'),
+        type: 'labels' as const,
+      },
+    ],
+  };
+}
+
 export default function CreateResourceForm(props: CreateResourceFormProps) {
-  const { sections, resource, onChange } = props;
-  const { t } = useTranslation(['translation']);
+  const { sections, resource = {}, onChange, onValidChange } = props;
+  const { t } = useTranslation(['translation', 'glossary']);
+
+  // Report validity whenever required fields or resource change.
+  React.useEffect(() => {
+    if (!onValidChange) return;
+    const valid = sections
+      .flatMap(s => s.fields)
+      .filter(f => f.required)
+      .every(f => {
+        const v = _.get(resource, f.path);
+        return v !== undefined && v !== null && v !== '';
+      });
+    onValidChange(valid);
+  });
 
   function handleFieldChange(path: string, value: any) {
     const updated = _.cloneDeep(resource);
@@ -160,6 +202,7 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
             helperText={field.helperText}
             value={value ?? []}
             onChange={containers => handleFieldChange(field.path, containers)}
+            showCommand={field.showCommand}
           />
         );
       case 'namespace':
