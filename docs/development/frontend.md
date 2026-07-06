@@ -30,8 +30,10 @@ Once built, it can be run in development mode (auto-refresh) using:
 npm run frontend:start
 ```
 
-This command leverages the `create-react-app`'s start script that launches
-a development server for the frontend (by default at `localhost:3000`).
+This command leverages **Vite** to launch the development server for the frontend (by default at `localhost:3000`).
+
+> [!NOTE]
+> Headlamp has migrated to **Vite** as its default bundler and development server, and also supports **Rsbuild** as an alternative dev server and bundler option. To run Rsbuild, use `cd frontend && npm run star`. Here, `star` is the actual script name in `frontend/` and is not a typo for `start`.
 
 We use [react-query](https://tanstack.com/query/latest/docs/framework/react/overview) 
 for network request, if you need the devtools for react-query, you can simply set `REACT_APP_ENABLE_REACT_QUERY_DEVTOOLS=true` in the `.env` file.
@@ -53,6 +55,16 @@ cd frontend && npm run ci-lint
 ```
 
 You can run `ci-lint` locally before pushing to catch any react-hooks violations that CI would flag.
+
+## Testing
+
+For running the frontend unit and component tests, Headlamp uses **Vitest**:
+
+```bash
+npm run frontend:test
+```
+
+This runs Vitest and reports the test coverage. You can append options as needed (e.g., `-- --run` to run once without watch mode).
 
 ## API documentation
 
