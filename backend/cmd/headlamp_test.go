@@ -3999,3 +3999,77 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, int(maxProxyResponseSize), rr.Body.Len())
 }
+
+func TestValidateKubeConfigPath(t *testing.T) { //nolint:funlen // test scaffolding.
+	t.Parallel()
+
+	homeDir, err := os.UserHomeDir()
+	require.NoError(t, err)
+
+	// A temp dir that acts as a custom kubeconfig directory.
+	customDir := t.TempDir()
+	customKubeConfig := filepath.Join(customDir, "config")
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigPath:  customKubeConfig,
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+		},
+	}
+
+	tests := []struct {
+		name    string
+		path    string
+		wantErr bool
+	}{
+		{
+			name:    "empty path is rejected",
+			path:    "",
+			wantErr: true,
+		},
+		{
+			name:    "path traversal to /etc/passwd is rejected",
+			path:    "../../etc/passwd",
+			wantErr: true,
+		},
+		{
+			name:    "absolute path outside allowed dirs is rejected",
+			path:    filepath.Join(t.TempDir(), "evil-kubeconfig"),
+			wantErr: true,
+		},
+		{
+			name:    "path within ~/.kube is allowed",
+			path:    filepath.Join(homeDir, ".kube", "config"),
+			wantErr: false,
+		},
+		{
+			name:    "path within custom kubeconfig dir is allowed",
+			path:    customKubeConfig,
+			wantErr: false,
+		},
+		{
+			name:    "tilde path within ~/.kube is allowed",
+			path:    "~/.kube/config",
+			wantErr: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := c.validateKubeConfigPath(tt.path)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+				// The returned path must be usable directly by client-go: an
+				// absolute path with any leading ~ already expanded.
+				assert.True(t, filepath.IsAbs(got), "returned path should be absolute")
+				assert.False(t, strings.HasPrefix(got, "~"), "returned path should have ~ expanded")
+			}
+		})
+	}
+}

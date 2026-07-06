@@ -2537,6 +2537,25 @@ func (c *HeadlampConfig) handleRemoveKubeConfig(
 	originalName := r.URL.Query().Get("originalName")
 	clusterID := r.URL.Query().Get("clusterID")
 
+	// A missing configPath is a malformed request, not an authorization failure.
+	if configPath == "" {
+		c.handleError(w, ctx, span, errors.New("configPath is required"),
+			"configPath is required", http.StatusBadRequest)
+
+		return
+	}
+
+	validatedPath, err := c.validateKubeConfigPath(configPath)
+	if err != nil {
+		// Log the detailed reason server-side, but return a generic message so
+		// resolved filesystem paths aren't reflected back to the client.
+		logger.Log(logger.LevelError, map[string]string{"cluster": name}, err, "configPath validation failed")
+		c.handleError(w, ctx, span, errors.New("configPath is not allowed"),
+			"configPath is not allowed", http.StatusForbidden)
+
+		return
+	}
+
 	var configName string
 
 	if originalName != "" && clusterID != "" {
@@ -2545,9 +2564,114 @@ func (c *HeadlampConfig) handleRemoveKubeConfig(
 		configName = name
 	}
 
-	if err := kubeconfig.RemoveContextFromFile(configName, configPath); err != nil {
+	if err := kubeconfig.RemoveContextFromFile(configName, validatedPath); err != nil {
 		c.handleError(w, ctx, span, err, "failed to remove cluster from kubeconfig", http.StatusInternalServerError)
 	}
+}
+
+// allowedKubeConfigDirs returns the directories a configPath is permitted to
+// resolve within: Headlamp's own kubeconfigs dir, the directory of each
+// --kubeconfig entry, and ~/.kube.
+func (c *HeadlampConfig) allowedKubeConfigDirs() []string {
+	var allowedDirs []string
+
+	// Headlamp's own kubeconfig persistence directory. Compute the path
+	// directly instead of calling cfg.MakeHeadlampKubeConfigsDir(), which
+	// creates the directory and falls back to the executable's directory on
+	// failure — neither is wanted for a validation-only check.
+	if userConfigDir, err := os.UserConfigDir(); err == nil {
+		headlampDir := filepath.Join(userConfigDir, "Headlamp", "kubeconfigs")
+		if runtime.GOOS == "windows" {
+			headlampDir = filepath.Join(userConfigDir, "Headlamp", "Config", "kubeconfigs")
+		}
+
+		allowedDirs = append(allowedDirs, headlampDir)
+	}
+
+	// KubeConfigPath is a colon-separated (semicolon on Windows) list of
+	// entries. Each is normally a file, so allow its parent directory; but if
+	// an entry is itself a directory, allow that directory rather than widening
+	// the allow-list to its parent.
+	for _, p := range filepath.SplitList(c.KubeConfigPath) {
+		if p == "" {
+			continue
+		}
+
+		if fi, err := os.Stat(p); err == nil && fi.IsDir() {
+			allowedDirs = append(allowedDirs, p)
+		} else {
+			allowedDirs = append(allowedDirs, filepath.Dir(p))
+		}
+	}
+
+	// Default ~/.kube directory.
+	if homeDir, err := os.UserHomeDir(); err == nil {
+		allowedDirs = append(allowedDirs, filepath.Join(homeDir, ".kube"))
+	}
+
+	return allowedDirs
+}
+
+// validateKubeConfigPath checks that the given path resolves within one of the
+// directories Headlamp is allowed to manage kubeconfig files in.
+func (c *HeadlampConfig) validateKubeConfigPath(configPath string) (string, error) {
+	if configPath == "" {
+		return "", errors.New("configPath must not be empty")
+	}
+
+	// Expand leading ~ so that paths like ~/.kube/config are handled correctly.
+	// filepath.Abs does not expand ~. Work on a copy so the original configPath
+	// (the query value) stays unchanged and doesn't leak into error messages.
+	pathToResolve := configPath
+	if strings.HasPrefix(pathToResolve, "~/") {
+		homeDir, err := os.UserHomeDir()
+		if err != nil {
+			return "", fmt.Errorf("failed to expand ~: %w", err)
+		}
+
+		pathToResolve = filepath.Join(homeDir, pathToResolve[2:])
+	}
+
+	absPath, err := filepath.Abs(pathToResolve)
+	if err != nil {
+		return "", fmt.Errorf("failed to resolve configPath: %w", err)
+	}
+
+	// Resolve symlinks so a symlink inside an allowed dir pointing outside it
+	// cannot bypass the containment check. If the file does not exist yet,
+	// resolve the parent directory instead so that the check still works
+	// consistently on systems where temp/home dirs are themselves symlinks
+	// (e.g. macOS).
+	resolved := absPath
+	if target, err := filepath.EvalSymlinks(resolved); err == nil {
+		resolved = target
+	} else if parentTarget, err := filepath.EvalSymlinks(filepath.Dir(resolved)); err == nil {
+		resolved = filepath.Join(parentTarget, filepath.Base(resolved))
+	}
+
+	for _, dir := range c.allowedKubeConfigDirs() {
+		absDir, err := filepath.Abs(dir)
+		if err != nil {
+			continue
+		}
+
+		if target, err := filepath.EvalSymlinks(absDir); err == nil {
+			absDir = target
+		}
+
+		// filepath.Rel gives a robust containment check across platforms. A
+		// relative path of "." (the dir itself) or one that doesn't start with
+		// ".." means resolved is inside absDir.
+		rel, err := filepath.Rel(absDir, resolved)
+		if err == nil && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator)) &&
+			!filepath.IsAbs(rel) {
+			// Return the ~-expanded absolute path so the caller operates on the
+			// same path that was validated (client-go does not expand ~).
+			return absPath, nil
+		}
+	}
+
+	return "", fmt.Errorf("configPath %q is outside allowed directories", configPath)
 }
 
 // Get path of kubeconfig we load headlamp with from source.
