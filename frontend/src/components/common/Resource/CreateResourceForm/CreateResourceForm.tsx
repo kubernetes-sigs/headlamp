@@ -18,6 +18,8 @@ import { Icon } from '@iconify/react';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
 import TextField, { TextFieldProps } from '@mui/material/TextField';
@@ -48,7 +50,7 @@ export interface FormField {
   /** Display label for the field. */
   label: string;
   /** Input type – defaults to 'text'. */
-  type?: 'text' | 'number' | 'labels' | 'select' | 'containers' | 'namespace';
+  type?: 'text' | 'number' | 'boolean' | 'labels' | 'select' | 'containers' | 'namespace';
   /** Whether the field is required. */
   required?: boolean;
   /** For 'number' fields: minimum allowed value. */
@@ -59,6 +61,9 @@ export interface FormField {
   helperText?: string;
   /** Options for 'select' type fields. */
   options?: SelectOption[];
+  /** For 'containers' fields: show a `Command` column editing
+   *  `container.command` (string[]). Off by default. */
+  showCommand?: boolean;
   /** Extra top margin (theme spacing units) to visually separate from the field above. */
   spacingTop?: number;
   /** Optional custom renderer. When provided, this replaces the built-in input
@@ -85,18 +90,57 @@ export interface FormSection {
 export interface CreateResourceFormProps {
   /** Sections containing the form field descriptors. */
   sections: FormSection[];
-  /** The resource as a plain JS object. */
-  resource: Record<string, any>;
+  /** The resource as a plain JS object (defaults to {} if undefined). */
+  resource?: Record<string, any>;
   /** Called with the updated resource object when any field changes. */
   onChange: (resource: Record<string, any>) => void;
+  /** Called when the validity of required fields changes. */
+  onValidChange?: (valid: boolean) => void;
 }
 
 /** Data-driven resource creation form. Renders labelled sections of typed
- *  fields (text, labels, containers, namespace, select) from a declarative
- *  descriptor and keeps a plain JS resource object in sync via `onChange`. */
+ *  fields (text, number, boolean, labels, containers, namespace, select)
+ *  from a declarative descriptor and keeps a plain JS resource object in
+ *  sync via `onChange`. */
+/** Standard metadata section (name, namespace, labels) for resource forms.
+ *  Import and prepend to your `sections` array. */
+export function metadataSection(t: (key: string) => string): FormSection {
+  return {
+    title: t('translation|Metadata'),
+    fields: [
+      { key: 'name', path: 'metadata.name', label: t('translation|Name') },
+      {
+        key: 'namespace',
+        path: 'metadata.namespace',
+        label: t('glossary|Namespace'),
+        type: 'namespace' as const,
+      },
+      {
+        key: 'labels',
+        path: 'metadata.labels',
+        label: t('translation|Labels'),
+        type: 'labels' as const,
+      },
+    ],
+  };
+}
+
 export default function CreateResourceForm(props: CreateResourceFormProps) {
-  const { sections, resource, onChange } = props;
-  const { t } = useTranslation(['translation']);
+  const { sections, resource = {}, onChange, onValidChange } = props;
+  const { t } = useTranslation(['translation', 'glossary']);
+
+  // Report validity whenever required fields or resource change.
+  React.useEffect(() => {
+    if (!onValidChange) return;
+    const valid = sections
+      .flatMap(s => s.fields)
+      .filter(f => f.required)
+      .every(f => {
+        const v = _.get(resource, f.path);
+        return v !== undefined && v !== null && v !== '';
+      });
+    onValidChange(valid);
+  });
 
   function handleFieldChange(path: string, value: any) {
     const updated = _.cloneDeep(resource);
@@ -130,52 +174,45 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
 
     if (field.render) {
       return (
-        <Box>
-          <FieldLabel label={field.label} required={field.required} helperText={field.helperText} />
+        <FieldWrapper field={field}>
           {field.render({
             value,
             onChange: v => handleFieldChange(field.path, v),
             resource,
           })}
-        </Box>
+        </FieldWrapper>
       );
     }
 
     switch (field.type) {
       case 'labels':
         return (
-          <LabelTextField
-            label={field.label}
-            required={field.required}
-            helperText={field.helperText}
-            value={value ?? {}}
-            onChange={labels => handleFieldChange(field.path, labels)}
-          />
+          <FieldWrapper field={field}>
+            <LabelTextField
+              value={value ?? {}}
+              onChange={labels => handleFieldChange(field.path, labels)}
+            />
+          </FieldWrapper>
         );
       case 'containers':
         return (
-          <ContainerTextField
-            label={field.label}
-            required={field.required}
-            helperText={field.helperText}
-            value={value ?? []}
-            onChange={containers => handleFieldChange(field.path, containers)}
-          />
+          <FieldWrapper field={field}>
+            <ContainerTextField
+              value={value ?? []}
+              onChange={containers => handleFieldChange(field.path, containers)}
+              showCommand={field.showCommand}
+            />
+          </FieldWrapper>
         );
       case 'namespace':
         return (
-          <Box>
-            <FieldLabel
-              label={field.label}
-              required={field.required}
-              helperText={field.helperText}
-            />
+          <FieldWrapper field={field}>
             <NamespaceTextField
               value={value ?? ''}
               onChange={ns => handleFieldChange(field.path, ns)}
               required={field.required}
             />
-          </Box>
+          </FieldWrapper>
         );
       case 'number':
         if (field.inline) {
@@ -204,12 +241,7 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
           );
         }
         return (
-          <Box>
-            <FieldLabel
-              label={field.label}
-              required={field.required}
-              helperText={field.helperText}
-            />
+          <FieldWrapper field={field}>
             <FormTextField
               value={value ?? ''}
               onChange={e => handleNumberChange(field, e.target.value)}
@@ -221,16 +253,11 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
                 ...(field.min !== undefined ? { min: field.min } : {}),
               }}
             />
-          </Box>
+          </FieldWrapper>
         );
       case 'select':
         return (
-          <Box>
-            <FieldLabel
-              label={field.label}
-              required={field.required}
-              helperText={field.helperText}
-            />
+          <FieldWrapper field={field}>
             <FormTextField
               value={value ?? ''}
               onChange={e => handleFieldChange(field.path, e.target.value)}
@@ -244,23 +271,33 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
                 </MenuItem>
               ))}
             </FormTextField>
-          </Box>
+          </FieldWrapper>
+        );
+      case 'boolean':
+        return (
+          <FieldWrapper field={field} hideLabel>
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={!!value}
+                  onChange={e => handleFieldChange(field.path, e.target.checked)}
+                  inputProps={{ 'aria-label': field.label }}
+                />
+              }
+              label={field.label}
+            />
+          </FieldWrapper>
         );
       default:
         return (
-          <Box>
-            <FieldLabel
-              label={field.label}
-              required={field.required}
-              helperText={field.helperText}
-            />
+          <FieldWrapper field={field}>
             <FormTextField
               value={value ?? ''}
               onChange={e => handleFieldChange(field.path, e.target.value)}
               required={field.required}
               inputProps={{ 'aria-label': field.label }}
             />
-          </Box>
+          </FieldWrapper>
         );
     }
   }
@@ -369,6 +406,27 @@ export function FieldLabel(props: FieldLabelProps) {
             />
           </IconButton>
         </Tooltip>
+      )}
+    </Box>
+  );
+}
+
+/** Wraps a field input with an optional label + helperText tooltip above it.
+ *  Use `hideLabel` when the input already contains its own label (e.g. checkbox). */
+export function FieldWrapper(props: {
+  field: FormField;
+  hideLabel?: boolean;
+  children: React.ReactNode;
+}) {
+  const { field, hideLabel, children } = props;
+  return (
+    <Box>
+      {!hideLabel && (
+        <FieldLabel label={field.label} required={field.required} helperText={field.helperText} />
+      )}
+      {children}
+      {hideLabel && field.helperText && (
+        <FieldLabel helperText={field.helperText} sx={{ mt: 0.5 }} />
       )}
     </Box>
   );

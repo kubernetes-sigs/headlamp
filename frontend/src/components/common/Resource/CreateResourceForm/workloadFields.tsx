@@ -48,6 +48,9 @@ export interface ContainerTextFieldProps {
   required?: boolean;
   /** Optional helper text shown via an info-icon tooltip next to the label. */
   helperText?: string;
+  /** Show a `Command` column that edits `container.command` (string[]).
+   *  Off by default — Job/CronJob templates opt in. */
+  showCommand?: boolean;
 }
 
 const IMAGE_PULL_POLICIES = ['Always', 'IfNotPresent', 'Never'];
@@ -55,11 +58,114 @@ const IMAGE_PULL_POLICIES = ['Always', 'IfNotPresent', 'Never'];
 let containerRowIdCounter = 0;
 const nextContainerRowId = () => `container-${++containerRowIdCounter}`;
 
+/** Parse a Command input string into a `container.command` array. Accepts
+ *  a JSON array (`["perl", "-wle", "print bpi(2000)"]`) or a shell-like
+ *  string with single or double quotes to keep spaces inside a token. */
+export function parseCommand(input: string): string[] {
+  const s = input.trim();
+  if (s === '') return [];
+  if (s.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(s);
+      if (Array.isArray(parsed) && parsed.every(x => typeof x === 'string')) {
+        return parsed;
+      }
+    } catch {
+      // fall through to shell-like split
+    }
+  }
+  const tokens: string[] = [];
+  let cur = '';
+  let quote: '"' | "'" | null = null;
+  let hasCur = false;
+  for (let i = 0; i < s.length; i++) {
+    const ch = s[i];
+    if (quote) {
+      if (ch === quote) {
+        quote = null;
+      } else if (ch === '\\' && quote === '"' && i + 1 < s.length) {
+        cur += s[++i];
+        hasCur = true;
+      } else {
+        cur += ch;
+        hasCur = true;
+      }
+    } else if (ch === '"' || ch === "'") {
+      quote = ch as '"' | "'";
+      hasCur = true;
+    } else if (/\s/.test(ch)) {
+      if (hasCur) {
+        tokens.push(cur);
+        cur = '';
+        hasCur = false;
+      }
+    } else if (ch === '\\' && i + 1 < s.length) {
+      cur += s[++i];
+      hasCur = true;
+    } else {
+      cur += ch;
+      hasCur = true;
+    }
+  }
+  if (hasCur) tokens.push(cur);
+  return tokens;
+}
+
+/** Render a `container.command` array as an editable JSON array string.
+ *  Uses JSON notation so it round-trips cleanly through {@link parseCommand}
+ *  and matches the format Kubernetes specs use. */
+export function formatCommand(cmd: unknown): string {
+  if (!Array.isArray(cmd)) return typeof cmd === 'string' ? cmd : '';
+  if (cmd.length === 0) return '';
+  return JSON.stringify(cmd);
+}
+
+/** Controlled text input for container command that stores raw text locally
+ *  and only parses into string[] on blur. Prevents the cursor from jumping
+ *  while typing spaces. */
+function CommandInput(props: { value: unknown; onChange: (parsed: string[]) => void }) {
+  const { value, onChange } = props;
+  const { t } = useTranslation(['translation']);
+  const [raw, setRaw] = React.useState(() => formatCommand(value));
+
+  // Sync from external changes (e.g. YAML editor).
+  const formatted = formatCommand(value);
+  const lastExternalRef = React.useRef(formatted);
+  React.useEffect(() => {
+    if (formatted !== lastExternalRef.current) {
+      lastExternalRef.current = formatted;
+      setRaw(formatted);
+    }
+  }, [formatted]);
+
+  function handleBlur() {
+    const parsed = parseCommand(raw);
+    lastExternalRef.current = formatCommand(parsed);
+    onChange(parsed);
+    setRaw(formatCommand(parsed));
+  }
+
+  return (
+    <Box sx={{ width: '50%', mt: 1 }}>
+      <FieldLabel
+        label={t('translation|Command')}
+        helperText={t('translation|JSON array of command tokens, e.g. ["sh", "-c", "echo hello"].')}
+      />
+      <FormTextField
+        value={raw}
+        onChange={e => setRaw(e.target.value)}
+        onBlur={handleBlur}
+        inputProps={{ 'aria-label': t('translation|Container command') }}
+      />
+    </Box>
+  );
+}
+
 /** Editable list of containers (name + image + pull policy per row).
  *  Fill in the bottom inputs and click + to add. Existing containers appear
  *  above as editable rows with × to remove. */
 export function ContainerTextField(props: ContainerTextFieldProps) {
-  const { value, onChange, label, required, helperText } = props;
+  const { value, onChange, label, required, helperText, showCommand } = props;
   const { t } = useTranslation(['translation']);
   const groupLabelId = useId('container-group-');
   const safeValue = Array.isArray(value) ? value : [];
@@ -130,50 +236,73 @@ export function ContainerTextField(props: ContainerTextFieldProps) {
         return (
           <Box
             key={rowIds[index] ?? `container-fallback-${index}`}
-            sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 2, mb: 2 }}
+            sx={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 1,
+              mt: 2,
+              mb: 2,
+              ...(index > 0 && {
+                pt: 2,
+                borderTop: 1,
+                borderColor: 'divider',
+              }),
+            }}
           >
-            <FormTextField
-              label={t('translation|Name')}
-              value={container.name ?? ''}
-              onChange={e => handleEdit(index, 'name', e.target.value)}
-              inputProps={{ 'aria-label': t('translation|Container name') }}
-            />
-            <FormTextField
-              label={t('translation|Image')}
-              value={container.image ?? ''}
-              onChange={e => handleEdit(index, 'image', e.target.value)}
-              inputProps={{ 'aria-label': t('translation|Container image') }}
-            />
-            <FormTextField
-              label={t('translation|Container Port')}
-              value={getPort(container)}
-              onChange={e => handleEdit(index, 'containerPort', e.target.value)}
-              inputProps={{ 'aria-label': t('translation|Container port') }}
-              type="number"
-            />
-            <FormTextField
-              label={t('translation|Pull Policy')}
-              value={container.imagePullPolicy ?? 'Always'}
-              onChange={e => handleEdit(index, 'imagePullPolicy', e.target.value)}
-              inputProps={{ 'aria-label': t('translation|Image pull policy') }}
-              select
-            >
-              {IMAGE_PULL_POLICIES.map(p => (
-                <MenuItem key={p} value={p}>
-                  {p}
-                </MenuItem>
-              ))}
-            </FormTextField>
-            <IconButton
-              onClick={() => handleRemove(index)}
-              color="default"
-              size="small"
-              aria-label={t('translation|Remove container {{ name }}', {
-                name: container.name ?? index,
-              })}
-            >
-              <Icon icon="mdi:close-circle" width={24} height={24} />
-            </IconButton>
+            <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+              <FormTextField
+                label={t('translation|Name')}
+                value={container.name ?? ''}
+                onChange={e => handleEdit(index, 'name', e.target.value)}
+                inputProps={{ 'aria-label': t('translation|Container name') }}
+              />
+              <FormTextField
+                label={t('translation|Image')}
+                value={container.image ?? ''}
+                onChange={e => handleEdit(index, 'image', e.target.value)}
+                inputProps={{ 'aria-label': t('translation|Container image') }}
+              />
+              <FormTextField
+                label={t('translation|Container Port')}
+                value={getPort(container)}
+                onChange={e => handleEdit(index, 'containerPort', e.target.value)}
+                inputProps={{ 'aria-label': t('translation|Container port') }}
+                type="number"
+              />
+              <IconButton
+                onClick={() => handleRemove(index)}
+                color="default"
+                size="small"
+                aria-label={t('translation|Remove container {{ name }}', {
+                  name: container.name ?? index,
+                })}
+              >
+                <Icon icon="mdi:close-circle" width={24} height={24} />
+              </IconButton>
+            </Box>
+            {showCommand && (
+              <CommandInput
+                value={container.command}
+                onChange={parsed => {
+                  onChange(safeValue.map((c, i) => (i !== index ? c : { ...c, command: parsed })));
+                }}
+              />
+            )}
+            <Box sx={{ width: 220, mt: 1 }}>
+              <FormTextField
+                label={t('translation|Pull Policy')}
+                value={container.imagePullPolicy ?? 'Always'}
+                onChange={e => handleEdit(index, 'imagePullPolicy', e.target.value)}
+                inputProps={{ 'aria-label': t('translation|Image pull policy') }}
+                select
+              >
+                {IMAGE_PULL_POLICIES.map(p => (
+                  <MenuItem key={p} value={p}>
+                    {p}
+                  </MenuItem>
+                ))}
+              </FormTextField>
+            </Box>
           </Box>
         );
       })}
