@@ -580,7 +580,8 @@ Ensure your replicaCount and maintenance procedures respect the configured PDB t
 | baseImage       | string  | `node:lts-alpine` | Base node image to use                                                                    |
 | version         | string  | `latest`          | Headlamp plugin package version to install                                                |
 | env             | list    | `[]`              | Plugin manager env variable configuration                                                 |
-| resources       | object  | `{}`              | Plugin manager resource requests/limits                                                   |
+| resources       | object  | `requests: {cpu: 100m, memory: 256Mi}, limits: {cpu: 500m, memory: 1Gi}` | Plugin manager resource requests/limits                                                   |
+| livenessProbe   | object  | `{initialDelaySeconds: 30, periodSeconds: 30, failureThreshold: 3}`       | Plugin manager liveness probe configuration                                               |
 | volumeMounts    | list    | `[]`              | Plugin manager volume mounts                                                              |
 | securityContext | object  | `{}`              | Plugin manager security context. If omitted, inherits the global `securityContext`.       |
 
