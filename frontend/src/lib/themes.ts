@@ -579,7 +579,12 @@ export function usePrefersColorScheme() {
 
   React.useEffect(() => {
     if (!mql) return;
-    const handler = (x: MediaQueryListEvent | MediaQueryList) => setValue(x.matches);
+    const handler = (x: MediaQueryListEvent) => setValue(x.matches);
+    if (typeof mql.addEventListener === 'function') {
+      mql.addEventListener('change', handler);
+      return () => mql.removeEventListener('change', handler);
+    }
+    // Legacy fallback (e.g. older Safari/WebViews)
     mql.addListener(handler);
     return () => mql.removeListener(handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
