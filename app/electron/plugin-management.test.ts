@@ -410,25 +410,31 @@ describe('PluginManager', () => {
   it('should ignore backup directories during listing', () => {
     const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'list-backup-plugins');
 
-    // Create a backup directory with valid plugin files
-    const backupDir = `${path.join(pluginDestDir, 'headlamp_minikube')}.backup`;
+    const pluginDir = path.join(pluginDestDir, 'headlamp_minikube');
+    const backupDir = `${pluginDir}.backup`;
+    const pluginPackageJson = JSON.stringify({
+      name: 'headlamp_minikube',
+      version: '1.0.0',
+      isManagedByHeadlampPlugin: true,
+      artifacthub: { title: 'Minikube' },
+    });
+
+    // Create the original plugin folder (sibling present → backup is NOT orphaned)
+    fs.mkdirSync(pluginDir, { recursive: true });
+    fs.writeFileSync(path.join(pluginDir, 'main.js'), 'console.log("plugin");');
+    fs.writeFileSync(path.join(pluginDir, 'package.json'), pluginPackageJson);
+
+    // Create the backup directory alongside the original
     fs.mkdirSync(backupDir, { recursive: true });
     fs.writeFileSync(path.join(backupDir, 'main.js'), 'console.log("ghost");');
-    fs.writeFileSync(
-      path.join(backupDir, 'package.json'),
-      JSON.stringify({
-        name: 'headlamp_minikube',
-        version: '1.0.0',
-        isManagedByHeadlampPlugin: true,
-        artifacthub: {
-          title: 'Minikube',
-        },
-      })
-    );
+    fs.writeFileSync(path.join(backupDir, 'package.json'), pluginPackageJson);
 
     const plugins = PluginManager.list(pluginDestDir);
     expect(plugins).toBeDefined();
-    expect(plugins!.length).toBe(0);
+    // Only the original is listed; the .backup sibling must not appear as a plugin entry
+    expect(plugins!.length).toBe(1);
+    expect(plugins!.some(p => p.folderName === 'headlamp_minikube.backup')).toBe(false);
+    expect(plugins![0].folderName).toBe('headlamp_minikube');
 
     // Clean up
     if (fs.existsSync(pluginDestDir)) {
