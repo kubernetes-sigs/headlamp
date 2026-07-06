@@ -276,6 +276,7 @@
   "Allow Volume Expansion": "允許卷擴充套件",
   "Mount Options": "",
   "Volume Binding Mode": "卷繫結模式",
+  "No": "",
   "Driver Name": "",
   "This resource is only effective for compatible CSI drivers that support mutable volume attributes.": "",
   "Claim": "宣告",
