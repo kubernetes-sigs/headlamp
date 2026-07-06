@@ -276,6 +276,7 @@
   "Allow Volume Expansion": "ভলিউম এক্সপ্যানশন অনুমতি দিন",
   "Mount Options": "মাউন্ট অপশন",
   "Volume Binding Mode": "ভলিউম বাইন্ডিং Mode",
+  "No": "",
   "Driver Name": "ড্রাইভার নাম",
   "This resource is only effective for compatible CSI drivers that support mutable volume attributes.": "এই Resource শুধুমাত্র পরিবর্তনযোগ্য ভলিউম Attribute সমর্থনকারী সামঞ্জস্যপূর্ণ CSI ড্রাইভারের জন্য কার্যকর।",
   "Claim": "দাবি",
