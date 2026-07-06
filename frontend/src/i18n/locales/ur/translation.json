@@ -801,7 +801,7 @@
   "Selects which pods belong to this ReplicaSet. Entries are mirrored read-only into the pod template labels below; extra pod-template-only labels can be added there.": "",
   "Current//context:replicas": "موجودہ",
   "Desired//context:replicas": "مطلوبہ",
-  "Vertical button group": "",
+  "Graph controls": "",
   "Zoom in": "زوم اِن",
   "Zoom out": "زوم آؤٹ",
   "No data to be shown. Try to change filters or select a different namespace.": "دکھانے کے لیے کوئی ڈیٹا نہیں فلٹر تبدیل کریں یا دوسرا نیم اسپیس منتخب کریں",
