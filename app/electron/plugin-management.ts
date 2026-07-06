@@ -473,8 +473,36 @@ export class PluginManager {
       // Filter out directories (plugins)
       const pluginFolders = entries.filter(entry => entry.isDirectory());
 
-      // Iterate through each plugin folder
+      // Recover orphaned .backup directories: if a <name>.backup exists but <name> does not,
+      // an interrupted update left only the backup. Restore it so the plugin is discoverable.
       for (const pluginFolder of pluginFolders) {
+        if (!pluginFolder.name.endsWith('.backup')) {
+          continue;
+        }
+        const backupDir = path.join(folder, pluginFolder.name);
+        const originalDir = backupDir.slice(0, -'.backup'.length);
+        if (!fs.existsSync(originalDir)) {
+          console.warn(
+            `Detected orphaned backup directory "${backupDir}" with no corresponding plugin folder. ` +
+              `Restoring it to "${originalDir}" to recover from an interrupted update.`
+          );
+          try {
+            fs.renameSync(backupDir, originalDir);
+          } catch (restoreErr) {
+            console.error(
+              `Failed to restore orphaned backup "${backupDir}" to "${originalDir}":`,
+              restoreErr
+            );
+          }
+        }
+      }
+
+      // Re-read entries after potential recovery so restored plugins are included
+      const entriesAfterRecovery = fs.readdirSync(folder, { withFileTypes: true });
+      const pluginFoldersAfterRecovery = entriesAfterRecovery.filter(entry => entry.isDirectory());
+
+      // Iterate through each plugin folder
+      for (const pluginFolder of pluginFoldersAfterRecovery) {
         const pluginDir = path.join(folder, pluginFolder.name);
 
         if (checkValidPluginFolder(pluginDir)) {
