@@ -24,14 +24,33 @@ export const BASE_SC: KubeStorageClass = {
   kind: 'StorageClass',
   metadata: {
     creationTimestamp: '2023-04-27T20:31:27Z',
-    name: 'my-pvc',
+    name: 'storage-class',
     resourceVersion: '1234',
-    uid: 'abc-1234',
+    uid: '1',
   },
   provisioner: 'csi.test',
   reclaimPolicy: 'Delete',
-  allowVolumeExpansion: true,
   volumeBindingMode: 'WaitForFirstConsumer',
+};
+
+export const BASE_SC_EXPLICIT_EXPANDABLE: KubeStorageClass = {
+  ...BASE_SC,
+  metadata: {
+    ...BASE_SC.metadata,
+    uid: '2',
+    name: 'storage-class-expandable',
+  },
+  allowVolumeExpansion: true,
+};
+
+export const BASE_SC_EXPLICIT_NON_EXPANDABLE: KubeStorageClass = {
+  ...BASE_SC,
+  metadata: {
+    ...BASE_SC.metadata,
+    uid: '3',
+    name: 'storage-class-non-expandable',
+  },
+  allowVolumeExpansion: false,
 };
 
 export const BASE_PVC: KubePersistentVolumeClaim = {
