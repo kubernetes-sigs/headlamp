@@ -239,6 +239,14 @@ function isAuthProbePending(
   return !!cluster && !manualOverride && (authQuery.isLoading || authQuery.isFetching);
 }
 
+/** True while a discovery-related React Query has no settled result (initial load or refetch). */
+export function isNamespaceDiscoveryPending(query: {
+  isLoading?: boolean;
+  isFetching?: boolean;
+}): boolean {
+  return !!(query.isLoading || query.isFetching);
+}
+
 export function useDiscoveredNamespaces(cluster: string | null = getCluster()) {
   const manualOverride = getManualAllowedNamespaces(cluster).length > 0;
   const authQuery = useClusterAuthReady(cluster);
@@ -252,10 +260,11 @@ export function useDiscoveredNamespaces(cluster: string | null = getCluster()) {
   });
 
   const authPending = isAuthProbePending(cluster ?? '', manualOverride, authQuery);
+  const discoveryPending = isNamespaceDiscoveryPending(discoveryQuery);
 
   return {
     ...discoveryQuery,
-    isLoading: authPending || discoveryQuery.isLoading,
+    isLoading: authPending || discoveryPending,
     isFetching: authPending || discoveryQuery.isFetching,
   };
 }
@@ -297,7 +306,7 @@ export function useDiscoveredNamespacesMap(clusters: string[]) {
         isLoading: authQuery?.isLoading ?? false,
         isFetching: authQuery?.isFetching ?? false,
       });
-      const discoveryPending = queries[index]?.isLoading ?? false;
+      const discoveryPending = isNamespaceDiscoveryPending(queries[index] ?? {});
 
       map[cluster] = queries[index]?.data;
       isLoadingByCluster[cluster] = authPending || discoveryPending;

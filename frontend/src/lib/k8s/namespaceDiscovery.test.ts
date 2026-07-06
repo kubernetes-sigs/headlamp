@@ -164,7 +164,7 @@ describe('discoverAccessibleNamespaces', () => {
 
     const result = await discoverAccessibleNamespaces('test-cluster');
     expect(result.isClusterWide).toBe(true);
-    expect(result.source).toBe('rolebindings');
+    expect(result.source).toBe('clusterwide');
 
     const rbacCalls = mockedClusterRequest.mock.calls
       .map(([path]) => String(path))
@@ -224,7 +224,7 @@ describe('usesDiscoveredNamespaceRouting', () => {
       usesDiscoveredNamespaceRouting({
         namespaces: [],
         isClusterWide: true,
-        source: 'rolebindings',
+        source: 'clusterwide',
       })
     ).toBe(false);
   });
