@@ -21,7 +21,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { storeClusterSettings } from '../../helpers/clusterSettings';
 import * as clusterApi from './api/v1/clusterApi';
 import * as namespaceDiscovery from './namespaceDiscovery';
-import { useDiscoveredNamespaces, useDiscoveredNamespacesMap } from './useDiscoveredNamespaces';
+import {
+  isNamespaceDiscoveryPending,
+  useDiscoveredNamespaces,
+  useDiscoveredNamespacesMap,
+} from './useDiscoveredNamespaces';
 
 const discoveryResult = {
   namespaces: ['discovered-ns'],
@@ -83,6 +87,14 @@ describe('useDiscoveredNamespaces', () => {
 
     expect(result.current.isLoading).toBe(true);
     expect(namespaceDiscovery.discoverAccessibleNamespaces).not.toHaveBeenCalled();
+  });
+});
+
+describe('isNamespaceDiscoveryPending', () => {
+  it('is true during initial load or background refetch', () => {
+    expect(isNamespaceDiscoveryPending({ isLoading: true, isFetching: false })).toBe(true);
+    expect(isNamespaceDiscoveryPending({ isLoading: false, isFetching: true })).toBe(true);
+    expect(isNamespaceDiscoveryPending({ isLoading: false, isFetching: false })).toBe(false);
   });
 });
 

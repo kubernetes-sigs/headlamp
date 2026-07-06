@@ -91,6 +91,7 @@ export function buildDiscoveryError(
 export type NamespaceDiscoverySource =
   | 'api' // list namespaces API succeeded (legacy cluster-wide metadata path)
   | 'rolebindings' // namespaces from namespaced RoleBindings
+  | 'clusterwide' // cluster-scoped SSAR detected list access without namespace set
   | 'fallback' // Settings / kubeconfig default namespace (not RBAC enumeration)
   | 'none'; // discovery failed
 
@@ -278,7 +279,7 @@ function getFallbackNamespaces(cluster: string): string[] {
  * Discovers namespaces the current user can access using a priority chain:
  * 1. List namespaces API
  * 2. Namespaced RoleBinding enumeration (ClusterRoleBindings are not listed)
- * 3. SSAR cluster-scoped check for true cluster-wide routing
+ * 3. SSAR cluster-scoped check for true cluster-wide routing (source `clusterwide`)
  * 4. Default namespace fallbacks
  */
 export async function discoverAccessibleNamespaces(
@@ -315,7 +316,7 @@ export async function discoverAccessibleNamespaces(
     return {
       namespaces: [],
       isClusterWide: true,
-      source: 'rolebindings',
+      source: 'clusterwide',
     };
   }
 
