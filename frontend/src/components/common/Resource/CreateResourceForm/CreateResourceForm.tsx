@@ -174,53 +174,45 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
 
     if (field.render) {
       return (
-        <Box>
-          <FieldLabel label={field.label} required={field.required} helperText={field.helperText} />
+        <FieldWrapper field={field}>
           {field.render({
             value,
             onChange: v => handleFieldChange(field.path, v),
             resource,
           })}
-        </Box>
+        </FieldWrapper>
       );
     }
 
     switch (field.type) {
       case 'labels':
         return (
-          <LabelTextField
-            label={field.label}
-            required={field.required}
-            helperText={field.helperText}
-            value={value ?? {}}
-            onChange={labels => handleFieldChange(field.path, labels)}
-          />
+          <FieldWrapper field={field}>
+            <LabelTextField
+              value={value ?? {}}
+              onChange={labels => handleFieldChange(field.path, labels)}
+            />
+          </FieldWrapper>
         );
       case 'containers':
         return (
-          <ContainerTextField
-            label={field.label}
-            required={field.required}
-            helperText={field.helperText}
-            value={value ?? []}
-            onChange={containers => handleFieldChange(field.path, containers)}
-            showCommand={field.showCommand}
-          />
+          <FieldWrapper field={field}>
+            <ContainerTextField
+              value={value ?? []}
+              onChange={containers => handleFieldChange(field.path, containers)}
+              showCommand={field.showCommand}
+            />
+          </FieldWrapper>
         );
       case 'namespace':
         return (
-          <Box>
-            <FieldLabel
-              label={field.label}
-              required={field.required}
-              helperText={field.helperText}
-            />
+          <FieldWrapper field={field}>
             <NamespaceTextField
               value={value ?? ''}
               onChange={ns => handleFieldChange(field.path, ns)}
               required={field.required}
             />
-          </Box>
+          </FieldWrapper>
         );
       case 'number':
         if (field.inline) {
@@ -249,12 +241,7 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
           );
         }
         return (
-          <Box>
-            <FieldLabel
-              label={field.label}
-              required={field.required}
-              helperText={field.helperText}
-            />
+          <FieldWrapper field={field}>
             <FormTextField
               value={value ?? ''}
               onChange={e => handleNumberChange(field, e.target.value)}
@@ -266,16 +253,11 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
                 ...(field.min !== undefined ? { min: field.min } : {}),
               }}
             />
-          </Box>
+          </FieldWrapper>
         );
       case 'select':
         return (
-          <Box>
-            <FieldLabel
-              label={field.label}
-              required={field.required}
-              helperText={field.helperText}
-            />
+          <FieldWrapper field={field}>
             <FormTextField
               value={value ?? ''}
               onChange={e => handleFieldChange(field.path, e.target.value)}
@@ -289,11 +271,11 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
                 </MenuItem>
               ))}
             </FormTextField>
-          </Box>
+          </FieldWrapper>
         );
       case 'boolean':
         return (
-          <Box>
+          <FieldWrapper field={field} hideLabel>
             <FormControlLabel
               control={
                 <Checkbox
@@ -304,39 +286,18 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
               }
               label={field.label}
             />
-            {field.helperText && (
-              <Tooltip title={field.helperText} arrow>
-                <IconButton
-                  size="small"
-                  aria-label={field.helperText}
-                  sx={{ p: 0, display: 'inline-flex', lineHeight: 0 }}
-                >
-                  <Icon
-                    icon="mdi:information-outline"
-                    width={16}
-                    height={16}
-                    style={{ display: 'block' }}
-                  />
-                </IconButton>
-              </Tooltip>
-            )}
-          </Box>
+          </FieldWrapper>
         );
       default:
         return (
-          <Box>
-            <FieldLabel
-              label={field.label}
-              required={field.required}
-              helperText={field.helperText}
-            />
+          <FieldWrapper field={field}>
             <FormTextField
               value={value ?? ''}
               onChange={e => handleFieldChange(field.path, e.target.value)}
               required={field.required}
               inputProps={{ 'aria-label': field.label }}
             />
-          </Box>
+          </FieldWrapper>
         );
     }
   }
@@ -445,6 +406,27 @@ export function FieldLabel(props: FieldLabelProps) {
             />
           </IconButton>
         </Tooltip>
+      )}
+    </Box>
+  );
+}
+
+/** Wraps a field input with an optional label + helperText tooltip above it.
+ *  Use `hideLabel` when the input already contains its own label (e.g. checkbox). */
+export function FieldWrapper(props: {
+  field: FormField;
+  hideLabel?: boolean;
+  children: React.ReactNode;
+}) {
+  const { field, hideLabel, children } = props;
+  return (
+    <Box>
+      {!hideLabel && (
+        <FieldLabel label={field.label} required={field.required} helperText={field.helperText} />
+      )}
+      {children}
+      {hideLabel && field.helperText && (
+        <FieldLabel helperText={field.helperText} sx={{ mt: 0.5 }} />
       )}
     </Box>
   );
