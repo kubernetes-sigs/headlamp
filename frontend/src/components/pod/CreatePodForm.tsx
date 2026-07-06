@@ -16,7 +16,10 @@
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import CreateResourceForm, { FormSection } from '../common/Resource/CreateResourceForm';
+import CreateResourceForm, {
+  FormSection,
+  metadataSection,
+} from '../common/Resource/CreateResourceForm';
 
 /** Props for {@link CreatePodForm}. */
 export interface CreatePodFormProps {
@@ -24,36 +27,19 @@ export interface CreatePodFormProps {
   resource?: Record<string, any>;
   /** Called when form fields update the resource object. */
   onChange: (resource: Record<string, any>) => void;
+  /** Called when required-field validity changes. */
+  onValidChange?: (valid: boolean) => void;
 }
 
 /** Pod-specific creation form built on {@link CreateResourceForm}. Defines
  *  sections for metadata (name, namespace, labels), containers, and node
  *  scheduling. */
 export default function CreatePodForm(props: CreatePodFormProps) {
-  const { resource, onChange } = props;
+  const { resource, onChange, onValidChange } = props;
   const { t } = useTranslation(['translation', 'glossary']);
 
-  const normalizedResource = resource ?? {};
-
   const sections: FormSection[] = [
-    {
-      title: t('translation|Metadata'),
-      fields: [
-        { key: 'name', path: 'metadata.name', label: t('translation|Name'), required: true },
-        {
-          key: 'namespace',
-          path: 'metadata.namespace',
-          label: t('glossary|Namespace'),
-          type: 'namespace' as const,
-        },
-        {
-          key: 'labels',
-          path: 'metadata.labels',
-          label: t('translation|Labels'),
-          type: 'labels' as const,
-        },
-      ],
-    },
+    metadataSection(t),
     {
       title: t('translation|Spec'),
       fields: [
@@ -79,6 +65,11 @@ export default function CreatePodForm(props: CreatePodFormProps) {
   ];
 
   return (
-    <CreateResourceForm sections={sections} resource={normalizedResource} onChange={onChange} />
+    <CreateResourceForm
+      sections={sections}
+      resource={resource}
+      onChange={onChange}
+      onValidChange={onValidChange}
+    />
   );
 }

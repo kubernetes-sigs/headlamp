@@ -20,6 +20,7 @@ import type { KubeDeployment } from '../../lib/k8s/deployment';
 import CreateResourceForm, {
   FormSection,
   LabelTextField,
+  metadataSection,
   PodLabelsEditor,
   useSelectorPodTemplate,
 } from '../common/Resource/CreateResourceForm';
@@ -35,6 +36,8 @@ export type DeploymentDraft = RecursivePartial<KubeDeployment>;
 export interface CreateDeploymentFormProps {
   resource?: DeploymentDraft;
   onChange: (resource: DeploymentDraft) => void;
+  /** Called when required-field validity changes. */
+  onValidChange?: (valid: boolean) => void;
 }
 
 /** Deployment create form built on {@link CreateResourceForm}. Sections:
@@ -42,7 +45,7 @@ export interface CreateDeploymentFormProps {
  *  show up read-only in the pod template labels; users can add extra
  *  editable labels next to them. */
 export default function CreateDeploymentForm(props: CreateDeploymentFormProps) {
-  const { resource, onChange } = props;
+  const { resource, onChange, onValidChange } = props;
 
   const { t } = useTranslation(['translation', 'glossary']);
 
@@ -54,24 +57,7 @@ export default function CreateDeploymentForm(props: CreateDeploymentFormProps) {
   });
 
   const sections: FormSection[] = [
-    {
-      title: t('translation|Metadata'),
-      fields: [
-        { key: 'name', path: 'metadata.name', label: t('translation|Name'), required: true },
-        {
-          key: 'namespace',
-          path: 'metadata.namespace',
-          label: t('glossary|Namespace'),
-          type: 'namespace' as const,
-        },
-        {
-          key: 'labels',
-          path: 'metadata.labels',
-          label: t('translation|Labels'),
-          type: 'labels' as const,
-        },
-      ],
-    },
+    metadataSection(t),
     {
       title: t('translation|Spec'),
       fields: [
@@ -133,8 +119,9 @@ export default function CreateDeploymentForm(props: CreateDeploymentFormProps) {
   return (
     <CreateResourceForm
       sections={sections}
-      resource={normalizedResource as Record<string, any>}
+      resource={resource as Record<string, any>}
       onChange={onChange as (resource: Record<string, any>) => void}
+      onValidChange={onValidChange}
     />
   );
 }

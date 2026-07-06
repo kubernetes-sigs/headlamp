@@ -87,6 +87,8 @@ export interface EditorDialogProps extends DialogProps {
   /** Override the target cluster for apply operations. When set, this takes
    *  priority over `item.cluster` and the URL-derived cluster. */
   cluster?: string;
+  /** When true, the Apply button is disabled due to form validation errors. */
+  formInvalid?: boolean;
 }
 
 export default function EditorDialog(props: EditorDialogProps) {
@@ -105,6 +107,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     formContent,
     treatItemChangesAsEdits,
     cluster,
+    formInvalid,
     ...other
   } = props;
   const editorOptions = {
@@ -730,7 +733,7 @@ export default function EditorDialog(props: EditorDialogProps) {
             onClick={() => handleSave('dryRun')}
             color="secondary"
             variant="contained"
-            disabled={originalCodeRef.current.code === code.code || !!error}
+            disabled={originalCodeRef.current.code === code.code || !!error || !!formInvalid}
             aria-controls={editorId}
             sx={{ whiteSpace: 'nowrap' }}
           >
@@ -742,7 +745,7 @@ export default function EditorDialog(props: EditorDialogProps) {
             onClick={() => handleSave('apply')}
             color="primary"
             variant="contained"
-            disabled={originalCodeRef.current.code === code.code || !!error}
+            disabled={originalCodeRef.current.code === code.code || !!error || !!formInvalid}
             aria-controls={editorId}
             sx={{ whiteSpace: 'nowrap' }}
           >
