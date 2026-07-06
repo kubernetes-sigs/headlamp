@@ -927,5 +927,13 @@
   "Toggle Table Filters": "تبديل عوامل تصفية الجدول",
   "Toggle column filters in tables": "تبديل عوامل تصفية الأعمدة في الجداول",
   "Log Viewer Search": "بحث عارض السجلات",
-  "Toggle search in log viewer": "تبديل البحث في عارض السجلات"
+  "Toggle search in log viewer": "تبديل البحث في عارض السجلات",
+  "Close Active Overlays": "",
+  "Close the active details drawer": "",
+  "Navigate to Pods": "",
+  "Go to the Pods list page": "",
+  "Navigate to Deployments": "",
+  "Go to the Deployments list page": "",
+  "Show Shortcuts Help": "",
+  "Show the keyboard shortcuts cheat sheet": ""
 }
