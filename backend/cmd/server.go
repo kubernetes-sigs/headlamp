@@ -175,7 +175,7 @@ func setupKubeConfigStoreWatcher(kubeConfigStore kubeconfig.ContextStore) {
 				return
 			}
 
-			k8cache.SyncWatchers(active)
+			k8cache.SyncWatchers(k8sResponseCache, active)
 		})
 	})
 }
@@ -347,7 +347,7 @@ func handleCacheAuthorization(
 		clearRequestAuthorization(r)
 	}
 
-	isAllowed, authErr := k8cache.IsAllowed(kContext, r)
+	isAllowed, authErr := k8cache.IsAllowed(contextKey, kContext, r)
 	if authErr != nil {
 		k8cache.ServeFromCacheOrForwardToK8s(k8sResponseCache, isAllowed, next, key, w, r, rcw)
 

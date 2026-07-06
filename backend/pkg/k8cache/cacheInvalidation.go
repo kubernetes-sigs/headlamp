@@ -204,13 +204,18 @@ func CheckForChanges(
 	go runWatcher(ctx, k8scache, contextKey, kContext)
 }
 
-// SyncWatchers stops watchers for contexts that are no longer active.
+// SyncWatchers stops watchers for contexts that are no longer active and purges
+// their cached API responses and authorization clientsets.
 // activeContexts is a list of currently valid context keys.
-func SyncWatchers(activeContexts []string) {
+func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
+	clearBlockedClientsetPrefixesForActiveContexts(activeContexts)
+
 	activeMap := make(map[string]bool, len(activeContexts))
 	for _, ctx := range activeContexts {
 		activeMap[ctx] = true
 	}
+
+	cleaned := make(map[string]struct{})
 
 	contextCancel.Range(func(key, value interface{}) bool {
 		contextKey, ok := key.(string)
@@ -224,11 +229,25 @@ func SyncWatchers(activeContexts []string) {
 				cancel()
 				watcherRegistry.Delete(contextKey)
 				contextCancel.Delete(contextKey)
+				cleanupRemovedContext(k8scache, contextKey)
+				cleaned[contextKey] = struct{}{}
 			}
 		}
 
 		return true
 	})
+
+	for contextKey := range collectCachedContextKeys(k8scache) {
+		if activeMap[contextKey] {
+			continue
+		}
+
+		if _, alreadyCleaned := cleaned[contextKey]; alreadyCleaned {
+			continue
+		}
+
+		cleanupRemovedContext(k8scache, contextKey)
+	}
 }
 
 // runWatcher is a long-lived goroutine that sets up and runs Kubernetes informers.

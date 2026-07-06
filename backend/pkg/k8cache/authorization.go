@@ -57,10 +57,20 @@ type inFlightEntry struct {
 	err    error
 }
 
+type blockedPrefixEntry struct {
+	blockedAt time.Time
+}
+
 var (
 	clientsetCache = make(map[string]*CachedClientSet)
-	mu             sync.Mutex
-	janitorOnce    sync.Once
+	// blockedClientsetPrefixes holds context keys whose clientsets must not be
+	// re-cached after context removal. Entries are cleared when SyncWatchers sees
+	// the context active again, or by the janitor once clientsetTTL has elapsed
+	// and no clientset or in-flight entries remain for the prefix. The janitor is
+	// started by GetClientSet and EvictClientsetsForCluster.
+	blockedClientsetPrefixes = make(map[string]blockedPrefixEntry)
+	mu                       sync.Mutex
+	janitorOnce              sync.Once
 
 	// inFlight keeps track of clientsets currently being created to avoid redundant work.
 	inFlight = make(map[string]*inFlightEntry)
@@ -110,6 +120,8 @@ func evictExpiredClientsets() {
 		}
 	}
 
+	pruneBlockedClientsetPrefixesLocked(now)
+
 	remaining := len(clientsetCache)
 
 	mu.Unlock()
@@ -117,6 +129,100 @@ func evictExpiredClientsets() {
 	if evicted > 0 {
 		logger.Log(logger.LevelInfo, nil, nil,
 			fmt.Sprintf("janitor: evicted %d expired clientset(s), %d remaining", evicted, remaining))
+	}
+}
+
+// hasClientsetActivityForPrefix reports whether any clientset or in-flight entry
+// exists for the given prefix. mu must be held.
+func hasClientsetActivityForPrefix(prefix string) bool {
+	prefixWithNul := prefix + "\x00"
+
+	for key := range clientsetCache {
+		if strings.HasPrefix(key, prefixWithNul) {
+			return true
+		}
+	}
+
+	for key := range inFlight {
+		if strings.HasPrefix(key, prefixWithNul) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// pruneBlockedClientsetPrefixesLocked drops stale block entries so removed contexts that
+// never return do not accumulate unbounded entries over long process lifetimes.
+// mu must be held.
+func pruneBlockedClientsetPrefixesLocked(now time.Time) {
+	for prefix, entry := range blockedClientsetPrefixes {
+		if hasClientsetActivityForPrefix(prefix) {
+			continue
+		}
+
+		if now.Sub(entry.blockedAt) >= clientsetTTL {
+			delete(blockedClientsetPrefixes, prefix)
+		}
+	}
+}
+
+// EvictClientsetsForCluster removes cached authorization clientsets whose keys share
+// the given prefix immediately when a kube context is removed, instead of waiting for
+// TTL expiry. The prefix is the Headlamp context store key (the part before the token
+// separator in clientset cache keys), which includes the user ID for stateless contexts.
+func EvictClientsetsForCluster(clientsetCachePrefix string) {
+	if clientsetCachePrefix == "" {
+		return
+	}
+
+	startJanitor()
+
+	prefix := clientsetCachePrefix + "\x00"
+
+	mu.Lock()
+
+	blockedClientsetPrefixes[clientsetCachePrefix] = blockedPrefixEntry{blockedAt: time.Now()}
+
+	evicted := 0
+
+	for key := range clientsetCache {
+		if strings.HasPrefix(key, prefix) {
+			delete(clientsetCache, key)
+
+			evicted++
+		}
+	}
+
+	remaining := len(clientsetCache)
+
+	mu.Unlock()
+
+	if evicted > 0 {
+		logger.Log(logger.LevelInfo, nil, nil,
+			fmt.Sprintf("evicted %d clientset(s) for removed clientset cache prefix %s, %d remaining",
+				evicted, redactContextKey(clientsetCachePrefix), remaining))
+	}
+}
+
+// clientsetCachePrefixFromCacheKey returns the Headlamp context store key prefix
+// from a clientset cache key (everything before the final NUL separator).
+func clientsetCachePrefixFromCacheKey(cacheKey string) string {
+	if i := strings.LastIndex(cacheKey, "\x00"); i >= 0 {
+		return cacheKey[:i]
+	}
+
+	return cacheKey
+}
+
+// clearBlockedClientsetPrefixesForActiveContexts allows clientset caching again for
+// contexts that are currently active (for example after a cluster is re-added).
+func clearBlockedClientsetPrefixesForActiveContexts(activeContexts []string) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	for _, contextKey := range activeContexts {
+		delete(blockedClientsetPrefixes, clientsetCachePrefixFromContextKey(contextKey))
 	}
 }
 
@@ -134,13 +240,11 @@ func getCachedClientSet(cacheKey string) (*kubernetes.Clientset, bool) {
 
 	if now.Sub(cs.lastUsed) > clientsetTTL {
 		delete(clientsetCache, cacheKey)
-
-		// Extract cluster name from cacheKey (format: "clusterName\x00token")
-		clusterName := strings.Split(cacheKey, "\x00")[0]
+		redactedContext := redactContextKey(clientsetCachePrefixFromCacheKey(cacheKey))
 		mu.Unlock()
 
 		logger.Log(logger.LevelInfo, nil, nil,
-			fmt.Sprintf("expired clientset for cluster %s was deleted", clusterName))
+			fmt.Sprintf("expired clientset for cluster %s was deleted", redactedContext))
 
 		return nil, false
 	}
@@ -184,6 +288,11 @@ func createAndCacheClientSet(
 		}
 	}
 
+	prefix := clientsetCachePrefixFromCacheKey(cacheKey)
+	if _, blocked := blockedClientsetPrefixes[prefix]; blocked {
+		return cs, nil
+	}
+
 	clientsetCache[cacheKey] = &CachedClientSet{
 		clientset: cs,
 		lastUsed:  time.Now(),
@@ -192,19 +301,57 @@ func createAndCacheClientSet(
 	return cs, nil
 }
 
+// waitForInFlightClientset waits for another goroutine to finish creating a
+// clientset for the same cache key. It blocks on entry.waitCh until
+// finishInFlightClientset closes it, then returns the clientset and error
+// stored on entry. The caller must not hold mu.
+func waitForInFlightClientset(entry *inFlightEntry) (*kubernetes.Clientset, error) {
+	hookMu.RLock()
+
+	waitHook := testingInFlightWait
+
+	hookMu.RUnlock()
+
+	waitHook()
+	<-entry.waitCh
+
+	return entry.cs, entry.err
+}
+
+// finishInFlightClientset records the clientset creation outcome on entry,
+// removes cacheKey from the inFlight map, and closes entry.waitCh so any
+// goroutines blocked in waitForInFlightClientset can proceed. mu must not be
+// held; this function acquires mu internally.
+func finishInFlightClientset(cacheKey string, entry *inFlightEntry, cs *kubernetes.Clientset, err error) {
+	mu.Lock()
+
+	entry.cs = cs
+	entry.err = err
+
+	delete(inFlight, cacheKey)
+	close(entry.waitCh)
+
+	mu.Unlock()
+}
+
 // GetClientSet returns *kubernetes.ClientSet and error which is further used for creating
 // SSAR requests to k8s server to authorize user. GetClientSet uses kubeconfig.Context and
 // authentication bearer token which will help to create clientSet based on the user's
-// identity.
-func GetClientSet(k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
+// identity. headlampContextKey is the key used in the kubeconfig store (for stateless
+// clusters this includes the user ID, e.g. "cluster\x00userID").
+func GetClientSet(headlampContextKey string, k *kubeconfig.Context, token string) (*kubernetes.Clientset, error) {
+	if headlampContextKey == "" {
+		return nil, fmt.Errorf("empty headlamp context key in GetClientSet")
+	}
+
 	contextKey := strings.Split(k.ClusterID, "+")
 	if len(contextKey) < 2 {
-		return nil, fmt.Errorf("unexpected ClusterID format in getClientSet: %q", k.ClusterID)
+		return nil, fmt.Errorf("unexpected ClusterID format in GetClientSet: %q", k.ClusterID)
 	}
 
 	startJanitor()
 
-	cacheKey := contextKey[1] + "\x00" + token
+	cacheKey := headlampContextKey + "\x00" + token
 
 	// Check cache first
 	if cs, found := getCachedClientSet(cacheKey); found {
@@ -228,17 +375,7 @@ func GetClientSet(k *kubeconfig.Context, token string) (*kubernetes.Clientset, e
 	if entry, ok := inFlight[cacheKey]; ok {
 		mu.Unlock()
 
-		hookMu.RLock()
-
-		waitHook := testingInFlightWait
-
-		hookMu.RUnlock()
-
-		waitHook()
-		<-entry.waitCh
-
-		// Return the shared result.
-		return entry.cs, entry.err
+		return waitForInFlightClientset(entry)
 	}
 
 	// We are the one to create it.
@@ -251,15 +388,7 @@ func GetClientSet(k *kubeconfig.Context, token string) (*kubernetes.Clientset, e
 
 	cs, err := createAndCacheClientSet(k, token, cacheKey, contextKey)
 
-	mu.Lock()
-
-	entry.cs = cs
-	entry.err = err
-
-	delete(inFlight, cacheKey)
-	close(entry.waitCh)
-
-	mu.Unlock()
+	finishInFlightClientset(cacheKey, entry, cs, err)
 
 	return cs, err
 }
@@ -297,12 +426,13 @@ func GetKindAndVerb(r *http.Request) (string, string) {
 // If the user is authorized and has permission to view the resources, it returns true.
 // Otherwise, it returns false if authorization fails.
 func IsAllowed(
+	headlampContextKey string,
 	k *kubeconfig.Context,
 	r *http.Request,
 ) (bool, error) {
 	token := auth.BearerTokenValue(r.Header.Get("Authorization"))
 
-	clientset, err := GetClientSet(k, token)
+	clientset, err := GetClientSet(headlampContextKey, k, token)
 	if err != nil {
 		return false, err
 	}

@@ -45,6 +45,7 @@ import (
 	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
@@ -2559,9 +2560,23 @@ func newFakeK8sServer(authAllowed bool) *httptest.Server {
 	}))
 }
 
+// resetCacheMiddlewareTestState clears package-global k8cache state so
+// integration tests do not share clientsets or API response cache entries.
+func resetCacheMiddlewareTestState() {
+	k8cache.ResetForTesting()
+
+	if k8sResponseCache != nil {
+		_ = k8sResponseCache.Close()
+	}
+
+	k8sResponseCache = cache.New[string]()
+}
+
 // newHeadlampConfig create mock HeadlampConfig for testing CacheMiddleware
 // mechanism without creating actual HeadlampConfig.
 func newHeadlampConfig(fakeK8s *httptest.Server, testName string) *HeadlampConfig {
+	resetCacheMiddlewareTestState()
+
 	store := kubeconfig.NewContextStore()
 
 	err := store.AddContext(&kubeconfig.Context{
@@ -2926,6 +2941,8 @@ func TestCacheMiddleware_CacheInvalidation(t *testing.T) {
 //nolint:funlen
 func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 	t.Helper()
+
+	resetCacheMiddlewareTestState()
 
 	kubeConfigPath := os.Getenv("KUBECONFIG")
 	if kubeConfigPath == "" {
