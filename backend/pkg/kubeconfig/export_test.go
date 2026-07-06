@@ -1,8 +1,6 @@
 package kubeconfig
 
-import (
-	"net/http"
-)
+import "net/http"
 
 // This file exports internal functions and types for testing purposes only.
 // These exports are only available during testing and won't be included in production builds.
