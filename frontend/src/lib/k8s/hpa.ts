@@ -66,11 +66,10 @@ interface MetricTarget {
 function metricTargetValue(target: MetricTarget): string {
   switch (target.type) {
     case 'Utilization':
-      if (target.averageUtilization) {
+      if (target.averageUtilization !== null && target.averageUtilization !== undefined) {
         return `${target.averageUtilization.toString()}%`;
       }
       return '';
-      break;
     case 'AverageValue':
       return `${target.averageValue}`;
     case 'Value':
