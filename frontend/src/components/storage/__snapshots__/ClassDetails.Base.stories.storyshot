@@ -47,7 +47,7 @@
                 <h1
                   class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
                 >
-                  StorageClass: my-pvc
+                  StorageClass: storage-class-expandable
                 </h1>
                 <div
                   class="MuiBox-root css-ldp2l3"
@@ -145,7 +145,7 @@
                     <span
                       class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
                     >
-                      my-pvc
+                      storage-class-expandable
                     </span>
                   </dd>
                   <dt
