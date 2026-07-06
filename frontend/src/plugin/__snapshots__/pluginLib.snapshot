@@ -75,6 +75,7 @@
     "EnvVarGrid": [Function],
     "ErrorPage": [Function],
     "FieldLabel": [Function],
+    "FieldWrapper": [Function],
     "FormTextField": [Function],
     "HeaderLabel": [Function],
     "HoverInfoLabel": [Function],
@@ -163,6 +164,7 @@
       "EditorDialog": [Function],
       "EnvVarGrid": [Function],
       "FieldLabel": [Function],
+      "FieldWrapper": [Function],
       "FormTextField": [Function],
       "LOGGABLE_WORKLOAD_KINDS": Set {
         "Deployment",

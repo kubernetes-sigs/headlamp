@@ -151,38 +151,41 @@
               class="MuiBox-root css-0"
             >
               <div
-                aria-labelledby="label-group-id"
                 class="MuiBox-root css-0"
-                role="group"
               >
                 <div
                   class="MuiBox-root css-r6ef99"
                 >
                   <span
                     class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
-                    id="label-group-id"
                   >
                     Labels
                   </span>
                 </div>
                 <div
-                  class="MuiBox-root css-1yuhvjn"
+                  aria-labelledby="label-group-id"
+                  class="MuiBox-root css-0"
+                  role="group"
                 >
-                  <button
-                    aria-label="Add label"
-                    class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
-                    tabindex="0"
-                    type="button"
+                  <div
+                    class="MuiBox-root css-1yuhvjn"
                   >
-                    <p
-                      class="MuiTypography-root MuiTypography-body2 css-38mgk-MuiTypography-root"
+                    <button
+                      aria-label="Add label"
+                      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+                      tabindex="0"
+                      type="button"
                     >
-                      New Label
-                    </p>
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-38mgk-MuiTypography-root"
+                      >
+                        New Label
+                      </p>
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -203,38 +206,41 @@
               class="MuiBox-root css-0"
             >
               <div
-                aria-labelledby="container-group-id"
                 class="MuiBox-root css-0"
-                role="group"
               >
                 <div
                   class="MuiBox-root css-r6ef99"
                 >
                   <span
                     class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
-                    id="container-group-id"
                   >
                     Containers
                   </span>
                 </div>
                 <div
-                  class="MuiBox-root css-1yuhvjn"
+                  aria-labelledby="container-group-id"
+                  class="MuiBox-root css-0"
+                  role="group"
                 >
-                  <button
-                    aria-label="Add container"
-                    class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
-                    tabindex="0"
-                    type="button"
+                  <div
+                    class="MuiBox-root css-1yuhvjn"
                   >
-                    <p
-                      class="MuiTypography-root MuiTypography-body2 css-38mgk-MuiTypography-root"
+                    <button
+                      aria-label="Add container"
+                      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+                      tabindex="0"
+                      type="button"
                     >
-                      New Container
-                    </p>
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-38mgk-MuiTypography-root"
+                      >
+                        New Container
+                      </p>
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
