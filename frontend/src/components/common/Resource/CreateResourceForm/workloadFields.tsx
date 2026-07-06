@@ -111,20 +111,54 @@ export function parseCommand(input: string): string[] {
   return tokens;
 }
 
-/** Render a `container.command` array as an editable string. Tokens with
- *  whitespace or quotes are wrapped in double quotes so a round-trip
- *  through {@link parseCommand} preserves them. */
+/** Render a `container.command` array as an editable JSON array string.
+ *  Uses JSON notation so it round-trips cleanly through {@link parseCommand}
+ *  and matches the format Kubernetes specs use. */
 export function formatCommand(cmd: unknown): string {
   if (!Array.isArray(cmd)) return typeof cmd === 'string' ? cmd : '';
-  return cmd
-    .map(t => {
-      const s = String(t);
-      if (s === '' || /[\s"']/.test(s)) {
-        return '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
-      }
-      return s;
-    })
-    .join(' ');
+  if (cmd.length === 0) return '';
+  return JSON.stringify(cmd);
+}
+
+/** Controlled text input for container command that stores raw text locally
+ *  and only parses into string[] on blur. Prevents the cursor from jumping
+ *  while typing spaces. */
+function CommandInput(props: { value: unknown; onChange: (parsed: string[]) => void }) {
+  const { value, onChange } = props;
+  const { t } = useTranslation(['translation']);
+  const [raw, setRaw] = React.useState(() => formatCommand(value));
+
+  // Sync from external changes (e.g. YAML editor).
+  const formatted = formatCommand(value);
+  const lastExternalRef = React.useRef(formatted);
+  React.useEffect(() => {
+    if (formatted !== lastExternalRef.current) {
+      lastExternalRef.current = formatted;
+      setRaw(formatted);
+    }
+  }, [formatted]);
+
+  function handleBlur() {
+    const parsed = parseCommand(raw);
+    lastExternalRef.current = formatCommand(parsed);
+    onChange(parsed);
+    setRaw(formatCommand(parsed));
+  }
+
+  return (
+    <Box sx={{ width: '50%', mt: 1 }}>
+      <FieldLabel
+        label={t('translation|Command')}
+        helperText={t('translation|JSON array of command tokens, e.g. ["sh", "-c", "echo hello"].')}
+      />
+      <FormTextField
+        value={raw}
+        onChange={e => setRaw(e.target.value)}
+        onBlur={handleBlur}
+        inputProps={{ 'aria-label': t('translation|Container command') }}
+      />
+    </Box>
+  );
 }
 
 /** Editable list of containers (name + image + pull policy per row).
@@ -179,10 +213,6 @@ export function ContainerTextField(props: ContainerTextFieldProps) {
           }
           return rest;
         }
-        if (field === 'command') {
-          const tokens = parseCommand(newVal);
-          return { ...c, command: tokens };
-        }
         return { ...c, [field]: newVal };
       })
     );
@@ -191,13 +221,6 @@ export function ContainerTextField(props: ContainerTextFieldProps) {
   function getPort(container: Record<string, any>): string {
     const port = container?.ports?.[0]?.containerPort ?? container?.containerPort;
     return port !== null && port !== undefined ? String(port) : '';
-  }
-
-  function getCommand(container: Record<string, any>): string {
-    const cmd = container?.command;
-    if (Array.isArray(cmd)) return formatCommand(cmd);
-    if (typeof cmd === 'string') return cmd;
-    return '';
   }
 
   return (
@@ -258,19 +281,12 @@ export function ContainerTextField(props: ContainerTextFieldProps) {
               </IconButton>
             </Box>
             {showCommand && (
-              <Box sx={{ width: '50%', mt: 1 }}>
-                <FieldLabel
-                  label={t('translation|Command')}
-                  helperText={t(
-                    'translation|Entrypoint command for the container. Space-separated; quote tokens that contain spaces.'
-                  )}
-                />
-                <FormTextField
-                  value={getCommand(container)}
-                  onChange={e => handleEdit(index, 'command', e.target.value)}
-                  inputProps={{ 'aria-label': t('translation|Container command') }}
-                />
-              </Box>
+              <CommandInput
+                value={container.command}
+                onChange={parsed => {
+                  onChange(safeValue.map((c, i) => (i !== index ? c : { ...c, command: parsed })));
+                }}
+              />
             )}
             <Box sx={{ width: 220, mt: 1 }}>
               <FormTextField
