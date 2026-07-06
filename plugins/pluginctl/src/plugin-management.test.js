@@ -211,6 +211,39 @@ describe('PluginManager Test Cases', () => {
     // Clean up
     fs.rmSync(backupDir, { recursive: true, force: true });
   });
+
+  test('List recovers orphaned backup directory when sibling is missing', () => {
+    // Simulate an interrupted update: only <name>.backup exists, <name> does not
+    const orphanBackupDir = path.join(tempDir, 'orphan-plugin.backup');
+    fs.mkdirSync(orphanBackupDir, { recursive: true });
+    fs.writeFileSync(path.join(orphanBackupDir, 'main.js'), 'console.log("orphan");');
+    fs.writeFileSync(
+      path.join(orphanBackupDir, 'package.json'),
+      JSON.stringify({
+        name: 'orphan-plugin',
+        version: '1.0.0',
+        isManagedByHeadlampPlugin: true,
+        artifacthub: {
+          title: 'Orphan Plugin',
+        },
+      })
+    );
+
+    const listCallback = jest.fn();
+    PluginManager.list(tempDir, listCallback);
+
+    const listedPlugins = listCallback.mock.calls.find(call => call[0].type === 'success')[0].data;
+
+    // The restored plugin should appear in the list (recovered from .backup)
+    const recovered = listedPlugins.find(p => p.pluginName === 'orphan-plugin');
+    expect(recovered).toBeDefined();
+    // The .backup folder should no longer exist; the restored folder should
+    expect(fs.existsSync(orphanBackupDir)).toBe(false);
+    expect(fs.existsSync(path.join(tempDir, 'orphan-plugin'))).toBe(true);
+
+    // Clean up
+    fs.rmSync(path.join(tempDir, 'orphan-plugin'), { recursive: true, force: true });
+  });
 });
 
 describe('validateArchiveURL', () => {

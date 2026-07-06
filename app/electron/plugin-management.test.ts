@@ -435,6 +435,43 @@ describe('PluginManager', () => {
       fs.rmSync(pluginDestDir, { recursive: true });
     }
   });
+
+  it('should recover an orphaned backup directory when the sibling plugin folder is missing', () => {
+    // Simulate an interrupted update: only <name>.backup exists, <name> does not
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'list-orphan-backup-plugins');
+    const backupDir = `${path.join(pluginDestDir, 'headlamp_minikube')}.backup`;
+    const originalDir = path.join(pluginDestDir, 'headlamp_minikube');
+
+    fs.mkdirSync(backupDir, { recursive: true });
+    fs.writeFileSync(path.join(backupDir, 'main.js'), 'console.log("orphan");');
+    fs.writeFileSync(
+      path.join(backupDir, 'package.json'),
+      JSON.stringify({
+        name: 'headlamp_minikube',
+        version: '1.0.0',
+        isManagedByHeadlampPlugin: true,
+        artifacthub: {
+          title: 'Minikube',
+        },
+      })
+    );
+
+    const plugins = PluginManager.list(pluginDestDir);
+    expect(plugins).toBeDefined();
+
+    // The restored plugin should appear in the list
+    const recovered = plugins!.find(p => p.pluginName === 'headlamp_minikube');
+    expect(recovered).toBeDefined();
+
+    // The .backup folder should be gone; the restored folder should exist
+    expect(fs.existsSync(backupDir)).toBe(false);
+    expect(fs.existsSync(originalDir)).toBe(true);
+
+    // Clean up
+    if (fs.existsSync(pluginDestDir)) {
+      fs.rmSync(pluginDestDir, { recursive: true });
+    }
+  });
 });
 
 /**
