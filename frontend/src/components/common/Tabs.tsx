@@ -65,7 +65,7 @@ export interface TabsProps {
 export default function Tabs(props: TabsProps) {
   const { tabs, tabProps = {}, defaultIndex = 0, onTabChanged = null, ariaLabel } = props;
   const [tabIndex, setTabIndex] = React.useState<TabsProps['defaultIndex']>(
-    defaultIndex && Math.min(defaultIndex as number, 0)
+    Math.max(defaultIndex as number, 0)
   );
 
   /**
