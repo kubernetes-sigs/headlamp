@@ -30,7 +30,7 @@ import type {
   RecursivePartial,
 } from './api/v1/factories';
 import { apiFactory, apiFactoryWithNamespace } from './api/v1/factories';
-import { useConnectApi, useSelectedClusters } from './api/v1/hooks';
+import { useCluster, useConnectApi, useSelectedClusters } from './api/v1/hooks';
 import type { QueryParameters } from './api/v1/queryParameters';
 import type { ApiError } from './api/v2/ApiError';
 import { useKubeObject } from './api/v2/hooks';
@@ -349,6 +349,8 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       namespaces = getNamespaceListConfig(activeCluster, discovery, false).namespaces;
     }
 
+    const waitingForDiscovery = this.isNamespaced && discoveryLoading && !opts?.namespace;
+
     if (namespaces.length > 0) {
       // If we have a namespace set, then we have to make an API call for each
       // namespace and then set the objects once we have all of the responses.
@@ -361,14 +363,32 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
           })
         );
       }
-    } else {
+    } else if (!waitingForDiscovery) {
       // If we don't have a namespace set, then we only have one API call
       // response to set and we return it right away.
       listCalls.push(this.apiList(listCallback, onError, { queryParams, cluster }));
     }
 
+    // useConnectApi only re-runs on cluster changes; discovery is async, so wire
+    // list calls here with deps that include discovery completion and routing.
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(...listCalls);
+    const clusterFromUrl = useCluster();
+    const namespaceRoutingKey = namespaces.join('\0');
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    React.useEffect(() => {
+      if (waitingForDiscovery) {
+        return;
+      }
+
+      const cancellables = listCalls.map(func => func());
+
+      return function cleanup() {
+        for (const cancellablePromise of cancellables) {
+          cancellablePromise.then(cancellable => cancellable());
+        }
+      };
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [clusterFromUrl, waitingForDiscovery, activeCluster, namespaceRoutingKey]);
   }
 
   static useList<K extends KubeObject>(

@@ -452,6 +452,8 @@ export function useKubeObjectList<K extends KubeObject>({
     Object.entries(queryParams ?? {}).filter(([, value]) => value !== undefined && value !== '')
   );
 
+  const isPendingDiscovery = requests.length === 0;
+
   const queries = useMemo(
     () =>
       endpoint
@@ -486,6 +488,19 @@ export function useKubeObjectList<K extends KubeObject>({
   const query = useQueries({
     queries,
     combine(results) {
+      if (isPendingDiscovery) {
+        return {
+          data: [],
+          clusterResults: {},
+          items: null,
+          errors: [],
+          isError: false,
+          isLoading: true,
+          isFetching: false,
+          isSuccess: false,
+        };
+      }
+
       return {
         data: results.map(result => result.data),
         clusterResults: results.reduce((acc, result) => {

@@ -193,24 +193,6 @@ async function selfSubjectAccessReview(
 }
 
 /**
- * Validates that the user can perform an action in a namespace via SelfSubjectAccessReview.
- */
-export async function validateNamespaceAccess(
-  namespace: string,
-  cluster: string,
-  verb = 'list',
-  resource = 'pods'
-): Promise<boolean> {
-  return selfSubjectAccessReview(cluster, {
-    resourceAttributes: {
-      namespace,
-      verb,
-      resource,
-    },
-  });
-}
-
-/**
  * Returns true when the user can list a namespaced resource cluster-wide (no namespace set).
  * This is the authoritative signal for cluster-wide Headlamp routing, unlike CRB subject match.
  */

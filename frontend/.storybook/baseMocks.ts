@@ -167,9 +167,6 @@ export const baseMocks = [
   http.get('http://localhost:4466/clusters/*/apis/extensions/v1beta1/ingresses', () =>
     HttpResponse.error()
   ),
-  http.post('http://localhost:4466/clusters/*/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', () =>
-    HttpResponse.json({ status: { resourceRules: [] } })
-  ),
   http.get('http://localhost:4466/apis/metrics.k8s.io/v1beta1/nodes', () =>
     HttpResponse.json({
       apiVersion: 'metrics.k8s.io/v1beta1',
