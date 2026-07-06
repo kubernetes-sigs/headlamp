@@ -26,16 +26,20 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
+import { useHistory } from 'react-router-dom';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
 import { useCluster, useClustersConf } from '../../lib/k8s';
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { Cluster } from '../../lib/k8s/cluster';
+import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getSavedNamespaces } from '../../lib/storage';
+import { useShortcut } from '../../lib/useShortcut';
 import { setConfig } from '../../redux/configSlice';
 import { ConfigState } from '../../redux/configSlice';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
+import { setShortcutsDialogOpen } from '../../redux/shortcutsSlice';
 import store from '../../redux/stores/store';
 import { useUIPanelsGroupedBySide } from '../../redux/uiSlice';
 import { fetchStatelessClusterKubeConfigs, isEqualClusterConfigs } from '../../stateless/';
@@ -203,6 +207,25 @@ export default function Layout({}: LayoutProps) {
   const isFullWidth = useTypedSelector(state => state.ui.isFullWidth);
   const { t } = useTranslation();
   const allClusters = useClustersConf();
+  const history = useHistory();
+
+  useShortcut('NAVIGATE_TO_PODS', () => {
+    const url = createRouteURL('pods');
+    if (url) {
+      history.push(url);
+    }
+  });
+
+  useShortcut('NAVIGATE_TO_DEPLOYMENTS', () => {
+    const url = createRouteURL('deployments');
+    if (url) {
+      history.push(url);
+    }
+  });
+
+  useShortcut('SHORTCUTS_HELP', () => {
+    dispatch(setShortcutsDialogOpen(true));
+  });
 
   /** This fetches the cluster config from the backend and updates the redux store on an interval.
    * When stateless clusters are enabled, it also fetches the stateless cluster config from the

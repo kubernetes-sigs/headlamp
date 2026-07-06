@@ -20,6 +20,7 @@ import useMediaQuery from '@mui/material/useMediaQuery';
 import { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
+import { useShortcut } from '../../../lib/useShortcut';
 import { setSelectedResource } from '../../../redux/drawerModeSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { KubeObjectDetails } from '../../resourceMap/details/KubeNodeDetails';
@@ -38,6 +39,14 @@ export default function DetailsDrawer() {
   const closeDrawer = useCallback(() => {
     dispatch(setSelectedResource(undefined));
   }, [dispatch]);
+
+  useShortcut(
+    'CLOSE_ACTIVE_OVERLAYS',
+    () => {
+      closeDrawer();
+    },
+    { enabled: !!selectedResource && !isSmallScreen && isDetailDrawerEnabled }
+  );
 
   useEffect(() => {
     if (selectedResource && !isSmallScreen && isDetailDrawerEnabled && drawerRef.current) {
