@@ -276,7 +276,7 @@
   "Allow Volume Expansion": "Allow Volume Expansion",
   "Mount Options": "",
   "Volume Binding Mode": "Volume Binding Mode",
-  "No": "",
+  "No": "No",
   "Driver Name": "Driver Name",
   "This resource is only effective for compatible CSI drivers that support mutable volume attributes.": "This resource is only effective for compatible CSI drivers that support mutable volume attributes.",
   "Claim": "Claim",
