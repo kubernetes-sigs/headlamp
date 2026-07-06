@@ -53,6 +53,7 @@
     "CopyButton": [Function],
     "CreateButton": [Function],
     "CreateDeploymentForm": [Function],
+    "CreateJobForm": [Function],
     "CreatePodForm": [Function],
     "CreateReplicaSetForm": [Function],
     "CreateResourceButton": [Function],
@@ -120,6 +121,10 @@
         "class": [Function],
         "form": [Function],
       },
+      "Job": {
+        "class": [Function],
+        "form": [Function],
+      },
       "Pod": {
         "class": [Function],
         "form": [Function],
@@ -142,6 +147,7 @@
       "CopyButton": [Function],
       "CreateButton": [Function],
       "CreateDeploymentForm": [Function],
+      "CreateJobForm": [Function],
       "CreatePodForm": [Function],
       "CreateReplicaSetForm": [Function],
       "CreateResourceForm": [Function],
@@ -183,6 +189,10 @@
       "PortForward": [Function],
       "RESOURCE_DEFINITIONS": {
         "Deployment": {
+          "class": [Function],
+          "form": [Function],
+        },
+        "Job": {
           "class": [Function],
           "form": [Function],
         },
