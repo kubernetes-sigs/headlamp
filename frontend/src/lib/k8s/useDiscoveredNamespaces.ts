@@ -28,6 +28,7 @@ import { useMemo } from 'react';
 import { loadClusterSettings } from '../../helpers/clusterSettings';
 import { getCluster } from '../cluster';
 import { testAuth } from './api/v1/clusterApi';
+import { ApiError } from './api/v2/ApiError';
 import {
   AuthNotReadyForDiscoveryError,
   discoverAccessibleNamespaces,
@@ -39,6 +40,25 @@ const DISCOVERY_RETRY_DELAY_MS = 1000;
 const DISCOVERY_MAX_AUTH_RETRIES = 3;
 
 export const NAMESPACE_DISCOVERY_QUERY_KEY = 'namespaceDiscovery';
+
+function isTransientAuthFailure(error: unknown): boolean {
+  const status = error instanceof ApiError ? error.status : (error as ApiError)?.status;
+  return status === 401 || status === 403;
+}
+
+/** Retry testAuth on transient auth failures during post-OIDC cookie propagation. */
+export function shouldRetryAuthProbe(failureCount: number, error: unknown): boolean {
+  return failureCount < DISCOVERY_MAX_AUTH_RETRIES && isTransientAuthFailure(error);
+}
+
+function authProbeRetryDelayMs(attemptIndex: number): number {
+  return DISCOVERY_RETRY_DELAY_MS * 2 ** attemptIndex;
+}
+
+const authProbeQueryOptions = {
+  retry: shouldRetryAuthProbe,
+  retryDelay: authProbeRetryDelayMs,
+} as const;
 
 /**
  * Manual namespace override from Settings (unchanged Headlamp behavior).
@@ -223,7 +243,7 @@ function useClusterAuthReady(cluster: string | null) {
     queryKey: ['auth', cluster],
     queryFn: () => testAuth(cluster!),
     enabled: !!cluster && getManualAllowedNamespaces(cluster).length === 0,
-    retry: 0,
+    ...authProbeQueryOptions,
   });
 }
 
@@ -278,7 +298,7 @@ export function useDiscoveredNamespacesMap(clusters: string[]) {
       queryKey: ['auth', cluster],
       queryFn: () => testAuth(cluster),
       enabled: !!cluster && getManualAllowedNamespaces(cluster).length === 0,
-      retry: 0,
+      ...authProbeQueryOptions,
     })),
   });
 
