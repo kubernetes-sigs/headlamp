@@ -206,8 +206,15 @@ export default function EditorDialog(props: EditorDialogProps) {
     const format = looksLikeJson(originalCodeRef.current.code) ? 'json' : 'yaml';
     const itemCode = format === 'json' ? JSON.stringify(clonedItem) : yaml.dump(clonedItem);
 
-    // Update the code if the item representation has changed
-    if (itemCode !== originalCodeRef.current.code) {
+    // Update the code if the item representation has changed.
+    // When treatItemChangesAsEdits is true, originalCodeRef is intentionally
+    // not updated, so compare against the current editor content instead —
+    // otherwise reverting a field to its original value would leave stale
+    // text in the editor.
+    const referenceCode = treatItemChangesAsEdits
+      ? codeRef.current.code
+      : originalCodeRef.current.code;
+    if (itemCode !== referenceCode) {
       if (!treatItemChangesAsEdits) {
         originalCodeRef.current = { code: itemCode, format };
       }

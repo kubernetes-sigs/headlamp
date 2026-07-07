@@ -127,20 +127,25 @@ function CommandInput(props: { value: unknown; onChange: (parsed: string[]) => v
   const { value, onChange } = props;
   const { t } = useTranslation(['translation']);
   const [raw, setRaw] = React.useState(() => formatCommand(value));
+  const [focused, setFocused] = React.useState(false);
 
-  // Sync from external changes (e.g. YAML editor).
-  const formatted = formatCommand(value);
-  const lastExternalRef = React.useRef(formatted);
+  // Sync from external changes (e.g. YAML editor), but NOT while the user
+  // is actively typing — that would overwrite their in-progress input.
+  const lastValueRef = React.useRef(value);
   React.useEffect(() => {
-    if (formatted !== lastExternalRef.current) {
-      lastExternalRef.current = formatted;
-      setRaw(formatted);
+    if (focused) return;
+    const prev = JSON.stringify(lastValueRef.current);
+    const next = JSON.stringify(value);
+    if (prev !== next) {
+      lastValueRef.current = value;
+      setRaw(formatCommand(value));
     }
-  }, [formatted]);
+  }, [value, focused]);
 
   function handleBlur() {
+    setFocused(false);
     const parsed = parseCommand(raw);
-    lastExternalRef.current = formatCommand(parsed);
+    lastValueRef.current = parsed;
     onChange(parsed);
     setRaw(formatCommand(parsed));
   }
@@ -154,6 +159,7 @@ function CommandInput(props: { value: unknown; onChange: (parsed: string[]) => v
       <FormTextField
         value={raw}
         onChange={e => setRaw(e.target.value)}
+        onFocus={() => setFocused(true)}
         onBlur={handleBlur}
         inputProps={{ 'aria-label': t('translation|Container command') }}
       />
