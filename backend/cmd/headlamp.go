@@ -2477,11 +2477,10 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 
 // customNameToExtensions writes the custom name to the Extensions map in the kubeconfig.
 func customNameToExtensions(config *api.Config, contextName, newClusterName, path string) error {
-	var err error
-
 	// Get the context with the given cluster name
 	contextConfig, ok := config.Contexts[contextName]
 	if !ok {
+		err := fmt.Errorf("context %q not found in kubeconfig", contextName)
 		logger.Log(logger.LevelError, map[string]string{logFieldCluster: contextName},
 			err, "getting context from kubeconfig")
 
