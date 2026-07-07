@@ -120,11 +120,9 @@ func (c *contextStore) GetContexts() ([]*Context, error) {
 		return nil, err
 	}
 
-	contexts := make([]*Context, len(contextMap))
-	i := 0
+	contexts := make([]*Context, 0, len(contextMap))
 	for _, ctx := range contextMap {
-		contexts[i] = ctx
-		i++
+		contexts = append(contexts, ctx)
 	}
 
 	return contexts, nil
@@ -137,11 +135,9 @@ func (c *contextStore) GetContextKeys() ([]string, error) {
 		return nil, err
 	}
 
-	keys := make([]string, len(contextMap))
-	i := 0
+	keys := make([]string, 0, len(contextMap))
 	for key := range contextMap {
-		keys[i] = key
-		i++
+		keys = append(keys, key)
 	}
 
 	return keys, nil

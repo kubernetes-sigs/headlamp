@@ -1046,3 +1046,46 @@ users:
 		})
 	})
 }
+
+func TestContextAuthType(t *testing.T) {
+	tests := []struct {
+		name     string
+		context  *kubeconfig.Context
+		expected string
+	}{
+		{
+			name: "OIDC configuration present",
+			context: &kubeconfig.Context{
+				OidcConf: &kubeconfig.OidcConfig{},
+			},
+			expected: "oidc",
+		},
+		{
+			name: "AuthProvider present",
+			context: &kubeconfig.Context{
+				AuthInfo: &api.AuthInfo{
+					AuthProvider: &api.AuthProviderConfig{},
+				},
+			},
+			expected: "oidc",
+		},
+		{
+			name: "No auth configuration",
+			context: &kubeconfig.Context{
+				AuthInfo: &api.AuthInfo{},
+			},
+			expected: "",
+		},
+		{
+			name:     "Nil auth info and oidc config",
+			context:  &kubeconfig.Context{},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.context.AuthType())
+		})
+	}
+}
