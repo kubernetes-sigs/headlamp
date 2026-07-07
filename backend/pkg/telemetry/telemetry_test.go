@@ -54,6 +54,21 @@ func TestNewTelemetry(t *testing.T) { //nolint:funlen // multiple test cases fun
 			expectError: false,
 		},
 		{
+			name: "jaeger endpoint as otlp fallback",
+			config: cfg.Config{
+				ServiceName:        "test-service",
+				ServiceVersion:     &testVersion,
+				TracingEnabled:     &trueVal,
+				StdoutTraceEnabled: &falseVal,
+				SamplingRate:       &sampleRate,
+				MetricsEnabled:     &falseVal,
+				JaegerEndpoint:     func() *string { v := "localhost:4317"; return &v }(),
+				OTLPEndpoint:       &emptyStr,
+				UseOTLPHTTP:        &falseVal,
+			},
+			expectError: false,
+		},
+		{
 			name: "missing service name",
 			config: cfg.Config{
 				TracingEnabled:     &trueVal,
