@@ -67,7 +67,7 @@ function metricTargetValue(target: MetricTarget): string {
   switch (target.type) {
     case 'Utilization':
       if (target.averageUtilization !== null && target.averageUtilization !== undefined) {
-        return `${target.averageUtilization.toString()}%`;
+        return `${target.averageUtilization}%`;
       }
       return '';
     case 'AverageValue':
