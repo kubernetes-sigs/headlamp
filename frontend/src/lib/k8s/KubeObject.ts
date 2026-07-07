@@ -322,7 +322,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       listCallback(allObjs);
     }
 
-    const listCalls = [];
+    const listCalls: Array<() => Promise<CancelFunction>> = [];
     const queryParams = cloneDeep(opts);
     let namespaces: string[] = [];
     unset(queryParams, 'namespace');
