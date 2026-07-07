@@ -216,11 +216,15 @@ main() {
   git fetch --tags --force origin
 
   local tag_name
-  tag_name=$(resolve_tag "$release_name")
+  tag_name=$(resolve_tag "$release_name") || exit 1
 
   local expected_sha
   expected_sha=$(get_tag_sha "$tag_name")
-
+  if [ -z "$expected_sha" ]; then
+    echo "Error: Could not determine SHA for tag '$tag_name'." >&2
+    exit 1
+  fi
+ 
   validate_runs "$expected_sha" "$tag_name" "$repo" "$run_ids"
 }
 
