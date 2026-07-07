@@ -34,12 +34,9 @@ const statelessContextKeySep = "\x00"
 // statelessContextKey generates a structured context key by joining the cluster name
 // and user ID with a NUL character separator (statelessContextKeySep) to avoid
 // ambiguous concatenation collisions between different (clusterName, userID) pairs.
-// If userID is empty, it returns clusterName (i.e., no separator is added).
+// It always appends the separator (even if userID is empty) to prevent collisions
+// with normal (non-stateless) contexts of the same name.
 func statelessContextKey(clusterName, userID string) string {
-	if userID == "" {
-		return clusterName
-	}
-
 	return clusterName + statelessContextKeySep + userID
 }
 
@@ -219,7 +216,7 @@ func (c *HeadlampConfig) parseKubeConfig(w http.ResponseWriter, r *http.Request)
 
 // websocketConnContextKey extracts the user identity from websocket subprotocols
 // and builds the same cache key shape used by HTTP stateless requests.
-func websocketConnContextKey(r *http.Request, clusterName string) string {
+func websocketConnContextKey(r *http.Request, clusterName string, store kubeconfig.ContextStore) string {
 	// Expected number of submatches in the regular expression
 	const expectedSubmatches = 2
 
@@ -259,6 +256,13 @@ func websocketConnContextKey(r *http.Request, clusterName string) string {
 	r.Header.Add("Sec-Websocket-Protocol", updatedProtocol)
 
 	if userID == "" {
+		if store != nil {
+			statelessKey := statelessContextKey(clusterName, "")
+			if _, err := store.GetContext(statelessKey); err == nil {
+				return statelessKey
+			}
+		}
+
 		return clusterName
 	}
 
@@ -296,7 +300,7 @@ func (c *HeadlampConfig) getContextKeyForRequest(r *http.Request) (string, error
 	// We get the value of X-HEADLAMP-USER-ID from the parameter and append it to the cluster name
 	// to get the context key. This is to ensure that the context key is unique for each user.
 	if r.Header.Get("Upgrade") == "websocket" {
-		contextKey = websocketConnContextKey(r, clusterName)
+		contextKey = websocketConnContextKey(r, clusterName, c.KubeConfigStore)
 	}
 
 	return contextKey, nil
