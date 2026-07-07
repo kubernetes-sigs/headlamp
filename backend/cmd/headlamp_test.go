@@ -1691,16 +1691,25 @@ func TestFindMatchingContextName(t *testing.T) {
 // contexts that have never had extensions set).
 func TestCustomNameToExtensions(t *testing.T) {
 	cases := []struct {
-		label      string
-		extensions map[string]k8sruntime.Object // nil simulates a fresh context
+		label       string
+		contextName string
+		extensions  map[string]k8sruntime.Object // nil simulates a fresh context
+		wantErr     string
 	}{
 		{
-			label:      "nil Extensions map is initialized before write",
-			extensions: nil,
+			label:       "nil Extensions map is initialized before write",
+			contextName: "my-cluster",
+			extensions:  nil,
 		},
 		{
-			label:      "existing Extensions map is preserved and updated",
-			extensions: map[string]k8sruntime.Object{},
+			label:       "existing Extensions map is preserved and updated",
+			contextName: "my-cluster",
+			extensions:  map[string]k8sruntime.Object{},
+		},
+		{
+			label:       "missing context returns an error",
+			contextName: "missing-cluster",
+			wantErr:     `context "missing-cluster" not found in kubeconfig`,
 		},
 	}
 
@@ -1721,7 +1730,12 @@ func TestCustomNameToExtensions(t *testing.T) {
 			require.NoError(t, clientcmd.WriteToFile(*config, tmpFile.Name()))
 
 			// Must not panic when Extensions is nil.
-			err = customNameToExtensions(config, "my-cluster", "my-custom-name", tmpFile.Name())
+			err = customNameToExtensions(config, tc.contextName, "my-custom-name", tmpFile.Name())
+			if tc.wantErr != "" {
+				require.EqualError(t, err, tc.wantErr)
+				return
+			}
+
 			require.NoError(t, err)
 
 			// Reload from disk and verify the custom name was written.
@@ -1818,7 +1832,7 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 				Stateless:      false,
 				Source:         "kubeconfig",
 			},
-			expectedState: http.StatusCreated,
+			expectedState: http.StatusInternalServerError,
 		},
 	}
 
@@ -1827,8 +1841,8 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 	remErr := c.KubeConfigStore.RemoveContext("minikubetest")
 	require.NoError(t, remErr, "Failed to remove context: minikubetest")
 
-	remErrNonDy := c.KubeConfigStore.RemoveContext("minikubetestworkskubeconfig")
-	require.NoError(t, remErrNonDy, "Failed to remove context: minikubetestworkskubeconfig")
+	remErrNonDy := c.KubeConfigStore.RemoveContext("minikubetestnondynamic")
+	require.NoError(t, remErrNonDy, "Failed to remove context: minikubetestnondynamic")
 
 	clusters := c.getClusters()
 	clustersByName := map[string]Cluster{}
@@ -1838,10 +1852,12 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 	}
 
 	// The stateless rename removes the original from the store; the new name is frontend-only.
-	// The kubeconfig rename context was explicitly removed above.
+	// The failed kubeconfig rename left the original context intact, which was removed above.
 	assert.NotContains(t, clustersByName, "minikubetest", "expected stateless cluster to be removed from store")
 	assert.NotContains(t, clustersByName, "minikubetestworkskubeconfig",
-		"expected kubeconfig-renamed cluster to be removed from store")
+		"expected failed kubeconfig rename not to create a new cluster name in the store")
+	assert.NotContains(t, clustersByName, "minikubetestnondynamic",
+		"expected original kubeconfig context to be removed during cleanup")
 	// The clusters added via POST should still be present.
 	assert.Contains(t, clustersByName, minikubeName, "expected minikube cluster to still exist")
 	assert.Contains(t, clustersByName, "docker-desktop", "expected docker-desktop cluster to still exist")
