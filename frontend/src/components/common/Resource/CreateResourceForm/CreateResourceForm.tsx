@@ -144,7 +144,7 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
 
   function handleFieldChange(path: string, value: any) {
     const updated = _.cloneDeep(resource);
-    if (value === undefined) {
+    if (value === undefined || value === '') {
       _.unset(updated, path);
     } else {
       _.set(updated, path, value);

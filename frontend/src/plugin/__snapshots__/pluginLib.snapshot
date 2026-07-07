@@ -118,6 +118,10 @@
     "PortForward": [Function],
     "PureNamespacesAutocomplete": [Function],
     "RESOURCE_DEFINITIONS": {
+      "CronJob": {
+        "class": [Function],
+        "form": [Function],
+      },
       "Deployment": {
         "class": [Function],
         "form": [Function],
@@ -190,6 +194,10 @@
       "PodLabelsEditor": [Function],
       "PortForward": [Function],
       "RESOURCE_DEFINITIONS": {
+        "CronJob": {
+          "class": [Function],
+          "form": [Function],
+        },
         "Deployment": {
           "class": [Function],
           "form": [Function],
