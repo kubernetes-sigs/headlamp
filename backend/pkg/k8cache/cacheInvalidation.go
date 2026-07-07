@@ -92,7 +92,7 @@ func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.Response
 	freshRcw := NewResponseCapture(rr)
 	next.ServeHTTP(freshRcw, freshReq)
 
-	if err := StoreK8sResponseInCache(k8scache, freshReq.URL, freshRcw, freshReq, key); err != nil {
+	if err := StoreK8sResponseInCache(k8scache, freshReq.URL, freshRcw, key); err != nil {
 		return err
 	}
 
