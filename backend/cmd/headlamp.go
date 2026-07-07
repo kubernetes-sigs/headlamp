@@ -81,6 +81,7 @@ type HeadlampConfig struct {
 	proxyURLMu        sync.Mutex
 	compiledProxyURLs []glob.Glob
 	oidcStateReader   io.Reader
+	externalLinks     []ExternalLink
 }
 
 func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
@@ -2196,8 +2197,10 @@ func parseClusterFromKubeConfig(kubeConfigs []string) ([]Cluster, []error) {
 	return clusters, setupErrors
 }
 
-func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
+func (c *HeadlampConfig) getExternalLinks() []ExternalLink {
+	if c.externalLinks != nil {
+		return c.externalLinks
+	}
 
 	externalLinks := []ExternalLink{} // not nil
 	if c.ExternalLinks != "" {
@@ -2212,6 +2215,12 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	return externalLinks
+}
+
+func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
 	clientConfig := clientConfig{
 		Clusters:                  c.getClusters(),
 		IsDynamicClusterEnabled:   c.EnableDynamicClusters,
@@ -2222,7 +2231,7 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 		DefaultLightTheme:         c.DefaultLightTheme,
 		DefaultDarkTheme:          c.DefaultDarkTheme,
 		ForceTheme:                c.ForceTheme,
-		ExternalLinks:             externalLinks,
+		ExternalLinks:             c.getExternalLinks(),
 	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {
