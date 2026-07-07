@@ -88,7 +88,7 @@
         </div>
         <div
           aria-labelledby="full-width-tab-0-NavigationTabs-tabs-id"
-          class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
+          class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
           hidden=""
           id="full-width-tabpanel-0-NavigationTabs-tabs-id"
           role="tabpanel"
@@ -96,7 +96,7 @@
         />
         <div
           aria-labelledby="full-width-tab-1-NavigationTabs-tabs-id"
-          class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
+          class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
           hidden=""
           id="full-width-tabpanel-1-NavigationTabs-tabs-id"
           role="tabpanel"
@@ -104,7 +104,7 @@
         />
         <div
           aria-labelledby="full-width-tab-2-NavigationTabs-tabs-id"
-          class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
+          class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
           hidden=""
           id="full-width-tabpanel-2-NavigationTabs-tabs-id"
           role="tabpanel"
@@ -112,7 +112,7 @@
         />
         <div
           aria-labelledby="full-width-tab-3-NavigationTabs-tabs-id"
-          class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
+          class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
           id="full-width-tabpanel-3-NavigationTabs-tabs-id"
           role="tabpanel"
           tabindex="0"
