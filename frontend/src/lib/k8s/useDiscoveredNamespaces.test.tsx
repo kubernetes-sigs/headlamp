@@ -20,9 +20,11 @@ import type { ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { storeClusterSettings } from '../../helpers/clusterSettings';
 import * as clusterApi from './api/v1/clusterApi';
+import { ApiError } from './api/v2/ApiError';
 import * as namespaceDiscovery from './namespaceDiscovery';
 import {
   isNamespaceDiscoveryPending,
+  shouldRetryAuthProbe,
   useDiscoveredNamespaces,
   useDiscoveredNamespacesMap,
 } from './useDiscoveredNamespaces';
@@ -37,7 +39,6 @@ const createWrapper = () => {
   const queryClient = new QueryClient({
     defaultOptions: {
       queries: {
-        retry: false,
         refetchOnWindowFocus: false,
         refetchOnMount: false,
         refetchOnReconnect: false,
@@ -87,6 +88,16 @@ describe('useDiscoveredNamespaces', () => {
 
     expect(result.current.isLoading).toBe(true);
     expect(namespaceDiscovery.discoverAccessibleNamespaces).not.toHaveBeenCalled();
+  });
+});
+
+describe('shouldRetryAuthProbe', () => {
+  it('retries transient 401/403 up to DISCOVERY_MAX_AUTH_RETRIES', () => {
+    const forbidden = new ApiError('Forbidden', { status: 403 });
+    expect(shouldRetryAuthProbe(0, forbidden)).toBe(true);
+    expect(shouldRetryAuthProbe(2, forbidden)).toBe(true);
+    expect(shouldRetryAuthProbe(3, forbidden)).toBe(false);
+    expect(shouldRetryAuthProbe(0, new ApiError('Server error', { status: 500 }))).toBe(false);
   });
 });
 
