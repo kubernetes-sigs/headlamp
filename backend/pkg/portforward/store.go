@@ -32,8 +32,8 @@ const storeKeyPrefix = "PORT_FORWARD_"
 func portforwardKeyGenerator(p portForward) string {
 	clusterKey := p.cacheKey
 	if clusterKey == "" {
-		// Fallback for entries that predate the cacheKey field (e.g. static
-		// clusters where userID is empty and cacheKey == Cluster).
+		// Fallback for entries created before the cacheKey field existed
+		// (cacheKey unset), where the cache key was derived from Cluster.
 		clusterKey = p.Cluster
 	}
 
