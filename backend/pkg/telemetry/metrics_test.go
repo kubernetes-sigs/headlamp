@@ -375,11 +375,35 @@ func verifyPanicMetrics(t *testing.T, ctx context.Context, reader *sdkmetric.Man
 }
 
 func verifyRequestCountMetric(t *testing.T, data metricdata.ResourceMetrics) {
-	// Implementation specific to checking request count metric
+	found := false
+
+	for _, scopeMetric := range data.ScopeMetrics {
+		for _, m := range scopeMetric.Metrics {
+			if m.Name == metricRequestCount {
+				found = true
+				sum := sumDataPoints(m.Data)
+				assert.GreaterOrEqual(t, sum, int64(2), "Expected at least 2 request count increments")
+			}
+		}
+	}
+
+	assert.True(t, found, "Expected to find http.server.request_count metric")
 }
 
 func verifyActiveRequestsMetric(t *testing.T, data metricdata.ResourceMetrics) {
-	// Implementation specific to checking active requests metric
+	found := false
+
+	for _, scopeMetric := range data.ScopeMetrics {
+		for _, m := range scopeMetric.Metrics {
+			if m.Name == metricActiveRequests {
+				found = true
+				sumActive := sumDataPoints(m.Data)
+				assert.Equal(t, int64(0), sumActive, "Expected active requests to be 0 after all requests completed")
+			}
+		}
+	}
+
+	assert.True(t, found, "Expected to find http.server.active_requests metric")
 }
 
 func verifyRequestDurationMetric(t *testing.T, data metricdata.ResourceMetrics) {
