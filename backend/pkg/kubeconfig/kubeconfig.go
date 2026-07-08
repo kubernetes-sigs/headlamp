@@ -437,9 +437,29 @@ func (c *Context) SetupProxy() error {
 	proxy := httputil.NewSingleHostReverseProxy(URL)
 
 	restConf, err := c.RESTConfig()
-	if err == nil {
+	if err != nil {
+		// Keep the proxy working through the default transport, but make the
+		// failure visible instead of silently dropping the kubeconfig's
+		// credentials.
+		logger.Log(logger.LevelError, map[string]string{"context": c.Name},
+			err, "couldn't get REST config for proxy transport, proxying without kubeconfig credentials")
+	} else {
+		// client-go no longer ships the in-tree "oidc" auth provider, so
+		// building a transport fails when a legacy auth-provider: oidc is set.
+		// Headlamp injects the OIDC token itself, so drop only that provider and
+		// keep the TLS settings. Other auth-providers are left intact so their
+		// authentication isn't silently removed.
+		if restConf.AuthProvider != nil && restConf.AuthProvider.Name == "oidc" {
+			confCopy := *restConf
+			confCopy.AuthProvider = nil
+			restConf = &confCopy
+		}
+
 		roundTripper, err := makeTransportFor(restConf)
-		if err == nil {
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{"context": c.Name},
+				err, "couldn't create proxy transport, proxying without kubeconfig credentials")
+		} else {
 			// Wrap the round tripper to add Headlamp User-Agent
 			proxy.Transport = &userAgentRoundTripper{
 				base:      roundTripper,
