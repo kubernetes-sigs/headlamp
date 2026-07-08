@@ -37,7 +37,8 @@ import {
 } from './namespaceDiscovery';
 
 const DISCOVERY_RETRY_DELAY_MS = 1000;
-const DISCOVERY_MAX_AUTH_RETRIES = 3;
+/** Total auth probe / discovery tries when auth is not ready (initial attempt + retries). */
+const DISCOVERY_MAX_AUTH_ATTEMPTS = 3;
 
 export const NAMESPACE_DISCOVERY_QUERY_KEY = 'namespaceDiscovery';
 
@@ -48,7 +49,8 @@ function isTransientAuthFailure(error: unknown): boolean {
 
 /** Retry testAuth on transient auth failures during post-OIDC cookie propagation. */
 export function shouldRetryAuthProbe(failureCount: number, error: unknown): boolean {
-  return failureCount < DISCOVERY_MAX_AUTH_RETRIES && isTransientAuthFailure(error);
+  // React Query failureCount is 0 on the first failure; allow up to ATTEMPTS - 1 retries.
+  return failureCount < DISCOVERY_MAX_AUTH_ATTEMPTS - 1 && isTransientAuthFailure(error);
 }
 
 function authProbeRetryDelayMs(attemptIndex: number): number {
@@ -208,12 +210,12 @@ export function getNamespaceDiscoveryAlert({
 export async function runNamespaceDiscoveryWithAuthRetry(
   cluster: string
 ): Promise<NamespaceDiscoveryResult> {
-  for (let attempt = 0; attempt <= DISCOVERY_MAX_AUTH_RETRIES; attempt++) {
+  for (let attempt = 0; attempt < DISCOVERY_MAX_AUTH_ATTEMPTS; attempt++) {
     try {
       return await discoverAccessibleNamespaces(cluster);
     } catch (error) {
       if (error instanceof AuthNotReadyForDiscoveryError) {
-        if (attempt < DISCOVERY_MAX_AUTH_RETRIES) {
+        if (attempt < DISCOVERY_MAX_AUTH_ATTEMPTS - 1) {
           await new Promise(resolve =>
             setTimeout(resolve, DISCOVERY_RETRY_DELAY_MS * 2 ** attempt)
           );
