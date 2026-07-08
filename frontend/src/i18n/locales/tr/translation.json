@@ -226,6 +226,7 @@
   "Getting auth info: {{ clusterName }}": "Kimlik doğrulama bilgileri alınıyor: {{ clusterName }}",
   "Getting auth info": "Kimlik doğrulama bilgileri alınıyor",
   "Testing auth": "Kimlik doğrulaması test ediliyor",
+  "The cluster did not accept your sign-in. Its API server may not trust this OIDC provider (issuer, client ID, or audience), or your token may be expired or lack the required permissions. Please check the cluster API server OIDC configuration.": "",
   "Headlamp Cluster Authentication": "Headlamp Kümesi Kimlik Doğrulaması",
   "Sign In": "Oturum Aç",
   "Use A Token": "Bir Belirteç Kullan",

@@ -226,6 +226,7 @@
   "Getting auth info: {{ clusterName }}": "認証情報を取得中: {{ clusterName }}",
   "Getting auth info": "認証情報を取得中",
   "Testing auth": "認証をテスト中",
+  "The cluster did not accept your sign-in. Its API server may not trust this OIDC provider (issuer, client ID, or audience), or your token may be expired or lack the required permissions. Please check the cluster API server OIDC configuration.": "",
   "Headlamp Cluster Authentication": "Headlamp クラスター認証",
   "Sign In": "サインイン",
   "Use A Token": "トークンを使用する",
