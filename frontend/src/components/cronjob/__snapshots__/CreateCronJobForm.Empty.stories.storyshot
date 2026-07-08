@@ -31,6 +31,7 @@
                     class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Name
+                     *
                   </span>
                 </div>
                 <div
@@ -44,6 +45,7 @@
                       aria-label="Name"
                       class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                       id=":mock-test-id:"
+                      required=""
                       type="text"
                       value=""
                     />
@@ -398,53 +400,57 @@
               <div
                 class="MuiBox-root css-0"
               >
-                <label
-                  class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
-                >
-                  <span
-                    class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeMedium PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeMedium MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeMedium css-4r3cdq-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
-                  >
-                    <input
-                      aria-label="Suspend"
-                      class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
-                      data-indeterminate="false"
-                      type="checkbox"
-                    />
-                    <svg
-                      aria-hidden="true"
-                      class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
-                      data-testid="CheckBoxOutlineBlankIcon"
-                      focusable="false"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
-                      />
-                    </svg>
-                    <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </span>
-                  <span
-                    class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
-                  >
-                    Suspend
-                  </span>
-                </label>
                 <div
-                  class="MuiBox-root css-1k29btw"
+                  class="MuiBox-root css-70qvj9"
                 >
-                  <button
-                    aria-label="If set, no new Jobs will be scheduled."
-                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ew19cs-MuiButtonBase-root-MuiIconButton-root"
-                    data-mui-internal-clone-element="true"
-                    tabindex="0"
-                    type="button"
+                  <label
+                    class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
                   >
                     <span
-                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                    />
-                  </button>
+                      class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeMedium PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeMedium MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeMedium css-4r3cdq-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                    >
+                      <input
+                        aria-label="Suspend"
+                        class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                        data-indeterminate="false"
+                        type="checkbox"
+                      />
+                      <svg
+                        aria-hidden="true"
+                        class="MuiSvgIcon-root MuiSvgIcon-fontSizeMedium css-i4bv87-MuiSvgIcon-root"
+                        data-testid="CheckBoxOutlineBlankIcon"
+                        focusable="false"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          d="M19 5v14H5V5h14m0-2H5c-1.1 0-2 .9-2 2v14c0 1.1.9 2 2 2h14c1.1 0 2-.9 2-2V5c0-1.1-.9-2-2-2z"
+                        />
+                      </svg>
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </span>
+                    <span
+                      class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
+                    >
+                      Suspend
+                    </span>
+                  </label>
+                  <div
+                    class="MuiBox-root css-r6ef99"
+                  >
+                    <button
+                      aria-label="If set, no new Jobs will be scheduled."
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ew19cs-MuiButtonBase-root-MuiIconButton-root"
+                      data-mui-internal-clone-element="true"
+                      tabindex="0"
+                      type="button"
+                    >
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -675,6 +681,7 @@
                     class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Containers
+                     *
                   </span>
                 </div>
                 <div
@@ -717,6 +724,7 @@
                     class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Restart Policy
+                     *
                   </span>
                   <button
                     aria-label="Job pods must use Never or OnFailure; Always is not allowed."
@@ -757,6 +765,7 @@
                       aria-hidden="true"
                       aria-invalid="false"
                       class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+                      required=""
                       tabindex="-1"
                       value=""
                     />

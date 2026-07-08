@@ -142,6 +142,7 @@ export default function EditorDialog(props: EditorDialogProps) {
   );
   const [uploadFiles, setUploadFiles] = React.useState(false);
   const [hasOpenedDiffEditor, setHasOpenedDiffEditor] = React.useState(false);
+  const [activeTabIndex, setActiveTabIndex] = React.useState(0);
 
   const dispatchCreateEvent = useEventCallback(HeadlampEventType.CREATE_RESOURCE);
   const dispatch: AppDispatch = useDispatch();
@@ -409,6 +410,7 @@ export default function EditorDialog(props: EditorDialogProps) {
   }
 
   function handleTabChange(tabIndex: number) {
+    setActiveTabIndex(tabIndex);
     const docsTabIndex = formContent ? 2 : 1;
     const diffTabIndex = formContent ? 3 : 2;
 
@@ -740,7 +742,11 @@ export default function EditorDialog(props: EditorDialogProps) {
             onClick={() => handleSave('dryRun')}
             color="secondary"
             variant="contained"
-            disabled={originalCodeRef.current.code === code.code || !!error || !!formInvalid}
+            disabled={
+              originalCodeRef.current.code === code.code ||
+              !!error ||
+              (activeTabIndex === 1 && !!formInvalid)
+            }
             aria-controls={editorId}
             sx={{ whiteSpace: 'nowrap' }}
           >
@@ -752,7 +758,11 @@ export default function EditorDialog(props: EditorDialogProps) {
             onClick={() => handleSave('apply')}
             color="primary"
             variant="contained"
-            disabled={originalCodeRef.current.code === code.code || !!error || !!formInvalid}
+            disabled={
+              originalCodeRef.current.code === code.code ||
+              !!error ||
+              (activeTabIndex === 1 && !!formInvalid)
+            }
             aria-controls={editorId}
             sx={{ whiteSpace: 'nowrap' }}
           >

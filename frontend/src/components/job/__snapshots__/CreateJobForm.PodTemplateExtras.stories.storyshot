@@ -31,6 +31,7 @@
                     class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Name
+                     *
                   </span>
                 </div>
                 <div
@@ -44,6 +45,7 @@
                       aria-label="Name"
                       class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                       id=":mock-test-id:"
+                      required=""
                       type="text"
                       value="with-extras"
                     />
@@ -645,6 +647,7 @@
                     class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Containers
+                     *
                   </span>
                 </div>
                 <div
@@ -703,7 +706,7 @@
                           for=":mock-test-id:"
                           id=":mock-test-id:"
                         >
-                          Image
+                          Image *
                         </label>
                         <div
                           class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
@@ -724,7 +727,7 @@
                               class="css-sl37lx-MuiNotchedOutlined-root"
                             >
                               <span>
-                                Image
+                                Image *
                               </span>
                             </legend>
                           </fieldset>
@@ -930,6 +933,7 @@
                     class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Restart Policy
+                     *
                   </span>
                   <button
                     aria-label="Job pods must use Never or OnFailure; Always is not allowed."
@@ -966,6 +970,7 @@
                       aria-hidden="true"
                       aria-invalid="false"
                       class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+                      required=""
                       tabindex="-1"
                       value="OnFailure"
                     />

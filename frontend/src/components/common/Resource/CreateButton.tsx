@@ -81,10 +81,12 @@ function CreateActivityContent(props: { onClose: () => void }) {
   const [errorMessage, setErrorMessage] = React.useState('');
   const [selectedResource, setSelectedResource] = React.useState<ResourceType | undefined>();
   const [targetCluster, setTargetCluster] = React.useState(clusters[0] || '');
+
   const [formValid, setFormValid] = React.useState(false);
 
   function handleResourceChange(resource: ResourceType | undefined) {
     setSelectedResource(resource);
+    setFormValid(false);
     if (resource && resource in RESOURCE_DEFINITIONS) {
       const baseObject = RESOURCE_DEFINITIONS[resource].class.getBaseObject();
       setItem(baseObject);
@@ -185,7 +187,7 @@ function CreateActivityContent(props: { onClose: () => void }) {
       title={t('translation|Create / Apply')}
       cluster={targetCluster}
       formContent={renderFormContent()}
-      formInvalid={!!selectedResource && !formValid}
+      formInvalid={!formValid}
       actions={
         clusters.length > 1
           ? [

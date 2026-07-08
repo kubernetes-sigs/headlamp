@@ -263,7 +263,7 @@ export function ContainerTextField(props: ContainerTextFieldProps) {
                 inputProps={{ 'aria-label': t('translation|Container name') }}
               />
               <FormTextField
-                label={t('translation|Image')}
+                label={t('translation|Image') + ' *'}
                 value={container.image ?? ''}
                 onChange={e => handleEdit(index, 'image', e.target.value)}
                 inputProps={{ 'aria-label': t('translation|Container image') }}

@@ -89,7 +89,7 @@
                           for=":mock-test-id:"
                           id=":mock-test-id:"
                         >
-                          Image
+                          Image *
                         </label>
                         <div
                           class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
@@ -110,7 +110,7 @@
                               class="css-sl37lx-MuiNotchedOutlined-root"
                             >
                               <span>
-                                Image
+                                Image *
                               </span>
                             </legend>
                           </fieldset>

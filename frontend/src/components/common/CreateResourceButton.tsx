@@ -46,6 +46,8 @@ function CreateResourceActivityContent(props: {
   const [formResource, setFormResource] = React.useState<Record<string, any>>(initialItem);
   const [errorMessage, setErrorMessage] = React.useState('');
 
+  const [formValid, setFormValid] = React.useState(false);
+
   const handleFormChange = (newItem: Record<string, any>) => {
     setFormResource(newItem);
     setItem(newItem);
@@ -77,9 +79,14 @@ function CreateResourceActivityContent(props: {
       treatItemChangesAsEdits
       title={t('translation|Create {{ name }}', { name })}
       aria-label={t('translation|Create {{ name }}', { name })}
+      formInvalid={FormComponent ? !formValid : false}
       formContent={
         FormComponent ? (
-          <FormComponent resource={formResource} onChange={handleFormChange} />
+          <FormComponent
+            resource={formResource}
+            onChange={handleFormChange}
+            onValidChange={setFormValid}
+          />
         ) : undefined
       }
     />
