@@ -91,7 +91,7 @@
                     style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
                     tabindex="-1"
                   >
-                    Sign in with OpenID Connect
+                    Authentication
                   </h1>
                 </div>
               </div>
@@ -99,6 +99,19 @@
             <div
               class="MuiBox-root css-dvxtzn"
             >
+              <div
+                class="MuiBox-root css-1c5ij41"
+              >
+                <div
+                  class="MuiBox-root css-19midj6"
+                >
+                  <p
+                    class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+                  >
+                    The cluster did not accept your sign-in. Its API server may not trust this OIDC provider (issuer, client ID, or audience), or your token may be expired or lack the required permissions. Please check the cluster API server OIDC configuration.
+                  </p>
+                </div>
+              </div>
               <div
                 class="MuiBox-root css-1c5ij41"
               >

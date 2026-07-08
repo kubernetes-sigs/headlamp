@@ -214,6 +214,7 @@
   "Getting auth info: {{ clusterName }}": "{{ clusterName }} کی تصدیقی معلومات حاصل کی جا رہی ہیں",
   "Getting auth info": "تصدیقی معلومات حاصل کی جا رہی ہیں",
   "Testing auth": "تصدیق کی جانچ کی جا رہی ہے",
+  "The cluster did not accept your sign-in. Its API server may not trust this OIDC provider (issuer, client ID, or audience), or your token may be expired or lack the required permissions. Please check the cluster API server OIDC configuration.": "",
   "Headlamp Cluster Authentication": "ہیڈلیمپ کلسٹر تصدیق",
   "Sign In": "سائن ان کریں",
   "Use A Token": "ٹوکن استعمال کریں",

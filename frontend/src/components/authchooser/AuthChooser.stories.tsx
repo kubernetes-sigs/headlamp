@@ -74,6 +74,14 @@ AuthTypeoidc.args = {
   title: 'Sign in with OpenID Connect',
 };
 
+export const AuthTypeoidcTokenRejected = Template.bind({});
+AuthTypeoidcTokenRejected.args = {
+  ...argFixture,
+  clusterAuthType: 'oidc',
+  oidcTokenRejected: true,
+  title: 'Authentication',
+};
+
 export const AnError = Template.bind({});
 AnError.args = {
   ...argFixture,
