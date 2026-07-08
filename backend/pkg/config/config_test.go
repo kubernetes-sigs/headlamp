@@ -82,6 +82,7 @@ func setUserConfigDir(t *testing.T, dir string) {
 	}
 }
 
+//nolint:funlen
 func TestParseBasic(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -131,6 +132,26 @@ func TestParseBasic(t *testing.T) {
 			verify: func(t *testing.T, conf *config.Config) {
 				assert.Equal(t, true, conf.OidcUseCookie)
 				assert.Equal(t, "my-id", conf.OidcClientID)
+			},
+		},
+		{
+			name: "oidc_sts_config",
+			args: []string{
+				"go run ./cmd",
+				"--oidc-sts-enabled",
+				"--oidc-sts-issuer-url=https://sts.example.com",
+				"--oidc-sts-client-id=sts-id",
+				"--oidc-sts-client-secret=sts-secret",
+				"--oidc-sts-subject-token-type=urn:ietf:params:oauth:token-type:access_token",
+				"--oidc-sts-audience-map=c1=a1,c2=a2",
+			},
+			verify: func(t *testing.T, conf *config.Config) {
+				assert.Equal(t, true, conf.OidcStsEnabled)
+				assert.Equal(t, "https://sts.example.com", conf.OidcStsIssuerURL)
+				assert.Equal(t, "sts-id", conf.OidcStsClientID)
+				assert.Equal(t, "sts-secret", conf.OidcStsClientSecret)
+				assert.Equal(t, "urn:ietf:params:oauth:token-type:access_token", conf.OidcStsSubjectTokenType)
+				assert.Equal(t, "c1=a1,c2=a2", conf.OidcStsAudienceMap)
 			},
 		},
 	}
@@ -272,6 +293,27 @@ var ParseWithEnvTests = []struct {
 			assert.Equal(t, "user.email", conf.MeEmailPath)
 			assert.Equal(t, "user.groups", conf.MeGroupsPath)
 			assert.Equal(t, "/oauth2/userinfo", conf.MeUserInfoURL)
+		},
+	},
+	{
+		name: "oidc_sts_env",
+		args: []string{"go run ./cmd"},
+		//nolint:gosec
+		env: map[string]string{
+			"HEADLAMP_CONFIG_OIDC_STS_ENABLED":            "true",
+			"HEADLAMP_CONFIG_OIDC_STS_ISSUER_URL":         "https://sts-env.example.com",
+			"HEADLAMP_CONFIG_OIDC_STS_CLIENT_ID":          "sts-env-id",
+			"HEADLAMP_CONFIG_OIDC_STS_CLIENT_SECRET":      "sts-env-secret",
+			"HEADLAMP_CONFIG_OIDC_STS_SUBJECT_TOKEN_TYPE": "urn:ietf:params:oauth:token-type:access_token",
+			"HEADLAMP_CONFIG_OIDC_STS_AUDIENCE_MAP":       "c1=a1,c2=a2",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, true, conf.OidcStsEnabled)
+			assert.Equal(t, "https://sts-env.example.com", conf.OidcStsIssuerURL)
+			assert.Equal(t, "sts-env-id", conf.OidcStsClientID)
+			assert.Equal(t, "sts-env-secret", conf.OidcStsClientSecret)
+			assert.Equal(t, "urn:ietf:params:oauth:token-type:access_token", conf.OidcStsSubjectTokenType)
+			assert.Equal(t, "c1=a1,c2=a2", conf.OidcStsAudienceMap)
 		},
 	},
 	{
@@ -1215,4 +1257,87 @@ func TestGetDefaultKubeConfigPath(t *testing.T) {
 	path, err := config.GetDefaultKubeConfigPath()
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(tmpDir, ".kube", "config"), path)
+}
+
+//nolint:funlen
+func TestValidateOidcSts(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      config.Config
+		expectedErr string
+	}{
+		{
+			name: "sts disabled without audience map",
+			config: config.Config{
+				SessionTTL:         86400,
+				OidcStsEnabled:     false,
+				OidcStsAudienceMap: "",
+			},
+			expectedErr: "",
+		},
+		{
+			name: "sts enabled with valid audience map and sts issuer",
+			config: config.Config{
+				SessionTTL:         86400,
+				OidcStsEnabled:     true,
+				OidcStsIssuerURL:   "https://sts.example.com",
+				OidcStsAudienceMap: "c1=a1,c2=a2",
+			},
+			expectedErr: "",
+		},
+		{
+			name: "sts enabled with valid audience map and idp issuer fallback",
+			config: config.Config{
+				SessionTTL:         86400,
+				InCluster:          true,
+				OidcStsEnabled:     true,
+				OidcIdpIssuerURL:   "https://idp.example.com",
+				OidcStsAudienceMap: "c1=a1,c2=a2",
+			},
+			expectedErr: "",
+		},
+		{
+			name: "sts enabled without any issuer",
+			config: config.Config{
+				SessionTTL:         86400,
+				OidcStsEnabled:     true,
+				OidcStsAudienceMap: "c1=a1,c2=a2",
+			},
+			expectedErr: "oidc-sts-enabled requires oidc-sts-issuer-url or oidc-idp-issuer-url",
+		},
+		{
+			name: "sts enabled with empty audience map",
+			config: config.Config{
+				SessionTTL:         86400,
+				OidcStsEnabled:     true,
+				OidcStsIssuerURL:   "https://sts.example.com",
+				OidcStsAudienceMap: "",
+			},
+			expectedErr: "oidc-sts-enabled requires at least one valid audience mapping " +
+				"configured via oidc-sts-audience-map (e.g. cluster1=aud1)",
+		},
+		{
+			name: "sts enabled with malformed audience map only",
+			config: config.Config{
+				SessionTTL:         86400,
+				OidcStsEnabled:     true,
+				OidcStsIssuerURL:   "https://sts.example.com",
+				OidcStsAudienceMap: "invalid,malformed=,==,",
+			},
+			expectedErr: "oidc-sts-enabled requires at least one valid audience mapping " +
+				"configured via oidc-sts-audience-map (e.g. cluster1=aud1)",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.config.Validate()
+			if tt.expectedErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectedErr)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
 }
