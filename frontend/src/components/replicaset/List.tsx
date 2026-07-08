@@ -71,6 +71,7 @@ export default function ReplicaSetList() {
               .getContainers()
               .map((c: KubeContainer) => c.name)
               .join('\n');
+            if (!containerText) return null;
             return (
               <LightTooltip title={containerText} interactive>
                 {containerText}
@@ -91,6 +92,7 @@ export default function ReplicaSetList() {
               .getContainers()
               .map((c: KubeContainer) => c.image)
               .join('\n');
+            if (!imageText) return null;
             return (
               <LightTooltip title={imageText} interactive>
                 {imageText}
@@ -102,7 +104,7 @@ export default function ReplicaSetList() {
           id: 'selector',
           label: t('Selector'),
           getValue: replicaSet => {
-            const matchLabels = replicaSet.spec.selector?.matchLabels;
+            const matchLabels = replicaSet.spec?.selector?.matchLabels;
             if (!matchLabels) return '';
             return Object.entries(matchLabels)
               .sort(([a], [b]) => a.localeCompare(b))
@@ -110,7 +112,7 @@ export default function ReplicaSetList() {
               .join(', ');
           },
           render: replicaSet => {
-            const matchLabels = replicaSet.spec.selector?.matchLabels;
+            const matchLabels = replicaSet.spec?.selector?.matchLabels;
             if (!matchLabels) return null;
             const entries = Object.entries(matchLabels).sort(([a], [b]) => a.localeCompare(b));
             if (entries.length === 0) return null;
@@ -136,7 +138,7 @@ export default function ReplicaSetList() {
                   sx={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5 }}
                 >
                   <Box sx={{ display: 'inline-block' }}>
-                    <MetadataDictGrid dict={visibleDict} truncateLimit={10} />
+                    <MetadataDictGrid dict={visibleDict} truncateLimit={10} disableEntryTooltip />
                   </Box>
                   {hiddenCount > 0 && (
                     <Typography

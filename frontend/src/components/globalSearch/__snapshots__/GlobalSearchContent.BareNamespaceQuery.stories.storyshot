@@ -100,12 +100,7 @@
               <div
                 class="MuiBox-root css-72rvq0"
               >
-                <span
-                  style="font-weight: bold;"
-                >
-                  Se
-                </span>
-                arch "
+                Search "
                 <span
                   style="font-weight: bold;"
                 >
@@ -239,24 +234,7 @@
               <div
                 class="MuiBox-root css-72rvq0"
               >
-                <span
-                  style="font-weight: bold;"
-                >
-                  Set
-                </span>
-                 na
-                <span
-                  style="font-weight: bold;"
-                >
-                  mes
-                </span>
-                pac
-                <span
-                  style="font-weight: bold;"
-                >
-                  e
-                </span>
-                : 
+                Set namespace: 
                 <span
                   style="font-weight: bold;"
                 >
