@@ -180,6 +180,18 @@ function AuthRoute(props: AuthRouteProps) {
   const authError = query.error as any;
   const isExplicitAuthError = [401, 403].includes(authError?.status);
 
+  // Once the cluster successfully accepts the token, clear the flag that marked
+  // previous OIDC sign-in as rejected by the API server. See Issue #2848
+  React.useEffect(() => {
+    if (cluster && clusters?.[cluster]?.auth_type === 'oidc' && query.isSuccess) {
+      try {
+        sessionStorage.removeItem(`oidc-login-attempted.${cluster}`);
+      } catch {
+        // sessionStorage unavailable (e.g. private browsing with strict settings).
+      }
+    }
+  }, [cluster, clusters, query.isSuccess]);
+
   let redirectRoute: string;
 
   if (!currentCluster) {
