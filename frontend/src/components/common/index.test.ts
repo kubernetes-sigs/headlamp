@@ -68,6 +68,7 @@ const checkExports = [
   'ObjectEventList',
   'ConditionList',
   'PhaseLabel',
+  'ReadyStatusLabel',
 ];
 
 function getFilesToVerify() {
