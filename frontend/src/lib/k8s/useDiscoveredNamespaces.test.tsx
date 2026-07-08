@@ -92,11 +92,11 @@ describe('useDiscoveredNamespaces', () => {
 });
 
 describe('shouldRetryAuthProbe', () => {
-  it('retries transient 401/403 up to DISCOVERY_MAX_AUTH_RETRIES', () => {
+  it('retries transient 401/403 up to DISCOVERY_MAX_AUTH_ATTEMPTS - 1 times', () => {
     const forbidden = new ApiError('Forbidden', { status: 403 });
     expect(shouldRetryAuthProbe(0, forbidden)).toBe(true);
-    expect(shouldRetryAuthProbe(2, forbidden)).toBe(true);
-    expect(shouldRetryAuthProbe(3, forbidden)).toBe(false);
+    expect(shouldRetryAuthProbe(1, forbidden)).toBe(true);
+    expect(shouldRetryAuthProbe(2, forbidden)).toBe(false);
     expect(shouldRetryAuthProbe(0, new ApiError('Server error', { status: 500 }))).toBe(false);
   });
 });
