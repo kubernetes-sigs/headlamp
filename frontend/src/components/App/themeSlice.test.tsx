@@ -17,6 +17,7 @@
 import React from 'react';
 import { vi } from 'vitest';
 import { AppLogoProps, AppLogoType } from './AppLogo';
+import { darkTheme } from './defaultAppThemes';
 import themeReducer, {
   applyBackendThemeConfig,
   initialState,
@@ -39,7 +40,7 @@ describe('themeSlice', () => {
   });
 
   it('should handle setTheme', () => {
-    const themeName = 'Dark';
+    const themeName = darkTheme.name;
     const actual = themeReducer(initialState, setTheme(themeName));
     expect(actual.name).toEqual(themeName);
   });
