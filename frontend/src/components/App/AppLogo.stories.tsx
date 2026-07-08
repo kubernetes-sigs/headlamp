@@ -19,8 +19,9 @@ import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import { TestContext } from '../../test';
 import { AppLogo, AppLogoProps } from './AppLogo';
+import { darkTheme, lightTheme } from './defaultAppThemes';
 
-const getMockState = (themeName: 'Light' | 'Dark' = 'Light', loaded = true, logo: any = null) => ({
+const getMockState = (themeName: string = lightTheme.name, loaded = true, logo: any = null) => ({
   plugins: { loaded },
   theme: {
     logo,
@@ -49,7 +50,7 @@ export default {
 } as Meta<typeof AppLogo>;
 
 const Template: StoryFn<AppLogoProps> = args => {
-  const themeName = args.themeName === 'dark' ? 'Dark' : 'Light';
+  const themeName = args.themeName === 'dark' ? darkTheme.name : lightTheme.name;
   const store = configureStore({
     reducer: (state = getMockState(themeName)) => state,
     preloadedState: getMockState(themeName),
