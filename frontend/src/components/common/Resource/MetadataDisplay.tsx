@@ -191,13 +191,20 @@ interface MetadataDictGridProps {
   };
   showKeys?: boolean;
   truncateLimit?: number;
+  disableEntryTooltip?: boolean;
   gridProps?: {
     [index: string]: any;
   };
 }
 
 export function MetadataDictGrid(props: MetadataDictGridProps) {
-  const { dict, showKeys = true, truncateLimit = 50, gridProps } = props;
+  const {
+    dict,
+    showKeys = true,
+    truncateLimit = 50,
+    gridProps,
+    disableEntryTooltip = false,
+  } = props;
   const { t } = useTranslation();
   const [expanded, setExpanded] = React.useState(false);
   const defaultNumShown = 20;
@@ -251,7 +258,7 @@ export function MetadataDictGrid(props: MetadataDictGridProps) {
 
     // If the full label is not being shown, use a tooltip to show the full text
     // to the user (so they select it, etc.).
-    if (fullText.length !== shortText.length) {
+    if (!disableEntryTooltip && fullText.length !== shortText.length) {
       labelComponent = <LightTooltip title={fullText} children={labelComponent} interactive />;
     }
     return labelComponent;

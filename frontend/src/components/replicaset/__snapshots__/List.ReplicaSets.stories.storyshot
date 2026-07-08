@@ -951,16 +951,12 @@
                           class="MuiBox-root css-yi3mkw"
                         >
                           <p
-                            aria-label="app.kubernetes.io/instance: headlamp-release"
                             class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                            data-mui-internal-clone-element="true"
                           >
                             app.kubern…
                           </p>
                           <p
-                            aria-label="app.kubernetes.io/name: headlamp"
                             class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                            data-mui-internal-clone-element="true"
                           >
                             app.kubern…
                           </p>
@@ -1110,16 +1106,12 @@
                           class="MuiBox-root css-yi3mkw"
                         >
                           <p
-                            aria-label="k8s-app: headlamp"
                             class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                            data-mui-internal-clone-element="true"
                           >
                             k8s-app: h…
                           </p>
                           <p
-                            aria-label="pod-template-hash: a123456"
                             class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                            data-mui-internal-clone-element="true"
                           >
                             pod-templa…
                           </p>
