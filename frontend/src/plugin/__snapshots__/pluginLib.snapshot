@@ -139,6 +139,7 @@
         "form": [Function],
       },
     },
+    "ReadyStatusLabel": [Function],
     "Resource": {
       "A8RInfo": [Function],
       "AuthVisible": [Function],
