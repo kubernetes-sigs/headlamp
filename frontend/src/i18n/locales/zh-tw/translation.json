@@ -467,6 +467,7 @@
   "from": "來自",
   "I/O": "I/O",
   "Ready": "準備好",
+  "Not Ready": "",
   "Waiting": "等待中",
   "Running": "執行中",
   "Exit Code": "退出程式碼",

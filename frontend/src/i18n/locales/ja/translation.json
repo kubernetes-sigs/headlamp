@@ -467,6 +467,7 @@
   "from": "から",
   "I/O": "I/O",
   "Ready": "準備完了",
+  "Not Ready": "",
   "Waiting": "待機中",
   "Running": "実行中",
   "Exit Code": "終了コード",
