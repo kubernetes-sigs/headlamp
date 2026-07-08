@@ -82,6 +82,11 @@ type Config struct {
 	OidcUseCookie                bool   `koanf:"oidc-use-cookie"`
 	OidcSkipTLSVerify            bool   `koanf:"oidc-skip-tls-verify"`
 	OidcCAFile                   string `koanf:"oidc-ca-file"`
+	OidcStsEnabled               bool   `koanf:"oidc-sts-enabled"`
+	OidcStsIssuerURL             string `koanf:"oidc-sts-issuer-url"`
+	OidcStsClientID              string `koanf:"oidc-sts-client-id"`
+	OidcStsClientSecret          string `koanf:"oidc-sts-client-secret"`
+	OidcStsAudienceMap           string `koanf:"oidc-sts-audience-map"`
 	MeUsernamePath               string `koanf:"me-username-path"`
 	MeEmailPath                  string `koanf:"me-email-path"`
 	MeGroupsPath                 string `koanf:"me-groups-path"`
@@ -603,6 +608,13 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
 	f.Bool("oidc-use-cookie", false, "Enable OIDC cookie usage even when not running in-cluster")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
+	f.Bool("oidc-sts-enabled", false, "Enable RFC 8693 OAuth 2.0 Token Exchange (STS)")
+	f.String("oidc-sts-issuer-url", "",
+		"Override Identity provider issuer URL for OIDC STS (falls back to oidc-idp-issuer-url)")
+	f.String("oidc-sts-client-id", "", "ClientID for OIDC STS (falls back to oidc-client-id)")
+	f.String("oidc-sts-client-secret", "", "ClientSecret for OIDC STS (falls back to oidc-client-secret)")
+	f.String("oidc-sts-audience-map", "",
+		"Comma-separated key-value pairs of cluster ID to target token audience (e.g. cluster1=aud1,cluster2=aud2)")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")
 	f.String("me-email-path", DefaultMeEmailPath,
