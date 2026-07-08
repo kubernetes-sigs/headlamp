@@ -108,7 +108,7 @@ export function metadataSection(t: (key: string) => string): FormSection {
   return {
     title: t('translation|Metadata'),
     fields: [
-      { key: 'name', path: 'metadata.name', label: t('translation|Name') },
+      { key: 'name', path: 'metadata.name', label: t('translation|Name'), required: true },
       {
         key: 'namespace',
         path: 'metadata.namespace',
@@ -125,22 +125,42 @@ export function metadataSection(t: (key: string) => string): FormSection {
   };
 }
 
+/** Check whether a required field's current value is valid for its type. */
+function isFieldValid(field: FormField, value: any): boolean {
+  switch (field.type) {
+    case 'containers':
+      return (
+        Array.isArray(value) &&
+        value.length > 0 &&
+        value.every(
+          (c: any) => c?.image && typeof c.image === 'string' && c.image.trim().length > 0
+        )
+      );
+    case 'boolean':
+      return true;
+    default:
+      return value !== undefined && value !== null && value !== '';
+  }
+}
+
 export default function CreateResourceForm(props: CreateResourceFormProps) {
   const { sections, resource = {}, onChange, onValidChange } = props;
   const { t } = useTranslation(['translation', 'glossary']);
 
-  // Report validity whenever required fields or resource change.
-  React.useEffect(() => {
-    if (!onValidChange) return;
-    const valid = sections
+  // Compute validity from current resource.
+  const isValid = React.useMemo(() => {
+    return sections
       .flatMap(s => s.fields)
       .filter(f => f.required)
-      .every(f => {
-        const v = _.get(resource, f.path);
-        return v !== undefined && v !== null && v !== '';
-      });
-    onValidChange(valid);
-  });
+      .every(f => isFieldValid(f, _.get(resource, f.path)));
+  }, [sections, resource]);
+
+  // Report validity to parent whenever it changes.
+  React.useEffect(() => {
+    if (onValidChange) {
+      onValidChange(isValid);
+    }
+  }, [isValid, onValidChange]);
 
   function handleFieldChange(path: string, value: any) {
     const updated = _.cloneDeep(resource);
@@ -275,17 +295,20 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
         );
       case 'boolean':
         return (
-          <FieldWrapper field={field} hideLabel>
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={!!value}
-                  onChange={e => handleFieldChange(field.path, e.target.checked)}
-                  inputProps={{ 'aria-label': field.label }}
-                />
-              }
-              label={field.label}
-            />
+          <FieldWrapper field={{ ...field, helperText: undefined }} hideLabel>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={!!value}
+                    onChange={e => handleFieldChange(field.path, e.target.checked)}
+                    inputProps={{ 'aria-label': field.label }}
+                  />
+                }
+                label={field.label}
+              />
+              {field.helperText && <FieldLabel helperText={field.helperText} />}
+            </Box>
           </FieldWrapper>
         );
       default:

@@ -116,6 +116,7 @@ export default function CreateCronJobForm(props: CreateCronJobFormProps) {
           path: 'spec.jobTemplate.spec.template.spec.containers',
           label: t('translation|Containers'),
           type: 'containers' as const,
+          required: true,
           showCommand: true,
         },
         {
@@ -123,6 +124,7 @@ export default function CreateCronJobForm(props: CreateCronJobFormProps) {
           path: 'spec.jobTemplate.spec.template.spec.restartPolicy',
           label: t('translation|Restart Policy'),
           type: 'select' as const,
+          required: true,
           options: [
             { value: 'Never', label: t('translation|Never') },
             { value: 'OnFailure', label: t('translation|OnFailure') },
