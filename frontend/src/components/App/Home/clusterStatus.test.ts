@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { canSelectCluster, getClusterStatus, getClusterStatusLabel } from './clusterStatus';
 
@@ -53,5 +53,40 @@ describe('getClusterStatusLabel', () => {
     expect(getClusterStatusLabel(t, new ApiError('Bad Gateway', { status: 502 }))).toBe(
       'translation|Unavailable'
     );
+  });
+});
+
+describe('MULTI_HOME_ENABLED', () => {
+  beforeEach(() => {
+    vi.resetModules();
+  });
+  it('defaults to true when REACT_APP_MULTI_HOME_ENABLED is an empty string', async () => {
+    try {
+      vi.stubEnv('REACT_APP_MULTI_HOME_ENABLED', '');
+      const { MULTI_HOME_ENABLED } = await vi.importActual('./config');
+      expect(MULTI_HOME_ENABLED).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('is false when REACT_APP_MULTI_HOME_ENABLED is set to "false"', async () => {
+    try {
+      vi.stubEnv('REACT_APP_MULTI_HOME_ENABLED', 'false');
+      const { MULTI_HOME_ENABLED } = await vi.importActual('./config');
+      expect(MULTI_HOME_ENABLED).toBe(false);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('is true when REACT_APP_MULTI_HOME_ENABLED is set to "true"', async () => {
+    try {
+      vi.stubEnv('REACT_APP_MULTI_HOME_ENABLED', 'true');
+      const { MULTI_HOME_ENABLED } = await vi.importActual('./config');
+      expect(MULTI_HOME_ENABLED).toBe(true);
+    } finally {
+      vi.unstubAllEnvs();
+    }
   });
 });
