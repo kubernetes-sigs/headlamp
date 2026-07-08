@@ -38,6 +38,15 @@ const phonyPods = generateK8sResourceList(
   { instantiateAs: Pod }
 );
 
+const kubeSystemPods = phonyPods.map((pod, i) => ({
+  ...pod.jsonData,
+  metadata: {
+    ...pod.jsonData.metadata,
+    name: i === 0 ? 'coredns' : pod.jsonData.metadata.name,
+    namespace: 'kube-system',
+  },
+}));
+
 const sampleCluster: Cluster = {
   name: 'sample-cluster',
   auth_type: '',
@@ -201,5 +210,38 @@ export const LoadingResources: Story = {
 export const FoundSomeResults: Story = {
   args: {
     defaultValue: 'pod',
+  },
+};
+
+export const BareNamespaceQuery: Story = {
+  args: {
+    defaultValue: 'kube-system',
+  },
+  parameters: {
+    msw: {
+      handlers: {
+        pod: [
+          http.get(`${sampleClusterApiBase}/api/v1/pods`, () =>
+            HttpResponse.json(makeKubeList('v1', 'Pod', kubeSystemPods))
+          ),
+        ],
+      },
+    },
+  },
+};
+export const CombinedNamespaceQuery: Story = {
+  args: {
+    defaultValue: 'coredns kube-system',
+  },
+  parameters: {
+    msw: {
+      handlers: {
+        pod: [
+          http.get(`${sampleClusterApiBase}/api/v1/pods`, () =>
+            HttpResponse.json(makeKubeList('v1', 'Pod', kubeSystemPods))
+          ),
+        ],
+      },
+    },
   },
 };
