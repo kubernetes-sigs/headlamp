@@ -475,6 +475,7 @@
   "from": "desde",
   "I/O": "I/O",
   "Ready": "Pronto",
+  "Not Ready": "",
   "Waiting": "À espera",
   "Running": "em execução",
   "Exit Code": "Código de saída",

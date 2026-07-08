@@ -15,6 +15,8 @@
  */
 
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
+import type React from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../test';
 import { ReadyStatusLabel } from './ReadyStatusLabel';
@@ -65,5 +67,16 @@ describe('ReadyStatusLabel', () => {
       </TestContext>
     );
     expect(screen.getByText('Failed')).toBeInTheDocument();
+  });
+
+  it('builds a tooltip title from label, reason, and message', async () => {
+    renderWithContext(
+      <ReadyStatusLabel status="False" reason="CrashLoopBackOff" message="container exited" />
+    );
+    const chip = screen.getByText('Not Ready');
+    await userEvent.hover(chip);
+    const tooltip = await screen.findByRole('tooltip');
+    expect(tooltip).toHaveTextContent('Reason: CrashLoopBackOff');
+    expect(tooltip).toHaveTextContent('Message: container exited');
   });
 });
