@@ -33,6 +33,7 @@ describe('canSelectCluster', () => {
     expect(canSelectCluster(null)).toBe(true);
     expect(canSelectCluster(undefined)).toBe(false);
     expect(canSelectCluster(new ApiError('Unauthorized', { status: 401 }))).toBe(false);
+    expect(canSelectCluster(new ApiError('Forbidden', { status: 403 }))).toBe(false);
     expect(canSelectCluster(new ApiError('Bad Gateway', { status: 502 }))).toBe(false);
   });
 });
