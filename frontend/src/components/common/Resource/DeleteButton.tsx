@@ -17,6 +17,7 @@
 import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Grid from '@mui/material/Grid';
+import { useSnackbar } from 'notistack';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -51,6 +52,7 @@ export default function DeleteButton(props: DeleteButtonProps) {
   const [forceDelete, setForceDelete] = React.useState(false);
   const location = useLocation();
   const { t } = useTranslation(['translation']);
+  const { enqueueSnackbar } = useSnackbar();
   const dispatchDeleteEvent = useEventCallback(HeadlampEventType.DELETE_RESOURCE);
 
   const deleteFunc = React.useCallback(
@@ -96,6 +98,12 @@ export default function DeleteButton(props: DeleteButtonProps) {
       authVerb="delete"
       onError={(err: Error) => {
         console.error(`Error while getting authorization for delete button in ${item}:`, err);
+        enqueueSnackbar(
+          t('Failed to check delete authorization for {{ itemName }}.', {
+            itemName: item?.metadata?.name,
+          }),
+          { variant: 'error' }
+        );
       }}
     >
       <ActionButton

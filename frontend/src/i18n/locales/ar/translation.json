@@ -347,6 +347,7 @@
   "Deleting item {{ itemName }}…": "جارٍ حذف العنصر {{ itemName }}…",
   "Deleted item {{ itemName }}.": "تم حذف العنصر {{ itemName }}",
   "Error deleting item {{ itemName }}.": "حدث خطأ أثناء حذف العنصر {{ itemName }}",
+  "Failed to check delete authorization for {{ itemName }}.": "",
   "Evict": "إخلاء",
   "Evict Pod": "إخلاء الـ Pod",
   "Delete item": "حذف العنصر",

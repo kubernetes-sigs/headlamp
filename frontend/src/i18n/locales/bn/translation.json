@@ -339,6 +339,7 @@
   "Deleting item {{ itemName }}…": "Item Delete করা {{ itemName }}…",
   "Deleted item {{ itemName }}.": "Delete করা item {{ itemName }}।",
   "Error deleting item {{ itemName }}.": "Item Delete করা Error {{ itemName }}।",
+  "Failed to check delete authorization for {{ itemName }}.": "",
   "Evict": "Evict",
   "Evict Pod": "Evict Pod",
   "Delete item": "item Delete করুন",

@@ -341,6 +341,7 @@
   "Deleting item {{ itemName }}…": "Deleting item {{ itemName }}…",
   "Deleted item {{ itemName }}.": "Deleted item {{ itemName }}.",
   "Error deleting item {{ itemName }}.": "Error deleting item {{ itemName }}.",
+  "Failed to check delete authorization for {{ itemName }}.": "",
   "Evict": "Evict",
   "Evict Pod": "Evict Pod",
   "Delete item": "Delete item",

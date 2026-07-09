@@ -343,6 +343,7 @@
   "Deleting item {{ itemName }}…": "Удаление элемента {{ itemName }}…",
   "Deleted item {{ itemName }}.": "Удалён элемент {{ itemName }}.",
   "Error deleting item {{ itemName }}.": "Ошибка удаления элемента {{ itemName }}.",
+  "Failed to check delete authorization for {{ itemName }}.": "",
   "Evict": "Исключить",
   "Evict Pod": "Исключить Pod",
   "Delete item": "Удалить элемент",
