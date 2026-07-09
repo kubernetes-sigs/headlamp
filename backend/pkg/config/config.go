@@ -328,9 +328,9 @@ func unmarshalConfig(k *koanf.Koanf, config *Config) error {
 	return nil
 }
 
-// patchWatchPluginsChanges disables plugin watching if running in-cluster and user didn't set the flag.
-func patchWatchPluginsChanges(config *Config, explicitFlags map[string]bool) {
-	if config.InCluster && !explicitFlags["watch-plugins-changes"] {
+// patchWatchPluginsChanges disables plugin watching if running in-cluster and user didn't set the flag or env var.
+func patchWatchPluginsChanges(config *Config, explicitFlags map[string]bool, watchPluginsChangesEnvSet bool) {
+	if config.InCluster && !explicitFlags["watch-plugins-changes"] && !watchPluginsChangesEnvSet {
 		config.WatchPluginsChanges = false
 	}
 }
@@ -427,6 +427,8 @@ func Parse(args []string) (*Config, error) {
 	explicitFlags := recordExplicitFlags(f)
 
 	// 4. Load config from environment variables.
+	_, watchPluginsChangesEnvSet := os.LookupEnv("HEADLAMP_CONFIG_WATCH_PLUGINS_CHANGES")
+
 	if err := loadConfigFromEnv(k); err != nil {
 		return nil, err
 	}
@@ -442,7 +444,7 @@ func Parse(args []string) (*Config, error) {
 	}
 
 	// 7. Post-process: patch plugin flag and kubeconfig path.
-	patchWatchPluginsChanges(&config, explicitFlags)
+	patchWatchPluginsChanges(&config, explicitFlags, watchPluginsChangesEnvSet)
 
 	if err := setKubeConfigPath(&config); err != nil {
 		return nil, err
