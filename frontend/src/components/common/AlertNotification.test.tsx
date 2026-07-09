@@ -25,9 +25,13 @@ vi.mock('../../lib/cluster', async importOriginal => ({
 }));
 
 describe('PureAlertNotification', () => {
-  // The suite-wide config only fakes setTimeout/clearTimeout, so opt setInterval
+  // The suite-wide config fakes Date + setTimeout/clearTimeout; opt setInterval/clearInterval
   // (the health-check poller) in as well for these timing assertions.
-  beforeEach(() => vi.useFakeTimers({ toFake: ['setInterval', 'clearInterval'] }));
+  beforeEach(() =>
+    vi.useFakeTimers({
+      toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
+    })
+  );
   afterEach(() => vi.useRealTimers());
 
   // A failed check backs the poll interval off from 5s to 10s. Once a check
