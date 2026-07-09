@@ -122,7 +122,7 @@ async function shell(item: Node, onExec: StreamResultsCb) {
     await apply(kubePod);
   } catch (e) {
     console.error('Error:DebugNode: creating pod', e);
-    return {};
+    throw e;
   }
   const tty = true;
   const stdin = true;
