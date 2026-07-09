@@ -58,14 +58,15 @@ const meta: Meta<typeof VersionButton> = {
       },
     },
   },
-  decorators: [withSidebarOpen(true)],
 };
 
 export default meta;
 
 type Story = StoryObj<typeof VersionButton>;
 
-export const Default: Story = {};
+export const Default: Story = {
+  decorators: [withSidebarOpen(true)],
+};
 
 export const CollapsedSidebar: Story = {
   decorators: [withSidebarOpen(false)],
