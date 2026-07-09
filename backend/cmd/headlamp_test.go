@@ -1898,6 +1898,31 @@ func TestHandleClusterRename_NameCollision(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
+// TestHandleError_NilError ensures handleError does not panic when a caller
+// passes a nil error. Calling err.Error() on a nil error would otherwise crash
+// the request handler; handleError falls back to the message instead.
+func TestHandleError_NilError(t *testing.T) {
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG:      &headlampconfig.HeadlampCFG{},
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	w := httptest.NewRecorder()
+	ctx, span := otel.Tracer("test").Start(context.Background(), "TestHandleError_NilError")
+
+	defer span.End()
+
+	require.NotPanics(t, func() {
+		c.handleError(w, ctx, span, nil, "something went wrong", http.StatusInternalServerError)
+	})
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "something went wrong")
+}
+
 func TestFileExists(t *testing.T) {
 	// Test for existing file
 	assert.True(t, fileExists("./headlamp_testdata/kubeconfig"),
