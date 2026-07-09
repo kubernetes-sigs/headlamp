@@ -527,7 +527,7 @@ export function normalizeUnit(resourceType: string, quantity: string) {
     case 'cpu':
       normalizedQuantity = quantity?.endsWith('m')
         ? `${Number(quantity.substring(0, quantity.length - 1)) / 1000}`
-        : `${quantity}`;
+        : `${(quantity ?? '').replace(/(\.\d*?)0+$/, '$1').replace(/\.$/, '')}`;
       if (normalizedQuantity === '1') {
         normalizedQuantity = normalizedQuantity + ' ' + 'core';
       } else {
