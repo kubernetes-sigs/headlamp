@@ -589,7 +589,8 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.String("service-account-token-path", "",
 		"Path to the service account token. "+
 			"Only used when --unsafe-use-service-account-token is set and in-cluster")
-	f.String("external-links", "", "List of external links in JSON format")
+	f.String("external-links", "", "External links JSON array for the sidebar, e.g. "+
+		"[{\"label\":\"Grafana\",\"url\":\"https://grafana.example\",\"icon\":\"mdi:chart-line\"}]")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {
