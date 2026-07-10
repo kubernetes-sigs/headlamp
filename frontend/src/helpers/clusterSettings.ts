@@ -17,6 +17,13 @@
 /**
  * ClusterSettings defines the structure of the cluster settings object.
  */
+export type DebugProfile =
+  | 'legacy'
+  | 'general'
+  | 'baseline'
+  | 'restricted'
+  | 'netadmin'
+  | 'sysadmin';
 export interface ClusterSettings {
   /** Optional default namespace to be used */
   defaultNamespace?: string;
@@ -32,6 +39,7 @@ export interface ClusterSettings {
   podDebugTerminal?: {
     debugImage?: string;
     isEnabled?: boolean;
+    debugProfile?: DebugProfile;
   };
   /** Cluster appearance settings stored in localStorage */
   appearance?: {

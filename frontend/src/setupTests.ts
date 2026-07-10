@@ -16,6 +16,7 @@
 
 /// <reference types="@testing-library/jest-dom" />
 import '@testing-library/jest-dom/vitest';
+import 'vitest-canvas-mock';
 import indexeddb from 'fake-indexeddb';
 
 // nock v14 uses @mswjs/interceptors, which calls `new Request(url, init)` internally when

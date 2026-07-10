@@ -49,6 +49,7 @@ export default function PodDebugSettings(props: SettingsProps) {
     useTypedSelector(state => state.config?.defaultPodDebugImage) || DEFAULT_POD_DEBUG_IMAGE;
 
   const podDebugLabelID = 'pod-debug-enabled-label';
+  const debugProfileLabelID = 'debug-profile-label';
 
   const image = clusterSettings.podDebugTerminal?.debugImage ?? '';
   const isEnabled = clusterSettings.podDebugTerminal?.isEnabled ?? true;
@@ -58,6 +59,18 @@ export default function PodDebugSettings(props: SettingsProps) {
       ...settings,
       podDebugTerminal: { ...settings.podDebugTerminal, ...patch },
     }));
+  }
+  function storeNewDebugProfile(profile: DebugProfile) {
+    setDebugProfile(profile);
+
+    setClusterSettings((settings: ClusterSettings | null) => {
+      const newSettings = { ...(settings || {}) };
+      if (newSettings.podDebugTerminal === null || newSettings.podDebugTerminal === undefined) {
+        newSettings.podDebugTerminal = {};
+      }
+      newSettings.podDebugTerminal.debugProfile = profile;
+      return newSettings;
+    });
   }
 
   return (
@@ -100,6 +113,32 @@ export default function PodDebugSettings(props: SettingsProps) {
                   sx: { maxWidth: 300 },
                 }}
               />
+            ),
+          },
+          {
+            name: (
+              <HoverInfoLabel
+                label={<span id={debugProfileLabelID}>{t('translation|Debug Profile')}</span>}
+                hoverInfo={t(
+                  'translation|Security profile for the ephemeral debug container. Mirrors kubectl debug --profile. Use "restricted" for namespaces enforcing the restricted PodSecurity policy.'
+                )}
+              />
+            ),
+            value: (
+              <Select
+                labelId={debugProfileLabelID}
+                value={debugProfile}
+                onChange={e => storeNewDebugProfile(e.target.value as DebugProfile)}
+                size="small"
+                sx={{ minWidth: 150 }}
+              >
+                <MenuItem value="legacy">legacy</MenuItem>
+                <MenuItem value="general">general</MenuItem>
+                <MenuItem value="baseline">baseline</MenuItem>
+                <MenuItem value="restricted">restricted</MenuItem>
+                <MenuItem value="netadmin">netadmin</MenuItem>
+                <MenuItem value="sysadmin">sysadmin</MenuItem>
+              </Select>
             ),
           },
         ]}
