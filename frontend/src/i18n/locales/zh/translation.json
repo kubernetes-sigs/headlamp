@@ -410,6 +410,7 @@
   "Select Pod": "选择 Pod",
   "All Pods": "所有 Pod",
   "Container": "容器",
+  "Init": "",
   "Restarted": "重启",
   "Lines": "行",
   "All": "",

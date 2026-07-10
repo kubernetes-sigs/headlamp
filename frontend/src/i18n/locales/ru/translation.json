@@ -419,6 +419,7 @@
   "Select Pod": "Выбрать Pod",
   "All Pods": "Все Pod",
   "Container": "Контейнер",
+  "Init": "",
   "Restarted": "Перезапущен",
   "Lines": "Строки",
   "All": "Все",

@@ -416,6 +416,7 @@
   "Select Pod": "Sélectionner un pod",
   "All Pods": "Tous les pods",
   "Container": "Conteneur",
+  "Init": "",
   "Restarted": "Redémarré",
   "Lines": "Lignes",
   "All": "",

@@ -250,22 +250,29 @@ function LogsButtonContent({ item }: LogsButtonProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Get containers for the selected pod
+  // Get containers for the selected pod, including init containers
   const containers = React.useMemo(() => {
-    if (!pods.length) return [];
-    if (selectedPodIndex === 'all')
-      return pods[0]?.spec?.containers?.map(container => container.name) || [];
-    const selectedPod = pods[selectedPodIndex as number];
-    return selectedPod?.spec?.containers?.map(container => container.name) || [];
+    if (!pods.length) return [] as { name: string; isInit: boolean }[];
+    const pod = selectedPodIndex === 'all' ? pods[0] : pods[selectedPodIndex as number];
+    if (!pod) return [] as { name: string; isInit: boolean }[];
+    const initContainers = (pod.spec?.initContainers ?? []).map(c => ({
+      name: c.name,
+      isInit: true,
+    }));
+    const appContainers = (pod.spec?.containers ?? []).map(c => ({
+      name: c.name,
+      isInit: false,
+    }));
+    return [...initContainers, ...appContainers];
   }, [pods, selectedPodIndex]);
 
   // Check if a container has been restarted
   function hasContainerRestarted(podName: string | undefined, containerName: string) {
     if (!podName) return false;
     const pod = pods.find(p => p.getName() === podName);
-    const cont = pod?.status?.containerStatuses?.find(
-      (c: KubeContainerStatus) => c.name === containerName
-    );
+    const isInit = containers.some(c => c.name === containerName && c.isInit);
+    const statuses = isInit ? pod?.status?.initContainerStatuses : pod?.status?.containerStatuses;
+    const cont = statuses?.find((c: KubeContainerStatus) => c.name === containerName);
     if (!cont) {
       return false;
     }
@@ -529,11 +536,12 @@ function LogsButtonContent({ item }: LogsButtonProps) {
           label={t('translation|Container')}
         >
           {containers.map(container => (
-            <MenuItem key={container} value={container}>
-              {container}
+            <MenuItem key={container.name} value={container.name}>
+              {container.name}
+              {container.isInit && ` (${t('translation|Init')})`}
               {hasContainerRestarted(
                 pods[selectedPodIndex === 'all' ? 0 : selectedPodIndex]?.getName(),
-                container
+                container.name
               ) && ` (${t('translation|Restarted')})`}
             </MenuItem>
           ))}

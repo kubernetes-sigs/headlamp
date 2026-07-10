@@ -410,6 +410,7 @@
   "Select Pod": "파드 선택",
   "All Pods": "모든 파드",
   "Container": "컨테이너",
+  "Init": "",
   "Restarted": "재시작됨",
   "Lines": "줄",
   "All": "",
