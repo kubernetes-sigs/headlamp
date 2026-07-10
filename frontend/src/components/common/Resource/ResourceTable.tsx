@@ -464,6 +464,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               id: 'age',
               header: t('translation|Age'),
               gridTemplate: 'min-content',
+              responsivePriority: 1,
               accessorFn: (item: RowItem) => -new Date(item.metadata.creationTimestamp).getTime(),
               enableColumnFilter: false,
               muiTableBodyCellProps: {
@@ -484,6 +485,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               id: 'labels',
               header: t('translation|Labels'),
               gridTemplate: 'min-content',
+              responsivePriority: -2,
               accessorFn: (item: RowItem) =>
                 item.metadata.labels
                   ? Object.entries(item.metadata.labels)
@@ -496,6 +498,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               id: 'namespace',
               header: t('glossary|Namespace'),
               gridTemplate: 'auto',
+              responsivePriority: -2,
               accessorFn: (item: RowItem) => item.getNamespace() ?? '-',
               filterVariant: 'multi-select',
               Cell: ({ row }: { row: MRT_Row<RowItem> }) =>
@@ -518,6 +521,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               id: 'cluster',
               header: t('glossary|Cluster'),
               gridTemplate: 'min-content',
+              responsivePriority: -1,
               Cell: ({ row }: { row: MRT_Row<RowItem> }) => (
                 <Box sx={{ whiteSpace: 'nowrap' }}>{row.original.cluster}</Box>
               ),
@@ -531,6 +535,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               accessorFn: (resource: RowItem) => String(resource?.kind),
               filterVariant: 'multi-select',
               gridTemplate: 'min-content',
+              responsivePriority: -1,
             };
           default:
             throw new Error(`Unknown column: ${col}`);

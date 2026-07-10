@@ -50,7 +50,7 @@ import { MRT_Localization_PT } from 'material-react-table/locales/pt';
 import { MRT_Localization_RU } from 'material-react-table/locales/ru';
 import { MRT_Localization_ZH_HANS } from 'material-react-table/locales/zh-Hans';
 import { MRT_Localization_ZH_HANT } from 'material-react-table/locales/zh-Hant';
-import { memo, ReactNode, useEffect, useMemo, useState } from 'react';
+import { memo, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
 import { useShortcut } from '../../../lib/useShortcut';
@@ -81,6 +81,13 @@ export type TableColumn<RowItem extends Record<string, any>, Value = any> = Mate
    * "min-content"
    */
   gridTemplate?: string | number;
+  /**
+   * Relative importance for the responsive layout. When space is limited, columns
+   * with a lower priority are hidden first; the first column is never hidden.
+   * Columns without an explicit priority default to `0`.
+   * @default 0
+   */
+  responsivePriority?: number;
 };
 
 /**
@@ -186,6 +193,35 @@ const StyledRow = styled('tr')(({ theme }) => ({
 const StyledBody = styled('tbody')({ display: 'contents' });
 
 /**
+ * Approximate minimum width (px) used to decide whether a column still fits.
+ */
+const DEFAULT_MIN_COLUMN_WIDTH = 100;
+
+/**
+ * Tracks the current width of an element using a ResizeObserver.
+ * Returns 0 until the element has been measured.
+ */
+function useContainerWidth(ref: React.RefObject<HTMLElement | null>) {
+  const [width, setWidth] = useState(0);
+  useEffect(() => {
+    const element = ref.current;
+    if (!element) {
+      return;
+    }
+    setWidth(element.clientWidth);
+    const observer = new ResizeObserver(entries => {
+      const entry = entries[0];
+      if (entry) {
+        setWidth(entry.contentRect.width);
+      }
+    });
+    observer.observe(element);
+    return () => observer.disconnect();
+  }, [ref]);
+  return width;
+}
+
+/**
  * Table component based on the Material React Table
  *
  * @see https://www.material-react-table.com/docs
@@ -235,6 +271,17 @@ export default function Table<RowItem extends Record<string, any>>({
   // State for shift+click range selection
   const [lastSelectedRowIndex, setLastSelectedRowIndex] = useState<number | null>(null);
 
+  // Measure the available width so we can hide columns that don't fit instead of
+  // crushing them or falling back to a horizontal scrollbar (kubernetes-sigs/headlamp#1232).
+  const tableContainerRef = useRef<HTMLDivElement>(null);
+  const containerWidth = useContainerWidth(tableContainerRef);
+
+  // Controlled column visibility so responsive hiding, caller-provided visibility
+  // and MRT's own visibility changes all stay in sync.
+  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(
+    tableProps.initialState?.columnVisibility ?? {}
+  );
+
   // Provide defaults for the columns
   const tableColumns: TableColumn<RowItem>[] = useMemo(
     () =>
@@ -273,6 +320,67 @@ export default function Table<RowItem extends Record<string, any>>({
     return ids;
   }, [tableProps.columns, tableProps.enableRowActions, tableProps.enableRowSelection]);
 
+  // Decide which columns to hide based on the available width. Columns are hidden by
+  // ascending `responsivePriority` (least important first), then right-to-left among
+  // equal priority. The first column is never hidden. When everything fits, nothing
+  // is hidden and the table renders as usual.
+  const responsiveHidden = useMemo(() => {
+    const result: Record<string, boolean> = {};
+    if (!containerWidth) {
+      return result;
+    }
+
+    const callerVisibility = tableProps.state?.columnVisibility;
+    const dataCols = tableColumns.filter(col => callerVisibility?.[col.id ?? ''] !== false);
+
+    let reserved = 0;
+    if (tableProps.enableRowSelection) {
+      reserved += 44; // selection checkbox column
+    }
+    if (tableProps.enableRowActions) {
+      reserved += 52; // row actions column
+    }
+
+    const available = containerWidth - reserved;
+    let total = dataCols.length * DEFAULT_MIN_COLUMN_WIDTH;
+    if (total <= available) {
+      return result;
+    }
+
+    // Columns we're allowed to hide, ordered by what to drop first.
+    dataCols
+      .map((col, index) => ({ col, index }))
+      .filter(({ index }) => index !== 0)
+      .sort((a, b) => {
+        const priorityDiff = (a.col.responsivePriority ?? 0) - (b.col.responsivePriority ?? 0);
+        return priorityDiff !== 0 ? priorityDiff : b.index - a.index;
+      })
+      .forEach(({ col }) => {
+        if (total <= available) {
+          return;
+        }
+        // MRT visibility semantics: `false` means the column is hidden.
+        result[col.id ?? ''] = false;
+        total -= DEFAULT_MIN_COLUMN_WIDTH;
+      });
+    return result;
+  }, [
+    containerWidth,
+    tableColumns,
+    tableProps.state?.columnVisibility,
+    tableProps.enableRowSelection,
+    tableProps.enableRowActions,
+  ]);
+
+  const mergedColumnVisibility = useMemo(
+    () => ({
+      ...(tableProps.state?.columnVisibility ?? {}),
+      ...columnVisibility,
+      ...responsiveHidden,
+    }),
+    [tableProps.state?.columnVisibility, columnVisibility, responsiveHidden]
+  );
+
   const table = useMaterialReactTable({
     ...tableProps,
     columns: tableColumns ?? [],
@@ -297,6 +405,7 @@ export default function Table<RowItem extends Record<string, any>>({
       }
     },
     onGlobalFilterChange: setGlobalFilter,
+    onColumnVisibilityChange: setColumnVisibility,
     renderToolbarInternalActions: props => {
       const isSomeRowsSelected =
         tableProps.enableRowSelection && props.table.getSelectedRowModel().rows.length !== 0;
@@ -320,6 +429,7 @@ export default function Table<RowItem extends Record<string, any>>({
       () => ({
         ...(tableProps.state ?? {}),
         columnOrder,
+        columnVisibility: mergedColumnVisibility,
         pagination: {
           pageIndex: page - 1,
           pageSize: pageSize,
@@ -327,7 +437,7 @@ export default function Table<RowItem extends Record<string, any>>({
         globalFilter,
         ...(globalFilter ? { showGlobalFilter: true } : {}),
       }),
-      [tableProps.state, columnOrder, page, pageSize, globalFilter]
+      [tableProps.state, columnOrder, mergedColumnVisibility, page, pageSize, globalFilter]
     ),
     positionActionsColumn: 'last',
     layoutMode: 'grid',
@@ -425,9 +535,7 @@ export default function Table<RowItem extends Record<string, any>>({
     let preGridTemplateColumns = tableProps.columns
       .filter((it, i) => {
         const id = it.id ?? String(i);
-        const isHidden =
-          table.getState().columnVisibility?.[id] === false ||
-          tableProps.state?.columnVisibility?.[id] === false;
+        const isHidden = mergedColumnVisibility?.[id] === false;
         return !isHidden;
       })
       .map(it => {
@@ -445,12 +553,9 @@ export default function Table<RowItem extends Record<string, any>>({
     }
 
     return preGridTemplateColumns;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     tableProps.columns,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    table.getState()?.columnVisibility,
-    tableProps.state?.columnVisibility,
+    mergedColumnVisibility,
     tableProps.enableRowActions,
     tableProps.enableRowSelection,
   ]);
@@ -579,12 +684,12 @@ export default function Table<RowItem extends Record<string, any>>({
   }
 
   return (
-    <>
+    <Box ref={tableContainerRef} sx={{ width: '100%' }}>
       <Box role="status" aria-live="polite" aria-atomic="true" sx={visuallyHidden}>
         {announcedStatus}
       </Box>
       {content}
-    </>
+    </Box>
   );
 }
 
