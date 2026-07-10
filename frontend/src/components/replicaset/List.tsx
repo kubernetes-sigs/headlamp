@@ -133,17 +133,27 @@ export default function ReplicaSetList() {
                 })}
               >
                 <Box
-                  component="span"
-                  tabIndex={0}
-                  sx={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 0.5 }}
+                  component="div"
+                  sx={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    flexWrap: 'nowrap',
+                    gap: 0.5,
+                  }}
                 >
                   <Box sx={{ display: 'inline-block' }}>
-                    <MetadataDictGrid dict={visibleDict} truncateLimit={10} disableEntryTooltip />
+                    <MetadataDictGrid
+                      dict={visibleDict}
+                      truncateLimit={10}
+                      disableEntryTooltip
+                      gridProps={{ sx: { display: 'flex', flexWrap: 'nowrap', gap: 0.5 } }}
+                    />
                   </Box>
                   {hiddenCount > 0 && (
                     <Typography
                       component="span"
                       variant="body2"
+                      tabIndex={0}
                       sx={theme => ({
                         color: theme.palette.text.secondary,
                         fontSize: theme.typography.pxToRem(12),
