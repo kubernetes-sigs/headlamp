@@ -16,10 +16,12 @@ package k8cache_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
+	"github.com/gorilla/mux"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/stretchr/testify/assert"
 )
@@ -125,6 +127,83 @@ func TestReturnAuthErrorResponse(t *testing.T) {
 	assert.Equal(t, 403, resp.Code)
 	assert.Contains(t, resp.Message, "is forbidden:")
 	assert.Equal(t, "Forbidden", resp.Reason)
+}
+
+func TestReturnAuthErrorResponseReflectsActualScope(t *testing.T) {
+	t.Run("resource paths", func(t *testing.T) {
+		testReturnAuthErrorResponseScope(t, []authErrorScopeTestCase{
+			{
+				name:              "Namespaced, non-core resource",
+				muxVars:           map[string]string{"api": "apis/apps/v1/namespaces/my-ns/deployments"},
+				expectedGroup:     "apps",
+				expectedNamespace: "my-ns",
+			},
+			{
+				name:              "Cluster-scoped, core resource",
+				muxVars:           map[string]string{"api": "api/v1/nodes"},
+				expectedGroup:     "",
+				expectedNamespace: "",
+			},
+		})
+	})
+
+	t.Run("non namespaced paths stay cluster scoped", func(t *testing.T) {
+		testReturnAuthErrorResponseScope(t, []authErrorScopeTestCase{
+			{
+				name:              "Namespace resource stays cluster scoped",
+				muxVars:           map[string]string{"api": "api/v1/namespaces/kube-system"},
+				expectedGroup:     "",
+				expectedNamespace: "",
+			},
+			{
+				name:              "Namespace subresource stays cluster scoped",
+				muxVars:           map[string]string{"api": "api/v1/namespaces/kube-system/status"},
+				expectedGroup:     "",
+				expectedNamespace: "",
+			},
+			{
+				name:              "Non resource endpoint does not fabricate namespace",
+				muxVars:           map[string]string{"api": "openapi/v2/namespaces/not-a-real-namespace"},
+				expectedGroup:     "",
+				expectedNamespace: "",
+			},
+		})
+	})
+}
+
+type authErrorScopeTestCase struct {
+	name              string
+	muxVars           map[string]string
+	expectedGroup     string
+	expectedNamespace string
+}
+
+func testReturnAuthErrorResponseScope(t *testing.T, tests []authErrorScopeTestCase) {
+	t.Helper()
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := httptest.NewRecorder()
+			req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
+			req = mux.SetURLVars(req, tc.muxVars)
+
+			err := k8cache.ReturnAuthErrorResponse(rr, req, "test-context")
+			assert.NoError(t, err)
+
+			var resp k8cache.AuthErrResponse
+
+			err = json.Unmarshal(rr.Body.Bytes(), &resp)
+			assert.NoError(t, err)
+
+			assert.Contains(t, resp.Message, fmt.Sprintf("API group %q", tc.expectedGroup))
+
+			if tc.expectedNamespace != "" {
+				assert.Contains(t, resp.Message, fmt.Sprintf("in the namespace %q", tc.expectedNamespace))
+			} else {
+				assert.Contains(t, resp.Message, "at the cluster scope")
+			}
+		})
+	}
 }
 
 func TestWriteResponseToClient(t *testing.T) {

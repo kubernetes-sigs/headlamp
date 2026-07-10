@@ -522,6 +522,63 @@ func getResourceAttributes(r *http.Request) (*authorizationv1.ResourceAttributes
 	}, nil
 }
 
+// GetGroupAndNamespace extracts the API group and namespace (if any) from the incoming
+// request's "api" mux variable, so callers can describe the actual request scope instead
+// of assuming the core API group and cluster scope.
+func GetGroupAndNamespace(r *http.Request) (string, string) {
+	apiPath, ok := mux.Vars(r)["api"]
+	if !ok || apiPath == "" {
+		return "", ""
+	}
+
+	parts := strings.Split(strings.Trim(apiPath, "/"), "/")
+
+	group := ""
+	rest := parts
+
+	switch parts[0] {
+	case "apis":
+		if len(parts) < 2 {
+			return "", ""
+		}
+
+		group = parts[1]
+		rest = parts[2:] // Drop "apis" and the group, keep the version onward.
+	case "api":
+		rest = parts[1:] // Drop "api", keep the version onward.
+	default:
+		return "", ""
+	}
+
+	if len(rest) > 0 {
+		rest = rest[1:] // Drop the version segment.
+	}
+
+	namespace := ""
+
+	for i, seg := range rest {
+		if seg == "namespaces" && hasNamespacedResourcePath(rest, i) {
+			namespace = rest[i+1]
+			break
+		}
+	}
+
+	return group, namespace
+}
+
+func hasNamespacedResourcePath(rest []string, namespaceIndex int) bool {
+	if namespaceIndex+2 >= len(rest) {
+		return false
+	}
+
+	switch rest[namespaceIndex+2] {
+	case "finalize", "status":
+		return false
+	default:
+		return true
+	}
+}
+
 // IsAllowed checks the user's permission to access the resource.
 // If the user is authorized and has permission to view the resources, it returns true.
 // Otherwise, it returns false if authorization fails.

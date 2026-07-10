@@ -74,6 +74,12 @@ func isDirectOrProxiedAPIResourceEndpoint(urlPath, group, resource string) bool 
 // this will returns directly without asking to K8's Server.
 func ReturnAuthErrorResponse(w http.ResponseWriter, r *http.Request, contextKey string) error {
 	last, kubeVerb := GetKindAndVerb(r)
+	group, namespace := GetGroupAndNamespace(r)
+
+	scope := "at the cluster scope"
+	if namespace != "" {
+		scope = fmt.Sprintf("in the namespace %q", namespace)
+	}
 
 	// AuthErrorResponse will be the actual message which will be
 	// further transformed into JSON body for sending to the client.
@@ -82,7 +88,7 @@ func ReturnAuthErrorResponse(w http.ResponseWriter, r *http.Request, contextKey 
 		APIVersion: "v1",
 		MetaData:   Metadata{}, // In this case the Metadata will always be empty.
 		Message: fmt.Sprintf("%s is forbidden: User \"system:serviceaccount:default:%s\" cannot ", last, contextKey) +
-			fmt.Sprintf("%s resource \"%s\" in API group \"\" at the cluster scope", kubeVerb, last),
+			fmt.Sprintf("%s resource %q in API group %q %s", kubeVerb, last, group, scope),
 		Reason: "Forbidden", // For this scenerio the reason should be forbidden.
 		Details: Details{
 			Kind: last,
