@@ -258,7 +258,18 @@
               <div
                 class="MuiBox-root css-72rvq0"
               >
-                Search "
+                <span
+                  style="font-weight: bold;"
+                >
+                  Se
+                </span>
+                a
+                <span
+                  style="font-weight: bold;"
+                >
+                  rc
+                </span>
+                h "
                 <span
                   style="font-weight: bold;"
                 >

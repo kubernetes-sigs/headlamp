@@ -939,10 +939,9 @@
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-13vbnfx-MuiTableCell-root"
                   >
-                    <span
-                      class="MuiBox-root css-3okg0b"
+                    <div
+                      class="MuiBox-root css-19zg5n1"
                       data-mui-internal-clone-element="true"
-                      tabindex="0"
                     >
                       <div
                         class="MuiBox-root css-1baulvz"
@@ -951,7 +950,7 @@
                           class="MuiBox-root css-0"
                         >
                           <div
-                            class="MuiBox-root css-yi3mkw"
+                            class="MuiBox-root css-ving18"
                           >
                             <p
                               class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
@@ -968,10 +967,11 @@
                       </div>
                       <span
                         class="MuiTypography-root MuiTypography-body2 css-dc8bps-MuiTypography-root"
+                        tabindex="0"
                       >
-                        more_count
+                        +1 more...
                       </span>
-                    </span>
+                    </div>
                   </td>
                   <td
                     class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"
@@ -1094,10 +1094,9 @@
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-13vbnfx-MuiTableCell-root"
                   >
-                    <span
-                      class="MuiBox-root css-3okg0b"
+                    <div
+                      class="MuiBox-root css-19zg5n1"
                       data-mui-internal-clone-element="true"
-                      tabindex="0"
                     >
                       <div
                         class="MuiBox-root css-1baulvz"
@@ -1106,7 +1105,7 @@
                           class="MuiBox-root css-0"
                         >
                           <div
-                            class="MuiBox-root css-yi3mkw"
+                            class="MuiBox-root css-ving18"
                           >
                             <p
                               class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
@@ -1121,7 +1120,7 @@
                           </div>
                         </div>
                       </div>
-                    </span>
+                    </div>
                   </td>
                   <td
                     class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"

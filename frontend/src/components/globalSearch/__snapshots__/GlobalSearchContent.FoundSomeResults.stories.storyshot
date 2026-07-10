@@ -1028,7 +1028,19 @@
               <div
                 class="MuiBox-root css-72rvq0"
               >
-                Horizontal 
+                H
+                <span
+                  style="font-weight: bold;"
+                >
+                  o
+                </span>
+                riz
+                <span
+                  style="font-weight: bold;"
+                >
+                  o
+                </span>
+                ntal 
                 <span
                   style="font-weight: bold;"
                 >
@@ -1196,7 +1208,13 @@
               <div
                 class="MuiBox-root css-72rvq0"
               >
-                Set namespace: 
+                Set names
+                <span
+                  style="font-weight: bold;"
+                >
+                  p
+                </span>
+                ace: 
                 <span
                   style="font-weight: bold;"
                 >
