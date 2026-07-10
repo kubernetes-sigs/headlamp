@@ -201,11 +201,14 @@ export function PercentageBar(props: PercentageBarProps) {
   const [containerRect, setContainerRect] = useState<DOMRect | null>(null);
 
   useEffect(() => {
+    if (!tooltipFunc) {
+      return;
+    }
     const handle = requestAnimationFrame(() => {
       setContainerRect(containerRef.current?.getBoundingClientRect() ?? null);
     });
     return () => cancelAnimationFrame(handle);
-  }, []);
+  }, [tooltipFunc]);
 
   const handleMouseEnter = useCallback(() => {
     const next = containerRef.current?.getBoundingClientRect() ?? null;
@@ -242,8 +245,8 @@ export function PercentageBar(props: PercentageBarProps) {
         layout="vertical"
         maxBarSize={5}
         data={[formatData()]}
-        onMouseEnter={handleMouseEnter}
-        onMouseMove={handleMouseEnter}
+        onMouseEnter={tooltipFunc ? handleMouseEnter : undefined}
+        onMouseMove={tooltipFunc ? handleMouseEnter : undefined}
       >
         {tooltipFunc && (
           <Tooltip
