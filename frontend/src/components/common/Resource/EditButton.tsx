@@ -15,12 +15,13 @@
  */
 
 import { Icon } from '@iconify/react';
+import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
-import { KubeObject } from '../../../lib/k8s/KubeObject';
+import { KubeObject, KubeObjectClass } from '../../../lib/k8s/KubeObject';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { normalizeBaselineForPatch } from '../../../lib/k8s/patchUtils';
 import { CallbackActionOptions, clusterAction } from '../../../redux/clusterActionSlice';
@@ -32,7 +33,6 @@ import {
 import { AppDispatch } from '../../../redux/stores/store';
 import { Activity } from '../../activity/Activity';
 import ActionButton, { ButtonStyle } from '../ActionButton';
-import AuthVisible from './AuthVisible';
 import EditorDialog from './EditorDialog';
 import { fetchLatestKubeObject } from './fetchLatestKubeObject';
 import ViewButton from './ViewButton';
@@ -126,22 +126,47 @@ export default function EditButton(props: EditButtonProps) {
     return null;
   }
 
+  const itemClass: KubeObjectClass | null = (item as any)?._class?.() ?? item;
+  const itemName = (item as any)?.getName?.();
+
+  const { data: authData } = useQuery({
+    enabled: !!item,
+    queryKey: ['authEdit', itemName, itemClass?.apiName, itemClass?.apiVersion],
+    queryFn: async () => {
+      try {
+        const [update, patch] = await Promise.all([
+          item!.getAuthorization('update', {}, (item as any).cluster),
+          item!.getAuthorization('patch', {}, (item as any).cluster),
+        ]);
+        return { allowed: update?.status?.allowed || patch?.status?.allowed };
+      } catch (e: any) {
+        console.error(`Error while getting authorization for edit button in ${item}:`, e);
+        setIsReadOnly(true);
+        return { allowed: false };
+      }
+    },
+  });
+
+  React.useEffect(() => {
+    if (authData !== undefined) {
+      setIsReadOnly(!authData.allowed);
+    }
+  }, [authData]);
+
   if (isReadOnly) {
     return <ViewButton item={item} />;
   }
 
+  if (!authData) {
+    return null;
+  }
+
+  if (!authData.allowed) {
+    return null;
+  }
+
   return (
-    <AuthVisible
-      item={item}
-      authVerb="update"
-      onError={(err: Error) => {
-        console.error(`Error while getting authorization for edit button in ${item}:`, err);
-        setIsReadOnly(true);
-      }}
-      onAuthResult={({ allowed }) => {
-        setIsReadOnly(!allowed);
-      }}
-    >
+    <>
       <ActionButton
         description={t('translation|Edit')}
         buttonStyle={buttonStyle}
@@ -219,6 +244,6 @@ export default function EditButton(props: EditButtonProps) {
         }}
         icon="mdi:pencil"
       />
-    </AuthVisible>
+    </>
   );
 }
