@@ -129,12 +129,16 @@ const Input = styled(OutlinedInput)({
 
 function getNumReplicas(resource: Deployment | StatefulSet | ReplicaSet) {
   const replicas = resource.spec?.replicas;
-  if (replicas === undefined || replicas === null) {
+  if (
+    replicas === undefined ||
+    replicas === null ||
+    (typeof replicas === 'string' && replicas.trim() === '')
+  ) {
     return -1;
   }
 
-  const parsed = typeof replicas === 'string' ? parseInt(replicas, 10) : Number(replicas);
-  return Number.isFinite(parsed) ? parsed : -1;
+  const parsed = Number(replicas);
+  return Number.isInteger(parsed) && parsed >= 0 ? parsed : -1;
 }
 
 function ScaleDialog(props: ScaleDialogProps) {
