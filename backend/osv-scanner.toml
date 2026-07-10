@@ -1,6 +1,6 @@
 [[IgnoredVulns]]
 id = "GO-2026-5064"
-reason = "containerd is an indirect dependency pulled in only via helm.sh/helm/v3/pkg/registry as an OCI registry client for chart pull/push. Headlamp never runs containerd's CRI plugin, which is what this CVE affects. The 1.7.x fix for this specific advisory (GHSA-xhf5-7wjv-pqxp) is already included in the pinned v1.7.33."
+reason = "containerd is an indirect dependency pulled in only via helm.sh/helm/v3/pkg/registry as an OCI registry client for chart pull/push. Headlamp never runs containerd's CRI plugin, which is what this CVE affects. containerd is pinned to v1.7.33 which includes the fix for GHSA-xhf5-7wjv-pqxp, but OSV/Scorecard still reports GO-2026-5064; this ignore suppresses that false-positive."
 
 [[IgnoredVulns]]
 id = "GO-2026-5338"
@@ -16,8 +16,8 @@ reason = "No fix is available upstream yet for this oras-go tar-extraction hardl
 
 [[IgnoredVulns]]
 id = "GO-2026-4970"
-reason = "Fixed only in Go 1.26.5. CI (Docker builds, ppc64le, s390x) pins the toolchain to 1.26.4 with GOTOOLCHAIN=local for reproducible builds without network fetches. Bumping to 1.26.5 requires updating CI's Go install step across all workflows, which is out of scope for this PR. Tracked as a follow-up."
+reason = "Fixed only in Go 1.26.5. CI currently pins Go 1.26.4 (e.g. .github/workflows/build-other-arch.yml uses golang:1.26.4@sha256:... container image). Bumping to 1.26.5 requires updating those pinned image tags across all workflows, which is out of scope for this PR. Tracked as a follow-up."
 
 [[IgnoredVulns]]
 id = "GO-2026-5856"
-reason = "Fixed only in Go 1.26.5. Same CI toolchain constraint as GO-2026-4970 above; see that entry for details."
+reason = "Fixed only in Go 1.26.5. Same CI Docker image pinning constraint as GO-2026-4970 above; see that entry for details."
