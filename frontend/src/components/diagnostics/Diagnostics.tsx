@@ -364,46 +364,44 @@ function getPendingHints(pod: PodLike, warningEvents: EventLike[], t: Translate)
   return diagnostics;
 }
 
-/** Converts the top 5 warning events into diagnostic items sorted by recency and count. */
-function eventDiagnostics(events: EventLike[], t: Translate): DiagnosticItem[] {
-  return sortWarningEvents(events)
-    .slice(0, 5)
-    .map(event => {
-      const reason = (event as Event).reason ?? (event as KubeEvent).reason ?? 'Warning';
-      const count = getEventCount(event);
-      const lastOccurrence = getEventLastOccurrence(event);
-      const firstOccurrence = getEventFirstOccurrence(event);
-      const details = [
-        lastOccurrence
-          ? t('Last seen: {{ age }} ({{ date }})', {
-              age: timeAgo(lastOccurrence),
-              date: localeDate(lastOccurrence),
-            })
-          : '',
-        count > 1 && firstOccurrence
-          ? t('{{ eventCount }} times since {{ age }}', {
-              eventCount: count,
-              age: timeAgo(firstOccurrence),
-            })
-          : count > 1
-          ? t('{{ eventCount }} times', { eventCount: count })
-          : '',
-      ].filter(Boolean);
+/** Converts the top 5 pre-sorted warning events into diagnostic items. */
+function eventDiagnostics(warningEvents: EventLike[], t: Translate): DiagnosticItem[] {
+  return warningEvents.slice(0, 5).map(event => {
+    const reason = (event as Event).reason ?? (event as KubeEvent).reason ?? 'Warning';
+    const count = getEventCount(event);
+    const lastOccurrence = getEventLastOccurrence(event);
+    const firstOccurrence = getEventFirstOccurrence(event);
+    const details = [
+      lastOccurrence
+        ? t('Last seen: {{ age }} ({{ date }})', {
+            age: timeAgo(lastOccurrence),
+            date: localeDate(lastOccurrence),
+          })
+        : '',
+      count > 1 && firstOccurrence
+        ? t('{{ eventCount }} times since {{ age }}', {
+            eventCount: count,
+            age: timeAgo(firstOccurrence),
+          })
+        : count > 1
+        ? t('{{ eventCount }} times', { eventCount: count })
+        : '',
+    ].filter(Boolean);
 
-      return {
-        id: `event-${(event as Event).metadata?.uid || reason}`,
-        severity: 'warning',
-        title:
-          count > 1
-            ? t('Warning event: {{ reason }} ({{ eventCount }} times)', {
-                reason,
-                eventCount: count,
-              })
-            : t('Warning event: {{ reason }}', { reason }),
-        message: (event as Event).message ?? (event as KubeEvent).message,
-        details,
-      };
-    });
+    return {
+      id: `event-${(event as Event).metadata?.uid || reason}`,
+      severity: 'warning',
+      title:
+        count > 1
+          ? t('Warning event: {{ reason }} ({{ eventCount }} times)', {
+              reason,
+              eventCount: count,
+            })
+          : t('Warning event: {{ reason }}', { reason }),
+      message: (event as Event).message ?? (event as KubeEvent).message,
+      details,
+    };
+  });
 }
 
 /**
@@ -523,7 +521,7 @@ export function getPodDiagnostics(
   // scheduling hints, and a previous-logs link for restarted containers).
   diagnostics.push(...getPreviousLogsDiagnostics(pod, t));
   diagnostics.push(...getPendingHints(pod, warningEvents, t));
-  diagnostics.push(...eventDiagnostics(events, t));
+  diagnostics.push(...eventDiagnostics(warningEvents, t));
 
   return dedupeDiagnostics(diagnostics);
 }
