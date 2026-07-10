@@ -33,6 +33,8 @@ export * from '../../deployments/CreateDeploymentForm';
 export { default as CreateDeploymentForm } from '../../deployments/CreateDeploymentForm';
 export * from '../../replicaset/CreateReplicaSetForm';
 export { default as CreateReplicaSetForm } from '../../replicaset/CreateReplicaSetForm';
+export * from '../../job/CreateJobForm';
+export { default as CreateJobForm } from '../../job/CreateJobForm';
 export * from './CreateResourceForm';
 export { default as CreateResourceForm } from './CreateResourceForm';
 export * from './CopyButton';

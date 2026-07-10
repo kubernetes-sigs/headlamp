@@ -27,10 +27,12 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSelectedClusters } from '../../../lib/k8s';
 import Deployment from '../../../lib/k8s/deployment';
+import Job from '../../../lib/k8s/job';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import { Activity } from '../../activity/Activity';
 import CreateDeploymentForm from '../../deployments/CreateDeploymentForm';
+import CreateJobForm from '../../job/CreateJobForm';
 import CreatePodForm from '../../pod/CreatePodForm';
 import CreateReplicaSetForm from '../../replicaset/CreateReplicaSetForm';
 import ActionButton from '../ActionButton';
@@ -40,6 +42,7 @@ export const RESOURCE_DEFINITIONS = {
   Pod: { class: Pod, form: CreatePodForm },
   Deployment: { class: Deployment, form: CreateDeploymentForm },
   ReplicaSet: { class: ReplicaSet, form: CreateReplicaSetForm },
+  Job: { class: Job, form: CreateJobForm },
 };
 
 export type ResourceType = keyof typeof RESOURCE_DEFINITIONS;
@@ -75,6 +78,7 @@ function CreateActivityContent(props: { onClose: () => void }) {
   const [errorMessage, setErrorMessage] = React.useState('');
   const [selectedResource, setSelectedResource] = React.useState<ResourceType | undefined>();
   const [targetCluster, setTargetCluster] = React.useState(clusters[0] || '');
+  const [formValid, setFormValid] = React.useState(false);
 
   function handleResourceChange(resource: ResourceType | undefined) {
     setSelectedResource(resource);
@@ -152,7 +156,13 @@ function CreateActivityContent(props: { onClose: () => void }) {
         {selectedResource &&
           (() => {
             const FormComponent = RESOURCE_DEFINITIONS[selectedResource].form;
-            return <FormComponent resource={formResource} onChange={handleFormChange} />;
+            return (
+              <FormComponent
+                resource={formResource}
+                onChange={handleFormChange}
+                onValidChange={setFormValid}
+              />
+            );
           })()}
       </Box>
     );
@@ -172,6 +182,7 @@ function CreateActivityContent(props: { onClose: () => void }) {
       title={t('translation|Create / Apply')}
       cluster={targetCluster}
       formContent={renderFormContent()}
+      formInvalid={!!selectedResource && !formValid}
       actions={
         clusters.length > 1
           ? [
