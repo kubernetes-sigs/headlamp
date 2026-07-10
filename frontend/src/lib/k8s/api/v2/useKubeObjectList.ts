@@ -438,21 +438,21 @@ export function useKubeObjectList<K extends KubeObject>({
   refetchInterval?: number;
 }): [Array<K> | null, ApiError | null] &
   QueryListResponse<Array<ListResponse<K> | undefined | null>, K, ApiError> {
-  const maybeNamespace = requests.find(it => it.namespaces)?.namespaces?.[0];
+  const isPendingDiscovery = requests.length === 0;
+  const maybeNamespace = isPendingDiscovery
+    ? undefined
+    : requests.find(it => it.namespaces)?.namespaces?.[0];
 
-  // Get working endpoint from the first cluster
-  // Now if clusters have different apiVersions for the same resource for example, this will not work
+  // Skip endpoint probing while callers wait for namespace discovery routing.
   const { endpoint, error: endpointError } = useEndpoints(
-    kubeObjectClass.apiEndpoint.apiInfo,
-    requests[0]?.cluster,
+    isPendingDiscovery ? [] : kubeObjectClass.apiEndpoint.apiInfo,
+    isPendingDiscovery ? '' : requests[0]!.cluster,
     maybeNamespace
   );
 
   const cleanedUpQueryParams = Object.fromEntries(
     Object.entries(queryParams ?? {}).filter(([, value]) => value !== undefined && value !== '')
   );
-
-  const isPendingDiscovery = requests.length === 0;
 
   const queries = useMemo(
     () =>

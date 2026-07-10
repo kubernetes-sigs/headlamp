@@ -417,7 +417,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       : clusters || (fallbackClusters.length === 0 ? [''] : fallbackClusters);
 
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    const { map: discoveryMap, isLoading: discoveryLoading } = useDiscoveredNamespacesMap(
+    const { map: discoveryMap, isLoadingByCluster } = useDiscoveredNamespacesMap(
       isNamespaced ? clusterList : []
     );
 
@@ -427,9 +427,12 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       const hasExplicitNamespace =
         (typeof namespace === 'string' && namespace.length > 0) ||
         (Array.isArray(namespace) && namespace.length > 0);
-      const waitingForDiscovery = isNamespaced && discoveryLoading && !hasExplicitNamespace;
 
-      if (waitingForDiscovery) {
+      const clustersForRequests = hasExplicitNamespace
+        ? clusterList
+        : clusterList.filter(currentCluster => !isLoadingByCluster[currentCluster]);
+
+      if (isNamespaced && !hasExplicitNamespace && clustersForRequests.length === 0) {
         return [];
       }
 
@@ -441,7 +444,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
           : undefined;
 
       return makeListRequests(
-        clusterList,
+        clustersForRequests,
         currentCluster =>
           getNamespaceListConfig(
             currentCluster,
@@ -459,7 +462,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       namespace,
       isNamespaced,
       discoveryMap,
-      discoveryLoading,
+      isLoadingByCluster,
     ]);
 
     // eslint-disable-next-line react-hooks/rules-of-hooks

@@ -162,6 +162,17 @@ const mockNodeClass = class {
   constructor(public jsonData: any) {}
 } as any;
 
+const mockMultiEndpointClass = class {
+  static apiEndpoint = {
+    apiInfo: [
+      { group: 'apps', resource: 'deployments', version: 'v1' },
+      { group: 'extensions', resource: 'deployments', version: 'v1beta1' },
+    ],
+  };
+
+  constructor(public jsonData: any) {}
+} as any;
+
 describe('useWatchKubeObjectLists', () => {
   beforeEach(() => {
     vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
@@ -326,6 +337,29 @@ describe('useKubeObjectList', () => {
   beforeEach(() => {
     vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
     vi.clearAllMocks();
+  });
+
+  it('skips endpoint probing while waiting for namespace discovery', () => {
+    mockClusterFetch.mockClear();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const { result } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockMultiEndpointClass,
+          requests: [],
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    expect(mockClusterFetch).not.toHaveBeenCalled();
+    expect(result.current.isLoading).toBe(true);
   });
 
   it('should preserve List in the resource kind when parsing a list response', async () => {
