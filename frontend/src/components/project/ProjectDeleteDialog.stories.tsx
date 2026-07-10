@@ -26,7 +26,12 @@ const mockProject = {
 
 const makeMockNamespace = (name: string) => ({
   metadata: { name },
+  jsonData: {
+    metadata: { name, labels: { 'headlamp.dev/project-id': 'test-project' } },
+  },
   getAuthorization: async () => ({ status: { allowed: true } }),
+  update: async () => {},
+  delete: async () => {},
 });
 
 const mockNamespaces = [makeMockNamespace('ns1'), makeMockNamespace('ns2')];
