@@ -315,7 +315,7 @@ function PortForwardContent(props: PortForwardProps) {
       return;
     }
     setLoading(true);
-    stopOrDeletePortForward(cluster, portForward.id, true)
+    stopOrDeletePortForward(cluster, portForward.id, true /* justStop */)
       .then(() => {
         setPortForward({ ...portForward, status: PORT_FORWARD_STOP_STATUS });
       })
@@ -334,7 +334,7 @@ function PortForwardContent(props: PortForwardProps) {
       return;
     }
     setLoading(true);
-    stopOrDeletePortForward(cluster, id, false).finally(() => {
+    stopOrDeletePortForward(cluster, id, false /* justStop */).finally(() => {
       setLoading(false);
       const portforwardInStorage = localStorage.getItem(PORT_FORWARDS_STORAGE_KEY);
       const parsedPortForwards = JSON.parse(portforwardInStorage || '[]');
