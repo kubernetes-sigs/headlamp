@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { act, render } from '@testing-library/react';
+import { act, cleanup, render } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../test';
 import { PureAlertNotification } from './AlertNotification';
@@ -32,7 +32,12 @@ describe('PureAlertNotification', () => {
       toFake: ['Date', 'setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'],
     })
   );
-  afterEach(() => vi.useRealTimers());
+  // Unmount before restoring real timers so the effect's clearInterval runs
+  // against the same fake implementation that created the interval.
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
 
   // A failed check backs the poll interval off from 5s to 10s. Once a check
   // succeeds the interval must return to 5s; otherwise it stays elevated for
