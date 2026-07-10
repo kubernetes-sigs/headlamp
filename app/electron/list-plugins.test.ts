@@ -18,9 +18,9 @@ import path from 'path';
 import { describe, expect, it, vi } from 'vitest';
 import { runListPluginsCommand } from './list-plugins';
 
-const execSync = vi.hoisted(() => vi.fn());
+const execFileSync = vi.hoisted(() => vi.fn());
 
-vi.mock('child_process', () => ({ execSync }));
+vi.mock('child_process', () => ({ execFileSync }));
 
 describe('runListPluginsCommand', () => {
   it('writes the plugin list and succeeds', () => {
@@ -33,9 +33,9 @@ describe('runListPluginsCommand', () => {
     const exitCode = runListPluginsCommand(resourcesPath, execute, writeOutput, reportError);
 
     expect(exitCode).toBe(0);
-    expect(execute).toHaveBeenCalledWith(
-      `${path.join(resourcesPath, 'headlamp-server')} list-plugins`
-    );
+    expect(execute).toHaveBeenCalledWith(path.join(resourcesPath, 'headlamp-server'), [
+      'list-plugins',
+    ]);
     expect(writeOutput).toHaveBeenCalledWith(output);
     expect(reportError).not.toHaveBeenCalled();
   });
@@ -57,20 +57,22 @@ describe('runListPluginsCommand', () => {
 
   it('uses the process streams by default', () => {
     const output = Buffer.from('plugin-one\n');
-    execSync.mockReturnValue(output);
+    execFileSync.mockReturnValue(output);
     const write = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
 
     const exitCode = runListPluginsCommand('resources');
 
     expect(exitCode).toBe(0);
-    expect(execSync).toHaveBeenCalledWith(path.join('resources', 'headlamp-server list-plugins'));
+    expect(execFileSync).toHaveBeenCalledWith(path.join('resources', 'headlamp-server'), [
+      'list-plugins',
+    ]);
     expect(write).toHaveBeenCalledWith(output);
     write.mockRestore();
   });
 
   it('reports errors to the console by default', () => {
     const error = new Error('backend failed');
-    execSync.mockImplementation(() => {
+    execFileSync.mockImplementation(() => {
       throw error;
     });
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});

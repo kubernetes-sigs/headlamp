@@ -14,22 +14,22 @@
  * limitations under the License.
  */
 
-import { execSync } from 'child_process';
+import { execFileSync } from 'child_process';
 import path from 'path';
 
-type ExecuteListPlugins = (command: string) => Buffer;
+type ExecuteListPlugins = (file: string, args: string[]) => Buffer;
 type WriteOutput = (output: Buffer) => unknown;
 type ReportError = (error: unknown) => unknown;
 
 export function runListPluginsCommand(
   resourcesPath: string,
-  execute: ExecuteListPlugins = execSync,
+  execute: ExecuteListPlugins = execFileSync,
   writeOutput: WriteOutput = output => process.stdout.write(output),
   reportError: ReportError = error => console.error(`Error listing plugins: ${error}`)
 ): number {
   try {
     const backendPath = path.join(resourcesPath, 'headlamp-server');
-    const stdout = execute(`${backendPath} list-plugins`);
+    const stdout = execute(backendPath, ['list-plugins']);
     writeOutput(stdout);
     return 0;
   } catch (error) {
