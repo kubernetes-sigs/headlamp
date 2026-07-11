@@ -138,14 +138,21 @@ Show a component in the main area at a given URL with
 
 Add items to the left sidebar with
 [registerSidebarEntry](../../api/plugin/registry/functions/registersidebarentry).
-Remove items with
+Filter items with
 [registerSidebarEntryFilter](../../api/plugin/registry/functions/registersidebarentryfilter).
+Filter items from the home (non-cluster) sidebar with
+[registerHomeSidebarEntryFilter](../../api/plugin/registry/functions/registerhomesidebarentryfilter).
+Use `entryType: 'subheader'` with `registerSidebarEntry` to add a
+non-clickable section header that groups sidebar entries. Subheaders render as
+dividers when the sidebar is collapsed. Use `sx` to override the default
+subheader styles.
 
 ![screenshot of the sidebar being changed](../images/sidebar.png)
 
 - Example plugin: [How To add items to the sidebar](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/sidebar)
 - API reference: [registerSidebarEntry](../../api/plugin/registry/functions/registersidebarentry)
 - API reference: [registerSidebarEntryFilter](../../api/plugin/registry/functions/registersidebarentryfilter)
+- API reference: [registerHomeSidebarEntryFilter](../../api/plugin/registry/functions/registerhomesidebarentryfilter)
 
 ### Tables
 
@@ -229,6 +236,12 @@ Each tab needs a unique ID, a label, and a React component that receives the pro
 Add custom sections to the project overview page with
 [registerProjectOverviewSection](../../api/plugin/registry/functions/registerProjectOverviewSection).
 These sections appear in the project's main overview area.
+
+Register custom API resources (e.g. CRDs) for project resource tracking with
+[registerProjectApiResource](../../api/plugin/registry/functions/registerProjectApiResource).
+Once registered, the CRD resources will appear in the project's resource count,
+health status, and Resources tab. Only namespaced resources can be registered,
+since Projects are scoped to namespaces.
 
 Example plugin: [How to customize projects](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/projects)
 

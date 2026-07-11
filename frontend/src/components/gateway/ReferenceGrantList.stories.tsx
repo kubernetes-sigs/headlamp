@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import ReferenceGrantList from './ReferenceGrantList';
 import { DEFAULT_REFERENCE_GRANT } from './storyHelper';
 
@@ -38,15 +38,13 @@ export default {
       handlers: {
         storyBase: [],
         story: [
-          http.get(
-            'http://localhost:4466/apis/gateway.networking.k8s.io/v1beta1/referencegrants',
-            () =>
-              HttpResponse.json({
-                kind: 'ReferenceGrantList',
-                apiVersion: 'gateway.networking.k8s.io/v1beta1',
-                metadata: {},
-                items: [DEFAULT_REFERENCE_GRANT],
-              })
+          http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1beta1/referencegrants`, () =>
+            HttpResponse.json({
+              kind: 'ReferenceGrantList',
+              apiVersion: 'gateway.networking.k8s.io/v1beta1',
+              metadata: {},
+              items: [DEFAULT_REFERENCE_GRANT],
+            })
           ),
         ],
       },

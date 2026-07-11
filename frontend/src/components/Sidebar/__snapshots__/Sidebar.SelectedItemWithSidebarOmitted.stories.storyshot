@@ -5,7 +5,7 @@
       class="MuiBox-root css-qnyptn"
     >
       <div
-        class="MuiDrawer-root MuiDrawer-docked css-ptnx-MuiDrawer-docked"
+        class="MuiDrawer-root MuiDrawer-docked css-1k1thb6-MuiDrawer-docked"
       >
         <div
           class="MuiPaper-root MuiPaper-outlined MuiDrawer-paper MuiDrawer-paperAnchorLeft MuiDrawer-paperAnchorDockedLeft css-2vc5z5-MuiPaper-root-MuiDrawer-paper"
@@ -23,7 +23,7 @@
                   class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -49,7 +49,7 @@
                   class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -72,100 +72,10 @@
                   </a>
                 </li>
                 <li
-                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
-                >
-                  <div
-                    class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-11uq76c-MuiCollapse-root"
-                    style="min-height: 0px;"
-                  >
-                    <div
-                      class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
-                    >
-                      <div
-                        class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
-                      >
-                        <ul
-                          class="MuiList-root css-2l483y-MuiList-root"
-                        >
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Namespaces
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Nodes
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Advanced Search (Beta)
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </li>
-                <li
                   class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -191,7 +101,7 @@
                   class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -214,207 +124,203 @@
                   </a>
                 </li>
                 <li
-                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
+                  class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-entered css-1mhwl66-MuiCollapse-root"
+                  style="min-height: 0px;"
                 >
                   <div
-                    class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-entered css-1mhwl66-MuiCollapse-root"
-                    style="min-height: 0px;"
+                    class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
                   >
                     <div
-                      class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
+                      class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
                     >
-                      <div
-                        class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
+                      <ul
+                        class="MuiList-root css-2l483y-MuiList-root"
                       >
-                        <ul
-                          class="MuiList-root css-2l483y-MuiList-root"
+                        <li
+                          class="css-1gktw5r"
                         >
-                          <li
-                            class="css-1gktw5r"
+                          <a
+                            class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-5zzftf-MuiButtonBase-root-MuiListItemButton-root"
+                            href="/"
+                            role="button"
+                            tabindex="0"
                           >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
+                            <div
+                              class="MuiListItemText-root css-tlelie-MuiListItemText-root"
                             >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Pods
-                                </span>
-                              </div>
                               <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
+                                class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                              >
+                                Pods
+                              </span>
+                            </div>
+                            <span
+                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                            />
+                          </a>
+                        </li>
+                        <li
+                          class="css-1gktw5r"
+                        >
+                          <a
+                            class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-5zzftf-MuiButtonBase-root-MuiListItemButton-root"
+                            href="/"
+                            role="button"
+                            tabindex="0"
                           >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
+                            <div
+                              class="MuiListItemText-root css-tlelie-MuiListItemText-root"
                             >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Deployments
-                                </span>
-                              </div>
                               <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
+                                class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                              >
+                                Deployments
+                              </span>
+                            </div>
+                            <span
+                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                            />
+                          </a>
+                        </li>
+                        <li
+                          class="css-1gktw5r"
+                        >
+                          <a
+                            class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-5zzftf-MuiButtonBase-root-MuiListItemButton-root"
+                            href="/"
+                            role="button"
+                            tabindex="0"
                           >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
+                            <div
+                              class="MuiListItemText-root css-tlelie-MuiListItemText-root"
                             >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Stateful Sets
-                                </span>
-                              </div>
                               <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
+                                class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                              >
+                                Stateful Sets
+                              </span>
+                            </div>
+                            <span
+                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                            />
+                          </a>
+                        </li>
+                        <li
+                          class="css-1gktw5r"
+                        >
+                          <a
+                            class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-5zzftf-MuiButtonBase-root-MuiListItemButton-root"
+                            href="/"
+                            role="button"
+                            tabindex="0"
                           >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
+                            <div
+                              class="MuiListItemText-root css-tlelie-MuiListItemText-root"
                             >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Daemon Sets
-                                </span>
-                              </div>
                               <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
+                                class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                              >
+                                Daemon Sets
+                              </span>
+                            </div>
+                            <span
+                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                            />
+                          </a>
+                        </li>
+                        <li
+                          class="css-1gktw5r"
+                        >
+                          <a
+                            class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-5zzftf-MuiButtonBase-root-MuiListItemButton-root"
+                            href="/"
+                            role="button"
+                            tabindex="0"
                           >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
+                            <div
+                              class="MuiListItemText-root css-tlelie-MuiListItemText-root"
                             >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Replica Sets
-                                </span>
-                              </div>
                               <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
+                                class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                              >
+                                Replica Sets
+                              </span>
+                            </div>
+                            <span
+                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                            />
+                          </a>
+                        </li>
+                        <li
+                          class="css-1gktw5r"
+                        >
+                          <a
+                            class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-5zzftf-MuiButtonBase-root-MuiListItemButton-root"
+                            href="/"
+                            role="button"
+                            tabindex="0"
                           >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
+                            <div
+                              class="MuiListItemText-root css-tlelie-MuiListItemText-root"
                             >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Jobs
-                                </span>
-                              </div>
                               <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
+                                class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                              >
+                                Jobs
+                              </span>
+                            </div>
+                            <span
+                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                            />
+                          </a>
+                        </li>
+                        <li
+                          class="css-1gktw5r"
+                        >
+                          <a
+                            class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-5zzftf-MuiButtonBase-root-MuiListItemButton-root"
+                            href="/"
+                            role="button"
+                            tabindex="0"
                           >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
+                            <div
+                              class="MuiListItemText-root css-tlelie-MuiListItemText-root"
                             >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  CronJobs
-                                </span>
-                              </div>
                               <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
+                                class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                              >
+                                CronJobs
+                              </span>
+                            </div>
+                            <span
+                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                            />
+                          </a>
+                        </li>
+                        <li
+                          class="css-1gktw5r"
+                        >
+                          <a
+                            class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-5zzftf-MuiButtonBase-root-MuiListItemButton-root"
+                            href="/"
+                            role="button"
+                            tabindex="0"
                           >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
+                            <div
+                              class="MuiListItemText-root css-tlelie-MuiListItemText-root"
                             >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Job Sets
-                                </span>
-                              </div>
                               <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                        </ul>
-                      </div>
+                                class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                              >
+                                Job Sets
+                              </span>
+                            </div>
+                            <span
+                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                            />
+                          </a>
+                        </li>
+                      </ul>
                     </div>
                   </div>
                 </li>
@@ -422,7 +328,7 @@
                   class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -445,123 +351,10 @@
                   </a>
                 </li>
                 <li
-                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
-                >
-                  <div
-                    class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-11uq76c-MuiCollapse-root"
-                    style="min-height: 0px;"
-                  >
-                    <div
-                      class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
-                    >
-                      <div
-                        class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
-                      >
-                        <ul
-                          class="MuiList-root css-2l483y-MuiList-root"
-                        >
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Persistent Volume Claims
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Persistent Volumes
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Storage Classes
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Volume Attributes Classes
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </li>
-                <li
                   class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -584,169 +377,10 @@
                   </a>
                 </li>
                 <li
-                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
-                >
-                  <div
-                    class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-11uq76c-MuiCollapse-root"
-                    style="min-height: 0px;"
-                  >
-                    <div
-                      class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
-                    >
-                      <div
-                        class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
-                      >
-                        <ul
-                          class="MuiList-root css-2l483y-MuiList-root"
-                        >
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Services
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Endpoints
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Endpoint Slices
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Ingresses
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Ingress Classes
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Network Policies
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </li>
-                <li
                   class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -769,192 +403,10 @@
                   </a>
                 </li>
                 <li
-                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
-                >
-                  <div
-                    class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-11uq76c-MuiCollapse-root"
-                    style="min-height: 0px;"
-                  >
-                    <div
-                      class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
-                    >
-                      <div
-                        class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
-                      >
-                        <ul
-                          class="MuiList-root css-2l483y-MuiList-root"
-                        >
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Gateways
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Gateway Classes
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  HTTP Routes
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  GRPC Routes
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Reference Grants
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  BackendTLSPolicies
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  BackendTrafficPolicies
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </li>
-                <li
                   class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -977,100 +429,10 @@
                   </a>
                 </li>
                 <li
-                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
-                >
-                  <div
-                    class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-11uq76c-MuiCollapse-root"
-                    style="min-height: 0px;"
-                  >
-                    <div
-                      class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
-                    >
-                      <div
-                        class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
-                      >
-                        <ul
-                          class="MuiList-root css-2l483y-MuiList-root"
-                        >
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Service Accounts
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Roles
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Role Bindings
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </li>
-                <li
                   class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -1093,307 +455,10 @@
                   </a>
                 </li>
                 <li
-                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
-                >
-                  <div
-                    class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-11uq76c-MuiCollapse-root"
-                    style="min-height: 0px;"
-                  >
-                    <div
-                      class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
-                    >
-                      <div
-                        class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
-                      >
-                        <ul
-                          class="MuiList-root css-2l483y-MuiList-root"
-                        >
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Config Maps
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Secrets
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  HPAs
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  VPAs
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Pod Disruption Budgets
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Resource Quotas
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Limit Ranges
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Priority Classes
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Runtime Classes
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Leases
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Mutating Webhook Configurations
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Validating Webhook Configurations
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
-                </li>
-                <li
                   class="css-3knmzx"
                 >
                   <a
-                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1b2q14u-MuiButtonBase-root-MuiListItemButton-root"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="0"
@@ -1414,50 +479,6 @@
                       class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                     />
                   </a>
-                </li>
-                <li
-                  class="MuiListItem-root MuiListItem-gutters MuiListItem-padding css-stepuf-MuiListItem-root"
-                >
-                  <div
-                    class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-11uq76c-MuiCollapse-root"
-                    style="min-height: 0px;"
-                  >
-                    <div
-                      class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
-                    >
-                      <div
-                        class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
-                      >
-                        <ul
-                          class="MuiList-root css-2l483y-MuiList-root"
-                        >
-                          <li
-                            class="css-1gktw5r"
-                          >
-                            <a
-                              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1op30le-MuiButtonBase-root-MuiListItemButton-root"
-                              href="/"
-                              role="button"
-                              tabindex="0"
-                            >
-                              <div
-                                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
-                              >
-                                <span
-                                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
-                                >
-                                  Instances
-                                </span>
-                              </div>
-                              <span
-                                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                              />
-                            </a>
-                          </li>
-                        </ul>
-                      </div>
-                    </div>
-                  </div>
                 </li>
               </ul>
             </div>
@@ -1505,7 +526,9 @@
                             />
                             <div
                               class="MuiBox-root css-0"
-                            />
+                            >
+                              v1.2.3
+                            </div>
                           </div>
                           <span
                             class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"

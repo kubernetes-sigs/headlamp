@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext, TestContextProps } from '../../test';
+import { API_BASE, TestContext, TestContextProps } from '../../test';
 import CustomResourceDefinitionDetails from './Details';
 import CustomResourceDefinitionList from './List';
 import { mockCRD, mockCRList } from './storyHelper';
@@ -36,27 +36,25 @@ export default {
       handlers: {
         storyBase: [
           http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
+            `${API_BASE}/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions`,
             () => new HttpResponse(null, { status: 404 })
           ),
           http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions/mydefinition.phonyresources.io',
+            `${API_BASE}/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions/mydefinition.phonyresources.io`,
             () => HttpResponse.error()
           ),
-          http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions',
-            () =>
-              HttpResponse.json({
-                kind: 'List',
-                metadata: {},
-                items: [mockCRD],
-              })
+          http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions`, () =>
+            HttpResponse.json({
+              kind: 'List',
+              metadata: {},
+              items: [mockCRD],
+            })
           ),
           http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions/mydefinition.phonyresources.io',
+            `${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions/mydefinition.phonyresources.io`,
             () => HttpResponse.json(mockCRD)
           ),
-          http.get('http://localhost:4466/apis/my.phonyresources.io/v1/mycustomresources', () =>
+          http.get(`${API_BASE}/apis/my.phonyresources.io/v1/mycustomresources`, () =>
             HttpResponse.json({
               kind: 'List',
               metadata: {},

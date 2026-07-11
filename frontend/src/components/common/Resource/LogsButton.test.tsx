@@ -125,6 +125,33 @@ vi.mock('../../../lib/k8s/job', () => {
   return { default: Job, __esModule: true };
 });
 
+// launchWorkloadLogs calls i18next's t() directly (outside any React tree), so
+// without this mock it resolves against an uninitialized i18next instance and
+// returns undefined instead of the interpolated string. Keep everything else
+// from the real module intact (other code, e.g. the redux store, calls
+// i18next.t() too) and only patch t() to do simple key interpolation.
+vi.mock('i18next', async importOriginal => {
+  const actual = await importOriginal<typeof import('i18next')>();
+  const fakeT = (key: string, options?: { itemName?: string }) => {
+    // Keep existing tests stable by defaulting to returning the key unchanged.
+    if (key !== 'glossary|Logs: {{ itemName }}') {
+      return key;
+    }
+    const resolvedKey = 'Logs: {{ itemName }}';
+    return options?.itemName
+      ? resolvedKey.replace('{{ itemName }}', options.itemName)
+      : resolvedKey;
+  };
+  const defaultExport: any = actual.default;
+  if (defaultExport) {
+    defaultExport.t = fakeT;
+  }
+  return {
+    ...actual,
+    t: fakeT,
+    default: defaultExport,
+  };
+});
 vi.mock('../../../lib/k8s', () => ({ labelSelectorToQuery: vi.fn(() => 'app=test') }));
 vi.mock('../../../lib/k8s/api/v2/fetch', () => ({
   clusterFetch: (...args: any[]) => mockClusterFetch(...args),

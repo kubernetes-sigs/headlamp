@@ -62,6 +62,7 @@ func portforwardstore(cache cache.Cache[interface{}], p portForward) {
 func stopOrDeletePortForward(cache cache.Cache[interface{}], cluster string, id string, isStopRequest bool) error {
 	portforward, err := getPortForwardByID(cache, cluster, id)
 	if err != nil {
+		//nolint:goconst
 		logger.Log(logger.LevelError, map[string]string{"cluster": cluster, "id": id},
 			err, "getting portforward")
 
@@ -112,7 +113,7 @@ func getPortForwardList(cache cache.Cache[interface{}], cluster string) []portFo
 func getPortForwardByID(cache cache.Cache[interface{}], cluster string, id string) (portForward, error) {
 	cacheValue, err := cache.Get(context.Background(), storeKeyPrefix+cluster+id)
 	if err != nil {
-		return portForward{}, fmt.Errorf("failed to get portforward from cache: %v", err)
+		return portForward{}, fmt.Errorf("failed to get portforward from cache: %w", err)
 	}
 
 	pf, ok := cacheValue.(portForward)

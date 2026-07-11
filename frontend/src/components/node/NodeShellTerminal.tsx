@@ -29,6 +29,7 @@ import { stream, StreamResultsCb } from '../../lib/k8s/api/v1/streamingApi';
 import Node from '../../lib/k8s/node';
 import { KubePod } from '../../lib/k8s/pod';
 import { Channel, useTerminalStream, XTerminalConnected } from '../../lib/k8s/useTerminalStream';
+import store from '../../redux/stores/store';
 
 interface NodeShellTerminalProps {
   item: Node;
@@ -111,8 +112,10 @@ async function shell(item: Node, onExec: StreamResultsCb) {
 
   const clusterSettings = loadClusterSettings(cluster);
   const config = clusterSettings.nodeShellTerminal;
-  const linuxImage = config?.linuxImage || DEFAULT_NODE_SHELL_LINUX_IMAGE;
-  const namespace = config?.namespace || DEFAULT_NODE_SHELL_NAMESPACE;
+  const defaultNamespace = store.getState().config.defaultNodeShellNamespace;
+  const defaultImage = store.getState().config.defaultNodeShellImage;
+  const linuxImage = config?.linuxImage || defaultImage || DEFAULT_NODE_SHELL_LINUX_IMAGE;
+  const namespace = config?.namespace || defaultNamespace || DEFAULT_NODE_SHELL_NAMESPACE;
   const podName = `node-debugger-${item.getName()}-${uniqueString()}`;
   const kubePod = shellPod(podName, namespace, item.getName(), linuxImage);
   try {

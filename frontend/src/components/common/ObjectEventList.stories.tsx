@@ -22,7 +22,7 @@ import { getTestDate } from '../../helpers/testHelpers';
 import { KubeEvent } from '../../lib/k8s/event';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import store from '../../redux/stores/store';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import ObjectEventList, { ObjectEventListProps } from './ObjectEventList';
 
 const mockOwnerObject = new KubeObject({
@@ -118,38 +118,33 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get(
-            'http://localhost:4466/api/v1/namespaces/:namespace/events',
-            ({ params, request }) => {
-              const url = new URL(request.url);
-              const fieldSelector = url.searchParams.get('fieldSelector');
-              const reqNamespace = params.namespace;
+          http.get(`${API_BASE}/api/v1/namespaces/:namespace/events`, ({ params, request }) => {
+            const url = new URL(request.url);
+            const fieldSelector = url.searchParams.get('fieldSelector');
+            const reqNamespace = params.namespace;
 
-              if (
-                reqNamespace === mockOwnerObject.metadata.namespace &&
-                fieldSelector &&
-                fieldSelector.includes(`involvedObject.kind=${mockOwnerObject.kind}`) &&
-                fieldSelector.includes(`involvedObject.name=${mockOwnerObject.metadata.name}`)
-              ) {
-                return HttpResponse.json({
-                  kind: 'EventList',
-                  items: mockEvents,
-                  metadata: {},
-                });
-              }
-              if (
-                reqNamespace === mockOwnerObjectNoEvents.metadata.namespace &&
-                fieldSelector &&
-                fieldSelector.includes(`involvedObject.kind=${mockOwnerObjectNoEvents.kind}`) &&
-                fieldSelector.includes(
-                  `involvedObject.name=${mockOwnerObjectNoEvents.metadata.name}`
-                )
-              ) {
-                return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
-              }
+            if (
+              reqNamespace === mockOwnerObject.metadata.namespace &&
+              fieldSelector &&
+              fieldSelector.includes(`involvedObject.kind=${mockOwnerObject.kind}`) &&
+              fieldSelector.includes(`involvedObject.name=${mockOwnerObject.metadata.name}`)
+            ) {
+              return HttpResponse.json({
+                kind: 'EventList',
+                items: mockEvents,
+                metadata: {},
+              });
+            }
+            if (
+              reqNamespace === mockOwnerObjectNoEvents.metadata.namespace &&
+              fieldSelector &&
+              fieldSelector.includes(`involvedObject.kind=${mockOwnerObjectNoEvents.kind}`) &&
+              fieldSelector.includes(`involvedObject.name=${mockOwnerObjectNoEvents.metadata.name}`)
+            ) {
               return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
             }
-          ),
+            return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
+          }),
         ],
       },
     },
@@ -193,10 +188,10 @@ ErrorFetching.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/default/events', () => {
+        http.get(`${API_BASE}/api/v1/namespaces/default/events`, () => {
           return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
         }),
-        http.get('http://localhost:4466/api/v1/namespaces/errors/events', ({ request }) => {
+        http.get(`${API_BASE}/api/v1/namespaces/errors/events`, ({ request }) => {
           const url = new URL(request.url);
           const fieldSelector = url.searchParams.get('fieldSelector');
           if (fieldSelector && fieldSelector.includes('involvedObject.name=error-secret')) {

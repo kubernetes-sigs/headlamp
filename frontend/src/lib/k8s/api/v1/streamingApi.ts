@@ -116,7 +116,7 @@ export function streamResult<T extends KubeObjectInterface>(
  * @param errCb - The callback function to execute when an error occurs.
  * @param queryParams - The query parameters to include in the API request.
  *
- * @returns A function to cancel the stream.
+ * @returns A promise that resolves to a function which can be called to cancel the stream.
  */
 export function streamResults<T extends KubeObjectInterface>(
   url: string,
@@ -128,7 +128,10 @@ export function streamResults<T extends KubeObjectInterface>(
   return streamResultsForCluster(url, { cb, errCb, cluster }, queryParams);
 }
 
-// @todo: this interface needs documenting.
+/**
+ * Configuration options for establishing a stream to a cluster.
+ * Groups the cluster name along with the callbacks used to process incoming data and errors.
+ */
 
 export interface StreamResultsParams {
   cb: StreamResultsCb;
@@ -136,7 +139,14 @@ export interface StreamResultsParams {
   cluster?: string;
 }
 
-// @todo: needs documenting
+/**
+ * Establishes a stream to the Kubernetes API for a specific cluster.
+ *
+ * @param url - The Kubernetes API endpoint to stream from.
+ * @param params - The callback functions and cluster information.
+ * @param queryParams - Optional query parameters to append to the request.
+ * @returns A promise that resolves to a function which can be called to cancel the stream.
+ */
 
 export function streamResultsForCluster(
   url: string,
@@ -265,6 +275,16 @@ export function streamResultsForCluster(
 }
 
 /**
+ * The connection handle returned by the stream connection helpers.
+ */
+export interface StreamConnection {
+  /** Closes the underlying WebSocket connection. */
+  close: () => void;
+  /** The underlying WebSocket, or null if it could not be created. */
+  socket: WebSocket | null;
+}
+
+/**
  * Configure a stream with... StreamArgs.
  */
 export interface StreamArgs {
@@ -297,7 +317,7 @@ export interface StreamArgs {
  * the stream, and `getSocket`, which returns the WebSocket object.
  */
 export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs) {
-  let connection: { close: () => void; socket: WebSocket | null } | null = null;
+  let connection: StreamConnection | null = null;
   let isCancelled = false;
   const { failCb, cluster = '' } = args;
   // We only set reconnectOnFailure as true by default if the failCb has not been provided.
@@ -353,8 +373,6 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
   }
 }
 
-// @todo: needs a return type.
-
 /**
  * Connects to a WebSocket stream at the specified path and returns an object
  * with a `close` function and a `socket` property. Sends messages to `cb` callback.
@@ -365,7 +383,7 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
  * @param isJson - Whether the messages should be parsed as JSON.
  * @param additionalProtocols - An optional array of additional WebSocket protocols to use.
  *
- * @returns An object with a `close` function and a `socket` property.
+ * @returns A promise that resolves to an object with a `close` function and a `socket` property.
  */
 export async function connectStream<T>(
   path: string,
@@ -374,7 +392,7 @@ export async function connectStream<T>(
   isJson: boolean,
   additionalProtocols: string[] = [],
   cluster = ''
-) {
+): Promise<StreamConnection> {
   return connectStreamWithParams(path, cb, onFail, {
     isJson,
     cluster: cluster || getCluster() || '',
@@ -382,11 +400,15 @@ export async function connectStream<T>(
   });
 }
 
-// @todo: needs documenting.
-
+/**
+ * Configuration options for establishing a stream.
+ */
 interface StreamParams {
+  /** The name of the cluster to connect to. */
   cluster?: string;
+  /** Whether the stream is expected to receive JSON data. */
   isJson?: boolean;
+  /** Additional WebSocket protocols to use when connecting. */
   additionalProtocols?: string[];
 }
 
@@ -412,10 +434,7 @@ export async function connectStreamWithParams<T>(
   cb: StreamResultsCb<T>,
   onFail: () => void,
   params?: StreamParams
-): Promise<{
-  close: () => void;
-  socket: WebSocket | null;
-}> {
+): Promise<StreamConnection> {
   const { isJson = false, additionalProtocols = [], cluster = '' } = params || {};
   let isClosing = false;
 

@@ -17,7 +17,7 @@
 import { Icon } from '@iconify/react';
 import { http, HttpResponse } from 'msw';
 import Pod from '../../lib/k8s/pod';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import { podList } from '../pod/storyHelper';
 import { GraphNode, GraphSource } from './graph/graphModel';
 import { GraphView } from './GraphView';
@@ -30,31 +30,27 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions',
-            () =>
-              HttpResponse.json({
-                kind: 'List',
-                items: [],
-                metadata: {},
-              })
+          http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions`, () =>
+            HttpResponse.json({
+              kind: 'List',
+              items: [],
+              metadata: {},
+            })
           ),
-          http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
-            () =>
-              HttpResponse.json(
-                {
-                  kind: 'Status',
-                  apiVersion: 'v1',
-                  status: 'Failure',
-                  reason: 'NotFound',
-                  message: 'the server could not find the requested resource',
-                  code: 404,
-                },
-                { status: 404 }
-              )
+          http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions`, () =>
+            HttpResponse.json(
+              {
+                kind: 'Status',
+                apiVersion: 'v1',
+                status: 'Failure',
+                reason: 'NotFound',
+                message: 'the server could not find the requested resource',
+                code: 404,
+              },
+              { status: 404 }
+            )
           ),
-          http.get('http://localhost:4466/apis/autoscaling.k8s.io/v1', () =>
+          http.get(`${API_BASE}/apis/autoscaling.k8s.io/v1`, () =>
             HttpResponse.json(
               {
                 kind: 'Status',

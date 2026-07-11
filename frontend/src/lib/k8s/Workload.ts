@@ -23,6 +23,14 @@ import type Pod from './pod';
 import type ReplicaSet from './replicaSet';
 import type StatefulSet from './statefulSet';
 
+/**
+ * Coarse health category for a workload item, used by the Workloads overview
+ * chart. Replica-based workloads only use the binary healthy/failed distinction,
+ * but item-based workloads (Pods) also need to tell genuine failures apart from
+ * transitional states (Pending, Terminating) and degraded-but-running items.
+ */
+export type WorkloadHealthCategory = 'healthy' | 'degraded' | 'transitional' | 'failed';
+
 export type Workload =
   | Pod
   | DaemonSet

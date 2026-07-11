@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import HPADetails from './Details';
 
 const mockItem = {
@@ -55,7 +55,7 @@ export default {
     msw: {
       handlers: {
         storyBase: [
-          http.get('http://localhost:4466/apis/scheduling.k8s.io/v1/priorityclasses', () =>
+          http.get(`${API_BASE}/apis/scheduling.k8s.io/v1/priorityclasses`, () =>
             HttpResponse.error()
           ),
         ],
@@ -72,9 +72,8 @@ Default.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get(
-          'http://localhost:4466/apis/scheduling.k8s.io/v1/priorityclasses/my-endpoint',
-          () => HttpResponse.json(mockItem)
+        http.get(`${API_BASE}/apis/scheduling.k8s.io/v1/priorityclasses/my-endpoint`, () =>
+          HttpResponse.json(mockItem)
         ),
       ],
     },
@@ -86,9 +85,8 @@ Error.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get(
-          'http://localhost:4466/apis/scheduling.k8s.io/v1/priorityclasses/my-endpoint',
-          () => HttpResponse.error()
+        http.get(`${API_BASE}/apis/scheduling.k8s.io/v1/priorityclasses/my-endpoint`, () =>
+          HttpResponse.error()
         ),
       ],
     },

@@ -1,0 +1,7 @@
+# Test case for disabling the bundled static plugins (e.g. the Prometheus
+# "Show Prometheus metrics" plugin). With staticPlugins.enabled set to false the
+# deployment should set HEADLAMP_STATIC_PLUGINS_DIR to an empty string so the
+# backend skips serving them.
+config:
+  staticPlugins:
+    enabled: false

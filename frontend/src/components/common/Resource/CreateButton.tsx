@@ -26,14 +26,26 @@ import * as yaml from 'js-yaml';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSelectedClusters } from '../../../lib/k8s';
+import CronJob from '../../../lib/k8s/cronJob';
+import Deployment from '../../../lib/k8s/deployment';
+import Job from '../../../lib/k8s/job';
 import Pod from '../../../lib/k8s/pod';
+import ReplicaSet from '../../../lib/k8s/replicaSet';
 import { Activity } from '../../activity/Activity';
+import CreateCronJobForm from '../../cronjob/CreateCronJobForm';
+import CreateDeploymentForm from '../../deployments/CreateDeploymentForm';
+import CreateJobForm from '../../job/CreateJobForm';
 import CreatePodForm from '../../pod/CreatePodForm';
+import CreateReplicaSetForm from '../../replicaset/CreateReplicaSetForm';
 import ActionButton from '../ActionButton';
 import EditorDialog from './EditorDialog';
 
 export const RESOURCE_DEFINITIONS = {
   Pod: { class: Pod, form: CreatePodForm },
+  Deployment: { class: Deployment, form: CreateDeploymentForm },
+  ReplicaSet: { class: ReplicaSet, form: CreateReplicaSetForm },
+  Job: { class: Job, form: CreateJobForm },
+  CronJob: { class: CronJob, form: CreateCronJobForm },
 };
 
 export type ResourceType = keyof typeof RESOURCE_DEFINITIONS;
@@ -70,8 +82,11 @@ function CreateActivityContent(props: { onClose: () => void }) {
   const [selectedResource, setSelectedResource] = React.useState<ResourceType | undefined>();
   const [targetCluster, setTargetCluster] = React.useState(clusters[0] || '');
 
+  const [formValid, setFormValid] = React.useState(false);
+
   function handleResourceChange(resource: ResourceType | undefined) {
     setSelectedResource(resource);
+    setFormValid(false);
     if (resource && resource in RESOURCE_DEFINITIONS) {
       const baseObject = RESOURCE_DEFINITIONS[resource].class.getBaseObject();
       setItem(baseObject);
@@ -146,7 +161,13 @@ function CreateActivityContent(props: { onClose: () => void }) {
         {selectedResource &&
           (() => {
             const FormComponent = RESOURCE_DEFINITIONS[selectedResource].form;
-            return <FormComponent resource={formResource} onChange={handleFormChange} />;
+            return (
+              <FormComponent
+                resource={formResource}
+                onChange={handleFormChange}
+                onValidChange={setFormValid}
+              />
+            );
           })()}
       </Box>
     );
@@ -166,6 +187,7 @@ function CreateActivityContent(props: { onClose: () => void }) {
       title={t('translation|Create / Apply')}
       cluster={targetCluster}
       formContent={renderFormContent()}
+      formInvalid={!formValid}
       actions={
         clusters.length > 1
           ? [

@@ -38,7 +38,7 @@ describe('PluginManager Test Cases', () => {
 
   afterAll(() => {
     // Remove the temporary directory after all tests
-    fs.rmdirSync(tempDir, { recursive: true });
+    fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
   beforeEach(() => {
@@ -113,7 +113,7 @@ describe('PluginManager Test Cases', () => {
       message: 'Plugin Uninstalled',
     });
 
-    fs.rmdirSync(tempDir, { recursive: true });
+    fs.rmSync(tempDir, { recursive: true, force: true });
   });
 });
 

@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import { generateK8sResourceList } from '../../test/mocker';
 import List from './List';
 import { jobSets } from './storyHelper';
@@ -81,7 +81,7 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get('http://localhost:4466/apis/jobset.x-k8s.io/v1alpha2/jobsets', () =>
+          http.get(`${API_BASE}/apis/jobset.x-k8s.io/v1alpha2/jobsets`, () =>
             HttpResponse.json({
               kind: 'JobSetList',
               metadata: {},

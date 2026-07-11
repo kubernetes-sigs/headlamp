@@ -88,10 +88,6 @@ vi.mock('../common/Resource/AuthVisible', () => ({
   default: ({ children }: any) => <div>{children}</div>,
 }));
 
-vi.mock('../diagnostics/Diagnostics', () => ({
-  PodDiagnosticsSection: () => null,
-}));
-
 vi.mock('../../lib/k8s', () => ({}));
 
 vi.mock('../../lib/k8s/pod', () => {

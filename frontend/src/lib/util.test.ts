@@ -16,8 +16,11 @@
 
 import {
   combineClusterListErrors,
+  compareUnits,
   flattenClusterListItems,
   formatDuration,
+  getPercentStr,
+  isValidTimezone,
   normalizeUnit,
   timeAgo,
 } from './util';
@@ -56,6 +59,31 @@ describe('flattenClusterListItems', () => {
       null
     );
     expect(result).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe('getPercentStr', () => {
+  it('should return null when total is zero', () => {
+    expect(getPercentStr(0, 0)).toBeNull();
+  });
+
+  it('should not add decimals for whole-number percentages', () => {
+    // Multiples of ten and other whole numbers should render identically.
+    expect(getPercentStr(7, 10)).toBe('70 %');
+    expect(getPercentStr(2, 4)).toBe('50 %');
+    expect(getPercentStr(3, 4)).toBe('75 %');
+    expect(getPercentStr(1, 4)).toBe('25 %');
+    expect(getPercentStr(1, 1)).toBe('100 %');
+    expect(getPercentStr(0, 4)).toBe('0 %');
+    // 29/100 computes to 28.999999999999996; it must still render as "29 %".
+    expect(getPercentStr(29, 100)).toBe('29 %');
+  });
+
+  it('should keep a single decimal for fractional percentages', () => {
+    expect(getPercentStr(5, 8)).toBe('62.5 %');
+    expect(getPercentStr(1, 8)).toBe('12.5 %');
+    expect(getPercentStr(2, 3)).toBe('66.7 %');
+    expect(getPercentStr(1, 3)).toBe('33.3 %');
   });
 });
 
@@ -316,5 +344,77 @@ describe('normalizeUnit', () => {
     it('shows plural cores', () => {
       expect(normalizeUnit('cpu', '2')).toBe('2 cores');
     });
+  });
+});
+
+describe('isValidTimezone', () => {
+  it('returns true for valid IANA timezone identifiers', () => {
+    expect(isValidTimezone('UTC')).toBe(true);
+    expect(isValidTimezone('America/New_York')).toBe(true);
+    expect(isValidTimezone('Europe/Bucharest')).toBe(true);
+    expect(isValidTimezone('Asia/Tokyo')).toBe(true);
+  });
+
+  it('returns false for Etc/Unknown (the Chrome crash case)', () => {
+    const originalDateTimeFormat = Intl.DateTimeFormat;
+    const spy = vi.spyOn(Intl, 'DateTimeFormat').mockImplementation((locale, options) => {
+      if (options && options.timeZone === 'Etc/Unknown') {
+        throw new RangeError('Invalid time zone');
+      }
+      return new originalDateTimeFormat(locale, options);
+    });
+
+    try {
+      expect(isValidTimezone('Etc/Unknown')).toBe(false);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('returns false for other unrecognised timezone strings', () => {
+    expect(isValidTimezone('Invalid/Timezone')).toBe(false);
+    expect(isValidTimezone('foobar')).toBe(false);
+    expect(isValidTimezone(':/etc/localtime')).toBe(false);
+  });
+});
+
+describe('compareUnits', () => {
+  it('compares identical values', () => {
+    expect(compareUnits('500m', '500m')).toBe(true);
+  });
+
+  it('ignores whitespace differences', () => {
+    expect(compareUnits('  500 m  ', '500m')).toBe(true);
+    expect(compareUnits('500m', ' 500m ')).toBe(true);
+  });
+
+  it('ignores case differences', () => {
+    expect(compareUnits('500Mi', '500mi')).toBe(true);
+    expect(compareUnits('2ki', '2Ki')).toBe(true);
+  });
+
+  it('treats normalized formatting as equal when numeric value matches', () => {
+    expect(compareUnits('1k', normalizeUnit('memory', '1k'))).toBe(true);
+  });
+
+  it('returns true for matching decimal/fractional numbers', () => {
+    expect(compareUnits('1.5', '1.50')).toBe(true);
+    expect(compareUnits('2.3Mi', '2.3')).toBe(true);
+  });
+
+  it('returns false for mismatched decimal/fractional values', () => {
+    expect(compareUnits('1.5Gi', '1.61 GB')).toBe(false);
+    expect(compareUnits('2.3', '2.4')).toBe(false);
+  });
+
+  it('returns false for mismatched parsed values', () => {
+    expect(compareUnits('500m', '250m')).toBe(false);
+    expect(compareUnits('1Ki', '2Ki')).toBe(false);
+  });
+
+  it('returns false when either value does not start with a number (NaN cases)', () => {
+    expect(compareUnits('abc', '1')).toBe(false);
+    expect(compareUnits('1', 'abc')).toBe(false);
+    expect(compareUnits('', '')).toBe(false);
   });
 });

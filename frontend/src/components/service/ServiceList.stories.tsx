@@ -17,7 +17,7 @@
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import React from 'react';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import List from './List';
 
 const items = [
@@ -109,7 +109,7 @@ Items.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/services', () =>
+        http.get(`${API_BASE}/api/v1/services`, () =>
           HttpResponse.json({
             kind: 'List',
             items,
@@ -125,7 +125,7 @@ WithOwnerAnnotation.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/services', () =>
+        http.get(`${API_BASE}/api/v1/services`, () =>
           HttpResponse.json({
             kind: 'List',
             items: [serviceWithOwner],

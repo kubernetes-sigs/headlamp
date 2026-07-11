@@ -347,11 +347,12 @@ export function SearchPopover(props: SearchPopoverProps) {
       searchAddonRef.current?.findNext('');
     }
 
-    searchAddonRef.current?.onDidChangeResults(args => {
+    const disposable = searchAddonRef.current?.onDidChangeResults(args => {
       setSearchResult(args);
     });
 
     return function cleanup() {
+      disposable?.dispose();
       // eslint-disable-next-line react-hooks/exhaustive-deps
       searchAddonRef.current?.findNext('');
     };

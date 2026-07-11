@@ -26,6 +26,7 @@ import Select from '@mui/material/Select';
 import { styled } from '@mui/material/styles';
 import Switch from '@mui/material/Switch';
 import { Terminal as XTerminal } from '@xterm/xterm';
+import { t } from 'i18next';
 import { useSnackbar } from 'notistack';
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -40,6 +41,7 @@ import { KubeObject } from '../../../lib/k8s/KubeObject';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import StatefulSet from '../../../lib/k8s/statefulSet';
+import { useId } from '../../../lib/util';
 import {
   EventStatus,
   HeadlampEvent,
@@ -47,6 +49,7 @@ import {
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
 import { Activity } from '../../activity/Activity';
+import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import ActionButton from '../ActionButton';
 import { LogViewer } from '../LogViewer';
 import { LightTooltip } from '../Tooltip';
@@ -100,8 +103,11 @@ function LogsButtonContent({ item }: LogsButtonProps) {
   });
   const [allPodLogs, setAllPodLogs] = useState<{ [podName: string]: string[] }>({});
 
-  const [showTimestamps, setShowTimestamps] = useState<boolean>(true);
-  const [follow, setFollow] = useState<boolean>(true);
+  const [showTimestamps, setShowTimestamps] = useLocalStorageState<boolean>(
+    'headlamp.logs.showTimestamps',
+    true
+  );
+  const [follow, setFollow] = useLocalStorageState<boolean>('headlamp.logs.follow', true);
   const [lines, setLines] = useState<number>(100);
   const [showPrevious, setShowPrevious] = React.useState<boolean>(false);
   const [showReconnectButton, setShowReconnectButton] = useState(false);
@@ -143,6 +149,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSeverities]);
   const { t } = useTranslation(['glossary', 'translation']);
+  const selectLabelId = useId('logs-button-');
   const { enqueueSnackbar } = useSnackbar();
 
   const clearLogs = React.useCallback(() => {
@@ -227,7 +234,7 @@ function LogsButtonContent({ item }: LogsButtonProps) {
         console.error('Error fetching pods:', error);
         enqueueSnackbar(
           t('translation|Failed to fetch pods: {{error}}', {
-            error: error instanceof Error ? error.message : t('translation|Unknown error'),
+            error: error instanceof Error ? error.message : t('translation|unknown error'),
           }),
           {
             variant: 'error',
@@ -486,8 +493,10 @@ function LogsButtonContent({ item }: LogsButtonProps) {
     >
       {/* Pod selection dropdown */}
       <FormControl sx={{ minWidth: 200 }}>
-        <InputLabel>{t('translation|Select Pod')}</InputLabel>
+        <InputLabel id={`${selectLabelId}-pod-label`}>{t('translation|Select Pod')}</InputLabel>
         <Select
+          labelId={`${selectLabelId}-pod-label`}
+          id={`${selectLabelId}-pod`}
           value={selectedPodIndex}
           onChange={event => {
             setSelectedPodIndex(event.target.value as number | 'all');
@@ -506,8 +515,12 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
       {/* Container selection dropdown */}
       <FormControl sx={{ minWidth: 200 }}>
-        <InputLabel>{t('translation|Container')}</InputLabel>
+        <InputLabel id={`${selectLabelId}-container-label`}>
+          {t('translation|Container')}
+        </InputLabel>
         <Select
+          labelId={`${selectLabelId}-container-label`}
+          id={`${selectLabelId}-container`}
           value={selectedContainer}
           onChange={event => {
             setSelectedContainer(event.target.value);
@@ -529,21 +542,29 @@ function LogsButtonContent({ item }: LogsButtonProps) {
 
       {/* Lines selector */}
       <FormControl sx={{ minWidth: 120 }}>
-        <InputLabel>Lines</InputLabel>
-        <Select value={lines} onChange={handleLinesChange}>
+        <InputLabel id={`${selectLabelId}-lines-label`}>{t('translation|Lines')}</InputLabel>
+        <Select
+          labelId={`${selectLabelId}-lines-label`}
+          id={`${selectLabelId}-lines`}
+          label={t('translation|Lines')}
+          value={lines}
+          onChange={handleLinesChange}
+        >
           {[100, 1000, 2500].map(i => (
             <MenuItem key={i} value={i}>
               {i}
             </MenuItem>
           ))}
-          <MenuItem value={-1}>All</MenuItem>
+          <MenuItem value={-1}>{t('translation|All')}</MenuItem>
         </Select>
       </FormControl>
 
       {/* Severity filter dropdown */}
       <FormControl sx={{ minWidth: 140 }}>
-        <InputLabel>{t('translation|Severity')}</InputLabel>
+        <InputLabel id={`${selectLabelId}-severity-label`}>{t('translation|Severity')}</InputLabel>
         <Select
+          labelId={`${selectLabelId}-severity-label`}
+          id={`${selectLabelId}-severity`}
           multiple
           value={selectedSeverities}
           onChange={event => {
@@ -666,7 +687,7 @@ export function launchWorkloadLogs(
   }
   Activity.launch({
     id: 'logs-' + item.metadata.uid,
-    title: 'Logs: ' + item.metadata.name,
+    title: t('glossary|Logs: {{ itemName }}', { itemName: item.metadata.name }),
     icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
     cluster: item.cluster,
     location: 'full',

@@ -24,6 +24,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cli/browser"
@@ -94,19 +95,34 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		UserPluginDir:          conf.UserPluginsDir,
 		EnableHelm:             conf.EnableHelm,
 		EnableDynamicClusters:  conf.EnableDynamicClusters,
+		EnableClusterInventory: conf.EnableClusterInventory,
 		AllowKubeconfigChanges: conf.AllowKubeconfigChanges,
 		WatchPluginsChanges:    conf.WatchPluginsChanges,
 		KubeConfigStore:        kubeConfigStore,
 		BaseURL:                conf.BaseURL,
-		ProxyURLs:              strings.Split(conf.ProxyURLs, ","),
-		TLSCertPath:            conf.TLSCertPath,
-		TLSKeyPath:             conf.TLSKeyPath,
-		SessionTTL:             conf.SessionTTL,
-		PodDebugImage:          conf.PodDebugImage,
-		OidcUseCookie:          conf.OidcUseCookie,
-		DefaultLightTheme:      conf.DefaultLightTheme,
-		DefaultDarkTheme:       conf.DefaultDarkTheme,
-		ForceTheme:             conf.ForceTheme,
+		ProxyURLs: func() []string {
+			if conf.ProxyURLs == "" {
+				return []string{}
+			}
+
+			return strings.Split(conf.ProxyURLs, ",")
+		}(),
+		ClusterInventoryProviderFile:          conf.ClusterInventoryProviderFile,
+		ClusterInventoryLabelSelector:         conf.ClusterInventoryLabelSelector,
+		ClusterInventoryRootReconcileInterval: conf.ClusterInventoryRootReconcileInterval,
+		ClusterInventoryNoCRDCacheTTL:         conf.ClusterInventoryNoCRDCacheTTL,
+		TLSCertPath:                           conf.TLSCertPath,
+		TLSKeyPath:                            conf.TLSKeyPath,
+		SessionTTL:                            conf.SessionTTL,
+		PodDebugImage:                         conf.PodDebugImage,
+		NodeShellImage:                        conf.NodeShellImage,
+		NodeShellNamespace:                    conf.NodeShellNamespace,
+		OidcUseCookie:                         conf.OidcUseCookie,
+		DefaultLightTheme:                     conf.DefaultLightTheme,
+		DefaultDarkTheme:                      conf.DefaultDarkTheme,
+		ForceTheme:                            conf.ForceTheme,
+		UnsafeUseServiceAccountToken:          conf.UnsafeUseServiceAccountToken,
+		ServiceAccountTokenPath:               conf.ServiceAccountTokenPath,
 	}
 }
 
@@ -125,10 +141,66 @@ func buildTelemetryConfig(conf *config.Config) config.Config {
 	}
 }
 
+// setupKubeConfigStoreWatcher sets up a listener on the kubeConfigStore to sync watchers
+// when kubeconfig contexts change.
+func setupKubeConfigStoreWatcher(kubeConfigStore kubeconfig.ContextStore) {
+	var (
+		syncTimer  *time.Timer
+		syncMu     sync.Mutex
+		generation int64
+	)
+
+	kubeConfigStore.AddListener(func() {
+		syncMu.Lock()
+		defer syncMu.Unlock()
+
+		generation++
+		currentGen := generation
+
+		if syncTimer != nil {
+			syncTimer.Stop()
+		}
+
+		syncTimer = time.AfterFunc(500*time.Millisecond, func() {
+			syncMu.Lock()
+			if currentGen != generation {
+				syncMu.Unlock()
+				return
+			}
+			syncMu.Unlock()
+
+			active, err := kubeConfigStore.GetContextKeys()
+			if err != nil {
+				logger.Log(logger.LevelWarn, nil, err, "failed to get kubeconfig context keys; skipping watcher sync")
+				return
+			}
+
+			k8cache.SyncWatchers(k8sResponseCache, active)
+		})
+	})
+}
+
+// loadOidcCACert reads the OIDC CA certificate from file if configured.
+func loadOidcCACert(oidcCAFile string) string {
+	if oidcCAFile == "" {
+		return ""
+	}
+
+	caFileContents, err := os.ReadFile(oidcCAFile) //nolint:gosec
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "reading oidc ca file")
+		os.Exit(1)
+	}
+
+	return string(caFileContents)
+}
+
 func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
-	multiplexer := NewMultiplexer(kubeConfigStore)
+	setupKubeConfigStoreWatcher(kubeConfigStore)
+
+	multiplexer := NewMultiplexer(kubeConfigStore, conf.InCluster && conf.UnsafeUseServiceAccountToken)
 
 	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),
@@ -149,16 +221,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		Cache:                     cache,
 		Multiplexer:               multiplexer,
 		TelemetryConfig:           buildTelemetryConfig(conf),
-	}
-
-	if conf.OidcCAFile != "" {
-		caFileContents, err := os.ReadFile(conf.OidcCAFile) //nolint:gosec
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "reading oidc ca file")
-			os.Exit(1)
-		}
-
-		cfg.OidcCACert = string(caFileContents)
+		OidcCACert:                loadOidcCACert(conf.OidcCAFile),
 	}
 
 	cfg.ProxyAuthEnabled = conf.ProxyAuthEnabled
@@ -167,8 +230,15 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	cfg.ProxyAuthEmailHeader = conf.ProxyAuthEmailHeader
 	cfg.ProxyAuthTokenHeader = conf.ProxyAuthTokenHeader
 
+	compiledProxyURLs, err := compileProxyURLPatterns(cfg.ProxyURLs)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "failed to compile proxy URL patterns")
+		os.Exit(1)
+	}
+
 	return &HeadlampConfig{
-		HeadlampConfig: cfg,
+		HeadlampConfig:    cfg,
+		compiledProxyURLs: compiledProxyURLs,
 	}
 }
 
@@ -214,6 +284,11 @@ func CacheMiddleWare(c *HeadlampConfig) mux.MiddlewareFunc {
 
 func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.ResponseWriter, r *http.Request) {
 	if k8cache.SkipWebSocket(r, next, w) {
+		return
+	}
+
+	if !k8cache.IsKubernetesAPIPath(r.URL.Path) || k8cache.IsSelfSubjectReviewAPIPath(r.URL.Path) {
+		next.ServeHTTP(w, r)
 		return
 	}
 
@@ -268,7 +343,11 @@ func handleCacheAuthorization(
 	kContext *kubeconfig.Context,
 	key string,
 ) bool {
-	isAllowed, authErr := k8cache.IsAllowed(kContext, r)
+	if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+		clearRequestAuthorization(r)
+	}
+
+	isAllowed, authErr := k8cache.IsAllowed(contextKey, kContext, r)
 	if authErr != nil {
 		k8cache.ServeFromCacheOrForwardToK8s(k8sResponseCache, isAllowed, next, key, w, r, rcw)
 

@@ -39,7 +39,7 @@ describe('themeSlice', () => {
   });
 
   it('should handle setTheme', () => {
-    const themeName = 'dark';
+    const themeName = 'Dark';
     const actual = themeReducer(initialState, setTheme(themeName));
     expect(actual.name).toEqual(themeName);
   });

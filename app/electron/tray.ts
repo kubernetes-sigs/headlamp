@@ -17,6 +17,9 @@
 import { BrowserWindow, Menu, nativeImage, Tray } from 'electron';
 import { MenuItemConstructorOptions } from 'electron/main';
 import path from 'path';
+import { loadSettings, saveSettings, SETTINGS_PATH } from './settings';
+
+const TRAY_SETTING_KEY = 'enableSystemTray';
 
 type ClusterStatus = {
   name: string;
@@ -39,6 +42,40 @@ let trayUpdateTimeout: NodeJS.Timeout | null = null;
 
 export function shouldRunTray(): boolean {
   return ['darwin', 'linux', 'win32'].includes(process.platform);
+}
+
+// settings.json is user-editable, so it may contain valid JSON that is not a
+// plain object (e.g. an array or string). Treat anything else as empty.
+function asSettingsObject(value: unknown): Record<string, any> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value)
+    ? (value as Record<string, any>)
+    : {};
+}
+
+/**
+ * Whether the user has the system tray icon enabled.
+ * Defaults to true when the setting is unset, to preserve existing behavior.
+ */
+export function isTrayIconEnabled(settingsPath: string = SETTINGS_PATH): boolean {
+  const settings = asSettingsObject(loadSettings(settingsPath));
+  return settings[TRAY_SETTING_KEY] !== false;
+}
+
+/**
+ * Persists whether the system tray icon should be created.
+ * Errors writing the settings file are logged and swallowed so a failure here
+ * (e.g. unwritable settings.json) can't take down the Electron main process.
+ * The runtime tray state still updates; the on-disk setting just doesn't get
+ * the new value, so it falls back to the previously persisted one on restart.
+ */
+export function setTrayIconEnabled(enabled: boolean, settingsPath: string = SETTINGS_PATH): void {
+  try {
+    const settings = asSettingsObject(loadSettings(settingsPath));
+    settings[TRAY_SETTING_KEY] = enabled;
+    saveSettings(settingsPath, settings);
+  } catch (error) {
+    console.error('Failed to persist tray icon setting:', error);
+  }
 }
 
 export function isHeadlampTrayCreated(): boolean {
@@ -64,6 +101,10 @@ export function cleanupHeadlampTray(): void {
 
 export function createHeadlampTray(options: HeadlampTrayOptions): boolean {
   if (!shouldRunTray()) {
+    return false;
+  }
+
+  if (!isTrayIconEnabled()) {
     return false;
   }
 

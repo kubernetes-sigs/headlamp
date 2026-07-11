@@ -243,9 +243,18 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
         setHovered(false);
       }}
       onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === 'Space') {
-          openDetails();
+        if (e.key !== 'Enter' && e.key !== ' ') {
+          return;
         }
+        // Space scrolls the page by default; prevent it even on key repeat.
+        if (e.key === ' ') {
+          e.preventDefault();
+        }
+        // Ignore auto-repeat so holding the key does not re-trigger activation.
+        if (e.repeat) {
+          return;
+        }
+        openDetails();
       }}
     >
       <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />

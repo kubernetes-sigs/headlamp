@@ -14,10 +14,69 @@
  * limitations under the License.
  */
 
-import { beforeEach, describe, expect, it, MockedFunction, vi } from 'vitest';
-import { apiDiscovery } from './apiDiscovery'; // Adjust path as needed
-// Adjust path as needed
-import { clusterFetch } from './fetch'; // Adjust path as needed
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  MockedFunction,
+  MockInstance,
+  vi,
+} from 'vitest';
+import { apiDiscovery, MAX_SUMMARY_KEYS, type PayloadSummary } from './apiDiscovery';
+import { clusterFetch } from './fetch';
+
+// Reused across tests that need a Response whose body fails to parse as JSON.
+const mockJsonParseFailure = (reason: unknown): Response =>
+  ({
+    ok: true,
+    status: 200,
+    json: () => Promise.reject(reason),
+  } as unknown as Response);
+
+// Type guards used by the #4840 logging tests. Each variant validates its own
+// required fields so an unrelated debug object that happens to carry a `type`
+// string can't pass; only objects that match `summarizeAggregatedPayload`'s
+// actual contract are accepted.
+function isPayloadSummary(value: unknown): value is PayloadSummary {
+  if (!value || typeof value !== 'object') return false;
+  const v = value as Record<string, unknown>;
+  switch (v.type) {
+    case 'null':
+      return true;
+    case 'array':
+      return typeof v.length === 'number';
+    case 'object':
+      return Array.isArray(v.keys) && typeof v.truncated === 'boolean';
+    case 'string':
+      return typeof v.length === 'number' && typeof v.preview === 'string';
+    case 'number':
+    case 'boolean':
+    case 'undefined':
+    case 'bigint':
+    case 'symbol':
+    case 'function':
+      return 'value' in v;
+    default:
+      return false;
+  }
+}
+function isNullSummary(value: unknown): value is Extract<PayloadSummary, { type: 'null' }> {
+  return isPayloadSummary(value) && value.type === 'null';
+}
+function isArraySummary(value: unknown): value is Extract<PayloadSummary, { type: 'array' }> {
+  return isPayloadSummary(value) && value.type === 'array';
+}
+function isObjectSummary(value: unknown): value is Extract<PayloadSummary, { type: 'object' }> {
+  return isPayloadSummary(value) && value.type === 'object';
+}
+function isStringSummary(value: unknown): value is Extract<PayloadSummary, { type: 'string' }> {
+  return isPayloadSummary(value) && value.type === 'string';
+}
+function isNumberSummary(value: unknown): value is { type: 'number'; value: unknown } {
+  return isPayloadSummary(value) && value.type === 'number';
+}
 
 // Mock the clusterFetch module
 vi.mock('./fetch', () => ({
@@ -576,5 +635,293 @@ describe('apiDiscovery', () => {
       ]
     `);
     expect(sortedResult).toHaveLength(2);
+  });
+
+  // #4840: critical network and parsing failures used to be swallowed without
+  // logging, making "missing resources in the UI" extremely hard to debug.
+  // These tests pin the discovery path to its debug logging contract.
+  describe('logs the cause of every fallback or skipped fetch (#4840)', () => {
+    // One shared spy created in beforeEach and torn down in afterEach so the
+    // cleanup runs even when an assertion throws. Restoring the single spy
+    // (rather than `vi.restoreAllMocks()`) leaves the file-level `vi.mock`
+    // for `./fetch` intact and avoids cross-test interference.
+    let debugSpy: MockInstance<Console['debug']>;
+
+    beforeEach(() => {
+      debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      debugSpy.mockRestore();
+    });
+
+    it('logs the rejection reason when aggregated /api rejects', async () => {
+      const networkError = new Error('aggregated /api network down');
+
+      mockClusterFetch
+        .mockRejectedValueOnce(networkError) // /api aggregated rejects
+        .mockResolvedValueOnce(mockJsonResponse(mockAggregatedApis)) // /apis aggregated OK
+        .mockResolvedValueOnce(mockJsonResponse({ versions: [] })) // legacy /api (empty)
+        .mockResolvedValueOnce(mockJsonResponse({ groups: [] })); // legacy /apis (empty)
+
+      await apiDiscovery(['cluster1']);
+
+      const messages = debugSpy.mock.calls.map(args => String(args[0]));
+      expect(
+        messages.some(m => m.includes('Aggregated /api discovery unusable for cluster cluster1'))
+      ).toBe(true);
+      expect(debugSpy.mock.calls.some(args => args.includes(networkError))).toBe(true);
+    });
+
+    it('logs the unusable payload when aggregated returns no items array', async () => {
+      const malformed = { unexpected: 'shape' };
+
+      mockClusterFetch
+        .mockResolvedValueOnce(mockJsonResponse(malformed)) // /api aggregated returns malformed shape
+        .mockResolvedValueOnce(mockJsonResponse(mockAggregatedApis)) // /apis aggregated OK
+        .mockResolvedValueOnce(mockJsonResponse({ versions: [] })) // legacy /api (empty)
+        .mockResolvedValueOnce(mockJsonResponse({ groups: [] })); // legacy /apis (empty)
+
+      await apiDiscovery(['cluster1']);
+
+      const messages = debugSpy.mock.calls.map(args => String(args[0]));
+      expect(
+        messages.some(m => m.includes('Aggregated /api discovery unusable for cluster cluster1'))
+      ).toBe(true);
+      // The unusable payload itself is logged as a bounded summary. Pin the
+      // full discriminated shape (`type: 'object'` with `keys` + `truncated`)
+      // so the test matches `summarizeAggregatedPayload`'s contract rather
+      // than any object that happens to carry a `keys` array.
+      const objectSummaries = debugSpy.mock.calls.flat().filter(isObjectSummary);
+      const matching = objectSummaries.filter(s => s.keys.includes('unexpected'));
+      expect(matching.length).toBeGreaterThan(0);
+      expect(matching[0].truncated).toBe(false);
+    });
+
+    it('truncates the summary keys when an aggregated payload has many fields', async () => {
+      // Construct a body with no `items` array but well over MAX_SUMMARY_KEYS
+      // own properties so the bound kicks in. Pin the contract: keys array
+      // is strictly smaller than the input and `truncated` is set.
+      const INPUT_KEY_COUNT = 25;
+      const bigUnusable: Record<string, number> = {};
+      for (let i = 0; i < INPUT_KEY_COUNT; i++) {
+        bigUnusable[`field${i}`] = i;
+      }
+
+      mockClusterFetch
+        .mockResolvedValueOnce(mockJsonResponse(bigUnusable)) // /api aggregated unusable (no items)
+        .mockResolvedValueOnce(mockJsonResponse(mockAggregatedApis)) // /apis aggregated OK
+        .mockResolvedValueOnce(mockJsonResponse({ versions: [] })) // legacy /api (empty)
+        .mockResolvedValueOnce(mockJsonResponse({ groups: [] })); // legacy /apis (empty)
+
+      await apiDiscovery(['cluster1']);
+
+      const truncated = debugSpy.mock.calls
+        .flat()
+        .filter(isObjectSummary)
+        .filter(s => s.truncated);
+      expect(truncated.length).toBeGreaterThan(0);
+      // Pin the exact bound by reusing the exported `MAX_SUMMARY_KEYS`
+      // constant rather than a literal: the assertion stays honest if the
+      // bound shrinks, and a future change that loosens it also fails the
+      // test instead of silently passing.
+      expect(truncated[0].keys.length).toBe(MAX_SUMMARY_KEYS);
+    });
+
+    it('tags a null aggregated body as type null in the summary', async () => {
+      mockClusterFetch
+        .mockResolvedValueOnce(mockJsonResponse(null)) // /api aggregated body is JSON null
+        .mockResolvedValueOnce(mockJsonResponse(mockAggregatedApis)) // /apis aggregated OK
+        .mockResolvedValueOnce(mockJsonResponse({ versions: [] })) // legacy /api (empty)
+        .mockResolvedValueOnce(mockJsonResponse({ groups: [] })); // legacy /apis (empty)
+
+      await apiDiscovery(['cluster1']);
+
+      const nullSummaries = debugSpy.mock.calls.flat().filter(isNullSummary);
+      expect(nullSummaries.length).toBeGreaterThan(0);
+    });
+
+    it('tags an array aggregated body as type array with its length', async () => {
+      const arrayBody = [1, 2, 3, 4];
+      mockClusterFetch
+        .mockResolvedValueOnce(mockJsonResponse(arrayBody)) // /api aggregated body is a top-level array
+        .mockResolvedValueOnce(mockJsonResponse(mockAggregatedApis)) // /apis aggregated OK
+        .mockResolvedValueOnce(mockJsonResponse({ versions: [] })) // legacy /api (empty)
+        .mockResolvedValueOnce(mockJsonResponse({ groups: [] })); // legacy /apis (empty)
+
+      await apiDiscovery(['cluster1']);
+
+      const arraySummaries = debugSpy.mock.calls.flat().filter(isArraySummary);
+      expect(arraySummaries.length).toBeGreaterThan(0);
+      expect(arraySummaries[0].length).toBe(arrayBody.length);
+    });
+
+    it('truncates and length-tags a string aggregated body in the summary', async () => {
+      // A misbehaving proxy can return plain text where JSON discovery was
+      // expected; `res.json()` then parses to a string and we should still
+      // produce a bounded summary instead of dumping the raw body.
+      const stringBody = 'x'.repeat(500);
+      mockClusterFetch
+        .mockResolvedValueOnce(mockJsonResponse(stringBody)) // /api aggregated body is a string
+        .mockResolvedValueOnce(mockJsonResponse(mockAggregatedApis)) // /apis aggregated OK
+        .mockResolvedValueOnce(mockJsonResponse({ versions: [] })) // legacy /api (empty)
+        .mockResolvedValueOnce(mockJsonResponse({ groups: [] })); // legacy /apis (empty)
+
+      await apiDiscovery(['cluster1']);
+
+      const stringSummaries = debugSpy.mock.calls.flat().filter(isStringSummary);
+      expect(stringSummaries.length).toBeGreaterThan(0);
+      expect(stringSummaries[0].length).toBe(stringBody.length);
+      // The preview is strictly shorter than the body so the log stays
+      // bounded even for arbitrarily long string payloads.
+      expect(stringSummaries[0].preview.length).toBeLessThan(stringBody.length);
+    });
+
+    it('tags a primitive aggregated body with its typeof and raw value', async () => {
+      mockClusterFetch
+        .mockResolvedValueOnce(mockJsonResponse(42)) // /api aggregated body is a number
+        .mockResolvedValueOnce(mockJsonResponse(mockAggregatedApis)) // /apis aggregated OK
+        .mockResolvedValueOnce(mockJsonResponse({ versions: [] })) // legacy /api (empty)
+        .mockResolvedValueOnce(mockJsonResponse({ groups: [] })); // legacy /apis (empty)
+
+      await apiDiscovery(['cluster1']);
+
+      const numberSummaries = debugSpy.mock.calls.flat().filter(isNumberSummary);
+      expect(numberSummaries.length).toBeGreaterThan(0);
+      expect(numberSummaries[0].value).toBe(42);
+    });
+
+    it('logs the rejection reason when the legacy /api fetch rejects', async () => {
+      const legacyApiError = new Error('legacy /api dropped');
+
+      mockClusterFetch
+        .mockRejectedValueOnce(new Error('agg /api')) // /api aggregated rejects (clusterFetch throws on non-OK in prod)
+        .mockRejectedValueOnce(new Error('agg /apis')) // /apis aggregated rejects (clusterFetch throws on non-OK in prod)
+        .mockRejectedValueOnce(legacyApiError) // legacy /api rejects
+        .mockResolvedValueOnce(mockJsonResponse({ groups: [] })); // legacy /apis (empty)
+
+      await apiDiscovery(['cluster1']);
+
+      const messages = debugSpy.mock.calls.map(args => String(args[0]));
+      expect(
+        messages.some(m =>
+          m.includes('Legacy /api discovery fetch or parse failed for cluster cluster1')
+        )
+      ).toBe(true);
+      expect(debugSpy.mock.calls.some(args => args.includes(legacyApiError))).toBe(true);
+    });
+
+    it('logs the rejection reason when the legacy /apis fetch rejects', async () => {
+      const legacyApisError = new Error('legacy /apis dropped');
+
+      mockClusterFetch
+        .mockRejectedValueOnce(new Error('agg /api')) // /api aggregated rejects (clusterFetch throws on non-OK in prod)
+        .mockRejectedValueOnce(new Error('agg /apis')) // /apis aggregated rejects (clusterFetch throws on non-OK in prod)
+        .mockResolvedValueOnce(mockJsonResponse({ versions: [] })) // legacy /api (empty)
+        .mockRejectedValueOnce(legacyApisError); // legacy /apis rejects
+
+      await apiDiscovery(['cluster1']);
+
+      const messages = debugSpy.mock.calls.map(args => String(args[0]));
+      expect(
+        messages.some(m =>
+          m.includes('Legacy /apis discovery fetch or parse failed for cluster cluster1')
+        )
+      ).toBe(true);
+      expect(debugSpy.mock.calls.some(args => args.includes(legacyApisError))).toBe(true);
+    });
+
+    it('logs the parse error when the legacy /api response body is not JSON', async () => {
+      // `clusterFetch` resolves OK but `res.json()` rejects, so the same
+      // `.catch` should fire, the "fetch or parse failed" log should
+      // appear, and apiDiscovery should continue by treating the legacy
+      // side as null (so /apis still gets processed).
+      const parseError = new Error('legacy /api invalid JSON');
+
+      mockClusterFetch
+        .mockRejectedValueOnce(new Error('agg /api')) // /api aggregated rejects (clusterFetch throws on non-OK in prod)
+        .mockRejectedValueOnce(new Error('agg /apis')) // /apis aggregated rejects (clusterFetch throws on non-OK in prod)
+        .mockResolvedValueOnce(mockJsonParseFailure(parseError)) // legacy /api: ok but json() rejects
+        .mockResolvedValueOnce(mockJsonResponse({ groups: [] })); // legacy /apis (empty)
+
+      await apiDiscovery(['cluster1']);
+
+      const messages = debugSpy.mock.calls.map(args => String(args[0]));
+      expect(
+        messages.some(m =>
+          m.includes('Legacy /api discovery fetch or parse failed for cluster cluster1')
+        )
+      ).toBe(true);
+      expect(debugSpy.mock.calls.some(args => args.includes(parseError))).toBe(true);
+    });
+
+    it('bounds non-Error rejection reasons through the payload summarizer', async () => {
+      // A pathological rejection reason can itself be a huge object. Routing
+      // non-Error reasons through `summarizeAggregatedPayload` keeps logs
+      // readable even when the reason isn't an Error instance.
+      const hugeReason: Record<string, number> = {};
+      for (let i = 0; i < 100; i++) {
+        hugeReason[`field${i}`] = i;
+      }
+
+      mockClusterFetch
+        .mockRejectedValueOnce(hugeReason) // /api aggregated rejects with a giant non-Error
+        .mockResolvedValueOnce(mockJsonResponse(mockAggregatedApis)) // /apis aggregated OK
+        .mockResolvedValueOnce(mockJsonResponse({ versions: [] })) // legacy /api (empty)
+        .mockResolvedValueOnce(mockJsonResponse({ groups: [] })); // legacy /apis (empty)
+
+      await apiDiscovery(['cluster1']);
+
+      // The raw `hugeReason` was NOT logged directly; the summarizer
+      // produced an object-summary in its place.
+      const rawReasonLogged = debugSpy.mock.calls.some(args => args.includes(hugeReason));
+      expect(rawReasonLogged).toBe(false);
+      const objectSummaries = debugSpy.mock.calls.flat().filter(isObjectSummary);
+      expect(objectSummaries.length).toBeGreaterThan(0);
+    });
+
+    it('logs the parse error when the aggregated /api response body is not JSON', async () => {
+      // The aggregated path also runs through `.then(res => res.json())`,
+      // so a non-JSON body lands as a rejected settlement in
+      // `Promise.allSettled`. The unusable-side log must include the parse
+      // error and apiDiscovery must continue with the legacy fallback.
+      const parseError = new Error('aggregated /api invalid JSON');
+
+      mockClusterFetch
+        .mockResolvedValueOnce(mockJsonParseFailure(parseError)) // /api aggregated: ok but json() rejects
+        .mockResolvedValueOnce(mockJsonResponse(mockAggregatedApis)) // /apis aggregated OK
+        .mockResolvedValueOnce(mockJsonResponse({ versions: [] })) // legacy /api (empty)
+        .mockResolvedValueOnce(mockJsonResponse({ groups: [] })); // legacy /apis (empty)
+
+      await apiDiscovery(['cluster1']);
+
+      const messages = debugSpy.mock.calls.map(args => String(args[0]));
+      expect(
+        messages.some(m => m.includes('Aggregated /api discovery unusable for cluster cluster1'))
+      ).toBe(true);
+      expect(debugSpy.mock.calls.some(args => args.includes(parseError))).toBe(true);
+    });
+
+    it('tags a boolean aggregated body as type boolean with its raw value', async () => {
+      // JSON.parse can produce a top-level boolean from `"true"` / `"false"`;
+      // exercise the boolean branch of the primitive fallthrough alongside
+      // the existing number test.
+      mockClusterFetch
+        .mockResolvedValueOnce(mockJsonResponse(false)) // /api aggregated body is a boolean
+        .mockResolvedValueOnce(mockJsonResponse(mockAggregatedApis)) // /apis aggregated OK
+        .mockResolvedValueOnce(mockJsonResponse({ versions: [] })) // legacy /api (empty)
+        .mockResolvedValueOnce(mockJsonResponse({ groups: [] })); // legacy /apis (empty)
+
+      await apiDiscovery(['cluster1']);
+
+      const booleanSummaries = debugSpy.mock.calls
+        .flat()
+        .filter(
+          (arg): arg is { type: 'boolean'; value: unknown } =>
+            isPayloadSummary(arg) && arg.type === 'boolean'
+        );
+      expect(booleanSummaries.length).toBeGreaterThan(0);
+      expect(booleanSummaries[0].value).toBe(false);
+    });
   });
 });

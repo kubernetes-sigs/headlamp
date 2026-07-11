@@ -26,7 +26,7 @@ vi.mock('../../../helpers/isElectron', () => ({
   isElectron: () => true,
 }));
 
-const theme = createMuiTheme({ name: 'light', base: 'light' });
+const theme = createMuiTheme({ name: 'Light', base: 'light' });
 
 function createPlugins(count: number): PluginInfo[] {
   return Array.from({ length: count }, (_, i) => ({

@@ -67,7 +67,7 @@ describe('themes.ts', () => {
         matchMedia: vi.fn().mockReturnValue({ matches: false }),
       });
 
-      expect(getThemeName()).toBe('light');
+      expect(getThemeName()).toBe('Light');
     });
 
     it('should return dark theme if user prefers dark mode', () => {
@@ -81,7 +81,7 @@ describe('themes.ts', () => {
         })),
       });
 
-      expect(getThemeName()).toBe('dark');
+      expect(getThemeName()).toBe('Dark');
     });
 
     it('should return the theme stored in localStorage', () => {
@@ -132,9 +132,11 @@ describe('themes.ts', () => {
 
     it('should return light when system prefers light', () => {
       Object.defineProperty(window, 'matchMedia', {
-        value: vi
-          .fn()
-          .mockReturnValue({ matches: false, addListener: vi.fn(), removeListener: vi.fn() }),
+        value: vi.fn().mockReturnValue({
+          matches: false,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }),
         writable: true,
         configurable: true,
       });
@@ -144,9 +146,11 @@ describe('themes.ts', () => {
 
     it('should return dark when system prefers dark', () => {
       Object.defineProperty(window, 'matchMedia', {
-        value: vi
-          .fn()
-          .mockReturnValue({ matches: true, addListener: vi.fn(), removeListener: vi.fn() }),
+        value: vi.fn().mockReturnValue({
+          matches: true,
+          addEventListener: vi.fn(),
+          removeEventListener: vi.fn(),
+        }),
         writable: true,
         configurable: true,
       });
@@ -155,6 +159,27 @@ describe('themes.ts', () => {
     });
 
     it('should register and clean up the media query listener', () => {
+      const addEventListener = vi.fn();
+      const removeEventListener = vi.fn();
+      Object.defineProperty(window, 'matchMedia', {
+        value: vi.fn().mockReturnValue({ matches: false, addEventListener, removeEventListener }),
+        writable: true,
+        configurable: true,
+      });
+      const { unmount } = renderHook(() => usePrefersColorScheme());
+
+      expect(addEventListener).toHaveBeenCalledTimes(1);
+      expect(addEventListener).toHaveBeenCalledWith('change', expect.any(Function));
+
+      const handler = addEventListener.mock.calls[0][1];
+
+      unmount();
+
+      expect(removeEventListener).toHaveBeenCalledTimes(1);
+      expect(removeEventListener).toHaveBeenCalledWith('change', handler);
+    });
+
+    it('should register and clean up the media query listener using fallback methods when addEventListener is not defined', () => {
       const addListener = vi.fn();
       const removeListener = vi.fn();
       Object.defineProperty(window, 'matchMedia', {
@@ -163,9 +188,16 @@ describe('themes.ts', () => {
         configurable: true,
       });
       const { unmount } = renderHook(() => usePrefersColorScheme());
+
       expect(addListener).toHaveBeenCalledTimes(1);
+      expect(addListener).toHaveBeenCalledWith(expect.any(Function));
+
+      const handler = addListener.mock.calls[0][0];
+
       unmount();
+
       expect(removeListener).toHaveBeenCalledTimes(1);
+      expect(removeListener).toHaveBeenCalledWith(handler);
     });
   });
 
@@ -252,7 +284,7 @@ describe('themes.ts', () => {
         defaultLightTheme: 'corporate-light',
       };
 
-      expect(getThemeName(backendConfig)).toBe('dark');
+      expect(getThemeName(backendConfig)).toBe('Dark');
     });
 
     it('should handle both default themes with OS preference selection', () => {

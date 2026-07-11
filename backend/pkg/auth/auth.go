@@ -49,6 +49,9 @@ const (
 
 const JWTExpirationTTL = 10 * time.Second // seconds
 
+// errFieldMessage is the JSON field name used by writeMeJSON for error messages.
+const errFieldMessage = "message"
+
 // DecodeBase64JSON decodes a base64 URL-encoded JSON string into a map.
 func DecodeBase64JSON(base64JSON string) (map[string]interface{}, error) {
 	payloadBytes, err := base64.RawURLEncoding.DecodeString(base64JSON)
@@ -71,6 +74,21 @@ var clusterPathRegex = regexp.MustCompile(`^/clusters/([^/]+)/.*`)
 // https://datatracker.ietf.org/doc/html/rfc6750#section-2.1
 var bearerTokenRegex = regexp.MustCompile(`^[\x21-\x7E]+$`)
 
+// BearerTokenValue returns the raw token from an Authorization header value.
+func BearerTokenValue(token string) string {
+	trimmedToken := strings.TrimLeft(token, " \t")
+
+	const bearerScheme = "Bearer"
+	if len(trimmedToken) > len(bearerScheme) && strings.EqualFold(trimmedToken[:len(bearerScheme)], bearerScheme) {
+		credentials := trimmedToken[len(bearerScheme):]
+		if credentials[0] == ' ' || credentials[0] == '\t' {
+			return strings.TrimSpace(credentials)
+		}
+	}
+
+	return strings.TrimSpace(token)
+}
+
 // ParseClusterAndToken extracts the cluster name from the URL path and
 // the Bearer token from the Authorization header of the HTTP request, falling
 // back to the cluster cookie when the header is missing.
@@ -83,14 +101,9 @@ func ParseClusterAndToken(r *http.Request) (string, string) {
 	}
 
 	// Try Authorization header first (for backward compatibility)
-	token := strings.TrimSpace(r.Header.Get("Authorization"))
+	token := BearerTokenValue(r.Header.Get("Authorization"))
 	if strings.Contains(token, ",") {
 		return cluster, ""
-	}
-
-	const bearerPrefix = "Bearer "
-	if strings.HasPrefix(strings.ToLower(token), strings.ToLower(bearerPrefix)) {
-		token = strings.TrimSpace(token[len(bearerPrefix):])
 	}
 
 	// If no auth header, try cookie
@@ -179,7 +192,7 @@ func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 	// get refresh token
 	refreshToken, err := cache.Get(ctx, oidcKeyPrefix+token)
 	if err != nil {
-		return nil, fmt.Errorf("getting refresh token: %v", err)
+		return nil, fmt.Errorf("getting refresh token: %w", err)
 	}
 
 	rToken, ok := refreshToken.(string)
@@ -204,7 +217,7 @@ func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 
 	// update the refresh token in the cache
 	if err := CacheRefreshedToken(newToken, tokenType, token, rToken, cache); err != nil {
-		return nil, fmt.Errorf("caching refreshed token: %v", err)
+		return nil, fmt.Errorf("caching refreshed token: %w", err)
 	}
 
 	return newToken, nil
@@ -237,7 +250,7 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 		ctx = oidc.ClientContext(ctx, &http.Client{Transport: tlsSkipTransport})
 	}
 
-	if caCert != nil {
+	if caCert != nil && *caCert != "" {
 		caCertPool := x509.NewCertPool()
 		if !caCertPool.AppendCertsFromPEM([]byte(*caCert)) {
 			logger.Log(logger.LevelError, nil,
@@ -340,7 +353,7 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		clusterName := mux.Vars(r)["clusterName"]
 		if clusterName == "" {
-			writeMeJSON(w, http.StatusBadRequest, map[string]interface{}{"message": "cluster not specified"})
+			writeMeJSON(w, http.StatusBadRequest, map[string]interface{}{errFieldMessage: "cluster not specified"})
 			return
 		}
 
@@ -355,23 +368,23 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 		}
 
 		if requestCluster != clusterName {
-			writeMeJSON(w, http.StatusBadRequest, map[string]interface{}{"message": "cluster mismatch"})
+			writeMeJSON(w, http.StatusBadRequest, map[string]interface{}{errFieldMessage: "cluster mismatch"})
 			return
 		}
 
 		if token == "" {
-			writeMeJSON(w, http.StatusUnauthorized, map[string]interface{}{"message": "unauthorized"})
+			writeMeJSON(w, http.StatusUnauthorized, map[string]interface{}{errFieldMessage: "unauthorized"})
 			return
 		}
 
 		claims, status, errMsg := parseClaimsFromToken(token)
 		if status != 0 {
-			writeMeJSON(w, status, map[string]interface{}{"message": errMsg})
+			writeMeJSON(w, status, map[string]interface{}{errFieldMessage: errMsg})
 			return
 		}
 
 		if expiry, err := GetExpiryUnixTimeUTC(claims); err != nil || time.Now().After(expiry) {
-			writeMeJSON(w, http.StatusUnauthorized, map[string]interface{}{"message": "token expired"})
+			writeMeJSON(w, http.StatusUnauthorized, map[string]interface{}{errFieldMessage: "token expired"})
 			return
 		}
 

@@ -78,7 +78,9 @@ export function unparseRam(value: number) {
 export function parseCpu(value: string) {
   if (!value) return 0;
 
-  const number = parseInt(value, 10);
+  // parseFloat (not parseInt) so decimal-core quantities like "0.5" or "1.5"
+  // keep their fractional part. Suffixed forms still parse ("500m" -> 500).
+  const number = parseFloat(value);
   if (value.endsWith('n')) return number;
   if (value.endsWith('u')) return number * 1000;
   if (value.endsWith('m')) return number * 1000 * 1000;

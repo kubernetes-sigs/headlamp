@@ -22,7 +22,7 @@ import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 import type { KubePodSpec } from './pod';
 import ReplicaSet, { type KubeReplicaSet } from './replicaSet';
-import { type RevisionInfo, RollbackResult } from './rollback';
+import type { RevisionInfo, RollbackOptions, RollbackResult } from './rollback';
 
 export type { RollbackResult };
 
@@ -37,6 +37,9 @@ export interface KubeDeployment extends KubeObjectInterface {
       metadata?: KubeMetadata;
       spec: KubePodSpec;
     };
+    minReadySeconds?: number;
+    progressDeadlineSeconds?: number;
+    revisionHistoryLimit?: number;
     [otherProps: string]: any;
   };
   status: {
@@ -65,7 +68,7 @@ class Deployment extends KubeObject<KubeDeployment> {
   }
 
   getMatchLabelsList(): string[] {
-    const labels = this.spec.selector.matchLabels || {};
+    const labels = this.spec?.selector?.matchLabels || {};
     return Object.keys(labels).map(key => `${key}=${labels[key]}`);
   }
 
@@ -110,14 +113,20 @@ class Deployment extends KubeObject<KubeDeployment> {
    * Finds the target ReplicaSet and patches the deployment
    * with its pod template, similar to `kubectl rollout undo`.
    *
-   * @param toRevision - Optional revision number to rollback to. Defaults to the previous revision.
+   * @param options - Rollback options including target revision and dry-run mode.
    *
    * @see {@link https://kubernetes.io/docs/concepts/workloads/controllers/deployment/#rolling-back-a-deployment | K8s: Rolling Back a Deployment}
    * @see {@link https://github.com/kubernetes/kubectl/blob/master/pkg/polymorphichelpers/rollback.go | kubectl rollback implementation}
    *
    * @returns Promise with rollback result containing success status and message.
    */
-  async rollback(toRevision?: number): Promise<RollbackResult> {
+  async rollback(revisionOrOptions?: number | RollbackOptions): Promise<RollbackResult> {
+    const options: RollbackOptions =
+      typeof revisionOrOptions === 'number'
+        ? { toRevision: revisionOrOptions }
+        : revisionOrOptions ?? {};
+    const { toRevision, dryRun } = options;
+
     if (this.spec?.paused) {
       return {
         success: false,
@@ -184,15 +193,24 @@ class Deployment extends KubeObject<KubeDeployment> {
       ];
 
       const apiRoot = getApiRoot('apps', 'v1');
-      const url = `${apiRoot}/namespaces/${this.getNamespace()}/deployments/${this.getName()}`;
+      let url = `${apiRoot}/namespaces/${this.getNamespace()}/deployments/${this.getName()}`;
+      if (dryRun) {
+        url += '?dryRun=All';
+      }
 
-      await jsonPatch(url, patchOperations, true, { cluster: this.cluster });
-      this.revisionHistoryCache = undefined;
+      const result = await jsonPatch(url, patchOperations, true, { cluster: this.cluster });
+
+      if (!dryRun) {
+        this.revisionHistoryCache = undefined;
+      }
 
       return {
         success: true,
-        message: `Rolled back to revision ${targetRevision}`,
+        message: dryRun
+          ? `Dry-run: would rollback to revision ${targetRevision}`
+          : `Rolled back to revision ${targetRevision}`,
         previousRevision: targetRevision,
+        dryRunResult: dryRun ? result : undefined,
       };
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : String(error);

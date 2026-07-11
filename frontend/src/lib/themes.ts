@@ -374,7 +374,7 @@ export function createMuiTheme(currentTheme: AppTheme) {
       MuiTooltip: {
         styleOverrides: {
           tooltip: {
-            fontSize: '1.3em',
+            fontSize: '0.875rem',
             color: '#fff',
             backgroundColor: '#000',
           },
@@ -579,7 +579,12 @@ export function usePrefersColorScheme() {
 
   React.useEffect(() => {
     if (!mql) return;
-    const handler = (x: MediaQueryListEvent | MediaQueryList) => setValue(x.matches);
+    const handler = (x: MediaQueryListEvent) => setValue(x.matches);
+    if (typeof mql.addEventListener === 'function') {
+      mql.addEventListener('change', handler);
+      return () => mql.removeEventListener('change', handler);
+    }
+    // Legacy fallback (e.g. older Safari/WebViews)
     mql.addListener(handler);
     return () => mql.removeListener(handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -626,7 +631,7 @@ export function getThemeName(backendConfig?: {
 
   // Detect OS preference
   if (typeof window.matchMedia !== 'function') {
-    return backendConfig?.defaultLightTheme || 'light';
+    return backendConfig?.defaultLightTheme || 'Light';
   }
 
   const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
@@ -641,12 +646,12 @@ export function getThemeName(backendConfig?: {
 
   // Fallback to OS preference
   if (prefersLight) {
-    return 'light';
+    return 'Light';
   } else if (prefersDark) {
-    return 'dark';
+    return 'Dark';
   }
 
-  return 'light';
+  return 'Light';
 }
 
 export function setTheme(themeName: string) {

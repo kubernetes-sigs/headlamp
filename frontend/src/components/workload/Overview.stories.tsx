@@ -17,7 +17,7 @@
 import Container from '@mui/material/Container';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import Overview from './Overview';
 
 export default {
@@ -37,7 +37,7 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get('http://localhost:4466/api/v1/pods', () =>
+          http.get(`${API_BASE}/api/v1/pods`, () =>
             HttpResponse.json({
               kind: 'PodList',
               apiVersion: 'v1',
@@ -72,7 +72,7 @@ export default {
               ],
             })
           ),
-          http.get('http://localhost:4466/apis/apps/v1/deployments', () =>
+          http.get(`${API_BASE}/apis/apps/v1/deployments`, () =>
             HttpResponse.json({
               kind: 'DeploymentList',
               apiVersion: 'apps/v1',
@@ -96,7 +96,7 @@ export default {
               ],
             })
           ),
-          http.get('http://localhost:4466/apis/apps/v1/statefulsets', () =>
+          http.get(`${API_BASE}/apis/apps/v1/statefulsets`, () =>
             HttpResponse.json({
               kind: 'StatefulSetList',
               apiVersion: 'apps/v1',
@@ -120,7 +120,7 @@ export default {
               ],
             })
           ),
-          http.get('http://localhost:4466/apis/apps/v1/daemonsets', () =>
+          http.get(`${API_BASE}/apis/apps/v1/daemonsets`, () =>
             HttpResponse.json({
               kind: 'DaemonSetList',
               apiVersion: 'apps/v1',
@@ -142,7 +142,7 @@ export default {
               ],
             })
           ),
-          http.get('http://localhost:4466/apis/apps/v1/replicasets', () =>
+          http.get(`${API_BASE}/apis/apps/v1/replicasets`, () =>
             HttpResponse.json({
               kind: 'ReplicaSetList',
               apiVersion: 'apps/v1',
@@ -166,7 +166,7 @@ export default {
               ],
             })
           ),
-          http.get('http://localhost:4466/apis/batch/v1/jobs', () =>
+          http.get(`${API_BASE}/apis/batch/v1/jobs`, () =>
             HttpResponse.json({
               kind: 'JobList',
               apiVersion: 'batch/v1',
@@ -187,7 +187,7 @@ export default {
               ],
             })
           ),
-          http.get('http://localhost:4466/apis/batch/v1/cronjobs', () =>
+          http.get(`${API_BASE}/apis/batch/v1/cronjobs`, () =>
             HttpResponse.json({
               kind: 'CronJobList',
               apiVersion: 'batch/v1',
@@ -206,7 +206,7 @@ export default {
               ],
             })
           ),
-          http.get('http://localhost:4466/apis/jobset.x-k8s.io/v1alpha2/jobsets', () =>
+          http.get(`${API_BASE}/apis/jobset.x-k8s.io/v1alpha2/jobsets`, () =>
             HttpResponse.json({
               kind: 'JobSetList',
               apiVersion: 'jobset.x-k8s.io/v1alpha2',

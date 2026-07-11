@@ -14,23 +14,14 @@
  * limitations under the License.
  */
 
-import { StatusLabel } from '../common/Label';
+import React from 'react';
+import { PhaseLabel } from '../common/PhaseLabel';
 
-export function StatusLabelByPhase(phase: string, t: (key: string) => string) {
-  const phaseMap: { [key: string]: string } = {
-    Pending: t('glossary|Pending'),
-    Available: t('glossary|Available'),
-    Bound: t('glossary|Bound'),
-    Released: t('glossary|Released'),
-    Failed: t('glossary|Failed'),
-    Lost: t('glossary|Lost'),
-  };
-
-  return (
-    <StatusLabel
-      status={phase === 'Bound' ? 'success' : phase === 'Available' ? 'warning' : 'error'}
-    >
-      {phaseMap[phase] || phase}
-    </StatusLabel>
-  );
+/**
+ * @deprecated Use PhaseLabel from common/PhaseLabel directly.
+ * Note: the t translation argument has been removed. Callers
+ * that previously passed t as a second argument must be updated.
+ */
+export function StatusLabelByPhase(phase: string) {
+  return <PhaseLabel phase={phase} successPhase="Bound" warningPhases={['Available']} />;
 }

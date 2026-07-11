@@ -32,16 +32,19 @@ import { useLocation, useParams } from 'react-router-dom';
 import { getDefaultContainer, resolveContainerName } from '../../helpers/podContainer';
 import { KubeContainerStatus } from '../../lib/k8s/cluster';
 import Pod from '../../lib/k8s/pod';
+import { localeDate } from '../../lib/util';
 import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
 import { EventStatus, HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { Activity } from '../activity/Activity';
 import ActionButton from '../common/ActionButton';
 import Link from '../common/Link';
 import { LogViewer, LogViewerProps } from '../common/LogViewer';
+import { NameValueTableRow } from '../common/NameValueTable';
 import {
   ConditionsSection,
   ContainersSection,
   DetailsGrid,
+  MetadataDictGrid,
   VolumeSection,
 } from '../common/Resource';
 import AuthVisible from '../common/Resource/AuthVisible';
@@ -54,7 +57,6 @@ import SectionBox from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
 import Terminal from '../common/Terminal';
 import LightTooltip from '../common/Tooltip/TooltipLight';
-import { PodDiagnosticsSection } from '../diagnostics/Diagnostics';
 import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { colorizePrettifiedLog } from './jsonHandling';
 import { makePodStatusLabel } from './List';
@@ -81,7 +83,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
     'headlamp.logs.showTimestamps',
     true
   );
-  const [follow, setFollow] = React.useState<boolean>(true);
+  const [follow, setFollow] = useLocalStorageState<boolean>('headlamp.logs.follow', true);
   const [prettifyLogs, setPrettifyLogs] = useLocalStorageState<boolean>(
     'headlamp.logs.prettifyLogs',
     false
@@ -676,16 +678,12 @@ export default function PodDetails(props: PodDetailsProps) {
   }, [podItem, launchTerminal, autoLaunchView, autoLaunchContainer]);
 
   function prepareExtraInfo(item: Pod | null) {
-    let extraInfo: {
-      name: string;
-      value: React.ReactNode;
-      hideLabel?: boolean;
-    }[] = [];
+    let extraInfo: (NameValueTableRow & { hideLabel?: boolean })[] = [];
     if (item) {
       extraInfo = [
         {
           name: t('State'),
-          value: makePodStatusLabel(item, false),
+          value: makePodStatusLabel(item, false, t),
         },
         {
           name: t('Node'),
@@ -760,6 +758,61 @@ export default function PodDetails(props: PodDetailsProps) {
         {
           name: t('Priority'),
           value: item.spec.priority,
+        },
+        {
+          name: t('Priority Class'),
+          value: item.spec.priorityClassName ? (
+            <Link
+              routeName="priorityClass"
+              params={{ name: item.spec.priorityClassName }}
+              activeCluster={item.cluster}
+            >
+              {item.spec.priorityClassName}
+            </Link>
+          ) : (
+            ''
+          ),
+          hide: !item.spec.priorityClassName,
+        },
+        {
+          name: t('Runtime Class'),
+          value: item.spec.runtimeClassName,
+          hide: !item.spec.runtimeClassName,
+        },
+        {
+          name: t('Nominated Node'),
+          value: item.status.nominatedNodeName,
+          hide: !item.status.nominatedNodeName,
+        },
+        {
+          name: t('Start Time'),
+          value: item.status.startTime ? localeDate(item.status.startTime) : '',
+          hide: !item.status.startTime,
+        },
+        {
+          name: t('Termination Grace Period'),
+          value:
+            item.spec.terminationGracePeriodSeconds !== undefined
+              ? t('translation|{{ seconds }}s', {
+                  seconds: item.spec.terminationGracePeriodSeconds,
+                })
+              : '',
+          hide: item.spec.terminationGracePeriodSeconds === undefined,
+        },
+        {
+          name: t('translation|Reason'),
+          value: item.status.reason,
+          hide: !item.status.reason,
+        },
+        {
+          name: t('translation|Message'),
+          value: item.status.message,
+          hide: !item.status.message,
+        },
+        {
+          name: t('Node Selectors'),
+          value: <MetadataDictGrid dict={item.spec.nodeSelector ?? {}} />,
+          hide: _.isEmpty(item.spec.nodeSelector),
         },
       ];
     }
@@ -837,12 +890,8 @@ export default function PodDetails(props: PodDetailsProps) {
         ]
       }
       extraInfo={item => prepareExtraInfo(item)}
-      extraSections={(item, context) =>
+      extraSections={item =>
         item && [
-          {
-            id: 'headlamp.pod-diagnostics',
-            section: <PodDiagnosticsSection pod={item} events={context.events} />,
-          },
           {
             id: 'headlamp.pod-tolerations',
             section: <TolerationsSection tolerations={item?.spec?.tolerations || []} />,

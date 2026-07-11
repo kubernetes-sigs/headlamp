@@ -65,7 +65,7 @@ export interface ListResponse<K extends KubeObject> {
 export function kubeObjectListQuery<K extends KubeObject>(
   kubeObjectClass: KubeObjectClass,
   endpoint: KubeObjectEndpoint,
-  namespace: string | undefined,
+  namespace: string | undefined = '',
   cluster: string,
   queryParams: QueryParameters,
   refetchInterval?: number
@@ -80,7 +80,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
       kubeObjectClass.apiVersion,
       kubeObjectClass.apiName,
       cluster,
-      namespace ?? '',
+      namespace,
       queryParams,
     ],
     queryFn: async () => {
@@ -97,7 +97,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
         list.items = list.items.map(item => {
           const itm = new kubeObjectClass({
             ...item,
-            kind: list.kind.replace('List', ''),
+            kind: list.kind.replace(/List$/, ''),
             apiVersion: list.apiVersion,
           });
           itm.cluster = cluster;
@@ -278,8 +278,12 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
       const parsedUrl = new URL(url, BASE_WS_URL);
 
       // Subscribe to WebSocket updates
-      WebSocketManager.subscribe(cluster, parsedUrl.pathname, parsedUrl.search.slice(1), update =>
-        handleUpdate(update, cluster, namespace)
+      WebSocketManager.subscribe(
+        cluster,
+        parsedUrl.pathname,
+        parsedUrl.search.slice(1),
+        update => handleUpdate(update, cluster, namespace),
+        error => console.error(`WebSocket subscription error for cluster ${cluster}:`, error)
       ).then(
         cleanup => cleanups.push(cleanup),
         error => {
@@ -529,15 +533,24 @@ export function useKubeObjectList<K extends KubeObject>({
     setListsToWatch([...listsToWatch, ...listsNotYetWatched]);
   }
 
-  const listsToStopWatching = listsToWatch.filter(
-    watching =>
-      requests.find(request => {
-        if (watching.cluster !== request?.cluster) return false;
-        return !request.namespaces?.length
-          ? !watching.namespace
-          : !!watching.namespace && request.namespaces.includes(watching.namespace);
-      }) === undefined
-  );
+  const listsToStopWatching = listsToWatch.filter(watchingList => {
+    const requestThatNeedsThisList = requests.find(request => {
+      if (request.cluster !== watchingList.cluster) {
+        return false;
+      }
+
+      if (!request.namespaces || request.namespaces.length === 0) {
+        return watchingList.namespace === undefined || watchingList.namespace === '';
+      }
+
+      return (
+        watchingList.namespace !== undefined && request.namespaces.includes(watchingList.namespace)
+      );
+    });
+
+    // If there's no request that needs this list then we can stop watching it
+    return requestThatNeedsThisList === undefined;
+  });
 
   if (listsToStopWatching.length > 0) {
     setListsToWatch(listsToWatch.filter(it => !listsToStopWatching.includes(it)));

@@ -50,6 +50,25 @@ export const DEFAULT_GATEWAY: KubeGateway = {
   },
 };
 
+// Regression fixture: the API can return a Gateway with no `spec`,
+// which previously crashed the list view. `spec` is optional on KubeGateway, so this
+// reproduces that case without a cast. apiVersion is v1 to match the endpoint that
+// serves this fixture in the BrokenSpec story.
+export const BROKEN_GATEWAY: KubeGateway = {
+  apiVersion: 'gateway.networking.k8s.io/v1',
+  kind: 'Gateway',
+  metadata: {
+    creationTimestamp: '2023-07-19T09:48:42Z',
+    generation: 1,
+    name: 'broken-gateway',
+    namespace: 'default',
+    resourceVersion: '12346',
+    uid: 'abc999',
+  },
+  // no `spec` at all — the list view must handle this gracefully
+  status: {},
+};
+
 export const DEFAULT_GATEWAY_CLASS: KubeGatewayClass = {
   apiVersion: 'gateway.networking.k8s.io/v1beta1',
   kind: 'GatewayClass',

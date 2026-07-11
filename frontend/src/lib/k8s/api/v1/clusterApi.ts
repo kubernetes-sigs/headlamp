@@ -140,14 +140,14 @@ export async function setCluster(clusterReq: ClusterRequest) {
 
   if (kubeconfig) {
     await storeStatelessClusterKubeconfig(kubeconfig);
-    // We just send parsed kubeconfig from the backend to the frontend.
     return request(
       '/parseKubeConfig',
       {
         method: 'POST',
-        body: JSON.stringify(clusterReq),
+        body: JSON.stringify({ kubeconfigs: [kubeconfig] }),
         headers: {
           ...headers,
+          ...getHeadlampAPIHeaders(),
         },
       },
       false,
@@ -306,8 +306,8 @@ export async function renameCluster(
 }
 
 /**
- * parseKubeConfig sends call to backend to parse kubeconfig and send back
- * the parsed clusters and contexts.
+ * parseKubeConfig sends a kubeconfig to the backend to parse and returns
+ * the resulting clusters.
  * @param clusterReq - The cluster request object.
  */
 export async function parseKubeConfig(clusterReq: ClusterRequest) {
@@ -319,7 +319,7 @@ export async function parseKubeConfig(clusterReq: ClusterRequest) {
       '/parseKubeConfig',
       {
         method: 'POST',
-        body: JSON.stringify(clusterReq),
+        body: JSON.stringify({ kubeconfigs: [kubeconfig] }),
         headers: {
           ...headers,
           ...getHeadlampAPIHeaders(),

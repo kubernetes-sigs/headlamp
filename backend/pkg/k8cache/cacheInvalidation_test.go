@@ -18,6 +18,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sync"
 	"testing"
 	"time"
 
@@ -25,6 +26,8 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -436,7 +439,98 @@ func TestRunInformerToWatch_OldResource(t *testing.T) {
 	close(stopCh)
 }
 
-// GetKindAndVerb — missing / empty mux "api" var  (0% branch today)
+func TestInvalidateCacheKeysForResourceEvent(t *testing.T) {
+	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+	contextKey := "test-context"
+	listKey := "+pods+default+" + contextKey
+	allNamespacesKey := "+pods++" + contextKey
+	namedKey := "+test-pod+default+" + contextKey
+	unrelatedKey := "+services+default+" + contextKey
+
+	mockCache := &MockCache{
+		store: map[string]string{
+			listKey:          "list-data",
+			allNamespacesKey: "all-namespaces-list-data",
+			namedKey:         "named-get-data",
+			unrelatedKey:     "unrelated-data",
+		},
+	}
+
+	k8cache.ExportedInvalidateCacheKeysForResourceEvent(
+		gvr, "default", "test-pod", contextKey, mockCache,
+	)
+
+	for _, key := range []string{listKey, allNamespacesKey, namedKey} {
+		_, err := mockCache.Get(context.Background(), key)
+		assert.Error(t, err, "key %q should be evicted", key)
+	}
+
+	val, err := mockCache.Get(context.Background(), unrelatedKey)
+	assert.NoError(t, err)
+	assert.Equal(t, "unrelated-data", val)
+}
+
+// TestRunInformerToWatch_InvalidatesListNamedAndAllNamespaceCacheKeys verifies
+// informer events evict namespaced list, all-namespace list, and named GET keys.
+func TestRunInformerToWatch_InvalidatesListNamedAndAllNamespaceCacheKeys(t *testing.T) {
+	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+	contextKey := "test-context"
+	listKey := "+pods+default+" + contextKey
+	allNamespacesKey := "+pods++" + contextKey
+	namedKey := "+test-pod+default+" + contextKey
+	unrelatedKey := "+services+default+" + contextKey
+
+	mockPod := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Pod",
+			"metadata": map[string]interface{}{
+				"name":              "test-pod",
+				"namespace":         "default",
+				"creationTimestamp": time.Now().UTC().Format(time.RFC3339),
+			},
+		},
+	}
+
+	scheme := runtime.NewScheme()
+	clientMap := map[schema.GroupVersionResource]string{gvr: "PodList"}
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, clientMap)
+	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(client, 0, "", nil)
+
+	mockCache := &MockCache{
+		store: map[string]string{
+			listKey:          "list-data",
+			allNamespacesKey: "all-namespaces-list-data",
+			namedKey:         "named-get-data",
+			unrelatedKey:     "unrelated-data",
+		},
+	}
+
+	k8cache.RunInformerToWatch([]schema.GroupVersionResource{gvr}, factory, contextKey, mockCache)
+
+	stopCh := make(chan struct{})
+	factory.Start(stopCh)
+	factory.WaitForCacheSync(stopCh)
+
+	err := client.Tracker().Add(mockPod)
+	assert.NoError(t, err)
+
+	assert.Eventually(t, func() bool {
+		for _, key := range []string{listKey, allNamespacesKey, namedKey} {
+			if _, err := mockCache.Get(context.Background(), key); err == nil {
+				return false
+			}
+		}
+
+		if _, err := mockCache.Get(context.Background(), unrelatedKey); err != nil {
+			return false
+		}
+
+		return true
+	}, 2*time.Second, 50*time.Millisecond, "informer should evict list, all-namespace, and named GET keys")
+
+	close(stopCh)
+}
 
 // TestGetKindAndVerb_NoMuxVars exercises the early-return path where the
 // "api" mux variable is absent from the request context.
@@ -485,7 +579,7 @@ func TestIsAllowed_EmptyKind(t *testing.T) {
 	)
 	// No mux vars → GetKindAndVerb returns ("", "unknown") →
 	// IsAllowed must return (false, non-nil error).
-	allowed, err := k8cache.IsAllowed(k, req)
+	allowed, err := k8cache.IsAllowed("kind-auth-test", k, req)
 	assert.False(t, allowed)
 	assert.Error(t, err)
 }
@@ -563,8 +657,8 @@ func TestHandleNonGETCacheInvalidation_GETSkipped(t *testing.T) {
 }
 
 // TestHandleNonGETCacheInvalidation_BypassURLExcluded verifies that a POST
-// on a URL containing "/selfsubjectrulesreviews" is NOT invalidated because
-// IsAuthBypassURL returns false for those paths — the function returns nil.
+// on a selfsubjectrulesreviews authorization endpoint is NOT invalidated because
+// IsAuthBypassURL returns false for that path — the function returns nil.
 func TestHandleNonGETCacheInvalidation_BypassURLExcluded(t *testing.T) {
 	mockCache := NewMockCache()
 	called := false
@@ -575,7 +669,7 @@ func TestHandleNonGETCacheInvalidation_BypassURLExcluded(t *testing.T) {
 	})
 
 	w := httptest.NewRecorder()
-	targetURL := &url.URL{Path: "/clusters/kind/api/v1/selfsubjectrulesreviews"}
+	targetURL := &url.URL{Path: "/clusters/kind/apis/authorization.k8s.io/v1/selfsubjectrulesreviews"}
 	r := httptest.NewRequestWithContext(
 		context.Background(), http.MethodPost, targetURL.String(), nil,
 	)
@@ -608,4 +702,183 @@ func TestHandleNonGETCacheInvalidation_PostOnNormalURL(t *testing.T) {
 	// IsAuthBypassURL("/…/pods") == true → full invalidation → ErrHandled.
 	err := k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
 	assert.ErrorIs(t, err, k8cache.ErrHandled)
+}
+
+func TestHandleNonGETCacheInvalidation_PostOnResourceNamedVersion(t *testing.T) {
+	mockCache := NewMockCache()
+	targetURL := &url.URL{Path: "/clusters/kind/api/v1/namespaces/ns/configmaps/version"}
+	cacheKey, err := k8cache.GenerateKey(targetURL, "ctx")
+	require.NoError(t, err)
+	require.NoError(t, mockCache.Set(context.Background(), cacheKey, `{"body":"stale"}`))
+
+	called := 0
+	next := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		called++
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"ConfigMap"}`))
+	})
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(
+		context.Background(), http.MethodPost, targetURL.String(), nil,
+	)
+	r.URL = targetURL
+
+	err = k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
+	assert.ErrorIs(t, err, k8cache.ErrHandled)
+	assert.Equal(t, 2, called, "original POST and fresh GET should both be forwarded")
+
+	cachedValue, err := mockCache.Get(context.Background(), cacheKey)
+	require.NoError(t, err)
+	assert.Contains(t, cachedValue, "ConfigMap")
+	assert.NotContains(t, cachedValue, "stale")
+}
+
+var filterImportantResourcesTests = []struct {
+	name  string
+	input []schema.GroupVersionResource
+	want  []schema.GroupVersionResource
+}{
+	{
+		name:  "empty input",
+		input: nil,
+		want:  []schema.GroupVersionResource{},
+	},
+	{
+		name: "keeps allowed resources and drops others",
+		input: []schema.GroupVersionResource{
+			{Group: "", Version: "v1", Resource: "pods"},
+			{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
+			{Group: "apps", Version: "v1", Resource: "deployments"},
+			{Group: "", Version: "v1", Resource: "namespaces"},
+		},
+		want: []schema.GroupVersionResource{
+			{Group: "", Version: "v1", Resource: "pods"},
+			{Group: "apps", Version: "v1", Resource: "deployments"},
+		},
+	},
+	{
+		name: "preserves group and version fields",
+		input: []schema.GroupVersionResource{
+			{Group: "batch", Version: "v1", Resource: "jobs"},
+			{Group: "batch", Version: "v1", Resource: "cronjobs"},
+		},
+		want: []schema.GroupVersionResource{
+			{Group: "batch", Version: "v1", Resource: "jobs"},
+			{Group: "batch", Version: "v1", Resource: "cronjobs"},
+		},
+	},
+	{
+		name: "keeps all allowlisted resource kinds",
+		input: []schema.GroupVersionResource{
+			{Group: "", Version: "v1", Resource: "pods"},
+			{Group: "", Version: "v1", Resource: "services"},
+			{Group: "apps", Version: "v1", Resource: "deployments"},
+			{Group: "apps", Version: "v1", Resource: "replicasets"},
+			{Group: "apps", Version: "v1", Resource: "statefulsets"},
+			{Group: "apps", Version: "v1", Resource: "daemonsets"},
+			{Group: "", Version: "v1", Resource: "nodes"},
+			{Group: "", Version: "v1", Resource: "configmaps"},
+			{Group: "", Version: "v1", Resource: "secrets"},
+			{Group: "batch", Version: "v1", Resource: "jobs"},
+			{Group: "batch", Version: "v1", Resource: "cronjobs"},
+		},
+		want: []schema.GroupVersionResource{
+			{Group: "", Version: "v1", Resource: "pods"},
+			{Group: "", Version: "v1", Resource: "services"},
+			{Group: "apps", Version: "v1", Resource: "deployments"},
+			{Group: "apps", Version: "v1", Resource: "replicasets"},
+			{Group: "apps", Version: "v1", Resource: "statefulsets"},
+			{Group: "apps", Version: "v1", Resource: "daemonsets"},
+			{Group: "", Version: "v1", Resource: "nodes"},
+			{Group: "", Version: "v1", Resource: "configmaps"},
+			{Group: "", Version: "v1", Resource: "secrets"},
+			{Group: "batch", Version: "v1", Resource: "jobs"},
+			{Group: "batch", Version: "v1", Resource: "cronjobs"},
+		},
+	},
+}
+
+func TestFilterImportantResources(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range filterImportantResourcesTests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := k8cache.ExportedFilterImportantResources(tt.input)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
+func TestReturnGVRList_FiltersImportantResources(t *testing.T) {
+	t.Parallel()
+
+	apiResourceLists := []*metav1.APIResourceList{
+		{
+			GroupVersion: "v1",
+			APIResources: []metav1.APIResource{
+				{Name: "pods", Kind: "Pod", Verbs: []string{"list", "watch", "get"}},
+				{Name: "ingresses", Kind: "Ingress", Verbs: []string{"list", "watch", "get"}},
+			},
+		},
+		{
+			GroupVersion: "apps/v1",
+			APIResources: []metav1.APIResource{
+				{Name: "deployments", Kind: "Deployment", Verbs: []string{"list", "watch", "get"}},
+				{Name: "deployments/scale", Kind: "Scale", Verbs: []string{"get", "update"}},
+			},
+		},
+		{
+			GroupVersion: "v1",
+			APIResources: []metav1.APIResource{
+				{Name: "events", Kind: "Event", Verbs: []string{"list", "watch"}},
+			},
+		},
+	}
+
+	got := k8cache.ExportedReturnGVRList(apiResourceLists)
+
+	want := []schema.GroupVersionResource{
+		{Group: "", Version: "v1", Resource: "pods"},
+		{Group: "apps", Version: "v1", Resource: "deployments"},
+	}
+
+	assert.Equal(t, want, got)
+}
+
+func TestSyncWatchers(t *testing.T) {
+	k8cache.ResetRegistries()
+
+	canceled := make(map[string]bool)
+
+	var mu sync.Mutex
+
+	// Mock some watchers
+	contexts := []string{"ctx1", "ctx2", "ctx3"}
+	for _, ctx := range contexts {
+		cKey := ctx
+		_, cancel := context.WithCancel(context.Background())
+		wrappedCancel := func() {
+			mu.Lock()
+			canceled[cKey] = true
+			mu.Unlock()
+			cancel()
+		}
+
+		k8cache.StoreTestContextCancel(cKey, wrappedCancel)
+	}
+
+	// Sync with only ctx1 and ctx3 active
+	k8cache.SyncWatchers(nil, []string{"ctx1", "ctx3"})
+
+	mu.Lock()
+	defer mu.Unlock()
+
+	assert.False(t, canceled["ctx1"], "ctx1 should not be canceled")
+	assert.True(t, canceled["ctx2"], "ctx2 should be canceled")
+	assert.False(t, canceled["ctx3"], "ctx3 should not be canceled")
 }

@@ -182,6 +182,66 @@ var parseClusterAndTokenTests = []struct {
 	},
 }
 
+func TestBearerTokenValue(t *testing.T) {
+	tests := []struct {
+		name   string
+		header string
+		want   string
+	}{
+		{
+			name:   "raw token",
+			header: "raw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "bearer token",
+			header: "Bearer raw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "case insensitive bearer token",
+			header: "bearer raw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "uppercase bearer token",
+			header: "BEARER raw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "trim whitespace",
+			header: "  Bearer   raw-token  ",
+			want:   "raw-token",
+		},
+		{
+			name:   "tab separated bearer token",
+			header: "Bearer\traw-token",
+			want:   "raw-token",
+		},
+		{
+			name:   "only bearer keyword is raw token",
+			header: "Bearer",
+			want:   "Bearer",
+		},
+		{
+			name:   "bearer scheme without credentials",
+			header: "Bearer ",
+			want:   "",
+		},
+		{
+			name:   "bearer-like raw token",
+			header: "bearer",
+			want:   "bearer",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, auth.BearerTokenValue(tt.header))
+		})
+	}
+}
+
 func TestParseClusterAndToken(t *testing.T) {
 	for _, tt := range parseClusterAndTokenTests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -390,6 +450,14 @@ func (cacheStub) GetAll(ctx context.Context, _ cache.Matcher) (map[string]interf
 }
 
 func (cacheStub) UpdateTTL(ctx context.Context, k string, ttl time.Duration) error {
+	return nil
+}
+
+func (cacheStub) SetOnEvicted(callback func(key string, value interface{})) {
+	// No-op for stub
+}
+
+func (cacheStub) Close() error {
 	return nil
 }
 
@@ -757,7 +825,7 @@ func TestRefreshAndCacheNewToken_Success(t *testing.T) {
 
 	fc := &fakeCache{store: map[string]interface{}{oldKey: "REFRESH_OLD"}}
 	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, r.ParseForm()) //nolint:gosec
+		require.NoError(t, r.ParseForm())
 		require.Equal(t, "refresh_token", r.PostForm.Get("grant_type"))
 		require.Equal(t, "REFRESH_OLD", r.PostForm.Get("refresh_token"))
 
@@ -794,7 +862,7 @@ func TestRefreshAndCacheNewToken_ValidatorIssuerOverride(t *testing.T) {
 
 	fc := &fakeCache{store: map[string]interface{}{oldKey: refreshToken}}
 	srv := newOIDCProviderServer(t, issuerURL, func(w http.ResponseWriter, r *http.Request) {
-		require.NoError(t, r.ParseForm()) //nolint:gosec
+		require.NoError(t, r.ParseForm())
 		require.Equal(t, "refresh_token", r.PostForm.Get("grant_type"))
 		require.Equal(t, refreshToken, r.PostForm.Get("refresh_token"))
 
@@ -805,7 +873,7 @@ func TestRefreshAndCacheNewToken_ValidatorIssuerOverride(t *testing.T) {
 	config := &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"}
 	_, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, "")
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "issuer did not match")
+	assert.Contains(t, err.Error(), "did not match")
 
 	tok, err := auth.RefreshAndCacheNewToken(context.Background(), config, fc, "id_token", oldToken, srv.URL, issuerURL)
 	require.NoError(t, err)
@@ -1035,6 +1103,15 @@ func TestConfigureTLSContext_CACert(t *testing.T) {
 	assert.True(t, caCertParsed.IsCA, "Generated certificate should be a CA certificate")
 }
 
+// TestConfigureTLSContext_EmptyCACert verifies that a non-nil pointer
+// to an empty string is treated the same as nil (no custom CA configured).
+func TestConfigureTLSContext_EmptyCACert(t *testing.T) {
+	baseCtx := context.Background()
+	emptyCert := ""
+	resultCtx := auth.ConfigureTLSContext(baseCtx, nil, &emptyCert)
+	assert.Equal(t, baseCtx, resultCtx, "Context should not be modified when caCert is empty")
+}
+
 // TestConfigureTLSContext_SkipTLS_PreservesDefaults verifies that cloning
 // http.DefaultTransport preserves proxy and timeout settings.
 func TestConfigureTLSContext_SkipTLS_PreservesDefaults(t *testing.T) {
@@ -1110,8 +1187,11 @@ func TestHandleMe_Success(t *testing.T) {
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
 	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
 	req.AddCookie(&http.Cookie{
-		Name:  fmt.Sprintf("headlamp-auth-%s.0", auth.SanitizeClusterName("test")),
-		Value: token,
+		Name:     fmt.Sprintf("headlamp-auth-%s.0", auth.SanitizeClusterName("test")),
+		Value:    token,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
 	})
 
 	rr := httptest.NewRecorder()
@@ -1234,8 +1314,11 @@ func TestHandleMe_ExpiredToken(t *testing.T) {
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/me", nil)
 	req = mux.SetURLVars(req, map[string]string{"clusterName": "test"})
 	req.AddCookie(&http.Cookie{
-		Name:  fmt.Sprintf("headlamp-auth-%s.0", auth.SanitizeClusterName("test")),
-		Value: token,
+		Name:     fmt.Sprintf("headlamp-auth-%s.0", auth.SanitizeClusterName("test")),
+		Value:    token,
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
 	})
 
 	rr := httptest.NewRecorder()

@@ -56,21 +56,29 @@ export interface AuthVisibleProps extends React.PropsWithChildren<{}> {
 export default function AuthVisible(props: AuthVisibleProps) {
   const { item, authVerb, subresource, namespace, onError, onAuthResult, children } = props;
 
-  const itemClass: KubeObjectClass | null =
-    (item as KubeObject)?._class?.() ?? (item as KubeObjectClass | null);
-  const itemName = (item as KubeObject)?.getName?.();
+const isAuthVerbValid = VALID_AUTH_VERBS.includes(authVerb);
 
-  const isAuthVerbValid = VALID_AUTH_VERBS.includes(authVerb);
-  const isQueryEnabled = !!item && !!itemClass && isAuthVerbValid;
+useEffect(() => {
+  if (!isAuthVerbValid) {
+    console.warn(`Invalid authVerb provided: "${authVerb}". Skipping authorization check.`);
+  }
+}, [isAuthVerbValid, authVerb]);
 
-  const { data } = useQuery<any>({
-    enabled: isQueryEnabled,
+const itemClass: KubeObjectClass | null =
+  (item as KubeObject)?._class?.() ?? (item as KubeObjectClass | null);
+
+const itemName = (item as KubeObject)?.getName?.();
+
+const isQueryEnabled = !!item && !!itemClass && isAuthVerbValid;
+
+const { data } = useQuery<any>({
+  enabled: isQueryEnabled,
     queryKey: [
       'authVisible',
       itemName,
       itemClass?.apiName,
       itemClass?.apiVersion,
-      (itemClass as any)?.apiGroup, // Added apiGroup for better queryKey uniqueness if it exists on KubeObjectClass
+(itemClass as any)?.apiGroup,
       authVerb,
       subresource,
       namespace,
@@ -92,6 +100,7 @@ export default function AuthVisible(props: AuthVisibleProps) {
     },
   });
 
+ 
   useEffect(() => {
     if (data) {
       onAuthResult?.({
@@ -109,6 +118,10 @@ export default function AuthVisible(props: AuthVisibleProps) {
   }
 
   const visible = data?.status?.allowed ?? false;
+
+  if (!isAuthVerbValid) {
+    return null;
+  }
 
   if (!visible) {
     return null;

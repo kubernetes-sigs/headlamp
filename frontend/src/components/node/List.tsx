@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import Node from '../../lib/k8s/node';
 import { getResourceMetrics } from '../../lib/util';
@@ -21,154 +22,175 @@ import { HoverInfoLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { UsageBarChart } from './Charts';
 import { NodeReadyLabel } from './Details';
+import UpgradeVisualizationPanel from './UpgradeVisualizationPanel';
 import { formatTaint, NodeTaintsLabel } from './utils';
 
 export default function NodeList() {
   const [nodeMetrics, metricsError] = Node.useMetrics();
+  const { items } = Node.useList();
   const { t } = useTranslation(['glossary', 'translation']);
 
   const noMetrics = metricsError?.status === 404;
 
-  return (
-    <ResourceListView
-      title={t('Nodes')}
-      headerProps={{
-        noNamespaceFilter: true,
-      }}
-      resourceClass={Node}
-      columns={[
-        'name',
-        'cluster',
-        {
-          id: 'cpu',
-          label: t('CPU'),
-          gridTemplate: 'min-content',
-          disableFiltering: true,
-          getValue: node => {
-            const [used] = getResourceMetrics(node, nodeMetrics || [], 'cpu');
-            return used;
-          },
-          render: node => (
-            <UsageBarChart
-              node={node}
-              nodeMetrics={nodeMetrics}
-              resourceType="cpu"
-              noMetrics={noMetrics}
-            />
-          ),
-        },
-        {
-          id: 'memory',
-          label: t('Memory'),
-          disableFiltering: true,
-          getValue: node => {
-            const [used] = getResourceMetrics(node, nodeMetrics || [], 'memory');
-            return used;
-          },
-          render: node => (
-            <UsageBarChart
-              node={node}
-              nodeMetrics={nodeMetrics}
-              resourceType="memory"
-              noMetrics={noMetrics}
-            />
-          ),
-        },
-        {
-          id: 'ready',
-          label: t('translation|Ready'),
-          filterVariant: 'multi-select',
-          getValue: node => {
-            const isReady = !!node.status.conditions?.find(
-              condition => condition.type === 'Ready' && condition.status === 'True'
-            );
-            return isReady ? t('translation|Yes') : t('translation|No');
-          },
-          render: node => <NodeReadyLabel node={node} />,
-        },
-        {
-          id: 'taints',
-          label: t('translation|Taints'),
-          getValue: node => node.spec?.taints?.map(taint => formatTaint(taint))?.join(', '),
-          render: (item: Node) => <NodeTaintsLabel node={item} />,
-        },
-        {
-          id: 'roles',
-          label: t('Roles'),
-          gridTemplate: 'minmax(150px, .5fr)',
-          getValue: node => {
-            return Object.keys(node.metadata.labels ?? {})
-              .filter((t: String) => t.startsWith('node-role.kubernetes.io/'))
-              .map(t => t.replace('node-role.kubernetes.io/', ''))
-              .join(',');
-          },
-        },
-        {
-          id: 'internalIP',
-          label: t('translation|Internal IP'),
-          getValue: node => node.getInternalIP(),
-        },
-        {
-          id: 'externalIP',
-          label: t('External IP'),
-          getValue: node => node.getExternalIP() || t('translation|None'),
-        },
-        {
-          id: 'version',
-          label: t('translation|Version'),
-          gridTemplate: 'minmax(150px, .5fr)',
-          getValue: node => node.status.nodeInfo?.kubeletVersion,
-          filterVariant: 'multi-select',
-        },
-        {
-          id: 'software',
-          label: t('translation|Software'),
-          gridTemplate: 'minmax(200px, 1.5fr)',
-          getValue: node => node.status.nodeInfo?.operatingSystem,
-          render: node => {
-            if (node.status.nodeInfo === undefined) {
-              return <></>;
-            }
-            let osIcon = 'mdi:desktop-classic';
-            if (node.status.nodeInfo.operatingSystem === 'linux') {
-              osIcon = 'mdi:linux';
-            } else if (node.status.nodeInfo.operatingSystem === 'windows') {
-              osIcon = 'mdi:microsoft-windows';
-            }
+  const hasNodePools = useMemo(() => {
+    if (!items || items.length === 0) return false;
+    return items.some(node => node.getNodePool() !== '');
+  }, [items]);
 
-            return (
-              <>
-                <HoverInfoLabel
-                  label={node.status.nodeInfo.osImage}
-                  hoverInfo={t('OS image')}
-                  labelProps={{ variant: 'body2' }}
-                  iconPosition="start"
-                  icon={osIcon}
-                />
-                {node.status.nodeInfo.kernelVersion && (
+  return (
+    <>
+      <ResourceListView
+        title={t('Nodes')}
+        resourceClass={Node}
+        headerProps={{
+          noNamespaceFilter: true,
+        }}
+        columns={[
+          'name',
+          'cluster',
+          {
+            id: 'cpu',
+            label: t('CPU'),
+            gridTemplate: 'min-content',
+            disableFiltering: true,
+            getValue: node => {
+              const [used] = getResourceMetrics(node, nodeMetrics || [], 'cpu');
+              return used;
+            },
+            render: node => (
+              <UsageBarChart
+                node={node}
+                nodeMetrics={nodeMetrics}
+                resourceType="cpu"
+                noMetrics={noMetrics}
+              />
+            ),
+          },
+          {
+            id: 'memory',
+            label: t('Memory'),
+            disableFiltering: true,
+            getValue: node => {
+              const [used] = getResourceMetrics(node, nodeMetrics || [], 'memory');
+              return used;
+            },
+            render: node => (
+              <UsageBarChart
+                node={node}
+                nodeMetrics={nodeMetrics}
+                resourceType="memory"
+                noMetrics={noMetrics}
+              />
+            ),
+          },
+          {
+            id: 'ready',
+            label: t('translation|Ready'),
+            filterVariant: 'multi-select',
+            getValue: node => {
+              const isReady = !!node.status.conditions?.find(
+                condition => condition.type === 'Ready' && condition.status === 'True'
+              );
+              return isReady ? t('translation|Yes') : t('translation|No');
+            },
+            render: node => <NodeReadyLabel node={node} />,
+          },
+          {
+            id: 'taints',
+            label: t('translation|Taints'),
+            getValue: node => node.spec?.taints?.map(taint => formatTaint(taint))?.join(', '),
+            render: (item: Node) => <NodeTaintsLabel node={item} />,
+          },
+          {
+            id: 'roles',
+            label: t('Roles'),
+            gridTemplate: 'minmax(150px, .5fr)',
+            getValue: node => {
+              return Object.keys(node.metadata.labels ?? {})
+                .filter((t: String) => t.startsWith('node-role.kubernetes.io/'))
+                .map(t => t.replace('node-role.kubernetes.io/', ''))
+                .join(', ');
+            },
+          },
+          ...(hasNodePools
+            ? [
+                {
+                  id: 'nodePool',
+                  label: t('Node Pool'),
+                  gridTemplate: 'minmax(150px, .5fr)',
+                  getValue: (node: Node) => node.getNodePool(),
+                  filterVariant: 'multi-select' as const,
+                },
+              ]
+            : []),
+          {
+            id: 'internalIP',
+            label: t('translation|Internal IP'),
+            getValue: node => node.getInternalIP(),
+          },
+          {
+            id: 'externalIP',
+            label: t('External IP'),
+            getValue: node => node.getExternalIP() || t('translation|None'),
+          },
+          {
+            id: 'version',
+            label: t('translation|Version'),
+            gridTemplate: 'minmax(150px, .5fr)',
+            getValue: node => node.status.nodeInfo?.kubeletVersion,
+            filterVariant: 'multi-select',
+          },
+          {
+            id: 'software',
+            label: t('translation|Software'),
+            gridTemplate: 'minmax(200px, 1.5fr)',
+            getValue: node => node.status.nodeInfo?.operatingSystem,
+            render: node => {
+              if (node.status.nodeInfo === undefined) {
+                return <></>;
+              }
+              let osIcon = 'mdi:desktop-classic';
+              if (node.status.nodeInfo.operatingSystem === 'linux') {
+                osIcon = 'mdi:linux';
+              } else if (node.status.nodeInfo.operatingSystem === 'windows') {
+                osIcon = 'mdi:microsoft-windows';
+              }
+
+              return (
+                <>
                   <HoverInfoLabel
-                    label={node.status.nodeInfo.kernelVersion}
-                    hoverInfo={t('Kernel version')}
+                    label={node.status.nodeInfo.osImage}
+                    hoverInfo={t('OS image')}
                     labelProps={{ variant: 'body2' }}
                     iconPosition="start"
-                    icon="mdi:nut"
+                    icon={osIcon}
                   />
-                )}
-                <HoverInfoLabel
-                  label={node.status.nodeInfo.containerRuntimeVersion}
-                  hoverInfo={t('Container Runtime')}
-                  labelProps={{ variant: 'body2' }}
-                  iconPosition="start"
-                  icon="mdi:train-car-container"
-                />
-              </>
-            );
+                  {node.status.nodeInfo.kernelVersion && (
+                    <HoverInfoLabel
+                      label={node.status.nodeInfo.kernelVersion}
+                      hoverInfo={t('Kernel version')}
+                      labelProps={{ variant: 'body2' }}
+                      iconPosition="start"
+                      icon="mdi:nut"
+                    />
+                  )}
+                  <HoverInfoLabel
+                    label={node.status.nodeInfo.containerRuntimeVersion}
+                    hoverInfo={t('Container Runtime')}
+                    labelProps={{ variant: 'body2' }}
+                    iconPosition="start"
+                    icon="mdi:train-car-container"
+                  />
+                </>
+              );
+            },
+            show: false,
           },
-          show: false,
-        },
-        'labels',
-        'age',
-      ]}
-    />
+          'labels',
+          'age',
+        ]}
+      />
+      <UpgradeVisualizationPanel />
+    </>
   );
 }

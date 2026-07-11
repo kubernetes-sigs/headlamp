@@ -3,6 +3,7 @@ package kubeconfig_test
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -83,6 +83,26 @@ func TestLoadAndStoreKubeConfigs(t *testing.T) {
 		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
 		require.Error(t, err)
 	})
+}
+
+func TestContextSourceStr(t *testing.T) {
+	tests := []struct {
+		name   string
+		source int
+		want   string
+	}{
+		{"kubeconfig", kubeconfig.KubeConfig, "kubeconfig"},
+		{"dynamic cluster", kubeconfig.DynamicCluster, "dynamic_cluster"},
+		{"in cluster", kubeconfig.InCluster, "incluster"},
+		{"cluster inventory", kubeconfig.ClusterInventory, "cluster_inventory"},
+		{"unknown", 0, "unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, (&kubeconfig.Context{Source: tt.source}).SourceStr())
+		})
+	}
 }
 
 func TestLoadContextsFromKubeConfigFile(t *testing.T) {
@@ -308,6 +328,16 @@ users:
 	})
 }
 
+func TestOidcConfigWithNilAuthInfo(t *testing.T) {
+	context := &kubeconfig.Context{AuthInfo: nil}
+
+	oidcConfig, err := context.OidcConfig()
+
+	require.Error(t, err, "Expected an error when AuthInfo is nil")
+	assert.Nil(t, oidcConfig, "Expected nil OIDC config when AuthInfo is nil")
+	assert.EqualError(t, err, "authProvider is nil")
+}
+
 // createTempKubeconfig creates a temporary kubeconfig file for testing.
 func createTempKubeconfig(t *testing.T, content string) string {
 	t.Helper()
@@ -330,7 +360,9 @@ func TestContext(t *testing.T) {
 	}
 
 	kubeConfigFile, err := config.GetDefaultKubeConfigPath()
-	require.NoError(t, err)
+	if err != nil {
+		t.Skipf("Skipping test: failed to resolve default kubeconfig path: %v", err)
+	}
 
 	configStore := kubeconfig.NewContextStore()
 

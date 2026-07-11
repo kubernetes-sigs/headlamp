@@ -21,6 +21,23 @@ import { stream } from './api/v1/streamingApi';
 import type { KubeCondition, KubeContainer, KubeContainerStatus, Time } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
+import type { WorkloadHealthCategory } from './Workload';
+
+/** Container waiting/terminated reasons that represent a genuine failure rather than normal startup. */
+const POD_FAILED_CONTAINER_REASONS = [
+  'CrashLoopBackOff',
+  'ImagePullBackOff',
+  'ErrImagePull',
+  'ErrImageNeverPull',
+  'InvalidImageName',
+  'CreateContainerError',
+  'CreateContainerConfigError',
+  'RunContainerError',
+  'OOMKilled',
+  'Error',
+  'ContainerCannotRun',
+  'DeadlineExceeded',
+];
 
 export interface KubeVolume {
   name: string;
@@ -41,7 +58,10 @@ export interface KubePodSpec {
   volumes?: KubeVolume[];
   serviceAccountName?: string;
   serviceAccount?: string;
-  priority?: string;
+  priority?: number;
+  priorityClassName?: string;
+  runtimeClassName?: string;
+  terminationGracePeriodSeconds?: number;
   tolerations?: any[];
   restartPolicy?: string;
 }
@@ -60,6 +80,7 @@ export interface KubePod extends KubeObjectInterface {
     phase: string;
     qosClass?: string;
     reason?: string;
+    nominatedNodeName?: string;
     startTime: Time;
     [other: string]: any;
   };
@@ -318,7 +339,7 @@ class Pod extends KubeObject<KubePod> {
     };
 
     // Get current ephemeral containers
-    const currentEphemeralContainers = this.spec.ephemeralContainers || [];
+    const currentEphemeralContainers = this.spec?.ephemeralContainers || [];
 
     // Prepare the patch body
     const patchBody = {
@@ -375,14 +396,6 @@ class Pod extends KubeObject<KubePod> {
       return this.detailedStatusCache.details;
     }
 
-    // We cache this data to avoid going through all this logic when nothing has changed
-    if (
-      !!this.detailedStatusCache.details &&
-      this.detailedStatusCache.resourceVersion === this.jsonData.metadata.resourceVersion
-    ) {
-      return this.detailedStatusCache.details;
-    }
-
     let restarts = 0;
     let restartableInitContainerRestarts = 0;
     let readyContainers = 0;
@@ -390,11 +403,11 @@ class Pod extends KubeObject<KubePod> {
     let lastRestartDate = new Date(0);
     let lastRestartableInitContainerRestartDate = new Date(0);
 
-    let reason = this.status.reason || this.status.phase;
+    let reason = this.status?.reason || this.status?.phase || 'Unknown';
 
     const initContainers: Record<string, KubeContainer> = {};
-    let totalContainers = (this.spec.containers ?? []).length;
-    for (const ic of this.spec.initContainers ?? []) {
+    let totalContainers = (this.spec?.containers ?? []).length;
+    for (const ic of this.spec?.initContainers ?? []) {
       initContainers[ic.name] = ic;
       if (this.isRestartableInitContainer(ic)) {
         totalContainers++;
@@ -402,12 +415,16 @@ class Pod extends KubeObject<KubePod> {
     }
 
     let initializing = false;
-    for (const i in this.status.initContainerStatuses ?? []) {
-      const container = this.status.initContainerStatuses![i];
+    const initContainerStatuses = this.status?.initContainerStatuses ?? [];
+    for (const i in initContainerStatuses) {
+      const container = initContainerStatuses[i];
       restarts += container.restartCount;
       lastRestartDate = this.getLastRestartDate(container, lastRestartDate);
 
-      if (container.lastState.terminated !== null) {
+      if (
+        container.lastState?.terminated !== null &&
+        container.lastState?.terminated !== undefined
+      ) {
         const terminatedDate = container.lastState.terminated?.finishedAt
           ? new Date(container.lastState.terminated?.finishedAt)
           : undefined;
@@ -418,7 +435,10 @@ class Pod extends KubeObject<KubePod> {
 
       if (this.isRestartableInitContainer(initContainers[container.name])) {
         restartableInitContainerRestarts += container.restartCount;
-        if (container.lastState.terminated !== null) {
+        if (
+          container.lastState?.terminated !== null &&
+          container.lastState?.terminated !== undefined
+        ) {
           const terminatedDate = container.lastState.terminated?.finishedAt
             ? new Date(container.lastState.terminated?.finishedAt)
             : undefined;
@@ -456,7 +476,7 @@ class Pod extends KubeObject<KubePod> {
           message = container.state.waiting!.message || '';
           break;
         default:
-          reason = `Init:${i}/${(this.spec.initContainers || []).length}`;
+          reason = `Init:${i}/${(this.spec?.initContainers || []).length}`;
           initializing = true;
       }
       break;
@@ -467,7 +487,7 @@ class Pod extends KubeObject<KubePod> {
       lastRestartDate = lastRestartableInitContainerRestartDate;
       let hasRunning = false;
       for (let i = (this.status?.containerStatuses?.length || 0) - 1; i >= 0; i--) {
-        const container = this.status?.containerStatuses[i];
+        const container = this.status?.containerStatuses?.[i];
 
         restarts += container.restartCount;
         lastRestartDate = this.getLastRestartDate(container, lastRestartDate);
@@ -526,6 +546,65 @@ class Pod extends KubeObject<KubePod> {
 
     return newDetails;
   }
+
+  /**
+   * Classifies the pod into a coarse health category for the Workloads overview
+   * chart. Pods have no replica fields, so the replica-mismatch logic used for
+   * other workloads can't apply. This relies on the same signals the Pods list
+   * shows (phase, readiness, container state, deletionTimestamp) so the chart
+   * and the list can't disagree. Terminating and Pending pods are treated as
+   * transitional rather than failures.
+   */
+  getHealth(): WorkloadHealthCategory {
+    // A lost node is reported as Unknown (unhealthy), matching getDetailedStatus.
+    if (this.metadata.deletionTimestamp) {
+      return this.status?.reason === 'NodeLost' ? 'failed' : 'transitional';
+    }
+
+    const phase = this.status?.phase;
+    if (phase === 'Succeeded') {
+      return 'healthy';
+    }
+
+    const containerStatuses = [
+      ...(this.status?.containerStatuses || []),
+      ...(this.status?.initContainerStatuses || []),
+    ];
+    // Failures surface either as a waiting reason (CrashLoopBackOff, ImagePull…)
+    // or as the current terminated reason (Error, OOMKilled…). lastState is
+    // intentionally ignored so a container that already recovered isn't flagged.
+    const hasFailingContainer = containerStatuses.some(cs => {
+      const terminated = cs.state?.terminated;
+      // A container terminated with a non-zero exit code or signal is a failure
+      // even when the reason is empty/unspecified, mirroring the ExitCode:/Signal:
+      // handling in getDetailedStatus.
+      if (terminated && (terminated.exitCode || terminated.signal)) {
+        return true;
+      }
+      const reason = cs.state?.waiting?.reason || terminated?.reason;
+      return !!reason && POD_FAILED_CONTAINER_REASONS.includes(reason);
+    });
+    if (phase === 'Failed' || hasFailingContainer) {
+      return 'failed';
+    }
+
+    // Pending without a failing container is still starting up (scheduling,
+    // ContainerCreating, PodInitializing, …).
+    if (phase === 'Pending') {
+      return 'transitional';
+    }
+
+    const isReady = (this.status?.conditions || []).some(
+      condition => condition.type === 'Ready' && condition.status === 'True'
+    );
+    if (phase === 'Running') {
+      return isReady ? 'healthy' : 'degraded';
+    }
+
+    // Unknown / NodeLost and anything else we can't place is treated as failed.
+    return 'failed';
+  }
+
   static getBaseObject(): KubePod {
     const baseObject = super.getBaseObject() as KubePod;
     baseObject.metadata = {

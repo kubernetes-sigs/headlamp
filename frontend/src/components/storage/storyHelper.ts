@@ -17,6 +17,7 @@
 import { KubePersistentVolume } from '../../lib/k8s/persistentVolume';
 import { KubePersistentVolumeClaim } from '../../lib/k8s/persistentVolumeClaim';
 import { KubeStorageClass } from '../../lib/k8s/storageClass';
+import type { KubeVolumeAttributesClass } from '../../lib/k8s/volumeAttributesClass';
 
 export const BASE_SC: KubeStorageClass = {
   apiVersion: 'v1',
@@ -92,5 +93,20 @@ export const BASE_PV: KubePersistentVolume = {
     message: 'test',
     phase: 'Bound',
     reason: 'test',
+  },
+};
+
+export const BASE_VOLUME_ATTRIBUTES_CLASS: KubeVolumeAttributesClass = {
+  apiVersion: 'storage.k8s.io/v1',
+  kind: 'VolumeAttributesClass',
+  metadata: {
+    creationTimestamp: '2025-06-11T10:00:00Z',
+    name: 'my-volume-attributes-class',
+    resourceVersion: '1234',
+    uid: 'abc-1234',
+  },
+  driverName: 'csi.test',
+  parameters: {
+    'example.com/parameter': 'enabled',
   },
 };

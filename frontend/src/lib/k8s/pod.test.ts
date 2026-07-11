@@ -81,4 +81,97 @@ describe('Pod class', () => {
     const pod = new Pod(data);
     expect(() => pod.getDetailedStatus()).not.toThrow();
   });
+
+  it('does not throw when spec and status are missing', () => {
+    const dataMissingBoth = {
+      apiVersion: 'v1',
+      kind: 'Pod',
+      metadata: {
+        name: 'test-pod-missing-fields',
+        namespace: 'default',
+        resourceVersion: '123',
+      },
+    };
+    const pod = new Pod(dataMissingBoth as any);
+    expect(() => pod.getDetailedStatus()).not.toThrow();
+  });
+
+  describe('getHealth', () => {
+    const makePod = (status: any, metadata: any = {}) =>
+      new Pod({
+        ...mockPodData,
+        metadata: { ...mockPodData.metadata, ...metadata },
+        status,
+      } as any);
+
+    it('classifies a Running and Ready pod as healthy', () => {
+      const pod = makePod({
+        phase: 'Running',
+        conditions: [{ type: 'Ready', status: 'True' }],
+      });
+      expect(pod.getHealth()).toBe('healthy');
+    });
+
+    it('classifies a Running but NotReady pod as degraded', () => {
+      const pod = makePod({
+        phase: 'Running',
+        conditions: [{ type: 'Ready', status: 'False' }],
+      });
+      expect(pod.getHealth()).toBe('degraded');
+    });
+
+    it('classifies a Pending pod as transitional', () => {
+      const pod = makePod({ phase: 'Pending' });
+      expect(pod.getHealth()).toBe('transitional');
+    });
+
+    it('classifies a terminating (deletionTimestamp) pod as transitional', () => {
+      const pod = makePod({ phase: 'Running' }, { deletionTimestamp: '2020-01-01T00:00:00Z' });
+      expect(pod.getHealth()).toBe('transitional');
+    });
+
+    it('classifies a lost node (NodeLost) pod as failed', () => {
+      const pod = makePod(
+        { phase: 'Running', reason: 'NodeLost' },
+        { deletionTimestamp: '2020-01-01T00:00:00Z' }
+      );
+      expect(pod.getHealth()).toBe('failed');
+    });
+
+    it('classifies a pod with a CrashLoopBackOff container as failed', () => {
+      const pod = makePod({
+        phase: 'Running',
+        containerStatuses: [{ name: 'c', state: { waiting: { reason: 'CrashLoopBackOff' } } }],
+      });
+      expect(pod.getHealth()).toBe('failed');
+    });
+
+    it('classifies a pod with an ImagePullBackOff container as failed', () => {
+      const pod = makePod({
+        phase: 'Pending',
+        containerStatuses: [{ name: 'c', state: { waiting: { reason: 'ImagePullBackOff' } } }],
+      });
+      expect(pod.getHealth()).toBe('failed');
+    });
+
+    it('classifies a terminated container with a non-zero exitCode and empty reason as failed', () => {
+      const pod = makePod({
+        phase: 'Pending',
+        initContainerStatuses: [
+          { name: 'init', state: { terminated: { exitCode: 1, reason: '' } } },
+        ],
+      });
+      expect(pod.getHealth()).toBe('failed');
+    });
+
+    it('classifies a Failed pod as failed', () => {
+      const pod = makePod({ phase: 'Failed' });
+      expect(pod.getHealth()).toBe('failed');
+    });
+
+    it('classifies a Succeeded pod as healthy', () => {
+      const pod = makePod({ phase: 'Succeeded' });
+      expect(pod.getHealth()).toBe('healthy');
+    });
+  });
 });
