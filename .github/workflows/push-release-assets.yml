@@ -178,7 +178,9 @@ jobs:
           ARGS+=("$RELEASE_NAME")
           ARGS+=("${ASSETS[@]}")
 
-          echo "Executing: node push-release-assets.js ${ARGS[*]}"
+          printf 'Executing: node push-release-assets.js'
+          printf ' %q' "${ARGS[@]}"
+          printf '\n'
           node push-release-assets.js "${ARGS[@]}"
 
       - name: Create and sign checksums signature
