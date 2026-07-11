@@ -265,7 +265,15 @@ class PluginManagerEventListeners {
    */
   setupEventHandlers() {
     ipcMain.on('plugin-manager', async (event, data) => {
-      const eventData = JSON.parse(data) as Action;
+      let eventData: Action;
+
+      try {
+        eventData = JSON.parse(data) as Action;
+      } catch (error) {
+        console.error('plugin-manager: failed to parse event data as JSON:', error);
+        return;
+      }
+
       const { identifier, action } = eventData;
       const updateCache = (progress: ProgressResp) => {
         const percentage = this.convertProgressToPercentage(progress);
