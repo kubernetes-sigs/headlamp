@@ -48,6 +48,7 @@ export default function CreatePodForm(props: CreatePodFormProps) {
           path: 'spec.containers',
           label: t('translation|Containers'),
           type: 'containers' as const,
+          required: true,
         },
       ],
     },

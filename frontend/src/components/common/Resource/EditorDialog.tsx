@@ -142,6 +142,7 @@ export default function EditorDialog(props: EditorDialogProps) {
   );
   const [uploadFiles, setUploadFiles] = React.useState(false);
   const [hasOpenedDiffEditor, setHasOpenedDiffEditor] = React.useState(false);
+  const [activeTabIndex, setActiveTabIndex] = React.useState(0);
 
   const dispatchCreateEvent = useEventCallback(HeadlampEventType.CREATE_RESOURCE);
   const dispatch: AppDispatch = useDispatch();
@@ -206,8 +207,15 @@ export default function EditorDialog(props: EditorDialogProps) {
     const format = looksLikeJson(originalCodeRef.current.code) ? 'json' : 'yaml';
     const itemCode = format === 'json' ? JSON.stringify(clonedItem) : yaml.dump(clonedItem);
 
-    // Update the code if the item representation has changed
-    if (itemCode !== originalCodeRef.current.code) {
+    // Update the code if the item representation has changed.
+    // When treatItemChangesAsEdits is true, originalCodeRef is intentionally
+    // not updated, so compare against the current editor content instead —
+    // otherwise reverting a field to its original value would leave stale
+    // text in the editor.
+    const referenceCode = treatItemChangesAsEdits
+      ? codeRef.current.code
+      : originalCodeRef.current.code;
+    if (itemCode !== referenceCode) {
       if (!treatItemChangesAsEdits) {
         originalCodeRef.current = { code: itemCode, format };
       }
@@ -402,6 +410,7 @@ export default function EditorDialog(props: EditorDialogProps) {
   }
 
   function handleTabChange(tabIndex: number) {
+    setActiveTabIndex(tabIndex);
     const docsTabIndex = formContent ? 2 : 1;
     const diffTabIndex = formContent ? 3 : 2;
 
@@ -733,7 +742,11 @@ export default function EditorDialog(props: EditorDialogProps) {
             onClick={() => handleSave('dryRun')}
             color="secondary"
             variant="contained"
-            disabled={originalCodeRef.current.code === code.code || !!error || !!formInvalid}
+            disabled={
+              originalCodeRef.current.code === code.code ||
+              !!error ||
+              (activeTabIndex === 1 && !!formInvalid)
+            }
             aria-controls={editorId}
             sx={{ whiteSpace: 'nowrap' }}
           >
@@ -745,7 +758,11 @@ export default function EditorDialog(props: EditorDialogProps) {
             onClick={() => handleSave('apply')}
             color="primary"
             variant="contained"
-            disabled={originalCodeRef.current.code === code.code || !!error || !!formInvalid}
+            disabled={
+              originalCodeRef.current.code === code.code ||
+              !!error ||
+              (activeTabIndex === 1 && !!formInvalid)
+            }
             aria-controls={editorId}
             sx={{ whiteSpace: 'nowrap' }}
           >
