@@ -196,7 +196,7 @@ func TestRequestCounterMiddleware(t *testing.T) { //nolint:funlen // long functi
 				requestDurationFound = true
 
 				sumDuration := sumDataPoints(m.Data)
-				assert.GreaterOrEqual(t, sumDuration, int64(2), "Expected at least 2 request duration data points")
+				assert.GreaterOrEqual(t, sumDuration, int64(2), "Expected at least 2 request duration recordings")
 			}
 		}
 	}
@@ -414,7 +414,7 @@ func verifyRequestDurationMetric(t *testing.T, data metricdata.ResourceMetrics) 
 			if m.Name == metricRequestDuration {
 				found = true
 				sum := sumDataPoints(m.Data)
-				assert.GreaterOrEqual(t, sum, int64(2), "Expected at least 2 request duration data points")
+				assert.GreaterOrEqual(t, sum, int64(2), "Expected at least 2 request duration recordings")
 			}
 		}
 	}

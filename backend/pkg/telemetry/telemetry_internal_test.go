@@ -3,7 +3,10 @@ package telemetry
 import (
 	"testing"
 
+	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 )
 
 func TestNormalizeEndpoint(t *testing.T) {
@@ -39,4 +42,22 @@ func TestNormalizeEndpoint(t *testing.T) {
 			assert.Equal(t, tc.expected, normalizeEndpoint(tc.endpoint))
 		})
 	}
+}
+
+func TestCreateTracingExporter_JaegerFallback(t *testing.T) {
+	jaegerEndpoint := "http://localhost:14268/api/traces"
+	useHTTP := false
+	stdoutEnabled := false
+
+	config := cfg.Config{
+		JaegerEndpoint:     &jaegerEndpoint,
+		UseOTLPHTTP:        &useHTTP,
+		StdoutTraceEnabled: &stdoutEnabled,
+	}
+
+	exporter, err := createTracingExporter(config)
+	require.NoError(t, err)
+	require.NotNil(t, exporter)
+
+	assert.IsType(t, &otlptrace.Exporter{}, exporter)
 }
