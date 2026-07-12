@@ -563,21 +563,28 @@ export function useKubeObjectList<K extends KubeObject>({
     queryParams: cleanedUpQueryParams,
   });
 
-  const errors = query.errors.filter(it => it !== null);
+  const filteredErrors = query.errors.filter(it => it !== null);
+  const items = endpointError ? [] : query.items;
+  const error = endpointError ?? query.errors.find(it => it !== null) ?? null;
+  const errors = endpointError
+    ? [endpointError]
+    : filteredErrors.length > 0
+    ? filteredErrors
+    : null;
+  const status: 'error' | 'pending' | 'success' =
+    endpointError || query.isError ? 'error' : query.isLoading ? 'pending' : 'success';
 
-  // @ts-ignore - TS compiler gets confused with iterators
-  return {
-    items: endpointError ? [] : query.items,
-    errors: endpointError ? [endpointError] : errors.length > 0 ? errors : null,
-    error: endpointError ?? query.errors.find(it => it !== null) ?? null,
+  // Object.assign creates a tuple+object intersection without @ts-ignore (same pattern as useKubeObject).
+  return Object.assign([items, error] as [Array<K> | null, ApiError | null], {
+    data: endpointError ? null : query.data,
+    items,
+    errors,
+    error,
     clusterResults: query.clusterResults,
-    isError: query.isError,
+    isError: query.isError || !!endpointError,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
-    isSuccess: query.isSuccess,
-    *[Symbol.iterator](): ArrayIterator<ApiError | K[] | null> {
-      yield query.items;
-      yield endpointError ?? query.errors.find(it => it !== null) ?? null;
-    },
-  };
+    isSuccess: query.isSuccess && !endpointError,
+    status,
+  });
 }
