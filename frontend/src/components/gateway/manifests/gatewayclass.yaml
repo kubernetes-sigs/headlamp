@@ -1,0 +1,6 @@
+apiVersion: gateway.networking.k8s.io/v1
+kind: GatewayClass
+metadata:
+  name: envoy-secure-gwclass
+spec:
+  controllerName: gateway.envoyproxy.io/gatewayclass-controller

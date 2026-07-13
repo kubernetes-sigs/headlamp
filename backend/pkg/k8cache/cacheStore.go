@@ -1,0 +1,348 @@
+// Copyright 2025 The Kubernetes Authors.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package k8cache provides caching utilities for Kubernetes API responses.
+// It includes middleware for intercepting cluster API requests, generating
+// unique cache keys, storing and retrieving responses, and invalidating
+// entries when resources change. The package aims to reduce redundant
+// API calls, improve performance, and handle authorization gracefully
+// while maintaining consistency across multiple Kubernetes contexts.
+package k8cache
+
+import (
+	"bytes"
+	"compress/gzip"
+	"context"
+	"encoding/json"
+	"fmt"
+	"io"
+	"net/http"
+	"net/url"
+	"strings"
+	"time"
+
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+)
+
+const (
+	apiPathSegment  = "api"
+	apisPathSegment = "apis"
+)
+
+func kubernetesAPIPathIndex(parts []string) int {
+	if len(parts) > 1 && (parts[1] == apiPathSegment || parts[1] == apisPathSegment) {
+		return 1
+	}
+
+	if len(parts) > 3 && parts[1] == "clusters" && (parts[3] == apiPathSegment || parts[3] == apisPathSegment) {
+		return 3
+	}
+
+	return -1
+}
+
+// IsKubernetesAPIPath returns true when path targets a Kubernetes API endpoint
+// under /api or /apis (either directly, or proxied via /clusters/{name}/...).
+func IsKubernetesAPIPath(path string) bool {
+	path = strings.TrimRight(path, "/")
+	parts := strings.Split(path, "/")
+
+	return kubernetesAPIPathIndex(parts) != -1
+}
+
+// CachedResponseData stores information such as StatusCode, Headers, and Body.
+// It helps cache responses efficiently and serve them from the cache.
+type CachedResponseData struct {
+	StatusCode int         `json:"statusCode"`
+	Headers    http.Header `json:"headers"`
+	Body       string      `json:"body"`
+}
+
+// GetResponseBody decompresses a gzip-encoded response body and returns it as a string.
+// If the encoding is not gzip, it returns the raw body as a string.
+func GetResponseBody(bodyBytes []byte, encoding string) (string, error) {
+	var dcmpBody []byte
+
+	if encoding == "gzip" {
+		reader, err := gzip.NewReader(bytes.NewReader(bodyBytes))
+		if err != nil {
+			return "", fmt.Errorf("failed to create gzip reader: %w", err)
+		}
+
+		defer func() { _ = reader.Close() }()
+
+		decompressedBody, err := io.ReadAll(reader)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "failed to decompress body")
+			return "", fmt.Errorf("failed to decompress body: %w", err)
+		}
+
+		dcmpBody = decompressedBody
+	} else {
+		dcmpBody = bodyBytes
+	}
+
+	return string(dcmpBody), nil
+}
+
+// GetAPIGroup parses the URL path and returns the apiGroup and version.
+func GetAPIGroup(path string) (apiGroup, version string, err error) {
+	path = strings.TrimRight(path, "/")
+	parts := strings.Split(path, "/")
+	apiIdx := kubernetesAPIPathIndex(parts)
+
+	if apiIdx == -1 {
+		return "", "", fmt.Errorf("invalid url format")
+	}
+
+	switch parts[apiIdx] {
+	case apiPathSegment:
+		// Core API group
+		apiGroup = ""
+
+		if len(parts) > apiIdx+1 {
+			version = parts[apiIdx+1]
+		}
+	case apisPathSegment:
+		// Named API group
+		if len(parts) > apiIdx+1 {
+			apiGroup = parts[apiIdx+1]
+		}
+
+		if len(parts) > apiIdx+2 {
+			version = parts[apiIdx+2]
+		}
+	}
+
+	return
+}
+
+// ExtractNamespace extracts the namespace from the parameter from the given raw URL. This is used to make
+// cache key more specific to a particular namespace.
+func ExtractNamespace(rawURL string) (string, string) {
+	if idx := strings.Index(rawURL, "?"); idx != -1 {
+		rawURL = rawURL[:idx]
+	}
+
+	rawURL = strings.TrimRight(rawURL, "/")
+
+	var namespace, kind string
+
+	urls := strings.Split(rawURL, "/")
+
+	n := len(urls)
+
+	apiIdx := kubernetesAPIPathIndex(urls)
+	if apiIdx == -1 {
+		return "", ""
+	}
+
+	for i := 0; i < n-1; i++ {
+		if urls[i] == "namespaces" {
+			namespace = urls[i+1]
+			break
+		}
+	}
+
+	if n > 2 {
+		kind = urls[n-1]
+	}
+
+	return namespace, kind
+}
+
+// buildCacheKey joins apiGroup, kind, namespace, and contextID into a single
+// cache key using "+" as the delimiter. Each field is percent-escaped so
+// that the only "+" characters left in the key are the delimiters
+// themselves and the encoding round-trips uniquely back to its inputs.
+// This matters most for the context field, since kubeconfig context names
+// are not restricted by Kubernetes naming rules and may legitimately
+// contain "+" (or "%").
+//
+// This function is the single source of truth for constructing cache keys.
+// Any code that parses or otherwise manipulates the key format (e.g. the
+// namespace stripping in cache invalidation) must stay consistent with this
+// encoding to avoid the two sides silently drifting out of sync.
+func buildCacheKey(apiGroup, kind, namespace, contextID string) string {
+	// Escape "%" first, then "+". This order matters: it makes the encoding
+	// injective, so e.g. "prod+cluster" -> "prod%2Bcluster" and the literal
+	// string "prod%2Bcluster" -> "prod%252Bcluster" never collide. Reversing
+	// the order (or skipping "%") would map both inputs to the same key and
+	// reintroduce the collision class this function exists to prevent.
+	escape := func(s string) string {
+		s = strings.ReplaceAll(s, "%", "%25")
+		s = strings.ReplaceAll(s, "+", "%2B")
+
+		return s
+	}
+
+	return fmt.Sprintf(
+		"%s+%s+%s+%s",
+		escape(apiGroup),
+		escape(kind),
+		escape(namespace),
+		escape(contextID),
+	)
+}
+
+// GenerateKey function helps to generate a unique key based on the request from the client
+// The function accepts url( which includes all the information of request ) and contextID which
+// helps to differentiate in multiple contexts.
+func GenerateKey(url *url.URL, contextID string) (string, error) {
+	namespace, kind := ExtractNamespace(url.Path)
+
+	apiGroup, _, err := GetAPIGroup(url.Path)
+	if err != nil {
+		return "", err
+	}
+
+	k := CacheKey{
+		Kind:      kind,
+		Namespace: namespace,
+		Context:   contextID,
+	}
+
+	return buildCacheKey(apiGroup, k.Kind, k.Namespace, k.Context), nil
+}
+
+// SetHeader function help to serve response from cache to ensure the client
+// receives correct metadata about the response.
+func SetHeader(cacheData CachedResponseData, w http.ResponseWriter) {
+	for idx, header := range cacheData.Headers {
+		w.Header()[idx] = header
+	}
+
+	w.Header().Set("X-HEADLAMP-CACHE", "true")
+	w.WriteHeader(cacheData.StatusCode)
+}
+
+const gzipEncoding = "gzip"
+
+// FilterHeaderForCache ensures that the cached headers accurately reflect the state of the
+// decompressed body that is being stored, and prevents client side decompression
+// issues serving from cache.
+func FilterHeaderForCache(responseHeaders http.Header, encoding string) http.Header {
+	cacheHeader := make(http.Header)
+
+	for idx, header := range responseHeaders {
+		if strings.EqualFold(idx, "Content-Encoding") && encoding == gzipEncoding {
+			continue
+		}
+
+		cacheHeader[idx] = append(cacheHeader[idx], header...)
+	}
+
+	return cacheHeader
+}
+
+// LoadFromCache checks if a cached resource exists and the user has permission to view it.
+// If found, it writes the cached data to the ResponseWriter and returns (true, nil).
+// If not found or on error, it returns (false, error).
+func LoadFromCache(k8scache cache.Cache[string], isAllowed bool,
+	key string, w http.ResponseWriter, r *http.Request,
+) (bool, error) {
+	k8Resource, err := k8scache.Get(context.Background(), key)
+	if err == nil && strings.TrimSpace(k8Resource) != "" && isAllowed {
+		var cachedData CachedResponseData
+		if err := json.Unmarshal([]byte(k8Resource), &cachedData); err != nil {
+			return false, err
+		}
+
+		SetHeader(cachedData, w)
+
+		_, writeErr := w.Write([]byte(cachedData.Body))
+		if writeErr != nil {
+			return false, writeErr
+		}
+
+		logger.Log(logger.LevelInfo, nil, nil, "serving from the cache with key "+redactCacheKey(key))
+
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// StoreK8sResponseInCache ensures if the key was not found inside the cache then this will make actual call to k8's
+// and this will capture the response body and convert the captured response to string.
+// After converting it will store the response with the key and TTL of 10*min.
+func StoreK8sResponseInCache(k8scache cache.Cache[string],
+	url *url.URL,
+	rcw *ResponseCapture,
+	r *http.Request,
+	key string,
+) error {
+	if rcw.StatusCode >= 500 {
+		return nil
+	}
+
+	capturedHeaders := rcw.Header()
+	encoding := capturedHeaders.Get("Content-Encoding")
+	bodyBytes := rcw.Body.Bytes()
+
+	dcmpBody, err := GetResponseBody(bodyBytes, encoding)
+	if err != nil {
+		return err
+	}
+
+	headersToCache := FilterHeaderForCache(capturedHeaders, encoding)
+	if !strings.Contains(url.Path, "selfsubjectrulesreviews") {
+		cachedData := CachedResponseData{
+			StatusCode: rcw.StatusCode,
+			Headers:    headersToCache,
+			Body:       dcmpBody,
+		}
+
+		jsonBytes, err := json.Marshal(cachedData)
+		if err != nil {
+			return err
+		}
+
+		if !strings.Contains(string(jsonBytes), "Failure") {
+			if err = k8scache.SetWithTTL(context.Background(), key, string(jsonBytes), 10*time.Minute); err != nil {
+				return err
+			}
+
+			logger.Log(logger.LevelInfo, nil, nil, "k8s resource was stored with the key "+redactCacheKey(key))
+		}
+	}
+
+	return nil
+}
+
+// redactContextKey returns a redacted version of the context key to avoid leaking PII/sensitive info in logs.
+func redactContextKey(key string) string {
+	if key == "" {
+		return ""
+	}
+
+	if len(key) <= 3 {
+		return "[redacted]"
+	}
+
+	return key[:3] + "...[redacted]"
+}
+
+// redactCacheKey returns a redacted version of the cache key (which contains the context key as its last segment).
+func redactCacheKey(key string) string {
+	parts := strings.SplitN(key, "+", 4)
+
+	if len(parts) >= 4 {
+		parts[3] = redactContextKey(parts[3])
+
+		return strings.Join(parts, "+")
+	}
+
+	return key
+}

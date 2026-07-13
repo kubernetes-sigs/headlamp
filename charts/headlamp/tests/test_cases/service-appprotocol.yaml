@@ -1,0 +1,2 @@
+service:
+  appProtocol: kubernetes.io/ws

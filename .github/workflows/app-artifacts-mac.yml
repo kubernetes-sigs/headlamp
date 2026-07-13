@@ -1,0 +1,122 @@
+name: Build and upload Mac app artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      buildBranch:
+        description: 'Headlamp ref/branch/tag'
+        required: true
+        default: 'main'
+      signBinaries:
+        description: Notarize app
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    permissions:
+      contents: read
+      actions: write # needed to upload artifacts
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+      with:
+        ref: ${{ github.event.inputs.buildBranch }}
+    - name: Setup nodejs
+      uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+      with:
+        node-version: 22.x
+        cache: 'npm'
+        cache-dependency-path: |
+          app/package-lock.json
+          frontend/package-lock.json
+    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+      with:
+        go-version: '1.26.*'
+        cache-dependency-path: |
+          backend/go.sum
+    - name: Dependencies
+      run: brew install make
+    - name: Build Backend and Frontend
+      run: |
+        make
+    - name: Add MacOS certs
+      run: cd ./app/mac/scripts/ && sh ./setup-certificate.sh
+      env:
+        APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+        APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+    - name: Build Signed and Notarized App Mac
+      if: ${{ inputs.signBinaries }}
+      env:
+        APPLE_ID: ${{ secrets.APPLEID }}
+        APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLEIDPASS }}
+        APPLE_TEAM_ID: ${{ secrets.APPLETEAMID }}
+      run: |
+        make app-mac 2>&1 | tee build.log
+        if grep -q "Mac codesign: Failed" build.log; then
+          echo "Error: Mac codesign failed"
+          exit 1
+        fi
+    - name: Build Unsigned App Mac
+      if: ${{ ! inputs.signBinaries }}
+      run: |
+        make app-mac
+    - name: Upload artifact
+      uses: actions/upload-artifact@65462800fd760344b1a7b4382951275a0abb4808 # v4.3.3
+      with:
+        name: dmgs
+        path: ./app/dist/Headlamp*.dmg
+        if-no-files-found: error
+        retention-days: 2
+  verify-notarization:
+    runs-on: macos-latest
+    needs: build-mac
+    permissions:
+      actions: write # for downloading artifacts
+      contents: read
+    if: ${{ inputs.signBinaries }}
+    strategy:
+      matrix:
+        arch: [x86, arm64]
+    steps:
+    - name: Download artifact
+      uses: actions/download-artifact@65a9edc5881444af0b9093a5e628f2fe47ea3b2e # v4.1.7
+      with:
+        name: dmgs
+        path: ./dmgs
+    - name: Verify Notarization
+      run: |
+        cd ./dmgs
+
+        # Map x86 to x64
+        ARCH=${{ matrix.arch }}
+        if [ "$ARCH" = "x86" ]; then
+          ARCH="x64"
+        fi
+
+        echo "Verifying notarization of the app: $(ls ./Headlamp*${ARCH}*.dmg)"
+        MOUNT_OUTPUT="$(hdiutil attach ./Headlamp*${ARCH}*.dmg)"
+        VOLUME_NAME="$(echo "$MOUNT_OUTPUT" | grep -o '/Volumes/[^\s]*')"
+
+        # Check if the app is notarized
+        echo "Checking volume: $VOLUME_NAME"
+        spctl -a -v "$VOLUME_NAME/Headlamp.app/Contents/MacOS/Headlamp"
+
+        echo "Checking symlinks..."
+        # Check if the app has symlinks
+        SYMLINKS=$(find "$VOLUME_NAME" -type l -ls || true)
+        NODE_MODULES_AS_SYMLINKS=$(echo "$SYMLINKS" | grep node_modules || true)
+        if [ -n "$NODE_MODULES_AS_SYMLINKS" ]; then
+          echo "Symlinks found in the DMG:"
+          echo "$NODE_MODULES_AS_SYMLINKS"
+          exit 1
+        else
+          echo "No symlinks found in the DMG"
+        fi
+
+        echo "Detaching volume"
+        hdiutil detach "$VOLUME_NAME" || true
+        exit 0

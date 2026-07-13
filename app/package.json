@@ -1,0 +1,209 @@
+{
+  "name": "headlamp",
+  "version": "0.43.0",
+  "description": "Easy-to-use and extensible Kubernetes web UI",
+  "main": "build/main.js",
+  "homepage": "https://github.com/kubernetes-sigs/headlamp/#readme",
+  "productName": "Headlamp",
+  "engines": {
+    "npm": ">=11.0.0",
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "build": "npm run copy-icons && npm run copy-plugins && npm run compile-electron && electron-builder --dir --publish never",
+    "compile-electron": "node scripts/build-electron.js",
+    "copy-icons": "mkdirp build/icons && copyfiles -f ../frontend/build/*.png ../frontend/build/*.ico ../frontend/build/*.icns ../frontend/build/*.svg build/icons",
+    "copy-plugins": "npx --no-install shx rm -rf build/.plugins && mkdirp build/.plugins && copyfiles ../.plugins build/.plugins",
+    "dev": "npm run compile-electron -- --dev && cross-env ELECTRON_DEV=1 electron .",
+    "dev:debug": "npm run compile-electron -- --dev && cross-env ELECTRON_DEV=1 electron . --remote-debugging-port=9222",
+    "dev-only-app": "npm run compile-electron -- --dev && cross-env ELECTRON_DEV=1 ELECTRON_START_URL=http://localhost:3000 EXTERNAL_SERVER=true electron .",
+    "dev-only-app:debug": "npm run compile-electron -- --dev && cross-env ELECTRON_DEV=1 ELECTRON_START_URL=http://localhost:3000 EXTERNAL_SERVER=true electron . --remote-debugging-port=9222",
+    "format": "cd .. && npm run frontend:format",
+    "i18n": "npx --no-install i18next ./electron/main.ts -c ./electron/i18next-parser.config.ts",
+    "i18n-check": "npm run i18n -- --fail-on-update",
+    "lint": "cd .. && npm run frontend:lint",
+    "lint-fix": "cd .. && npm run frontend:lint:fix",
+    "package": "npm run build && electron-builder build --publish never",
+    "package-msi": "npm run build && node windows/msi/build.js",
+    "start": "node scripts/start.js",
+    "star": "node scripts/start.js --star",
+    "test": "vitest run",
+    "tsc": "tsc",
+    "verify-build-linux": "bash scripts/verify-build-linux.sh",
+    "verify-build-mac": "bash scripts/verify-build-mac.sh",
+    "verify-build-windows": "powershell -ExecutionPolicy Bypass -File scripts/verify-build-windows.ps1"
+  },
+  "build": {
+    "appId": "com.microsoft.Headlamp",
+    "beforeBuild": "./scripts/build-backend.js",
+    "afterPack": "./scripts/after-pack.js",
+    "asar": false,
+    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "protocols": {
+      "name": "headlamp-protocol",
+      "schemes": [
+        "headlamp"
+      ]
+    },
+    "nsis": {
+      "deleteAppDataOnUninstall": true,
+      "runAfterFinish": true,
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true
+    },
+    "deb": {
+      "artifactName": "${name}_${version}-1_${arch}.${ext}",
+      "depends": [
+        "libgtk-3-0",
+        "libnotify4",
+        "libnss3",
+        "libxss1",
+        "libxtst6",
+        "xdg-utils",
+        "libatspi2.0-0",
+        "libuuid1",
+        "libsecret-1-0",
+        "libasound2"
+      ]
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "armv7l",
+            "arm64"
+          ]
+        },
+        {
+          "target": "tar.gz",
+          "arch": [
+            "x64",
+            "armv7l",
+            "arm64"
+          ]
+        },
+        {
+          "target": "deb",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "executableName": "headlamp",
+      "maintainer": "Kinvolk <hello@kinvolk.io>",
+      "category": "Network",
+      "extraResources": [
+        {
+          "from": "../backend/headlamp-server"
+        }
+      ]
+    },
+    "mac": {
+      "appId": "com.microsoft.Headlamp",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "gatekeeperAssess": false,
+      "hardenedRuntime": true,
+      "entitlements": "mac/entitlements.mac.plist",
+      "entitlementsInherit": "mac/entitlements.mac.plist",
+      "extraResources": [
+        {
+          "from": "../backend/headlamp-server"
+        }
+      ]
+    },
+    "win": {
+      "target": [
+        "nsis"
+      ],
+      "signtoolOptions": {
+        "sign": "windows/sign.js"
+      },
+      "extraResources": [
+        {
+          "from": "../backend/headlamp-server.exe"
+        }
+      ]
+    },
+    "files": [
+      "build/main.js",
+      "build/preload.js"
+    ],
+    "extraResources": [
+      {
+        "from": "../frontend/build",
+        "to": "frontend"
+      },
+      {
+        "from": "../frontend/src/i18n/locales",
+        "to": "frontend/i18n/locales"
+      },
+      {
+        "from": "assets/",
+        "to": "assets/"
+      },
+      {
+        "from": "../.plugins",
+        "to": ".plugins"
+      },
+      {
+        "from": "./app-build-manifest.json",
+        "to": "app-build-manifest.json"
+      }
+    ],
+    "publish": {
+      "provider": "github",
+      "repo": "headlamp",
+      "owner": "kinvolk"
+    },
+    "extends": null
+  },
+  "keywords": [],
+  "author": {
+    "name": "Kinvolk",
+    "email": "hello@kinvolk.io"
+  },
+  "prettier": "@headlamp-k8s/eslint-config/prettier-config",
+  "devDependencies": {
+    "@headlamp-k8s/eslint-config": "^0.6.0",
+    "@types/node": "^22.14.0",
+    "@types/semver": "^7.7.0",
+    "@types/yargs": "^17.0.35",
+    "electron": "^38.8.6",
+    "electron-builder": "^26.6.0",
+    "esbuild": "^0.25.0",
+    "i18next-parser": "^9.0.0",
+    "typescript": "5.5.4",
+    "vitest": "^3.0.0"
+  },
+  "overrides": {
+    "typescript": "5.5.4",
+    "js-yaml": "^4.1.1"
+  },
+  "dependencies": {
+    "@langchain/mcp-adapters": "^1.0.0",
+    "copyfiles": "^2.4.1",
+    "cross-env": "^7.0.3",
+    "dotenv": "^16.4.5",
+    "electron-wix-msi": "^5.1.3",
+    "find-process": "^1.4.10",
+    "glob": "^10.5.0",
+    "i18next": "^23.12.1",
+    "i18next-fs-backend": "^2.6.5",
+    "mkdirp": "^3.0.1",
+    "nock": "^14.0.5",
+    "shx": "^0.4.0",
+    "tar": "^7.5.11",
+    "yargs": "^17.7.2"
+  }
+}

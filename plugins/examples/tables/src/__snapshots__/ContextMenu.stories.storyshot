@@ -1,0 +1,22 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Storyshots ContextMenu Open Menu 1`] = `
+<div>
+  <button
+    aria-label="Open pod context menu"
+    class="MuiButtonBase-root MuiIconButton-root"
+    tabindex="0"
+    title="Open pod context menu"
+    type="button"
+  >
+    <span
+      class="MuiIconButton-label"
+    >
+      <span />
+    </span>
+    <span
+      class="MuiTouchRipple-root"
+    />
+  </button>
+</div>
+`;

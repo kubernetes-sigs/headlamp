@@ -1,0 +1,420 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import {
+  combineClusterListErrors,
+  compareUnits,
+  flattenClusterListItems,
+  formatDuration,
+  getPercentStr,
+  isValidTimezone,
+  normalizeUnit,
+  timeAgo,
+} from './util';
+
+const SECOND = 1000;
+const MINUTE = 60 * SECOND;
+const HOUR = 60 * MINUTE;
+const DAY = 24 * HOUR;
+const YEAR = 365 * DAY;
+const NEG_TWO_SECONDS_PLUS_ONE_NS = -1999999999 / 1e6;
+
+describe('flattenClusterListItems', () => {
+  it('should return a flattened list of items', () => {
+    const result = flattenClusterListItems(
+      { cluster1: [1, 2, 3], cluster2: [4, 5] },
+      { cluster3: [6, 7], cluster4: null },
+      null
+    );
+    expect(result).toEqual([1, 2, 3, 4, 5, 6, 7]);
+  });
+
+  it('should return null if all clusters are null', () => {
+    const result = flattenClusterListItems({ cluster1: null }, { cluster2: null }, null);
+    expect(result).toBeNull();
+  });
+
+  it('should return null if there are no items', () => {
+    const result = flattenClusterListItems({ cluster1: [] }, { cluster2: [] });
+    expect(result).toBeNull();
+  });
+
+  it('should handle mixed null and non-null clusters', () => {
+    const result = flattenClusterListItems(
+      { cluster1: [1, 2], cluster2: null },
+      { cluster3: [3, 4] },
+      null
+    );
+    expect(result).toEqual([1, 2, 3, 4]);
+  });
+});
+
+describe('getPercentStr', () => {
+  it('should return null when total is zero', () => {
+    expect(getPercentStr(0, 0)).toBeNull();
+  });
+
+  it('should not add decimals for whole-number percentages', () => {
+    // Multiples of ten and other whole numbers should render identically.
+    expect(getPercentStr(7, 10)).toBe('70 %');
+    expect(getPercentStr(2, 4)).toBe('50 %');
+    expect(getPercentStr(3, 4)).toBe('75 %');
+    expect(getPercentStr(1, 4)).toBe('25 %');
+    expect(getPercentStr(1, 1)).toBe('100 %');
+    expect(getPercentStr(0, 4)).toBe('0 %');
+    // 29/100 computes to 28.999999999999996; it must still render as "29 %".
+    expect(getPercentStr(29, 100)).toBe('29 %');
+  });
+
+  it('should keep a single decimal for fractional percentages', () => {
+    expect(getPercentStr(5, 8)).toBe('62.5 %');
+    expect(getPercentStr(1, 8)).toBe('12.5 %');
+    expect(getPercentStr(2, 3)).toBe('66.7 %');
+    expect(getPercentStr(1, 3)).toBe('33.3 %');
+  });
+});
+
+describe('combineClusterListErrors', () => {
+  it('should return null if there are no errors', () => {
+    const result = combineClusterListErrors(null, null);
+    expect(result).toBeNull();
+  });
+
+  it('should combine errors from multiple clusters', () => {
+    const error1 = { message: 'Error 1', status: 500, name: 'InternalServerError' };
+    const error2 = { message: 'Error 2', status: 404, name: 'NotFoundError' };
+    const clusterErrors1 = { clusterA: error1 };
+    const clusterErrors2 = { clusterB: error2 };
+
+    const result = combineClusterListErrors(clusterErrors1, clusterErrors2);
+    expect(result).toEqual({
+      clusterA: error1,
+      clusterB: error2,
+    });
+  });
+
+  it('should ignore null errors', () => {
+    const error1 = { message: 'Error 1', status: 500, name: 'InternalServerError' };
+    const clusterErrors1 = { clusterA: error1 };
+    const clusterErrors2 = { clusterB: null };
+
+    const result = combineClusterListErrors(clusterErrors1, clusterErrors2);
+    expect(result).toEqual({
+      clusterA: error1,
+    });
+  });
+
+  it('should return null if all errors are null', () => {
+    const clusterErrors1 = { clusterA: null };
+    const clusterErrors2 = { clusterB: null };
+
+    const result = combineClusterListErrors(clusterErrors1, clusterErrors2);
+    expect(result).toBeNull();
+  });
+});
+
+const HUMAN_DURATION_CASES: { ms: number; want: string }[] = [
+  { ms: 1 * SECOND, want: '1s' },
+  { ms: 70 * SECOND, want: '70s' },
+  { ms: 190 * SECOND, want: '3m10s' },
+  { ms: 70 * MINUTE, want: '70m' },
+  { ms: 47 * HOUR, want: '47h' },
+  { ms: 49 * HOUR, want: '2d1h' },
+  { ms: (8 * 24 + 2) * HOUR, want: '8d' },
+  { ms: 367 * 24 * HOUR, want: '367d' },
+  { ms: (365 * 2 * 24 + 25) * HOUR, want: '2y1d' },
+  { ms: (365 * 8 * 24 + 2) * HOUR, want: '8y' },
+];
+
+const HUMAN_DURATION_BOUNDARY_CASES: { ms: number; want: string }[] = [
+  { ms: -2 * SECOND, want: '<invalid>' },
+  { ms: NEG_TWO_SECONDS_PLUS_ONE_NS, want: '0s' },
+  { ms: 0, want: '0s' },
+  { ms: SECOND - 1, want: '0s' },
+  { ms: 2 * MINUTE - 1, want: '119s' },
+  { ms: 2 * MINUTE, want: '2m' },
+  { ms: 2 * MINUTE + SECOND, want: '2m1s' },
+  { ms: 10 * MINUTE - 1, want: '9m59s' },
+  { ms: 10 * MINUTE, want: '10m' },
+  { ms: 10 * MINUTE + SECOND, want: '10m' },
+  { ms: 3 * HOUR - 1, want: '179m' },
+  { ms: 3 * HOUR, want: '3h' },
+  { ms: 3 * HOUR + MINUTE, want: '3h1m' },
+  { ms: 8 * HOUR - 1, want: '7h59m' },
+  { ms: 8 * HOUR, want: '8h' },
+  { ms: 8 * HOUR + 59 * MINUTE, want: '8h' },
+  { ms: 2 * DAY - 1, want: '47h' },
+  { ms: 2 * DAY, want: '2d' },
+  { ms: 2 * DAY + HOUR, want: '2d1h' },
+  { ms: 8 * DAY - 1, want: '7d23h' },
+  { ms: 8 * DAY, want: '8d' },
+  { ms: 8 * DAY + 23 * HOUR, want: '8d' },
+  { ms: 2 * YEAR - 1, want: '729d' },
+  { ms: 2 * YEAR, want: '2y' },
+  { ms: 2 * YEAR + 23 * HOUR, want: '2y' },
+  { ms: 2 * YEAR + 23 * HOUR + 59 * MINUTE, want: '2y' },
+  { ms: 2 * YEAR + 24 * HOUR - 1, want: '2y' },
+  { ms: 2 * YEAR + 24 * HOUR, want: '2y1d' },
+  { ms: 3 * YEAR, want: '3y' },
+  { ms: 4 * YEAR, want: '4y' },
+  { ms: 5 * YEAR, want: '5y' },
+  { ms: 6 * YEAR, want: '6y' },
+  { ms: 7 * YEAR, want: '7y' },
+  { ms: 8 * YEAR - 1, want: '7y364d' },
+  { ms: 8 * YEAR, want: '8y' },
+  { ms: 8 * YEAR + 364 * DAY, want: '8y' },
+  { ms: 9 * YEAR, want: '9y' },
+];
+
+const SHORT_HUMAN_DURATION_BOUNDARY_CASES: { ms: number; want: string }[] = [
+  { ms: -2 * SECOND, want: '<invalid>' },
+  { ms: NEG_TWO_SECONDS_PLUS_ONE_NS, want: '0s' },
+  { ms: 0, want: '0s' },
+  { ms: SECOND - 1, want: '0s' },
+  { ms: SECOND, want: '1s' },
+  { ms: 2 * SECOND - 1, want: '1s' },
+  { ms: MINUTE - 1, want: '59s' },
+  { ms: MINUTE, want: '1m' },
+  { ms: 2 * MINUTE - 1, want: '1m' },
+  { ms: HOUR - 1, want: '59m' },
+  { ms: HOUR, want: '1h' },
+  { ms: 2 * HOUR - 1, want: '1h' },
+  { ms: DAY - 1, want: '23h' },
+  { ms: DAY, want: '1d' },
+  { ms: 2 * DAY - 1, want: '1d' },
+  { ms: YEAR - 1, want: '364d' },
+  { ms: YEAR, want: '1y' },
+  { ms: 2 * YEAR - 1, want: '1y' },
+  { ms: 2 * YEAR, want: '2y' },
+];
+
+describe('formatDuration (Kubernetes apimachinery parity)', () => {
+  describe('HumanDuration — TestHumanDuration', () => {
+    it.each(HUMAN_DURATION_CASES)('HumanDuration %#: $want', ({ ms, want }) => {
+      expect(formatDuration(ms, { format: 'mini' })).toBe(want);
+    });
+  });
+
+  describe('HumanDuration — TestHumanDurationBoundaries', () => {
+    it.each(HUMAN_DURATION_BOUNDARY_CASES)('HumanDuration boundary %#: $want', ({ ms, want }) => {
+      expect(formatDuration(ms, { format: 'mini' })).toBe(want);
+    });
+  });
+
+  describe('ShortHumanDuration — TestShortHumanDurationBoundaries', () => {
+    it.each(SHORT_HUMAN_DURATION_BOUNDARY_CASES)(
+      'ShortHumanDuration boundary %#: $want',
+      ({ ms, want }) => {
+        expect(formatDuration(ms)).toBe(want);
+        expect(formatDuration(ms, { format: 'brief' })).toBe(want);
+      }
+    );
+  });
+});
+
+describe('timeAgo', () => {
+  it('matches formatDuration for the fixed test clock offset (UNDER_TEST)', () => {
+    const start = new Date('2020-06-15T12:00:00.000Z');
+    const ninetyDaysMs = 90 * DAY;
+
+    expect(timeAgo(start)).toBe(formatDuration(ninetyDaysMs, {}));
+    expect(timeAgo(start, { format: 'mini' })).toBe(
+      formatDuration(ninetyDaysMs, { format: 'mini' })
+    );
+    expect(timeAgo(start)).toBe('90d');
+    expect(timeAgo(start, { format: 'mini' })).toBe('90d');
+  });
+});
+
+describe('normalizeUnit', () => {
+  describe('memory — binary units', () => {
+    it('converts Ki (kibibytes)', () => {
+      expect(normalizeUnit('memory', '1Ki')).toBe('1.02 KB');
+    });
+
+    it('converts Mi (mebibytes)', () => {
+      expect(normalizeUnit('memory', '1Mi')).toBe('1.05 MB');
+    });
+
+    it('converts Gi (gibibytes)', () => {
+      expect(normalizeUnit('memory', '1Gi')).toBe('1.07 GB');
+    });
+
+    it('converts Ti (tebibytes)', () => {
+      expect(normalizeUnit('memory', '1Ti')).toBe('1.1 TB');
+    });
+
+    it('converts Pi (pebibytes)', () => {
+      expect(normalizeUnit('memory', '1Pi')).toBe('1.13 PB');
+    });
+
+    it('converts Ei (exbibytes)', () => {
+      expect(normalizeUnit('memory', '1Ei')).toBe('1.15 EB');
+    });
+  });
+
+  describe('memory — decimal units', () => {
+    it('converts k (kilobytes)', () => {
+      expect(normalizeUnit('memory', '1k')).toBe('1 KB');
+    });
+
+    it('converts M (megabytes)', () => {
+      expect(normalizeUnit('memory', '1M')).toBe('1 MB');
+    });
+
+    it('converts G (gigabytes)', () => {
+      expect(normalizeUnit('memory', '1G')).toBe('1 GB');
+    });
+
+    it('converts T (terabytes)', () => {
+      expect(normalizeUnit('memory', '1T')).toBe('1 TB');
+    });
+
+    it('converts P (petabytes)', () => {
+      expect(normalizeUnit('memory', '1P')).toBe('1 PB');
+    });
+
+    it('converts E (exabytes)', () => {
+      expect(normalizeUnit('memory', '1E')).toBe('1 EB');
+    });
+  });
+
+  describe('memory — fractional values', () => {
+    it('converts 1.5Gi', () => {
+      expect(normalizeUnit('memory', '1.5Gi')).toBe('1.61 GB');
+    });
+
+    it('converts 2.3Mi', () => {
+      expect(normalizeUnit('memory', '2.3Mi')).toBe('2.41 MB');
+    });
+
+    it('converts 0.5k', () => {
+      expect(normalizeUnit('memory', '0.5k')).toBe('500 Bytes');
+    });
+
+    it('converts 1.25Ti', () => {
+      expect(normalizeUnit('memory', '1.25Ti')).toBe('1.37 TB');
+    });
+
+    it('converts 3.75G', () => {
+      expect(normalizeUnit('memory', '3.75G')).toBe('3.75 GB');
+    });
+  });
+
+  describe('memory — edge cases', () => {
+    it('handles zero bytes', () => {
+      expect(normalizeUnit('memory', '0')).toBe('0 Bytes');
+    });
+
+    it('handles plain bytes without suffix', () => {
+      expect(normalizeUnit('memory', '1024')).toBe('1.02 KB');
+    });
+
+    it('handles non-numeric input gracefully', () => {
+      expect(normalizeUnit('memory', 'abc')).toBe('abc');
+    });
+
+    it('handles empty string gracefully', () => {
+      expect(normalizeUnit('memory', '')).toBe('');
+    });
+  });
+
+  describe('cpu', () => {
+    it('converts millicores', () => {
+      expect(normalizeUnit('cpu', '500m')).toBe('0.5 cores');
+    });
+
+    it('shows singular core', () => {
+      expect(normalizeUnit('cpu', '1')).toBe('1 core');
+    });
+
+    it('shows plural cores', () => {
+      expect(normalizeUnit('cpu', '2')).toBe('2 cores');
+    });
+  });
+});
+
+describe('isValidTimezone', () => {
+  it('returns true for valid IANA timezone identifiers', () => {
+    expect(isValidTimezone('UTC')).toBe(true);
+    expect(isValidTimezone('America/New_York')).toBe(true);
+    expect(isValidTimezone('Europe/Bucharest')).toBe(true);
+    expect(isValidTimezone('Asia/Tokyo')).toBe(true);
+  });
+
+  it('returns false for Etc/Unknown (the Chrome crash case)', () => {
+    const originalDateTimeFormat = Intl.DateTimeFormat;
+    const spy = vi.spyOn(Intl, 'DateTimeFormat').mockImplementation((locale, options) => {
+      if (options && options.timeZone === 'Etc/Unknown') {
+        throw new RangeError('Invalid time zone');
+      }
+      return new originalDateTimeFormat(locale, options);
+    });
+
+    try {
+      expect(isValidTimezone('Etc/Unknown')).toBe(false);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('returns false for other unrecognised timezone strings', () => {
+    expect(isValidTimezone('Invalid/Timezone')).toBe(false);
+    expect(isValidTimezone('foobar')).toBe(false);
+    expect(isValidTimezone(':/etc/localtime')).toBe(false);
+  });
+});
+
+describe('compareUnits', () => {
+  it('compares identical values', () => {
+    expect(compareUnits('500m', '500m')).toBe(true);
+  });
+
+  it('ignores whitespace differences', () => {
+    expect(compareUnits('  500 m  ', '500m')).toBe(true);
+    expect(compareUnits('500m', ' 500m ')).toBe(true);
+  });
+
+  it('ignores case differences', () => {
+    expect(compareUnits('500Mi', '500mi')).toBe(true);
+    expect(compareUnits('2ki', '2Ki')).toBe(true);
+  });
+
+  it('treats normalized formatting as equal when numeric value matches', () => {
+    expect(compareUnits('1k', normalizeUnit('memory', '1k'))).toBe(true);
+  });
+
+  it('returns true for matching decimal/fractional numbers', () => {
+    expect(compareUnits('1.5', '1.50')).toBe(true);
+    expect(compareUnits('2.3Mi', '2.3')).toBe(true);
+  });
+
+  it('returns false for mismatched decimal/fractional values', () => {
+    expect(compareUnits('1.5Gi', '1.61 GB')).toBe(false);
+    expect(compareUnits('2.3', '2.4')).toBe(false);
+  });
+
+  it('returns false for mismatched parsed values', () => {
+    expect(compareUnits('500m', '250m')).toBe(false);
+    expect(compareUnits('1Ki', '2Ki')).toBe(false);
+  });
+
+  it('returns false when either value does not start with a number (NaN cases)', () => {
+    expect(compareUnits('abc', '1')).toBe(false);
+    expect(compareUnits('1', 'abc')).toBe(false);
+    expect(compareUnits('', '')).toBe(false);
+  });
+});

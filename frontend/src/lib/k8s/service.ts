@@ -1,0 +1,141 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import _ from 'lodash';
+import type { KubeCondition } from './cluster';
+import type { KubeObjectInterface } from './KubeObject';
+import { KubeObject } from './KubeObject';
+
+export interface KubePortStatus {
+  error?: string;
+  port: number;
+  protocol: string;
+}
+
+export interface KubeLoadBalancerIngress {
+  hostname?: string;
+  ip?: string;
+  ports?: KubePortStatus[];
+}
+
+export interface KubeServicePort {
+  name: string;
+  nodePort?: number;
+  port: number;
+  protocol: string;
+  targetPort: number | string;
+  appProtocol?: string;
+}
+
+export interface KubeService extends KubeObjectInterface {
+  spec: {
+    clusterIP: string;
+    clusterIPs?: string[];
+    ports?: KubeServicePort[];
+    type: string;
+    externalIPs: string[];
+    externalName?: string;
+    externalTrafficPolicy?: string;
+    internalTrafficPolicy?: string;
+    healthCheckNodePort?: number;
+    sessionAffinity?: string;
+    sessionAffinityConfig?: {
+      clientIP?: {
+        timeoutSeconds?: number;
+      };
+    };
+    ipFamilies?: string[];
+    ipFamilyPolicy?: string;
+    loadBalancerClass?: string;
+    loadBalancerIP?: string;
+    loadBalancerSourceRanges?: string[];
+    trafficDistribution?: string;
+    selector: {
+      [key: string]: string;
+    };
+    [otherProps: string]: any;
+  };
+  status: {
+    conditions?: KubeCondition[];
+    loadBalancer?: {
+      ingress: KubeLoadBalancerIngress[];
+    };
+  };
+}
+
+class Service extends KubeObject<KubeService> {
+  static kind = 'Service';
+  static apiName = 'services';
+  static apiVersion = 'v1';
+  static isNamespaced = true;
+
+  static getBaseObject(): KubeService {
+    const baseObject = super.getBaseObject() as KubeService;
+    baseObject.spec = {
+      clusterIP: '',
+      ports: [
+        {
+          name: '',
+          nodePort: 30000,
+          port: 80,
+          protocol: 'TCP',
+          targetPort: 80,
+        },
+      ],
+      type: 'ClusterIP',
+      externalIPs: [],
+      selector: {},
+    };
+    return baseObject;
+  }
+
+  get spec(): KubeService['spec'] {
+    return this.jsonData.spec;
+  }
+
+  get status() {
+    return this.jsonData.status;
+  }
+
+  getExternalAddresses() {
+    return _.uniq(
+      (
+        this.status?.loadBalancer?.ingress?.map(
+          (ingress: KubeLoadBalancerIngress) => ingress.hostname || ingress.ip
+        ) || []
+      ).concat(this.spec.externalIPs || [])
+    ).join(', ');
+  }
+
+  getPorts() {
+    return this.spec?.ports?.map(port => port.port);
+  }
+
+  getFormattedPorts() {
+    return this.spec?.ports?.map(({ port, nodePort, targetPort, protocol }) => {
+      const isSamePort = targetPort && Number(targetPort) === port;
+      const secondary = nodePort ?? (targetPort && isSamePort ? undefined : targetPort);
+      const label = secondary ? `${port}:${secondary}` : `${port}`;
+      return protocol ? `${label}/${protocol}` : label;
+    });
+  }
+
+  getSelector() {
+    return Object.entries(this.spec?.selector || {}).map(([key, value]) => `${key}=${value}`);
+  }
+}
+
+export default Service;

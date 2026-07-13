@@ -1,0 +1,42 @@
+# See https://cloud.google.com/cloud-build/docs/build-config
+timeout: 3000s
+# A build step specifies an action that you want cloudbuild to perform.
+# For each build step, cloudbuild executes a docker container.
+steps:
+  # see https://github.com/kubernetes/test-infra/tree/master/config/jobs/image-pushing
+  - name: 'gcr.io/k8s-staging-test-infra/gcb-docker-gcloud@sha256:ff388e0dc16351e96f8464e2e185b74a7578a5ccb7a112cf3393468e59e6e2d2' # v20260205-38cfa9523f
+    entrypoint: bash
+    # Always build/push the image, but only push the Helm chart on SemVer tag
+    # builds (vX.Y.Z). On branch builds the chart version (read from
+    # Chart.yaml) does not change between runs, so an unconditional push would
+    # try to overwrite an existing OCI tag and fail.
+    args:
+      - -eu
+      - -c
+      - |
+        make image
+        if [[ "$_PULL_BASE_REF" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+          echo "Detected SemVer tag ($_PULL_BASE_REF); pushing Helm chart."
+          make helm-chart-push
+        else
+          echo "Skipping Helm chart push: $_PULL_BASE_REF is not a SemVer tag (vX.Y.Z)."
+        fi
+    env:
+      - DOCKER_CMD= # Because we are using a custom entrypoint, we need to set DOCKER_CMD to empty
+      - DOCKER_BUILDX_CMD=/buildx-entrypoint
+      - DOCKER_PUSH=true
+      - DOCKER_REPO=us-central1-docker.pkg.dev/k8s-staging-images/headlamp
+      - DOCKER_IMAGE_NAME=headlamp
+      - DOCKER_IMAGE_VERSION=$_PULL_BASE_REF
+      - DOCKER_IMAGE_EXTRA_TAG=$_GIT_TAG
+      - DOCKER_PLATFORM=linux/amd64,linux/arm64,linux/s390x,linux/ppc64le
+substitutions:
+  # _GIT_TAG will be filled with a git-based tag for the image, of the form vYYYYMMDD-hash, and
+  # can be used as a substitution
+  _GIT_TAG: '0.0.0'
+  # _PULL_BASE_REF will contain the ref that was pushed to trigger this build -
+  # a branch like 'main' or 'release-0.2', or a tag like 'v0.2'.
+  _PULL_BASE_REF: 'main'
+options:
+  substitution_option: ALLOW_LOOSE
+  machineType: 'E2_HIGHCPU_32'

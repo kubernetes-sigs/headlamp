@@ -1,0 +1,123 @@
+<body>
+  <div>
+    <nav
+      aria-label="Navigation"
+      class="MuiBox-root css-qnyptn"
+    >
+      <div
+        class="MuiDrawer-root MuiDrawer-docked css-184654t-MuiDrawer-docked"
+      >
+        <div
+          class="MuiPaper-root MuiPaper-outlined MuiDrawer-paper MuiDrawer-paperAnchorLeft MuiDrawer-paperAnchorDockedLeft css-2vc5z5-MuiPaper-root-MuiDrawer-paper"
+        >
+          <div
+            class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column MuiGrid-wrap-xs-nowrap css-opqjvv-MuiGrid-root"
+          >
+            <div
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            >
+              <ul
+                class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
+              >
+                <li
+                  class="css-3knmzx"
+                >
+                  <a
+                    aria-label="Home"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1bad0xa-MuiButtonBase-root-MuiListItemButton-root"
+                    href="/"
+                    role="button"
+                    tabindex="-1"
+                  >
+                    <div
+                      aria-label="Home"
+                      class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
+                      data-mui-internal-clone-element="true"
+                    />
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </a>
+                </li>
+                <li
+                  class="css-3knmzx"
+                >
+                  <a
+                    aria-label="Notifications"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1bad0xa-MuiButtonBase-root-MuiListItemButton-root"
+                    href="/notifications"
+                    role="button"
+                    tabindex="-1"
+                  >
+                    <div
+                      aria-label="Notifications"
+                      class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
+                      data-mui-internal-clone-element="true"
+                    />
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </a>
+                </li>
+                <li
+                  class="css-3knmzx"
+                >
+                  <a
+                    aria-label="Settings"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-1bad0xa-MuiButtonBase-root-MuiListItemButton-root"
+                    href="/settings/general"
+                    role="button"
+                    tabindex="-1"
+                  >
+                    <div
+                      aria-label="Settings"
+                      class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
+                      data-mui-internal-clone-element="true"
+                    />
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </a>
+                </li>
+              </ul>
+            </div>
+            <div
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            >
+              <div
+                class="MuiBox-root css-xi606m"
+              >
+                <div
+                  class="MuiBox-root css-1h413jj"
+                >
+                  <div
+                    class="MuiBox-root css-0"
+                  />
+                  <div
+                    class="MuiBox-root css-0"
+                  >
+                    <div
+                      class="MuiBox-root css-xi606m"
+                    >
+                      <button
+                        aria-label="Expand sidebar"
+                        class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-lr7sro-MuiButtonBase-root-MuiIconButton-root"
+                        data-mui-internal-clone-element="true"
+                        tabindex="0"
+                        type="button"
+                      >
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </nav>
+  </div>
+</body>

@@ -1,0 +1,376 @@
+// Copyright 2025 The Kubernetes Authors.
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//	http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+// Package k8cache provides caching utilities for Kubernetes API responses.
+// It includes middleware for intercepting cluster API requests, generating
+// unique cache keys, storing and retrieving responses, and invalidating
+// entries when resources change. The package aims to reduce redundant
+// API calls, improve performance, and handle authorization gracefully
+// while maintaining consistency across multiple Kubernetes contexts.
+package k8cache
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"slices"
+	"strings"
+	"sync"
+
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/dynamic"
+	"k8s.io/client-go/dynamic/dynamicinformer"
+	watchCache "k8s.io/client-go/tools/cache"
+)
+
+// DeleteKeys deletes keys from the cache if data is present
+// in cache, this delete keys having namespace non-empty and
+// also empty namespace.
+func DeleteKeys(key string, k8scache cache.Cache[string]) {
+	_ = k8scache.Delete(context.Background(), key)
+
+	keyPart := strings.Split(key, "+")
+	if len(keyPart) < 4 {
+		return // malformed key; nothing to namespace-strip
+	}
+
+	keyPart[2] = ""
+	key = strings.Join(keyPart, "+")
+	_ = k8scache.Delete(context.Background(), key)
+}
+
+// handleNonGetInvalidation handle request which are modifying eg. POST/DELETE/PUT and delete keys if
+// the data is present in the cache, if present PURGE the keys from the cache and make a fresh new
+// request to k8s server and store into the cache, the cache has now latest changes.
+func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.ResponseWriter, r *http.Request,
+	next http.Handler, contextKey string,
+) error {
+	// Skip cache invalidation if this is a GET request or the path is not allowed for auth error handling.
+	if r.Method == http.MethodGet || !IsAuthBypassURL(r.URL.Path) {
+		return nil
+	}
+
+	key, err := GenerateKey(r.URL, contextKey)
+	if err != nil {
+		logger.Log(logger.LevelWarn, nil, err, "could not generate cache key; skipping invalidation")
+
+		next.ServeHTTP(w, r)
+
+		return ErrHandled
+	}
+
+	DeleteKeys(key, k8scache)
+
+	freshURL := *r.URL
+
+	freshReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, freshURL.String(), nil) //nolint:gosec
+	if err != nil {
+		return err
+	}
+
+	freshReq.Header = r.Header.Clone()
+	next.ServeHTTP(w, r)
+
+	rr := httptest.NewRecorder()
+	freshRcw := NewResponseCapture(rr)
+	next.ServeHTTP(freshRcw, freshReq)
+
+	if err := StoreK8sResponseInCache(k8scache, freshReq.URL, freshRcw, freshReq, key); err != nil {
+		return err
+	}
+
+	return ErrHandled
+}
+
+// ErrHandled indicates the request was fully handled by cache invalidation; middleware must return.
+var ErrHandled = errors.New("handled by cache invalidation")
+
+// SkipWebSocket skip all the websocket requests coming from the client/ frontend to ensure
+// real time data updation in the frontend.
+func SkipWebSocket(r *http.Request, next http.Handler, w http.ResponseWriter) bool {
+	if strings.Contains(strings.ToLower(r.Header.Get("Connection")), "upgrade") {
+		logger.Log(logger.LevelInfo, nil, nil, "skipping websocket url")
+		next.ServeHTTP(w, r)
+
+		return true
+	}
+
+	return false
+}
+
+// returnGVRList returns list+watch GroupVersionResources filtered to an allowlisted set of
+// API resource names (e.g. pods, deployments) used for cache invalidation watchers.
+func returnGVRList(apiResourceLists []*metav1.APIResourceList) []schema.GroupVersionResource {
+	skipKinds := map[string]bool{
+		"Lease": true,
+		"Event": true,
+	}
+
+	var gvrList []schema.GroupVersionResource
+
+	for _, apiResource := range apiResourceLists {
+		for _, resource := range apiResource.APIResources {
+			if strings.Contains(resource.Name, "/") || skipKinds[resource.Kind] {
+				continue
+			}
+
+			if slices.Contains(resource.Verbs, "list") && slices.Contains(resource.Verbs, "watch") {
+				gv, err := schema.ParseGroupVersion(apiResource.GroupVersion)
+				if err != nil {
+					continue
+				}
+
+				gvrList = append(gvrList, schema.GroupVersionResource{
+					Group:    gv.Group,
+					Version:  gv.Version,
+					Resource: resource.Name,
+				})
+			}
+		}
+	}
+
+	filtered := filterImportantResources(gvrList)
+
+	return filtered
+}
+
+// filterImportantResources filters the provided list of GroupVersionResources to
+// include only those that are deemed important for caching and watching.
+func filterImportantResources(gvrList []schema.GroupVersionResource) []schema.GroupVersionResource {
+	allowed := map[string]struct{}{
+		"pods":         {},
+		"services":     {},
+		"deployments":  {},
+		"replicasets":  {},
+		"statefulsets": {},
+		"daemonsets":   {},
+		"nodes":        {},
+		"configmaps":   {},
+		"secrets":      {},
+		"jobs":         {},
+		"cronjobs":     {},
+	}
+
+	filtered := make([]schema.GroupVersionResource, 0, len(allowed))
+
+	for _, gvr := range gvrList {
+		if _, ok := allowed[gvr.Resource]; ok {
+			filtered = append(filtered, gvr)
+		}
+	}
+
+	return filtered
+}
+
+// Corrected CheckForChanges.
+var (
+	watcherRegistry sync.Map
+	contextCancel   sync.Map
+)
+
+// CheckForChanges lets 1 go routine to run for a contextKey which prevents
+// running go routines for every requests which can become performance issue if
+// there are many resource and events are going on.
+func CheckForChanges(
+	k8scache cache.Cache[string],
+	contextKey string,
+	kContext kubeconfig.Context,
+) {
+	if _, loaded := watcherRegistry.LoadOrStore(contextKey, struct{}{}); loaded {
+		return
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+
+	contextCancel.Store(contextKey, cancel)
+
+	go runWatcher(ctx, k8scache, contextKey, kContext)
+}
+
+// SyncWatchers stops watchers for contexts that are no longer active.
+// activeContexts is a list of currently valid context keys.
+func SyncWatchers(activeContexts []string) {
+	activeMap := make(map[string]bool, len(activeContexts))
+	for _, ctx := range activeContexts {
+		activeMap[ctx] = true
+	}
+
+	contextCancel.Range(func(key, value interface{}) bool {
+		contextKey, ok := key.(string)
+		if !ok {
+			return true
+		}
+
+		if !activeMap[contextKey] {
+			if cancel, ok := value.(context.CancelFunc); ok {
+				logger.Log(logger.LevelInfo, nil, nil, "canceling watcher for removed context: "+redactContextKey(contextKey))
+				cancel()
+				watcherRegistry.Delete(contextKey)
+				contextCancel.Delete(contextKey)
+			}
+		}
+
+		return true
+	})
+}
+
+// runWatcher is a long-lived goroutine that sets up and runs Kubernetes informers.
+// It watches for resource changes and invalidates corresponding cache entries.
+// This function will only exit when its context is cancelled.
+func runWatcher(
+	ctx context.Context,
+	k8scache cache.Cache[string],
+	contextKey string,
+	kContext kubeconfig.Context,
+) {
+	defer func() {
+		watcherRegistry.Delete(contextKey)
+		contextCancel.Delete(contextKey)
+	}()
+
+	logger.Log(logger.LevelInfo, nil, nil, "running runWatcher for watching k8s resource: "+redactContextKey(contextKey))
+
+	config, err := kContext.RESTConfig()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "error getting REST config for context:")
+		return
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "error creating dynamic client for context: "+redactContextKey(contextKey))
+		return
+	}
+
+	discoveryClient := discovery.NewDiscoveryClientForConfigOrDie(config)
+
+	apiResourceLists, err := discoveryClient.ServerPreferredResources()
+	if apiResourceLists == nil && err != nil {
+		logger.Log(logger.LevelError, nil, err, "error fetching resource list for context: "+redactContextKey(contextKey))
+		return
+	}
+
+	gvrList := returnGVRList(apiResourceLists)
+	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(dynamicClient, 0, "", nil)
+
+	RunInformerToWatch(gvrList, factory, contextKey, k8scache)
+
+	factory.Start(ctx.Done())
+
+	factory.WaitForCacheSync(ctx.Done())
+
+	<-ctx.Done()
+	logger.Log(logger.LevelInfo, nil, nil, "Watcher for context "+redactContextKey(contextKey)+" is shutting down...")
+}
+
+// RunInformerToWatch registers informers for the provided resources and watches
+// for add, update, and delete events. When a change is observed, it invalidates
+// the related cache entries for the given context.
+func RunInformerToWatch(gvrList []schema.GroupVersionResource,
+	factory dynamicinformer.DynamicSharedInformerFactory,
+	contextKey string, k8scache cache.Cache[string],
+) {
+	for _, gvr := range gvrList {
+		informer := factory.ForResource(gvr).Informer()
+
+		// hasSynced gates cache invalidation so that events from the informer's
+		// initial list-and-watch sync do not trigger unnecessary evictions.
+		hasSynced := informer.HasSynced
+
+		if _, err := informer.AddEventHandler(watchCache.ResourceEventHandlerFuncs{
+			AddFunc: func(obj interface{}) { // resources which are added in the informers, like creation of a resource.
+				handleKeyGenerationAndDeletion(obj, gvr, contextKey, k8scache, hasSynced)
+			},
+			UpdateFunc: func(oldObj, newObj interface{}) { // resources which are updated
+				// or changed, like pods configurations was changed.
+				handleKeyGenerationAndDeletion(newObj, gvr, contextKey, k8scache, hasSynced)
+			},
+			DeleteFunc: func(obj interface{}) { // resources which are removed from the informers,
+				// deletion of pods or any other resources.
+				handleKeyGenerationAndDeletion(obj, gvr, contextKey, k8scache, hasSynced)
+			},
+		}); err != nil {
+			logger.Log(logger.LevelError, nil, err, "failed to add event handler for resource: "+gvr.Resource)
+			return
+		}
+	}
+}
+
+// handleKeyGenerationAndDeletion generates a cache key from the GVR and deletes
+// the corresponding entry from the cache so that stale data is not served.
+//
+// hasSynced must be informer.HasSynced. Cache eviction is skipped until the
+// informer's initial list-and-watch sync is complete.
+func handleKeyGenerationAndDeletion(obj interface{}, gvr schema.GroupVersionResource,
+	contextKey string, k8scache cache.Cache[string], hasSynced func() bool,
+) {
+	unstructuredObj, ok := obj.(*unstructured.Unstructured)
+	if !ok {
+		// Handle tombstones for Delete events where the object is unknown.
+		if tombstone, isTombstone := obj.(watchCache.DeletedFinalStateUnknown); isTombstone {
+			unstructuredObj, ok = tombstone.Obj.(*unstructured.Unstructured)
+		}
+	}
+
+	if !ok {
+		logger.Log(logger.LevelError, nil, nil, "unexpected object type")
+		return
+	}
+
+	// Skip cache invalidation until the informer has completed its initial
+	// list-and-watch sync, preventing unnecessary evictions during startup.
+	if !hasSynced() {
+		return
+	}
+
+	invalidateCacheKeysForResourceEvent(
+		gvr,
+		unstructuredObj.GetNamespace(),
+		unstructuredObj.GetName(),
+		contextKey,
+		k8scache,
+	)
+}
+
+// invalidateCacheKeysForResourceEvent evicts cached list responses (including the
+// all-namespace list variant via DeleteKeys) and a cached named GET response.
+// GenerateKey stores list paths with gvr.Resource as the kind segment, but named
+// GET paths use the object name as the kind segment.
+func invalidateCacheKeysForResourceEvent(
+	gvr schema.GroupVersionResource,
+	namespace, name, contextKey string,
+	k8scache cache.Cache[string],
+) {
+	listKey := buildCacheKey(gvr.Group, gvr.Resource, namespace, contextKey)
+
+	logger.Log(logger.LevelInfo, nil, nil,
+		redactCacheKey(listKey)+" and related cache keys will be deleted from the cache")
+
+	DeleteKeys(listKey, k8scache)
+
+	if name == "" {
+		return
+	}
+
+	namedKey := buildCacheKey(gvr.Group, name, namespace, contextKey)
+	if err := k8scache.Delete(context.Background(), namedKey); err != nil {
+		logger.Log(logger.LevelError, nil, err, "error while deleting key")
+	}
+}

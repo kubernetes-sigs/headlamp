@@ -1,0 +1,37 @@
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "lib": ["dom", "dom.iterable", "esnext", "es2020"],
+    "outDir": "./lib/",
+    "declaration": true,
+    "declarationDir": "./lib/",
+    "allowJs": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "strict": true,
+    "forceConsistentCasingInFileNames": true,
+    "module": "esnext",
+    "moduleResolution": "node",
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "jsx": "react-jsx",
+    "noFallthroughCasesInSwitch": true,
+    "emitDeclarationOnly": false,
+    "types": ["vite/client", "vite-plugin-svgr/client", "vitest/globals", "node"]
+  },
+  "exclude": [
+    "./src/components/TestHelpers/**/*",
+    "./src/plugin/index.ts",
+    "./src/plugin/headlamp-plugin/**/*",
+    "./**/*.test.ts",
+    "./**/*.test.tsx"
+  ],
+  "include": [
+    "./src/*.ts",
+    "./src/lib/**/*",
+    "./src/plugin/**/*",
+    "./src/additional.d.ts",
+    "./vite-types.d.ts"
+  ]
+}

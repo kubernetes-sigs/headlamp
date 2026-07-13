@@ -1,0 +1,7 @@
+securityContext:
+  readOnlyRootFilesystem: true
+
+volumes:
+  - name: headlamp-tmp
+    emptyDir:
+      sizeLimit: 100Mi

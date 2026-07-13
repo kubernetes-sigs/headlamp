@@ -1,0 +1,32 @@
+<body>
+  <div>
+    <div
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1ic9gem-MuiPaper-root"
+    >
+      <nav>
+        <ul
+          class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
+        >
+          <li
+            class="css-1tmipa6"
+          >
+            <a
+              aria-label="Workloads"
+              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-1bad0xa-MuiButtonBase-root-MuiListItemButton-root"
+              href="/workloads"
+              role="button"
+              tabindex="0"
+            >
+              <div
+                class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
+              />
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </a>
+          </li>
+        </ul>
+      </nav>
+    </div>
+  </div>
+</body>

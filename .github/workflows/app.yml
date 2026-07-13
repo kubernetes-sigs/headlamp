@@ -1,0 +1,109 @@
+name: Build App
+
+on:
+  pull_request:
+    paths:
+    - 'frontend/**'
+    - 'Makefile'
+    - '.github/**'
+    - 'app/**'
+    - 'backend/**'
+  push:
+    branches:
+      - main
+      - rc-*
+      - testing-rc-*
+    paths:
+    - 'frontend/**'
+    - Makefile
+    - '.github/**'
+    - 'app/**'
+    - 'backend/**'
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-22.04
+    strategy:
+      matrix:
+        node-version: [22.x]
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+      with:
+        node-version: ${{ matrix.node-version }}
+    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+      with:
+        go-version: '1.26.*'
+    - name: Run tests
+      run: make app-test
+    - name: Run tsc type checker
+      run: make app-tsc
+    - name: Run app-i18n-check
+      run: make app-i18n-check
+    - name: App linux
+      run: |
+        make app-linux
+    - name: Verify Linux build
+      run: npm run app:verify-build-linux
+  build-windows:
+    strategy:
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-2022
+            node-version: 22.x
+          - arch: arm64
+            runner: windows-11-arm
+            node-version: 22.x
+    runs-on: ${{ matrix.runner }}
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+      with:
+        node-version: ${{ matrix.node-version }}
+    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+      with:
+        go-version: '1.26.*'
+    - name: Dependencies
+      uses: crazy-max/ghaction-chocolatey@e80bd39bb49cae70b67ea53d52d00833a7255c21 # v1.7.0
+      with:
+        args: install make
+    - name: Run tests
+      run: make app-test
+    - name: Run tsc type checker
+      run: make app-tsc
+    - name: App Windows ${{ matrix.arch }}
+      run: make app-build && cd app && npm run package -- --win --${{ matrix.arch }}
+    - name: Verify Windows build
+      shell: pwsh
+      run: npm run app:verify-build-windows
+  build-mac:
+    runs-on: macos-latest
+    strategy:
+      matrix:
+        node-version: [22.x]
+    steps:
+    - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@60edb5dd545a775178f52524783378180af0d1f8 # v4.0.2
+      with:
+        node-version: ${{ matrix.node-version }}
+    - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
+      with:
+        go-version: '1.26.*'
+    - name: Dependencies
+      run: brew install make
+    - name: Run tests
+      run: make app-test
+    - name: Run tsc type checker
+      run: make app-tsc
+    - name: App Mac
+      run: |
+        make app-mac
+    - name: Verify Mac build
+      run: npm run app:verify-build-mac

@@ -1,0 +1,611 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import merge from 'lodash/merge';
+import React from 'react';
+import { useHistory } from 'react-router';
+import { filterGeneric, filterResource } from '../redux/filterSlice';
+import { useTypedSelector } from '../redux/hooks';
+import store from '../redux/stores/store';
+import { getCluster, getClusterGroup, getClusterPrefixedPath } from './cluster';
+import type { ApiError } from './k8s/api/v2/ApiError';
+import type { KubeMetrics } from './k8s/cluster';
+import type { KubeEvent } from './k8s/event';
+import type { KubeObjectInterface } from './k8s/KubeObject';
+import Node from './k8s/node';
+import type { Workload } from './k8s/Workload';
+import { parseCpu, parseRam, unparseCpu, unparseRam } from './units';
+
+// Exported to keep compatibility for plugins that may have used them.
+export { filterGeneric, filterResource, getClusterPrefixedPath, getCluster, getClusterGroup };
+
+export const CLUSTER_ACTION_GRACE_PERIOD = 5000; // ms
+
+export type DateParam = string | number | Date;
+
+export type DateFormatOptions = 'brief' | 'mini';
+
+export interface TimeAgoOptions {
+  format?: DateFormatOptions;
+}
+
+/**
+ * Format a duration in milliseconds into a compact, single-unit string.
+ *
+ * Uses the largest applicable unit:
+ * - seconds (< 60s)
+ * - minutes (< 60m)
+ * - hours (< 24h)
+ * - days (< 1y)
+ * - years (>= 1y)
+ *
+ * Examples: "45s", "10m", "3h", "12d", "2y"
+ *
+ * @param durationMs - The duration in milliseconds.
+ * @returns A short, human-readable duration string.
+ */
+function shortHumanDuration(durationMs: number): string {
+  const seconds = Math.trunc(durationMs / 1000);
+  if (seconds < -1) {
+    return '<invalid>';
+  }
+  if (seconds < 0) {
+    return '0s';
+  }
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+
+  const minutes = Math.trunc(durationMs / (60 * 1000));
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+
+  const hours = Math.trunc(durationMs / (60 * 60 * 1000));
+  if (hours < 24) {
+    return `${hours}h`;
+  }
+
+  if (hours < 24 * 365) {
+    return `${Math.trunc(hours / 24)}d`;
+  }
+
+  return `${Math.trunc(hours / 24 / 365)}y`;
+}
+
+/**
+ * Format a duration in milliseconds into a more detailed human-readable string.
+ *
+ * Uses mixed units depending on range:
+ * - seconds (< 2m)
+ * - minutes + seconds (< 10m)
+ * - minutes (< 3h)
+ * - hours + minutes (< 8h)
+ * - hours (< 48h)
+ * - days + hours (< 8d)
+ * - days (< ~2y)
+ * - years + days (< ~8y)
+ * - years (>= ~8y)
+ *
+ * Examples: "2m30s", "1h15m", "3d4h", "2y2d"
+ *
+ * @param durationMs - The duration in milliseconds.
+ * @returns The formatted duration.
+ */
+function humanDuration(durationMs: number): string {
+  const seconds = Math.trunc(durationMs / 1000);
+  if (seconds < -1) {
+    return '<invalid>';
+  }
+  if (seconds < 0) {
+    return '0s';
+  }
+  if (seconds < 60 * 2) {
+    return `${seconds}s`;
+  }
+
+  const minutes = Math.trunc(durationMs / (60 * 1000));
+  if (minutes < 10) {
+    const totalSeconds = Math.trunc(durationMs / 1000);
+    const s = totalSeconds % 60;
+    if (s === 0) {
+      return `${minutes}m`;
+    }
+    return `${minutes}m${s}s`;
+  } else if (minutes < 60 * 3) {
+    return `${minutes}m`;
+  }
+
+  const hours = Math.trunc(durationMs / (60 * 60 * 1000));
+  if (hours < 8) {
+    const totalMinutes = Math.trunc(durationMs / (60 * 1000));
+    const m = totalMinutes % 60;
+    if (m === 0) {
+      return `${hours}h`;
+    }
+    return `${hours}h${m}m`;
+  } else if (hours < 48) {
+    return `${hours}h`;
+  } else if (hours < 24 * 8) {
+    const h = hours % 24;
+    if (h === 0) {
+      return `${Math.trunc(hours / 24)}d`;
+    }
+    return `${Math.trunc(hours / 24)}d${h}h`;
+  } else if (hours < 24 * 365 * 2) {
+    return `${Math.trunc(hours / 24)}d`;
+  } else if (hours < 24 * 365 * 8) {
+    const dy = Math.trunc(hours / 24) % 365;
+    const years = Math.trunc(hours / 24 / 365);
+    if (dy === 0) {
+      return `${years}y`;
+    }
+    return `${years}y${dy}d`;
+  }
+
+  return `${Math.trunc(hours / 24 / 365)}y`;
+}
+
+/**
+ * Returns the time elapsed since the given date.
+ *
+ * @param date - The date from which to calculate elapsed time.
+ * @param options - Formatting options:
+ *   - 'brief': single-unit format (e.g. "5m", "2h")
+ *   - 'mini': multi-unit format (e.g. "2m30s", "1h15m")
+ *
+ * @returns The formatted elapsed duration.
+ */
+export function timeAgo(date: DateParam, options: TimeAgoOptions = {}) {
+  const fromDate = new Date(date);
+  let now = new Date();
+
+  if (import.meta.env.UNDER_TEST) {
+    // For testing, we consider the current moment to be 3 months from the dates we are testing.
+    const days = 24 * 3600 * 1000; // in ms
+    now = new Date(fromDate.getTime() + 90 * days);
+  }
+
+  return formatDuration(now.getTime() - fromDate.getTime(), options);
+}
+
+/**
+ * Format a duration in milliseconds using either compact or detailed style.
+ *
+ * @param duration - Duration in milliseconds.
+ * @param options - Options object:
+ *   - format: 'brief' | 'mini' (default: 'brief')
+ *     - 'brief': single-unit output (e.g. "5s", "12m", "3h", "2d", "2y")
+ *     - 'mini': multi-unit output (e.g. "2m30s", "1h15m", "2y2d")
+ *
+ * @returns Formatted duration string.
+ */
+export function formatDuration(duration: number, options: TimeAgoOptions = {}) {
+  const { format = 'brief' } = options;
+
+  if (format === 'brief') {
+    return shortHumanDuration(duration);
+  }
+
+  return humanDuration(duration);
+}
+
+const tzCache = new Map<string, boolean>();
+
+/**
+ * Returns true when tz is a valid IANA timezone string accepted by the
+ * Intl API. Some Linux systems expose TZ=:/etc/localtime which Chrome
+ * resolves to "Etc/Unknown" — an identifier that Node accepts but browsers
+ * reject with a RangeError.
+ */
+export function isValidTimezone(tz: string): boolean {
+  if (!import.meta.env.UNDER_TEST) {
+    const cached = tzCache.get(tz);
+    if (cached !== undefined) {
+      return cached;
+    }
+  }
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz });
+    if (!import.meta.env.UNDER_TEST) {
+      tzCache.set(tz, true);
+    }
+    return true;
+  } catch {
+    if (!import.meta.env.UNDER_TEST) {
+      tzCache.set(tz, false);
+    }
+    return false;
+  }
+}
+
+export function localeDate(date: DateParam) {
+  const options: Intl.DateTimeFormatOptions = { timeZoneName: 'short' };
+  let locale: string | undefined = undefined;
+
+  // Force the same conditions under test, so snapshots are the same.
+  if (import.meta.env.UNDER_TEST) {
+    options.timeZone = 'UTC';
+    options.hour12 = true;
+    locale = 'en-US';
+    return new Date(date).toISOString();
+  } else {
+    const tz = store.getState().config.settings.timezone;
+    if (tz && isValidTimezone(tz)) {
+      options.timeZone = tz;
+    }
+  }
+
+  return new Date(date).toLocaleString(locale, options);
+}
+
+export function getPercentStr(value: number, total: number) {
+  if (total === 0) {
+    return null;
+  }
+  const percentage = (value / total) * 100;
+  // Round to a single decimal, then strip a trailing ".0" so whole-number
+  // percentages render without it. Rounding first avoids floating-point dust
+  // (e.g. 29/100 -> 28.999999999999996) being treated as a fractional value.
+  // Operate on the fixed-point string directly to keep formatting stable.
+  const formatted = percentage.toFixed(1);
+  return `${formatted.endsWith('.0') ? formatted.slice(0, -2) : formatted} %`;
+}
+
+export function getReadyReplicas(item: Workload) {
+  return item.status.readyReplicas || item.status.numberReady || 0;
+}
+
+export function getTotalReplicas(item: Workload) {
+  return (
+    item.spec.replicas ||
+    item.status.currentNumberScheduled ||
+    item.status.desiredNumberScheduled ||
+    0
+  );
+}
+
+export function getResourceStr(value: number, resourceType: 'cpu' | 'memory') {
+  const resourceFormatters: any = {
+    cpu: unparseCpu,
+    memory: unparseRam,
+  };
+
+  const valueInfo = resourceFormatters[resourceType](value);
+  return `${valueInfo.value}${valueInfo.unit}`;
+}
+
+export function getResourceMetrics(
+  item: Node,
+  metrics: KubeMetrics[],
+  resourceType: 'cpu' | 'memory'
+) {
+  if (item.status.capacity === undefined) {
+    return [0, 0];
+  }
+  const resourceParsers: any = {
+    cpu: parseCpu,
+    memory: parseRam,
+  };
+
+  const parser = resourceParsers[resourceType];
+  const itemMetrics = metrics.find(itemMetrics => itemMetrics.metadata.name === item.getName());
+
+  const used = parser(itemMetrics ? itemMetrics.usage[resourceType] : '0');
+  const capacity = parser(item.status.capacity[resourceType]);
+
+  return [used, capacity];
+}
+
+/**
+ * Get a function to filter kube resources based on the current global filter state.
+ *
+ * @returns A filter function that can be used to filter a list of items.
+ * @param matchCriteria - The JSONPath criteria to match.
+ */
+export function useFilterFunc<
+  T extends { [key: string]: any } | KubeObjectInterface | KubeEvent =
+    | KubeObjectInterface
+    | KubeEvent
+>(matchCriteria?: string[]) {
+  const filter = useTypedSelector(state => state.filter);
+
+  return (item: T, search?: string) => {
+    if (item?.metadata) {
+      return filterResource(item as KubeObjectInterface | KubeEvent, filter, search, matchCriteria);
+    }
+    return filterGeneric<T>(item, search, matchCriteria);
+  };
+}
+
+export function useErrorState(dependentSetter?: (...args: any) => void) {
+  const [error, setError] = React.useState<ApiError | null>(null);
+
+  React.useEffect(
+    () => {
+      if (!!error && !!dependentSetter) {
+        dependentSetter(null);
+      }
+    },
+    // eslint-disable-next-line
+    [error]
+  );
+
+  return [error, setError] as const;
+}
+
+/**
+ * This function joins a list of items per cluster into a single list of items.
+ *
+ * @param args The list of objects per cluster to join.
+ * @returns The joined list of items, or null if there are no items.
+ */
+export function flattenClusterListItems<T>(
+  ...args: ({ [cluster: string]: T[] | null } | null)[]
+): T[] | null {
+  const flatItems = args
+    .filter(Boolean)
+    .flatMap(clusterItems => Object.values(clusterItems ?? {}).flatMap(items => items ?? []));
+
+  return flatItems.length > 0 ? flatItems : null;
+}
+
+/**
+ * Combines errors per cluster.
+ *
+ * @param args The list of errors per cluster to join.
+ * @returns The joint list of errors, or null if there are no errors.
+ */
+export function combineClusterListErrors(
+  ...args: ({ [cluster: string]: ApiError | null } | null)[]
+): { [cluster: string]: ApiError | null } | null {
+  const filteredArgs = args.map(clusterErrors => {
+    if (clusterErrors === null) {
+      return {};
+    }
+    return Object.fromEntries(Object.entries(clusterErrors).filter(([, error]) => error !== null));
+  });
+
+  const errors = merge({}, ...filteredArgs);
+  const hasErrors = Object.values(errors).some(error => error !== null);
+
+  return hasErrors ? errors : null;
+}
+
+type URLStateParams<T> = {
+  /** The defaultValue for the URL state. */
+  defaultValue: T;
+  /** Whether to hide the parameter when the value is the default one (true by default). */
+  hideDefault?: boolean;
+  /** The prefix of the URL key to use for this state (a prefix 'my' with a key name 'key' will be used in the URL as 'my.key'). */
+  prefix?: string;
+};
+export function useURLState(
+  key: string,
+  defaultValue: number
+): [number, React.Dispatch<React.SetStateAction<number>>];
+export function useURLState(
+  key: string,
+  valueOrParams: number | URLStateParams<number>
+): [number, React.Dispatch<React.SetStateAction<number>>];
+/**
+ * A hook to manage a state variable that is also stored in the URL.
+ *
+ * @param key The name of the key in the URL. If empty, then the hook behaves like useState.
+ * @param paramsOrDefault The default value of the state variable, or the params object.
+ *
+ */
+export function useURLState<T extends string | number | undefined = string>(
+  key: string,
+  paramsOrDefault: T | URLStateParams<T>
+): [T, React.Dispatch<React.SetStateAction<T>>] {
+  const params: URLStateParams<T> =
+    typeof paramsOrDefault === 'object' ? paramsOrDefault : { defaultValue: paramsOrDefault };
+  const { defaultValue, hideDefault = true, prefix = '' } = params;
+  const history = useHistory();
+  // Don't even use the prefix if the key is empty
+  const fullKey = !key ? '' : !!prefix ? prefix + '.' + key : key;
+
+  function getURLValue() {
+    // An empty key means that we don't want to use the state from the URL.
+    if (fullKey === '') {
+      return null;
+    }
+
+    const urlParams = new URLSearchParams(history.location.search);
+    const urlValue = urlParams.get(fullKey);
+    if (urlValue === null) {
+      return null;
+    }
+    let newValue: string | number = urlValue;
+    if (typeof defaultValue === 'number') {
+      newValue = Number(urlValue);
+      if (Number.isNaN(newValue)) {
+        return null;
+      }
+    }
+
+    return newValue;
+  }
+
+  const initialValue = React.useMemo(() => {
+    const newValue = getURLValue();
+    if (newValue === null) {
+      return defaultValue;
+    }
+    return newValue;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+  const [value, setValue] = React.useState<T>(initialValue as T);
+
+  React.useEffect(
+    () => {
+      const newValue = getURLValue();
+      if (newValue === null) {
+        if (defaultValue !== undefined && defaultValue !== value) {
+          setValue(defaultValue);
+        }
+      } else if (newValue !== value) {
+        setValue(newValue as T);
+      }
+    },
+    // eslint-disable-next-line
+    [history]
+  );
+
+  React.useEffect(() => {
+    // An empty key means that we don't want to use the state from the URL.
+    if (fullKey === '') {
+      return;
+    }
+
+    const urlCurrentValue = getURLValue();
+
+    if (urlCurrentValue === value) {
+      return;
+    }
+
+    const urlParams = new URLSearchParams(history.location.search);
+    let shouldUpdateURL = false;
+
+    if ((value === null || value === defaultValue) && hideDefault) {
+      if (urlParams.has(fullKey)) {
+        urlParams.delete(fullKey);
+        shouldUpdateURL = true;
+      }
+    } else if (value !== undefined) {
+      const urlValue = value as NonNullable<T>;
+
+      urlParams.set(fullKey, urlValue.toString());
+      shouldUpdateURL = true;
+    }
+
+    if (shouldUpdateURL) {
+      history.replace({ search: urlParams.toString() });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+
+  return [value, setValue] as [T, React.Dispatch<React.SetStateAction<T>>];
+}
+
+// compareUnits compares the parsed numeric portion of two quantities (ignoring unit suffixes) and returns true if they are equal.
+export function compareUnits(quantity1: string, quantity2: string) {
+  // strip whitespace and convert to lowercase
+  const qty1 = quantity1.replace(/\s/g, '').toLowerCase();
+  const qty2 = quantity2.replace(/\s/g, '').toLowerCase();
+
+  // Compare the parsed numeric portion only (unit suffix is ignored).
+  const n1 = Number.parseFloat(qty1);
+  const n2 = Number.parseFloat(qty2);
+  return !Number.isNaN(n1) && !Number.isNaN(n2) && n1 === n2;
+}
+
+export function normalizeUnit(resourceType: string, quantity: string) {
+  let type = resourceType;
+
+  if (type.includes('.')) {
+    type = type.split('.')[1];
+  }
+
+  let normalizedQuantity = '';
+  let bytes = 0;
+  switch (type) {
+    case 'cpu':
+      normalizedQuantity = quantity?.endsWith('m')
+        ? `${Number(quantity.substring(0, quantity.length - 1)) / 1000}`
+        : `${quantity}`;
+      if (normalizedQuantity === '1') {
+        normalizedQuantity = normalizedQuantity + ' ' + 'core';
+      } else {
+        normalizedQuantity = normalizedQuantity + ' ' + 'cores';
+      }
+      break;
+
+    case 'memory':
+      /**
+       * Decimal: m | n | "" | k | M | G | T | P | E
+       * Binary: Ki | Mi | Gi | Ti | Pi | Ei
+       * Refer https://github.com/kubernetes-client/csharp/blob/840a90e24ef922adee0729e43859cf6b43567594/src/KubernetesClient.Models/ResourceQuantity.cs#L211
+       */
+      bytes = parseFloat(quantity);
+      if (isNaN(bytes)) {
+        return quantity;
+      }
+      if (quantity.endsWith('Ki')) {
+        bytes *= 1024;
+      } else if (quantity.endsWith('Mi')) {
+        bytes *= 1024 ** 2;
+      } else if (quantity.endsWith('Gi')) {
+        bytes *= 1024 ** 3;
+      } else if (quantity.endsWith('Ti')) {
+        bytes *= 1024 ** 4;
+      } else if (quantity.endsWith('Pi')) {
+        bytes *= 1024 ** 5;
+      } else if (quantity.endsWith('Ei')) {
+        bytes *= 1024 ** 6;
+      } else if (quantity.endsWith('m')) {
+        bytes /= 1000;
+      } else if (quantity.endsWith('u')) {
+        bytes /= 1000 ** 2;
+      } else if (quantity.endsWith('n')) {
+        bytes /= 1000 ** 3;
+      } else if (quantity.endsWith('k')) {
+        bytes *= 1000;
+      } else if (quantity.endsWith('M')) {
+        bytes *= 1000 ** 2;
+      } else if (quantity.endsWith('G')) {
+        bytes *= 1000 ** 3;
+      } else if (quantity.endsWith('T')) {
+        bytes *= 1000 ** 4;
+      } else if (quantity.endsWith('P')) {
+        bytes *= 1000 ** 5;
+      } else if (quantity.endsWith('E')) {
+        bytes *= 1000 ** 6;
+      }
+
+      if (bytes === 0) {
+        normalizedQuantity = '0 Bytes';
+      } else {
+        const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
+        const k = 1000;
+        const dm = 2;
+        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        normalizedQuantity = parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
+      }
+      break;
+
+    default:
+      normalizedQuantity = quantity;
+      break;
+  }
+  return normalizedQuantity;
+}
+
+/** Creates a unique ID, with the given prefix.
+ * If UNDER_TEST is set to true, it will return the same ID every time, so snapshots do not get invalidated.
+ */
+export function useId(prefix = '') {
+  const reactId = React.useId();
+  if (import.meta.env.UNDER_TEST) {
+    return prefix + 'id';
+  }
+  return prefix + reactId.replace(/:/g, '');
+}
+
+// Make units available from here
+export * as auth from './auth';
+export * as units from './units';

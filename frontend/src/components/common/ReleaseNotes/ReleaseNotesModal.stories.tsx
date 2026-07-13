@@ -1,0 +1,45 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import ReleaseNotesModal from './ReleaseNotesModal';
+
+export default {
+  title: 'common/ReleaseNotes/ReleaseNotesModal',
+  component: ReleaseNotesModal,
+  argTypes: {},
+};
+
+export const Show = {
+  args: {
+    releaseNotes:
+      '# Release Notes\n\n## Hello\n\n### Sub-heading\n\nworld\n\n## Changes\n\n| Feature | Status | Notes |\n|---------|--------|-------|\n| Dark mode | ✅ Done | Available in settings |\n| Tables | ✅ Done | Now rendered properly |\n| Images | ✅ Done | Bounded to container |\n\n## Code Example\n\n```yaml\napiVersion: v1\nkind: Pod\n```\n\n> **Note:** This is a blockquote with important information.',
+    appVersion: '1.9.9',
+  },
+};
+
+export const Closed = {
+  args: {
+    releaseNotes: undefined,
+    appVersion: null,
+  },
+};
+
+export const ShowNoNotes = {
+  args: {
+    releaseNotes: undefined,
+    appVersion: '1.8.8',
+  },
+};
