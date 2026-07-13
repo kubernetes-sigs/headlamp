@@ -15,9 +15,11 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
-import { screen, userEvent } from 'storybook/test';
+import { screen } from '@testing-library/react';
+import { userEvent } from 'storybook/test';
 import { TestContext } from '../../test';
 import { ProjectDeleteDialog } from './ProjectDeleteDialog';
+import { PROJECT_ID_LABEL } from './projectUtils';
 
 const mockProject = {
   id: 'test-project',
@@ -27,7 +29,7 @@ const mockProject = {
 const makeMockNamespace = (name: string) => ({
   metadata: { name },
   jsonData: {
-    metadata: { name, labels: { 'headlamp.dev/project-id': 'test-project' } },
+    metadata: { name, labels: { [PROJECT_ID_LABEL]: 'test-project' } },
   },
   getAuthorization: async () => ({ status: { allowed: true } }),
   update: async () => {},
