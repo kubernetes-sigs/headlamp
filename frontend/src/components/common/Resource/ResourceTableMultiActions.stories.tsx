@@ -17,6 +17,7 @@
 import { Meta, StoryFn, StoryObj } from '@storybook/react';
 import { screen } from '@testing-library/react';
 import { MRT_TableInstance } from 'material-react-table';
+import { http, HttpResponse } from 'msw';
 import { SnackbarProvider } from 'notistack';
 import { expect, userEvent, waitFor } from 'storybook/test';
 import DaemonSet from '../../../lib/k8s/daemonSet';
@@ -24,7 +25,7 @@ import Deployment from '../../../lib/k8s/deployment';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import StatefulSet from '../../../lib/k8s/statefulSet';
-import { TestContext } from '../../../test';
+import { API_BASE, TestContext } from '../../../test';
 import ActionsNotifier from '../ActionsNotifier';
 import ResourceTableMultiActions from './ResourceTableMultiActions';
 
@@ -41,6 +42,21 @@ export default {
       </TestContext>
     ),
   ],
+  parameters: {
+    msw: {
+      handlers: {
+        story: [
+          http.post(
+            `${API_BASE}/clusters/local/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`,
+            () => HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
+          ),
+          http.post(`${API_BASE}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, () =>
+            HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
+          ),
+        ],
+      },
+    },
+  },
 } as Meta;
 
 const MOCK_CLUSTER = 'local';
@@ -159,6 +175,73 @@ export const WithMixedItems: StoryFn = () => (
 export const EmptySelection: StoryFn = () => (
   <ResourceTableMultiActions table={makeMockTable([])} />
 );
+
+// Open scale dialog
+export const ScaleDialogOpen: StoryObj = {
+  render: () => <ResourceTableMultiActions table={makeMockTable([mockDeployment])} />,
+  parameters: {
+    storyshots: {
+      disable: true,
+    },
+  },
+  play: async () => {
+    await userEvent.click(screen.getByLabelText('Scale items'));
+
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Scale items' })).toBeVisible());
+
+    expect(screen.getByText(/deployment/i)).toBeVisible();
+  },
+};
+
+// Cancel scale dialog
+export const ScaleDialogCancel: StoryObj = {
+  render: () => <ResourceTableMultiActions table={makeMockTable([mockDeployment])} />,
+  parameters: {
+    storyshots: {
+      disable: true,
+    },
+  },
+  play: async () => {
+    await userEvent.click(screen.getByLabelText('Scale items'));
+
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Scale items' })).toBeVisible());
+
+    await userEvent.click(screen.getByRole('button', { name: 'cancel-button' }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Scale items' })).not.toBeInTheDocument()
+    );
+  },
+};
+
+// Confirm scale for multiple items
+export const ScaleMultipleConfirm: StoryObj = {
+  render: () => (
+    <ResourceTableMultiActions
+      table={makeMockTable([mockDeployment, mockStatefulSet, mockReplicaSet])}
+    />
+  ),
+  parameters: {
+    storyshots: {
+      disable: true,
+    },
+  },
+  play: async () => {
+    await userEvent.click(screen.getByLabelText('Scale items'));
+
+    await waitFor(() => expect(screen.getByRole('dialog', { name: 'Scale items' })).toBeVisible());
+
+    expect(screen.getByText(/deployment/i)).toBeVisible();
+    expect(screen.getByText(/statefulset/i)).toBeVisible();
+    expect(screen.getByText(/replicaset/i)).toBeVisible();
+
+    await userEvent.click(screen.getByRole('button', { name: 'confirm-button' }));
+
+    await waitFor(() =>
+      expect(screen.queryByRole('dialog', { name: 'Scale items' })).not.toBeInTheDocument()
+    );
+  },
+};
 
 // Open delete confirmation dialogue
 export const DeleteConfirmationDialogOpen: StoryObj = {

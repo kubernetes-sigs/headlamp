@@ -15,7 +15,7 @@
  */
 
 import '../../../i18n/config';
-import { DiffEditor, Editor } from '@monaco-editor/react';
+import { DiffEditor, Editor, Monaco } from '@monaco-editor/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import DialogActions from '@mui/material/DialogActions';
@@ -27,11 +27,12 @@ import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
 import * as yaml from 'js-yaml';
 import _ from 'lodash';
+import type { editor } from 'monaco-editor';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { getCluster } from '../../../lib/cluster';
-import { apply } from '../../../lib/k8s/api/v1/apply';
+import { apply, ApplyOptions } from '../../../lib/k8s/api/v1/apply';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { useId } from '../../../lib/util';
 import { clusterAction } from '../../../redux/clusterActionSlice';
@@ -73,8 +74,21 @@ export interface EditorDialogProps extends DialogProps {
   title?: string;
   /** Extra optional actions. */
   actions?: React.ReactNode[];
+  /** Extra buttons rendered in the right-side toolbar next to the editor toggles. */
+  toolbarActions?: React.ReactNode[];
+  /** Content to render in a "Form" tab between Editor and Documentation. */
+  formContent?: React.ReactNode;
   /** Don't render the editor in the dialog */
   noDialog?: boolean;
+  /** When true, changes to `item` update the editor code but do not reset the
+   *  original-code baseline, so the Save button treats the new content as a
+   *  user edit. Useful when a form pushes updated YAML into the editor. */
+  treatItemChangesAsEdits?: boolean;
+  /** Override the target cluster for apply operations. When set, this takes
+   *  priority over `item.cluster` and the URL-derived cluster. */
+  cluster?: string;
+  /** When true, the Apply button is disabled due to form validation errors. */
+  formInvalid?: boolean;
 }
 
 export default function EditorDialog(props: EditorDialogProps) {
@@ -89,12 +103,18 @@ export default function EditorDialog(props: EditorDialogProps) {
     allowToHideManagedFields,
     title,
     actions = [],
+    toolbarActions,
+    formContent,
+    treatItemChangesAsEdits,
+    cluster,
+    formInvalid,
     ...other
   } = props;
   const editorOptions = {
     selectOnLineNumbers: true,
     readOnly: isReadOnly(),
     automaticLayout: true,
+    fixedOverflowWidgets: true,
   };
   const initialCode = typeof item === 'string' ? item : yaml.dump(item || {});
   const originalCodeRef = React.useRef({ code: initialCode, format: item ? 'yaml' : '' });
@@ -122,9 +142,46 @@ export default function EditorDialog(props: EditorDialogProps) {
   );
   const [uploadFiles, setUploadFiles] = React.useState(false);
   const [hasOpenedDiffEditor, setHasOpenedDiffEditor] = React.useState(false);
+  const [activeTabIndex, setActiveTabIndex] = React.useState(0);
 
   const dispatchCreateEvent = useEventCallback(HeadlampEventType.CREATE_RESOURCE);
   const dispatch: AppDispatch = useDispatch();
+
+  const monacoRef = React.useRef<Monaco | null>(null);
+  const editorRef = React.useRef<editor.IStandaloneCodeEditor | null>(null);
+
+  function handleEditorDidMount(
+    editorInstance: editor.IStandaloneCodeEditor,
+    monacoInstance: Monaco
+  ) {
+    editorRef.current = editorInstance;
+    monacoRef.current = monacoInstance;
+  }
+
+  React.useEffect(() => {
+    // Avoid holding onto disposed Monaco instances when switching editors/unmounting.
+    if (useSimpleEditor) {
+      editorRef.current = null;
+      monacoRef.current = null;
+    }
+
+    return () => {
+      window.clearTimeout(lastCodeCheckHandler.current);
+      editorRef.current = null;
+      monacoRef.current = null;
+    };
+  }, [useSimpleEditor]);
+
+  React.useEffect(() => {
+    if (useSimpleEditor || error) {
+      return;
+    }
+
+    const model = editorRef.current?.getModel();
+    if (monacoRef.current && model) {
+      monacoRef.current.editor.setModelMarkers(model, 'headlamp-yaml-parse', []);
+    }
+  }, [error, useSimpleEditor]);
 
   function isKubeObjectIsh(item: any): item is KubeObjectIsh {
     return item && typeof item === 'object' && !Array.isArray(item) && 'metadata' in item;
@@ -150,10 +207,21 @@ export default function EditorDialog(props: EditorDialogProps) {
     const format = looksLikeJson(originalCodeRef.current.code) ? 'json' : 'yaml';
     const itemCode = format === 'json' ? JSON.stringify(clonedItem) : yaml.dump(clonedItem);
 
-    // Update the code if the item representation has changed
-    if (itemCode !== originalCodeRef.current.code) {
-      originalCodeRef.current = { code: itemCode, format };
+    // Update the code if the item representation has changed.
+    // When treatItemChangesAsEdits is true, originalCodeRef is intentionally
+    // not updated, so compare against the current editor content instead —
+    // otherwise reverting a field to its original value would leave stale
+    // text in the editor.
+    const referenceCode = treatItemChangesAsEdits
+      ? codeRef.current.code
+      : originalCodeRef.current.code;
+    if (itemCode !== referenceCode) {
+      if (!treatItemChangesAsEdits) {
+        originalCodeRef.current = { code: itemCode, format };
+      }
       setCode({ code: itemCode, format });
+      // Drop stale apply errors so a failed apply doesn't leave Apply disabled after the user edits.
+      setError('');
     }
 
     // Additional handling for Kubernetes objects
@@ -167,6 +235,7 @@ export default function EditorDialog(props: EditorDialogProps) {
         // Prevent updating to the same code, which would lead to an infinite loop.
         if (codeRef.current.code !== itemCode) {
           setCode({ code: itemCode, format: originalCodeRef.current.format });
+          setError('');
         }
 
         if (resourceVersionsDiffer && !!item.metadata!.resourceVersion) {
@@ -186,7 +255,7 @@ export default function EditorDialog(props: EditorDialogProps) {
   }
 
   function looksLikeJson(code: string) {
-    const trimmedCode = code.trimLeft();
+    const trimmedCode = code.trimStart();
     const firstChar = !!trimmedCode ? trimmedCode[0] : '';
     if (['{', '['].includes(firstChar)) {
       return true;
@@ -204,12 +273,80 @@ export default function EditorDialog(props: EditorDialogProps) {
         code: value || '',
         format: originalCodeRef.current.format,
       });
-      if (code.format !== format) {
+
+      const willUpdateCode = code.format !== format;
+      const willUpdateError = error !== (err?.message || '');
+
+      // Nothing will change, so there's no re-render and nothing to restore.
+      if (!willUpdateCode && !willUpdateError) {
+        return;
+      }
+
+      // The state updates below re-render the editor and reset its scroll
+      // position. Save it here and restore it once the re-render settles, so
+      // the user doesn't lose their place.
+      const editor = editorRef.current;
+      const scrollTop = editor?.getScrollTop();
+      const position = editor?.getPosition();
+
+      if (willUpdateCode) {
         setCode(currentCode => ({ code: currentCode.code || '', format }));
       }
 
-      if (error !== (err?.message || '')) {
+      if (willUpdateError) {
         setError(err?.message || '');
+      }
+
+      if (!useSimpleEditor && monacoRef.current && editorRef.current) {
+        const model = editorRef.current.getModel?.();
+        if (model) {
+          const mark = (err as any)?.mark;
+          const reason = (err as any)?.reason;
+
+          if (mark && typeof mark.line === 'number' && typeof mark.column === 'number') {
+            const lineNumber = mark.line + 1;
+            const lineCount =
+              typeof model.getLineCount === 'function' ? model.getLineCount() : lineNumber;
+            const safeLineNumber = Math.min(Math.max(lineNumber, 1), lineCount);
+            const maxColumn =
+              typeof model.getLineMaxColumn === 'function'
+                ? model.getLineMaxColumn(safeLineNumber)
+                : mark.column + 2;
+            const safeMaxColumn = Math.max(maxColumn, 1);
+            const startColumn = Math.min(
+              Math.max(mark.column + 1, 1),
+              Math.max(safeMaxColumn - 1, 1)
+            );
+            const endColumn = Math.min(startColumn + 1, safeMaxColumn);
+
+            monacoRef.current.editor.setModelMarkers(model, 'headlamp-yaml-parse', [
+              {
+                startLineNumber: safeLineNumber,
+                startColumn,
+                endLineNumber: safeLineNumber,
+                endColumn,
+                message: reason || err?.message || t('Invalid YAML'),
+                severity: monacoRef.current.MarkerSeverity.Error,
+              },
+            ]);
+          } else {
+            monacoRef.current.editor.setModelMarkers(model, 'headlamp-yaml-parse', []);
+          }
+        }
+      }
+
+      if (editor && scrollTop !== undefined) {
+        requestAnimationFrame(() => {
+          // The editor may have been unmounted (e.g. switched to the simple
+          // editor) or replaced between capture and this frame.
+          if (editorRef.current !== editor) {
+            return;
+          }
+          editor.setScrollTop(scrollTop);
+          if (position) {
+            editor.setPosition(position);
+          }
+        });
       }
     }, 500); // ms
 
@@ -255,8 +392,13 @@ export default function EditorDialog(props: EditorDialogProps) {
         res.obj = yaml.loadAll(code) as KubeObjectInterface[];
         res.obj = res.obj.filter(obj => !!obj);
         return res;
-      } catch (e) {
-        res.error = new Error((e as Error).message || t('Invalid YAML'));
+      } catch (e: any) {
+        const err = new Error((e as Error).message || t('Invalid YAML')) as any;
+        if (e instanceof yaml.YAMLException && e.mark) {
+          err.mark = e.mark;
+          err.reason = e.reason;
+        }
+        res.error = err;
       }
     }
 
@@ -268,25 +410,39 @@ export default function EditorDialog(props: EditorDialogProps) {
   }
 
   function handleTabChange(tabIndex: number) {
-    if (tabIndex === 2) {
+    setActiveTabIndex(tabIndex);
+    const docsTabIndex = formContent ? 2 : 1;
+    const diffTabIndex = formContent ? 3 : 2;
+
+    if (tabIndex === diffTabIndex) {
       setHasOpenedDiffEditor(true);
     }
 
-    // Check if the docs tab has been selected.
-    if (tabIndex !== 1) {
-      return;
+    if (tabIndex === docsTabIndex) {
+      const { obj: codeObjs } = getObjectsFromCode(code);
+      setDocSpecs(codeObjs);
     }
-
-    const { obj: codeObjs } = getObjectsFromCode(code);
-    setDocSpecs(codeObjs);
   }
 
   function onUndo() {
+    window.clearTimeout(lastCodeCheckHandler.current);
     setCode(originalCodeRef.current);
+    setError('');
+    if (monacoRef.current && editorRef.current) {
+      const model =
+        typeof editorRef.current.getModel === 'function' ? editorRef.current.getModel() : null;
+      if (model) {
+        monacoRef.current.editor.setModelMarkers(model, 'headlamp-yaml-parse', []);
+      }
+    }
   }
 
-  const applyFunc = async (newItems: KubeObjectInterface[], clusterName: string) => {
-    await Promise.allSettled(newItems.map(newItem => apply(newItem, clusterName))).then(
+  const applyFunc = async (
+    newItems: KubeObjectInterface[],
+    clusterName: string,
+    options?: ApplyOptions
+  ) => {
+    await Promise.allSettled(newItems.map(newItem => apply(newItem, clusterName, options))).then(
       (values: any) => {
         values.forEach((value: any, index: number) => {
           if (value.status === 'rejected') {
@@ -312,10 +468,13 @@ export default function EditorDialog(props: EditorDialogProps) {
         });
       }
     );
-    onClose();
+
+    if (!options?.dryRun) {
+      onClose();
+    }
   };
 
-  function handleSave() {
+  function handleSave(mode: 'apply' | 'dryRun' = 'apply') {
     // Verify the YAML even means anything before trying to use it.
     const { obj, format, error } = getObjectsFromCode(code);
     if (!!error) {
@@ -334,10 +493,39 @@ export default function EditorDialog(props: EditorDialogProps) {
 
     const newItemDefs = obj!;
 
-    if (typeof onSave === 'string' && onSave === 'default') {
-      const resourceNames = newItemDefs.map(newItemDef => newItemDef.metadata.name);
-      const clusterName = (item as KubeObjectIsh)?.cluster || getCluster() || '';
+    if (mode === 'dryRun') {
+      const resourceNames = newItemDefs.map(
+        newItemDef => newItemDef.metadata?.name || newItemDef.kind || t('translation|resource')
+      );
+      const clusterName = cluster || (item as KubeObjectIsh)?.cluster || getCluster() || '';
 
+      setError('');
+      dispatch(
+        clusterAction(() => applyFunc(newItemDefs, clusterName, { dryRun: true }), {
+          startMessage: t('translation|Running dry run for {{ newItemName }}…', {
+            newItemName: resourceNames.join(','),
+          }),
+          cancelledMessage: t('translation|Cancelled dry run for {{ newItemName }}.', {
+            newItemName: resourceNames.join(','),
+          }),
+          successMessage: t('translation|Dry run passed for {{ newItemName }}.', {
+            newItemName: resourceNames.join(','),
+          }),
+          errorMessage: t('translation|Dry run failed for {{ newItemName }}.', {
+            newItemName: resourceNames.join(','),
+          }),
+        })
+      );
+      return;
+    }
+
+    if (typeof onSave === 'string' && onSave === 'default') {
+      const resourceNames = newItemDefs.map(
+        newItemDef => newItemDef.metadata?.name || newItemDef.kind || t('translation|resource')
+      );
+      const clusterName = cluster || (item as KubeObjectIsh)?.cluster || getCluster() || '';
+
+      setError('');
       dispatch(
         clusterAction(() => applyFunc(newItemDefs, clusterName), {
           startMessage: t('translation|Applying {{ newItemName }}…', {
@@ -368,7 +556,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     return (
       <Box height="100%">
         {useSimpleEditor ? (
-          <SimpleEditor language={language} value={code.code} onChange={onChange} />
+          <SimpleEditor id={editorId} language={language} value={code.code} onChange={onChange} />
         ) : (
           <Editor
             language={language}
@@ -376,6 +564,13 @@ export default function EditorDialog(props: EditorDialogProps) {
             value={code.code}
             options={editorOptions}
             onChange={onChange}
+            onMount={(editor, monaco) => {
+              handleEditorDidMount(editor, monaco);
+              const textarea = editor.getDomNode()?.querySelector('textarea');
+              if (textarea && editorId) {
+                textarea.id = editorId;
+              }
+            }}
             height="100%"
           />
         )}
@@ -414,6 +609,7 @@ export default function EditorDialog(props: EditorDialogProps) {
   }
 
   const dialogTitleId = useId('editor-dialog-title-');
+  const editorId = useId('editor-textarea-');
 
   const content = !item ? (
     <Loader title={t('Loading editor')} />
@@ -473,6 +669,10 @@ export default function EditorDialog(props: EditorDialogProps) {
                 >
                   {t('translation|Upload File/URL')}
                 </Button>
+                {toolbarActions &&
+                  toolbarActions.map((action, i) => (
+                    <React.Fragment key={`toolbar_action_${i}`}>{action}</React.Fragment>
+                  ))}
               </FormGroup>
             </Grid>
           </Grid>
@@ -488,11 +688,21 @@ export default function EditorDialog(props: EditorDialogProps) {
                 label: t('translation|Editor'),
                 component: makeEditor(),
               },
+              ...(formContent
+                ? [
+                    {
+                      label: t('translation|Form'),
+                      component: (
+                        <Box sx={{ height: '100%', overflowY: 'auto' }}>{formContent}</Box>
+                      ),
+                    },
+                  ]
+                : []),
               {
                 label: t('translation|Documentation'),
                 component: (
                   <Box sx={{ height: '100%', overflowY: 'auto' }}>
-                    <DocsViewer docSpecs={docSpecs} />
+                    <DocsViewer docSpecs={Array.isArray(docSpecs) ? docSpecs : []} />
                   </Box>
                 ),
               },
@@ -516,7 +726,7 @@ export default function EditorDialog(props: EditorDialogProps) {
             confirmDescription={t(
               'This will discard your changes in the editor. Do you want to proceed?'
             )}
-            // @todo: aria-controls should point to the textarea id
+            aria-controls={editorId}
           >
             {t('translation|Undo Changes')}
           </ConfirmButton>
@@ -529,11 +739,32 @@ export default function EditorDialog(props: EditorDialogProps) {
         </Button>
         {!isReadOnly() && (
           <Button
-            onClick={handleSave}
+            onClick={() => handleSave('dryRun')}
+            color="secondary"
+            variant="contained"
+            disabled={
+              originalCodeRef.current.code === code.code ||
+              !!error ||
+              (activeTabIndex === 1 && !!formInvalid)
+            }
+            aria-controls={editorId}
+            sx={{ whiteSpace: 'nowrap' }}
+          >
+            {t('translation|Dry Run')}
+          </Button>
+        )}
+        {!isReadOnly() && (
+          <Button
+            onClick={() => handleSave('apply')}
             color="primary"
             variant="contained"
-            disabled={originalCodeRef.current.code === code.code || !!error}
-            // @todo: aria-controls should point to the textarea id
+            disabled={
+              originalCodeRef.current.code === code.code ||
+              !!error ||
+              (activeTabIndex === 1 && !!formInvalid)
+            }
+            aria-controls={editorId}
+            sx={{ whiteSpace: 'nowrap' }}
           >
             {saveLabel || t('translation|Save & Apply')}
           </Button>

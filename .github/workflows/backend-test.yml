@@ -30,7 +30,7 @@ jobs:
     
       - uses: actions/setup-go@41dfa10bad2bb2ae585af6ee5bb4d7d973ad74ed # v5.1.0
         with:
-          go-version: '1.25.*'
+          go-version: '1.26.*'
 
       - name: Install dependencies
         run: |
@@ -47,9 +47,9 @@ jobs:
           kubectl wait deployment -n headlamp headlamp --for condition=Available=True --timeout=30s    
 
       - name: setup and run golangci-lint
-        uses: golangci/golangci-lint-action@1e7e51e771db61008b38414a730f564565cf7c20 # v9.2.0
+        uses: golangci/golangci-lint-action@82606bf257cbaff209d206a39f5134f0cfbfd2ee # v9.2.1
         with:
-          version: v2.11.3
+          version: v2.12.2
           working-directory: backend
           skip-cache: true
           args: --timeout 3m

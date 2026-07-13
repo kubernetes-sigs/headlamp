@@ -30,6 +30,12 @@
           class="MuiBox-root css-1txv3mw"
         >
           <div
+            aria-atomic="true"
+            aria-live="polite"
+            class="MuiBox-root css-ty8jgw"
+            role="status"
+          />
+          <div
             class="MuiBox-root css-1ipmh7v"
           >
             <div
@@ -491,7 +497,7 @@
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
                 >
                   <div
-                    class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-1qavl4s-MuiChip-root"
+                    class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-17z0rci-MuiChip-root"
                   >
                     <span
                       class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
@@ -639,7 +645,7 @@
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
                 >
                   <div
-                    class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-1qavl4s-MuiChip-root"
+                    class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-17z0rci-MuiChip-root"
                   >
                     <span
                       class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
@@ -839,7 +845,7 @@
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
                 >
                   <div
-                    class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-1qavl4s-MuiChip-root"
+                    class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-17z0rci-MuiChip-root"
                   >
                     <span
                       class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
@@ -1046,7 +1052,7 @@
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
                 >
                   <div
-                    class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-1qavl4s-MuiChip-root"
+                    class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-17z0rci-MuiChip-root"
                   >
                     <span
                       class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"

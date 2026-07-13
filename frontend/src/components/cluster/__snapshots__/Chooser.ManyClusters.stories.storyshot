@@ -42,10 +42,7 @@
             <div
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
-              <h1
-                class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
-                style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
-              >
+              <div>
                 <svg
                   fill="none"
                   height="38"
@@ -102,7 +99,7 @@
                 >
                   Headlamp
                 </span>
-              </h1>
+              </div>
             </div>
             <div
               class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
@@ -167,7 +164,7 @@
                 </p>
               </div>
               <div
-                aria-labelledby="#recent-clusters-label"
+                aria-labelledby="recent-clusters-label"
                 class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-2 css-e7s3o7-MuiGrid-root"
               >
                 <div
@@ -185,8 +182,9 @@
                         class="MuiCardContent-root css-d64700-MuiCardContent-root"
                       >
                         <p
+                          aria-label="cluster-1"
                           class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-18vfeyy-MuiTypography-root"
-                          title="cluster-1"
+                          data-mui-internal-clone-element="true"
                         >
                           cluster-1
                         </p>
@@ -221,8 +219,9 @@
                         class="MuiCardContent-root css-d64700-MuiCardContent-root"
                       >
                         <p
+                          aria-label="cluster-2"
                           class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-18vfeyy-MuiTypography-root"
-                          title="cluster-2"
+                          data-mui-internal-clone-element="true"
                         >
                           cluster-2
                         </p>
@@ -248,8 +247,9 @@
                         class="MuiCardContent-root css-d64700-MuiCardContent-root"
                       >
                         <p
+                          aria-label="cluster-3"
                           class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-18vfeyy-MuiTypography-root"
-                          title="cluster-3"
+                          data-mui-internal-clone-element="true"
                         >
                           cluster-3
                         </p>

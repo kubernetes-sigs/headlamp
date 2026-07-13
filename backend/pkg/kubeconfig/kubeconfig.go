@@ -17,6 +17,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 
+	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/exec"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"k8s.io/client-go/kubernetes"
@@ -56,6 +57,7 @@ const (
 	KubeConfig = 1 << iota
 	DynamicCluster
 	InCluster
+	ClusterInventory
 )
 
 // Context contains all information related to a kubernetes context.
@@ -73,6 +75,8 @@ type Context struct {
 	KubeConfigPath string `json:"kubeConfigPath"`
 	// ClusterID is the unique identifier for the cluster, consisting of the filepath and context name.
 	ClusterID string `json:"clusterID"`
+	// ClusterInventory stores metadata copied from a Cluster Inventory ClusterProfile.
+	ClusterInventory *inventorymetadata.Metadata `json:"clusterInventory,omitempty"`
 }
 
 // Copy creates a deep copy of the Context, excluding the proxy field which is created on demand.
@@ -115,17 +119,27 @@ func (c *Context) Copy() *Context {
 	}
 
 	return &Context{
-		Name:           c.Name,
-		KubeContext:    kubeContext,
-		Cluster:        cluster,
-		AuthInfo:       authInfo,
-		Source:         c.Source,
-		OidcConf:       oidcConf,
-		Internal:       c.Internal,
-		Error:          c.Error,
-		KubeConfigPath: c.KubeConfigPath,
-		ClusterID:      c.ClusterID,
+		Name:             c.Name,
+		KubeContext:      kubeContext,
+		Cluster:          cluster,
+		AuthInfo:         authInfo,
+		Source:           c.Source,
+		OidcConf:         oidcConf,
+		Internal:         c.Internal,
+		Error:            c.Error,
+		KubeConfigPath:   c.KubeConfigPath,
+		ClusterID:        c.ClusterID,
+		ClusterInventory: c.ClusterInventory.DeepCopy(),
 	}
+}
+
+// UsesInClusterServiceAccountToken reports whether this context should authenticate
+// to Kubernetes with the mounted in-cluster service account token.
+func (c *Context) UsesInClusterServiceAccountToken() bool {
+	return c != nil &&
+		c.Source == InCluster &&
+		c.AuthInfo != nil &&
+		c.AuthInfo.TokenFile != ""
 }
 
 type OidcConfig struct {
@@ -328,7 +342,7 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 		return c.OidcConf, nil
 	}
 
-	if c.AuthInfo.AuthProvider == nil {
+	if c.AuthInfo == nil || c.AuthInfo.AuthProvider == nil {
 		return nil, errors.New("authProvider is nil")
 	}
 
@@ -406,6 +420,8 @@ func (c *Context) SourceStr() string {
 		return "dynamic_cluster"
 	case InCluster:
 		return "incluster"
+	case ClusterInventory:
+		return "cluster_inventory"
 	default:
 		return "unknown"
 	}
@@ -462,14 +478,14 @@ type ContextLoadError struct {
 func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []ContextLoadError, error) {
 	data, err := os.ReadFile(kubeConfigPath) //nolint:gosec
 	if err != nil {
-		return nil, nil, fmt.Errorf("error reading kubeconfig file: %v", err)
+		return nil, nil, fmt.Errorf("error reading kubeconfig file: %w", err)
 	}
 
 	skipProxySetup := source != KubeConfig
 
 	contexts, contextErrors, err := loadContextsFromData(data, source, skipProxySetup)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error loading contexts from file: %v", err)
+		return nil, nil, fmt.Errorf("error loading contexts from file: %w", err)
 	}
 
 	// add the KubeConfigPath to each context
@@ -489,7 +505,7 @@ func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []Conte
 func LoadContextsFromBase64String(kubeConfig string, source int) ([]Context, []ContextLoadError, error) {
 	kubeConfigByte, err := base64.StdEncoding.DecodeString(kubeConfig)
 	if err != nil {
-		return nil, nil, fmt.Errorf("error decoding base64 kubeconfig: %v", err)
+		return nil, nil, fmt.Errorf("error decoding base64 kubeconfig: %w", err)
 	}
 
 	skipProxySetup := source != KubeConfig
@@ -1025,6 +1041,18 @@ func splitKubeConfigPath(path string) []string {
 	return strings.Split(path, delimiter)
 }
 
+func resolveServiceAccountTokenPath(clusterConfig *rest.Config, serviceAccountTokenPath string) string {
+	if serviceAccountTokenPath != "" {
+		return serviceAccountTokenPath
+	}
+
+	if clusterConfig.BearerTokenFile != "" {
+		return clusterConfig.BearerTokenFile
+	}
+
+	return "/var/run/secrets/kubernetes.io/serviceaccount/token" // #nosec G101
+}
+
 // GetInClusterContext returns the in-cluster context.
 func GetInClusterContext(
 	contextName string,
@@ -1033,12 +1061,40 @@ func GetInClusterContext(
 	oidcScopes string,
 	oidcSkipTLSVerify bool,
 	oidcCACert string,
+	unsafeUseServiceAccountToken bool,
+	serviceAccountTokenPath string,
 ) (*Context, error) {
 	clusterConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
 	}
 
+	return newInClusterContextFromConfig(
+		clusterConfig,
+		contextName,
+		oidcIssuerURL,
+		oidcClientID,
+		oidcClientSecret,
+		oidcScopes,
+		oidcSkipTLSVerify,
+		oidcCACert,
+		unsafeUseServiceAccountToken,
+		serviceAccountTokenPath,
+	), nil
+}
+
+func newInClusterContextFromConfig(
+	clusterConfig *rest.Config,
+	contextName string,
+	oidcIssuerURL string,
+	oidcClientID string,
+	oidcClientSecret string,
+	oidcScopes string,
+	oidcSkipTLSVerify bool,
+	oidcCACert string,
+	unsafeUseServiceAccountToken bool,
+	serviceAccountTokenPath string,
+) *Context {
 	cluster := &api.Cluster{
 		Server:                   clusterConfig.Host,
 		CertificateAuthority:     clusterConfig.CAFile,
@@ -1057,9 +1113,18 @@ func GetInClusterContext(
 
 	inClusterAuthInfo := &api.AuthInfo{}
 
+	if unsafeUseServiceAccountToken {
+		inClusterAuthInfo.TokenFile = resolveServiceAccountTokenPath(clusterConfig, serviceAccountTokenPath)
+	}
+
 	var oidcConf *OidcConfig
 
 	if oidcClientID != "" && oidcIssuerURL != "" && oidcScopes != "" {
+		var caCert *string
+		if oidcCACert != "" {
+			caCert = &oidcCACert
+		}
+
 		// client secret is optional for in-cluster OIDC configuration
 		oidcConf = &OidcConfig{
 			ClientID:      oidcClientID,
@@ -1067,7 +1132,7 @@ func GetInClusterContext(
 			IdpIssuerURL:  oidcIssuerURL,
 			Scopes:        strings.Split(oidcScopes, ","),
 			SkipTLSVerify: &oidcSkipTLSVerify,
-			CACert:        &oidcCACert,
+			CACert:        caCert,
 		}
 	}
 
@@ -1076,8 +1141,9 @@ func GetInClusterContext(
 		KubeContext: inClusterContext,
 		Cluster:     cluster,
 		AuthInfo:    inClusterAuthInfo,
+		Source:      InCluster,
 		OidcConf:    oidcConf,
-	}, nil
+	}
 }
 
 // Func type for context filter, if the func return true,
@@ -1118,7 +1184,7 @@ func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, s
 
 	kubeConfigContexts, contextErrors, err := LoadContextsFromMultipleFiles(kubeConfigs, source)
 	if err != nil {
-		return fmt.Errorf("error loading kubeconfig files: %v", err)
+		return fmt.Errorf("error loading kubeconfig files: %w", err)
 	}
 
 	// if pass the shouldBeSkippedFunc=nil, it works like before
@@ -1141,7 +1207,7 @@ func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, s
 	}
 
 	for _, contextError := range contextErrors {
-		errs = append(errs, fmt.Errorf("error in context %s: %v", contextError.ContextName, contextError.Error))
+		errs = append(errs, fmt.Errorf("error in context %s: %w", contextError.ContextName, contextError.Error))
 	}
 
 	return errors.Join(errs...)

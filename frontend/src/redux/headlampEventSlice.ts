@@ -39,6 +39,8 @@ export enum HeadlampEventType {
   EDIT_RESOURCE = 'headlamp.edit-resource',
   /** Events related to scaling a resource. */
   SCALE_RESOURCE = 'headlamp.scale-resource',
+  /** Events related to scaling multiple resources. */
+  SCALE_RESOURCES = 'headlamp.scale-resources',
   /** Events related to restarting a resource. */
   RESTART_RESOURCE = 'headlamp.restart-resource',
   /** Events related to restarting multiple resources. */
@@ -148,6 +150,22 @@ export interface ScaleResourceEvent {
     /** The resource for which the deletion was called. */
     resource: KubeObject;
     /** What exactly this event represents. 'CONFIRMED' when the scaling is selected by the user.
+     * For now only 'CONFIRMED' is sent.
+     */
+    status: EventStatus.CONFIRMED;
+  };
+}
+
+/**
+ * Event fired when scaling multiple resources.
+ */
+export interface ScaleResourcesEvent extends HeadlampEvent<HeadlampEventType.SCALE_RESOURCES> {
+  data: {
+    /** The resources for which scaling was called. */
+    resources: KubeObject[];
+    /** The number of replicas set. */
+    numReplicas: number;
+    /** What exactly this event represents. 'CONFIRMED' when the user confirms scaling of resources.
      * For now only 'CONFIRMED' is sent.
      */
     status: EventStatus.CONFIRMED;
@@ -348,8 +366,8 @@ export const listenerMiddleware =
   createListenerMiddleware<Pick<RootState, 'eventCallbackReducer'>>();
 listenerMiddleware.startListening({
   actionCreator: eventAction,
-  effect: async (action, listernerApi) => {
-    const trackerFuncs = listernerApi.getState()?.eventCallbackReducer?.trackerFuncs;
+  effect: async (action, listenerApi) => {
+    const trackerFuncs = listenerApi.getState()?.eventCallbackReducer?.trackerFuncs;
     for (const trackerFunc of trackerFuncs) {
       try {
         trackerFunc(action.payload);
@@ -394,6 +412,9 @@ export function useEventCallback(
 export function useEventCallback(
   eventType: HeadlampEventType.SCALE_RESOURCE
 ): (data: EventDataType<ScaleResourceEvent>) => void;
+export function useEventCallback(
+  eventType: HeadlampEventType.SCALE_RESOURCES
+): (data: EventDataType<ScaleResourcesEvent>) => void;
 export function useEventCallback(
   eventType: HeadlampEventType.RESTART_RESOURCE
 ): (data: EventDataType<RestartResourceEvent>) => void;
@@ -462,6 +483,8 @@ export function useEventCallback(eventType?: HeadlampEventType | string) {
       return dispatchDataEventFunc<EditResourceEvent>(HeadlampEventType.EDIT_RESOURCE);
     case HeadlampEventType.SCALE_RESOURCE:
       return dispatchDataEventFunc<ScaleResourceEvent>(HeadlampEventType.SCALE_RESOURCE);
+    case HeadlampEventType.SCALE_RESOURCES:
+      return dispatchDataEventFunc<ScaleResourcesEvent>(HeadlampEventType.SCALE_RESOURCES);
     case HeadlampEventType.RESTART_RESOURCE:
       return dispatchDataEventFunc<RestartResourceEvent>(HeadlampEventType.RESTART_RESOURCE);
     case HeadlampEventType.RESTART_RESOURCES:

@@ -39,12 +39,10 @@ interface ClusterButtonProps extends React.PropsWithChildren<{}> {
   cluster: Cluster;
   /** Callback for when the button is clicked. */
   onClick?: (...args: any[]) => void;
-  /** Ref to focus on mount. */
-  focusedRef?: (node: any) => void;
 }
 
-function ClusterButton(props: ClusterButtonProps) {
-  const { cluster, onClick = undefined, focusedRef } = props;
+const ClusterButton = React.forwardRef<HTMLButtonElement, ClusterButtonProps>((props, ref) => {
+  const { cluster, onClick = undefined } = props;
   const appearance = getClusterAppearanceFromMeta(cluster?.name || '');
   const icon = appearance.icon || 'mdi:kubernetes';
 
@@ -54,11 +52,11 @@ function ClusterButton(props: ClusterButtonProps) {
       icon={icon}
       iconColor={appearance.accentColor}
       label={cluster.name}
-      ref={focusedRef}
+      ref={ref}
       onClick={onClick}
     />
   );
-}
+});
 
 export interface RecentClustersProps {
   /** The clusters available. So if there's a record of recent clusters, it'll try to use
@@ -72,7 +70,7 @@ export interface RecentClustersProps {
 export default function RecentClusters(props: RecentClustersProps) {
   const { clusters } = props;
   const history = useHistory();
-  const focusedRef = React.useCallback((node: HTMLElement) => {
+  const focusedRef = React.useCallback((node: HTMLButtonElement | null) => {
     if (node !== null) {
       node.focus();
     }
@@ -88,12 +86,17 @@ export default function RecentClusters(props: RecentClustersProps) {
 
   let recentClusters: Cluster[] = [];
 
-  // If we have more than the maximum number of recent clusters allowed, we show the most
-  // recent ones. Otherwise, just show the clusters in the order they are received.
+  const clustersByName = React.useMemo(() => {
+    if (clusters.length <= maxRecentClusters) {
+      return new Map<string, Cluster>();
+    }
+    return new Map<string, Cluster>(clusters.map(cluster => [cluster.name, cluster] as const));
+  }, [clusters]);
+
   if (clusters.length > maxRecentClusters) {
     // Get clusters matching the recent cluster names, if they exist still.
     recentClusters = recentClusterNames
-      .map(name => clusters.find(cluster => cluster.name === name))
+      .map(name => clustersByName.get(name))
       .filter(item => !!item) as Cluster[];
     // See whether we need to fill with new clusters (when the recent clusters were less than the
     // maximum/wanted).
@@ -146,7 +149,7 @@ export default function RecentClusters(props: RecentClustersProps) {
         recentClusters.map((cluster, i) => (
           <Grid item key={cluster.name}>
             <ClusterButton
-              focusedRef={i === 0 ? focusedRef : undefined}
+              ref={i === 0 ? focusedRef : undefined}
               cluster={cluster}
               onClick={() => onClusterButtonClicked(cluster)}
             />

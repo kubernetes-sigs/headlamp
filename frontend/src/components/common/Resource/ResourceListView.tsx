@@ -73,7 +73,11 @@ export default function ResourceListView(
         )
       }
     >
-      <ResourceTable enableRowActions enableRowSelection {...tableProps} />
+      <ResourceTable
+        {...tableProps}
+        enableRowActions={tableProps.enableRowActions ?? true}
+        enableRowSelection={tableProps.enableRowSelection ?? true}
+      />
       {children}
     </SectionBox>
   );

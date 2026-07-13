@@ -21,6 +21,7 @@ describe('pluginLib variable', () => {
   it('should stay the same for plugin compatibility', async () => {
     const externalLibs = [
       'Iconify',
+      'Lodash',
       'MonacoEditor',
       'MuiCore',
       'MuiLab',
@@ -42,5 +43,13 @@ describe('pluginLib variable', () => {
     });
 
     await expect(window.pluginLib).toMatchFileSnapshot('__snapshots__/pluginLib.snapshot');
+  });
+
+  it('should not expose queryClient to plugins', () => {
+    // queryClient is an internal singleton that plugins must not access directly.
+    // Exposing it lets plugins invalidate or mutate queries belonging to other
+    // plugins or to Headlamp core, breaking isolation and causing subtle bugs.
+    // It's an implementation detail of our pluginLib that plugins must not rely on.
+    expect(window.pluginLib).not.toHaveProperty('queryClient');
   });
 });

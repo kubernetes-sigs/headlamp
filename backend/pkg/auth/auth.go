@@ -36,6 +36,9 @@ import (
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
+	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
 )
 
@@ -45,6 +48,9 @@ const (
 )
 
 const JWTExpirationTTL = 10 * time.Second // seconds
+
+// errFieldMessage is the JSON field name used by writeMeJSON for error messages.
+const errFieldMessage = "message"
 
 // DecodeBase64JSON decodes a base64 URL-encoded JSON string into a map.
 func DecodeBase64JSON(base64JSON string) (map[string]interface{}, error) {
@@ -68,6 +74,21 @@ var clusterPathRegex = regexp.MustCompile(`^/clusters/([^/]+)/.*`)
 // https://datatracker.ietf.org/doc/html/rfc6750#section-2.1
 var bearerTokenRegex = regexp.MustCompile(`^[\x21-\x7E]+$`)
 
+// BearerTokenValue returns the raw token from an Authorization header value.
+func BearerTokenValue(token string) string {
+	trimmedToken := strings.TrimLeft(token, " \t")
+
+	const bearerScheme = "Bearer"
+	if len(trimmedToken) > len(bearerScheme) && strings.EqualFold(trimmedToken[:len(bearerScheme)], bearerScheme) {
+		credentials := trimmedToken[len(bearerScheme):]
+		if credentials[0] == ' ' || credentials[0] == '\t' {
+			return strings.TrimSpace(credentials)
+		}
+	}
+
+	return strings.TrimSpace(token)
+}
+
 // ParseClusterAndToken extracts the cluster name from the URL path and
 // the Bearer token from the Authorization header of the HTTP request, falling
 // back to the cluster cookie when the header is missing.
@@ -80,14 +101,9 @@ func ParseClusterAndToken(r *http.Request) (string, string) {
 	}
 
 	// Try Authorization header first (for backward compatibility)
-	token := strings.TrimSpace(r.Header.Get("Authorization"))
+	token := BearerTokenValue(r.Header.Get("Authorization"))
 	if strings.Contains(token, ",") {
 		return cluster, ""
-	}
-
-	const bearerPrefix = "Bearer "
-	if strings.HasPrefix(strings.ToLower(token), strings.ToLower(bearerPrefix)) {
-		token = strings.TrimSpace(token[len(bearerPrefix):])
 	}
 
 	// If no auth header, try cookie
@@ -176,7 +192,7 @@ func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 	// get refresh token
 	refreshToken, err := cache.Get(ctx, oidcKeyPrefix+token)
 	if err != nil {
-		return nil, fmt.Errorf("getting refresh token: %v", err)
+		return nil, fmt.Errorf("getting refresh token: %w", err)
 	}
 
 	rToken, ok := refreshToken.(string)
@@ -201,7 +217,7 @@ func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 
 	// update the refresh token in the cache
 	if err := CacheRefreshedToken(newToken, tokenType, token, rToken, cache); err != nil {
-		return nil, fmt.Errorf("caching refreshed token: %v", err)
+		return nil, fmt.Errorf("caching refreshed token: %w", err)
 	}
 
 	return newToken, nil
@@ -213,31 +229,56 @@ func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 // re-enabling verification while trusting the supplied certificate bundle.
 func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *string) context.Context {
 	if skipTLSVerify != nil && *skipTLSVerify {
-		tlsSkipTransport := &http.Transport{
-			// the gosec linter is disabled here because we are explicitly requesting to skip TLS verification.
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true}, //nolint:gosec
+		base, ok := http.DefaultTransport.(*http.Transport)
+		if !ok {
+			logger.Log(logger.LevelError, nil,
+				errors.New("http.DefaultTransport is not *http.Transport"),
+				"failed to configure TLS transport")
+
+			return ctx
 		}
+
+		tlsSkipTransport := base.Clone()
+
+		tlsCfg := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
+		if base.TLSClientConfig != nil {
+			tlsCfg = base.TLSClientConfig.Clone()
+			tlsCfg.InsecureSkipVerify = true
+		}
+
+		tlsSkipTransport.TLSClientConfig = tlsCfg
 		ctx = oidc.ClientContext(ctx, &http.Client{Transport: tlsSkipTransport})
 	}
 
-	if caCert != nil {
+	if caCert != nil && *caCert != "" {
 		caCertPool := x509.NewCertPool()
 		if !caCertPool.AppendCertsFromPEM([]byte(*caCert)) {
-			// Log error but continue with original context
 			logger.Log(logger.LevelError, nil,
 				errors.New("failed to append ca cert to pool"), "couldn't add custom cert to context")
 
 			return ctx
 		}
 
-		// the gosec linter is disabled because gosec promotes using a minVersion of TLS 1.2 or higher.
-		// since we are using a custom CA cert configured by the user, we are not forcing a minVersion.
-		customTransport := &http.Transport{
-			TLSClientConfig: &tls.Config{
-				RootCAs: caCertPool,
-			},
+		base, ok := http.DefaultTransport.(*http.Transport)
+		if !ok {
+			logger.Log(logger.LevelError, nil,
+				errors.New("http.DefaultTransport is not *http.Transport"),
+				"failed to configure TLS transport")
+
+			return ctx
 		}
 
+		customTransport := base.Clone()
+
+		tlsCfg := &tls.Config{RootCAs: caCertPool}
+		if base.TLSClientConfig != nil {
+			tlsCfg = base.TLSClientConfig.Clone()
+			tlsCfg.RootCAs = caCertPool
+		}
+
+		tlsCfg.InsecureSkipVerify = false
+
+		customTransport.TLSClientConfig = tlsCfg
 		ctx = oidc.ClientContext(ctx, &http.Client{Transport: customTransport})
 	}
 
@@ -247,11 +288,17 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 // RefreshAndCacheNewToken obtains a fresh OIDC token using the cached refresh token
 // and re-populates the cache so subsequent requests can reuse it. The provided ctx
 // controls cancellation and deadlines for all outbound requests during the refresh.
+// validatorIssuerURL overrides the issuer expected by provider discovery when the
+// discovery URL and returned issuer differ.
 func RefreshAndCacheNewToken(ctx context.Context, oidcAuthConfig *kubeconfig.OidcConfig,
 	cache cache.Cache[interface{}],
-	tokenType, token, issuerURL string,
+	tokenType, token, issuerURL, validatorIssuerURL string,
 ) (*oauth2.Token, error) {
 	ctx = ConfigureTLSContext(ctx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
+
+	if validatorIssuerURL != "" {
+		ctx = oidc.InsecureIssuerURLContext(ctx, validatorIssuerURL)
+	}
 
 	// get provider
 	provider, err := oidc.NewProvider(ctx, issuerURL)
@@ -284,6 +331,11 @@ type MeHandlerOptions struct {
 	GroupsPaths string
 	// UserInfoURL is the URL to fetch additional user info for the /me endpoint.
 	UserInfoURL string
+	// ProxyAuthEnabled indicates if the identity proxy bypass is enabled
+	ProxyAuthEnabled        bool
+	ProxyAuthUsernameHeader string
+	ProxyAuthGroupHeader    string
+	ProxyAuthEmailHeader    string
 }
 
 // HandleMe returns a handler that reads the per-cluster auth cookie and responds with user info.
@@ -301,7 +353,11 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		clusterName := mux.Vars(r)["clusterName"]
 		if clusterName == "" {
-			writeMeJSON(w, http.StatusBadRequest, map[string]interface{}{"message": "cluster not specified"})
+			writeMeJSON(w, http.StatusBadRequest, map[string]interface{}{errFieldMessage: "cluster not specified"})
+			return
+		}
+
+		if tryProxyAuth(w, r, opts, userInfoURL) {
 			return
 		}
 
@@ -312,23 +368,23 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 		}
 
 		if requestCluster != clusterName {
-			writeMeJSON(w, http.StatusBadRequest, map[string]interface{}{"message": "cluster mismatch"})
+			writeMeJSON(w, http.StatusBadRequest, map[string]interface{}{errFieldMessage: "cluster mismatch"})
 			return
 		}
 
 		if token == "" {
-			writeMeJSON(w, http.StatusUnauthorized, map[string]interface{}{"message": "unauthorized"})
+			writeMeJSON(w, http.StatusUnauthorized, map[string]interface{}{errFieldMessage: "unauthorized"})
 			return
 		}
 
 		claims, status, errMsg := parseClaimsFromToken(token)
 		if status != 0 {
-			writeMeJSON(w, status, map[string]interface{}{"message": errMsg})
+			writeMeJSON(w, status, map[string]interface{}{errFieldMessage: errMsg})
 			return
 		}
 
 		if expiry, err := GetExpiryUnixTimeUTC(claims); err != nil || time.Now().After(expiry) {
-			writeMeJSON(w, http.StatusUnauthorized, map[string]interface{}{"message": "token expired"})
+			writeMeJSON(w, http.StatusUnauthorized, map[string]interface{}{errFieldMessage: "token expired"})
 			return
 		}
 
@@ -355,7 +411,39 @@ func parseClaimsFromToken(token string) (map[string]interface{}, int, string) {
 	return claims, 0, ""
 }
 
-// writeMeResponse serializes the identity payload with the standard cache-busting headers.
+// tryProxyAuth checks if proxy auth is enabled and a proxy user header exists.
+// If valid, it writes the response and returns true, allowing the caller to return early.
+// Otherwise, it returns false.
+func tryProxyAuth(w http.ResponseWriter, r *http.Request, opts MeHandlerOptions, userInfoURL string) bool {
+	if !opts.ProxyAuthEnabled {
+		return false
+	}
+
+	username := r.Header.Get(opts.ProxyAuthUsernameHeader)
+	if username == "" {
+		return false
+	}
+
+	email := r.Header.Get(opts.ProxyAuthEmailHeader)
+	groupsRaw := r.Header.Get(opts.ProxyAuthGroupHeader)
+
+	var groups []string
+
+	if groupsRaw != "" {
+		for _, group := range strings.Split(groupsRaw, ",") {
+			group = strings.TrimSpace(group)
+			if group != "" {
+				groups = append(groups, group)
+			}
+		}
+	}
+
+	writeMeResponse(w, username, email, groups, userInfoURL)
+
+	return true
+}
+
+// writeMeResponse writes the successful response for HandleMe with the standard cache-busting headers.
 func writeMeResponse(w http.ResponseWriter, username, email string, groups []string, userInfoURL string) {
 	writeMeJSON(w, http.StatusOK, map[string]interface{}{
 		"username":    username,
@@ -487,4 +575,78 @@ func marshalToString(val interface{}) (string, bool) {
 	}
 
 	return string(b), true
+}
+
+// RefreshAndSetTokenParams groups the inputs required to refresh a token and
+// update the Headlamp auth cookie.
+type RefreshAndSetTokenParams struct {
+	Ctx                       context.Context
+	OIDCAuthConfig            *kubeconfig.OidcConfig
+	Cache                     cache.Cache[interface{}]
+	Token                     string
+	Cluster                   string
+	Span                      trace.Span
+	Writer                    http.ResponseWriter
+	Request                   *http.Request
+	TelemetryHandler          *telemetry.RequestHandler
+	OIDCUseAccessToken        bool
+	OIDCIdpIssuerURL          string
+	OIDCValidatorIdpIssuerURL string
+	BaseURL                   string
+	SessionTTL                int
+}
+
+// RefreshAndSetToken refreshes an expiring token, updates the auth cookie,
+// and records telemetry based on the provided parameters.
+func RefreshAndSetToken(params RefreshAndSetTokenParams) {
+	// The token type to use
+	tokenType := "id_token"
+	if params.OIDCUseAccessToken {
+		tokenType = "access_token"
+	}
+
+	idpIssuerURL := params.OIDCIdpIssuerURL
+	if idpIssuerURL == "" {
+		idpIssuerURL = params.OIDCAuthConfig.IdpIssuerURL
+	}
+
+	newToken, err := RefreshAndCacheNewToken(
+		params.Ctx,
+		params.OIDCAuthConfig,
+		params.Cache,
+		tokenType,
+		params.Token,
+		idpIssuerURL,
+		params.OIDCValidatorIdpIssuerURL,
+	)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"cluster": params.Cluster},
+			err, "failed to refresh token")
+		params.TelemetryHandler.RecordError(params.Span, err, "Token refresh failed")
+		params.TelemetryHandler.RecordErrorCount(params.Ctx, attribute.String("error", "token_refresh_failure"))
+	} else if newToken != nil {
+		var newTokenString string
+
+		var ok bool
+
+		if params.OIDCUseAccessToken {
+			newTokenString, ok = newToken.Extra("access_token").(string)
+		} else {
+			newTokenString, ok = newToken.Extra("id_token").(string)
+		}
+
+		if !ok || newTokenString == "" {
+			logger.Log(logger.LevelError, map[string]string{"cluster": params.Cluster},
+				errors.New("refreshed token missing expected field"), "failed to extract token string")
+			params.TelemetryHandler.RecordError(params.Span,
+				errors.New("refreshed token missing expected field"), "Token extraction failed")
+
+			return
+		}
+
+		// Set refreshed token in cookie
+		SetTokenCookie(params.Writer, params.Request, params.Cluster, newTokenString, params.BaseURL, params.SessionTTL)
+
+		params.TelemetryHandler.RecordEvent(params.Span, "Token refreshed successfully")
+	}
 }

@@ -23,19 +23,10 @@ import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import { Provider } from 'react-redux';
+import { ClusterSettings } from '../../../helpers/clusterSettings';
 import PodDebugSettings from './PodDebugSettings';
 
 const mockClusterName = 'mock-cluster';
-
-localStorage.setItem(
-  `cluster_settings.${mockClusterName}`,
-  JSON.stringify({
-    podDebugTerminal: {
-      isEnabled: true,
-      debugImage: 'docker.io/library/busybox:latest',
-    },
-  })
-);
 
 /** Creates mock Redux state for stories. */
 const getMockState = () => ({
@@ -56,16 +47,24 @@ export default {
   component: PodDebugSettings,
 } as Meta<typeof PodDebugSettings>;
 
-/** Story template with Redux Provider. */
+/** Story template with Redux Provider and stateful clusterSettings. */
 const Template: StoryFn<typeof PodDebugSettings> = args => {
   const store = configureStore({
     reducer: (state = getMockState()) => state,
     preloadedState: getMockState(),
   });
 
+  const [clusterSettings, setClusterSettings] = React.useState<ClusterSettings>(
+    args.clusterSettings
+  );
+
   return (
     <Provider store={store}>
-      <PodDebugSettings {...args} />
+      <PodDebugSettings
+        {...args}
+        clusterSettings={clusterSettings}
+        setClusterSettings={setClusterSettings}
+      />
     </Provider>
   );
 };
@@ -74,24 +73,22 @@ const Template: StoryFn<typeof PodDebugSettings> = args => {
 export const Default = Template.bind({});
 Default.args = {
   cluster: mockClusterName,
+  clusterSettings: {
+    podDebugTerminal: {
+      isEnabled: true,
+      debugImage: 'docker.io/library/busybox:latest',
+    },
+  },
 };
 
 /** Story with debugging disabled and alpine image. */
 export const Disabled = Template.bind({});
 Disabled.args = {
   cluster: mockClusterName,
-};
-Disabled.decorators = [
-  Story => {
-    localStorage.setItem(
-      `cluster_settings.${mockClusterName}`,
-      JSON.stringify({
-        podDebugTerminal: {
-          isEnabled: false,
-          debugImage: 'docker.io/library/alpine:latest',
-        },
-      })
-    );
-    return <Story />;
+  clusterSettings: {
+    podDebugTerminal: {
+      isEnabled: false,
+      debugImage: 'docker.io/library/alpine:latest',
+    },
   },
-];
+};

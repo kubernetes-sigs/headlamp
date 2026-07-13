@@ -54,7 +54,7 @@ function ProjectTypeButton({
   icon: ReactNode;
   title: ReactNode;
   description: ReactNode;
-  onClick?: any;
+  onClick?: React.MouseEventHandler<HTMLButtonElement>;
 }) {
   return (
     <Button

@@ -20,9 +20,6 @@ import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLo
 import { clusterFetch } from '../v2/fetch';
 import { JSON_HEADERS } from './constants';
 
-// @todo: the return type is missing for the following functions.
-//       See PortForwardState in PortForward.tsx
-
 export interface PortForward {
   id: string;
   pod: string;
@@ -162,8 +159,6 @@ export async function stopOrDeletePortForward(
     return text;
   });
 }
-
-// @todo: needs a return type.
 
 /**
  * Lists the port forwards for the specified cluster.

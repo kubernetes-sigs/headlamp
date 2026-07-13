@@ -27,7 +27,7 @@ import { useGraphView, useNode } from '../GraphView';
 import { KubeIcon } from '../kubeIcon/KubeIcon';
 import { NodeGlance } from '../KubeObjectGlance/NodeGlance';
 import { GroupNodeComponent } from './GroupNode';
-import { getStatus } from './KubeObjectStatus';
+import { getGraphNodeStatus } from './KubeObjectStatus';
 
 const Container = styled('div')<{
   isExpanded: boolean;
@@ -42,6 +42,7 @@ const Container = styled('div')<{
   height: isExpanded ? 'auto' : '100%',
   minHeight: '100%',
   boxSizing: 'border-box',
+  overflow: 'visible',
 
   position: 'absolute',
   background: theme.palette.background.paper,
@@ -159,18 +160,11 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
   const isSelected = id === graph.nodeSelection;
   const isCollapsed = node?.nodes?.length ? node?.collapsed : true;
 
-  let status = 'success';
-
-  if (kubeObject) {
-    status = getStatus(kubeObject) ?? 'success';
-  }
+  let status = node ? getGraphNodeStatus(node) : 'success';
 
   if (node?.nodes) {
-    const errors =
-      node?.nodes?.filter(it => it.kubeObject && getStatus(it.kubeObject) === 'error')?.length ?? 0;
-    const warnings =
-      node?.nodes?.filter(it => it.kubeObject && getStatus(it.kubeObject) === 'warning')?.length ??
-      0;
+    const errors = node.nodes.filter(it => getGraphNodeStatus(it) === 'error').length;
+    const warnings = node.nodes.filter(it => getGraphNodeStatus(it) === 'warning').length;
 
     if (warnings) {
       status = 'warning';
@@ -188,7 +182,7 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
     }
 
     const id = setTimeout(() => setIsExpanded(true), EXPAND_DELAY);
-    return () => clearInterval(id);
+    return () => clearTimeout(id);
   }, [isHovered]);
 
   const icon = kubeObject ? (
@@ -235,6 +229,8 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
     <Container
       tabIndex={0}
       role="button"
+      className={isExpanded ? 'kube-object-node--expanded' : undefined}
+      style={{ zIndex: isExpanded ? 10000 : undefined }}
       isFaded={false}
       childrenCount={node.nodes?.length ?? 0}
       isSelected={isSelected}
@@ -247,9 +243,18 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
         setHovered(false);
       }}
       onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === 'Space') {
-          openDetails();
+        if (e.key !== 'Enter' && e.key !== ' ') {
+          return;
         }
+        // Space scrolls the page by default; prevent it even on key repeat.
+        if (e.key === ' ') {
+          e.preventDefault();
+        }
+        // Ignore auto-repeat so holding the key does not re-trigger activation.
+        if (e.repeat) {
+          return;
+        }
+        openDetails();
       }}
     >
       <Handle type="target" position={Position.Top} style={{ opacity: 0 }} />

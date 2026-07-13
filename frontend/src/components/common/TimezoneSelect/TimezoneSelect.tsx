@@ -44,7 +44,7 @@ export default function TimezoneSelect(props: TimezoneSelectorProps) {
 
   return (
     <Autocomplete
-      id="cluster-selector-autocomplete"
+      id="timezone-selector-autocomplete"
       options={timezoneOptions}
       getOptionLabel={option =>
         `(UTC${option.offset >= 0 ? '+' : ''}${option.offset}) ${option.name}`

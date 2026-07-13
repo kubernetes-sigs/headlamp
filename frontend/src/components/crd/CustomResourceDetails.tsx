@@ -139,7 +139,7 @@ function CustomResourceDetailsRenderer(props: CustomResourceDetailsRendererProps
   const CRClass = React.useMemo(() => crd.makeCRClass(), [crd]);
   const [item, error] = CRClass.useGet(crName, namespace, { cluster });
 
-  const apiVersion = item?.jsonData.apiVersion?.split('/')[1] || '';
+  const apiVersion = item?.jsonData.apiVersion?.split('/').pop() || '';
   const extraColumns: AdditionalPrinterColumns = getExtraColumns(crd, apiVersion) || [];
 
   return !item ? (

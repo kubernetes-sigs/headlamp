@@ -9,6 +9,8 @@ Map view displays cluster resource on a graph. Plugins can extend this graph by 
 
 **Node** represents a Kubernetes resource. **Edges** connect different **nodes**, for example ReplicaSet connects to Pods it owns.
 
+Node and edge IDs should be stable and unique. When multiple selected sources return the same node or edge ID, Headlamp renders the first graph element for that ID.
+
 <figure>
 
 ![Screenshot of a Map with one ReplicaSet node connected to three Pods it owns](./images/map-rs-and-pods.png)
@@ -67,6 +69,7 @@ const mySource = {
         {
           id: myResource.metadata.uid, // ID should be unique
           kubeObject: new KubeObject(myResource),
+          status: "warning", // Optional: "success", "warning", or "error"
           // Optionally provide a custom details component to be shown when node is selected
           detailsComponent: ({ node }) => {
             return (
@@ -87,6 +90,10 @@ const mySource = {
   },
 };
 ```
+
+When `status` is provided, the node participates in the map's warning/error badge and the
+"Status: Error or Warning" filter. If `status` is omitted, Headlamp falls back to its default
+status detection for Kubernetes objects.
 
 Then to register it call `registerMapSource`
 

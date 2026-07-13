@@ -140,10 +140,15 @@
           class="MuiDialogContent-root MuiDialogContent-dividers css-1t4vnk2-MuiDialogContent-root"
         >
           <div
-            class="MuiBox-root css-fm9d3m"
+            class="MuiBox-root css-wicc6q"
           >
-            <h3>
+            <h2>
               Hello
+            </h2>
+            
+
+            <h3>
+              Sub-heading
             </h3>
             
 

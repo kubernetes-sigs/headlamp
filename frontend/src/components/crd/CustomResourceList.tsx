@@ -114,11 +114,6 @@ export function CustomResourceListTable(props: CustomResourceTableProps) {
   const clusters = useSelectedClusters();
   const isMultiCluster = clusters.length > 1;
 
-  if (!CRClass) {
-    return <Empty>{t('translation|No custom resources found')}</Empty>;
-  }
-
-  // eslint-disable-next-line react-hooks/rules-of-hooks
   const additionalPrinterCols = React.useMemo(() => {
     const currentVersion = apiGroup[1];
     const colsFromSpec =
@@ -150,27 +145,35 @@ export function CustomResourceListTable(props: CustomResourceTableProps) {
     return cols;
   }, [crd, apiGroup]);
 
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const cols = React.useMemo(() => {
-    const colsToDisplay: ResourceTableProps<KubeObject<KubeCRD>>['columns'] = [
-      {
-        label: t('translation|Name'),
-        getValue: resource => resource.metadata.name,
-        render: resource => <CustomResourceLink resource={resource} crd={crd} />,
-      },
-      ...(isMultiCluster ? (['cluster'] as ColumnType[]) : ([] as ColumnType[])),
-      ...additionalPrinterCols,
-      'labels',
-      'age',
-    ];
+  const cols = React.useMemo(
+    () => {
+      const colsToDisplay: ResourceTableProps<KubeObject<KubeCRD>>['columns'] = [
+        {
+          label: t('translation|Name'),
+          getValue: resource => resource.metadata.name,
+          render: resource => <CustomResourceLink resource={resource} crd={crd} />,
+        },
+        ...(isMultiCluster ? (['cluster'] as ColumnType[]) : ([] as ColumnType[])),
+        ...additionalPrinterCols,
+        'labels',
+        'age',
+      ];
 
-    if (crd.isNamespacedScope) {
-      colsToDisplay.splice(1, 0, 'namespace');
-    }
+      if (crd.isNamespacedScope) {
+        colsToDisplay.splice(1, 0, 'namespace');
+      }
 
-    return colsToDisplay;
+      return colsToDisplay;
+    },
+    // `t` is intentionally omitted from the deps array; including it has been
+    // observed to break this hook in practice (see #5183).
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [crd, additionalPrinterCols, isMultiCluster]);
+    [crd, additionalPrinterCols, isMultiCluster]
+  );
+
+  if (!CRClass) {
+    return <Empty>{t('translation|No custom resources found')}</Empty>;
+  }
 
   return (
     <ResourceListView

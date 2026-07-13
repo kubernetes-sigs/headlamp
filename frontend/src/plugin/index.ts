@@ -37,7 +37,7 @@ import * as Recharts from 'recharts';
 import semver from 'semver';
 import { Activity } from '../components/activity/Activity';
 import { runCommand } from '../components/App/runCommand';
-import { themeSlice } from '../components/App/themeSlice';
+import { applyBackendThemeConfig, ensureValidThemeName } from '../components/App/themeSlice';
 import * as CommonComponents from '../components/common';
 import { addBackstageAuthHeaders } from '../helpers/addBackstageAuthHeaders';
 import { getAppUrl } from '../helpers/getAppUrl';
@@ -51,6 +51,7 @@ import * as Router from '../lib/router';
 import * as Utils from '../lib/util';
 import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
 import store from '../redux/stores/store';
+import * as stateless from '../stateless/index';
 import { Headlamp, Plugin } from './lib';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
@@ -102,6 +103,7 @@ window.pluginLib = {
   useTranslation,
   ...registryToExport,
   Activity,
+  stateless,
 };
 
 // backwards compat.
@@ -612,6 +614,11 @@ export async function fetchAndExecutePlugins(
               secrets['runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js'];
           }
 
+          if (isPackage['@headlamp-k8s/ai-assistant']) {
+            secretsToReturn['runCmd-gh'] = secrets['runCmd-gh'];
+            secretsToReturn['runCmd-az'] = secrets['runCmd-az'];
+          }
+
           return secretsToReturn;
         },
         getArgValues: (pluginName, pluginPath, allowedPermissions) => {
@@ -640,6 +647,28 @@ export async function fetchAndExecutePlugins(
               [pluginRunCommand, pluginPath],
             ];
           }
+
+          if (isPackage['@headlamp-k8s/ai-assistant']) {
+            function pluginRunCommand(
+              command: 'gh' | 'az',
+              args: string[],
+              options: {}
+            ): ReturnType<typeof internalRunCommand> {
+              return internalRunCommand(
+                command,
+                args,
+                options,
+                allowedPermissions,
+                pluginDesktopApiSend,
+                pluginDesktopApiReceive
+              );
+            }
+            return [
+              ['pluginRunCommand', 'pluginPath'],
+              [pluginRunCommand, pluginPath],
+            ];
+          }
+
           return [[], []];
         },
         PrivateFunction,
@@ -704,7 +733,23 @@ async function afterPluginsRun(
   );
 
   // Refresh theme name if the theme that was used from a plugin was deleted
-  store.dispatch(themeSlice.actions.ensureValidThemeName());
+  store.dispatch(ensureValidThemeName());
+
+  // Reapply backend theme configuration now that plugins (which may provide themes) are loaded
+  const backendThemeConfig = store.getState().config;
+  if (
+    backendThemeConfig?.defaultLightTheme ||
+    backendThemeConfig?.defaultDarkTheme ||
+    backendThemeConfig?.forceTheme
+  ) {
+    store.dispatch(
+      applyBackendThemeConfig({
+        defaultLightTheme: backendThemeConfig.defaultLightTheme,
+        defaultDarkTheme: backendThemeConfig.defaultDarkTheme,
+        forceTheme: backendThemeConfig.forceTheme,
+      })
+    );
+  }
 }
 
 /**

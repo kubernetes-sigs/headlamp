@@ -53,13 +53,13 @@ Before starting, ensure you have:
 
 - ✅ Completed [Tutorial 1: Running Headlamp from Source](../running-from-source/)
 - ✅ Headlamp running locally (or ready to start)
-- ✅ Node.js ≥20.11.1 and npm ≥10.0.0
+- ✅ Node.js ≥22.0.0 and npm ≥11.0.0
 
 Verify your setup:
 
 ```bash
-node --version    # Should be v20.11.1 or higher
-npm --version     # Should be 10.0.0 or higher
+node --version    # Should be v22.0.0 or higher
+npm --version     # Should be 11.0.0 or higher
 ```
 
 **Time to complete:** ~15 minutes

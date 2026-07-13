@@ -108,6 +108,11 @@ jobs:
         run: |
           make frontend-build
 
+      # This is to check the rsbuild setup is still working, so "npm run star" still works.
+      - name: Build Frontend (rsbuild)
+        run: |
+          make frontend-build-rsbuild
+
   testplugins:
     name: test plugins
     runs-on: ${{ matrix.os }}

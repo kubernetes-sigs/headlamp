@@ -18,6 +18,7 @@
  * This module was taken from the k8dash project.
  */
 
+import { Base64 } from 'js-base64';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
 import store from '../redux/stores/store';
 import { backendFetch } from './k8s/api/v2/fetch';
@@ -47,13 +48,21 @@ export function getToken(cluster: string) {
  * By default tokens are stored in httpOnly cookies and not available from JS
  *
  * @param cluster - The name of the cluster.
- * @returns The decoded user information from the token's payload.
+ * @returns The decoded user information from the token's payload, or null if the token is invalid or missing.
  */
-export function getUserInfo(cluster: string) {
+export function getUserInfo(cluster: string): Record<string, unknown> | null {
   const user = getToken(cluster)?.split('.')[1];
   if (user) {
-    return JSON.parse(atob(user));
+    try {
+      const parsed = JSON.parse(Base64.decode(user));
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed as Record<string, unknown>;
+      }
+    } catch (e) {
+      console.error('Error parsing user info:', e);
+    }
   }
+  return null;
 }
 
 /**

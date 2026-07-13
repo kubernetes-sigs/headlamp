@@ -90,3 +90,26 @@ func TestListChartReturnsErrorWithoutSuccessPayload(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	assert.NotContains(t, rr.Body.String(), "\"charts\"")
 }
+
+func TestListChartContentType(t *testing.T) {
+	ch := cache.New[interface{}]()
+	require.NotNil(t, ch)
+
+	helmHandler, err := helm.NewHandlerWithSettings(ch, settings)
+	require.NoError(t, err)
+
+	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
+
+	listChartsRequest, err := http.NewRequestWithContext(context.Background(),
+		"GET", "/clusters/minikube/helm/repositories/charts", nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+
+	helmHandler.ListCharts(rr, listChartsRequest)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	// Verify Content-Type header is correctly set.
+	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+}

@@ -12,6 +12,12 @@ The frontend is written in Typescript and React, as well as a few other importan
 
 ## Building and running
 
+First, install the required dependencies by running:
+
+```bash
+npm run frontend:install
+```
+
 The frontend can be quickly built using:
 
 ```bash
@@ -24,11 +30,11 @@ Once built, it can be run in development mode (auto-refresh) using:
 npm run frontend:start
 ```
 
-This command leverages the `create-react-app`'s start script that launches
-a development server for the frontend (by default at `localhost:3000`).
+This command starts the Vite development server for the frontend
+(by default at `localhost:3000`).
 
-We use [react-query](https://tanstack.com/query/latest/docs/framework/react/overview) 
-for network request, if you need the devtools for react-query, you can simply set `REACT_APP_ENABLE_REACT_QUERY_DEVTOOLS=true` in the `.env` file.
+We use [react-query](https://tanstack.com/query/latest/docs/framework/react/overview)
+for network requests. If you need the devtools for react-query, you can simply set `REACT_APP_ENABLE_REACT_QUERY_DEVTOOLS=true` in the `.env` file.
 
 ## Linting
 
@@ -50,7 +56,7 @@ You can run `ci-lint` locally before pushing to catch any react-hooks violations
 
 ## API documentation
 
-API documentation for TypeScript is done with [typedoc](https://typedoc.org/) and [typedoc-plugin-markdown](https://github.com/tgreyuk/typedoc-plugin-markdown), and is configured in tsconfig.json
+API documentation for TypeScript is done with [typedoc](https://typedoc.org/) and [typedoc-plugin-markdown](https://github.com/tgreyuk/typedoc-plugin-markdown), and is configured in tsconfig.json.
 
 ```bash
 npm run docs

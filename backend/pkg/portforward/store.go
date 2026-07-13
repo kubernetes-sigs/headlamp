@@ -30,11 +30,18 @@ const storeKeyPrefix = "PORT_FORWARD_"
 // portforwardKeyGenerator generates a unique key
 // based on the cluster name, id,service name, and pod name.
 func portforwardKeyGenerator(p portForward) string {
-	if p.ID != "" {
-		return storeKeyPrefix + p.Cluster + p.ID
+	clusterKey := p.cacheKey
+	if clusterKey == "" {
+		// Fallback for entries created before the cacheKey field existed
+		// (cacheKey unset), where the cache key was derived from Cluster.
+		clusterKey = p.Cluster
 	}
 
-	key := storeKeyPrefix + p.Cluster
+	if p.ID != "" {
+		return storeKeyPrefix + clusterKey + p.ID
+	}
+
+	key := storeKeyPrefix + clusterKey
 
 	if p.Service != "" {
 		key += p.Service
@@ -62,16 +69,18 @@ func portforwardstore(cache cache.Cache[interface{}], p portForward) {
 func stopOrDeletePortForward(cache cache.Cache[interface{}], cluster string, id string, isStopRequest bool) error {
 	portforward, err := getPortForwardByID(cache, cluster, id)
 	if err != nil {
+		//nolint:goconst
 		logger.Log(logger.LevelError, map[string]string{"cluster": cluster, "id": id},
 			err, "getting portforward")
 
 		return err
 	}
 
-	if isStopRequest {
-		// close the channel to stop the portforward
-		portforward.closeChan <- struct{}{}
+	// Always signal the portforward to stop, whether it's a stop or delete request.
+	// This prevents orphaned goroutines and leaked ports.
+	safeCloseChan(portforward.closeChan)
 
+	if isStopRequest {
 		portforward.Status = STOPPED
 		portforwardstore(cache, portforward)
 	} else {
@@ -111,7 +120,7 @@ func getPortForwardList(cache cache.Cache[interface{}], cluster string) []portFo
 func getPortForwardByID(cache cache.Cache[interface{}], cluster string, id string) (portForward, error) {
 	cacheValue, err := cache.Get(context.Background(), storeKeyPrefix+cluster+id)
 	if err != nil {
-		return portForward{}, fmt.Errorf("failed to get portforward from cache: %v", err)
+		return portForward{}, fmt.Errorf("failed to get portforward from cache: %w", err)
 	}
 
 	pf, ok := cacheValue.(portForward)

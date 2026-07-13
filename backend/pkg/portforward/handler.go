@@ -26,6 +26,8 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -38,6 +40,7 @@ import (
 	authv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/util/httpstream" //nolint:staticcheck // SA1019: client-go/tools/portforward still uses this; migrate when upstream does.
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
@@ -53,6 +56,8 @@ const (
 	PodAvailabilityCheckTimer   = 5 // seconds
 	PortForwardReadinessTimeout = 30 * time.Second
 )
+
+var inFlightPortForwards sync.Map
 
 type portForwardRequest struct {
 	ID               string `json:"id"`
@@ -81,6 +86,7 @@ func (p *portForwardRequest) Validate() error {
 }
 
 type portForward struct {
+	mu               *sync.Mutex
 	ID               string `json:"id"`
 	closeChan        chan struct{}
 	Pod              string `json:"pod"`
@@ -88,10 +94,28 @@ type portForward struct {
 	ServiceNamespace string `json:"serviceNamespace"`
 	Namespace        string `json:"namespace"`
 	Cluster          string `json:"cluster"`
+	cacheKey         string `json:"-"`
 	Port             string `json:"port"`
 	TargetPort       string `json:"targetPort"`
 	Status           string `json:"status"`
 	Error            string `json:"error"`
+}
+
+// setStatusAndSnapshot updates the Status and Error fields and returns a
+// snapshot of the struct. When mu is initialized (production path), both
+// the update and the snapshot are performed within a single critical section.
+// When mu is nil (e.g. test-only structs not accessed concurrently), the
+// update proceeds without locking.
+func (pf *portForward) setStatusAndSnapshot(status, errMsg string) portForward {
+	if pf.mu != nil {
+		pf.mu.Lock()
+		defer pf.mu.Unlock()
+	}
+
+	pf.Status = status
+	pf.Error = errMsg
+
+	return *pf
 }
 
 func getFreePort() (int, error) {
@@ -114,6 +138,7 @@ func getFreePort() (int, error) {
 //
 //nolint:funlen
 func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache[interface{}],
+	unsafeUseServiceAccountToken bool,
 	w http.ResponseWriter, r *http.Request,
 ) {
 	var p portForwardRequest
@@ -128,6 +153,38 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 	if p.ID == "" {
 		p.ID = uuid.New().String()
 	}
+
+	userID := r.Header.Get("X-HEADLAMP-USER-ID")
+	requestClusterName := mux.Vars(r)["clusterName"]
+	clusterName := requestClusterName
+
+	if userID != "" {
+		clusterName += userID
+	}
+
+	// Ensure we don't orphan an existing port-forward by overwriting its cache entry.
+	// This check happens before any resource allocation or blocking code so duplicates short-circuit
+	// deterministically and avoid unnecessary listener churn.
+	if existingPF, err := getPortForwardByID(cache, clusterName, p.ID); err == nil && existingPF.Status == RUNNING {
+		//nolint:goconst
+		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName, "id": p.ID},
+			nil, "portforward ID already exists")
+		http.Error(w, "portforward with this ID is already running", http.StatusConflict)
+
+		return
+	}
+
+	// Reject duplicates before any resource-consuming work (port alloc, kubeconfig lookup).
+	inFlightKey := strings.Join([]string{requestClusterName, userID, p.ID}, "\x00")
+	if _, loaded := inFlightPortForwards.LoadOrStore(inFlightKey, struct{}{}); loaded {
+		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName, "id": p.ID},
+			nil, "portforward ID is already starting")
+		http.Error(w, "portforward with this ID is already starting", http.StatusConflict)
+
+		return
+	}
+
+	defer inFlightPortForwards.Delete(inFlightKey)
 
 	if err := p.Validate(); err != nil {
 		logger.Log(logger.LevelError, nil, err, "validating portforward payload")
@@ -148,27 +205,25 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		p.Port = strconv.Itoa(freePort)
 	}
 
-	token, _ := auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
-
-	userID := r.Header.Get("X-HEADLAMP-USER-ID")
-	clusterName := mux.Vars(r)["clusterName"]
-
-	if userID != "" {
-		clusterName += userID
-	}
-
 	kContext, err := kubeConfigStore.GetContext(clusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
 			err, "getting kubeconfig context")
+
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
 
-	err = startPortForward(kContext, cache, p, token, clusterName)
+	token := ""
+	if !unsafeUseServiceAccountToken || !kContext.UsesInClusterServiceAccountToken() {
+		token, _ = auth.GetTokenFromCookie(r, requestClusterName)
+	}
+
+	err = startPortForward(kContext, cache, p, token, clusterName, requestClusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting portforward")
+
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
@@ -242,6 +297,64 @@ func getKubeClientAndConfig(kContext *kubeconfig.Context, token string) (*kubern
 	return clientset, rConf, nil
 }
 
+// buildPortForwardDialer returns a dialer that performs the port-forward
+// upgrade. It tries WebSocket first (matching kubectl since v1.31) and falls
+// back to SPDY/3.1 over POST when WebSocket negotiation fails — the WebSocket
+// path is also required when the cluster is fronted by a reverse proxy (e.g.
+// Warpgate) that propagates WebSocket upgrades but drops SPDY upgrade headers.
+func buildPortForwardDialer(
+	rConf *rest.Config, fullURL *url.URL,
+	upgrader spdy.Upgrader, roundTripper http.RoundTripper,
+) httpstream.Dialer {
+	spdyDialer := spdy.NewDialer(upgrader, &http.Client{Transport: roundTripper}, http.MethodPost, fullURL)
+
+	tunnelingDialer, err := portforward.NewSPDYOverWebsocketDialer(fullURL, rConf)
+	if err != nil {
+		// WebSocket dialer not available (e.g. config conversion failed);
+		// keep SPDY-only behavior.
+		return spdyDialer
+	}
+
+	return portforward.NewFallbackDialer(tunnelingDialer, spdyDialer, func(err error) bool {
+		return httpstream.IsUpgradeFailure(err) || httpstream.IsHTTPSProxyError(err)
+	})
+}
+
+// buildPortForwardURL constructs the upstream port-forward URL for a pod,
+// preserving any path prefix carried by the kubeconfig server URL (for
+// clusters fronted by a path-routing reverse proxy such as Warpgate).
+//
+// `hostURL.ResolveReference(&url.URL{Path: …})` cannot be used here because
+// `ResolveReference` replaces the host path when the reference path is
+// absolute, dropping the prefix.
+func buildPortForwardURL(host, namespace, podName string) (*url.URL, error) {
+	hostURL, err := url.Parse(host)
+	if err != nil {
+		return nil, fmt.Errorf("invalid REST config host: %w", err)
+	}
+
+	// url.Parse accepts scheme-less inputs like "example.com" or
+	// "kubernetes.default.svc:443" without erroring, producing a relative URL
+	// (the latter is parsed as scheme="kubernetes.default.svc", opaque="443").
+	// Default to https:// when the host parsed without one, then reject what
+	// still has no host.
+	if hostURL.Host == "" {
+		hostURL, err = url.Parse("https://" + host)
+		if err != nil {
+			return nil, fmt.Errorf("invalid REST config host: %w", err)
+		}
+	}
+
+	if hostURL.Host == "" {
+		return nil, fmt.Errorf("invalid REST config host %q: missing host", host)
+	}
+
+	prefix := strings.TrimSuffix(hostURL.Path, "/")
+	hostURL.Path = fmt.Sprintf("%s/api/v1/namespaces/%s/pods/%s/portforward", prefix, namespace, podName)
+
+	return hostURL, nil
+}
+
 // initPortForwarder sets up the SPDY dialer and creates a new port forwarder.
 // It requires a REST config, namespace, pod name, and the port mapping string (e.g., "8080:80").
 // It returns the port forwarder instance, stop/ready channels, output/error buffers, or an error.
@@ -253,16 +366,17 @@ func initPortForwarder(rConf *rest.Config, namespace, podName, portMapping strin
 		return nil, nil, nil, nil, nil, fmt.Errorf("failed to create SPDY round tripper: %w", err)
 	}
 
-	path := fmt.Sprintf("/api/v1/namespaces/%s/pods/%s/portforward", namespace, podName)
-
-	hostURL, err := url.Parse(rConf.Host)
+	fullURL, err := buildPortForwardURL(rConf.Host, namespace, podName)
 	if err != nil {
-		return nil, nil, nil, nil, nil, fmt.Errorf("invalid REST config host: %w", err)
+		return nil, nil, nil, nil, nil, err
 	}
 
-	fullURL := hostURL.ResolveReference(&url.URL{Path: path})
+	// Try WebSocket-based port-forward first, fall back to SPDY/3.1 over POST.
+	// This mirrors `kubectl port-forward` behavior since v1.31 and is required
+	// for clusters fronted by reverse proxies (e.g. Warpgate) that handle WS
+	// upgrades but drop SPDY upgrade headers.
+	dialer := buildPortForwardDialer(rConf, fullURL, upgrader, roundTripper)
 
-	dialer := spdy.NewDialer(upgrader, &http.Client{Transport: roundTripper}, http.MethodPost, fullURL)
 	stopChan, readyChan := make(chan struct{}), make(chan struct{}, 1)
 	out, errOut := new(bytes.Buffer), new(bytes.Buffer)
 
@@ -316,9 +430,8 @@ func monitorPodAndManagePortForward(
 				errMsg := fmt.Sprintf("Pod %s/%s check failed: %v", pfDetails.Namespace, pfDetails.Pod, err)
 				logger.Log(logger.LevelError, logParams, errors.New(errMsg), "stopping port-forward due to pod status")
 
-				pfDetails.Status = STOPPED
-				pfDetails.Error = errMsg
-				portforwardstore(cache, *pfDetails)
+				pfSnapshot := pfDetails.setStatusAndSnapshot(STOPPED, errMsg)
+				portforwardstore(cache, pfSnapshot)
 				safeCloseChan(pfDetails.closeChan)
 
 				return
@@ -336,19 +449,13 @@ func handlePortForwardError(
 	pfDetails *portForward,
 	logParams map[string]string,
 	errMsg string,
-	isReady bool,
 ) error {
 	logger.Log(logger.LevelError, logParams, errors.New(errMsg), "portforward error")
 
-	pfDetails.Status = STOPPED
-	pfDetails.Error = errMsg
+	pfSnapshot := pfDetails.setStatusAndSnapshot(STOPPED, errMsg)
 
-	portforwardstore(cache, *pfDetails)
+	portforwardstore(cache, pfSnapshot)
 	safeCloseChan(pfDetails.closeChan)
-
-	if isReady {
-		return nil
-	}
 
 	return errors.New(errMsg)
 }
@@ -359,9 +466,8 @@ func handlePortForwardSuccess(
 	pfDetails *portForward,
 	logParams map[string]string,
 ) {
-	pfDetails.Status = RUNNING
-	pfDetails.Error = ""
-	portforwardstore(cache, *pfDetails)
+	pfSnapshot := pfDetails.setStatusAndSnapshot(RUNNING, "")
+	portforwardstore(cache, pfSnapshot)
 	logger.Log(logger.LevelInfo, logParams, nil, "Port forward ready and running.")
 }
 
@@ -380,16 +486,28 @@ func handlePortForwardReadiness(
 	case <-readyChan:
 		if errOut.String() != "" {
 			return handlePortForwardError(cache, pfDetails, logParams,
-				fmt.Sprintf("portforward failed to start, stderr: %s", errOut.String()), false)
+				fmt.Sprintf("portforward failed, stderr: %s", errOut.String()))
 		}
 
 		handlePortForwardSuccess(cache, pfDetails, logParams)
-	case err := <-forwardErrChan:
-		return handlePortForwardError(cache, pfDetails, logParams, err.Error(), false)
+	case err, ok := <-forwardErrChan:
+		if !ok {
+			return handlePortForwardError(cache, pfDetails, logParams, "portforward stopped before ready")
+		}
+
+		if err == nil {
+			return handlePortForwardError(cache, pfDetails, logParams, "portforward failed: nil error received")
+		}
+
+		return handlePortForwardError(cache, pfDetails, logParams, err.Error())
 	case <-time.After(PortForwardReadinessTimeout):
-		return handlePortForwardError(cache, pfDetails, logParams, "timeout waiting for portforward to become ready", false)
+		return handlePortForwardError(cache, pfDetails, logParams, "timeout waiting for portforward to be ready")
 	case <-pfDetails.closeChan:
 		msg := "portforward stopped before becoming ready"
+
+		if pfDetails.mu != nil {
+			pfDetails.mu.Lock()
+		}
 
 		if pfDetails.Status == RUNNING {
 			pfDetails.Status = STOPPED
@@ -399,13 +517,77 @@ func handlePortForwardReadiness(
 			pfDetails.Error = msg
 		}
 
-		portforwardstore(cache, *pfDetails)
+		pfSnapshot := *pfDetails
+
+		if pfDetails.mu != nil {
+			pfDetails.mu.Unlock()
+		}
+
+		portforwardstore(cache, pfSnapshot)
 		logger.Log(logger.LevelInfo, logParams, nil, msg)
 
 		return errors.New(msg)
 	}
 
 	return nil
+}
+
+// forwardPortsAsync runs ForwardPorts in a goroutine, reporting errors via forwardErrChan
+// and updating the portForward status in the cache on completion.
+func forwardPortsAsync(
+	cache cache.Cache[interface{}],
+	pfDetails *portForward,
+	forwarder *portforward.PortForwarder,
+	forwardErrChan chan error,
+	logParams map[string]string,
+) {
+	go func() {
+		defer func() {
+			safeCloseChan(pfDetails.closeChan)
+			close(forwardErrChan)
+		}()
+
+		if err := forwarder.ForwardPorts(); err != nil {
+			logger.Log(logger.LevelError, logParams, err, "ForwardPorts() failed")
+
+			pfSnapshot := pfDetails.setStatusAndSnapshot(STOPPED, err.Error())
+			portforwardstore(cache, pfSnapshot)
+
+			select {
+			case forwardErrChan <- err:
+			default:
+			}
+
+			return
+		}
+
+		logger.Log(logger.LevelInfo, logParams, nil, "ForwardPorts() exited.")
+
+		if pfDetails.mu != nil {
+			pfDetails.mu.Lock()
+		}
+
+		shouldStore := pfDetails.Status == RUNNING
+		if shouldStore {
+			pfDetails.Status = STOPPED
+			if pfDetails.Error == "" {
+				pfDetails.Error = "Port forward stopped."
+			}
+		}
+
+		var pfSnapshot portForward
+		if shouldStore {
+			pfSnapshot = *pfDetails
+		}
+
+		if pfDetails.mu != nil {
+			pfDetails.mu.Unlock()
+		}
+
+		if shouldStore {
+			portforwardstore(cache, pfSnapshot)
+		}
+	}()
 }
 
 // runAndMonitorPortForward starts the actual port forwarding in a goroutine,
@@ -424,36 +606,7 @@ func runAndMonitorPortForward(
 	}
 	forwardErrChan := make(chan error, 1)
 
-	go func() {
-		if err := forwarder.ForwardPorts(); err != nil {
-			logger.Log(logger.LevelError, logParams, err, "ForwardPorts() failed")
-
-			pfDetails.Status = STOPPED
-			pfDetails.Error = err.Error()
-
-			portforwardstore(cache, *pfDetails)
-
-			select {
-			case forwardErrChan <- err:
-			default:
-			}
-
-			safeCloseChan(pfDetails.closeChan)
-		} else {
-			logger.Log(logger.LevelInfo, logParams, nil, "ForwardPorts() exited.")
-
-			if pfDetails.Status == RUNNING {
-				pfDetails.Status = STOPPED
-				if pfDetails.Error == "" {
-					pfDetails.Error = "Port forward stopped."
-				}
-
-				portforwardstore(cache, *pfDetails)
-			}
-		}
-
-		close(forwardErrChan)
-	}()
+	forwardPortsAsync(cache, pfDetails, forwarder, forwardErrChan, logParams)
 
 	err := handlePortForwardReadiness(cache, pfDetails, readyChan, errOut, logParams, forwardErrChan)
 	if err != nil {
@@ -468,7 +621,7 @@ func runAndMonitorPortForward(
 // startPortForward starts a port forward. This is the internal function that was refactored.
 // It sets up Kubernetes clients, initializes the port forwarder, and manages its lifecycle.
 func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{}],
-	p portForwardRequest, token string, clusterName string,
+	p portForwardRequest, token string, clusterName string, requestClusterName string,
 ) error {
 	clientset, rConf, err := getKubeClientAndConfig(kContext, token)
 	if err != nil {
@@ -500,10 +653,12 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 	_ = outBuffer // Avoid unused variable error if outBuffer isn't used directly later
 
 	pfDetails := &portForward{
+		mu:               &sync.Mutex{},
 		ID:               p.ID,
 		closeChan:        stopChan,
 		Pod:              p.Pod,
-		Cluster:          clusterName,
+		Cluster:          requestClusterName,
+		cacheKey:         clusterName,
 		Namespace:        p.Namespace,
 		Service:          p.Service,
 		ServiceNamespace: p.ServiceNamespace,

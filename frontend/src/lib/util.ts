@@ -173,7 +173,7 @@ export function timeAgo(date: DateParam, options: TimeAgoOptions = {}) {
   const fromDate = new Date(date);
   let now = new Date();
 
-  if (import.meta.env.UNDER_TEST === 'true') {
+  if (import.meta.env.UNDER_TEST) {
     // For testing, we consider the current moment to be 3 months from the dates we are testing.
     const days = 24 * 3600 * 1000; // in ms
     now = new Date(fromDate.getTime() + 90 * days);
@@ -203,18 +203,50 @@ export function formatDuration(duration: number, options: TimeAgoOptions = {}) {
   return humanDuration(duration);
 }
 
+const tzCache = new Map<string, boolean>();
+
+/**
+ * Returns true when tz is a valid IANA timezone string accepted by the
+ * Intl API. Some Linux systems expose TZ=:/etc/localtime which Chrome
+ * resolves to "Etc/Unknown" — an identifier that Node accepts but browsers
+ * reject with a RangeError.
+ */
+export function isValidTimezone(tz: string): boolean {
+  if (!import.meta.env.UNDER_TEST) {
+    const cached = tzCache.get(tz);
+    if (cached !== undefined) {
+      return cached;
+    }
+  }
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz });
+    if (!import.meta.env.UNDER_TEST) {
+      tzCache.set(tz, true);
+    }
+    return true;
+  } catch {
+    if (!import.meta.env.UNDER_TEST) {
+      tzCache.set(tz, false);
+    }
+    return false;
+  }
+}
+
 export function localeDate(date: DateParam) {
   const options: Intl.DateTimeFormatOptions = { timeZoneName: 'short' };
   let locale: string | undefined = undefined;
 
   // Force the same conditions under test, so snapshots are the same.
-  if (import.meta.env.UNDER_TEST === 'true') {
+  if (import.meta.env.UNDER_TEST) {
     options.timeZone = 'UTC';
     options.hour12 = true;
     locale = 'en-US';
     return new Date(date).toISOString();
   } else {
-    options.timeZone = store.getState().config.settings.timezone;
+    const tz = store.getState().config.settings.timezone;
+    if (tz && isValidTimezone(tz)) {
+      options.timeZone = tz;
+    }
   }
 
   return new Date(date).toLocaleString(locale, options);
@@ -225,8 +257,12 @@ export function getPercentStr(value: number, total: number) {
     return null;
   }
   const percentage = (value / total) * 100;
-  const decimals = percentage % 10 > 0 ? 1 : 0;
-  return `${percentage.toFixed(decimals)} %`;
+  // Round to a single decimal, then strip a trailing ".0" so whole-number
+  // percentages render without it. Rounding first avoids floating-point dust
+  // (e.g. 29/100 -> 28.999999999999996) being treated as a fractional value.
+  // Operate on the fixed-point string directly to keep formatting stable.
+  const formatted = percentage.toFixed(1);
+  return `${formatted.endsWith('.0') ? formatted.slice(0, -2) : formatted} %`;
 }
 
 export function getReadyReplicas(item: Workload) {
@@ -466,14 +502,16 @@ export function useURLState<T extends string | number | undefined = string>(
   return [value, setValue] as [T, React.Dispatch<React.SetStateAction<T>>];
 }
 
-// compareUnits compares two units and returns true if they are equal
+// compareUnits compares the parsed numeric portion of two quantities (ignoring unit suffixes) and returns true if they are equal.
 export function compareUnits(quantity1: string, quantity2: string) {
   // strip whitespace and convert to lowercase
   const qty1 = quantity1.replace(/\s/g, '').toLowerCase();
   const qty2 = quantity2.replace(/\s/g, '').toLowerCase();
 
-  // compare numbers
-  return parseInt(qty1) === parseInt(qty2);
+  // Compare the parsed numeric portion only (unit suffix is ignored).
+  const n1 = Number.parseFloat(qty1);
+  const n2 = Number.parseFloat(qty2);
+  return !Number.isNaN(n1) && !Number.isNaN(n2) && n1 === n2;
 }
 
 export function normalizeUnit(resourceType: string, quantity: string) {
@@ -561,14 +599,11 @@ export function normalizeUnit(resourceType: string, quantity: string) {
  * If UNDER_TEST is set to true, it will return the same ID every time, so snapshots do not get invalidated.
  */
 export function useId(prefix = '') {
-  const [id] = React.useState<string | undefined>(
-    import.meta.env.UNDER_TEST === 'true'
-      ? prefix + 'id'
-      : // eslint-disable-next-line react-hooks/purity
-        prefix + Math.random().toString(16).slice(2)
-  );
-
-  return id;
+  const reactId = React.useId();
+  if (import.meta.env.UNDER_TEST) {
+    return prefix + 'id';
+  }
+  return prefix + reactId.replace(/:/g, '');
 }
 
 // Make units available from here

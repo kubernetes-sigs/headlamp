@@ -43,9 +43,24 @@ spec:
             pathType: {{ .type }}
             backend:
               service:
+                {{- $svc := dict }}
+                {{- if and .backend .backend.service }}
+                  {{- $svc = .backend.service }}
+                {{- end }}
+                {{- if $svc.name }}
+                name: {{ tpl $svc.name $ | trim | quote }}
+                {{- else }}
                 name: {{ $fullName }}
-                port: 
+                {{- end }}
+                port:
+                  {{- $port := $svc.port | default dict }}
+                  {{- if $port.number }}
+                  number: {{ $port.number }}
+                  {{- else if $port.name }}
+                  name: {{ $port.name }}
+                  {{- else }}
                   number: {{ $svcPort }}
+                  {{- end }}
           {{- end }}
     {{- end }}
 {{- end }}

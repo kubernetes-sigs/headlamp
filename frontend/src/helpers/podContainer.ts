@@ -17,6 +17,36 @@
 import Pod from '../lib/k8s/pod';
 
 /**
+ * Returns all containers in a pod across spec.containers, spec.initContainers,
+ * and spec.ephemeralContainers.
+ *
+ * @param item - The pod object to check.
+ * @returns Array of all container specs (main, init, and ephemeral).
+ */
+export function getAllContainers(item: Pod): Array<{ name: string }> {
+  return [
+    ...(item.spec?.containers ?? []),
+    ...(item.spec?.initContainers ?? []),
+    ...(item.spec?.ephemeralContainers ?? []),
+  ];
+}
+
+/**
+ * Returns `preferredName` if it matches a known container in the pod, otherwise
+ * falls back to {@link getDefaultContainer}.
+ *
+ * @param item - The pod object to check.
+ * @param preferredName - The container name requested (e.g. from a query param).
+ * @returns A valid container name for the pod.
+ */
+export function resolveContainerName(item: Pod, preferredName: string | undefined): string {
+  if (preferredName && getAllContainers(item).some(c => c.name === preferredName)) {
+    return preferredName;
+  }
+  return getDefaultContainer(item);
+}
+
+/**
  * Gets the default container name for a pod based on its current execution state.
  *
  * It prioritizes running main containers, then running init containers,
@@ -25,7 +55,6 @@ import Pod from '../lib/k8s/pod';
  * @param item - The pod object to check.
  * @returns The name of the default container or an empty string if none exist.
  */
-
 export function getDefaultContainer(item: Pod): string {
   if (!item) {
     return '';

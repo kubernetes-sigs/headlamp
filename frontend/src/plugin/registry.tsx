@@ -36,9 +36,14 @@ import {
 import { GraphSource } from '../components/resourceMap/graph/graphModel';
 import { Glance, graphViewSlice, IconDefinition } from '../components/resourceMap/graphViewSlice';
 import { DefaultSidebars, SidebarEntryProps } from '../components/Sidebar';
-import { setSidebarItem, setSidebarItemFilter } from '../components/Sidebar/sidebarSlice';
+import {
+  setHomeSidebarItemFilter,
+  setSidebarItem,
+  setSidebarItemFilter,
+} from '../components/Sidebar/sidebarSlice';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
 import { AppTheme } from '../lib/AppTheme';
+import type { ApiResource } from '../lib/k8s/api/v2/ApiResource';
 import { KubeObject } from '../lib/k8s/KubeObject';
 import type { Route } from '../lib/router/Route';
 import {
@@ -96,6 +101,7 @@ import {
   addDetailsTab,
   addHeaderAction,
   addOverviewSection,
+  addProjectApiResource,
   CustomCreateProject,
   ProjectDeleteButton,
   ProjectDetailsTab,
@@ -149,6 +155,8 @@ export type {
   IconDefinition,
   OverviewChartsProcessor,
 };
+
+export type { ApiResource } from '../lib/k8s/api/v2/ApiResource';
 export const DefaultHeadlampEvents = HeadlampEventType;
 export const DetailsViewDefaultHeaderActions = DefaultHeaderAction;
 export type { AppBarActionProcessorType };
@@ -298,6 +306,8 @@ export function registerSidebarEntry({
   useClusterURL = true,
   icon,
   sidebar,
+  entryType,
+  sx,
 }: SidebarEntryProps) {
   store.dispatch(
     setSidebarItem({
@@ -308,6 +318,8 @@ export function registerSidebarEntry({
       useClusterURL,
       icon,
       sidebar,
+      entryType,
+      sx,
     })
   );
 }
@@ -353,9 +365,9 @@ export function registerKubeObjectGlance(glance: Glance) {
 }
 
 /**
- * Remove sidebar menu items.
+ * Filter or modify IN_CLUSTER sidebar menu items.
  *
- * @param filterFunc - a function for filtering sidebar entries.
+ * @param filterFunc - a function for filtering or modifying IN_CLUSTER sidebar entries. Return null to remove the entry, or the (optionally modified) entry to keep it.
  *
  * @example
  *
@@ -372,9 +384,28 @@ export function registerSidebarEntryFilter(
 }
 
 /**
- * Remove routes.
+ * Filter HOME sidebar menu items (return null to remove, or return a modified entry to update it).
  *
- * @param filterFunc - a function for filtering routes.
+ * @param filterFunc - a function for filtering or modifying HOME sidebar entries. Return null to remove the entry, or the (optionally modified) entry to keep it.
+ *
+ * @example
+ *
+ * ```tsx
+ * import { registerHomeSidebarEntryFilter } from '@kinvolk/headlamp-plugin/lib';
+ *
+ * registerHomeSidebarEntryFilter(entry => (entry.name === 'settings' ? null : entry));
+ * ```
+ */
+export function registerHomeSidebarEntryFilter(
+  filterFunc: (entry: SidebarEntryProps) => SidebarEntryProps | null
+) {
+  store.dispatch(setHomeSidebarItemFilter(filterFunc));
+}
+
+/**
+ * Filter or modify routes.
+ *
+ * @param filterFunc - a function for filtering or modifying routes. Return null to remove the route, or the (optionally modified) route to keep it.
  *
  * @example
  *
@@ -1164,6 +1195,54 @@ export function registerProjectDeleteButton(projectDeleteButton: ProjectDeleteBu
  */
 export function registerProjectHeaderAction(projectHeaderAction: ProjectHeaderAction) {
   store.dispatch(addHeaderAction(projectHeaderAction));
+}
+
+/**
+ * Register a custom API resource to be included in Project resource fetching.
+ *
+ * This allows plugins to extend the default list of resources that Projects
+ * track, enabling CRD-based resources to appear in project resource counts,
+ * health status, and the Resources tab.
+ *
+ * Only namespaced resources should be registered, as Projects are scoped to namespaces.
+ *
+ * @param apiResource - The API resource definition to register.
+ *   Must include apiVersion, version, pluralName, singularName, kind, and isNamespaced.
+ *
+ * @example
+ * ```tsx
+ * registerProjectApiResource({
+ *   apiVersion: 'argoproj.io/v1alpha1',
+ *   version: 'v1alpha1',
+ *   groupName: 'argoproj.io',
+ *   pluralName: 'applications',
+ *   singularName: 'application',
+ *   kind: 'Application',
+ *   isNamespaced: true,
+ * });
+ * ```
+ *
+ * @note If the total number of watched resources (defaults + plugin-registered)
+ *   grows too large, the fetch strategy may fall back from watch to polling.
+ *   Register only resources that are needed for project health/status.
+ */
+export function registerProjectApiResource(apiResource: ApiResource) {
+  if (!apiResource.isNamespaced) {
+    console.warn(
+      `registerProjectApiResource: Ignored non-namespaced resource "${apiResource.kind}" ` +
+        'because Projects are namespace-scoped.'
+    );
+    return;
+  }
+
+  // Normalize groupName from apiVersion (e.g. 'argoproj.io/v1alpha1' → 'argoproj.io')
+  // when not explicitly provided, to ensure consistent deduplication via apiResourceId.
+  const normalizedResource =
+    !apiResource.groupName && apiResource.apiVersion.includes('/')
+      ? { ...apiResource, groupName: apiResource.apiVersion.split('/')[0] }
+      : apiResource;
+
+  store.dispatch(addProjectApiResource(normalizedResource));
 }
 
 export {

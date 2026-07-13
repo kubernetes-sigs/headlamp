@@ -51,6 +51,20 @@ const (
 	processing = "processing"
 )
 
+// Structured-log field names that recur across many log sites in the helm package.
+const (
+	logFieldRequest     = "request"
+	logFieldReleaseName = "releaseName"
+	logFieldChart       = "chart"
+)
+
+// Operation names used as the value of the "request" log field.
+const (
+	opGetRelease        = "get_release"
+	opGetReleaseHistory = "get_release_history"
+	opUninstallRelease  = "uninstall_release"
+)
+
 type ListReleaseRequest struct {
 	AllNamespaces *bool   `json:"allNamespaces,omitempty"`
 	Namespace     *string `json:"namespace,omitempty"`
@@ -139,7 +153,7 @@ func (h *Handler) ListRelease(clientConfig clientcmd.ClientConfig, w http.Respon
 
 	err := decoder.Decode(&req, r.URL.Query())
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "list_releases"},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "list_releases"},
 			err, "parsing request")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
@@ -153,7 +167,7 @@ func (h *Handler) ListRelease(clientConfig clientcmd.ClientConfig, w http.Respon
 
 	actionConfig, err := NewActionConfig(clientConfig, namespace)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "list_releases"},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "list_releases"},
 			err, "creating action config")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -162,7 +176,7 @@ func (h *Handler) ListRelease(clientConfig clientcmd.ClientConfig, w http.Respon
 
 	releases, err := getReleases(req, actionConfig)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "list_releases"},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "list_releases"},
 			err, "fetching releases")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -178,16 +192,16 @@ func (h *Handler) ListRelease(clientConfig clientcmd.ClientConfig, w http.Respon
 		Releases: releases,
 	}
 
+	w.Header().Set("Content-Type", "application/json")
+
 	err = json.NewEncoder(w).Encode(res)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "list_releases"},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "list_releases"},
 			err, "encoding response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 }
 
 type GetReleaseRequest struct {
@@ -215,7 +229,7 @@ func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.Respons
 	// Parse request
 	req, err := decodeGetReleaseRequest(r)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release"},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opGetRelease},
 			err, "validating request")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
@@ -224,7 +238,7 @@ func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.Respons
 
 	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release"},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opGetRelease},
 			err, "creating action config")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -233,8 +247,8 @@ func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.Respons
 
 	// check if release exists
 	_, err = actionConfig.Releases.Deployed(req.Name)
-	if err == driver.ErrReleaseNotFound {
-		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name, "request": "get_release"},
+	if errors.Is(err, driver.ErrReleaseNotFound) {
+		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name, logFieldRequest: opGetRelease},
 			err, "release not found")
 		http.Error(w, err.Error(), http.StatusNotFound)
 
@@ -245,25 +259,24 @@ func (h *Handler) GetRelease(clientConfig clientcmd.ClientConfig, w http.Respons
 
 	result, err := getClient.Run(req.Name)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release", "releaseName": req.Name},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opGetRelease, logFieldReleaseName: req.Name},
 			err, "getting release")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
 	err = json.NewEncoder(w).Encode(result)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release", "releaseName": req.Name},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opGetRelease, logFieldReleaseName: req.Name},
 			err, "encoding response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 }
 
 type GetReleaseHistoryRequest struct {
@@ -283,7 +296,7 @@ func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.
 
 	err := decoder.Decode(&req, r.URL.Query())
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release_history"},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opGetReleaseHistory},
 			err, "decoding request")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
@@ -292,7 +305,7 @@ func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.
 
 	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release_history"},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opGetReleaseHistory},
 			err, "creating action config")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -301,8 +314,8 @@ func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.
 
 	// check if release exists
 	_, err = actionConfig.Releases.Deployed(req.Name)
-	if err == driver.ErrReleaseNotFound {
-		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name, "request": "get_release_history"},
+	if errors.Is(err, driver.ErrReleaseNotFound) {
+		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name, logFieldRequest: opGetReleaseHistory},
 			err, "release not found")
 		http.Error(w, err.Error(), http.StatusNotFound)
 
@@ -313,7 +326,7 @@ func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.
 
 	result, err := getClient.Run(req.Name)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release_history", "releaseName": req.Name},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opGetReleaseHistory, logFieldReleaseName: req.Name},
 			err, "getting release history")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -324,18 +337,17 @@ func (h *Handler) GetReleaseHistory(clientConfig clientcmd.ClientConfig, w http.
 		Releases: result,
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)
 
 	err = json.NewEncoder(w).Encode(resp)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "get_release_history", "releaseName": req.Name},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opGetReleaseHistory, logFieldReleaseName: req.Name},
 			err, "encoding response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 }
 
 type UninstallReleaseRequest struct {
@@ -363,7 +375,7 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 	// Parse request
 	req, err := decodeUninstallReleaseRequest(r)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release"},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opUninstallRelease},
 			err, "validating request")
 		http.Error(w, err.Error(), http.StatusBadRequest)
 
@@ -372,7 +384,7 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 
 	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release"},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opUninstallRelease},
 			err, "creating action config")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -381,8 +393,8 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 
 	// check if release exists
 	_, err = actionConfig.Releases.Deployed(req.Name)
-	if err == driver.ErrReleaseNotFound {
-		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name, "request": "uninstall_release"},
+	if errors.Is(err, driver.ErrReleaseNotFound) {
+		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name, logFieldRequest: opUninstallRelease},
 			err, "release not found")
 		http.Error(w, err.Error(), http.StatusNotFound)
 
@@ -391,7 +403,7 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 
 	err = h.setReleaseStatus("uninstall", req.Name, processing, nil)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release", "releaseName": req.Name},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opUninstallRelease, logFieldReleaseName: req.Name},
 			err, "setting status")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -406,18 +418,17 @@ func (h *Handler) UninstallRelease(clientConfig clientcmd.ClientConfig, w http.R
 		"message": "uninstall request accepted",
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 
 	err = json.NewEncoder(w).Encode(response)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "uninstall_release", "releaseName": req.Name},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: opUninstallRelease, logFieldReleaseName: req.Name},
 			err, "encoding response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 }
 
 func (h *Handler) uninstallRelease(req UninstallReleaseRequest, actionConfig *action.Configuration) {
@@ -428,7 +439,7 @@ func (h *Handler) uninstallRelease(req UninstallReleaseRequest, actionConfig *ac
 
 	_, err := uninstallClient.Run(req.Name)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name, "namespace": req.Namespace},
+		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name, "namespace": req.Namespace},
 			err, "uninstalling release")
 
 		status = failed
@@ -470,7 +481,7 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 
 	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "rollback_release"},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "rollback_release"},
 			err, "creating action config")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -479,8 +490,8 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 
 	// check if release exists
 	_, err = actionConfig.Releases.Deployed(req.Name)
-	if err == driver.ErrReleaseNotFound {
-		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name},
+	if errors.Is(err, driver.ErrReleaseNotFound) {
+		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name},
 			err, "release not found")
 		http.Error(w, err.Error(), http.StatusNotFound)
 
@@ -503,6 +514,7 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 		"message": "rollback request accepted",
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 
 	err = json.NewEncoder(w).Encode(response)
@@ -512,8 +524,6 @@ func (h *Handler) RollbackRelease(clientConfig clientcmd.ClientConfig, w http.Re
 
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 }
 
 func (h *Handler) rollbackRelease(req RollbackReleaseRequest, actionConfig *action.Configuration) {
@@ -524,7 +534,7 @@ func (h *Handler) rollbackRelease(req RollbackReleaseRequest, actionConfig *acti
 
 	err := rollbackClient.Run(req.Name)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"releaseName": req.Name},
+		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: req.Name},
 			err, "rolling back release")
 
 		status = failed
@@ -554,7 +564,7 @@ func (req *InstallRequest) Validate() error {
 }
 
 func handleError(w http.ResponseWriter, releaseName string, err error, message string, status int) {
-	logger.Log(logger.LevelError, map[string]string{"releaseName": releaseName}, err, message)
+	logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: releaseName}, err, message)
 	http.Error(w, err.Error(), status)
 }
 
@@ -563,6 +573,7 @@ func (h *Handler) returnResponse(w http.ResponseWriter, reqName string, statusCo
 		"message": message,
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(statusCode)
 
 	err := json.NewEncoder(w).Encode(response)
@@ -570,8 +581,6 @@ func (h *Handler) returnResponse(w http.ResponseWriter, reqName string, statusCo
 		handleError(w, reqName, err, "encoding response", http.StatusInternalServerError)
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 }
 
 func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.ResponseWriter, r *http.Request) {
@@ -596,7 +605,7 @@ func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.Res
 
 	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "install_release"},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "install_release"},
 			err, "creating action config")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -607,6 +616,8 @@ func (h *Handler) InstallRelease(clientConfig clientcmd.ClientConfig, w http.Res
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "setting status")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
 	}
 
 	go func(h *Handler) {
@@ -676,25 +687,34 @@ func (h *Handler) getChart(
 func VerifyUser(actionConfig *action.Configuration, req InstallRequest) bool {
 	restConfig, err := actionConfig.RESTClientGetter.ToRESTConfig()
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name}, err, "getting chart")
+		logger.Log(logger.LevelError,
+			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
+			err, "getting chart")
+
 		return false
 	}
 
 	cs, err := kubernetes.NewForConfig(restConfig)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name}, err, "getting chart")
+		logger.Log(logger.LevelError,
+			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
+			err, "getting chart")
+
 		return false
 	}
 
 	review, err := cs.AuthenticationV1().SelfSubjectReviews().Create(context.Background(),
 		&authv1.SelfSubjectReview{}, metav1.CreateOptions{})
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name}, err, "getting chart")
+		logger.Log(logger.LevelError,
+			map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
+			err, "getting chart")
+
 		return false
 	}
 
 	if user := review.Status.UserInfo.Username; user == "" || user == "system:anonymous" {
-		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
+		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
 			errors.New("insufficient privileges"), "getting chart: user is not authorized to perform this operation")
 
 		return false
@@ -718,7 +738,7 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 	chart, err := h.getChart("install", req.Chart, req.Name,
 		installClient.ChartPathOptions, req.DependencyUpdate, h.EnvSettings)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
+		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
 			err, "getting chart")
 
 		return
@@ -726,7 +746,7 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 
 	decodedBytes, err := base64.StdEncoding.DecodeString(req.Values)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
+		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
 			err, "decoding values")
 		h.setReleaseStatusSilent("install", req.Name, failed, err)
 
@@ -735,7 +755,7 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 
 	values := make(map[string]interface{})
 	if err = yaml.Unmarshal(decodedBytes, &values); err != nil {
-		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
+		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
 			err, "unmarshalling values")
 		h.setReleaseStatusSilent("install", req.Name, failed, err)
 
@@ -743,7 +763,7 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 	}
 
 	if _, err = installClient.Run(chart, values); err != nil {
-		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
+		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
 			err, "installing chart")
 		h.setReleaseStatusSilent("install", req.Name, failed, err)
 
@@ -781,7 +801,7 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 
 	actionConfig, err := NewActionConfig(clientConfig, req.Namespace)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"request": "upgrade_release"},
+		logger.Log(logger.LevelError, map[string]string{logFieldRequest: "upgrade_release"},
 			err, "creating action config")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
@@ -790,7 +810,7 @@ func (h *Handler) UpgradeRelease(clientConfig clientcmd.ClientConfig, w http.Res
 
 	// check if release exists
 	_, err = actionConfig.Releases.Deployed(req.Name)
-	if err == driver.ErrReleaseNotFound {
+	if errors.Is(err, driver.ErrReleaseNotFound) {
 		handleError(w, req.Name, err, "release not found", http.StatusNotFound)
 		return
 	}
@@ -838,7 +858,7 @@ func (h *Handler) upgradeRelease(req UpgradeReleaseRequest, actionConfig *action
 
 	chart, err := h.getChart("upgrade", req.Chart, req.Name, upgradeClient.ChartPathOptions, true, h.EnvSettings)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"chart": req.Chart, "releaseName": req.Name},
+		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
 			err, "getting chart")
 
 		return
@@ -878,7 +898,7 @@ func (a *ActionStatusRequest) Validate() error {
 
 	err := validate.Struct(a)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"action": a.Action, "releaseName": a.Name},
+		logger.Log(logger.LevelError, map[string]string{"action": a.Action, logFieldReleaseName: a.Name},
 			err, "validating request for status")
 
 		return err
@@ -935,6 +955,7 @@ func (h *Handler) GetActionStatus(clientConfig clientcmd.ClientConfig, w http.Re
 		response["message"] = "action failed with error: " + errMsg
 	}
 
+	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusAccepted)
 
 	err = json.NewEncoder(w).Encode(response)
@@ -944,6 +965,4 @@ func (h *Handler) GetActionStatus(clientConfig clientcmd.ClientConfig, w http.Re
 
 		return
 	}
-
-	w.Header().Set("Content-Type", "application/json")
 }

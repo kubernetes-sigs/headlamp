@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import { createVWC } from './storyHelper';
 import ValidatingWebhookConfigDetails from './ValidatingWebhookConfigDetails';
 
@@ -34,7 +34,7 @@ export default {
       handlers: {
         storyBase: [
           http.get(
-            'http://localhost:4466/apis/admissionregistration.k8s.io/v1/validatingwebhookconfigurations',
+            `${API_BASE}/apis/admissionregistration.k8s.io/v1/validatingwebhookconfigurations`,
             () => HttpResponse.error()
           ),
         ],
@@ -60,7 +60,7 @@ WithService.parameters = {
     handlers: {
       story: [
         http.get(
-          'http://localhost:4466/apis/admissionregistration.k8s.io/v1/validatingwebhookconfigurations/my-vwc',
+          `${API_BASE}/apis/admissionregistration.k8s.io/v1/validatingwebhookconfigurations/my-vwc`,
           () => HttpResponse.json(createVWC(true))
         ),
       ],
@@ -74,7 +74,7 @@ WithURL.parameters = {
     handlers: {
       story: [
         http.get(
-          'http://localhost:4466/apis/admissionregistration.k8s.io/v1/validatingwebhookconfigurations/my-vwc',
+          `${API_BASE}/apis/admissionregistration.k8s.io/v1/validatingwebhookconfigurations/my-vwc`,
           () => HttpResponse.json(createVWC(false))
         ),
       ],

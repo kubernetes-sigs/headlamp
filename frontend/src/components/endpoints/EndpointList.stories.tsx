@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import EndpointList from './List';
 
 const list = [
@@ -72,7 +72,7 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get('http://localhost:4466/api/v1/endpoints', () =>
+          http.get(`${API_BASE}/api/v1/endpoints`, () =>
             HttpResponse.json({
               kind: 'EndpointsList',
               items: list,

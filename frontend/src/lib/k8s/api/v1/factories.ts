@@ -22,7 +22,7 @@ import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface } from '../../KubeObject';
 import type { ApiError } from '../v2/ApiError';
-import { clusterRequest, patch, post, put, remove } from './clusterRequests';
+import { clusterRequest, jsonPatch, patch, post, put, remove } from './clusterRequests';
 import type { DeleteParameters } from './deleteParameters';
 import { asQuery, getApiRoot } from './formatUrl';
 import type { QueryParameters } from './queryParameters';
@@ -78,7 +78,15 @@ export interface ApiClient<ResourceType extends KubeObjectInterface> {
     queryParams?: QueryParameters,
     cluster?: string
   ) => Promise<ResourceType>;
+  // Note: patch uses application/merge-patch+json which expects a partial object,
+  // but the type here uses OpPatch[] for historical reasons. See jsonPatch for RFC 6902.
   patch: (
+    body: OpPatch[],
+    name: string,
+    queryParams?: QueryParameters,
+    cluster?: string
+  ) => Promise<ResourceType>;
+  jsonPatch: (
     body: OpPatch[],
     name: string,
     queryParams?: QueryParameters,
@@ -119,6 +127,7 @@ export interface ApiWithNamespaceClient<ResourceType extends KubeObjectInterface
     queryParams?: QueryParameters,
     cluster?: string
   ) => Promise<ResourceType>;
+  // See note on ApiClient.patch about the type mismatch.
   patch: (
     body: OpPatch[],
     namespace: string,
@@ -126,6 +135,13 @@ export interface ApiWithNamespaceClient<ResourceType extends KubeObjectInterface
     queryParams?: QueryParameters,
     cluster?: string
   ) => Promise<any>;
+  jsonPatch: (
+    body: OpPatch[],
+    namespace: string,
+    name: string,
+    queryParams?: QueryParameters,
+    cluster?: string
+  ) => Promise<ResourceType>;
   delete: (
     namespace: string,
     name: string,
@@ -318,6 +334,7 @@ export function multipleApiFactory<T extends KubeObjectInterface>(
       repeatStreamFunc(apiEndpoints, 'get', errCb, name, cb, queryParams, cluster),
     post: repeatFactoryMethod(apiEndpoints, 'post'),
     patch: repeatFactoryMethod(apiEndpoints, 'patch'),
+    jsonPatch: repeatFactoryMethod(apiEndpoints, 'jsonPatch'),
     put: repeatFactoryMethod(apiEndpoints, 'put'),
     delete: repeatFactoryMethod(apiEndpoints, 'delete'),
     isNamespaced: false,
@@ -340,8 +357,6 @@ export interface ApiInfo {
   /** The resource name. */
   resource: string;
 }
-
-// @todo: singleApiFactory should have a return type rather than just what it returns.
 
 /**
  * @returns An object with methods for interacting with a single API endpoint.
@@ -374,6 +389,10 @@ export function singleApiFactory<T extends KubeObjectInterface>(
       put(`${url}/${body.metadata.name}` + asQuery(queryParams), body, true, { cluster }),
     patch: (body, name, queryParams, cluster) =>
       patch(`${url}/${name}` + asQuery({ ...queryParams, ...{ pretty: 'true' } }), body, true, {
+        cluster,
+      }),
+    jsonPatch: (body, name, queryParams, cluster) =>
+      jsonPatch(`${url}/${name}` + asQuery({ ...queryParams, ...{ pretty: 'true' } }), body, true, {
         cluster,
       }),
     delete: (name, deleteParams, cluster) =>
@@ -411,6 +430,7 @@ function multipleApiFactoryWithNamespace<T extends KubeObjectInterface>(
       repeatStreamFunc(apiEndpoints, 'get', errCb, namespace, name, cb, queryParams, cluster),
     post: repeatFactoryMethod(apiEndpoints, 'post'),
     patch: repeatFactoryMethod(apiEndpoints, 'patch'),
+    jsonPatch: repeatFactoryMethod(apiEndpoints, 'jsonPatch'),
     put: repeatFactoryMethod(apiEndpoints, 'put'),
     delete: repeatFactoryMethod(apiEndpoints, 'delete'),
     isNamespaced: true,
@@ -449,6 +469,13 @@ function simpleApiFactoryWithNamespace<T extends KubeObjectInterface>(
       post(url(body.metadata?.namespace!) + asQuery(queryParams), body, true, { cluster }),
     patch: (body, namespace, name, queryParams, cluster) =>
       patch(
+        `${url(namespace)}/${name}` + asQuery({ ...queryParams, ...{ pretty: 'true' } }),
+        body,
+        true,
+        { cluster }
+      ),
+    jsonPatch: (body, namespace, name, queryParams, cluster) =>
+      jsonPatch(
         `${url(namespace)}/${name}` + asQuery({ ...queryParams, ...{ pretty: 'true' } }),
         body,
         true,

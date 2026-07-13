@@ -440,6 +440,12 @@
                   class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
                 >
                   <div
+                    aria-atomic="true"
+                    aria-live="polite"
+                    class="MuiBox-root css-ty8jgw"
+                    role="status"
+                  />
+                  <div
                     class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-onzayo-MuiPaper-root-MuiTableContainer-root"
                     tabindex="0"
                   >
@@ -548,13 +554,33 @@
                   </h2>
                   <div
                     class="MuiBox-root css-ldp2l3"
-                  />
+                  >
+                    <button
+                      aria-label="Events lifetime information"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ai5t7w-MuiButtonBase-root-MuiIconButton-root"
+                      data-mui-internal-clone-element="true"
+                      tabindex="0"
+                      type="button"
+                    >
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                  </div>
                 </div>
               </div>
             </div>
             <div
               class="MuiBox-root css-1txv3mw"
             >
+              <div
+                aria-atomic="true"
+                aria-live="polite"
+                class="MuiBox-root css-ty8jgw"
+                role="status"
+              >
+                No data to be shown.
+              </div>
               <div
                 class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
               >

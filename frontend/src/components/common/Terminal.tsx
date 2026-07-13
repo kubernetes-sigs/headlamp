@@ -22,15 +22,17 @@ import FormControl from '@mui/material/FormControl';
 import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
+import { useTheme } from '@mui/material/styles';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
 import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { getDefaultContainer } from '../../helpers/podContainer';
+import { getDefaultContainer, resolveContainerName } from '../../helpers/podContainer';
 import Pod from '../../lib/k8s/pod';
 import { XTERM_DEFAULT_OPTIONS } from '../../lib/xterm/options';
 import { Dialog } from './Dialog';
+import { getXtermTheme } from './xtermTheme';
 
 const decoder = new TextDecoder('utf-8');
 const encoder = new TextEncoder();
@@ -49,6 +51,7 @@ interface TerminalProps extends DialogProps {
   /** Don't render the terminal in the dialog */
   noDialog?: boolean;
   onClose?: () => void;
+  initialContainer?: string;
 }
 
 interface XTerminalConnected {
@@ -60,9 +63,11 @@ interface XTerminalConnected {
 type execReturn = ReturnType<Pod['exec']>;
 
 export default function Terminal(props: TerminalProps) {
-  const { item, onClose, isAttach, noDialog, ...other } = props;
+  const { item, onClose, isAttach, noDialog, initialContainer, ...other } = props;
   const [terminalContainerRef, setTerminalContainerRef] = React.useState<HTMLElement | null>(null);
-  const [container, setContainer] = useState<string | null>(() => getDefaultContainer(item));
+  const [container, setContainer] = useState<string | null>(() =>
+    resolveContainerName(item, initialContainer)
+  );
   const execOrAttachRef = React.useRef<execReturn | null>(null);
   const fitAddonRef = React.useRef<FitAddon | null>(null);
   const xtermRef = React.useRef<XTerminalConnected | null>(null);
@@ -71,6 +76,8 @@ export default function Terminal(props: TerminalProps) {
     currentIdx: 0,
   });
   const { t } = useTranslation(['translation', 'glossary']);
+  const muiTheme = useTheme();
+  const xtermTheme = React.useMemo(() => getXtermTheme(muiTheme), [muiTheme]);
 
   // @todo: Give the real exec type when we have it.
   function setupTerminal(containerRef: HTMLElement, xterm: XTerminal, fitAddon: FitAddon) {
@@ -257,6 +264,12 @@ export default function Terminal(props: TerminalProps) {
     }
   }
 
+  React.useEffect(() => {
+    if (xtermRef.current) {
+      xtermRef.current.xterm.options.theme = xtermTheme;
+    }
+  }, [xtermTheme]);
+
   React.useEffect(
     () => {
       // We need a valid container ref for the terminal to add itself to it.
@@ -286,6 +299,11 @@ export default function Terminal(props: TerminalProps) {
           ...XTERM_DEFAULT_OPTIONS,
           rows: 30,
           windowsMode: isWindows,
+fix-xterm-font
+
+          allowProposedApi: true,
+          theme: xtermTheme,
+ main
         }),
         connected: false,
         reconnectOnEnter: false,
@@ -379,7 +397,13 @@ export default function Terminal(props: TerminalProps) {
         if (_.isEmpty(error.metadata) && error.status === 'Success') {
           return true;
         }
-      } catch {}
+      } catch (e) {
+        console.debug('Terminal: failed to parse server error channel data', {
+          channel,
+          text,
+          error: e,
+        });
+      }
     }
     return false;
   }
@@ -392,7 +416,13 @@ export default function Terminal(props: TerminalProps) {
         if (error.code === 500 && error.status === 'Failure' && error.reason === 'InternalError') {
           return true;
         }
-      } catch {}
+      } catch (e) {
+        console.debug('Terminal: failed to parse server error channel data', {
+          channel,
+          text,
+          error: e,
+        });
+      }
     }
     // Windows container Error
     if (channel === 1) {

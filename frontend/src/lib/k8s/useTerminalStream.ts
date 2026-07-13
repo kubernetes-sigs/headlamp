@@ -14,10 +14,16 @@
  * limitations under the License.
  */
 
+import { useTheme } from '@mui/material/styles';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal as XTerminal } from '@xterm/xterm';
+ fix-xterm-font
 import { useCallback, useEffect, useRef } from 'react';
 import { XTERM_DEFAULT_OPTIONS } from '../xterm/options';
+
+import { useCallback, useEffect, useMemo, useRef } from 'react';
+import { getXtermTheme } from '../../components/common/xtermTheme';
+ main
 
 const decoder = new TextDecoder('utf-8');
 const encoder = new TextEncoder();
@@ -106,6 +112,14 @@ export function useTerminalStream(options: TerminalStreamOptions) {
   const xtermRef = useRef<XTerminalConnected | null>(null);
   const fitAddonRef = useRef<FitAddon | null>(null);
   const streamRef = useRef<any | null>(null);
+  const muiTheme = useTheme();
+  const xtermTheme = useMemo(() => getXtermTheme(muiTheme), [muiTheme]);
+
+  useEffect(() => {
+    if (xtermRef.current) {
+      xtermRef.current.xterm.options.theme = xtermTheme;
+    }
+  }, [xtermTheme]);
 
   /**
    * Sends data to the terminal stream on the specified channel.
@@ -255,6 +269,11 @@ export function useTerminalStream(options: TerminalStreamOptions) {
     const defaultOptions = {
       ...XTERM_DEFAULT_OPTIONS,
       windowsMode: isWindows,
+ fix-xterm-font
+
+      allowProposedApi: true,
+      theme: xtermTheme,
+ main
     };
 
     xtermRef.current = {

@@ -22,6 +22,7 @@ import MuiTable from '@mui/material/Table';
 import { TableCellProps } from '@mui/material/TableCell';
 import TableHead from '@mui/material/TableHead';
 import { alpha, styled } from '@mui/system';
+import { visuallyHidden } from '@mui/utils';
 import {
   MRT_BottomToolbar,
   MRT_Cell,
@@ -36,14 +37,17 @@ import {
   useMaterialReactTable,
   useMRT_Rows,
 } from 'material-react-table';
+import { MRT_Localization_AR } from 'material-react-table/locales/ar';
 import { MRT_Localization_DE } from 'material-react-table/locales/de';
 import { MRT_Localization_EN } from 'material-react-table/locales/en';
 import { MRT_Localization_ES } from 'material-react-table/locales/es';
 import { MRT_Localization_FR } from 'material-react-table/locales/fr';
+import { MRT_Localization_HE } from 'material-react-table/locales/he';
 import { MRT_Localization_IT } from 'material-react-table/locales/it';
 import { MRT_Localization_JA } from 'material-react-table/locales/ja';
 import { MRT_Localization_KO } from 'material-react-table/locales/ko';
 import { MRT_Localization_PT } from 'material-react-table/locales/pt';
+import { MRT_Localization_RU } from 'material-react-table/locales/ru';
 import { MRT_Localization_ZH_HANS } from 'material-react-table/locales/zh-Hans';
 import { MRT_Localization_ZH_HANT } from 'material-react-table/locales/zh-Hant';
 import { memo, ReactNode, useEffect, useMemo, useState } from 'react';
@@ -110,7 +114,7 @@ export type TableProps<RowItem extends Record<string, any>> = Omit<
   initialPage?: number;
   /**
    * List of options for the rows per page selector
-   * @example [15, 25, 50]
+   * @example [15, 25, 50, 100]
    */
   rowsPerPage?: number[];
   /**
@@ -153,15 +157,18 @@ function usePageURLState(
   return [zeroIndexPage, setZeroIndexPage];
 }
 
-const tableLocalizationMap: Record<string, MRT_Localization> = {
+const tableLocalizationMap: Partial<Record<string, MRT_Localization>> = {
+  ar: MRT_Localization_AR,
   de: MRT_Localization_DE,
   en: MRT_Localization_EN,
   es: MRT_Localization_ES,
   fr: MRT_Localization_FR,
+  he: MRT_Localization_HE,
   it: MRT_Localization_IT,
   ja: MRT_Localization_JA,
   pt: MRT_Localization_PT,
   ko: MRT_Localization_KO,
+  ru: MRT_Localization_RU,
   zh: MRT_Localization_ZH_HANS,
   'zh-TW': MRT_Localization_ZH_HANT,
 };
@@ -216,7 +223,7 @@ export default function Table<RowItem extends Record<string, any>>({
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const rowsPerPageOptions = rowsPerPage || storeRowsPerPageOptions;
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  const defaultRowsPerPage = useMemo(() => getTablesRowsPerPage(rowsPerPageOptions[0]), []);
+  const defaultRowsPerPage = getTablesRowsPerPage(rowsPerPageOptions[0]);
   const [pageSize, setPageSize] = useURLState(shouldReflectInURL ? 'perPage' : '', {
     defaultValue: defaultRowsPerPage,
     prefix,
@@ -491,69 +498,92 @@ export default function Table<RowItem extends Record<string, any>>({
     }
   };
 
+  const emptyMsg = emptyMessage || t('No data to be shown.');
+  const isEmpty = !tableProps.data?.length && !loading;
+  const noSearchResults = !errorMessage && !loading && !isEmpty && rows.length === 0;
+  const statusMsg = isEmpty ? emptyMsg : noSearchResults ? t('No results found') : '';
+
+  // Defer status text by one render so NVDA always sees a change ('' → message).
+  const [announcedStatus, setAnnouncedStatus] = useState<
+    | string
+    | number
+    | true
+    | React.ReactElement<any, string | React.JSXElementConstructor<any>>
+    | Iterable<React.ReactNode>
+  >('');
+  useEffect(() => {
+    setAnnouncedStatus(statusMsg);
+  }, [statusMsg]);
+
+  let content;
   if (!!errorMessage) {
-    return <Empty color="error">{errorMessage}</Empty>;
-  }
-
-  if (loading) {
-    return <Loader title={t('Loading table data')} />;
-  }
-
-  if (!tableProps.data?.length && !loading) {
-    return (
+    content = <Empty color="error">{errorMessage}</Empty>;
+  } else if (loading) {
+    content = <Loader title={t('Loading table data')} />;
+  } else if (!tableProps.data?.length) {
+    content = (
       <Paper variant="outlined">
-        <Empty>{emptyMessage || t('No data to be shown.')}</Empty>
+        <Empty>{emptyMsg}</Empty>
       </Paper>
+    );
+  } else {
+    const headerGroups = table.getHeaderGroups();
+
+    content = (
+      <>
+        <MRT_TopToolbar table={table} />
+        <MuiTable
+          sx={{
+            display: 'grid',
+            border: '1px solid',
+            borderColor: theme.palette.tables.head.borderColor,
+            borderRadius: 1,
+            borderBottom: 'none',
+            overflowX: 'auto',
+            width: '100%',
+            gridTemplateColumns,
+          }}
+        >
+          <TableHead sx={{ display: 'contents' }}>
+            <StyledHeadRow>
+              {headerGroups[0].headers.map(header => (
+                <MemoHeadCell
+                  key={header.id}
+                  header={header as MRT_Header<Record<string, any>>}
+                  table={table as MRT_TableInstance<Record<string, any>>}
+                  isFiltered={header.column.getIsFiltered()}
+                  sorting={header.column.getIsSorted()}
+                  showColumnFilters={table.getState().showColumnFilters}
+                  selected={table.getSelectedRowModel().flatRows.length}
+                  filterValue={header.column.getFilterValue()}
+                />
+              ))}
+            </StyledHeadRow>
+          </TableHead>
+          <StyledBody>
+            {rows.map((row, index) => (
+              <Row
+                key={row.id}
+                rowIndex={index}
+                cells={row.getVisibleCells() as MRT_Cell<Record<string, any>, unknown>[]}
+                table={table as MRT_TableInstance<Record<string, any>>}
+                isSelected={row.getIsSelected()}
+                onRowClick={handleRowClick}
+              />
+            ))}
+          </StyledBody>
+        </MuiTable>
+        <MRT_BottomToolbar table={table} />
+      </>
     );
   }
 
-  const headerGroups = table.getHeaderGroups();
-
   return (
     <>
-      <MRT_TopToolbar table={table} />
-      <MuiTable
-        sx={{
-          display: 'grid',
-          border: '1px solid',
-          borderColor: theme.palette.tables.head.borderColor,
-          borderRadius: 1,
-          borderBottom: 'none',
-          overflowX: 'auto',
-          width: '100%',
-          gridTemplateColumns,
-        }}
-      >
-        <TableHead sx={{ display: 'contents' }}>
-          <StyledHeadRow>
-            {headerGroups[0].headers.map(header => (
-              <MemoHeadCell
-                key={header.id}
-                header={header as MRT_Header<Record<string, any>>}
-                table={table as MRT_TableInstance<Record<string, any>>}
-                isFiltered={header.column.getIsFiltered()}
-                sorting={header.column.getIsSorted()}
-                showColumnFilters={table.getState().showColumnFilters}
-                selected={table.getSelectedRowModel().flatRows.length}
-                filterValue={header.column.getFilterValue()}
-              />
-            ))}
-          </StyledHeadRow>
-        </TableHead>
-        <StyledBody>
-          {rows.map((row, index) => (
-            <Row
-              key={row.id}
-              rowIndex={index}
-              cells={row.getVisibleCells() as MRT_Cell<Record<string, any>, unknown>[]}
-              table={table as MRT_TableInstance<Record<string, any>>}
-              isSelected={row.getIsSelected()}
-              onRowClick={handleRowClick}
-            />
-          ))}
-        </StyledBody>
-      </MuiTable>
-      <MRT_BottomToolbar table={table} />
+      <Box role="status" aria-live="polite" aria-atomic="true" sx={visuallyHidden}>
+        {announcedStatus}
+      </Box>
+      {content}
     </>
   );
 }

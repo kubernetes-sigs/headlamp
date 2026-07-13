@@ -30,9 +30,12 @@ import { useDropzone } from 'react-dropzone';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
+import { encodeBase64 } from '../../helpers/base64';
 import { useClustersConf } from '../../lib/k8s';
 import { setCluster } from '../../lib/k8s/api/v1/clusterApi';
 import { setStatelessConfig } from '../../redux/configSlice';
+import store from '../../redux/stores/store';
+import { mergeStatelessConfigState } from '../../stateless';
 import { DialogTitle } from '../common/Dialog';
 import { DropZoneBox } from '../common/DropZoneBox';
 import Loader from '../common/Loader';
@@ -105,7 +108,7 @@ const WideButton = styled(Button)({
   maxWidth: '300px',
 });
 
-const enum Step {
+export enum Step {
   LoadKubeConfig,
   SelectClusters,
   ValidateKubeConfig,
@@ -113,122 +116,51 @@ const enum Step {
   Success,
 }
 
-function KubeConfigLoader() {
-  const history = useHistory();
-  const [state, setState] = useState(Step.LoadKubeConfig);
-  const [error, setError] = React.useState('');
-  const [fileContent, setFileContent] = useState<kubeconfig>({
-    clusters: [],
-    users: [],
-    contexts: [],
-    currentContext: '',
-  });
-  const [selectedClusters, setSelectedClusters] = useState<string[]>([]);
-  const configuredClusters = useClustersConf(); // Get already configured clusters
+export interface PureKubeConfigLoaderProps {
+  /** The current step in the loading process */
+  step: Step;
+  /** Error message to display */
+  error?: string;
+  /** The parsed kubeconfig file content */
+  fileContent: kubeconfig;
+  /** List of selected cluster names */
+  selectedClusters: string[];
+  /** Callback for when a file is dropped or chosen */
+  onDrop: (acceptedFiles: File[]) => void;
+  /** Callback for checkbox changes in cluster selection */
+  onCheckboxChange: (event: React.ChangeEvent<HTMLInputElement>) => void;
+  /** Callback for 'Next' button */
+  onNext: () => void;
+  /** Callback for 'Back' button */
+  onBack: () => void;
+  /** Callback for 'Finish' button */
+  onFinish: () => void;
+  /** Callback for 'Cancel/Back' button in initial step */
+  onCancel: () => void;
+}
 
-  useEffect(() => {
-    if (fileContent.contexts.length > 0) {
-      setSelectedClusters(fileContent.contexts.map(context => context.name));
-      setState(Step.SelectClusters);
-    }
-    return () => {};
-  }, [fileContent]);
-
-  useEffect(() => {
-    if (state === Step.ValidateKubeConfig) {
-      const alreadyConfiguredClusters = selectedClusters.filter(
-        clusterName => configuredClusters && configuredClusters[clusterName]
-      );
-
-      if (alreadyConfiguredClusters.length > 0) {
-        setError(
-          t(
-            'translation|Duplicate cluster: {{ clusterNames }} in the list. Please edit the context name.',
-            {
-              clusterNames: alreadyConfiguredClusters.join(', '),
-            }
-          )
-        );
-        setState(Step.SelectClusters);
-      } else {
-        setState(Step.ConfigureClusters);
-      }
-    }
-    if (state === Step.ConfigureClusters) {
-      function loadClusters() {
-        const selectedClusterConfig = configWithSelectedClusters(fileContent, selectedClusters);
-        setCluster({ kubeconfig: btoa(yaml.dump(selectedClusterConfig)) })
-          .then(res => {
-            if (res?.clusters?.length > 0) {
-              dispatch(setStatelessConfig(res));
-            }
-            setState(Step.Success);
-          })
-          .catch(e => {
-            console.debug('Error setting up clusters from kubeconfig:', e);
-            setError(
-              t('translation|Error setting up clusters, please load a valid kubeconfig file')
-            );
-            setState(Step.SelectClusters);
-          });
-      }
-      loadClusters();
-    }
-    return () => {};
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state]);
-
-  const dispatch = useDispatch();
+export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
+  const {
+    step,
+    error,
+    fileContent,
+    selectedClusters,
+    onDrop,
+    onCheckboxChange,
+    onNext,
+    onBack,
+    onFinish,
+    onCancel,
+  } = props;
   const { t } = useTranslation(['translation']);
 
-  const onDrop = (acceptedFiles: Blob[]) => {
-    setError('');
-    const reader = new FileReader();
-    reader.onerror = () => setError(t("translation|Couldn't read kubeconfig file"));
-    reader.onload = () => {
-      try {
-        const data = String.fromCharCode.apply(null, [
-          ...new Uint8Array(reader.result as ArrayBuffer),
-        ]);
-        const doc = yaml.load(data) as kubeconfig;
-        if (!doc.clusters) {
-          throw new Error(t('translation|No clusters found!'));
-        }
-        if (!doc.contexts) {
-          throw new Error(t('translation|No contexts found!'));
-        }
-        setFileContent(doc);
-      } catch (err) {
-        setError(
-          t(`translation|Invalid kubeconfig file: {{ errorMessage }}`, {
-            errorMessage: (err as Error).message,
-          })
-        );
-        return;
-      }
-    };
-    reader.readAsArrayBuffer(acceptedFiles[0]);
-  };
-
   const { getRootProps, getInputProps, open } = useDropzone({
-    onDrop: onDrop,
+    onDrop: (acceptedFiles: File[]) => onDrop(acceptedFiles),
     multiple: false,
   });
 
-  function handleCheckboxChange(event: React.ChangeEvent<HTMLInputElement>) {
-    if (!event.target.checked) {
-      // remove from selected clusters
-      setSelectedClusters(selectedClusters =>
-        selectedClusters.filter(cluster => cluster !== event.target.name)
-      );
-    } else {
-      // add to selected clusters
-      setSelectedClusters(selectedClusters => [...selectedClusters, event.target.name]);
-    }
-  }
-
   function renderSwitch() {
-    switch (state) {
+    switch (step) {
       case Step.LoadKubeConfig:
         return (
           <Box>
@@ -250,7 +182,7 @@ function KubeConfigLoader() {
               </FormControl>
             </DropZoneBox>
             <Box style={{ display: 'flex', justifyContent: 'center' }}>
-              <WideButton onClick={() => history.goBack()}>{t('translation|Back')}</WideButton>
+              <WideButton onClick={onCancel}>{t('translation|Back')}</WideButton>
             </Box>
           </Box>
         );
@@ -297,7 +229,7 @@ function KubeConfigLoader() {
                             <Checkbox
                               value={context.name}
                               name={context.name}
-                              onChange={handleCheckboxChange}
+                              onChange={onCheckboxChange}
                               color="primary"
                               checked={selectedClusters.includes(context.name)}
                             />
@@ -318,23 +250,14 @@ function KubeConfigLoader() {
                       <WideButton
                         variant="contained"
                         color="primary"
-                        onClick={() => {
-                          setState(Step.ValidateKubeConfig);
-                        }}
+                        onClick={onNext}
                         disabled={selectedClusters.length === 0}
                       >
                         {t('translation|Next')}
                       </WideButton>
                     </Grid>
                     <Grid item>
-                      <WideButton
-                        onClick={() => {
-                          setError('');
-                          setState(Step.LoadKubeConfig);
-                        }}
-                      >
-                        {t('translation|Back')}
-                      </WideButton>
+                      <WideButton onClick={onBack}>{t('translation|Back')}</WideButton>
                     </Grid>
                   </Grid>
                 </Box>
@@ -370,7 +293,7 @@ function KubeConfigLoader() {
             <Box style={{ padding: '32px' }}>
               <Typography>{t('translation|Clusters successfully set up!')}</Typography>
             </Box>
-            <WideButton variant="contained" onClick={() => history.replace('/')}>
+            <WideButton variant="contained" onClick={onFinish}>
               {t('translation|Finish')}
             </WideButton>
           </Box>
@@ -387,10 +310,151 @@ function KubeConfigLoader() {
     >
       <DialogTitle>{t('translation|Load from KubeConfig')}</DialogTitle>
       {error && error !== '' ? (
-        <Box style={{ backgroundColor: 'red', textAlign: 'center', padding: '4px' }}>{error}</Box>
+        <Box
+          style={{
+            backgroundColor: '#f44336',
+            color: 'white',
+            textAlign: 'center',
+            padding: '12px',
+            marginBottom: '16px',
+            borderRadius: '4px',
+          }}
+        >
+          {error}
+        </Box>
       ) : null}
       <Box>{renderSwitch()}</Box>
     </ClusterDialog>
+  );
+}
+
+function KubeConfigLoader() {
+  const history = useHistory();
+  const [state, setState] = useState(Step.LoadKubeConfig);
+  const [error, setError] = React.useState('');
+  const [fileContent, setFileContent] = useState<kubeconfig>({
+    clusters: [],
+    users: [],
+    contexts: [],
+    currentContext: '',
+  });
+  const [selectedClusters, setSelectedClusters] = useState<string[]>([]);
+  const configuredClusters = useClustersConf(); // Get already configured clusters
+  const dispatch = useDispatch();
+  const { t } = useTranslation(['translation']);
+
+  useEffect(() => {
+    if (fileContent.contexts.length > 0) {
+      setSelectedClusters(fileContent.contexts.map(context => context.name));
+      setState(Step.SelectClusters);
+    }
+    return () => {};
+  }, [fileContent]);
+
+  useEffect(() => {
+    if (state === Step.ValidateKubeConfig) {
+      const alreadyConfiguredClusters = selectedClusters.filter(
+        clusterName => configuredClusters && configuredClusters[clusterName]
+      );
+
+      if (alreadyConfiguredClusters.length > 0) {
+        setError(
+          t(
+            'translation|Duplicate cluster: {{ clusterNames }} in the list. Please edit the context name.',
+            {
+              clusterNames: alreadyConfiguredClusters.join(', '),
+            }
+          )
+        );
+        setState(Step.SelectClusters);
+      } else {
+        setState(Step.ConfigureClusters);
+      }
+    }
+    if (state === Step.ConfigureClusters) {
+      function loadClusters() {
+        const selectedClusterConfig = configWithSelectedClusters(fileContent, selectedClusters);
+        setCluster({ kubeconfig: encodeBase64(yaml.dump(selectedClusterConfig)) })
+          .then(parsedConfig => {
+            if (parsedConfig?.clusters?.length > 0) {
+              const currentStatelessClusters = store.getState().config.statelessClusters;
+              dispatch(
+                setStatelessConfig(
+                  mergeStatelessConfigState(currentStatelessClusters, parsedConfig)
+                )
+              );
+            }
+            setState(Step.Success);
+          })
+          .catch(e => {
+            console.error('Error setting up clusters from kubeconfig:', e);
+            setError(
+              t('translation|Error setting up clusters, please load a valid kubeconfig file')
+            );
+            setState(Step.SelectClusters);
+          });
+      }
+      loadClusters();
+    }
+    return () => {};
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state]);
+
+  const onDrop = (acceptedFiles: File[]) => {
+    setError('');
+    const reader = new FileReader();
+    reader.onerror = () => setError(t("translation|Couldn't read kubeconfig file"));
+    reader.onload = () => {
+      try {
+        const data = new TextDecoder().decode(reader.result as ArrayBuffer);
+        const doc = yaml.load(data) as kubeconfig;
+        if (!doc.clusters) {
+          throw new Error(t('translation|No clusters found!'));
+        }
+        if (!doc.contexts) {
+          throw new Error(t('translation|No contexts found!'));
+        }
+        setFileContent(doc);
+      } catch (err) {
+        setError(
+          t(`translation|Invalid kubeconfig file: {{ errorMessage }}`, {
+            errorMessage: (err as Error).message,
+          })
+        );
+        return;
+      }
+    };
+    reader.readAsArrayBuffer(acceptedFiles[0]);
+  };
+
+  function handleCheckboxChange(event: React.ChangeEvent<HTMLInputElement>) {
+    if (!event.target.checked) {
+      // remove from selected clusters
+      setSelectedClusters(selectedClusters =>
+        selectedClusters.filter(cluster => cluster !== event.target.name)
+      );
+    } else {
+      // add to selected clusters
+      setSelectedClusters(selectedClusters => [...selectedClusters, event.target.name]);
+    }
+  }
+
+  return (
+    <PureKubeConfigLoader
+      step={state}
+      error={error}
+      fileContent={fileContent}
+      selectedClusters={selectedClusters}
+      onDrop={onDrop}
+      onCheckboxChange={handleCheckboxChange}
+      onNext={() => setState(Step.ValidateKubeConfig)}
+      onBack={() => {
+        setError('');
+        setState(Step.LoadKubeConfig);
+      }}
+      onFinish={() => history.replace('/')}
+      onCancel={() => history.goBack()}
+    />
   );
 }
 

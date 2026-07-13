@@ -14,13 +14,19 @@
  * limitations under the License.
  */
 
-import { CpuCircularChart, MemoryCircularChart, PodCapacityCircularChart } from './ResourceCharts';
+import {
+  CpuCircularChart,
+  EphemeralStorageCircularChart,
+  MemoryCircularChart,
+  PodCapacityCircularChart,
+} from './ResourceCharts';
 import { NodesStatusCircleChart, PodsStatusCircleChart } from './StatusCharts';
 
 export {
   MemoryCircularChart,
   CpuCircularChart,
   PodCapacityCircularChart,
+  EphemeralStorageCircularChart,
   PodsStatusCircleChart,
   NodesStatusCircleChart,
 };

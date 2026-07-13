@@ -2,13 +2,36 @@
 
 const { execSync } = require('child_process');
 
+/**
+ * Convert electron-builder architecture names to Go GOARCH values.
+ *
+ * Why this exists:
+ * electron-builder and Go use different architecture identifiers for some targets
+ * (for example, electron uses "x64" while Go expects "amd64"). We normalize here
+ * so `make backend` receives a valid GOARCH.
+ *
+ * Known mappings:
+ * - x64 -> amd64
+ * - armv7l -> arm
+ * - arm64 -> (passthrough; already valid for GOARCH)
+ *
+ * Unknown values are passed through unchanged so existing/custom workflows do not
+ * break unexpectedly.
+ *
+ * @param {string} electronArch
+ * @returns {string}
+ */
+function mapElectronArchToGoArch(electronArch) {
+  const archMap = {
+    x64: 'amd64',
+    armv7l: 'arm',
+  };
+
+  return archMap[electronArch] || electronArch;
+}
+
 exports.default = async context => {
-  let arch = context.arch;
-  if (arch === 'x64') {
-    arch = 'amd64';
-  } else if (arch === 'armv7l') {
-    arch = 'arm';
-  }
+  const arch = mapElectronArchToGoArch(context.arch);
 
   let osName = '';
   let goos = '';

@@ -30,6 +30,7 @@ import HPA from '../../../../lib/k8s/hpa';
 import HTTPRoute from '../../../../lib/k8s/httpRoute';
 import Ingress from '../../../../lib/k8s/ingress';
 import Job from '../../../../lib/k8s/job';
+import JobSet from '../../../../lib/k8s/jobSet';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
 import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookConfiguration';
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
@@ -187,7 +188,7 @@ const ingressToSecret = makeRelation(Ingress, Secret, (ingress, secret) =>
 );
 
 const networkPolicyToPod = makeRelation(NetworkPolicy, Pod, (np, pod) =>
-  matchesLabels(np.jsonData.spec.podSelector.matchLabels, pod)
+  matchesLabels(np.spec.podSelector.matchLabels ?? {}, pod)
 );
 
 const roleBindingsToRole = makeRelation(
@@ -243,10 +244,14 @@ const jobToCronJob = makeRelation(Job, CronJob, (job, cronJob) =>
   job.metadata.ownerReferences?.find(owner => owner.uid === cronJob.metadata.uid)
 );
 
+const jobToJobSet = makeRelation(Job, JobSet, (job, jobSet) =>
+  job.metadata.ownerReferences?.find(owner => owner.uid === jobSet.metadata.uid)
+);
+
 const gatewayToGatewayClass = makeRelation(
   Gateway,
   GatewayClass,
-  (gateway, gatewayClass) => gateway.spec.gatewayClassName === gatewayClass.metadata.name
+  (gateway, gatewayClass) => gateway.spec?.gatewayClassName === gatewayClass.metadata.name
 );
 
 const httpRouteToGateway = makeRelation(HTTPRoute, Gateway, (httpRoute, gateway) =>
@@ -298,6 +303,7 @@ const staticRelations = [
   podToOwner,
   repliaceSetToOwner,
   jobToCronJob,
+  jobToJobSet,
   gatewayToGatewayClass,
   httpRouteToGateway,
   httpRouteToService,
@@ -307,6 +313,5 @@ const staticRelations = [
 export function useGetAllRelations(): Relation[] {
   const crdRelations = useGetCRToOwnerRelations();
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  return useMemo(() => [...staticRelations, ...crdRelations], [crdRelations, staticRelations]);
+  return useMemo(() => [...staticRelations, ...crdRelations], [crdRelations]);
 }

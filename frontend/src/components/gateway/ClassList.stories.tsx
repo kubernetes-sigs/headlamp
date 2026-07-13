@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import ListView from './ClassList';
 import { DEFAULT_GATEWAY_CLASS } from './storyHelper';
 
@@ -38,11 +38,10 @@ export default {
       handlers: {
         storyBase: [],
         story: [
-          http.get(
-            'http://localhost:4466/apis/gateway.networking.k8s.io/v1beta1/gatewayclasses',
-            () => HttpResponse.error()
+          http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1beta1/gatewayclasses`, () =>
+            HttpResponse.error()
           ),
-          http.get('http://localhost:4466/apis/gateway.networking.k8s.io/v1/gatewayclasses', () =>
+          http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1/gatewayclasses`, () =>
             HttpResponse.json({
               kind: 'GatewayClassList',
               metadata: {},

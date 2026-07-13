@@ -92,6 +92,7 @@ function PureActionsNotifier({ dispatch, clusterActions }: PureActionsNotifierPr
           key: uniqueKey,
           autoHideDuration: clusterAction.autoHideDuration || CLUSTER_ACTION_GRACE_PERIOD,
           action,
+          style: { whiteSpace: 'pre-line' },
           ...clusterAction.snackbarProps,
         });
       }

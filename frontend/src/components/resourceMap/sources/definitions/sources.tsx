@@ -15,8 +15,10 @@
  */
 
 import { Icon } from '@iconify/react';
+import { useQuery } from '@tanstack/react-query';
 import React, { useMemo } from 'react';
-import { useCluster } from '../../../../lib/k8s';
+import { useCluster, useSelectedClusters } from '../../../../lib/k8s';
+import { apiDiscovery } from '../../../../lib/k8s/api/v2/apiDiscovery';
 import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
 import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
 import ConfigMap from '../../../../lib/k8s/configMap';
@@ -34,11 +36,13 @@ import HTTPRoute from '../../../../lib/k8s/httpRoute';
 import Ingress from '../../../../lib/k8s/ingress';
 import IngressClass from '../../../../lib/k8s/ingressClass';
 import Job from '../../../../lib/k8s/job';
+import JobSet from '../../../../lib/k8s/jobSet';
 import { KubeObjectClass } from '../../../../lib/k8s/KubeObject';
 import { Lease } from '../../../../lib/k8s/lease';
 import { LimitRange } from '../../../../lib/k8s/limitRange';
 import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookConfiguration';
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
+import Node from '../../../../lib/k8s/node';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
 import PDB from '../../../../lib/k8s/podDisruptionBudget';
@@ -126,9 +130,19 @@ const generateCRSources = (crds: CRD[], vpaEnabled: boolean): GraphSource[] => {
 };
 
 export function useGetAllSources(): GraphSource[] {
-  const { items: CustomResourceDefinition } = CRD.useList({ namespace: useNamespaces() });
+  const namespaces = useNamespaces();
+  const { items: CustomResourceDefinition } = CRD.useList({ namespace: namespaces });
   const cluster = useCluster();
+  const selectedClusters = useSelectedClusters();
   const [vpaEnabled, setVpaEnabled] = React.useState(false);
+
+  // Show the Gateway (beta) group only when the Gateway API group is served.
+  const { data: discoveredResources } = useQuery({
+    queryFn: () => apiDiscovery([...selectedClusters]),
+    queryKey: ['api-discovery', ...selectedClusters],
+  });
+  const gatewayEnabled =
+    discoveredResources?.some(r => r.groupName === 'gateway.networking.k8s.io') ?? false;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -164,6 +178,7 @@ export function useGetAllSources(): GraphSource[] {
           makeKubeSource(ReplicaSet),
           makeKubeSource(Job),
           makeKubeSource(CronJob),
+          makeKubeSource(JobSet),
         ],
       },
       {
@@ -178,6 +193,15 @@ export function useGetAllSources(): GraphSource[] {
           />
         ),
         sources: [makeKubeSource(PersistentVolumeClaim)],
+      },
+      {
+        id: 'cluster',
+        label: 'Cluster',
+        icon: (
+          <Icon icon="mdi:server" width="100%" height="100%" color={getKindGroupColor('other')} />
+        ),
+        isEnabledByDefault: false,
+        sources: [makeKubeSource(Node)],
       },
       {
         id: 'network',
@@ -239,28 +263,32 @@ export function useGetAllSources(): GraphSource[] {
           makeKubeSource(Lease),
         ],
       },
-      {
-        id: 'gateway-beta',
-        label: 'Gateway (beta)',
-        icon: (
-          <Icon
-            icon="mdi:lan-connect"
-            width="100%"
-            height="100%"
-            color={getKindGroupColor('network')}
-          />
-        ),
-        isEnabledByDefault: false,
-        sources: [
-          makeKubeSource(GatewayClass),
-          makeKubeSource(Gateway),
-          makeKubeSource(HTTPRoute),
-          makeKubeSource(GRPCRoute),
-          makeKubeSource(ReferenceGrant),
-          makeKubeSource(BackendTLSPolicy),
-          makeKubeSource(BackendTrafficPolicy),
-        ],
-      },
+      ...(gatewayEnabled
+        ? [
+            {
+              id: 'gateway-beta',
+              label: 'Gateway (beta)',
+              icon: (
+                <Icon
+                  icon="mdi:lan-connect"
+                  width="100%"
+                  height="100%"
+                  color={getKindGroupColor('network')}
+                />
+              ),
+              isEnabledByDefault: false,
+              sources: [
+                makeKubeSource(GatewayClass),
+                makeKubeSource(Gateway),
+                makeKubeSource(HTTPRoute),
+                makeKubeSource(GRPCRoute),
+                makeKubeSource(ReferenceGrant),
+                makeKubeSource(BackendTLSPolicy),
+                makeKubeSource(BackendTrafficPolicy),
+              ],
+            },
+          ]
+        : []),
     ];
 
     if (CustomResourceDefinition !== null) {
@@ -281,5 +309,5 @@ export function useGetAllSources(): GraphSource[] {
     }
 
     return sources;
-  }, [CustomResourceDefinition, vpaEnabled]);
+  }, [CustomResourceDefinition, vpaEnabled, gatewayEnabled]);
 }

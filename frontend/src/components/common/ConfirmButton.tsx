@@ -19,7 +19,7 @@ import React from 'react';
 import { ConfirmDialog } from './Dialog';
 
 export interface ConfirmButtonProps extends ButtonProps {
-  buttonComponent?: typeof Button;
+  buttonComponent?: React.ElementType<ButtonProps>;
   ariaLabel?: string;
   confirmTitle: string;
   confirmDescription: string;

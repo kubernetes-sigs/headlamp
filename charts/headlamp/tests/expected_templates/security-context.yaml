@@ -6,10 +6,10 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.41.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.41.0"
+    app.kubernetes.io/version: "0.43.0"
     app.kubernetes.io/managed-by: Helm
 ---
 # Source: headlamp/templates/secret.yaml
@@ -28,10 +28,10 @@ metadata:
   name: headlamp-plugin-config
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.41.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.41.0"
+    app.kubernetes.io/version: "0.43.0"
     app.kubernetes.io/managed-by: Helm
 data:
   plugin.yml: |
@@ -42,10 +42,10 @@ kind: ClusterRoleBinding
 metadata:
   name: headlamp-admin
   labels:
-    helm.sh/chart: headlamp-0.41.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.41.0"
+    app.kubernetes.io/version: "0.43.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -63,10 +63,10 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.41.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.41.0"
+    app.kubernetes.io/version: "0.43.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   type: ClusterIP
@@ -90,10 +90,10 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.41.0
+    helm.sh/chart: headlamp-0.43.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.41.0"
+    app.kubernetes.io/version: "0.43.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -130,7 +130,7 @@ spec:
             runAsUser: 100
             seccompProfile:
               type: RuntimeDefault
-          image: "ghcr.io/headlamp-k8s/headlamp:v0.41.0"
+          image: "ghcr.io/headlamp-k8s/headlamp:v0.43.0"
           imagePullPolicy: IfNotPresent
           
           env:
@@ -148,15 +148,29 @@ spec:
             httpGet:
               path: "/"
               port: http
+              scheme: HTTP
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
           readinessProbe:
             httpGet:
               path: "/"
               port: http
+              scheme: HTTP
+            initialDelaySeconds: 0
+            periodSeconds: 10
+            timeoutSeconds: 1
+            successThreshold: 1
+            failureThreshold: 3
           resources:
             {}
           volumeMounts:
             - name: plugins-dir
               mountPath: /headlamp/plugins
+            - name: headlamp-tmp
+              mountPath: /tmp
         - name: headlamp-plugin
           image: node:18-alpine
           command: ["/bin/sh", "-c"]
@@ -177,6 +191,8 @@ spec:
               mountPath: /headlamp/plugins
             - name: plugin-config
               mountPath: /config
+            - name: headlamp-plugins-tmp
+              mountPath: /tmp
           resources:
             null
           securityContext:
@@ -193,3 +209,7 @@ spec:
         - name: plugin-config
           configMap:
             name: headlamp-plugin-config
+        - name: headlamp-plugins-tmp
+          emptyDir: {}
+        - name: headlamp-tmp
+          emptyDir: {}

@@ -18,6 +18,7 @@ import Box from '@mui/material/Box';
 import { styled } from '@mui/material/styles';
 import { alpha } from '@mui/system/colorManipulator';
 import { memo } from 'react';
+import { LightTooltip } from '../../common/Tooltip';
 import { useGraphView, useNode } from '../GraphView';
 import { KubeIcon } from '../kubeIcon/KubeIcon';
 
@@ -67,22 +68,52 @@ export const GroupNodeComponent = memo(({ id }: { id: string }) => {
       role="button"
       onClick={handleSelect}
       onKeyDown={e => {
-        if (e.key === 'Enter' || e.key === 'Space') {
-          handleSelect();
+        if (e.key !== 'Enter' && e.key !== ' ') {
+          return;
         }
+        // Space scrolls the page by default; prevent it even on key repeat.
+        if (e.key === ' ') {
+          e.preventDefault();
+        }
+        // Ignore auto-repeat so holding the key does not re-trigger activation.
+        if (e.repeat) {
+          return;
+        }
+        handleSelect();
       }}
     >
-      {(node?.label || node?.subtitle) && (
-        <Label title={node?.label}>
-          {node?.kubeObject ? (
-            <KubeIcon kind={node.kubeObject.kind} apiGroup={apiGroup} width="24px" height="24px" />
+      {(node?.label || node?.subtitle) &&
+        (() => {
+          const labelContent = (
+            <Label>
+              {node?.kubeObject ? (
+                <KubeIcon
+                  kind={node.kubeObject.kind}
+                  apiGroup={apiGroup}
+                  width="24px"
+                  height="24px"
+                />
+              ) : (
+                node?.icon ?? null
+              )}
+              <Box sx={{ opacity: 0.8 }}>{node?.subtitle}</Box>
+              <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{node?.label}</Box>
+            </Label>
+          );
+
+          // Include the subtitle so the tooltip (and the aria-label the tooltip
+          // sets on its child) announces both the subtitle and the label, rather
+          // than dropping the subtitle from the accessible name.
+          const tooltipTitle = [node?.subtitle, node?.label].filter(Boolean).join(' ');
+
+          // Only wrap in a tooltip when there's something to show; otherwise an
+          // empty title would render an empty tooltip (and an empty aria-label).
+          return tooltipTitle ? (
+            <LightTooltip title={tooltipTitle}>{labelContent}</LightTooltip>
           ) : (
-            node?.icon ?? null
-          )}
-          <Box sx={{ opacity: 0.8 }}>{node?.subtitle}</Box>
-          <Box sx={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{node?.label}</Box>
-        </Label>
-      )}
+            labelContent
+          );
+        })()}
     </Container>
   );
 });

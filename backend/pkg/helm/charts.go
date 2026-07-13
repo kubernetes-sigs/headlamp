@@ -17,10 +17,13 @@ limitations under the License.
 package helm
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"path/filepath"
 	"strings"
+
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 
 	"helm.sh/helm/v3/cmd/helm/search"
 	"helm.sh/helm/v3/pkg/cli"
@@ -88,13 +91,15 @@ func listCharts(filter string, settings *cli.EnvSettings) ([]chartInfo, error) {
 	return chartInfos, nil
 }
 
-// list charts.
+// ListCharts lists all charts from configured repositories.
 func (h *Handler) ListCharts(w http.ResponseWriter, r *http.Request) {
 	filterTerm := r.URL.Query().Get("filter")
 
 	chartInfos, err := listCharts(filterTerm, h.EnvSettings)
 	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "listing charts")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
+
 		return
 	}
 
@@ -102,13 +107,20 @@ func (h *Handler) ListCharts(w http.ResponseWriter, r *http.Request) {
 		Charts: chartInfos,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
+	var buf bytes.Buffer
 
-	err = json.NewEncoder(w).Encode(response)
+	err = json.NewEncoder(&buf).Encode(response)
 	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "encoding charts response")
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 
 		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusOK)
+
+	if _, err := w.Write(buf.Bytes()); err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing charts response")
 	}
 }

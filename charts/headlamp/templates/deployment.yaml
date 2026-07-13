@@ -1,6 +1,12 @@
 {{- $oidc := .Values.config.oidc }}
 {{- $env := .Values.env }}
 
+{{- /* Disable the bundled static plugins (e.g. Prometheus) by clearing
+       HEADLAMP_STATIC_PLUGINS_DIR. `hasKey` guards against false being treated
+       as empty by `default`, and an unset value defaults to serving them. */}}
+{{- $staticPlugins := .Values.config.staticPlugins | default dict }}
+{{- $staticPluginsDisabled := and (hasKey $staticPlugins "enabled") (not $staticPlugins.enabled) }}
+
 {{- $clientID := "" }}
 {{- $clientSecret := "" }}
 {{- $issuerURL := "" }}
@@ -11,6 +17,21 @@
 {{- $usePKCE := "" }}
 {{- $useAccessToken := "" }}
 {{- $meUserInfoURL := "" }}
+{{- $clusterInventory := .Values.config.clusterInventory | default dict }}
+{{- $clusterInventoryEnabled := $clusterInventory.enabled | default false }}
+{{- $clusterInventoryProviderFile := "/etc/cluster-inventory/config.json" }}
+{{- $clusterInventoryProviderMountDir := "/etc/cluster-inventory" }}
+{{- $clusterInventoryProviderConfigPath := "config.json" }}
+{{- $readOnlyRootFs := eq (include "headlamp.readOnlyRootFilesystem" .Values) "true" }}
+{{- $pluginManagerSecurityContext := dict }}
+{{- if .Values.pluginsManager.securityContext }}
+{{- $pluginManagerSecurityContext = .Values.pluginsManager.securityContext }}
+{{- else if .Values.securityContext }}
+{{- $pluginManagerSecurityContext = .Values.securityContext }}
+{{- end }}
+{{- $readOnlyRootFsPlugins := and .Values.pluginsManager.enabled (eq (include "headlamp.readOnlyRootFilesystem" (dict "securityContext" $pluginManagerSecurityContext)) "true") }}
+{{- $tmpCtx := include "headlamp.tmpVolumeContext" (dict "volumeMounts" .Values.volumeMounts "volumes" .Values.volumes "readOnly" $readOnlyRootFs "mountName" "headlamp-tmp") | fromYaml }}
+{{- $pluginsTmpCtx := include "headlamp.tmpVolumeContext" (dict "volumeMounts" .Values.pluginsManager.volumeMounts "volumes" .Values.volumes "readOnly" $readOnlyRootFsPlugins "mountName" "headlamp-plugins-tmp") | fromYaml }}
 
 # This block of code is used to extract the values from the env.
 # This is done to check if the values are non-empty and if they are, they are used in the deployment.yaml.
@@ -99,15 +120,21 @@ spec:
             {{- end }}
           image: "{{ .Values.image.registry}}/{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{ if or $oidc .Values.env }}
+          {{ if or $oidc .Values.env $staticPluginsDisabled }}
           {{- if $oidc.externalSecret.enabled }}
           # Check if externalSecret is enabled
           envFrom:
           - secretRef:
               name: {{ $oidc.externalSecret.name }}
-          {{- if .Values.env }}
+          {{- if or .Values.env $staticPluginsDisabled }}
           env:
-            {{- toYaml .Values.env | nindent 12 }}
+            {{- with .Values.env }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- if $staticPluginsDisabled }}
+            - name: HEADLAMP_STATIC_PLUGINS_DIR
+              value: ""
+            {{- end }}
           {{- end }}
           {{- else }}
           env:
@@ -227,6 +254,10 @@ spec:
             {{- if .Values.env }}
             {{- toYaml .Values.env | nindent 12 }}
             {{- end }}
+            {{- if $staticPluginsDisabled }}
+            - name: HEADLAMP_STATIC_PLUGINS_DIR
+              value: ""
+            {{- end }}
           {{- end }}
           {{- end }}
           args:
@@ -250,6 +281,34 @@ spec:
             {{- end }}
             {{- if hasKey .Values.config "sessionTTL" }}
             - "-session-ttl={{ .Values.config.sessionTTL }}"
+            {{- end }}
+            {{- with .Values.config.podDebugImage }}
+            - "-pod-debug-image={{ . }}"
+            {{- end }}
+            {{- with .Values.config.nodeShellImage }}
+            - "-node-shell-image={{ . }}"
+            {{- end }}
+            {{- with .Values.config.nodeShellNamespace }}
+            - "-node-shell-namespace={{ . }}"
+            {{- end }}
+            {{- if and .Values.config.inCluster .Values.config.unsafeUseServiceAccountToken }}
+            - "-unsafe-use-service-account-token"
+            {{- end }}
+            {{- if and .Values.config.inCluster .Values.config.unsafeUseServiceAccountToken .Values.config.serviceAccountTokenPath }}
+            - "-service-account-token-path={{ .Values.config.serviceAccountTokenPath }}"
+            {{- end }}
+            {{- if $clusterInventoryEnabled }}
+            - "-enable-cluster-inventory"
+            - "-cluster-inventory-provider-file={{ $clusterInventoryProviderFile }}"
+            {{- with $clusterInventory.labelSelector }}
+            - "-cluster-inventory-label-selector={{ . }}"
+            {{- end }}
+            {{- with $clusterInventory.rootReconcileInterval }}
+            - "-cluster-inventory-root-reconcile-interval={{ . }}"
+            {{- end }}
+            {{- with $clusterInventory.noCRDCacheTTL }}
+            - "-cluster-inventory-no-crd-cache-ttl={{ . }}"
+            {{- end }}
             {{- end }}
             {{- if not $oidc.externalSecret.enabled}}
             # Check if externalSecret is disabled
@@ -295,7 +354,9 @@ spec:
             - "-oidc-client-id=$(OIDC_CLIENT_ID)"
             - "-oidc-client-secret=$(OIDC_CLIENT_SECRET)"
             - "-oidc-idp-issuer-url=$(OIDC_ISSUER_URL)"
+            {{- if $oidc.externalSecret.hasScopes }}
             - "-oidc-scopes=$(OIDC_SCOPES)"
+            {{- end }}
             {{- if or (ne $oidc.callbackURL "") (ne $callbackURL "") }}
             # Check if callbackURL is non empty either from env or oidc.config
             - "-oidc-callback-url=$(OIDC_CALLBACK_URL)"
@@ -339,20 +400,50 @@ spec:
             httpGet:
               path: "{{ .Values.config.baseURL }}/"
               port: http
+              scheme: {{ .Values.probes.scheme | default "HTTP" }}
+            initialDelaySeconds: {{ .Values.probes.livenessProbe.initialDelaySeconds | default 0 }}
+            periodSeconds: {{ .Values.probes.livenessProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.probes.livenessProbe.timeoutSeconds | default 1 }}
+            successThreshold: 1
+            failureThreshold: {{ .Values.probes.livenessProbe.failureThreshold | default 3 }}
           readinessProbe:
             httpGet:
               path: "{{ .Values.config.baseURL }}/"
               port: http
+              scheme: {{ .Values.probes.scheme | default "HTTP" }}
+            initialDelaySeconds: {{ .Values.probes.readinessProbe.initialDelaySeconds | default 0 }}
+            periodSeconds: {{ .Values.probes.readinessProbe.periodSeconds | default 10 }}
+            timeoutSeconds: {{ .Values.probes.readinessProbe.timeoutSeconds | default 1 }}
+            successThreshold: {{ .Values.probes.readinessProbe.successThreshold | default 1 }}
+            failureThreshold: {{ .Values.probes.readinessProbe.failureThreshold | default 3 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if or .Values.pluginsManager.enabled .Values.volumeMounts }}
+          {{- if or .Values.pluginsManager.enabled $clusterInventoryEnabled .Values.volumeMounts $tmpCtx.addMount }}
           volumeMounts:
             {{- if .Values.pluginsManager.enabled }}
             - name: plugins-dir
               mountPath: {{ .Values.config.pluginsDir }}
             {{- end }}
+            {{- if $clusterInventoryEnabled }}
+            - name: cluster-inventory-config
+              mountPath: {{ $clusterInventoryProviderMountDir }}
+              readOnly: true
+            {{- range $index, $plugin := ($clusterInventory.plugins | default list) }}
+            {{- $mountPath := $plugin.mountPath | default "" | toString | clean }}
+            {{- if not (hasPrefix "/" $mountPath) }}
+            {{-   fail (printf "config.clusterInventory.plugins[%d].mountPath must be an absolute path, got %q" $index ($plugin.mountPath | default "" | toString)) }}
+            {{- end }}
+            - name: {{ $plugin.name }}
+              mountPath: {{ $mountPath }}
+              readOnly: true
+            {{- end }}
+            {{- end }}
             {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
+            {{- end }}
+            {{- if $tmpCtx.addMount }}
+            - name: headlamp-tmp
+              mountPath: /tmp
             {{- end }}
           {{- end }}
         {{- if .Values.pluginsManager.enabled }}
@@ -380,6 +471,10 @@ spec:
               mountPath: {{ .Values.config.pluginsDir }}
             - name: plugin-config
               mountPath: /config
+            {{- if $pluginsTmpCtx.addMount }}
+            - name: headlamp-plugins-tmp
+              mountPath: /tmp
+            {{- end }}
             {{- with .Values.pluginsManager.volumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -410,6 +505,10 @@ spec:
       tolerations:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.hostAliases }}
+      hostAliases:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.topologySpreadConstraints }}
       topologySpreadConstraints:
         {{- range $constraint := . }}
@@ -424,7 +523,7 @@ spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . | quote }}
       {{- end }}
-      {{- if or .Values.pluginsManager.enabled .Values.volumes }}
+      {{- if or .Values.pluginsManager.enabled $clusterInventoryEnabled .Values.volumes $tmpCtx.addVolume $pluginsTmpCtx.addVolume }}
       volumes:
         {{- if .Values.pluginsManager.enabled }}
         - name: plugins-dir
@@ -432,6 +531,27 @@ spec:
         - name: plugin-config
           configMap:
             name: {{ include "headlamp.fullname" . }}-plugin-config
+        {{- if $pluginsTmpCtx.addVolume }}
+        - name: headlamp-plugins-tmp
+          emptyDir: {}
+        {{- end }}
+        {{- end }}
+        {{- if $clusterInventoryEnabled }}
+        - name: cluster-inventory-config
+          configMap:
+            name: {{ include "headlamp.fullname" . }}-cluster-inventory
+            items:
+              - key: config.json
+                path: {{ $clusterInventoryProviderConfigPath }}
+        {{- range $plugin := ($clusterInventory.plugins | default list) }}
+        - name: {{ $plugin.name }}
+          image:
+            reference: {{ $plugin.image | quote }}
+        {{- end }}
+        {{- end }}
+        {{- if $tmpCtx.addVolume }}
+        - name: headlamp-tmp
+          emptyDir: {}
         {{- end }}
         {{- with .Values.volumes}}
         {{- toYaml . | nindent 8 }}
