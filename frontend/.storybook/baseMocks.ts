@@ -15,6 +15,7 @@
  */
 
 import { http, HttpResponse } from 'msw';
+import { API_BASE } from '../src/test/index.tsx';
 import { NODE_DUMMY_DATA } from '../src/components/node/storyHelper';
 
 // NOTE: Please keep this synced with headlamp/plugins/headlamp-plugin/config/.storybook/baseMocks.ts
@@ -25,18 +26,18 @@ import { NODE_DUMMY_DATA } from '../src/components/node/storyHelper';
  *
  */
 export const baseMocks = [
-  http.get('http://localhost:4466/wsMultiplexer', () => HttpResponse.error()),
+  http.get(`${API_BASE}/wsMultiplexer`, () => HttpResponse.error()),
   http.get('https://api.iconify.design/mdi.json', () => HttpResponse.json({})),
-  http.post('http://localhost:4466/apis/authorization.k8s.io/v1/selfsubjectaccessreviews', () =>
+  http.post(`${API_BASE}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, () =>
     HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
   ),
-  http.post('http://localhost:4466/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', () =>
+  http.post(`${API_BASE}/apis/authorization.k8s.io/v1/selfsubjectrulesreviews`, () =>
     HttpResponse.json({ status: { resourceRules: [] } })
   ),
-  http.post('http://localhost:4466/clusters/*/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', () =>
+  http.post(`${API_BASE}/clusters/*/apis/authorization.k8s.io/v1/selfsubjectrulesreviews`, () =>
     HttpResponse.json({ status: { resourceRules: [] } })
   ),
-  http.post('http://localhost:4466/clusters/*/apis/authentication.k8s.io/v1/selfsubjectreviews', () =>
+  http.post(`${API_BASE}/clusters/*/apis/authentication.k8s.io/v1/selfsubjectreviews`, () =>
     HttpResponse.json({
       status: {
         userInfo: {
@@ -46,14 +47,13 @@ export const baseMocks = [
       },
     })
   ),
-  http.post(
-    'http://localhost:4466/clusters/*/apis/authorization.k8s.io/v1/selfsubjectaccessreviews',
-    () => HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
+  http.post(`${API_BASE}/clusters/*/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, () =>
+    HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
   ),
-  http.get('http://localhost:4466/clusters/*/apis/rbac.authorization.k8s.io/v1/rolebindings', () =>
+  http.get(`${API_BASE}/clusters/*/apis/rbac.authorization.k8s.io/v1/rolebindings`, () =>
     HttpResponse.json({ kind: 'RoleBindingList', items: [], metadata: {} })
   ),
-  http.get('http://localhost:4466/clusters/*/api/v1/namespaces', () =>
+  http.get(`${API_BASE}/clusters/*/api/v1/namespaces`, () =>
     HttpResponse.json({
       kind: 'NamespacesList',
       items: [
@@ -76,7 +76,7 @@ export const baseMocks = [
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/api/v1/namespaces', () =>
+  http.get(`${API_BASE}/api/v1/namespaces`, () =>
     HttpResponse.json({
       kind: 'NamespacesList',
       items: [
@@ -99,46 +99,46 @@ export const baseMocks = [
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/clusters/cluster0/version', () => HttpResponse.json({})),
-  http.get('http://localhost:4466/clusters/cluster1/version', () => HttpResponse.json({})),
-  http.get('http://localhost:4466/clusters/cluster2/version', () => HttpResponse.json({})),
-  http.get('http://localhost:4466/clusters/cluster0/api/v1/events', () =>
+  http.get(`${API_BASE}/clusters/cluster0/version`, () => HttpResponse.json({})),
+  http.get(`${API_BASE}/clusters/cluster1/version`, () => HttpResponse.json({})),
+  http.get(`${API_BASE}/clusters/cluster2/version`, () => HttpResponse.json({})),
+  http.get(`${API_BASE}/clusters/cluster0/api/v1/events`, () =>
     HttpResponse.json({
       kind: 'EventList',
       items: [],
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/clusters/cluster1/api/v1/events', () =>
+  http.get(`${API_BASE}/clusters/cluster1/api/v1/events`, () =>
     HttpResponse.json({
       kind: 'EventList',
       items: [],
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/clusters/cluster2/api/v1/events', () =>
+  http.get(`${API_BASE}/clusters/cluster2/api/v1/events`, () =>
     HttpResponse.json({
       kind: 'EventList',
       items: [],
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/version', () => HttpResponse.json({})),
-  http.get('http://localhost:4466/api/v1/events', () =>
+  http.get(`${API_BASE}/version`, () => HttpResponse.json({})),
+  http.get(`${API_BASE}/api/v1/events`, () =>
     HttpResponse.json({
       kind: 'EventList',
       items: [],
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/api/v1/namespaces/kube-system/events', () =>
+  http.get(`${API_BASE}/api/v1/namespaces/kube-system/events`, () =>
     HttpResponse.json({
       kind: 'EventList',
       items: [],
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/api/v1/nodes', () =>
+  http.get(`${API_BASE}/api/v1/nodes`, () =>
     HttpResponse.json({
       kind: 'NodesList',
       apiVersion: 'v1',
@@ -148,7 +148,7 @@ export const baseMocks = [
       items: NODE_DUMMY_DATA,
     })
   ),
-  http.get('http://localhost:4466/api/v1/namespaces/default/pods', () =>
+  http.get(`${API_BASE}/api/v1/namespaces/default/pods`, () =>
     HttpResponse.json({
       kind: 'PodList',
       apiVersion: 'v1',
@@ -156,7 +156,7 @@ export const baseMocks = [
       items: [],
     })
   ),
-  http.get('http://localhost:4466/clusters/*/apis/networking.k8s.io/v1/ingresses', () =>
+  http.get(`${API_BASE}/clusters/*/apis/networking.k8s.io/v1/ingresses`, () =>
     HttpResponse.json({
       kind: 'IngressList',
       apiVersion: 'networking.k8s.io/v1',
@@ -164,10 +164,8 @@ export const baseMocks = [
       items: [],
     })
   ),
-  http.get('http://localhost:4466/clusters/*/apis/extensions/v1beta1/ingresses', () =>
-    HttpResponse.error()
-  ),
-  http.get('http://localhost:4466/apis/metrics.k8s.io/v1beta1/nodes', () =>
+  http.get(`${API_BASE}/clusters/*/apis/extensions/v1beta1/ingresses`, () => HttpResponse.error()),
+  http.get(`${API_BASE}/apis/metrics.k8s.io/v1beta1/nodes`, () =>
     HttpResponse.json({
       apiVersion: 'metrics.k8s.io/v1beta1',
       kind: 'NodeMetricsList',
