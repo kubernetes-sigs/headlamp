@@ -44,6 +44,8 @@ import JobSet from './jobSet';
 import LeaderWorkerSet from './leaderWorkerSet';
 import { Lease } from './lease';
 import { LimitRange } from './limitRange';
+import MutatingAdmissionPolicy from './mutatingAdmissionPolicy';
+import MutatingAdmissionPolicyBinding from './mutatingAdmissionPolicyBinding';
 import Namespace from './namespace';
 import NetworkPolicy from './networkpolicy';
 import Node from './node';
@@ -78,6 +80,8 @@ export const ResourceClasses = {
   EndpointSlice,
   LimitRange,
   Lease,
+  MutatingAdmissionPolicy,
+  MutatingAdmissionPolicyBinding,
   ResourceQuota,
   HorizontalPodAutoscaler: HPA,
   PodDisruptionBudget,

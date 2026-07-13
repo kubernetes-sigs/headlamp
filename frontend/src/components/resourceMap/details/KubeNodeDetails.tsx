@@ -39,6 +39,8 @@ import IngressDetails from '../../ingress/Details';
 import JobDetails from '../../job/Details';
 import { LeaseDetails } from '../../lease/Details';
 import { LimitRangeDetails } from '../../limitRange/Details';
+import MutatingAdmissionPolicyDetails from '../../mutatingAdmissionPolicy/Details';
+import MutatingAdmissionPolicyBindingDetails from '../../mutatingAdmissionPolicyBinding/Details';
 import NamespaceDetails from '../../namespace/Details';
 import { NetworkPolicyDetails } from '../../networkpolicy/Details';
 import NodeDetails from '../../node/Details';
@@ -100,6 +102,8 @@ const kindComponentMap: Record<
   VolumeAttributesClass: VolumeAttributesClassDetails,
   PersistentVolume: VolumeDetails,
   VerticalPodAutoscaler: VpaDetails,
+  MutatingAdmissionPolicy: MutatingAdmissionPolicyDetails,
+  MutatingAdmissionPolicyBinding: MutatingAdmissionPolicyBindingDetails,
   MutatingWebhookConfiguration: MutatingWebhookConfigList,
   ValidatingWebhookConfiguration: ValidatingWebhookConfigurationDetails,
   IngressClass: IngressClassDetails,
