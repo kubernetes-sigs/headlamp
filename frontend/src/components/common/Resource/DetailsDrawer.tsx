@@ -41,7 +41,7 @@ export default function DetailsDrawer() {
   }, [dispatch]);
 
   useShortcut(
-    'CLOSE_ACTIVE_OVERLAYS',
+    'CLOSE_DETAILS_DRAWER',
     () => {
       closeDrawer();
     },
