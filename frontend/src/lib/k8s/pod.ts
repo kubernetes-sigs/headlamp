@@ -499,7 +499,7 @@ class Pod extends KubeObject<KubePod> {
           reason = container.state.terminated.reason;
           message = container.state.terminated.message || '';
         } else if (container.state.terminated?.reason === '') {
-          if (container.state.terminated.signal !== 0) {
+          if (container.state.terminated.signal) {
             reason = `Signal:${container.state.terminated.signal}`;
           } else {
             reason = `ExitCode:${container.state.terminated.exitCode}`;
