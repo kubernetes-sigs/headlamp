@@ -163,7 +163,7 @@ interface TabPanelProps extends Omit<TypographyProps, 'tabIndex'> {
  * @returns A container showing the content if this panel is active.
  */
 export function TabPanel(props: TabPanelProps) {
-  const { children, activeValue, tabIndex, index, id, labeledBy } = props;
+  const { children, activeValue, tabIndex, index, id, labeledBy, sx, ...other } = props;
   const currentActiveValue = activeValue !== undefined ? activeValue : tabIndex;
 
   return (
@@ -173,7 +173,8 @@ export function TabPanel(props: TabPanelProps) {
       hidden={currentActiveValue !== index}
       id={id}
       aria-labelledby={labeledBy}
-      sx={{ flexGrow: 1, overflow: 'hidden' }}
+      sx={[{ flexGrow: 1, overflow: 'hidden' }, ...(Array.isArray(sx) ? sx : sx ? [sx] : [])]}
+      {...other}
     >
       {children}
     </Typography>
