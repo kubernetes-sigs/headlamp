@@ -27,8 +27,7 @@ import os from 'os';
 import path from 'path';
 import * as tar from 'tar';
 import { describe, expect, it, vi } from 'vitest';
-import { PluginManager } from './plugin-management';
-import { getExtraFiles } from './plugin-management';
+import { getExtraFiles, isPathWithinDirectory, PluginManager } from './plugin-management';
 
 const TEST_DATA_BASE_DIR = path.join(os.tmpdir(), 'headlamp-test-data');
 const PLUGIN_DEST_BASE_DIR = path.join(os.tmpdir(), 'headlamp-test-plugins');
@@ -671,4 +670,36 @@ describe('TLS error detection', () => {
       }
     }
   }, 30000);
+});
+
+describe('isPathWithinDirectory', () => {
+  const baseDir = path.join(os.tmpdir(), 'headlamp-plugins-test-base');
+
+  it('allows a normal plugin folder name', () => {
+    const target = path.join(baseDir, 'headlamp-my-plugin');
+    expect(isPathWithinDirectory(baseDir, target)).toBe(true);
+  });
+
+  it('allows a nested subdirectory', () => {
+    const target = path.join(baseDir, 'sub', 'plugin');
+    expect(isPathWithinDirectory(baseDir, target)).toBe(true);
+  });
+
+  it('allows a folder name that starts with ..', () => {
+    const target = path.join(baseDir, '..foo');
+    expect(isPathWithinDirectory(baseDir, target)).toBe(true);
+  });
+
+  it('rejects a folder name that traverses outside the base directory', () => {
+    const target = path.join(baseDir, '..', '..', '..', 'etc');
+    expect(isPathWithinDirectory(baseDir, target)).toBe(false);
+  });
+
+  it('rejects the base directory itself', () => {
+    expect(isPathWithinDirectory(baseDir, baseDir)).toBe(false);
+  });
+
+  it('rejects an unrelated absolute path', () => {
+    expect(isPathWithinDirectory(baseDir, '/etc/passwd')).toBe(false);
+  });
 });
