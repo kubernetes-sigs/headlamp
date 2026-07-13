@@ -130,6 +130,10 @@
         "class": [Function],
         "form": [Function],
       },
+      "JobSet": {
+        "class": [Function],
+        "form": [Function],
+      },
       "Pod": {
         "class": [Function],
         "form": [Function],
@@ -203,6 +207,10 @@
           "form": [Function],
         },
         "Job": {
+          "class": [Function],
+          "form": [Function],
+        },
+        "JobSet": {
           "class": [Function],
           "form": [Function],
         },

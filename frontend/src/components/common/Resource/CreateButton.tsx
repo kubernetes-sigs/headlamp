@@ -29,12 +29,14 @@ import { useSelectedClusters } from '../../../lib/k8s';
 import CronJob from '../../../lib/k8s/cronJob';
 import Deployment from '../../../lib/k8s/deployment';
 import Job from '../../../lib/k8s/job';
+import JobSet from '../../../lib/k8s/jobSet';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import { Activity } from '../../activity/Activity';
 import CreateCronJobForm from '../../cronjob/CreateCronJobForm';
 import CreateDeploymentForm from '../../deployments/CreateDeploymentForm';
 import CreateJobForm from '../../job/CreateJobForm';
+import CreateJobSetForm from '../../jobset/CreateJobSetForm';
 import CreatePodForm from '../../pod/CreatePodForm';
 import CreateReplicaSetForm from '../../replicaset/CreateReplicaSetForm';
 import ActionButton from '../ActionButton';
@@ -46,6 +48,7 @@ export const RESOURCE_DEFINITIONS = {
   ReplicaSet: { class: ReplicaSet, form: CreateReplicaSetForm },
   Job: { class: Job, form: CreateJobForm },
   CronJob: { class: CronJob, form: CreateCronJobForm },
+  JobSet: { class: JobSet, form: CreateJobSetForm },
 };
 
 export type ResourceType = keyof typeof RESOURCE_DEFINITIONS;
