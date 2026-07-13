@@ -179,7 +179,7 @@ jobs:
           if [ "${{ inputs.force }}" == "true" ]; then
             ARGS+=("--force")
           fi
-          RELEASE_NAME="${{ steps.validate_run_shas.outputs.tag_name }}"
+          RELEASE_NAME="${{ inputs.release_name }}"
           ARGS+=("$RELEASE_NAME")
           ARGS+=("${ASSETS[@]}")
 
