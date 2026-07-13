@@ -14,47 +14,6 @@
  * limitations under the License.
  */
 
-import { Meta, StoryFn } from '@storybook/react';
-import { http, HttpResponse } from 'msw';
-import { API_BASE, TestContext } from '../../test';
-import ServiceAccountList from './List';
-import { BASE_SERVICE_ACCOUNT } from './storyHelper';
-
-export default {
-  title: 'ServiceAccount/ListView',
-  component: ServiceAccountList,
-  argTypes: {},
-  decorators: [
-    Story => {
-      return (
-        <TestContext>
-          <Story />
-        </TestContext>
-      );
-    },
-  ],
-  parameters: {
-    msw: {
-      handlers: {
-        story: [
-          http.get(`${API_BASE}/api/v1/serviceaccounts`, () =>
-            HttpResponse.json({
-              kind: 'ServiceAccountList',
-              metadata: {},
-              items: [BASE_SERVICE_ACCOUNT],
-            })
-          ),
-        ],
-      },
-    },
-  },
-} as Meta;
-
-const Template: StoryFn = () => {
-  return <ServiceAccountList />;
-};
-
-export const Items = Template.bind({});
 import Container from '@mui/material/Container';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
