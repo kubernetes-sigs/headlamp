@@ -32,6 +32,14 @@ function allowedNamespacesChanged(prev: ClusterSettings, next: ClusterSettings):
   return prevAllowed.some((ns, index) => ns !== nextAllowed[index]);
 }
 
+function defaultNamespaceChanged(prev: ClusterSettings, next: ClusterSettings): boolean {
+  return (prev.defaultNamespace ?? '') !== (next.defaultNamespace ?? '');
+}
+
+function namespaceDiscoverySettingsChanged(prev: ClusterSettings, next: ClusterSettings): boolean {
+  return allowedNamespacesChanged(prev, next) || defaultNamespaceChanged(prev, next);
+}
+
 function invalidateNamespaceDiscoveryForCluster(cluster: string) {
   queryClient.invalidateQueries({ queryKey: ['auth', cluster], exact: true });
   queryClient.invalidateQueries({
@@ -68,7 +76,7 @@ export function useClusterSettings(
         const next = typeof action === 'function' ? action(prev) : action;
         if (cluster) {
           storeClusterSettings(cluster, next);
-          if (allowedNamespacesChanged(prev, next)) {
+          if (namespaceDiscoverySettingsChanged(prev, next)) {
             invalidateNamespaceDiscoveryForCluster(cluster);
           }
         }
