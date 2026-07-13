@@ -36,8 +36,9 @@ import (
 )
 
 const (
-	apiPathSegment  = "api"
-	apisPathSegment = "apis"
+	apiPathSegment       = "api"
+	apisPathSegment      = "apis"
+	namespacePathSegment = "namespaces"
 )
 
 func kubernetesAPIPathIndex(parts []string) int {
@@ -149,7 +150,7 @@ func ExtractNamespace(rawURL string) (string, string) {
 	}
 
 	for i := 0; i < n-1; i++ {
-		if urls[i] == "namespaces" {
+		if urls[i] == namespacePathSegment {
 			namespace = urls[i+1]
 			break
 		}
