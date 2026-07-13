@@ -234,7 +234,7 @@
                       tabindex="0"
                       type="button"
                     >
-                      G P
+                      Alt + Shift + P
                       <span
                         class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
@@ -270,7 +270,7 @@
                       tabindex="0"
                       type="button"
                     >
-                      G D
+                      Alt + Shift + D
                       <span
                         class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
@@ -331,7 +331,7 @@
                     <p
                       class="MuiTypography-root MuiTypography-body2 css-1k32pko-MuiTypography-root"
                     >
-                      Close Active Overlays
+                      Close Details Drawer
                     </p>
                     <span
                       class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
@@ -387,7 +387,7 @@
                       tabindex="0"
                       type="button"
                     >
-                      ?
+                      Shift + ?
                       <span
                         class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />

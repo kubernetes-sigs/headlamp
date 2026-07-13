@@ -129,19 +129,19 @@ describe('shortcutsSlice', () => {
 
     it('should have NAVIGATE_TO_PODS shortcut with correct defaults', () => {
       expect(DEFAULT_SHORTCUTS.NAVIGATE_TO_PODS).toBeDefined();
-      expect(DEFAULT_SHORTCUTS.NAVIGATE_TO_PODS.key).toBe('g p');
+      expect(DEFAULT_SHORTCUTS.NAVIGATE_TO_PODS.key).toBe('alt+shift+p');
       expect(DEFAULT_SHORTCUTS.NAVIGATE_TO_PODS.category).toBe('navigation');
     });
 
     it('should have NAVIGATE_TO_DEPLOYMENTS shortcut with correct defaults', () => {
       expect(DEFAULT_SHORTCUTS.NAVIGATE_TO_DEPLOYMENTS).toBeDefined();
-      expect(DEFAULT_SHORTCUTS.NAVIGATE_TO_DEPLOYMENTS.key).toBe('g d');
+      expect(DEFAULT_SHORTCUTS.NAVIGATE_TO_DEPLOYMENTS.key).toBe('alt+shift+d');
       expect(DEFAULT_SHORTCUTS.NAVIGATE_TO_DEPLOYMENTS.category).toBe('navigation');
     });
 
     it('should have SHORTCUTS_HELP shortcut with correct defaults', () => {
       expect(DEFAULT_SHORTCUTS.SHORTCUTS_HELP).toBeDefined();
-      expect(DEFAULT_SHORTCUTS.SHORTCUTS_HELP.key).toBe('?');
+      expect(DEFAULT_SHORTCUTS.SHORTCUTS_HELP.key).toBe('shift+?');
       expect(DEFAULT_SHORTCUTS.SHORTCUTS_HELP.category).toBe('general');
     });
 
