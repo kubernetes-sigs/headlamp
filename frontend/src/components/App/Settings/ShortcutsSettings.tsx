@@ -102,11 +102,12 @@ function ShortcutEditor({
       if (event.metaKey) parts.push('meta');
 
       let keyName = key;
-      if (key === ' ') keyName = 'space';
-      if (key === 'arrowup') keyName = 'ArrowUp';
-      if (key === 'arrowdown') keyName = 'ArrowDown';
-      if (key === 'arrowleft') keyName = 'ArrowLeft';
-      if (key === 'arrowright') keyName = 'ArrowRight';
+      if (key === '?') keyName = '/';
+      else if (key === ' ') keyName = 'space';
+      else if (key === 'arrowup') keyName = 'ArrowUp';
+      else if (key === 'arrowdown') keyName = 'ArrowDown';
+      else if (key === 'arrowleft') keyName = 'ArrowLeft';
+      else if (key === 'arrowright') keyName = 'ArrowRight';
 
       parts.push(keyName);
       const newKey = parts.join('+');
