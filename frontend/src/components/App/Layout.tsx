@@ -26,7 +26,7 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { useHistory } from 'react-router-dom';
+import { useHistory, useLocation, useParams } from 'react-router-dom';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
 import { useCluster, useClustersConf } from '../../lib/k8s';
@@ -209,19 +209,68 @@ export default function Layout({}: LayoutProps) {
   const allClusters = useClustersConf();
   const history = useHistory();
 
-  useShortcut('NAVIGATE_TO_PODS', () => {
-    const url = createRouteURL('pods');
-    if (url) {
-      history.push(url);
-    }
-  });
+  const location = useLocation();
+  const { namespace: pathNamespace } = useParams<{ namespace?: string }>();
+  const filterNamespaces = useTypedSelector(state => state.filter.namespaces);
+  const routes = useTypedSelector(state => state.routes.routes);
 
-  useShortcut('NAVIGATE_TO_DEPLOYMENTS', () => {
-    const url = createRouteURL('deployments');
-    if (url) {
+  const routeSupportsNamespace = (routeName: string) => {
+    const targetRoute = Object.values(routes).find(
+      r => r.name?.toLowerCase() === routeName.toLowerCase()
+    );
+    if (!targetRoute) return false;
+
+    return Object.values(routes).some(
+      r => r.path.startsWith(targetRoute.path) && r.path.includes('/:namespace')
+    );
+  };
+
+  const getActiveNamespace = () => {
+    const searchParams = new URLSearchParams(location.search);
+    const queryNamespace = searchParams.get('namespace');
+    if (queryNamespace) {
+      return queryNamespace;
+    }
+    if (pathNamespace) {
+      return pathNamespace;
+    }
+    if (filterNamespaces && filterNamespaces.size > 0) {
+      return [...filterNamespaces].join(' ');
+    }
+    return '';
+  };
+
+  const navigateToWithNamespace = (routeName: string) => {
+    const url = createRouteURL(routeName);
+    if (!url) return;
+
+    const activeNamespace = getActiveNamespace();
+    if (activeNamespace && routeSupportsNamespace(routeName)) {
+      const searchParams = new URLSearchParams();
+      searchParams.set('namespace', activeNamespace);
+      history.push(`${url}?${searchParams.toString()}`);
+    } else {
       history.push(url);
     }
-  });
+  };
+
+  useShortcut(
+    'NAVIGATE_TO_PODS',
+    () => {
+      navigateToWithNamespace('pods');
+    },
+    {},
+    [location.search, pathNamespace, filterNamespaces, routes]
+  );
+
+  useShortcut(
+    'NAVIGATE_TO_DEPLOYMENTS',
+    () => {
+      navigateToWithNamespace('deployments');
+    },
+    {},
+    [location.search, pathNamespace, filterNamespaces, routes]
+  );
 
   useShortcut('SHORTCUTS_HELP', () => {
     dispatch(setShortcutsDialogOpen(true));
