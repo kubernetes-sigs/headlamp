@@ -286,6 +286,19 @@ test_validate_runs_get_run_sha_failure() (
   assert_output_contains "Failed to query SHA" "$out" "validate_runs: get_run_sha failure prints error"
   )
 
+test_validate_runs_option_like_run_id() {
+  STUB_GH_EMPTY=""
+  STUB_RUN_SHA=""
+  local out rc
+  # Option-like run ID (-n) should fail validation as a non-numeric run ID, rather than being silently skipped.
+  set +e
+  out=$(validate_runs "deadbeef1234" "v0.9.0" "kubernetes-sigs/headlamp" " -n " 2>&1)
+  rc=$?
+  set -e
+  assert_exit 1 "$rc" "validate_runs: option-like run ID fails"
+  assert_output_contains "Invalid workflow run ID '-n'" "$out" "validate_runs: option-like run ID prints error"
+}
+
 test_validate_runs_matching_sha
 test_validate_runs_mismatched_sha
 test_validate_runs_empty_run_sha
@@ -293,6 +306,7 @@ test_validate_runs_multiple_run_ids_pass
 test_validate_runs_multiple_run_ids_one_fails
 test_validate_runs_empty_run_ids
 test_validate_runs_get_run_sha_failure
+test_validate_runs_option_like_run_id
 
 # ---------------------------------------------------------------------------
 # Summary

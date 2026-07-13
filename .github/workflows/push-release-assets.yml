@@ -79,7 +79,9 @@ jobs:
           IFS=',' read -ra RUN_IDS <<< "${{ inputs.run_ids }}"
 
           for run_id in "${RUN_IDS[@]}"; do
-            run_id=$(echo "$run_id" | xargs)  # Trim whitespace
+            # Trim surrounding whitespace
+            run_id="${run_id#"${run_id%%[![:space:]]*}"}"
+            run_id="${run_id%"${run_id##*[![:space:]]}"}"
             if [ -n "$run_id" ]; then
               echo "Downloading artifacts from run ID: $run_id"
 

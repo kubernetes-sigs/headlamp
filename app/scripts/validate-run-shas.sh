@@ -149,7 +149,8 @@ validate_runs() {
 
   for run_id in "${run_ids[@]}"; do
     # Trim surrounding whitespace
-    run_id=$(echo "$run_id" | xargs)
+    run_id="${run_id#"${run_id%%[![:space:]]*}"}"
+    run_id="${run_id%"${run_id##*[![:space:]]}"}"
 
     if [ -z "$run_id" ]; then
       continue
