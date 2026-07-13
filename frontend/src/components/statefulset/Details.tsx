@@ -27,6 +27,7 @@ import {
   RevisionHistorySection,
   RollbackButton,
 } from '../common/Resource';
+import { statefulSetExtraInfo } from '../workload/extraInfo';
 
 export default function StatefulSetDetails(props: {
   name?: string;
@@ -59,6 +60,7 @@ export default function StatefulSetDetails(props: {
       }}
       extraInfo={item =>
         item && [
+          ...statefulSetExtraInfo(item, t),
           {
             name: t('Update Strategy'),
             value: item.spec.updateStrategy.type,

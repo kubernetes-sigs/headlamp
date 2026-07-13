@@ -30,6 +30,12 @@
           class="MuiBox-root css-1txv3mw"
         >
           <div
+            aria-atomic="true"
+            aria-live="polite"
+            class="MuiBox-root css-ty8jgw"
+            role="status"
+          />
+          <div
             class="MuiBox-root css-1ipmh7v"
           >
             <div

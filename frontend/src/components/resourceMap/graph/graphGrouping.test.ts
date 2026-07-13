@@ -122,6 +122,41 @@ describe('groupGraph', () => {
     expect(nodeNames).toEqual(['1', '3', '4', 'Node-node1']);
   });
 
+  it('associates k8sNode kubeObject with node groups when k8sNodes are provided', () => {
+    const k8sNodeObject = {
+      kind: 'Node',
+      metadata: { name: 'node1', uid: 'node1-uid' },
+    } as any;
+
+    const groupedGraph = groupGraph(nodes, edges, {
+      groupBy: 'node',
+      namespaces: [],
+      k8sNodes: [k8sNodeObject],
+    });
+
+    const nodeGroup = groupedGraph.nodes?.find(node => node.label === 'node1');
+
+    // The group should have the k8sNode kubeObject associated with it
+    expect(nodeGroup).toBeDefined();
+    expect(nodeGroup?.kubeObject).toBe(k8sNodeObject);
+    // The group ID should be updated to the node's UID
+    expect(nodeGroup?.id).toBe('node1-uid');
+  });
+
+  it('does not associate k8sNode when k8sNodes list is empty', () => {
+    const groupedGraph = groupGraph(nodes, edges, {
+      groupBy: 'node',
+      namespaces: [],
+      k8sNodes: [],
+    });
+
+    const nodeGroup = groupedGraph.nodes?.find(node => node.id === 'Node-node1');
+
+    // Without k8sNodes data, the group should not have a kubeObject
+    expect(nodeGroup).toBeDefined();
+    expect(nodeGroup?.kubeObject).toBeUndefined();
+  });
+
   it('groups nodes by instance', () => {
     const groupedGraph = groupGraph(nodes, edges, {
       groupBy: 'instance',

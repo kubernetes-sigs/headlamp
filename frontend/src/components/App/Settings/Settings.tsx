@@ -17,10 +17,10 @@
 import Box from '@mui/material/Box';
 import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
-import { capitalize } from 'lodash';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
+import { isElectron } from '../../../helpers/isElectron';
 import LocaleSelect from '../../../i18n/LocaleSelect/LocaleSelect';
 import { setAppSettings } from '../../../redux/configSlice';
 import { defaultTableRowsPerPageOptions } from '../../../redux/configSlice';
@@ -50,9 +50,11 @@ export default function Settings() {
   );
   const [sortSidebar, setSortSidebar] = useState<boolean>(storedSortSidebar);
   const [useEvict, setUseEvict] = useState<boolean>(storedUseEvict);
+  const [trayIcon, setTrayIcon] = useState<boolean>(true);
   const dispatch = useDispatch();
   const themeName = useTypedSelector(state => state.theme.name);
   const appThemes = useAppThemes();
+  const forceTheme = useTypedSelector(state => state.config.forceTheme);
 
   useEffect(() => {
     dispatch(
@@ -81,8 +83,28 @@ export default function Settings() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [useEvict]);
 
+  useEffect(() => {
+    if (!isElectron()) {
+      return;
+    }
+
+    const handler = (enabled: boolean) => setTrayIcon(enabled);
+    const unsubscribe = window.desktopApi?.receive('tray-icon', handler);
+    window.desktopApi?.send('request-tray-icon');
+
+    return () => {
+      unsubscribe?.();
+    };
+  }, []);
+
+  function handleTrayIconChange(enabled: boolean) {
+    setTrayIcon(enabled);
+    window.desktopApi?.send('set-tray-icon', enabled);
+  }
+
   const sidebarLabelID = 'sort-sidebar-label';
   const evictLabelID = 'use-evict-label';
+  const trayIconLabelID = 'tray-icon-label';
   const tableRowsLabelID = 'rows-per-page-label';
   const timezoneLabelID = 'timezone-label';
 
@@ -164,6 +186,24 @@ export default function Settings() {
             ),
             nameID: evictLabelID,
           },
+          ...(isElectron()
+            ? [
+                {
+                  name: t('translation|Show system tray icon'),
+                  value: (
+                    <Switch
+                      color="primary"
+                      checked={trayIcon}
+                      onChange={e => handleTrayIconChange(e.target.checked)}
+                      inputProps={{
+                        'aria-labelledby': trayIconLabelID,
+                      }}
+                    />
+                  ),
+                  nameID: trayIconLabelID,
+                },
+              ]
+            : []),
         ]}
       />
       <Box
@@ -204,6 +244,19 @@ export default function Settings() {
             pb: 5,
           }}
         >
+          {forceTheme && (
+            <Typography
+              variant="body2"
+              sx={theme => ({
+                textAlign: 'center',
+                color: theme.palette.text.secondary,
+                fontStyle: 'italic',
+                mb: 2,
+              })}
+            >
+              {t('translation|Theme has been forced by your administrator')}
+            </Typography>
+          )}
           <Box
             sx={{
               display: 'grid',
@@ -214,18 +267,25 @@ export default function Settings() {
                 gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))',
                 gap: 2,
               },
+              opacity: forceTheme ? 0.5 : 1,
+              pointerEvents: forceTheme ? 'none' : 'auto',
             }}
           >
             {appThemes.map(it => (
               <Box
                 key={it.name}
                 role="button"
-                tabIndex={0}
+                tabIndex={forceTheme ? -1 : 0}
                 onKeyDown={e => {
-                  if (e.key === 'Enter' || e.key === ' ') dispatch(setTheme(it.name));
+                  if (forceTheme) {
+                    return;
+                  }
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    dispatch(setTheme(it.name));
+                  }
                 }}
                 sx={{
-                  cursor: 'pointer',
+                  cursor: forceTheme ? 'not-allowed' : 'pointer',
                   border: themeName === it.name ? '2px solid' : '1px solid',
                   borderColor: themeName === it.name ? 'primary' : 'divider',
                   borderRadius: 2,
@@ -235,13 +295,13 @@ export default function Settings() {
                   alignItems: 'center',
                   transition: '0.2 ease',
                   '&:hover': {
-                    backgroundColor: 'divider',
+                    backgroundColor: forceTheme ? 'transparent' : 'divider',
                   },
                 }}
-                onClick={() => dispatch(setTheme(it.name))}
+                onClick={() => !forceTheme && dispatch(setTheme(it.name))}
               >
                 <ThemePreview theme={it} size={110} />
-                <Box sx={{ mt: 1 }}>{capitalize(it.name)}</Box>
+                <Box sx={{ mt: 1 }}>{it.name}</Box>
               </Box>
             ))}
           </Box>

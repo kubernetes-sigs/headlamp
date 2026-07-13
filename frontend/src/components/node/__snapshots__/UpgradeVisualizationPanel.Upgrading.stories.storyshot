@@ -1,0 +1,281 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1qgzacq"
+    >
+      <div
+        class="MuiBox-root css-1qm1lh"
+      >
+        <h6
+          class="MuiTypography-root MuiTypography-subtitle1 css-ofbfey-MuiTypography-root"
+        >
+          Upgrading Nodes
+        </h6>
+        <div
+          class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-111shyz-MuiPaper-root"
+        >
+          <div
+            class="MuiBox-root css-1sl8bg8"
+          >
+            <div
+              class="MuiBox-root css-axw7ok"
+            >
+              <h6
+                class="MuiTypography-root MuiTypography-subtitle1 css-1p3zzy4-MuiTypography-root"
+              >
+                aks-node-upgrading
+              </h6>
+              <div
+                class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-outlinedSuccess css-s5qog2-MuiChip-root"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                >
+                  Ready
+                </span>
+              </div>
+            </div>
+            <p
+              class="MuiTypography-root MuiTypography-body2 css-plok08-MuiTypography-root"
+            >
+              Version: v1.29.0
+            </p>
+          </div>
+          <div
+            class="MuiStepper-root MuiStepper-horizontal MuiStepper-alternativeLabel css-10mg1vw-MuiStepper-root"
+          >
+            <div
+              class="MuiStep-root MuiStep-horizontal MuiStep-alternativeLabel Mui-completed css-n7tliy-MuiStep-root"
+            >
+              <span
+                class="MuiStepLabel-root MuiStepLabel-horizontal MuiStepLabel-alternativeLabel css-sir6m0-MuiStepLabel-root"
+              >
+                <span
+                  class="MuiStepLabel-iconContainer Mui-completed MuiStepLabel-alternativeLabel css-vnkopk-MuiStepLabel-iconContainer"
+                >
+                  <div
+                    class="MuiBox-root css-1j6q5jz"
+                  />
+                </span>
+                <span
+                  class="MuiStepLabel-labelContainer MuiStepLabel-alternativeLabel css-1vyamtt-MuiStepLabel-labelContainer"
+                >
+                  <span
+                    class="MuiStepLabel-label Mui-completed MuiStepLabel-alternativeLabel css-172s6dr-MuiStepLabel-label"
+                  >
+                    Cordon
+                  </span>
+                </span>
+              </span>
+            </div>
+            <div
+              class="MuiStep-root MuiStep-horizontal MuiStep-alternativeLabel css-n7tliy-MuiStep-root"
+            >
+              <div
+                class="MuiStepConnector-root MuiStepConnector-horizontal MuiStepConnector-alternativeLabel Mui-active css-h3mslu-MuiStepConnector-root"
+              >
+                <span
+                  class="MuiStepConnector-line MuiStepConnector-lineHorizontal css-z7uhs0-MuiStepConnector-line"
+                />
+              </div>
+              <span
+                class="MuiStepLabel-root MuiStepLabel-horizontal MuiStepLabel-alternativeLabel css-pdevfk-MuiStepLabel-root"
+              >
+                <span
+                  class="MuiStepLabel-iconContainer Mui-active MuiStepLabel-alternativeLabel css-vnkopk-MuiStepLabel-iconContainer"
+                >
+                  <div
+                    class="MuiBox-root css-1y1xhmb"
+                  />
+                </span>
+                <span
+                  class="MuiStepLabel-labelContainer MuiStepLabel-alternativeLabel css-1vyamtt-MuiStepLabel-labelContainer"
+                >
+                  <span
+                    class="MuiStepLabel-label Mui-active MuiStepLabel-alternativeLabel css-172s6dr-MuiStepLabel-label"
+                  >
+                    Drain
+                  </span>
+                </span>
+              </span>
+            </div>
+            <div
+              class="MuiStep-root MuiStep-horizontal MuiStep-alternativeLabel css-n7tliy-MuiStep-root"
+            >
+              <div
+                class="MuiStepConnector-root MuiStepConnector-horizontal MuiStepConnector-alternativeLabel Mui-disabled css-h3mslu-MuiStepConnector-root"
+              >
+                <span
+                  class="MuiStepConnector-line MuiStepConnector-lineHorizontal css-z7uhs0-MuiStepConnector-line"
+                />
+              </div>
+              <span
+                class="MuiStepLabel-root MuiStepLabel-horizontal Mui-disabled MuiStepLabel-alternativeLabel css-3zc5vx-MuiStepLabel-root"
+              >
+                <span
+                  class="MuiStepLabel-iconContainer Mui-disabled MuiStepLabel-alternativeLabel css-vnkopk-MuiStepLabel-iconContainer"
+                >
+                  <div
+                    class="MuiBox-root css-o5ezry"
+                  />
+                </span>
+                <span
+                  class="MuiStepLabel-labelContainer MuiStepLabel-alternativeLabel css-1vyamtt-MuiStepLabel-labelContainer"
+                >
+                  <span
+                    class="MuiStepLabel-label Mui-disabled MuiStepLabel-alternativeLabel css-172s6dr-MuiStepLabel-label"
+                  >
+                    Delete
+                  </span>
+                </span>
+              </span>
+            </div>
+            <div
+              class="MuiStep-root MuiStep-horizontal MuiStep-alternativeLabel css-n7tliy-MuiStep-root"
+            >
+              <div
+                class="MuiStepConnector-root MuiStepConnector-horizontal MuiStepConnector-alternativeLabel Mui-disabled css-h3mslu-MuiStepConnector-root"
+              >
+                <span
+                  class="MuiStepConnector-line MuiStepConnector-lineHorizontal css-z7uhs0-MuiStepConnector-line"
+                />
+              </div>
+              <span
+                class="MuiStepLabel-root MuiStepLabel-horizontal Mui-disabled MuiStepLabel-alternativeLabel css-3zc5vx-MuiStepLabel-root"
+              >
+                <span
+                  class="MuiStepLabel-iconContainer Mui-disabled MuiStepLabel-alternativeLabel css-vnkopk-MuiStepLabel-iconContainer"
+                >
+                  <div
+                    class="MuiBox-root css-o5ezry"
+                  />
+                </span>
+                <span
+                  class="MuiStepLabel-labelContainer MuiStepLabel-alternativeLabel css-1vyamtt-MuiStepLabel-labelContainer"
+                >
+                  <span
+                    class="MuiStepLabel-label Mui-disabled MuiStepLabel-alternativeLabel css-172s6dr-MuiStepLabel-label"
+                  >
+                    Reimage
+                  </span>
+                </span>
+              </span>
+            </div>
+            <div
+              class="MuiStep-root MuiStep-horizontal MuiStep-alternativeLabel css-n7tliy-MuiStep-root"
+            >
+              <div
+                class="MuiStepConnector-root MuiStepConnector-horizontal MuiStepConnector-alternativeLabel Mui-disabled css-h3mslu-MuiStepConnector-root"
+              >
+                <span
+                  class="MuiStepConnector-line MuiStepConnector-lineHorizontal css-z7uhs0-MuiStepConnector-line"
+                />
+              </div>
+              <span
+                class="MuiStepLabel-root MuiStepLabel-horizontal Mui-disabled MuiStepLabel-alternativeLabel css-3zc5vx-MuiStepLabel-root"
+              >
+                <span
+                  class="MuiStepLabel-iconContainer Mui-disabled MuiStepLabel-alternativeLabel css-vnkopk-MuiStepLabel-iconContainer"
+                >
+                  <div
+                    class="MuiBox-root css-o5ezry"
+                  />
+                </span>
+                <span
+                  class="MuiStepLabel-labelContainer MuiStepLabel-alternativeLabel css-1vyamtt-MuiStepLabel-labelContainer"
+                >
+                  <span
+                    class="MuiStepLabel-label Mui-disabled MuiStepLabel-alternativeLabel css-172s6dr-MuiStepLabel-label"
+                  >
+                    Complete
+                  </span>
+                </span>
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiBox-root css-1qm1lh"
+      >
+        <h6
+          class="MuiTypography-root MuiTypography-subtitle1 css-ofbfey-MuiTypography-root"
+        >
+          Surge Nodes
+        </h6>
+        <div
+          class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-m11i2x-MuiPaper-root"
+        >
+          <div
+            class="MuiBox-root css-axw7ok"
+          >
+            <h6
+              class="MuiTypography-root MuiTypography-subtitle2 css-l62m0z-MuiTypography-root"
+            >
+              aks-node-surge
+            </h6>
+            <div
+              class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-outlinedSuccess css-s5qog2-MuiChip-root"
+            >
+              <span
+                class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+              >
+                Ready
+              </span>
+            </div>
+            <div
+              class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-1qavl4s-MuiChip-root"
+            >
+              <span
+                class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+              >
+                Surge Node
+              </span>
+            </div>
+          </div>
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-plok08-MuiTypography-root"
+          >
+            Version: v1.29.0
+          </p>
+        </div>
+      </div>
+      <div
+        class="MuiBox-root css-1qm1lh"
+      >
+        <h6
+          class="MuiTypography-root MuiTypography-subtitle1 css-ofbfey-MuiTypography-root"
+        >
+          Idle Nodes
+        </h6>
+        <div
+          class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-m11i2x-MuiPaper-root"
+        >
+          <div
+            class="MuiBox-root css-axw7ok"
+          >
+            <h6
+              class="MuiTypography-root MuiTypography-subtitle2 css-l62m0z-MuiTypography-root"
+            >
+              aks-node-idle
+            </h6>
+            <div
+              class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-outlinedSuccess css-s5qog2-MuiChip-root"
+            >
+              <span
+                class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+              >
+                Ready
+              </span>
+            </div>
+          </div>
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-plok08-MuiTypography-root"
+          >
+            Version: v1.29.0
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

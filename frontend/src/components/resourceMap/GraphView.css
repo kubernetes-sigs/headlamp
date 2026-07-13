@@ -8,14 +8,21 @@
   will-change: transform, width, height, opacity;
   transition: transform, width, height;
   transition-duration: var(--graph-animation-duration);
+  overflow: visible;
 
   animation: appear var(--graph-animation-appear) linear var(--graph-animation-delay);
   animation-fill-mode: both;
 }
 
 .react-flow__node:not(.parent):hover,
-.react-flow__node:not(.parent):has(div:focus) {
-  z-index: 1 !important;
+.react-flow__node:not(.parent):has(div:focus),
+.react-flow__node.parent:has(.react-flow__node:hover),
+.react-flow__node.parent:has(.react-flow__node div:focus) {
+  z-index: 10000 !important;
+}
+
+.react-flow__node:has(.kube-object-node--expanded) {
+  z-index: 10000 !important;
 }
 
 .react-flow__node-group,

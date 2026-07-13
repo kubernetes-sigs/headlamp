@@ -21,6 +21,13 @@ import { Provider } from 'react-redux';
 import { MemoryRouter, Route } from 'react-router-dom';
 import defaultStore from '../redux/stores/store';
 
+/**
+ * Origin (scheme/host/port) of the dev/test backend that MSW handlers intercept
+ * in stories and tests. Matches the default dev backend port used by `getAppUrl`
+ * (4466) but intentionally omits any baseUrl/trailing slash.
+ */
+export const API_BASE = 'http://localhost:4466';
+
 export type TestContextProps = PropsWithChildren<{
   store?: ReturnType<typeof configureStore>;
   routerMap?: Record<string, string>;

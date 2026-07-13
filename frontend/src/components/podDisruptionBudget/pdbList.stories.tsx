@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import PDBList from './List';
 
 const objList = [
@@ -82,7 +82,7 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get('http://localhost:4466/apis/policy/v1/poddisruptionbudgets', () =>
+          http.get(`${API_BASE}/apis/policy/v1/poddisruptionbudgets`, () =>
             HttpResponse.json({
               kind: 'PodDistruptionBudgetList',
               items: objList,

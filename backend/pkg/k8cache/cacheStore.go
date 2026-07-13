@@ -35,6 +35,33 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
+const (
+	apiPathSegment       = "api"
+	apisPathSegment      = "apis"
+	namespacePathSegment = "namespaces"
+)
+
+func kubernetesAPIPathIndex(parts []string) int {
+	if len(parts) > 1 && (parts[1] == apiPathSegment || parts[1] == apisPathSegment) {
+		return 1
+	}
+
+	if len(parts) > 3 && parts[1] == "clusters" && (parts[3] == apiPathSegment || parts[3] == apisPathSegment) {
+		return 3
+	}
+
+	return -1
+}
+
+// IsKubernetesAPIPath returns true when path targets a Kubernetes API endpoint
+// under /api or /apis (either directly, or proxied via /clusters/{name}/...).
+func IsKubernetesAPIPath(path string) bool {
+	path = strings.TrimRight(path, "/")
+	parts := strings.Split(path, "/")
+
+	return kubernetesAPIPathIndex(parts) != -1
+}
+
 // CachedResponseData stores information such as StatusCode, Headers, and Body.
 // It helps cache responses efficiently and serve them from the cache.
 type CachedResponseData struct {
@@ -74,26 +101,29 @@ func GetResponseBody(bodyBytes []byte, encoding string) (string, error) {
 func GetAPIGroup(path string) (apiGroup, version string, err error) {
 	path = strings.TrimRight(path, "/")
 	parts := strings.Split(path, "/")
+	apiIdx := kubernetesAPIPathIndex(parts)
 
-	switch {
-	case len(parts) >= 4 && parts[3] == "api":
+	if apiIdx == -1 {
+		return "", "", fmt.Errorf("invalid url format")
+	}
+
+	switch parts[apiIdx] {
+	case apiPathSegment:
 		// Core API group
 		apiGroup = ""
 
-		if len(parts) >= 5 {
-			version = parts[4]
+		if len(parts) > apiIdx+1 {
+			version = parts[apiIdx+1]
 		}
-	case len(parts) >= 4 && parts[3] == "apis":
+	case apisPathSegment:
 		// Named API group
-		if len(parts) >= 5 {
-			apiGroup = parts[4]
+		if len(parts) > apiIdx+1 {
+			apiGroup = parts[apiIdx+1]
 		}
 
-		if len(parts) >= 6 {
-			version = parts[5]
+		if len(parts) > apiIdx+2 {
+			version = parts[apiIdx+2]
 		}
-	default:
-		return "", "", fmt.Errorf("invalid url format")
 	}
 
 	return
@@ -106,25 +136,68 @@ func ExtractNamespace(rawURL string) (string, string) {
 		rawURL = rawURL[:idx]
 	}
 
-	rawURL = strings.TrimSuffix(rawURL, "/")
+	rawURL = strings.TrimRight(rawURL, "/")
 
 	var namespace, kind string
 
 	urls := strings.Split(rawURL, "/")
+
 	n := len(urls)
 
+	apiIdx := kubernetesAPIPathIndex(urls)
+	if apiIdx == -1 {
+		return "", ""
+	}
+
 	for i := 0; i < n-1; i++ {
-		if urls[i] == "namespaces" {
+		if urls[i] == namespacePathSegment {
 			namespace = urls[i+1]
 			break
 		}
 	}
 
-	if len(urls) > 2 {
+	if n > 2 {
 		kind = urls[n-1]
 	}
 
 	return namespace, kind
+}
+
+// escapeCacheKeySegment percent-escapes "%" and "+" so cache key segments can
+// be joined with "+" delimiters without ambiguity. "%" is escaped first so the
+// encoding is injective (see buildCacheKey).
+func escapeCacheKeySegment(s string) string {
+	s = strings.ReplaceAll(s, "%", "%25")
+	s = strings.ReplaceAll(s, "+", "%2B")
+
+	return s
+}
+
+// unescapeCacheKeySegment reverses escapeCacheKeySegment.
+func unescapeCacheKeySegment(s string) string {
+	s = strings.ReplaceAll(s, "%2B", "+")
+	s = strings.ReplaceAll(s, "%25", "%")
+
+	return s
+}
+
+// buildCacheKey joins apiGroup, kind, namespace, and contextID into a single
+// cache key using "+" as the delimiter. Each field is percent-escaped so
+// that the only "+" characters left in the key are the delimiters
+// themselves and the encoding round-trips uniquely back to its inputs.
+// This matters most for the context field, since kubeconfig context names
+// are not restricted by Kubernetes naming rules and may legitimately
+// contain "+" (or "%").
+//
+// This function is the single source of truth for constructing cache keys.
+// Any code that parses or otherwise manipulates the key format (e.g. the
+// namespace stripping in cache invalidation) must stay consistent with this
+// encoding to avoid the two sides silently drifting out of sync.
+func buildCacheKey(apiGroup, kind, namespace, contextID string) string {
+	return escapeCacheKeySegment(apiGroup) + "+" +
+		escapeCacheKeySegment(kind) + "+" +
+		escapeCacheKeySegment(namespace) + "+" +
+		escapeCacheKeySegment(contextID)
 }
 
 // GenerateKey function helps to generate a unique key based on the request from the client
@@ -144,10 +217,7 @@ func GenerateKey(url *url.URL, contextID string) (string, error) {
 		Context:   contextID,
 	}
 
-	// Create a stable representation
-	raw := fmt.Sprintf("%s+%s+%s+%s", apiGroup, k.Kind, k.Namespace, k.Context)
-
-	return raw, nil
+	return buildCacheKey(apiGroup, k.Kind, k.Namespace, k.Context), nil
 }
 
 // SetHeader function help to serve response from cache to ensure the client
@@ -200,7 +270,7 @@ func LoadFromCache(k8scache cache.Cache[string], isAllowed bool,
 			return false, writeErr
 		}
 
-		logger.Log(logger.LevelInfo, nil, nil, "serving from the cache with key "+key)
+		logger.Log(logger.LevelInfo, nil, nil, "serving from the cache with key "+redactCacheKey(key))
 
 		return true, nil
 	}
@@ -214,9 +284,12 @@ func LoadFromCache(k8scache cache.Cache[string], isAllowed bool,
 func StoreK8sResponseInCache(k8scache cache.Cache[string],
 	url *url.URL,
 	rcw *ResponseCapture,
-	r *http.Request,
 	key string,
 ) error {
+	if rcw.StatusCode >= 500 {
+		return nil
+	}
+
 	capturedHeaders := rcw.Header()
 	encoding := capturedHeaders.Get("Content-Encoding")
 	bodyBytes := rcw.Body.Bytes()
@@ -227,7 +300,15 @@ func StoreK8sResponseInCache(k8scache cache.Cache[string],
 	}
 
 	headersToCache := FilterHeaderForCache(capturedHeaders, encoding)
+
 	if !strings.Contains(url.Path, "selfsubjectrulesreviews") {
+		// Check the decompressed body for Kubernetes error status before
+		// marshalling the full CachedResponseData. This avoids allocating
+		// the JSON envelope for responses that will be discarded anyway.
+		if strings.Contains(dcmpBody, "Failure") {
+			return nil
+		}
+
 		cachedData := CachedResponseData{
 			StatusCode: rcw.StatusCode,
 			Headers:    headersToCache,
@@ -239,14 +320,38 @@ func StoreK8sResponseInCache(k8scache cache.Cache[string],
 			return err
 		}
 
-		if !strings.Contains(string(jsonBytes), "Failure") {
-			if err = k8scache.SetWithTTL(context.Background(), key, string(jsonBytes), 10*time.Minute); err != nil {
-				return err
-			}
-
-			logger.Log(logger.LevelInfo, nil, nil, "k8s resource was stored with the key "+key)
+		if err = k8scache.SetWithTTL(context.Background(), key, string(jsonBytes), 10*time.Minute); err != nil {
+			return err
 		}
+
+		logger.Log(logger.LevelInfo, nil, nil, "k8s resource was stored with the key "+redactCacheKey(key))
 	}
 
 	return nil
+}
+
+// redactContextKey returns a redacted version of the context key to avoid leaking PII/sensitive info in logs.
+func redactContextKey(key string) string {
+	if key == "" {
+		return ""
+	}
+
+	if len(key) <= 3 {
+		return "[redacted]"
+	}
+
+	return key[:3] + "...[redacted]"
+}
+
+// redactCacheKey returns a redacted version of the cache key (which contains the context key as its last segment).
+func redactCacheKey(key string) string {
+	parts := strings.SplitN(key, "+", 4)
+
+	if len(parts) >= 4 {
+		parts[3] = redactContextKey(parts[3])
+
+		return strings.Join(parts, "+")
+	}
+
+	return key
 }

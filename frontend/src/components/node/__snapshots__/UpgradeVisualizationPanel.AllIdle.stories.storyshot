@@ -1,0 +1,98 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1qgzacq"
+    >
+      <div
+        class="MuiBox-root css-1qm1lh"
+      >
+        <h6
+          class="MuiTypography-root MuiTypography-subtitle1 css-ofbfey-MuiTypography-root"
+        >
+          Idle Nodes
+        </h6>
+        <div
+          class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-m11i2x-MuiPaper-root"
+        >
+          <div
+            class="MuiBox-root css-axw7ok"
+          >
+            <h6
+              class="MuiTypography-root MuiTypography-subtitle2 css-l62m0z-MuiTypography-root"
+            >
+              aks-node-upgrading
+            </h6>
+            <div
+              class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-outlinedSuccess css-s5qog2-MuiChip-root"
+            >
+              <span
+                class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+              >
+                Ready
+              </span>
+            </div>
+          </div>
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-plok08-MuiTypography-root"
+          >
+            Version: v1.29.0
+          </p>
+        </div>
+        <div
+          class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-m11i2x-MuiPaper-root"
+        >
+          <div
+            class="MuiBox-root css-axw7ok"
+          >
+            <h6
+              class="MuiTypography-root MuiTypography-subtitle2 css-l62m0z-MuiTypography-root"
+            >
+              aks-node-surge
+            </h6>
+            <div
+              class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-outlinedSuccess css-s5qog2-MuiChip-root"
+            >
+              <span
+                class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+              >
+                Ready
+              </span>
+            </div>
+          </div>
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-plok08-MuiTypography-root"
+          >
+            Version: v1.29.0
+          </p>
+        </div>
+        <div
+          class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-m11i2x-MuiPaper-root"
+        >
+          <div
+            class="MuiBox-root css-axw7ok"
+          >
+            <h6
+              class="MuiTypography-root MuiTypography-subtitle2 css-l62m0z-MuiTypography-root"
+            >
+              aks-node-idle
+            </h6>
+            <div
+              class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-outlinedSuccess css-s5qog2-MuiChip-root"
+            >
+              <span
+                class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+              >
+                Ready
+              </span>
+            </div>
+          </div>
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-plok08-MuiTypography-root"
+          >
+            Version: v1.29.0
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>

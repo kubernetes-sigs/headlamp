@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import Details from './Details';
 import { PORT_INGRESS, RESOURCE_INGRESS, WILDCARD_TLS_INGRESS } from './storyHelper';
 
@@ -37,25 +37,20 @@ export default {
     msw: {
       handlers: {
         baseStory: [
-          http.get('http://localhost:4466/apis/networking.k8s.io/v1/ingresses', () =>
-            HttpResponse.json({})
-          ),
-          http.get('http://localhost:4466/apis/extensions/v1beta1/ingresses', () =>
+          http.get(`${API_BASE}/apis/networking.k8s.io/v1/ingresses`, () => HttpResponse.json({})),
+          http.get(`${API_BASE}/apis/extensions/v1beta1/ingresses`, () => HttpResponse.error()),
+          http.get(`${API_BASE}/apis/extensions/v1beta1/ingresses/my-ingress`, () =>
             HttpResponse.error()
           ),
-          http.get('http://localhost:4466/apis/extensions/v1beta1/ingresses/my-ingress', () =>
-            HttpResponse.error()
-          ),
-          http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+          http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
             HttpResponse.json({
               kind: 'EventList',
               items: [],
               metadata: {},
             })
           ),
-          http.post(
-            'http://localhost:4466/apis/authorization.k8s.io/v1/selfsubjectaccessreviews',
-            () => HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
+          http.post(`${API_BASE}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, () =>
+            HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
           ),
         ],
       },
@@ -75,7 +70,7 @@ WithTLS.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/apis/networking.k8s.io/v1/ingresses/my-ingress', () =>
+        http.get(`${API_BASE}/apis/networking.k8s.io/v1/ingresses/my-ingress`, () =>
           HttpResponse.json(PORT_INGRESS)
         ),
       ],
@@ -88,7 +83,7 @@ WithResource.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/apis/networking.k8s.io/v1/ingresses/my-ingress', () =>
+        http.get(`${API_BASE}/apis/networking.k8s.io/v1/ingresses/my-ingress`, () =>
           HttpResponse.json(RESOURCE_INGRESS)
         ),
       ],
@@ -101,7 +96,7 @@ WithWildcardTLS.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/apis/networking.k8s.io/v1/ingresses/my-ingress', () =>
+        http.get(`${API_BASE}/apis/networking.k8s.io/v1/ingresses/my-ingress`, () =>
           HttpResponse.json(WILDCARD_TLS_INGRESS)
         ),
       ],

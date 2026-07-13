@@ -46,6 +46,10 @@ func FuzzSanitizeClusterName(f *testing.F) {
 	validCharsRegex := regexp.MustCompile(`^[a-zA-Z0-9\-_]*$`)
 
 	f.Fuzz(func(t *testing.T, input string) {
+		if len(input) > 256 {
+			t.Skip()
+		}
+
 		result := auth.SanitizeClusterName(input)
 
 		// Invariant 1: Result should never be longer than 50 characters

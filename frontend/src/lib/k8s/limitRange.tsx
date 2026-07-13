@@ -31,6 +31,9 @@ export interface LimitRangeSpec {
       cpu: string;
       memory: string;
     };
+    maxLimitRequestRatio?: {
+      [resourceName: string]: string;
+    };
     min: {
       cpu: string;
       memory: string;

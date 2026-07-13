@@ -3,6 +3,8 @@ version: 1
 default_agent: "@dev-agent"
 
 > **Consulted files (agent must populate before committing):**
+> - `/backend/pkg/k8cache/cacheInvalidation.go`
+> - `/backend/pkg/kubeconfig/contextStore.go`
 >
 > **README.md files:**
 > - `/README.md` - Main project README
@@ -46,7 +48,7 @@ default_agent: "@dev-agent"
 >
 > **Build/Config files:**
 > - `/package.json` - Root package with all npm scripts and Node.js version (>=20.11.1)
-> - `/backend/go.mod` - Go version (1.25.8)
+> - `/backend/go.mod` - Go version (1.25.9)
 > - `/CONTRIBUTING.md` - Contributing guidelines
 > - `/OWNERS` - Code reviewers and approvers
 
@@ -74,7 +76,7 @@ should NOT unless explicitly requested or strictly necessary for the change
 - **Runtimes/tools:**
   - Node.js >=20.11.1 (specified in `/package.json` engines field)
   - npm >=10.0.0 (specified in `/package.json` engines field)
-  - Go 1.25.8 (specified in `/backend/go.mod`)
+  - Go 1.25.9 (specified in `/backend/go.mod`)
 - **Reproduce locally:** Use commands from `/package.json` scripts section and documentation files listed above.
 
 ---
@@ -377,7 +379,7 @@ Reference sources:
 **Version Information:**
 - Node.js: >=20.11.1 (from `/package.json`)
 - npm: >=10.0.0 (from `/package.json`)
-- Go: 1.25.8 (from `/backend/go.mod`)
+- Go: 1.25.9 (from `/backend/go.mod`)
 
 **Key Command Sources:**
 - Build/test commands: `/package.json`

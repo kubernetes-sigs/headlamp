@@ -18,6 +18,7 @@ package helm
 
 import (
 	"errors"
+	"io/fs"
 	"path/filepath"
 	"testing"
 
@@ -41,4 +42,26 @@ func TestRemoveRepositoryReturnsNotFoundError(t *testing.T) {
 	err := RemoveRepository("missing", settings)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, errRepositoryNotFound))
+}
+
+func TestEnsureRepositoryFileLocked(t *testing.T) {
+	t.Run("locked", func(t *testing.T) {
+		assert.NoError(t, ensureRepositoryFileLocked(true, nil))
+	})
+
+	t.Run("lock_error", func(t *testing.T) {
+		lockErr := fs.ErrPermission
+
+		err := ensureRepositoryFileLocked(false, lockErr)
+
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, lockErr))
+	})
+
+	t.Run("not_locked_without_error", func(t *testing.T) {
+		err := ensureRepositoryFileLocked(false, nil)
+
+		require.Error(t, err)
+		assert.True(t, errors.Is(err, errRepositoryLockNotAcquired))
+	})
 }

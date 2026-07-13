@@ -5,14 +5,17 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
-	"k8s.io/utils/strings/slices"
 )
 
 const watchInterval = 10 * time.Second
+
+// logFieldPath is the structured-log field name for filesystem paths.
+const logFieldPath = "path"
 
 // LoadAndWatchFiles loads kubeconfig files and watches them for changes.
 // It runs until the provided context is cancelled.
@@ -85,7 +88,7 @@ func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
 		if !filepath.IsAbs(path) {
 			absPath, err := filepath.Abs(path)
 			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{"path": path},
+				logger.Log(logger.LevelError, map[string]string{logFieldPath: path},
 					err, "getting absolute path")
 
 				continue
@@ -96,7 +99,7 @@ func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
 
 		// check if path exists
 		if _, err := os.Stat(path); os.IsNotExist(err) {
-			logger.Log(logger.LevelError, map[string]string{"path": path},
+			logger.Log(logger.LevelError, map[string]string{logFieldPath: path},
 				err, "Path does not exist")
 
 			continue
@@ -112,7 +115,7 @@ func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
 		// if it isn't, add it to the watcher
 		err := watcher.Add(path)
 		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"path": path},
+			logger.Log(logger.LevelError, map[string]string{logFieldPath: path},
 				err, "adding path to watcher")
 		}
 	}
@@ -123,13 +126,13 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 	// First read all kubeconfig files to get new contexts
 	newContexts, _, err := LoadContextsFromMultipleFiles(paths, source)
 	if err != nil {
-		return fmt.Errorf("error reading kubeconfig files: %v", err)
+		return fmt.Errorf("error reading kubeconfig files: %w", err)
 	}
 
 	// Get existing contexts from store
 	existingContexts, err := kubeConfigStore.GetContexts()
 	if err != nil {
-		return fmt.Errorf("error getting existing contexts: %v", err)
+		return fmt.Errorf("error getting existing contexts: %w", err)
 	}
 
 	// Find and remove contexts that no longer exist in the kubeconfig
@@ -161,7 +164,7 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 	// Now load and store the new configurations
 	err = LoadAndStoreKubeConfigs(kubeConfigStore, paths, source, ignoreFunc)
 	if err != nil {
-		return fmt.Errorf("error loading kubeconfig files: %v", err)
+		return fmt.Errorf("error loading kubeconfig files: %w", err)
 	}
 
 	return nil

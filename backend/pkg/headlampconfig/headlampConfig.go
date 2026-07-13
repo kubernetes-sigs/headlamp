@@ -1,7 +1,9 @@
 package headlampconfig
 
 import (
+	"context"
 	"net/http"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
@@ -36,6 +38,12 @@ type HeadlampConfig struct {
 	MeEmailPaths              string
 	MeGroupsPaths             string
 	MeUserInfoURL             string
+	ProxyAuthEnabled          bool
+	ProxyAuthUsernameHeader   string
+	ProxyAuthGroupHeader      string
+	ProxyAuthEmailHeader      string
+	ProxyAuthTokenHeader      string
+	ServerCtx                 context.Context
 }
 
 type HeadlampCFG struct {
@@ -61,8 +69,23 @@ type HeadlampCFG struct {
 	Metrics                *telemetry.Metrics
 	BaseURL                string
 	ProxyURLs              []string
-	TLSCertPath            string
-	TLSKeyPath             string
-	SessionTTL             int
-	OidcUseCookie          bool
+
+	TLSCertPath                  string
+	TLSKeyPath                   string
+	SessionTTL                   int
+	PodDebugImage                string
+	NodeShellImage               string
+	NodeShellNamespace           string
+	OidcUseCookie                bool
+	DefaultLightTheme            string
+	DefaultDarkTheme             string
+	ForceTheme                   string
+	UnsafeUseServiceAccountToken bool
+	ServiceAccountTokenPath      string
+
+	EnableClusterInventory                bool
+	ClusterInventoryProviderFile          string
+	ClusterInventoryLabelSelector         string
+	ClusterInventoryRootReconcileInterval time.Duration
+	ClusterInventoryNoCRDCacheTTL         time.Duration
 }

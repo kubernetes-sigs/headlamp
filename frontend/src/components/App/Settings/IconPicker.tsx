@@ -84,6 +84,7 @@ export default function IconPicker({ open, currentIcon, onClose, onSelectIcon }:
               <Tooltip key={iconOption.value} title={iconOption.name}>
                 <ToggleButton
                   value={iconOption.value}
+                  aria-label={iconOption.name}
                   selected={currentIcon === iconOption.value && !useCustomIcon}
                   onChange={() => handlePresetIconClick(iconOption.value)}
                   disabled={useCustomIcon}
@@ -120,6 +121,8 @@ export default function IconPicker({ open, currentIcon, onClose, onSelectIcon }:
               placeholder="mdi:shield-alert"
               value={customIconInput}
               onChange={e => setCustomIconInput(e.target.value)}
+              variant="outlined"
+              size="small"
               fullWidth
               helperText={t('translation|Example: mdi:kubernetes, mdi:cloud-outline')}
               sx={{ mt: 1 }}
@@ -128,9 +131,11 @@ export default function IconPicker({ open, currentIcon, onClose, onSelectIcon }:
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>{t('translation|Cancel')}</Button>
+        <Button variant="contained" color="secondary" onClick={onClose}>
+          {t('translation|Cancel')}
+        </Button>
         {useCustomIcon && (
-          <Button onClick={handleApplyCustomIcon} disabled={!customIconInput}>
+          <Button variant="contained" onClick={handleApplyCustomIcon} disabled={!customIconInput}>
             {t('translation|Apply')}
           </Button>
         )}

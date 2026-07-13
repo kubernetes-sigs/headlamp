@@ -180,6 +180,26 @@
           "minimum": 1,
           "maximum": 31536000
         },
+        "podDebugImage": {
+          "type": "string",
+          "description": "Default image to use when creating pod debug containers"
+        },
+        "nodeShellImage": {
+          "type": "string",
+          "description": "Default image to use when creating node shell pods"
+        },
+        "nodeShellNamespace": {
+          "type": "string",
+          "description": "Default namespace to use when creating node shell pods"
+        },
+        "unsafeUseServiceAccountToken": {
+          "type": "boolean",
+          "description": "UNSAFE: authenticate every user as the pod's service account in-cluster mode"
+        },
+        "serviceAccountTokenPath": {
+          "type": "string",
+          "description": "Path to the service account token file when unsafeUseServiceAccountToken is enabled"
+        },
         "oidc": {
           "type": "object",
           "description": "OIDC configuration",
@@ -229,6 +249,10 @@
                 "enabled": {
                   "type": "boolean",
                   "description": "Enable the external secret"
+                },
+                "hasScopes": {
+                  "type": "boolean",
+                  "description": "Set to true if the external secret contains an OIDC_SCOPES key"
                 }
               }
             }
@@ -238,6 +262,18 @@
           "type": "string",
           "description": "Directory to load plugins from"
         },
+        "staticPlugins": {
+          "type": "object",
+          "description": "Bundled (static) plugins shipped in the Headlamp image, such as the Prometheus plugin",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Serve the bundled static plugins. Set to false to disable them (e.g. the \"Show Prometheus metrics\" button)",
+              "default": true
+            }
+          },
+          "additionalProperties": false
+        },
          "tlsCertPath": {
           "type": "string",
           "description": "Path of certificate file for TLS"
@@ -245,6 +281,64 @@
         "tlsKeyPath": {
           "type": "string",
           "description": "Path of private key file for TLS"
+        },
+        "clusterInventory": {
+          "type": "object",
+          "description": "Experimental/alpha Cluster Inventory configuration",
+          "properties": {
+            "enabled": {
+              "type": "boolean",
+              "description": "Enable experimental/alpha Cluster Inventory discovery",
+              "default": false
+            },
+            "accessProvidersConfig": {
+              "type": "object",
+              "description": "Experimental/alpha Cluster Inventory access providers config",
+              "default": {}
+            },
+            "plugins": {
+              "type": "array",
+              "description": "Kubernetes image volumes that provide experimental/alpha Cluster Inventory access provider binaries",
+              "items": {
+                "type": "object",
+                "required": ["name", "image", "mountPath"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 63,
+                    "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$",
+                    "description": "DNS label name of the plugin image volume"
+                  },
+                  "image": {
+                    "type": "string",
+                    "description": "Image reference for the plugin image volume"
+                  },
+                  "mountPath": {
+                    "type": "string",
+                    "pattern": "^/",
+                    "description": "Absolute read-only mount path for the plugin image volume"
+                  }
+                },
+                "additionalProperties": false
+              },
+              "default": []
+            },
+            "labelSelector": {
+              "type": "string",
+              "description": "Kubernetes label selector used to filter experimental/alpha ClusterProfile resources",
+              "default": "!headlamp.dev/ignore"
+            },
+            "rootReconcileInterval": {
+              "type": "string",
+              "description": "Override the experimental/alpha Cluster Inventory root reconcile interval. Empty uses the Headlamp default",
+              "default": ""
+            },
+            "noCRDCacheTTL": {
+              "type": "string",
+              "description": "Override the experimental/alpha Cluster Inventory no-CRD cache TTL. Empty uses the Headlamp default",
+              "default": ""
+            }
+          }
         },
         "extraArgs": {
           "type": "array",
@@ -268,9 +362,124 @@
           "value": {
             "type": "string",
             "description": "Value of the environment variable"
+          },
+          "valueFrom": {
+            "type": "object",
+            "description": "Source for the environment variable's value",
+            "properties": {
+              "secretKeyRef": {
+                "type": "object",
+                "description": "Selects a key of a Secret",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Name of the Secret"
+                  },
+                  "key": {
+                    "type": "string",
+                    "description": "Key of the Secret to select from"
+                  },
+                  "optional": {
+                    "type": "boolean",
+                    "description": "Specify whether the Secret or its key must be defined"
+                  }
+                },
+                "required": ["key"],
+                "additionalProperties": false
+              },
+              "configMapKeyRef": {
+                "type": "object",
+                "description": "Selects a key of a ConfigMap",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "description": "Name of the ConfigMap"
+                  },
+                  "key": {
+                    "type": "string",
+                    "description": "Key of the ConfigMap to select from"
+                  },
+                  "optional": {
+                    "type": "boolean",
+                    "description": "Specify whether the ConfigMap or its key must be defined"
+                  }
+                },
+                "required": ["key"],
+                "additionalProperties": false
+              },
+              "fieldRef": {
+                "type": "object",
+                "description": "Selects a field of the pod",
+                "properties": {
+                  "apiVersion": {
+                    "type": "string",
+                    "description": "API version of the schema the fieldPath is written in"
+                  },
+                  "fieldPath": {
+                    "type": "string",
+                    "description": "Path of the field to select in the specified API version"
+                  }
+                },
+                "required": ["fieldPath"],
+                "additionalProperties": false
+              },
+              "resourceFieldRef": {
+                "type": "object",
+                "description": "Selects a resource of the container",
+                "properties": {
+                  "containerName": {
+                    "type": "string",
+                    "description": "Container name to select resources from"
+                  },
+                  "resource": {
+                    "type": "string",
+                    "description": "Resource to select"
+                  },
+                  "divisor": {
+                    "type": "string",
+                    "description": "Output format of the exposed resource"
+                  }
+                },
+                "required": ["resource"],
+                "additionalProperties": false
+              }
+            },
+            "oneOf": [
+              {
+                "required": ["secretKeyRef"],
+                "not": { "anyOf": [{ "required": ["configMapKeyRef"] }, { "required": ["fieldRef"] }, { "required": ["resourceFieldRef"] }] }
+              },
+              {
+                "required": ["configMapKeyRef"],
+                "not": { "anyOf": [{ "required": ["secretKeyRef"] }, { "required": ["fieldRef"] }, { "required": ["resourceFieldRef"] }] }
+              },
+              {
+                "required": ["fieldRef"],
+                "not": { "anyOf": [{ "required": ["secretKeyRef"] }, { "required": ["configMapKeyRef"] }, { "required": ["resourceFieldRef"] }] }
+              },
+              {
+                "required": ["resourceFieldRef"],
+                "not": { "anyOf": [{ "required": ["secretKeyRef"] }, { "required": ["configMapKeyRef"] }, { "required": ["fieldRef"] }] }
+              }
+            ],
+            "additionalProperties": false
           }
         },
-        "required": ["name", "value"],
+        "required": ["name"],
+        "oneOf": [
+          {
+            "required": ["value"],
+            "not": {
+              "required": ["valueFrom"]
+            }
+          },
+          {
+            "required": ["valueFrom"],
+            "not": {
+              "required": ["value"]
+            }
+          }
+        ],
         "additionalProperties": false
       }
     },
@@ -324,6 +533,10 @@
           "type": "integer",
           "description": "Kubernetes Service port"
         },
+        "appProtocol": {
+          "type": ["string", "null"],
+          "description": "Kubernetes Service port appProtocol (for the main http port)"
+        },
         "clusterIP": {
           "type": "string",
           "description": "Kubernetes Service clusterIP"
@@ -342,6 +555,37 @@
         "nodePort": {
           "type": ["integer", "null"],
           "description": "Kubernetes Service Nodeport"
+        },
+        "extraServicePorts": {
+          "type": "array",
+          "description": "Additional ports to expose on the Service in addition to the default http port",
+          "items": {
+            "type": "object",
+            "required": ["name", "port"],
+            "properties": {
+              "name": {
+                "type": "string",
+                "description": "Port name (must be unique within the Service)"
+              },
+              "port": {
+                "type": "integer",
+                "description": "Service port number"
+              },
+              "targetPort": {
+                "type": ["integer", "string"],
+                "description": "Pod-side target port (number or named port). Defaults to `port` when omitted"
+              },
+              "protocol": {
+                "type": "string",
+                "enum": ["TCP", "UDP", "SCTP"],
+                "description": "Protocol (TCP/UDP/SCTP). Defaults to TCP"
+              },
+              "nodePort": {
+                "type": ["integer", "null"],
+                "description": "Node port (only honored when service.type is NodePort or LoadBalancer)"
+              }
+            }
+          }
         }
       }
     },
@@ -427,7 +671,67 @@
               "paths": {
                 "type": "array",
                 "items": {
-                  "type": "object"
+                  "type": "object",
+                  "required": [
+                    "path",
+                    "type"
+                  ],
+                  "properties": {
+                    "path": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "backend": {
+                      "type": "object",
+                      "description": "Optional override of the backend Service for this path",
+                      "properties": {
+                        "service": {
+                          "type": "object",
+                          "properties": {
+                            "name": {
+                              "type": "string",
+                              "description": "Service name (supports tpl). Defaults to the Headlamp Service when omitted"
+                            },
+                            "port": {
+                              "type": "object",
+                              "properties": {
+                                "number": {
+                                  "type": "integer"
+                                },
+                                "name": {
+                                  "type": "string"
+                                }
+                              },
+                              "oneOf": [
+                                {
+                                  "required": [
+                                    "number"
+                                  ],
+                                  "not": {
+                                    "required": [
+                                      "name"
+                                    ]
+                                  }
+                                },
+                                {
+                                  "required": [
+                                    "name"
+                                  ],
+                                  "not": {
+                                    "required": [
+                                      "number"
+                                    ]
+                                  }
+                                }
+                              ]
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -571,6 +875,114 @@
       "description": "Extra manifests to apply to the deployment",
       "items": {
         "type": "string"
+      }
+    },
+    "probes": {
+      "type": "object",
+      "description": "Probe configuration for liveness and readiness checks",
+      "properties": {
+        "scheme": {
+          "type": "string",
+          "description": "Scheme for probes (HTTP or HTTPS). Set to HTTPS when TLS is enabled at the backend server.",
+          "enum": ["HTTP", "HTTPS"],
+          "default": "HTTP"
+        },
+        "livenessProbe": {
+          "type": "object",
+          "description": "Liveness probe settings",
+          "properties": {
+            "initialDelaySeconds": {
+              "type": "integer",
+              "description": "Initial delay in seconds before starting liveness probe",
+              "minimum": 0,
+              "default": 0
+            },
+            "periodSeconds": {
+              "type": "integer",
+              "description": "Period in seconds between liveness probe checks",
+              "minimum": 1,
+              "default": 10
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "Timeout in seconds for liveness probe",
+              "minimum": 1,
+              "default": 1
+            },
+            "successThreshold": {
+              "type": "integer",
+              "description": "Minimum consecutive successes for the probe to be considered successful (must be 1 for liveness probes per Kubernetes API)",
+              "minimum": 1,
+              "maximum": 1,
+              "const": 1,
+              "default": 1
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "Minimum consecutive failures for the probe to be considered failed",
+              "minimum": 1,
+              "default": 3
+            }
+          }
+        },
+        "readinessProbe": {
+          "type": "object",
+          "description": "Readiness probe settings",
+          "properties": {
+            "initialDelaySeconds": {
+              "type": "integer",
+              "description": "Initial delay in seconds before starting readiness probe",
+              "minimum": 0,
+              "default": 0
+            },
+            "periodSeconds": {
+              "type": "integer",
+              "description": "Period in seconds between readiness probe checks",
+              "minimum": 1,
+              "default": 10
+            },
+            "timeoutSeconds": {
+              "type": "integer",
+              "description": "Timeout in seconds for readiness probe",
+              "minimum": 1,
+              "default": 1
+            },
+            "successThreshold": {
+              "type": "integer",
+              "description": "Minimum consecutive successes for the probe to be considered successful",
+              "minimum": 1,
+              "default": 1
+            },
+            "failureThreshold": {
+              "type": "integer",
+              "description": "Minimum consecutive failures for the probe to be considered failed",
+              "minimum": 1,
+              "default": 3
+            }
+          }
+        }
+      }
+    },
+    "hostAliases": {
+      "type": "array",
+      "description": "Host aliases to add to the pod's /etc/hosts file",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ip": {
+            "type": "string",
+            "description": "IP address the hostnames resolve to"
+          },
+          "hostnames": {
+            "type": "array",
+            "description": "Hostnames that resolve to the given IP",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": ["ip", "hostnames"],
+        "additionalProperties": false
       }
     }
   }

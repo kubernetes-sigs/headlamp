@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import BackendTrafficPolicyDetails from './BackendTrafficPolicyDetails';
 import { DEFAULT_BACKEND_TRAFFIC_POLICY } from './storyHelper';
 
@@ -36,26 +36,24 @@ export default {
         story: [],
         storyBase: [
           http.get(
-            'http://localhost:4466/apis/gateway.networking.x-k8s.io/v1alpha1/namespaces/default/xbackendtrafficpolicies',
+            `${API_BASE}/apis/gateway.networking.x-k8s.io/v1alpha1/namespaces/default/xbackendtrafficpolicies`,
             () => HttpResponse.error()
           ),
           http.get(
-            'http://localhost:4466/apis/gateway.networking.x-k8s.io/v1alpha1/namespaces/default/xbackendtrafficpolicies/example-traffic-policy',
+            `${API_BASE}/apis/gateway.networking.x-k8s.io/v1alpha1/namespaces/default/xbackendtrafficpolicies/example-traffic-policy`,
             () => HttpResponse.json(DEFAULT_BACKEND_TRAFFIC_POLICY)
           ),
-          http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+          http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
             HttpResponse.json({
               kind: 'EventList',
               items: [],
               metadata: {},
             })
           ),
-          http.post(
-            'http://localhost:4466/apis/authorization.k8s.io/v1/selfsubjectaccessreviews',
-            () =>
-              HttpResponse.json({
-                status: { allowed: true, reason: '', code: 200 },
-              })
+          http.post(`${API_BASE}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, () =>
+            HttpResponse.json({
+              status: { allowed: true, reason: '', code: 200 },
+            })
           ),
         ],
       },

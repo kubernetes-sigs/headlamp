@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import _ from 'lodash';
 import React from 'react';
@@ -33,14 +32,35 @@ function ConfigMapDataSection({ item }: { item: ConfigMap }) {
   const { t } = useTranslation(['translation']);
   const dispatch: AppDispatch = useDispatch();
 
-  const [data, setData] = React.useState(() => _.cloneDeep(item.data));
+  const [data, setData] = React.useState(() => _.cloneDeep(item.data || {}));
+  const [binaryData, setBinaryData] = React.useState(() => _.cloneDeep(item.binaryData || {}));
   const [isDirty, setIsDirty] = React.useState(false);
+ fix-configmap-hooks
   const lastDataRef = React.useRef(_.cloneDeep(item.data));
   const lastUidRef = React.useRef(item.metadata?.uid);
 
-  const handleFieldChange = (key: string, newValue: string) => {
-    setData(prev => ({ ...prev, [key]: newValue }));
-    setIsDirty(true);
+  const lastDataRef = React.useRef(_.cloneDeep(item.data || {}));
+  const lastBinaryDataRef = React.useRef(_.cloneDeep(item.binaryData || {}));
+ main
+
+  const handleDataFieldChange = (key: string, newValue: string) => {
+    setData(prev => {
+      const next = { ...prev, [key]: newValue };
+      setIsDirty(
+        !_.isEqual(next, lastDataRef.current) || !_.isEqual(binaryData, lastBinaryDataRef.current)
+      );
+      return next;
+    });
+  };
+
+  const handleBinaryDataFieldChange = (key: string, newValue: string) => {
+    setBinaryData(prev => {
+      const next = { ...prev, [key]: newValue };
+      setIsDirty(
+        !_.isEqual(data, lastDataRef.current) || !_.isEqual(next, lastBinaryDataRef.current)
+      );
+      return next;
+    });
   };
 
   React.useEffect(() => {
@@ -57,7 +77,7 @@ function ConfigMapDataSection({ item }: { item: ConfigMap }) {
   }, [item.data, isDirty, item.metadata?.uid]);
 
   const handleSave = () => {
-    const updatedConfigMap = { ...item.jsonData, data };
+    const updatedConfigMap = { ...item.jsonData, data, binaryData };
     dispatch(
       clusterAction(() => item.update(updatedConfigMap), {
         startMessage: t('translation|Applying changes to {{ itemName }}…', {
@@ -75,36 +95,58 @@ function ConfigMapDataSection({ item }: { item: ConfigMap }) {
       })
     );
     lastDataRef.current = _.cloneDeep(data);
+    lastBinaryDataRef.current = _.cloneDeep(binaryData);
     setIsDirty(false);
   };
 
-  const mainRows: NameValueTableRow[] = Object.entries(data).map(([key, value]) => ({
-    name: key as string,
+  const dataRows: NameValueTableRow[] = Object.entries(data).map(([key, value]) => ({
+    name: key,
     value: (
       <DataField
-        label={key as string}
+        label={key}
         disableLabel
         value={value}
-        onChange={(newValue: string) => handleFieldChange(key as string, newValue)}
+        onChange={(newValue: string) => handleDataFieldChange(key, newValue)}
+      />
+    ),
+  }));
+
+  const binaryDataRows: NameValueTableRow[] = Object.entries(binaryData).map(([key, value]) => ({
+    name: key,
+    value: (
+      <DataField
+        label={key}
+        disableLabel
+        value={value}
+        onChange={(newValue: string) => handleBinaryDataFieldChange(key, newValue)}
       />
     ),
   }));
 
   return (
-    <SectionBox title={t('translation|Data')}>
-      {mainRows.length === 0 ? (
-        <EmptyContent>{t('No data in this config map')}</EmptyContent>
-      ) : (
-        <>
-          <NameValueTable rows={mainRows} />
-          <Box mt={2} display="flex" justifyContent="flex-end">
-            <Button variant="contained" color="primary" onClick={handleSave}>
-              {t('translation|Save')}
-            </Button>
-          </Box>
-        </>
+    <>
+      <SectionBox title={t('translation|Data')}>
+        {dataRows.length === 0 ? (
+          <EmptyContent>{t('No data in this config map')}</EmptyContent>
+        ) : (
+          <NameValueTable rows={dataRows} />
+        )}
+      </SectionBox>
+      <SectionBox title={t('translation|Binary Data')}>
+        {binaryDataRows.length === 0 ? (
+          <EmptyContent>{t('No binary data in this config map')}</EmptyContent>
+        ) : (
+          <NameValueTable rows={binaryDataRows} />
+        )}
+      </SectionBox>
+      {binaryDataRows.length + dataRows.length > 0 && (
+        <SectionBox display="flex" justifyContent="flex-end">
+          <Button variant="contained" color="primary" onClick={handleSave}>
+            {t('translation|Save')}
+          </Button>
+        </SectionBox>
       )}
-    </SectionBox>
+    </>
   );
 }
 

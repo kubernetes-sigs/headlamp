@@ -2,6 +2,9 @@ config:
   tlsCertPath: "/headlamp-cert/headlamp-ca.crt"
   tlsKeyPath: "/headlamp-cert/headlamp-tls.key"
 
+probes:
+  scheme: HTTPS
+
 volumes:
   - name: "headlamp-cert"
     secret:

@@ -409,9 +409,104 @@ describe('WebSocket Multiplexer', () => {
         { timeout: 10000 }
       );
     });
+
+    it('should cleanup when unmounted before subscription resolves', async () => {
+      const fullUrl = `${BASE_WS_URL}api/v1/pods`;
+      const cleanup = vi.fn();
+      let resolveSubscribe: (cleanup: () => void) => void = () => {};
+      const subscribeSpy = vi.spyOn(WebSocketManager, 'subscribe').mockReturnValue(
+        new Promise<() => void>(resolve => {
+          resolveSubscribe = resolve;
+        })
+      );
+
+      const { unmount } = renderHook(() =>
+        useWebSocket({
+          url: () => fullUrl,
+          enabled: true,
+          cluster: clusterName,
+          onMessage,
+          onError,
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(subscribeSpy).toHaveBeenCalledWith(
+          clusterName,
+          '/api/v1/pods',
+          '',
+          expect.any(Function),
+          expect.any(Function)
+        );
+      });
+
+      unmount();
+      resolveSubscribe(cleanup);
+
+      await vi.waitFor(() => {
+        expect(cleanup).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    it('should remove subscription state when unmounted before subscription rejects', async () => {
+      const fullUrl = `${BASE_WS_URL}api/v1/pods`;
+      const key = WebSocketManager.createKey(clusterName, '/api/v1/pods', '');
+      let rejectConnect: (error: Error) => void = () => {};
+      vi.spyOn(WebSocketManager, 'connect').mockReturnValue(
+        new Promise<WebSocket>((_, reject) => {
+          rejectConnect = reject;
+        })
+      );
+
+      const { unmount } = renderHook(() =>
+        useWebSocket({
+          url: () => fullUrl,
+          enabled: true,
+          cluster: clusterName,
+          onMessage,
+          onError,
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(WebSocketManager.activeSubscriptions.has(key)).toBe(true);
+        expect(WebSocketManager.listeners.get(key)?.size).toBe(1);
+      });
+
+      unmount();
+      rejectConnect(new Error('WebSocket connection failed'));
+
+      await vi.waitFor(() => {
+        expect(WebSocketManager.listeners.has(key)).toBe(false);
+        expect(WebSocketManager.activeSubscriptions.has(key)).toBe(false);
+        expect(onError).not.toHaveBeenCalled();
+      });
+    });
   });
 
   describe('WebSocket error handling', () => {
+    it('should reject concurrent callers when in-progress connection fails', async () => {
+      vi.useFakeTimers();
+
+      try {
+        // Manually set connecting = true to simulate an in-progress attempt
+        WebSocketManager.connecting = true;
+
+        // Start a concurrent caller — it enters the polling branch
+        const concurrentPromise = WebSocketManager.connect();
+
+        // Simulate the primary connection failing by resetting connecting to false
+        WebSocketManager.connecting = false;
+
+        // Advance timers so the setInterval tick fires and detects the failure
+        await vi.advanceTimersByTimeAsync(200);
+
+        await expect(concurrentPromise).rejects.toThrow('WebSocket connection failed');
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('should handle polling timeout', async () => {
       const OriginalWebSocket = window.WebSocket;
 
@@ -538,6 +633,108 @@ describe('WebSocket Multiplexer', () => {
 
       expect(onMessage).not.toHaveBeenCalled();
       expect(console.error).toHaveBeenCalledWith('Failed to parse update data:', expect.any(Error));
+    });
+
+    it('should handle JSON error messages from backend', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=true';
+
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage);
+      await mockServer.connected;
+      await mockServer.nextMessage;
+
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query,
+          data: JSON.stringify({ error: 'cluster connection failed' }),
+          type: 'ERROR',
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(onMessage).toHaveBeenCalledWith({
+          type: 'ERROR',
+          object: {
+            kind: 'Status',
+            status: 'Failure',
+            message: 'cluster connection failed',
+            metadata: {
+              uid: `${WebSocketManager.createKey(
+                clusterName,
+                path,
+                query
+              )}:ERROR:cluster connection failed`,
+              resourceVersion: '0',
+            },
+          },
+        });
+      });
+    });
+
+    it('should handle non-JSON error messages from backend', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=true';
+
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage);
+      await mockServer.connected;
+      await mockServer.nextMessage;
+
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query,
+          data: 'plain backend error',
+          type: 'ERROR',
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(onMessage).toHaveBeenCalledWith({
+          type: 'ERROR',
+          object: {
+            kind: 'Status',
+            status: 'Failure',
+            message: 'plain backend error',
+            metadata: {
+              uid: `${WebSocketManager.createKey(
+                clusterName,
+                path,
+                query
+              )}:ERROR:plain backend error`,
+              resourceVersion: '0',
+            },
+          },
+        });
+      });
+    });
+
+    it('should route backend error to dedicated error callback when provided', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=true';
+
+      const errorCallback = vi.fn();
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage, errorCallback);
+      await mockServer.connected;
+      await mockServer.nextMessage;
+
+      await mockServer.send(
+        JSON.stringify({
+          clusterId: clusterName,
+          path,
+          query,
+          data: JSON.stringify({ error: 'dedicated error message' }),
+          type: 'ERROR',
+        })
+      );
+
+      await vi.waitFor(() => {
+        expect(errorCallback).toHaveBeenCalledWith(expect.any(Error));
+        expect(errorCallback.mock.calls[0][0].message).toBe('dedicated error message');
+        expect(onMessage).not.toHaveBeenCalled();
+      });
     });
 
     it('should handle message callback errors in useWebSocket', async () => {

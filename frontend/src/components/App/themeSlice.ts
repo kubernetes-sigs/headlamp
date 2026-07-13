@@ -72,6 +72,32 @@ const themeSlice = createSlice({
         setAppTheme(defaultThemeName);
       }
     },
+    /**
+     * Applies backend theme configuration if set.
+     * Should be called after config is loaded from backend.
+     */
+    applyBackendThemeConfig(
+      state,
+      action: PayloadAction<{
+        defaultLightTheme?: string;
+        defaultDarkTheme?: string;
+        forceTheme?: string;
+      }>
+    ) {
+      const backendConfig = action.payload;
+      const newThemeName = getThemeName(backendConfig);
+
+      // Only update if theme has changed
+      if (newThemeName !== state.name) {
+        state.name = newThemeName;
+        // Do not persist to localStorage when a forced theme is active — getThemeName()
+        // already returns forceTheme before reading localStorage, so the stored preference
+        // is never consulted while force is active and will be restored when it is lifted.
+        if (!backendConfig.forceTheme) {
+          setAppTheme(newThemeName);
+        }
+      }
+    },
   },
 });
 
@@ -94,20 +120,28 @@ export const useCurrentAppTheme = () => {
     localStorage.setItem(currentThemeCacheKey, JSON.stringify(currentTheme));
   } else {
     // Try to load cached theme
-    try {
-      const cachedTheme = JSON.parse(localStorage.getItem(currentThemeCacheKey) ?? '') as
-        | AppTheme
-        | undefined;
+    const cachedThemeRaw = localStorage.getItem(currentThemeCacheKey);
+    if (cachedThemeRaw) {
+      try {
+        const cachedTheme = JSON.parse(cachedThemeRaw) as AppTheme | undefined;
 
-      if (cachedTheme && cachedTheme?.name === themeName) {
-        currentTheme = cachedTheme;
+        if (cachedTheme && cachedTheme?.name === themeName) {
+          currentTheme = cachedTheme;
+        }
+      } catch (e) {
+        console.debug('Failed to parse cached theme from localStorage:', e);
       }
-    } catch (e) {}
+    }
   }
 
   return currentTheme ?? defaultAppThemes[0];
 };
 
-export const { setBrandingAppLogoComponent, setTheme } = themeSlice.actions;
+export const {
+  setBrandingAppLogoComponent,
+  setTheme,
+  applyBackendThemeConfig,
+  ensureValidThemeName,
+} = themeSlice.actions;
 export { themeSlice };
 export default themeSlice.reducer;

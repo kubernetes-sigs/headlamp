@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import ListView from './List';
 import { PORT_INGRESS, RESOURCE_INGRESS } from './storyHelper';
 
@@ -38,16 +38,14 @@ export default {
       handlers: {
         storyBase: [],
         story: [
-          http.get('http://localhost:4466/apis/networking.k8s.io/v1/ingresses', () =>
+          http.get(`${API_BASE}/apis/networking.k8s.io/v1/ingresses`, () =>
             HttpResponse.json({
               kind: 'IngressClassList',
               metadata: {},
               items: [PORT_INGRESS, RESOURCE_INGRESS],
             })
           ),
-          http.get('http://localhost:4466/apis/extensions/v1beta1/ingresses', () =>
-            HttpResponse.error()
-          ),
+          http.get(`${API_BASE}/apis/extensions/v1beta1/ingresses`, () => HttpResponse.error()),
         ],
       },
     },

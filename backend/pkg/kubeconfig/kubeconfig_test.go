@@ -3,6 +3,7 @@ package kubeconfig_test
 import (
 	"context"
 	"encoding/base64"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -12,7 +13,6 @@ import (
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -28,6 +28,16 @@ func boolPtr(b bool) *bool {
 
 func stringPtr(s string) *string {
 	return &s
+}
+
+// fileExists returns true if the file exists.
+func fileExists(filename string) bool {
+	info, err := os.Stat(filename)
+	if err != nil {
+		return false
+	}
+
+	return !info.IsDir()
 }
 
 // getTestDataPath returns the absolute path to the test data directory.
@@ -73,6 +83,26 @@ func TestLoadAndStoreKubeConfigs(t *testing.T) {
 		err := kubeconfig.LoadAndStoreKubeConfigs(contextStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
 		require.Error(t, err)
 	})
+}
+
+func TestContextSourceStr(t *testing.T) {
+	tests := []struct {
+		name   string
+		source int
+		want   string
+	}{
+		{"kubeconfig", kubeconfig.KubeConfig, "kubeconfig"},
+		{"dynamic cluster", kubeconfig.DynamicCluster, "dynamic_cluster"},
+		{"in cluster", kubeconfig.InCluster, "incluster"},
+		{"cluster inventory", kubeconfig.ClusterInventory, "cluster_inventory"},
+		{"unknown", 0, "unknown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, (&kubeconfig.Context{Source: tt.source}).SourceStr())
+		})
+	}
 }
 
 func TestLoadContextsFromKubeConfigFile(t *testing.T) {
@@ -298,6 +328,16 @@ users:
 	})
 }
 
+func TestOidcConfigWithNilAuthInfo(t *testing.T) {
+	context := &kubeconfig.Context{AuthInfo: nil}
+
+	oidcConfig, err := context.OidcConfig()
+
+	require.Error(t, err, "Expected an error when AuthInfo is nil")
+	assert.Nil(t, oidcConfig, "Expected nil OIDC config when AuthInfo is nil")
+	assert.EqualError(t, err, "authProvider is nil")
+}
+
 // createTempKubeconfig creates a temporary kubeconfig file for testing.
 func createTempKubeconfig(t *testing.T, content string) string {
 	t.Helper()
@@ -319,15 +359,29 @@ func TestContext(t *testing.T) {
 		t.Skip("skipping integration test")
 	}
 
-	kubeConfigFile := config.GetDefaultKubeConfigPath()
+	kubeConfigFile, err := config.GetDefaultKubeConfigPath()
+	if err != nil {
+		t.Skipf("Skipping test: failed to resolve default kubeconfig path: %v", err)
+	}
 
 	configStore := kubeconfig.NewContextStore()
 
-	err := kubeconfig.LoadAndStoreKubeConfigs(configStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
-	require.NoError(t, err)
+	err = kubeconfig.LoadAndStoreKubeConfigs(configStore, kubeConfigFile, kubeconfig.KubeConfig, nil)
+	if err != nil {
+		t.Skipf("Skipping test: failed to load default kubeconfig: %v", err)
+	}
 
 	testContext, err := configStore.GetContext("minikube")
-	require.NoError(t, err)
+	if err != nil {
+		t.Skipf("Skipping test: minikube context not found: %v", err)
+	}
+
+	// Verify that the certificates actually exist, if not skip
+	if testContext.Cluster != nil && testContext.Cluster.CertificateAuthority != "" {
+		if !fileExists(testContext.Cluster.CertificateAuthority) {
+			t.Skipf("Skipping test: minikube CA certificate not found at %s", testContext.Cluster.CertificateAuthority)
+		}
+	}
 
 	require.Equal(t, "minikube", testContext.Name)
 	require.NotNil(t, testContext.ClientConfig())
@@ -991,4 +1045,47 @@ users:
 			}
 		})
 	})
+}
+
+func TestContextAuthType(t *testing.T) {
+	tests := []struct {
+		name     string
+		context  *kubeconfig.Context
+		expected string
+	}{
+		{
+			name: "OIDC configuration present",
+			context: &kubeconfig.Context{
+				OidcConf: &kubeconfig.OidcConfig{},
+			},
+			expected: "oidc",
+		},
+		{
+			name: "AuthProvider present",
+			context: &kubeconfig.Context{
+				AuthInfo: &api.AuthInfo{
+					AuthProvider: &api.AuthProviderConfig{},
+				},
+			},
+			expected: "oidc",
+		},
+		{
+			name: "No auth configuration",
+			context: &kubeconfig.Context{
+				AuthInfo: &api.AuthInfo{},
+			},
+			expected: "",
+		},
+		{
+			name:     "Nil auth info and oidc config",
+			context:  &kubeconfig.Context{},
+			expected: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.context.AuthType())
+		})
+	}
 }

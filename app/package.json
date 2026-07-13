@@ -1,6 +1,6 @@
 {
   "name": "headlamp",
-  "version": "0.41.0",
+  "version": "0.43.0",
   "description": "Easy-to-use and extensible Kubernetes web UI",
   "main": "build/main.js",
   "homepage": "https://github.com/kubernetes-sigs/headlamp/#readme",
@@ -15,9 +15,12 @@
     "copy-icons": "mkdirp build/icons && copyfiles -f ../frontend/build/*.png ../frontend/build/*.ico ../frontend/build/*.icns ../frontend/build/*.svg build/icons",
     "copy-plugins": "npx --no-install shx rm -rf build/.plugins && mkdirp build/.plugins && copyfiles ../.plugins build/.plugins",
     "dev": "npm run compile-electron -- --dev && cross-env ELECTRON_DEV=1 electron .",
+    "dev:debug": "npm run compile-electron -- --dev && cross-env ELECTRON_DEV=1 electron . --remote-debugging-port=9222",
     "dev-only-app": "npm run compile-electron -- --dev && cross-env ELECTRON_DEV=1 ELECTRON_START_URL=http://localhost:3000 EXTERNAL_SERVER=true electron .",
+    "dev-only-app:debug": "npm run compile-electron -- --dev && cross-env ELECTRON_DEV=1 ELECTRON_START_URL=http://localhost:3000 EXTERNAL_SERVER=true electron . --remote-debugging-port=9222",
     "format": "cd .. && npm run frontend:format",
     "i18n": "npx --no-install i18next ./electron/main.ts -c ./electron/i18next-parser.config.ts",
+    "i18n-check": "npm run i18n -- --fail-on-update",
     "lint": "cd .. && npm run frontend:lint",
     "lint-fix": "cd .. && npm run frontend:lint:fix",
     "package": "npm run build && electron-builder build --publish never",
@@ -100,7 +103,6 @@
     },
     "mac": {
       "appId": "com.microsoft.Headlamp",
-      "identity": "-",
       "target": [
         {
           "target": "dmg",
@@ -111,8 +113,7 @@
         }
       ],
       "gatekeeperAssess": false,
-      "notarize": false,
-      "hardenedRuntime": false,
+      "hardenedRuntime": true,
       "entitlements": "mac/entitlements.mac.plist",
       "entitlementsInherit": "mac/entitlements.mac.plist",
       "extraResources": [
@@ -148,6 +149,10 @@
         "to": "frontend/i18n/locales"
       },
       {
+        "from": "assets/",
+        "to": "assets/"
+      },
+      {
         "from": "../.plugins",
         "to": ".plugins"
       },
@@ -174,7 +179,7 @@
     "@types/node": "^22.14.0",
     "@types/semver": "^7.7.0",
     "@types/yargs": "^17.0.35",
-    "electron": "^41.2.0",
+    "electron": "^38.8.6",
     "electron-builder": "^26.6.0",
     "esbuild": "^0.25.0",
     "i18next-parser": "^9.0.0",
@@ -194,7 +199,7 @@
     "find-process": "^1.4.10",
     "glob": "^10.5.0",
     "i18next": "^23.12.1",
-    "i18next-fs-backend": "^2.3.1",
+    "i18next-fs-backend": "^2.6.5",
     "mkdirp": "^3.0.1",
     "nock": "^14.0.5",
     "shx": "^0.4.0",

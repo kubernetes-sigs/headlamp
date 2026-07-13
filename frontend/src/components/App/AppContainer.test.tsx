@@ -53,4 +53,41 @@ describe('isValidRedirectPath', () => {
     expect(isValidRedirectPath(null as any)).toBe(false);
     expect(isValidRedirectPath(undefined as any)).toBe(false);
   });
+
+  it('should block URL-encoded protocol bypass attempts', () => {
+    expect(isValidRedirectPath('java%73cript:alert("XSS")')).toBe(false);
+    expect(isValidRedirectPath('%64ata:text/html,<script>alert("XSS")</script>')).toBe(false);
+    expect(isValidRedirectPath('javascript%3Aalert("XSS")')).toBe(false);
+    expect(() => isValidRedirectPath('%zz')).not.toThrow();
+    expect(isValidRedirectPath('%zz')).toBe(true);
+  });
+
+  it('should block scheme-based URLs without //', () => {
+    expect(isValidRedirectPath('http:evil.com')).toBe(false);
+    expect(isValidRedirectPath('https:evil.com')).toBe(false);
+  });
+
+  it('should block paths with leading whitespace containing dangerous protocols', () => {
+    expect(isValidRedirectPath(' javascript:alert("XSS")')).toBe(false);
+    expect(isValidRedirectPath('\tdata:text/html,<script>alert("XSS")</script>')).toBe(false);
+    expect(isValidRedirectPath('\njavascript:void(0)')).toBe(false);
+  });
+
+  it('should allow valid paths with special characters', () => {
+    expect(isValidRedirectPath('/dashboard?tab=overview')).toBe(true);
+    expect(isValidRedirectPath('/settings/cluster#section')).toBe(true);
+    expect(isValidRedirectPath('/namespaces/default/pods?labelSelector=app%3Dnginx')).toBe(true);
+  });
+
+  it('should block protocol-relative URLs with whitespace', () => {
+    expect(isValidRedirectPath(' //malicious.com')).toBe(false);
+    expect(isValidRedirectPath('\t//evil.com/path')).toBe(false);
+  });
+
+  it('should handle edge cases', () => {
+    expect(isValidRedirectPath('/')).toBe(true);
+    expect(isValidRedirectPath('/a')).toBe(true);
+    expect(isValidRedirectPath('javascript')).toBe(true);
+    expect(isValidRedirectPath('data')).toBe(true);
+  });
 });

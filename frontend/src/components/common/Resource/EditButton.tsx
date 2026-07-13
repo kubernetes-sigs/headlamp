@@ -15,12 +15,14 @@
  */
 
 import { Icon } from '@iconify/react';
+import { useSnackbar } from 'notistack';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
+import { normalizeBaselineForPatch } from '../../../lib/k8s/patchUtils';
 import { CallbackActionOptions, clusterAction } from '../../../redux/clusterActionSlice';
 import {
   EventStatus,
@@ -32,6 +34,7 @@ import { Activity } from '../../activity/Activity';
 import ActionButton, { ButtonStyle } from '../ActionButton';
 import AuthVisible from './AuthVisible';
 import EditorDialog from './EditorDialog';
+import { fetchLatestKubeObject } from './fetchLatestKubeObject';
 import ViewButton from './ViewButton';
 
 interface EditButtonProps {
@@ -48,22 +51,39 @@ export default function EditButton(props: EditButtonProps) {
   const [errorMessage, setErrorMessage] = React.useState<string>('');
   const location = useLocation();
   const { t } = useTranslation(['translation', 'resource']);
+  const { enqueueSnackbar } = useSnackbar();
   const dispatchHeadlampEditEvent = useEventCallback(HeadlampEventType.EDIT_RESOURCE);
   const activityId = 'edit-' + item.metadata.uid;
 
+  const originalItemRef = React.useRef<KubeObjectInterface | null>(null);
+  const editorItemRef = React.useRef<KubeObject>(item);
+  const editRequestRef = React.useRef(0);
+
   function makeErrorMessage(err: any) {
-    const status: number = err.status;
-    switch (status) {
-      case 408:
-        return 'Conflicts when trying to perform operation (code 408).';
-      default:
-        return `Failed to perform operation: code ${status}`;
+    const status = err?.status;
+    if (status === 409) {
+      return t('translation|Conflicts when trying to perform operation (code 409).');
     }
+    if (typeof status === 'number') {
+      return t('translation|Failed to perform operation: code {{ status }}.', { status });
+    }
+    const fallbackMessage = t('translation|unknown error');
+    return t('translation|Failed to perform operation: {{ message }}.', {
+      message: err?.message || fallbackMessage,
+    });
   }
 
   async function updateFunc(newItem: KubeObjectInterface) {
+    const original = originalItemRef.current;
+    if (!original) {
+      throw new Error('Cannot compute patch: original resource state was not captured');
+    }
     try {
-      await item.update(newItem);
+      await editorItemRef.current.patchUpdate(original, newItem);
+      // Use a normalized clone of the modified object (what the editor shows)
+      // as the new baseline, not the server response which includes
+      // server-managed fields the editor may not display.
+      originalItemRef.current = normalizeBaselineForPatch(newItem);
       Activity.close(activityId);
     } catch (err) {
       Activity.update(activityId, { minimized: false });
@@ -125,19 +145,62 @@ export default function EditButton(props: EditButtonProps) {
       <ActionButton
         description={t('translation|Edit')}
         buttonStyle={buttonStyle}
-        onClick={() => {
+        onClick={async () => {
+          const requestId = ++editRequestRef.current;
           if (afterConfirm) {
             afterConfirm();
           }
+          let editorItem = item;
+          try {
+            editorItem = await fetchLatestKubeObject(item);
+          } catch (err) {
+            if (requestId !== editRequestRef.current) {
+              return;
+            }
+
+            const status = (err as any)?.status;
+            const message = makeErrorMessage(err);
+            console.error(
+              'Error while fetching latest resource for YAML edit:',
+              {
+                kind: item.kind,
+                name: item.metadata.name,
+                namespace: item.metadata.namespace,
+                cluster: item.cluster,
+              },
+              err
+            );
+            if (status === 401 || status === 403) {
+              enqueueSnackbar(message, { variant: 'warning' });
+              editorItem = item;
+            } else {
+              enqueueSnackbar(message, { variant: 'error' });
+              return;
+            }
+          }
+
+          if (requestId !== editRequestRef.current) {
+            return;
+          }
+
+          setErrorMessage('');
+          const editableObject = editorItem.getEditableObject() as KubeObjectInterface;
+          // Normalize the baseline to match what EditorDialog presents to the
+          // user (which by default hides metadata.managedFields). Otherwise a
+          // "save without changes" produces a managedFields-only diff that
+          // patchUpdate would reject.
+          originalItemRef.current = normalizeBaselineForPatch(editableObject);
+          editorItemRef.current = editorItem;
+          Activity.close(activityId);
           Activity.launch({
             id: activityId,
-            title: t('translation|Edit') + ': ' + item.metadata.name,
+            title: t('translation|Edit') + ': ' + editorItem.metadata.name,
             icon: <Icon icon="mdi:pencil" />,
-            cluster: item.cluster,
+            cluster: editorItem.cluster,
             content: (
               <EditorDialog
                 noDialog
-                item={item.getEditableObject()}
+                item={editableObject}
                 open
                 onClose={() => Activity.close(activityId)}
                 onSave={handleSave}
@@ -150,7 +213,7 @@ export default function EditButton(props: EditButtonProps) {
           });
 
           dispatchHeadlampEditEvent({
-            resource: item,
+            resource: editorItem,
             status: EventStatus.OPENED,
           });
         }}

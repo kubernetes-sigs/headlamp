@@ -40,9 +40,12 @@ function NodeDetailsRenderer({ node }: { node?: GraphNode }) {
   const hasContent = node && (node.detailsComponent || node.kubeObject);
   if (!hasContent) return null;
 
+  if (node.detailsComponent) {
+    return <node.detailsComponent node={node} />;
+  }
+
   return (
     <>
-      {node.detailsComponent && <node.detailsComponent node={node} />}
       {node.kubeObject && (
         <KubeObjectDetails
           resource={node.kubeObject}

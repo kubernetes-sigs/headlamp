@@ -107,6 +107,10 @@ interface GraphViewContentProps {
 
 const defaultFiltersValue: GraphFilter[] = [];
 
+interface GraphViewInternalProps extends Omit<GraphViewContentProps, 'defaultSources'> {
+  sources: GraphSource[];
+}
+
 const ChipGroup = styled(Box)({
   display: 'flex',
 
@@ -124,10 +128,9 @@ const ChipGroup = styled(Box)({
 function GraphViewContent({
   height,
   defaultNodeSelection,
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  defaultSources = useGetAllSources(),
+  sources,
   defaultFilters = defaultFiltersValue,
-}: GraphViewContentProps) {
+}: GraphViewInternalProps) {
   const { t } = useTranslation();
   const dispatch = useDispatch();
 
@@ -193,18 +196,21 @@ function GraphViewContent({
   // Group the graph
   const [allNamespaces] = Namespace.useList();
   const [allNodes] = K8sNode.useList();
+
+  const activeNamespaces = groupBy === 'namespace' ? allNamespaces : undefined;
+  const activeNodes = groupBy === 'node' ? allNodes : undefined;
+
   const { visibleGraph, fullGraph } = useMemo(() => {
     const graph = groupGraph(filteredGraph.nodes, filteredGraph.edges, {
       groupBy,
-      namespaces: allNamespaces ?? [],
-      k8sNodes: allNodes ?? [],
+      namespaces: activeNamespaces ?? [],
+      k8sNodes: activeNodes ?? [],
     });
 
     const visibleGraph = collapseGraph(graph, { selectedNodeId, expandAll });
 
     return { visibleGraph, fullGraph: graph };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filteredGraph, groupBy, selectedNodeId, expandAll, allNamespaces]);
+  }, [filteredGraph, groupBy, selectedNodeId, expandAll, activeNamespaces, activeNodes]);
 
   const viewport = useGraphViewport();
 
@@ -305,7 +311,7 @@ function GraphViewContent({
                 <NamespacesAutocomplete />
 
                 <GraphSourcesView
-                  sources={defaultSources}
+                  sources={sources}
                   selectedSources={selectedSources}
                   toggleSource={toggleSelection}
                   sourceData={sourceData ?? new Map()}
@@ -454,10 +460,11 @@ function CustomThemeProvider({ children }: { children: ReactNode }) {
  * @returns
  */
 export function GraphView(props: GraphViewContentProps) {
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const propsSources = props.defaultSources ?? useGetAllSources();
-  // eslint-disable-next-line react-hooks/rules-of-hooks
-  const propsRelations = props.defaultRelations ?? useGetAllRelations();
+  const allSources = useGetAllSources();
+  const allRelations = useGetAllRelations();
+
+  const propsSources = props.defaultSources ?? allSources;
+  const propsRelations = props.defaultRelations ?? allRelations;
 
   // Load plugin defined sources
   const pluginGraphSources = useTypedSelector(state => state.graphView.graphSources);
@@ -471,7 +478,7 @@ export function GraphView(props: GraphViewContentProps) {
     <StrictMode>
       <ReactFlowProvider>
         <GraphSourceManager sources={sources} relations={propsRelations}>
-          <GraphViewContent {...props} defaultSources={sources} />
+          <GraphViewContent {...props} sources={sources} />
         </GraphSourceManager>
       </ReactFlowProvider>
     </StrictMode>

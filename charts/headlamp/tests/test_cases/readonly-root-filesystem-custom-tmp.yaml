@@ -1,0 +1,10 @@
+securityContext:
+  readOnlyRootFilesystem: true
+
+volumeMounts:
+  - name: my-tmp
+    mountPath: /tmp
+
+volumes:
+  - name: my-tmp
+    emptyDir: {}
