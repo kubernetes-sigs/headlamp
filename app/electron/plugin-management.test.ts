@@ -33,6 +33,8 @@ import {
   defaultPluginsDir,
   defaultUserPluginsDir,
   getExtraFiles,
+  isExistingDirectory,
+  isPathWithinDirectory,
   PluginManager,
   setAppConfigDirName,
 } from './plugin-management';
@@ -750,4 +752,69 @@ describe('TLS error detection', () => {
       }
     }
   }, 30000);
+});
+
+describe('isPathWithinDirectory', () => {
+  const baseDir = path.join(os.tmpdir(), 'headlamp-plugins-test-base');
+
+  it('allows a normal plugin folder name', () => {
+    const target = path.join(baseDir, 'headlamp-my-plugin');
+    expect(isPathWithinDirectory(baseDir, target)).toBe(true);
+  });
+
+  it('allows a nested subdirectory', () => {
+    const target = path.join(baseDir, 'sub', 'plugin');
+    expect(isPathWithinDirectory(baseDir, target)).toBe(true);
+  });
+
+  it('allows a folder name that starts with ..', () => {
+    const target = path.join(baseDir, '..foo');
+    expect(isPathWithinDirectory(baseDir, target)).toBe(true);
+  });
+
+  it('rejects a folder name that traverses outside the base directory', () => {
+    const target = path.join(baseDir, '..', '..', '..', 'etc');
+    expect(isPathWithinDirectory(baseDir, target)).toBe(false);
+  });
+
+  it('rejects the base directory itself', () => {
+    expect(isPathWithinDirectory(baseDir, baseDir)).toBe(false);
+  });
+
+  it('rejects an unrelated absolute path', () => {
+    expect(isPathWithinDirectory(baseDir, '/etc/passwd')).toBe(false);
+  });
+});
+
+// Containment is not enough on its own: a name can resolve to a file inside the
+// plugins directory, and shell.openPath launches a file rather than showing it.
+describe('isExistingDirectory', () => {
+  const baseDir = getUniqueTestDir(TEST_DATA_BASE_DIR, 'is-existing-directory');
+
+  afterEach(() => {
+    if (fs.existsSync(baseDir)) {
+      fs.rmSync(baseDir, { recursive: true });
+    }
+  });
+
+  it('accepts a directory', () => {
+    const pluginDir = path.join(baseDir, 'headlamp-my-plugin');
+    fs.mkdirSync(pluginDir, { recursive: true });
+
+    expect(isExistingDirectory(pluginDir)).toBe(true);
+  });
+
+  it('rejects a file', () => {
+    const binDir = path.join(baseDir, 'headlamp-my-plugin', 'bin');
+    fs.mkdirSync(binDir, { recursive: true });
+
+    const binary = path.join(binDir, 'tool');
+    fs.writeFileSync(binary, 'binary');
+
+    expect(isExistingDirectory(binary)).toBe(false);
+  });
+
+  it('rejects a path that does not exist', () => {
+    expect(isExistingDirectory(path.join(baseDir, 'missing'))).toBe(false);
+  });
 });

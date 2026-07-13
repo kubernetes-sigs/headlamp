@@ -57,6 +57,8 @@ import {
   defaultUserPluginsDir,
   getMatchingExtraFiles,
   getPluginBinDirectories,
+  isExistingDirectory,
+  isPathWithinDirectory,
   PluginManager,
   setAppConfigDirName,
 } from './plugin-management';
@@ -1818,21 +1820,53 @@ function startElectron() {
         event: IpcMainEvent,
         pluginInfo: { folderName: string; type: 'development' | 'user' | 'shipped' }
       ) => {
-        let folderPath: string | null = null;
+        // The IPC payload comes from the renderer and isn't trusted.
+        if (!pluginInfo || typeof pluginInfo.folderName !== 'string') {
+          return;
+        }
+
+        let baseDir: string | null = null;
 
         if (pluginInfo.type === 'user') {
-          folderPath = path.join(defaultUserPluginsDir(), pluginInfo.folderName);
+          baseDir = defaultUserPluginsDir();
         } else if (pluginInfo.type === 'development') {
-          folderPath = path.join(defaultPluginsDir(), pluginInfo.folderName);
+          baseDir = defaultPluginsDir();
         } else if (pluginInfo.type === 'shipped') {
-          folderPath = path.join(process.resourcesPath, '.plugins', pluginInfo.folderName);
+          baseDir = path.join(process.resourcesPath, '.plugins');
         }
 
-        if (folderPath) {
-          shell.openPath(folderPath).catch((err: Error) => {
-            console.error('Failed to open plugin folder:', err);
-          });
+        if (!baseDir) {
+          return;
         }
+
+        const folderPath = path.join(baseDir, pluginInfo.folderName);
+
+        // pluginInfo.folderName comes from the renderer and isn't trusted, so
+        // make sure the resolved path still lives inside the expected plugin
+        // directory before opening it. Without this, a folderName like
+        // "../../../../etc" would resolve outside baseDir entirely, and
+        // shell.openPath would open (or, for a file, launch) whatever it lands on.
+        if (!isPathWithinDirectory(baseDir, folderPath)) {
+          console.error(`Refusing to open plugin folder outside of ${baseDir}: ${folderPath}`);
+          return;
+        }
+
+        // Staying inside the plugins directory is not enough: a folderName like
+        // "some-plugin/bin/tool.exe" resolves to a file in there, and
+        // shell.openPath launches a file with its OS handler instead of showing
+        // it. This channel opens folders, so refuse anything else.
+        if (!isExistingDirectory(folderPath)) {
+          console.error(`Refusing to open plugin path that is not a directory: ${folderPath}`);
+          return;
+        }
+
+        // shell.openPath resolves with an error message string on failure
+        // rather than rejecting, so check the resolved value.
+        shell.openPath(folderPath).then((errMsg: string) => {
+          if (errMsg) {
+            console.error('Failed to open plugin folder:', errMsg);
+          }
+        });
       }
     );
 
