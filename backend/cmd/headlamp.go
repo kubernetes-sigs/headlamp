@@ -80,6 +80,7 @@ type HeadlampConfig struct {
 	*headlampconfig.HeadlampConfig
 	proxyURLMu        sync.Mutex
 	compiledProxyURLs []glob.Glob
+	oidcStateReader   io.Reader
 }
 
 func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
@@ -963,14 +964,12 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		// state should be unique per request, cryptographically secure random, url safe
-		state, err := func() (string, error) {
-			b := make([]byte, 32)
-			if _, err := rand.Read(b); err != nil {
-				return "", fmt.Errorf("generating OIDC state: %w", err)
-			}
+		stateReader := config.oidcStateReader
+		if stateReader == nil {
+			stateReader = rand.Reader
+		}
 
-			return base64.RawURLEncoding.EncodeToString(b), nil
-		}()
+		state, err := generateOidcState(stateReader)
 		if err != nil {
 			logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster}, err, "failed to generate OIDC state")
 			http.Error(w, "failed to generate OIDC state", http.StatusInternalServerError)
@@ -1261,6 +1260,16 @@ func isLoopbackAddr(addr string) bool {
 	ip := net.ParseIP(strings.Trim(addr, "[]"))
 
 	return ip != nil && ip.IsLoopback()
+}
+
+func generateOidcState(reader io.Reader) (string, error) {
+	b := make([]byte, 32)
+
+	if _, err := io.ReadFull(reader, b); err != nil {
+		return "", fmt.Errorf("generating OIDC state: %w", err)
+	}
+
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 // allowedHosts returns the set of normalized host values that are considered
@@ -1763,6 +1772,13 @@ func (c *HeadlampConfig) dispatchHelmRoute(
 func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,
 	span trace.Span, err error, msg string, status int,
 ) {
+	// Guard against a nil error: some callers pass one on a failure path, and
+	// err.Error() below would then panic and take down the request handler.
+	// Fall back to msg so the client still gets a meaningful response.
+	if err == nil {
+		err = errors.New(msg)
+	}
+
 	logger.Log(logger.LevelError, nil, err, msg)
 	c.TelemetryHandler.RecordError(span, err, msg)
 	c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", msg))
@@ -2477,11 +2493,10 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 
 // customNameToExtensions writes the custom name to the Extensions map in the kubeconfig.
 func customNameToExtensions(config *api.Config, contextName, newClusterName, path string) error {
-	var err error
-
 	// Get the context with the given cluster name
 	contextConfig, ok := config.Contexts[contextName]
 	if !ok {
+		err := fmt.Errorf("context %q not found in kubeconfig", contextName)
 		logger.Log(logger.LevelError, map[string]string{logFieldCluster: contextName},
 			err, "getting context from kubeconfig")
 

@@ -36,8 +36,9 @@ import (
 )
 
 const (
-	apiPathSegment  = "api"
-	apisPathSegment = "apis"
+	apiPathSegment       = "api"
+	apisPathSegment      = "apis"
+	namespacePathSegment = "namespaces"
 )
 
 func kubernetesAPIPathIndex(parts []string) int {
@@ -149,7 +150,7 @@ func ExtractNamespace(rawURL string) (string, string) {
 	}
 
 	for i := 0; i < n-1; i++ {
-		if urls[i] == "namespaces" {
+		if urls[i] == namespacePathSegment {
 			namespace = urls[i+1]
 			break
 		}
@@ -193,13 +194,10 @@ func unescapeCacheKeySegment(s string) string {
 // namespace stripping in cache invalidation) must stay consistent with this
 // encoding to avoid the two sides silently drifting out of sync.
 func buildCacheKey(apiGroup, kind, namespace, contextID string) string {
-	return fmt.Sprintf(
-		"%s+%s+%s+%s",
-		escapeCacheKeySegment(apiGroup),
-		escapeCacheKeySegment(kind),
-		escapeCacheKeySegment(namespace),
-		escapeCacheKeySegment(contextID),
-	)
+	return escapeCacheKeySegment(apiGroup) + "+" +
+		escapeCacheKeySegment(kind) + "+" +
+		escapeCacheKeySegment(namespace) + "+" +
+		escapeCacheKeySegment(contextID)
 }
 
 // GenerateKey function helps to generate a unique key based on the request from the client
@@ -286,7 +284,6 @@ func LoadFromCache(k8scache cache.Cache[string], isAllowed bool,
 func StoreK8sResponseInCache(k8scache cache.Cache[string],
 	url *url.URL,
 	rcw *ResponseCapture,
-	r *http.Request,
 	key string,
 ) error {
 	if rcw.StatusCode >= 500 {
@@ -303,7 +300,15 @@ func StoreK8sResponseInCache(k8scache cache.Cache[string],
 	}
 
 	headersToCache := FilterHeaderForCache(capturedHeaders, encoding)
+
 	if !strings.Contains(url.Path, "selfsubjectrulesreviews") {
+		// Check the decompressed body for Kubernetes error status before
+		// marshalling the full CachedResponseData. This avoids allocating
+		// the JSON envelope for responses that will be discarded anyway.
+		if strings.Contains(dcmpBody, "Failure") {
+			return nil
+		}
+
 		cachedData := CachedResponseData{
 			StatusCode: rcw.StatusCode,
 			Headers:    headersToCache,
@@ -315,13 +320,11 @@ func StoreK8sResponseInCache(k8scache cache.Cache[string],
 			return err
 		}
 
-		if !strings.Contains(string(jsonBytes), "Failure") {
-			if err = k8scache.SetWithTTL(context.Background(), key, string(jsonBytes), 10*time.Minute); err != nil {
-				return err
-			}
-
-			logger.Log(logger.LevelInfo, nil, nil, "k8s resource was stored with the key "+redactCacheKey(key))
+		if err = k8scache.SetWithTTL(context.Background(), key, string(jsonBytes), 10*time.Minute); err != nil {
+			return err
 		}
+
+		logger.Log(logger.LevelInfo, nil, nil, "k8s resource was stored with the key "+redactCacheKey(key))
 	}
 
 	return nil

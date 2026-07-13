@@ -44,6 +44,12 @@ export default mergeConfig(
           'src/**/*.stories*.{js,jsx,ts,tsx}',
         ],
         include: ['src/**/*.{js,jsx,ts,tsx}'],
+        thresholds: {
+          statements: 63,
+          branches: 56,
+          functions: 59,
+          lines: 64,
+        },
       },
       restoreMocks: false,
       setupFiles: ['./src/setupTests.ts'],

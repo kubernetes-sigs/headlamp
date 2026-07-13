@@ -1,0 +1,16 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-172hjuw"
+    >
+      <div
+        class="MuiBox-root css-iyhyxy"
+      />
+      <span
+        class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+      >
+        a-very-long-cluster-name-that-should-be-truncated-with-an-ellipsis
+      </span>
+    </div>
+  </div>
+</body>

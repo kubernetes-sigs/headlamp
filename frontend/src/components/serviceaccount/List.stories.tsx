@@ -55,3 +55,73 @@ const Template: StoryFn = () => {
 };
 
 export const Items = Template.bind({});
+import Container from '@mui/material/Container';
+import { Meta, StoryFn } from '@storybook/react';
+import { http, HttpResponse } from 'msw';
+import { API_BASE, TestContext } from '../../test';
+import List from './List';
+import { SERVICE_ACCOUNT_DUMMY_DATA } from './storyHelper';
+
+export default {
+  title: 'ServiceAccount/ListView',
+  component: List,
+  decorators: [
+    Story => (
+      <TestContext>
+        <Story />
+      </TestContext>
+    ),
+  ],
+} as Meta;
+
+const Template: StoryFn = () => (
+  <Container maxWidth="xl">
+    <List />
+  </Container>
+);
+
+export const Items = Template.bind({});
+Items.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/api/v1/serviceaccounts`, () =>
+          HttpResponse.json({
+            kind: 'ServiceAccountList',
+            apiVersion: 'v1',
+            metadata: {},
+            items: SERVICE_ACCOUNT_DUMMY_DATA,
+          })
+        ),
+      ],
+    },
+  },
+};
+
+export const Empty = Template.bind({});
+Empty.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/api/v1/serviceaccounts`, () =>
+          HttpResponse.json({
+            kind: 'ServiceAccountList',
+            apiVersion: 'v1',
+            metadata: {},
+            items: [],
+          })
+        ),
+      ],
+    },
+  },
+};
+
+export const Loading = Template.bind({});
+Loading.parameters = {
+  storyshots: { disable: true },
+  msw: {
+    handlers: {
+      story: [http.get(`${API_BASE}/api/v1/serviceaccounts`, () => new Promise(() => {}))],
+    },
+  },
+};
