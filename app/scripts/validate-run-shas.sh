@@ -220,7 +220,10 @@ main() {
   tag_name=$(resolve_tag "$release_name") || exit 1
 
   local expected_sha
-  expected_sha=$(get_tag_sha "$tag_name")
+  if ! expected_sha=$(get_tag_sha "$tag_name"); then
+    echo "Error: Failed to determine SHA for tag '$tag_name'." >&2
+    exit 1
+  fi
   if [ -z "$expected_sha" ]; then
     echo "Error: Could not determine SHA for tag '$tag_name'." >&2
     exit 1

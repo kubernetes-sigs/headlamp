@@ -60,7 +60,10 @@ jobs:
           git fetch --tags --force origin
 
           tag_name="$(resolve_tag "${{ inputs.release_name }}")" || exit 1
-          expected_sha="$(get_tag_sha "$tag_name")"
+          if ! expected_sha=$(get_tag_sha "$tag_name"); then
+            echo "Error: Failed to determine SHA for tag '$tag_name'." >&2
+            exit 1
+          fi
           if [ -z "$expected_sha" ]; then
             echo "Error: Could not determine SHA for tag '$tag_name'." >&2
             exit 1
@@ -115,7 +118,7 @@ jobs:
           ls -la ./flattened-artifacts/
 
           # Check if any files are found and set output
-          if [ -z "$(ls -A ./flattened-artifacts)" ]; then
+          if [ -z "$(find ./flattened-artifacts -mindepth 1 -print -quit)" ]; then
             echo "No artifacts found to upload!"
             echo "has_artifacts=false" >> "$GITHUB_OUTPUT"
           else
