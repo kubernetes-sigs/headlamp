@@ -157,6 +157,7 @@ export function PureAuthToken({
                 <Link
                   style={{ cursor: 'pointer', marginLeft: '0.4rem' }}
                   target="_blank"
+                  rel="noopener noreferrer"
                   href="https://headlamp.dev/docs/latest/installation/#create-a-service-account-token"
                 >
                   service account token

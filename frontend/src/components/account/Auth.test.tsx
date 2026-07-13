@@ -141,11 +141,13 @@ describe('PureAuthToken', () => {
     expect(screen.getByRole('button', { name: /Authenticate/i })).toBeInTheDocument();
   });
 
-  it('renders the service account token docs link', () => {
+  it('renders the service account token docs link securely', () => {
     renderPure();
 
     const link = screen.getByRole('link', { name: /service account token/i });
     expect(link).toBeInTheDocument();
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    expect(link).toHaveAttribute('target', '_blank');
   });
 
   it('shows error snackbar when showError is true', () => {
