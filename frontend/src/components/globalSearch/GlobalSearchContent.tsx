@@ -157,7 +157,8 @@ interface GlobalSearchContentPlaceholderProps extends GlobalSearchContentProps {
   loadFailed?: boolean;
 }
 
-function GlobalSearchContentPlaceholder(props: GlobalSearchContentPlaceholderProps) {
+/** Loading / error UI while searchable resource classes are being loaded. */
+export function GlobalSearchContentPlaceholder(props: GlobalSearchContentPlaceholderProps) {
   const { onBlur, query, onQueryChange, loadFailed } = props;
   const { t } = useTranslation();
 
