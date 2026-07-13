@@ -456,9 +456,14 @@ export async function fetchAndExecutePlugins(
 
   const sourcesPromise = Promise.all(
     pluginPaths.map(path =>
-      fetch(`${getAppUrl()}${path}/main.js`, { headers: new Headers(headers) }).then(resp =>
-        resp.text()
-      )
+      fetch(`${getAppUrl()}${path}/main.js`, { headers: new Headers(headers) }).then(resp => {
+        if (!resp.ok) {
+          throw new Error(
+            `Failed to fetch plugin main.js for ${path}: HTTP ${resp.status} ${resp.statusText}`
+          );
+        }
+        return resp.text();
+      })
     )
   );
 
