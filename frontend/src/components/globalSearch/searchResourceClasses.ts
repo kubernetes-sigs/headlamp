@@ -24,25 +24,8 @@ let searchResourceClassesPromise: Promise<KubeObjectClass[]> | null = null;
  */
 export function loadSearchResourceClasses(): Promise<KubeObjectClass[]> {
   if (!searchResourceClassesPromise) {
-    searchResourceClassesPromise = Promise.all([
-      import('../../lib/k8s/pod'),
-      import('../../lib/k8s/deployment'),
-      import('../../lib/k8s/service'),
-      import('../../lib/k8s/job'),
-      import('../../lib/k8s/cronJob'),
-      import('../../lib/k8s/configMap'),
-      import('../../lib/k8s/namespace'),
-      import('../../lib/k8s/statefulSet'),
-      import('../../lib/k8s/replicaSet'),
-      import('../../lib/k8s/persistentVolumeClaim'),
-      import('../../lib/k8s/endpoints'),
-      import('../../lib/k8s/endpointSlices'),
-      import('../../lib/k8s/ingress'),
-      import('../../lib/k8s/serviceAccount'),
-      import('../../lib/k8s/node'),
-      import('../../lib/k8s/jobSet'),
-    ])
-      .then(modules => modules.map(module => module.default as KubeObjectClass))
+    searchResourceClassesPromise = import('./searchResourceClassesList')
+      .then(module => module.searchResourceClasses)
       .catch(error => {
         // Allow a later call to retry if chunk loading fails once.
         searchResourceClassesPromise = null;

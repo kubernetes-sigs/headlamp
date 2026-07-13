@@ -110,10 +110,10 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
         }
       })
       .catch(error => {
-        console.error('Failed to load global search resource classes', error);
         if (cancelled) {
           return;
         }
+        console.error('Failed to load global search resource classes', error);
         if (loadAttempt + 1 >= MAX_RESOURCE_CLASS_LOAD_ATTEMPTS) {
           setLoadFailed(true);
           return;
