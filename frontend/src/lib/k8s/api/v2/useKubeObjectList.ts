@@ -564,6 +564,9 @@ export function useKubeObjectList<K extends KubeObject>({
   });
 
   const filteredErrors = query.errors.filter(it => it !== null);
+  // useEndpoints returns undefined endpoint (no error) while probing multiple API versions.
+  // With no list queries yet, useQueries would otherwise report success + empty data.
+  const isEndpointPending = !endpoint && !endpointError;
   const items = endpointError ? [] : query.items;
   const error = endpointError ?? query.errors.find(it => it !== null) ?? null;
   const errors = endpointError
@@ -571,20 +574,23 @@ export function useKubeObjectList<K extends KubeObject>({
     : filteredErrors.length > 0
     ? filteredErrors
     : null;
+  const isLoading = isEndpointPending || query.isLoading;
+  const isFetching = isEndpointPending || query.isFetching;
+  const isSuccess = !isEndpointPending && query.isSuccess && !endpointError;
   const status: 'error' | 'pending' | 'success' =
-    endpointError || query.isError ? 'error' : query.isLoading ? 'pending' : 'success';
+    endpointError || query.isError ? 'error' : isLoading ? 'pending' : 'success';
 
   // Object.assign creates a tuple+object intersection without @ts-ignore (same pattern as useKubeObject).
   return Object.assign([items, error] as [Array<K> | null, ApiError | null], {
-    data: endpointError ? null : query.data,
+    data: endpointError || isEndpointPending ? null : query.data,
     items,
     errors,
     error,
     clusterResults: query.clusterResults,
     isError: query.isError || !!endpointError,
-    isLoading: query.isLoading,
-    isFetching: query.isFetching,
-    isSuccess: query.isSuccess && !endpointError,
+    isLoading,
+    isFetching,
+    isSuccess,
     status,
   });
 }
