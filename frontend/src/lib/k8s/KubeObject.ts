@@ -384,7 +384,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
       return function cleanup() {
         for (const cancellablePromise of cancellables) {
-          cancellablePromise.then(cancellable => cancellable());
+          void cancellablePromise.then(cancellable => cancellable()).catch(() => {});
         }
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
