@@ -900,7 +900,7 @@
   "Namespace discovery could not list RoleBindings. Ask your administrator to grant cluster-wide list permission on RoleBindings. Your Kubernetes identity: {{identity}}.": "",
   "RoleBindings were listed but none match your Kubernetes identity. Ensure namespace RoleBinding subjects use the same user or group names as your identity provider maps in the cluster. Your Kubernetes identity: {{identity}}.": "",
   "Namespace discovery is still waiting for authentication to be ready. Refresh the page if this persists.": "",
-  "Could not discover accessible namespaces. Grant list RoleBindings permission and namespace RoleBindings for your identity, or use Settings → Additional namespaces. Your Kubernetes identity: {{identity}}.": "",
+  "Could not discover accessible namespaces. Grant list RoleBindings permission and namespace RoleBindings for your identity, or use Settings → Additional namespaces (override). Your Kubernetes identity: {{identity}}.": "",
   "Namespace discovery failed unexpectedly. Refresh the page if this persists.": "",
   "Warning. Incompatible plugins disabled: ({{ pluginList }})": "",
   "Failed to load plugins. Please try reloading the app.": "",

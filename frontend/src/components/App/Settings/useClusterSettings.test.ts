@@ -42,13 +42,29 @@ describe('useClusterSettings', () => {
     });
   });
 
-  it('does not invalidate discovery when unrelated settings change', () => {
+  it('invalidates namespace discovery when defaultNamespace changes', () => {
     const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
 
     const { result } = renderHook(() => useClusterSettings('prod'));
 
     act(() => {
       result.current[1]({ defaultNamespace: 'app' });
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['auth', 'prod'], exact: true });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: [NAMESPACE_DISCOVERY_QUERY_KEY, 'prod'],
+      exact: true,
+    });
+  });
+
+  it('does not invalidate discovery when unrelated settings change', () => {
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+
+    const { result } = renderHook(() => useClusterSettings('prod'));
+
+    act(() => {
+      result.current[1]({ currentName: 'display-name' });
     });
 
     expect(invalidateSpy).not.toHaveBeenCalled();
