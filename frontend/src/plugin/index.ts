@@ -519,7 +519,14 @@ export async function fetchAndExecutePlugins(
       fetchPluginResource(
         `${getAppUrl()}${path}/main.js`,
         headers,
-        response => response.text(),
+        response => {
+          if (!response.ok) {
+            throw new Error(
+              `Failed to fetch plugin main.js for ${path}: HTTP ${response.status} ${response.statusText}`
+            );
+          }
+          return response.text();
+        },
         remainingStartupTime(deadline)
       )
     )
