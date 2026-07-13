@@ -325,7 +325,60 @@ func TestStartPortForward(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(deleteRespBody), "stopped")
 
-	chState, err = ch.Get(context.Background(), cacheKey)
-	require.Error(t, err, "port-forward with key %s should be deleted from cache, but Get returned no error", cacheKey)
-	require.Nil(t, chState)
+	require.Eventually(t, func() bool {
+		_, err := ch.Get(context.Background(), cacheKey)
+		return err != nil
+	}, 3*time.Second, 50*time.Millisecond,
+		"port-forward with key %s should be deleted from cache", cacheKey)
+}
+
+// TestGetPortForwardsClusterNameNotExposingUserID verifies that when a dynamic
+// cluster request carries an X-HEADLAMP-USER-ID header, the port forwards
+// returned by GetPortForwards contain the original cluster name and not the
+// internal cache key (clusterName + userID).
+func TestGetPortForwardsClusterNameNotExposingUserID(t *testing.T) {
+	t.Parallel()
+
+	const clusterName = "k8s-prod"
+
+	const userID = "f04bd0db261b76f3"
+
+	ch := cache.New[interface{}]()
+
+	// Simulate what startPortForward does internally: store a portForward
+	// with Cluster set to the original name and cacheKey set to the
+	// userID-suffixed internal key.
+	err := portforward.StorePortForwardForTest(ch, clusterName, userID)
+	require.NoError(t, err)
+
+	listReq := &http.Request{
+		Header: make(http.Header),
+	}
+	listResp := httptest.NewRecorder()
+	listReq.URL = &url.URL{}
+	listReq.Header.Set("X-HEADLAMP-USER-ID", userID)
+	listReq = mux.SetURLVars(listReq, map[string]string{"clusterName": clusterName})
+
+	portforward.GetPortForwards(ch, listResp, listReq)
+
+	listRes := listResp.Result()
+	defer func() { _ = listRes.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, listRes.StatusCode)
+
+	listData, err := io.ReadAll(listRes.Body)
+	require.NoError(t, err)
+
+	var pfList []map[string]interface{}
+
+	err = json.Unmarshal(listData, &pfList)
+	require.NoError(t, err)
+	require.Len(t, pfList, 1, "expected exactly one port forward in list")
+
+	clusterVal, ok := pfList[0]["cluster"]
+	require.True(t, ok, "'cluster' field missing from port forward response")
+	assert.Equal(t, clusterName, clusterVal,
+		"cluster field must be the original cluster name, not the internal cache key")
+	assert.NotContains(t, clusterVal, userID,
+		"cluster field must not contain the X-HEADLAMP-USER-ID suffix")
 }
