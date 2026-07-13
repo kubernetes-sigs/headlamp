@@ -837,7 +837,7 @@ func TestExternalProxyTimeout(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusBadGateway, rr.Code)
-	assert.Contains(t, rr.Body.String(), "context deadline exceeded")
+	assert.Contains(t, rr.Body.String(), "external proxy request failed")
 }
 
 func TestDrainAndCordonNode(t *testing.T) { //nolint:funlen
@@ -4010,4 +4010,270 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, int(maxProxyResponseSize), rr.Body.Len())
+}
+
+func assertHeadersEmpty(t *testing.T, headers http.Header, headerNames ...string) {
+	t.Helper()
+
+	for _, headerName := range headerNames {
+		assert.Empty(t, headers.Get(headerName), "%s header should be filtered", headerName)
+	}
+}
+
+func assertHeaderPrefixAbsent(t *testing.T, headers http.Header, prefix string) {
+	t.Helper()
+
+	for h := range headers {
+		if strings.HasPrefix(strings.ToUpper(h), prefix) {
+			t.Errorf("Header %s should have been filtered", h)
+		}
+	}
+}
+
+func newExternalProxyHeaderFilteringHandler(
+	t *testing.T,
+) (http.Handler, *url.URL, *httptest.Server, func() http.Header) {
+	t.Helper()
+
+	var mu sync.Mutex
+
+	var receivedHeaders http.Header
+
+	proxyTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		receivedHeaders = r.Header.Clone()
+		mu.Unlock()
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+
+	proxyURL, err := url.Parse(proxyTarget.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	cache := cache.New[interface{}]()
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				ProxyURLs:       []string{proxyURL.String()},
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache: cache,
+		},
+	}
+
+	receivedHeadersSnapshot := func() http.Header {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return receivedHeaders.Clone()
+	}
+
+	return createHeadlampHandler(context.Background(), c), proxyURL, proxyTarget, receivedHeadersSnapshot
+}
+
+func TestExternalProxyHeaderFiltering(t *testing.T) {
+	handler, proxyURL, proxyTarget, receivedHeadersSnapshot := newExternalProxyHeaderFilteringHandler(t)
+	defer proxyTarget.Close()
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Set the proxy-to header (internal routing header that should be filtered)
+	req.Header.Set("proxy-to", proxyURL.String())
+	req.Header.Set("Forward-to", "/some/path")
+
+	// Set sensitive headers that should be filtered
+	req.Header.Set("Authorization", "Bearer sensitive-token")
+	req.Header.Set("Cookie", "session=sensitive-cookie")
+	req.Header.Set("Proxy-Authorization", "Basic sensitive-proxy-token")
+	// Test hyphenated X-Headlamp-* headers
+	req.Header.Set("X-Headlamp-Backend-Token", "sensitive-backend-token")
+	req.Header.Set("X-Headlamp-Custom", "sensitive-custom-header")
+	// Test an underscore-style X-HEADLAMP_* variant defensively as well.
+	req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", "sensitive-underscore-token")
+
+	// Set transport/protocol headers that should not be forwarded.
+	req.Header.Set("Accept-Encoding", "br, zstd")
+	req.Header.Set("Connection", "Upgrade, X-Connection-Only")
+	req.Header.Set("Keep-Alive", "timeout=5")
+	req.Header.Set("Proxy-Connection", "keep-alive")
+	req.Header.Set("TE", "trailers")
+	req.Header.Set("Trailer", "Expires")
+	req.Header.Set("Transfer-Encoding", "chunked")
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set("X-Connection-Only", "drop-me")
+
+	// Set a non-sensitive header that should be preserved
+	req.Header.Set("X-Custom-Preserve", "preserve-me")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	receivedHeaders := receivedHeadersSnapshot()
+	assert.Equal(t, "preserve-me", receivedHeaders.Get("X-Custom-Preserve"), "Non-sensitive header should be preserved")
+	assertHeadersEmpty(t, receivedHeaders, "Authorization", "Cookie", "Proxy-Authorization")
+	assertHeaderPrefixAbsent(t, receivedHeaders, "X-HEADLAMP-")
+	assertHeadersEmpty(t, receivedHeaders, "X-HEADLAMP_BACKEND-TOKEN")
+	assertHeaderPrefixAbsent(t, receivedHeaders, "X-HEADLAMP_")
+	assertHeadersEmpty(t, receivedHeaders, "proxy-to", "Forward-to")
+	assertHeadersEmpty(t, receivedHeaders,
+		"Accept-Encoding",
+		"Connection",
+		"Keep-Alive",
+		"Proxy-Connection",
+		"TE",
+		"Trailer",
+		"Transfer-Encoding",
+		"Upgrade",
+		"X-Connection-Only",
+	)
+}
+
+func TestExternalProxyDoesNotFollowRedirects(t *testing.T) {
+	var mu sync.Mutex
+
+	disallowedTargetHit := false
+
+	disallowedTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		disallowedTargetHit = true
+		mu.Unlock()
+	}))
+	defer disallowedTarget.Close()
+
+	proxyTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, disallowedTarget.URL, http.StatusFound)
+	}))
+	defer proxyTarget.Close()
+
+	proxyURL, err := url.Parse(proxyTarget.URL)
+	require.NoError(t, err)
+
+	cache := cache.New[interface{}]()
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				ProxyURLs:       []string{proxyURL.String()},
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache: cache,
+		},
+	})
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
+	require.NoError(t, err)
+
+	req.Header.Set("proxy-to", proxyURL.String())
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadGateway, rr.Code)
+	assert.Contains(t, rr.Body.String(), "external proxy request failed")
+
+	mu.Lock()
+	assert.False(t, disallowedTargetHit, "external proxy should not follow redirect to a disallowed target")
+	mu.Unlock()
+}
+
+func TestExternalProxyInvalidProxyURLGlobDoesNotPanic(t *testing.T) {
+	cache := cache.New[interface{}]()
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	require.NotPanics(t, func() {
+		createHeadlampHandler(context.Background(), &HeadlampConfig{
+			HeadlampConfig: &headlampconfig.HeadlampConfig{
+				HeadlampCFG: &headlampconfig.HeadlampCFG{
+					UseInCluster:    false,
+					ProxyURLs:       []string{"["},
+					KubeConfigStore: kubeConfigStore,
+				},
+				Cache: cache,
+			},
+		})
+	})
+}
+
+func TestExternalProxyRedirectErrorIncludesTargetURL(t *testing.T) {
+	redirectTarget := "https://redirect.example.com/disallowed"
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, redirectTarget, nil)
+	require.NoError(t, err)
+
+	proxyURLAllowlist, err := compileProxyURLPatterns([]string{"https://allowed.example.com/*"})
+	require.NoError(t, err)
+
+	req = req.WithContext(context.WithValue(req.Context(), proxyURLListContextKey{}, proxyURLAllowlist))
+
+	err = externalProxyHTTPClient.CheckRedirect(req, []*http.Request{{}})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), redirectTarget)
+}
+
+func TestExternalProxyFollowsAllowedRedirects(t *testing.T) {
+	var mu sync.Mutex
+
+	allowedTargetHit := false
+
+	allowedTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		allowedTargetHit = true
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	defer allowedTarget.Close()
+
+	proxyTarget := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, allowedTarget.URL, http.StatusFound)
+	}))
+	defer proxyTarget.Close()
+
+	proxyURL, err := url.Parse(proxyTarget.URL)
+	require.NoError(t, err)
+
+	allowedURL, err := url.Parse(allowedTarget.URL)
+	require.NoError(t, err)
+
+	cache := cache.New[interface{}]()
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				ProxyURLs:       []string{proxyURL.String(), allowedURL.String()},
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache: cache,
+		},
+	})
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
+	require.NoError(t, err)
+
+	req.Header.Set("proxy-to", proxyURL.String())
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "OK", rr.Body.String())
+
+	mu.Lock()
+	assert.True(t, allowedTargetHit, "external proxy should follow redirect to an allowed target")
+	mu.Unlock()
 }
