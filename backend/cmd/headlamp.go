@@ -2924,8 +2924,7 @@ func (c *HeadlampConfig) drainNodePods(
 			return
 		}
 
-		// ignore daemonsets
-		if pod.Labels["kubernetes.io/created-by"] == "daemonset-controller" {
+		if isDaemonSetPod(pod) {
 			continue
 		}
 
@@ -2950,6 +2949,27 @@ func (c *HeadlampConfig) drainNodePods(
 	} else {
 		_ = c.Cache.SetWithTTL(ctx, cacheKey, "success", cacheItemTTL)
 	}
+}
+
+// isDaemonSetPod reports whether pod should be treated as managed by a DaemonSet.
+// It supports both the legacy daemonset-controller label and modern owner references.
+func isDaemonSetPod(pod corev1.Pod) bool {
+	if pod.Labels["kubernetes.io/created-by"] == "daemonset-controller" {
+		return true
+	}
+
+	// Prefer the controller owner reference (matches kubectl drain behavior).
+	if controller := v1.GetControllerOf(&pod); controller != nil && controller.Kind == "DaemonSet" {
+		return true
+	}
+
+	for _, owner := range pod.OwnerReferences {
+		if owner.Kind == "DaemonSet" {
+			return true
+		}
+	}
+
+	return false
 }
 
 /*
