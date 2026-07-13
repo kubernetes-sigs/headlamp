@@ -163,7 +163,7 @@ export function formatNamespaceDiscoveryError(
     case 'discovery_failed':
     default:
       return t(
-        'translation|Could not discover accessible namespaces. Grant list RoleBindings permission and namespace RoleBindings for your identity, or use Settings → Additional namespaces. Your Kubernetes identity: {{identity}}.',
+        'translation|Could not discover accessible namespaces. Grant list RoleBindings permission and namespace RoleBindings for your identity, or use Settings → Additional namespaces (override). Your Kubernetes identity: {{identity}}.',
         { identity: error.identity }
       );
   }
