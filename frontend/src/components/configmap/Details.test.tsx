@@ -21,12 +21,10 @@ import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import { Base64 } from 'js-base64';
 import _ from 'lodash';
 import type ConfigMap from '../../lib/k8s/configMap';
+import { CLUSTER_ACTION_GRACE_PERIOD } from '../../redux/clusterActionSlice';
 import { TestContext } from '../../test';
 import { ConfigMapDataSection } from './Details';
 import { BASE_BINARY_DATA_AND_DATA_CONFIG_MAP } from './storyHelper';
-
-// clusterAction defers the wrapped update by this grace period before running it.
-const CLUSTER_ACTION_GRACE_PERIOD = 5000;
 
 // Stub the ConfigMap class module. Evaluating it pulls the k8s barrel, which has an
 // init-order cycle when loaded cold in an isolated test (class-extends-undefined).
