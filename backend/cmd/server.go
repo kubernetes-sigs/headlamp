@@ -59,7 +59,9 @@ func main() {
 	logger.Init(conf.LogLevel)
 
 	if conf.Version {
-		fmt.Printf("%s %s (%s/%s)\n", kubeconfig.AppName, kubeconfig.Version, runtime.GOOS, runtime.GOARCH)
+		logger.Log(logger.LevelInfo, nil, nil,
+			fmt.Sprintf("%s %s (%s/%s)", kubeconfig.AppName, kubeconfig.Version, runtime.GOOS, runtime.GOARCH))
+
 		return
 	}
 
