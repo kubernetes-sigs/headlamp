@@ -421,6 +421,47 @@ describe('useKubeObjectList', () => {
     expect(spy.mock.calls[3][0].connections.length).toBe(1);
     expect(spy.mock.calls[3][0].connections[0].cluster).toBe('cluster-1');
   });
+
+  it('should add newly discovered lists without render-phase state updates', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+
+    try {
+      queryClient.setQueryData(['kubeObject', 'list', 'v1', 'pods', 'default', 'a', {}], {
+        list: { items: [], metadata: { resourceVersion: '0' } },
+        cluster: 'default',
+        namespace: 'a',
+      });
+
+      renderHook(
+        () =>
+          useKubeObjectList({
+            kubeObjectClass: mockClass,
+            requests: [{ cluster: 'default', namespaces: ['a'] }],
+          }),
+        {
+          wrapper: ({ children }) => (
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          ),
+        }
+      );
+
+      // Newly discovered list must be added to watch after render
+      await vi.waitFor(() => {
+        expect(spy.mock.calls[1][0].connections.length).toBe(1);
+        expect(spy.mock.calls[1][0].connections[0].cluster).toBe('default');
+      });
+
+      // No React warning about state updates during the render phase
+      const renderPhaseWarnings = consoleErrorSpy.mock.calls.filter(args =>
+        args.some(arg => typeof arg === 'string' && arg.includes('Cannot update a component'))
+      );
+      expect(renderPhaseWarnings).toHaveLength(0);
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
+  });
 });
 
 describe('useWatchKubeObjectLists (Multiplexer)', () => {

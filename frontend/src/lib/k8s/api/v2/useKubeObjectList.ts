@@ -514,47 +514,71 @@ export function useKubeObjectList<K extends KubeObject>({
     { cluster: string; namespace?: string; resourceVersion: string }[]
   >([]);
 
-  const listsNotYetWatched = query.data
-    .filter(Boolean)
-    .filter(
-      data =>
-        listsToWatch.find(
-          // resourceVersion is intentionally omitted to avoid recreating WS connection when list is updated
-          watching => watching.cluster === data?.cluster && watching.namespace === data.namespace
-        ) === undefined
-    )
-    .map(data => ({
-      cluster: data!.cluster,
-      namespace: data!.namespace,
-      resourceVersion: data!.list.metadata.resourceVersion,
-    }));
+  // Memoize both derived arrays so their references are stable across renders.
+  // Without useMemo, .filter()/.map() always returns new array instances, causing
+  // the useEffect below to fire on every render even when nothing changed.
+  const listsNotYetWatched = useMemo(
+    () =>
+      query.data
+        .filter(Boolean)
+        .filter(
+          data =>
+            listsToWatch.find(
+              // resourceVersion intentionally omitted: avoids recreating the WS
+              // connection when only the list's resourceVersion is bumped.
+              watching =>
+                watching.cluster === data?.cluster && watching.namespace === data.namespace
+            ) === undefined
+        )
+        .map(data => ({
+          cluster: data!.cluster,
+          namespace: data!.namespace,
+          resourceVersion: data!.list.metadata.resourceVersion,
+        })),
+    [query.data, listsToWatch]
+  );
 
-  if (listsNotYetWatched.length > 0) {
-    setListsToWatch([...listsToWatch, ...listsNotYetWatched]);
-  }
+  const listsToStopWatching = useMemo(
+    () =>
+      listsToWatch.filter(watchingList => {
+        const requestThatNeedsThisList = requests.find(request => {
+          if (request.cluster !== watchingList.cluster) {
+            return false;
+          }
 
-  const listsToStopWatching = listsToWatch.filter(watchingList => {
-    const requestThatNeedsThisList = requests.find(request => {
-      if (request.cluster !== watchingList.cluster) {
-        return false;
+          if (!request.namespaces || request.namespaces.length === 0) {
+            return watchingList.namespace === undefined || watchingList.namespace === '';
+          }
+
+          return (
+            watchingList.namespace !== undefined &&
+            request.namespaces.includes(watchingList.namespace)
+          );
+        });
+
+        // If there's no request that needs this list then we can stop watching it
+        return requestThatNeedsThisList === undefined;
+      }),
+    [listsToWatch, requests]
+  );
+
+  useEffect(() => {
+    if (listsNotYetWatched.length === 0 && listsToStopWatching.length === 0) return;
+    setListsToWatch(prev => {
+      const shouldStopWatching = (it: (typeof prev)[number]) =>
+        listsToStopWatching.some(
+          stop => stop.cluster === it.cluster && stop.namespace === it.namespace
+        );
+      const filtered = prev.filter(it => !shouldStopWatching(it));
+      const isAlreadyWatched = (item: (typeof prev)[number]) =>
+        filtered.some(it => it.cluster === item.cluster && it.namespace === item.namespace);
+      const toAdd = listsNotYetWatched.filter(item => !isAlreadyWatched(item));
+      if (toAdd.length === 0 && filtered.length === prev.length) {
+        return prev;
       }
-
-      if (!request.namespaces || request.namespaces.length === 0) {
-        return watchingList.namespace === undefined || watchingList.namespace === '';
-      }
-
-      return (
-        watchingList.namespace !== undefined && request.namespaces.includes(watchingList.namespace)
-      );
+      return toAdd.length > 0 ? [...filtered, ...toAdd] : filtered;
     });
-
-    // If there's no request that needs this list then we can stop watching it
-    return requestThatNeedsThisList === undefined;
-  });
-
-  if (listsToStopWatching.length > 0) {
-    setListsToWatch(listsToWatch.filter(it => !listsToStopWatching.includes(it)));
-  }
+  }, [listsNotYetWatched, listsToStopWatching]);
 
   useWatchKubeObjectLists({
     lists: shouldWatch ? listsToWatch : [],
