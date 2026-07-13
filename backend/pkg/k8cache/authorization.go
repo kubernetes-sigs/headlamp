@@ -480,7 +480,7 @@ func ServeFromCacheOrForwardToK8s(k8scache cache.Cache[string], isAllowed bool, 
 
 	next.ServeHTTP(rcw, r)
 
-	err := StoreK8sResponseInCache(k8scache, r.URL, rcw, r, key)
+	err := StoreK8sResponseInCache(k8scache, r.URL, rcw, key)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "error while storing in the cache")
 		return
