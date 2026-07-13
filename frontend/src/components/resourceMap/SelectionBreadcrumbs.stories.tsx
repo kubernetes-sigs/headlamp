@@ -15,6 +15,7 @@
  */
 
 import { Meta, StoryFn } from '@storybook/react';
+import { KubeObject } from '../../lib/k8s/KubeObject';
 import { TestContext } from '../../test';
 import { GraphNode } from './graph/graphModel';
 import { SelectionBreadcrumbs } from './SelectionBreadcrumbs';
@@ -38,11 +39,11 @@ const mockGraph: GraphNode = {
     },
     {
       id: 'pod-with-obj',
-      kubeObject: {
-        metadata: { name: 'my-pod', namespace: 'default' },
+      kubeObject: new KubeObject({
+        apiVersion: 'v1',
         kind: 'Pod',
-        jsonData: { apiVersion: 'v1' },
-      } as any,
+        metadata: { name: 'my-pod', namespace: 'default' },
+      } as any),
     },
   ],
 };
@@ -57,9 +58,9 @@ export default {
       </TestContext>
     ),
   ],
-} as Meta;
+} as Meta<typeof SelectionBreadcrumbs>;
 
-const Template: StoryFn<any> = args => <SelectionBreadcrumbs {...args} />;
+const Template: StoryFn<typeof SelectionBreadcrumbs> = args => <SelectionBreadcrumbs {...args} />;
 
 export const RootSelected = Template.bind({});
 RootSelected.args = {
