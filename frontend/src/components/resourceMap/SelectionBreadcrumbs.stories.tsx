@@ -42,8 +42,13 @@ const mockGraph: GraphNode = {
       kubeObject: new KubeObject({
         apiVersion: 'v1',
         kind: 'Pod',
-        metadata: { name: 'my-pod', namespace: 'default' },
-      } as any),
+        metadata: {
+          uid: 'uid-my-pod',
+          name: 'my-pod',
+          namespace: 'default',
+          creationTimestamp: '2024-02-15T00:00:00.000Z',
+        },
+      }),
     },
   ],
 };
