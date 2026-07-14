@@ -68,6 +68,11 @@ export function loadClusterSettings(clusterName: string): ClusterSettings {
   if (!clusterName) {
     return {};
   }
-  const settings = JSON.parse(localStorage.getItem(`cluster_settings.${clusterName}`) || '{}');
-  return settings;
+  try {
+    const settings = JSON.parse(localStorage.getItem(`cluster_settings.${clusterName}`) || '{}');
+    return settings;
+  } catch (err) {
+    console.error(`Error parsing cluster settings for ${clusterName}:`, err);
+    return {};
+  }
 }
