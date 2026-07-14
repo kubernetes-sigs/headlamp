@@ -27,12 +27,14 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSelectedClusters } from '../../../lib/k8s';
 import CronJob from '../../../lib/k8s/cronJob';
+import DaemonSet from '../../../lib/k8s/daemonSet';
 import Deployment from '../../../lib/k8s/deployment';
 import Job from '../../../lib/k8s/job';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import { Activity } from '../../activity/Activity';
 import CreateCronJobForm from '../../cronjob/CreateCronJobForm';
+import CreateDaemonSetForm from '../../daemonset/CreateDaemonSetForm';
 import CreateDeploymentForm from '../../deployments/CreateDeploymentForm';
 import CreateJobForm from '../../job/CreateJobForm';
 import CreatePodForm from '../../pod/CreatePodForm';
@@ -43,6 +45,7 @@ import EditorDialog from './EditorDialog';
 export const RESOURCE_DEFINITIONS = {
   Pod: { class: Pod, form: CreatePodForm },
   Deployment: { class: Deployment, form: CreateDeploymentForm },
+  DaemonSet: { class: DaemonSet, form: CreateDaemonSetForm },
   ReplicaSet: { class: ReplicaSet, form: CreateReplicaSetForm },
   Job: { class: Job, form: CreateJobForm },
   CronJob: { class: CronJob, form: CreateCronJobForm },
