@@ -52,6 +52,7 @@
     "ContainersSection": [Function],
     "CopyButton": [Function],
     "CreateButton": [Function],
+    "CreateDaemonSetForm": [Function],
     "CreateDeploymentForm": [Function],
     "CreateJobForm": [Function],
     "CreatePodForm": [Function],
@@ -122,6 +123,10 @@
         "class": [Function],
         "form": [Function],
       },
+      "DaemonSet": {
+        "class": [Function],
+        "form": [Function],
+      },
       "Deployment": {
         "class": [Function],
         "form": [Function],
@@ -151,6 +156,7 @@
       "ContainersSection": [Function],
       "CopyButton": [Function],
       "CreateButton": [Function],
+      "CreateDaemonSetForm": [Function],
       "CreateDeploymentForm": [Function],
       "CreateJobForm": [Function],
       "CreatePodForm": [Function],
@@ -195,6 +201,10 @@
       "PortForward": [Function],
       "RESOURCE_DEFINITIONS": {
         "CronJob": {
+          "class": [Function],
+          "form": [Function],
+        },
+        "DaemonSet": {
           "class": [Function],
           "form": [Function],
         },
