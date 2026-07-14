@@ -64,7 +64,7 @@ export interface TabsProps {
  */
 export default function Tabs(props: TabsProps) {
   const { tabs, tabProps = {}, defaultIndex = 0, onTabChanged = null, ariaLabel } = props;
-  const [tabIndex, setTabIndex] = React.useState<TabsProps['defaultIndex']>(
+  const [tabIndex, setTabIndex] = React.useState<number | null | false>(
     typeof defaultIndex === 'number' ? Math.max(defaultIndex, 0) : false
   );
 
@@ -143,11 +143,7 @@ export default function Tabs(props: TabsProps) {
 /**
  * Props for a single tab panel.
  */
-interface TabPanelProps extends Omit<TypographyProps, 'tabIndex'> {
-  /** The index of the currently active tab. */
-  activeValue?: number | null | false;
-  /** @deprecated Use `activeValue` instead. */
-  tabIndex?: number | null | false;
+interface TabPanelPropsBase extends Omit<TypographyProps<'div'>, 'tabIndex'> {
   /** The index of this tab panel. */
   index: number;
   /** The unique ID for the tab panel, used for accessibility. */
@@ -155,6 +151,25 @@ interface TabPanelProps extends Omit<TypographyProps, 'tabIndex'> {
   /** The ID of the tab that controls this panel, used for accessibility. */
   labeledBy: string;
 }
+
+/**
+ * Props for a single tab panel. Requires either `activeValue` or `tabIndex` to be provided.
+ */
+export type TabPanelProps = TabPanelPropsBase &
+  (
+    | {
+        /** The index of the currently active tab. */
+        activeValue: number | null | false;
+        /** @deprecated Use `activeValue` instead. */
+        tabIndex?: number | null | false;
+      }
+    | {
+        /** The index of the currently active tab. */
+        activeValue?: number | null | false;
+        /** @deprecated Use `activeValue` instead. */
+        tabIndex: number | null | false;
+      }
+  );
 
 /**
  * Renders a panel for the currently active tab.
@@ -168,13 +183,13 @@ export function TabPanel(props: TabPanelProps) {
 
   return (
     <Typography
+      {...other}
       component="div"
       role="tabpanel"
       hidden={currentActiveValue !== index}
       id={id}
       aria-labelledby={labeledBy}
       sx={[{ flexGrow: 1, overflow: 'hidden' }, ...(Array.isArray(sx) ? sx : sx ? [sx] : [])]}
-      {...other}
     >
       {children}
     </Typography>
