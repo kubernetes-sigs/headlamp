@@ -118,13 +118,16 @@ describe('clusterSettings', () => {
       expect(loadClusterSettings('prod.extra')).toEqual({});
     });
 
-    // Documents current behaviour: corrupted localStorage payloads surface as
-    // a parse error rather than silently falling back to {}. A future change
-    // could add defensive recovery; this test should be updated alongside it.
-    it('throws when the stored payload is not valid JSON', () => {
+    it('returns empty object and logs console error when the stored payload is not valid JSON', () => {
       localStorage.setItem('cluster_settings.prod', '{not json');
 
-      expect(() => loadClusterSettings('prod')).toThrow(SyntaxError);
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      const result = loadClusterSettings('prod');
+
+      expect(result).toEqual({});
+      expect(consoleErrorSpy).toHaveBeenCalled();
+      consoleErrorSpy.mockRestore();
     });
   });
 });
