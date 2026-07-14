@@ -34,7 +34,7 @@ export interface HeadlampProcessInfo {
 /**
  * A parsed Windows user account consisting of an optional domain and a username.
  */
-interface WindowsUser {
+export interface WindowsUser {
   /** The SAM-compatible username (lower-cased, trimmed). */
   username: string;
   /** The Windows domain or machine name (lower-cased, trimmed), if present. */
