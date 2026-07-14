@@ -242,9 +242,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 // checkPortForwardPermission checks if the current user has permission to create pods/portforward.
 // It uses SelfSubjectAccessReview to verify RBAC permissions for the specified namespace and pod.
 // Returns an error if permission is denied or if the permission check fails.
-func checkPortForwardPermission(clientset *kubernetes.Clientset, namespace, podName string) error {
-	ctx := context.Background()
-
+func checkPortForwardPermission(ctx context.Context, clientset *kubernetes.Clientset, namespace, podName string) error {
 	// Create a SelfSubjectAccessReview to check permissions
 	ssar := &authv1.SelfSubjectAccessReview{
 		Spec: authv1.SelfSubjectAccessReviewSpec{
@@ -420,7 +418,7 @@ func monitorPodAndManagePortForward(
 	for {
 		select {
 		case <-ticker.C:
-			err := checkIfPodIsRunning(clientset, pfDetails.Namespace, pfDetails.Pod)
+			err := checkIfPodIsRunning(context.Background(), clientset, pfDetails.Namespace, pfDetails.Pod)
 			if err != nil {
 				if errors.Is(err, syscall.ECONNREFUSED) {
 					logger.Log(logger.LevelInfo, logParams, err, "checking pod (ECONNREFUSED), continuing")
@@ -629,7 +627,7 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 	}
 
 	// Check RBAC permissions before attempting port forward
-	err = checkPortForwardPermission(clientset, p.Namespace, p.Pod)
+	err = checkPortForwardPermission(context.Background(), clientset, p.Namespace, p.Pod)
 	if err != nil {
 		return fmt.Errorf("permission check failed: %w", err)
 	}
@@ -671,9 +669,7 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 	return runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut)
 }
 
-func checkIfPodIsRunning(clientset *kubernetes.Clientset, namespace string, pod string) error {
-	ctx := context.Background()
-
+func checkIfPodIsRunning(ctx context.Context, clientset *kubernetes.Clientset, namespace string, pod string) error {
 	p, err := clientset.CoreV1().Pods(namespace).Get(ctx, pod, v1.GetOptions{})
 	if err != nil {
 		return err
