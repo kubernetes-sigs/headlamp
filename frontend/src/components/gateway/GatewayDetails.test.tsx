@@ -91,7 +91,7 @@ describe('GatewayDetails', () => {
       getListeners: () => [
         { name: 'http', hostname: 'web.example.com', port: 80, protocol: 'HTTP' },
       ],
-      getListernerStatusByName: () => ({
+      getListenerStatusByName: () => ({
         conditions: [{ type: 'Available', status: 'True' }],
       }),
     };
@@ -157,7 +157,7 @@ describe('GatewayDetails', () => {
       cluster: 'prod-cluster',
       getAddresses: () => [],
       getListeners: () => [],
-      getListernerStatusByName: () => null,
+      getListenerStatusByName: () => null,
     };
 
     const sections = extraSectionsFn!(dummyEmptyGateway);
