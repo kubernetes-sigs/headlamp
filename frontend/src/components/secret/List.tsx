@@ -21,15 +21,11 @@ import Secret from '../../lib/k8s/secret';
 import { useNamespaces } from '../../redux/filterSlice';
 import { CreateResourceButton } from '../common';
 import ResourceListView from '../common/Resource/ResourceListView';
+import { loadHideHelm, storeHideHelm } from './hideHelmSecrets';
 
 export default function SecretList() {
-  const SECRET_LIST_HELM_SECRET_HIDE_STORAGE_KEY = 'SECRET_LIST_HELM_SECRET_HIDE_STORAGE_KEY';
-  const SECRET_LIST_HELM_SECRET_HIDE_DEFAULT = true;
   const { t } = useTranslation(['glossary', 'translation']);
-  const storedHideHelm = localStorage.getItem(SECRET_LIST_HELM_SECRET_HIDE_STORAGE_KEY);
-  const [hideHelm, setHideHelm] = React.useState<boolean>(
-    JSON.parse(storedHideHelm || SECRET_LIST_HELM_SECRET_HIDE_DEFAULT.toString())
-  );
+  const [hideHelm, setHideHelm] = React.useState<boolean>(loadHideHelm);
 
   const [secrets, error] = Secret.useList({ namespace: useNamespaces() });
 
@@ -57,10 +53,7 @@ export default function SecretList() {
               <Switch
                 checked={hideHelm}
                 onChange={(e, checked) => {
-                  localStorage.setItem(
-                    SECRET_LIST_HELM_SECRET_HIDE_STORAGE_KEY,
-                    checked.toString()
-                  );
+                  storeHideHelm(checked);
                   setHideHelm(checked);
                 }}
                 color="primary"
