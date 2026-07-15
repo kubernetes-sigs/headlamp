@@ -17,8 +17,10 @@ const watchInterval = 10 * time.Second
 // logFieldPath is the structured-log field name for filesystem paths.
 const logFieldPath = "path"
 
-// LoadAndWatchFiles loads kubeconfig files and watches them for changes.
+// LoadAndWatchFiles watches kubeconfig files (and any referenced credential files) and reloads contexts on changes.
 // It runs until the provided context is cancelled.
+//
+//nolint:funlen
 func LoadAndWatchFiles(
 	ctx context.Context,
 	kubeConfigStore ContextStore,
@@ -42,8 +44,16 @@ func LoadAndWatchFiles(
 
 	kubeConfigPaths := splitKubeConfigPath(paths)
 
+	getDesiredPaths := func() []string {
+		desired := append([]string{}, kubeConfigPaths...)
+		credPaths := getReferencedCredentialPaths(kubeConfigStore)
+		desired = append(desired, credPaths...)
+
+		return desired
+	}
+
 	// add files to watcher
-	addFilesToWatcher(watcher, kubeConfigPaths)
+	updateWatcherPaths(watcher, getDesiredPaths())
 
 	for {
 		select {
@@ -52,9 +62,13 @@ func LoadAndWatchFiles(
 
 			return
 		case <-ticker.C:
-			if len(watcher.WatchList()) != len(kubeConfigPaths) {
-				logger.Log(logger.LevelInfo, nil, nil, "watcher: re-adding missing files")
-				addFilesToWatcher(watcher, kubeConfigPaths)
+			desired := getDesiredPaths()
+			beforeWatchList := watcher.WatchList()
+			updateWatcherPaths(watcher, desired)
+			afterWatchList := watcher.WatchList()
+
+			if hasWatchListChanged(beforeWatchList, afterWatchList) {
+				logger.Log(logger.LevelInfo, nil, nil, "watcher: watchlist updated, reloading contexts")
 
 				err := LoadAndStoreKubeConfigs(kubeConfigStore, paths, source, ignoreFunc)
 				if err != nil {
@@ -63,17 +77,16 @@ func LoadAndWatchFiles(
 			}
 
 		case event := <-watcher.Events:
-			triggers := []fsnotify.Op{fsnotify.Create, fsnotify.Write, fsnotify.Remove, fsnotify.Rename}
-			for _, trigger := range triggers {
-				if event.Op.Has(trigger) {
-					logger.Log(logger.LevelInfo, map[string]string{"event": event.Name},
-						nil, "watcher: kubeconfig file changed, reloading contexts")
+			if isEventTrigger(event.Op) {
+				logger.Log(logger.LevelInfo, map[string]string{"event": event.Name},
+					nil, "watcher: file changed, reloading contexts")
 
-					err := syncContexts(kubeConfigStore, paths, source, ignoreFunc)
-					if err != nil {
-						logger.Log(logger.LevelError, nil, err, "watcher: error synchronizing contexts")
-					}
+				err := syncContexts(kubeConfigStore, paths, source, ignoreFunc)
+				if err != nil {
+					logger.Log(logger.LevelError, nil, err, "watcher: error synchronizing contexts")
 				}
+
+				updateWatcherPaths(watcher, getDesiredPaths())
 			}
 
 		case err := <-watcher.Errors:
@@ -82,43 +95,31 @@ func LoadAndWatchFiles(
 	}
 }
 
-func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
-	for _, path := range paths {
-		// if path is relative, make it absolute
-		if !filepath.IsAbs(path) {
-			absPath, err := filepath.Abs(path)
-			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{logFieldPath: path},
-					err, "getting absolute path")
+// hasWatchListChanged checks if the watch list of paths has changed between before and after states.
+func hasWatchListChanged(before, after []string) bool {
+	if len(before) != len(after) {
+		return true
+	}
 
-				continue
-			}
-
-			path = absPath
-		}
-
-		// check if path exists
-		if _, err := os.Stat(path); os.IsNotExist(err) {
-			logger.Log(logger.LevelError, map[string]string{logFieldPath: path},
-				err, "Path does not exist")
-
-			continue
-		}
-
-		// check if path is already being watched
-		// if it is, continue
-		filesBeingWatched := watcher.WatchList()
-		if slices.Contains(filesBeingWatched, path) {
-			continue
-		}
-
-		// if it isn't, add it to the watcher
-		err := watcher.Add(path)
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{logFieldPath: path},
-				err, "adding path to watcher")
+	for _, path := range before {
+		if !slices.Contains(after, path) {
+			return true
 		}
 	}
+
+	return false
+}
+
+// isEventTrigger returns true if the fsnotify operation is one of the triggers we care about.
+func isEventTrigger(op fsnotify.Op) bool {
+	triggers := []fsnotify.Op{fsnotify.Create, fsnotify.Write, fsnotify.Remove, fsnotify.Rename}
+	for _, trigger := range triggers {
+		if op.Has(trigger) {
+			return true
+		}
+	}
+
+	return false
 }
 
 // syncContexts synchronizes the contexts in the store with the ones in the kubeconfig files.
@@ -146,7 +147,14 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 		found := false
 
 		for _, newCtx := range newContexts {
-			if existingCtx.Name == newCtx.Name {
+			isMatch := false
+			if existingCtx.ClusterID != "" && newCtx.ClusterID != "" {
+				isMatch = existingCtx.ClusterID == newCtx.ClusterID
+			} else {
+				isMatch = existingCtx.Name == newCtx.Name
+			}
+
+			if isMatch {
 				found = true
 
 				break
@@ -168,4 +176,116 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 	}
 
 	return nil
+}
+
+// getReferencedCredentialPaths retrieves absolute paths of all external credential/certificate files
+// referenced in KubeConfig type contexts in the store.
+func getReferencedCredentialPaths(kubeConfigStore ContextStore) []string {
+	contexts, err := kubeConfigStore.GetContexts()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "watcher: error getting contexts to extract credential paths")
+		return nil
+	}
+
+	var paths []string
+
+	for _, ctx := range contexts {
+		if ctx.Source != KubeConfig || ctx.AuthInfo == nil {
+			continue
+		}
+
+		for _, relPath := range []string{ctx.AuthInfo.ClientCertificate, ctx.AuthInfo.ClientKey, ctx.AuthInfo.TokenFile} {
+			if relPath == "" {
+				continue
+			}
+
+			absPath := relPath
+			if !filepath.IsAbs(relPath) && ctx.KubeConfigPath != "" {
+				absPath = filepath.Join(filepath.Dir(ctx.KubeConfigPath), relPath)
+			}
+
+			absPath, err = filepath.Abs(absPath)
+			if err != nil {
+				continue
+			}
+
+			if !slices.Contains(paths, absPath) {
+				paths = append(paths, absPath)
+			}
+		}
+	}
+
+	return paths
+}
+
+// normalizePaths converts relative paths to absolute and de-duplicates them.
+func normalizePaths(desiredPaths []string) []string {
+	normalizedDesired := make([]string, 0, len(desiredPaths))
+
+	seen := make(map[string]struct{}, len(desiredPaths))
+	for _, p := range desiredPaths {
+		if p == "" {
+			continue
+		}
+
+		absPath := p
+		if !filepath.IsAbs(p) {
+			var err error
+
+			absPath, err = filepath.Abs(p)
+			if err != nil {
+				logger.Log(logger.LevelError, map[string]string{logFieldPath: p}, err, "getting absolute path")
+				continue
+			}
+		}
+
+		if _, ok := seen[absPath]; ok {
+			continue
+		}
+
+		seen[absPath] = struct{}{}
+		normalizedDesired = append(normalizedDesired, absPath)
+	}
+
+	return normalizedDesired
+}
+
+// updateWatcherPaths registers desired paths to be watched and deregisters stale ones.
+func updateWatcherPaths(watcher *fsnotify.Watcher, desiredPaths []string) {
+	desiredPaths = normalizePaths(desiredPaths)
+
+	// Remove any path that is no longer desired (diff against actual watcher state)
+	for _, path := range watcher.WatchList() {
+		if !slices.Contains(desiredPaths, path) {
+			if err := watcher.Remove(path); err != nil {
+				logger.Log(logger.LevelError, map[string]string{logFieldPath: path}, err, "removing path from watcher")
+			}
+		}
+	}
+
+	for _, absPath := range desiredPaths {
+		if _, err := os.Stat(absPath); err != nil {
+			// If the file no longer exists (or is otherwise unreadable), ensure we don't keep a stale watch.
+			if slices.Contains(watcher.WatchList(), absPath) {
+				_ = watcher.Remove(absPath)
+			}
+
+			if os.IsNotExist(err) {
+				logger.Log(logger.LevelError, map[string]string{logFieldPath: absPath}, err, "Path does not exist")
+			} else {
+				logger.Log(logger.LevelError, map[string]string{logFieldPath: absPath}, err, "stat path")
+			}
+
+			continue
+		}
+
+		filesBeingWatched := watcher.WatchList()
+		if !slices.Contains(filesBeingWatched, absPath) {
+			err := watcher.Add(absPath)
+			if err != nil {
+				logger.Log(logger.LevelError, map[string]string{logFieldPath: absPath}, err, "adding path to watcher")
+				continue
+			}
+		}
+	}
 }
