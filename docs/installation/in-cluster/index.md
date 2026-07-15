@@ -98,15 +98,128 @@ Headlamp supports optional TLS termination at the backend server. The default is
 
 ## Use a non-default kube config file
 
-By default, Headlamp uses the default service account from the namespace it is deployed to, and generates a kubeconfig from it named `main`.
+When Headlamp runs with the `-in-cluster` flag (the default for the Helm chart
+and the sample deployment YAML), it automatically creates a cluster context
+named `main` from the pod's service account. This context exists only in
+memory: no kubeconfig file is written to the pod's filesystem. You do not need
+to provide, generate, or mount any kubeconfig file for Headlamp to access the
+cluster it is running in.
 
-If you wish to use another specific non-default kubeconfig file, then you can do it by mounting it to the default location at `/home/headlamp/.config/Headlamp/kubeconfigs/config`, or
-providing a custom path Headlamp with the ` -kubeconfig` argument or the KUBECONFIG env (through helm values.env)
+Mounting extra kubeconfig files is only needed if you want Headlamp to show
+**additional** clusters besides the one it is deployed to.
+
+:::note
+In in-cluster mode, the `KUBECONFIG` environment variable is ignored. To point
+Headlamp at kubeconfig files, either mount them at the default location shown
+below, pass the `-kubeconfig` argument, or set the `HEADLAMP_CONFIG_KUBECONFIG`
+environment variable. Kubeconfig files are read when the server starts, so
+restart the pod after changing them.
+:::
+
+First, store the kubeconfig for the extra cluster(s) in a Secret. The examples
+below assume Headlamp is installed in the `kube-system` namespace:
+
+```bash
+kubectl create secret generic headlamp-kubeconfig \
+  --from-file=config=./my-kubeconfig \
+  --namespace kube-system
+```
+
+### Option 1: Mount the kubeconfig at the default location
+
+Headlamp loads a kubeconfig file from
+`/home/headlamp/.config/Headlamp/kubeconfigs/config` at startup. Mount the
+Secret at that directory with these Helm values (the key inside the Secret
+must be named `config`):
+
+```yaml
+volumeMounts:
+  - name: kubeconfig
+    mountPath: /home/headlamp/.config/Headlamp/kubeconfigs
+    readOnly: true
+volumes:
+  - name: kubeconfig
+    secret:
+      secretName: headlamp-kubeconfig
+```
+
+```bash
+helm install my-headlamp headlamp/headlamp --namespace kube-system -f values.yaml
+```
+
+### Option 2: Mount the kubeconfig anywhere and use the -kubeconfig argument
+
+If you prefer an explicit path, mount the Secret wherever you like and pass
+the path with the `-kubeconfig` argument through `config.extraArgs`:
+
+```yaml
+config:
+  extraArgs:
+    - -kubeconfig=/headlamp/kubeconfig/config
+volumeMounts:
+  - name: kubeconfig
+    mountPath: /headlamp/kubeconfig
+    readOnly: true
+volumes:
+  - name: kubeconfig
+    secret:
+      secretName: headlamp-kubeconfig
+```
 
 ### Use several kubeconfig files
 
-If you need to use more than one kubeconfig file at the same time, you can list
-each config file path with a ":" separator in the KUBECONFIG env.
+If you need to use more than one kubeconfig file at the same time, you can
+list each file path with a ":" separator in the `-kubeconfig` argument:
+
+```yaml
+config:
+  extraArgs:
+    - -kubeconfig=/headlamp/kubeconfig/cluster-a:/headlamp/kubeconfig/cluster-b
+volumeMounts:
+  - name: kubeconfig
+    mountPath: /headlamp/kubeconfig
+    readOnly: true
+volumes:
+  - name: kubeconfig
+    secret:
+      secretName: headlamp-kubeconfig
+```
+
+with a Secret that contains one key per kubeconfig file:
+
+```bash
+kubectl create secret generic headlamp-kubeconfig \
+  --from-file=cluster-a=./cluster-a-kubeconfig \
+  --from-file=cluster-b=./cluster-b-kubeconfig \
+  --namespace kube-system
+```
+
+### Using plain YAML instead of Helm
+
+If you deploy Headlamp with a plain manifest (like
+[kubernetes-headlamp.yaml](https://github.com/kubernetes-sigs/headlamp/blob/main/kubernetes-headlamp.yaml)),
+apply the same idea directly on the Deployment:
+
+```yaml
+spec:
+  template:
+    spec:
+      containers:
+        - name: headlamp
+          image: ghcr.io/headlamp-k8s/headlamp:latest
+          args:
+            - "-in-cluster"
+            - "-plugins-dir=/headlamp/plugins"
+            - "-kubeconfig=/headlamp/kubeconfig/config"
+          volumeMounts:
+            - name: kubeconfig
+              mountPath: /headlamp/kubeconfig
+              readOnly: true
+      volumes:
+        - name: kubeconfig
+          secret:
+            secretName: headlamp-kubeconfig
+```
 
 ## Exposing Headlamp with an ingress server
 
