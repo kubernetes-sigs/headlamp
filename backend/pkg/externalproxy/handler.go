@@ -36,6 +36,8 @@ const (
 	DefaultMaxResponseSize int64 = 100 * 1024 * 1024
 )
 
+var errEmptyProxyURL = errors.New("proxy URL is empty")
+
 // Timeout and MaxResponseSize are package defaults that tests may override.
 //
 //nolint:gochecknoglobals // allow test override
@@ -94,92 +96,64 @@ func (h *Handler) client() *http.Client {
 	return NewHTTPClient()
 }
 
-// ServeHTTP implements http.Handler for /externalproxy.
-func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func targetURLFromRequest(r *http.Request) (*url.URL, error) {
 	proxyURL := r.Header.Get("proxy-to")
 	if proxyURL == "" && r.Header.Get("Forward-to") != "" {
 		proxyURL = r.Header.Get("Forward-to")
 	}
 
 	if proxyURL == "" {
-		logger.Log(logger.LevelError, nil, errors.New("proxy URL is empty"), "proxy URL is empty")
+		return nil, errEmptyProxyURL
+	}
+
+	return url.Parse(proxyURL)
+}
+
+func writeTargetURLError(w http.ResponseWriter, r *http.Request, err error) {
+	if errors.Is(err, errEmptyProxyURL) {
+		logger.Log(logger.LevelError, nil, err, "proxy URL is empty")
 		http.Error(w, "proxy URL is empty", http.StatusBadRequest)
 
 		return
 	}
 
-	targetURL, err := url.Parse(proxyURL)
-	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL}, err, "The provided proxy URL is invalid")
-		http.Error(w, "The provided proxy URL is invalid", http.StatusBadRequest)
+	logger.Log(logger.LevelError, map[string]string{"proxyURL": r.Header.Get("proxy-to")},
+		err, "The provided proxy URL is invalid")
+	http.Error(w, "The provided proxy URL is invalid", http.StatusBadRequest)
+}
 
-		return
+func (h *Handler) allowlist() []AllowlistEntry {
+	if h.GetAllowlist == nil {
+		return nil
 	}
 
-	allowlist := []AllowlistEntry{}
-	if h.GetAllowlist != nil {
-		allowlist = h.GetAllowlist()
-	}
+	return h.GetAllowlist()
+}
 
-	if !MatchesAllowlist(targetURL.String(), allowlist) {
-		denyErr := errors.New("no allowed proxy url match, request denied")
-		logger.Log(logger.LevelError, map[string]string{"proxyURL": targetURL.Redacted()},
-			denyErr, "no allowed proxy url match, request denied")
-		http.Error(w, "no allowed proxy url match, request denied", http.StatusBadRequest)
+func writeAllowlistDenied(w http.ResponseWriter, targetURL *url.URL) {
+	denyErr := errors.New("no allowed proxy url match, request denied")
+	logger.Log(logger.LevelError, map[string]string{"proxyURL": targetURL.Redacted()},
+		denyErr, "no allowed proxy url match, request denied")
+	http.Error(w, "no allowed proxy url match, request denied", http.StatusBadRequest)
+}
 
-		return
-	}
-
-	proxyCtx := context.WithValue(r.Context(), allowlistContextKey{}, allowlist)
-	proxyCtx, cancel := context.WithTimeout(proxyCtx, h.timeout())
-	defer cancel()
-
-	proxyReq, err := http.NewRequestWithContext(proxyCtx, r.Method, proxyURL, r.Body) //nolint:gosec
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "creating request")
-		http.Error(w, "external proxy request failed", http.StatusInternalServerError)
-
-		return
-	}
-
-	proxyReq.Header = make(http.Header)
-	CopyFilteredHeaders(proxyReq.Header, r.Header)
-
-	// Disable caching
+func setNoCacheHeaders(w http.ResponseWriter) {
 	w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
 	w.Header().Set("Expires", time.Unix(0, 0).Format(http.TimeFormat))
 	w.Header().Set("Pragma", "no-cache")
 	w.Header().Set("X-Accel-Expires", "0")
+}
 
-	resp, err := h.client().Do(proxyReq) //nolint:gosec
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "making request")
-		http.Error(w, "external proxy request failed", http.StatusBadGateway)
-
-		return
-	}
-
-	defer func() { _ = resp.Body.Close() }()
-
-	var reader io.ReadCloser
-
+func responseReader(resp *http.Response) (io.ReadCloser, error) {
 	switch resp.Header.Get("Content-Encoding") {
 	case "gzip":
-		reader, err = gzip.NewReader(resp.Body)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "reading gzip response")
-			http.Error(w, "external proxy request failed", http.StatusInternalServerError)
-
-			return
-		}
-
-		defer func() { _ = reader.Close() }()
+		return gzip.NewReader(resp.Body)
 	default:
-		reader = resp.Body
+		return resp.Body, nil
 	}
+}
 
-	// Read the first chunk before committing the response so early upstream
-	// failures can still return a 502 instead of an empty success response.
+func writeUpstreamResponse(w http.ResponseWriter, resp *http.Response, reader io.Reader, maxSize int64) {
 	firstChunk := make([]byte, 32*1024)
 
 	n, readErr := reader.Read(firstChunk)
@@ -194,9 +168,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", contentType)
 	}
 
-	maxSize := h.maxResponseSize()
-
-	// Reject early if Content-Length exceeds the maximum allowed size.
 	if resp.ContentLength > maxSize {
 		logger.Log(logger.LevelError, nil, nil, "proxy response exceeded maximum allowed size (Content-Length)")
 		http.Error(w, "response too large", http.StatusBadGateway)
@@ -204,7 +175,6 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Prevent unexpected or unfollowed redirects from being returned.
 	if resp.StatusCode >= 300 && resp.StatusCode <= 399 && resp.StatusCode != http.StatusNotModified {
 		logger.Log(logger.LevelError, nil, nil, "proxy response returned an unexpected or unfollowed redirect")
 		http.Error(w, "external proxy request failed: unexpected redirect", http.StatusBadGateway)
@@ -217,7 +187,73 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	body := io.MultiReader(bytes.NewReader(firstChunk[:n]), reader)
 	if _, err := io.Copy(w, io.LimitReader(body, maxSize)); err != nil {
 		logger.Log(logger.LevelError, nil, err, "streaming response")
+	}
+}
+
+func (h *Handler) proxyRequest(
+	w http.ResponseWriter,
+	r *http.Request,
+	targetURL *url.URL,
+	allowlist []AllowlistEntry,
+) {
+	proxyCtx := context.WithValue(r.Context(), allowlistContextKey{}, allowlist)
+
+	proxyCtx, cancel := context.WithTimeout(proxyCtx, h.timeout())
+
+	defer cancel()
+
+	proxyReq, err := http.NewRequestWithContext(proxyCtx, r.Method, targetURL.String(), r.Body) //nolint:gosec
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "creating request")
+		http.Error(w, "external proxy request failed", http.StatusInternalServerError)
 
 		return
 	}
+
+	proxyReq.Header = make(http.Header)
+	CopyFilteredHeaders(proxyReq.Header, r.Header)
+	setNoCacheHeaders(w)
+
+	resp, err := h.client().Do(proxyReq) //nolint:gosec
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "making request")
+		http.Error(w, "external proxy request failed", http.StatusBadGateway)
+
+		return
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	reader, err := responseReader(resp)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "reading gzip response")
+		http.Error(w, "external proxy request failed", http.StatusInternalServerError)
+
+		return
+	}
+
+	if reader != resp.Body {
+		defer func() { _ = reader.Close() }()
+	}
+
+	writeUpstreamResponse(w, resp, reader, h.maxResponseSize())
+}
+
+// ServeHTTP implements http.Handler for /externalproxy.
+func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	targetURL, err := targetURLFromRequest(r)
+	if err != nil {
+		writeTargetURLError(w, r, err)
+
+		return
+	}
+
+	allowlist := h.allowlist()
+	if !MatchesAllowlist(targetURL.String(), allowlist) {
+		writeAllowlistDenied(w, targetURL)
+
+		return
+	}
+
+	h.proxyRequest(w, r, targetURL, allowlist)
 }

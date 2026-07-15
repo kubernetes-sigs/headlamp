@@ -14,12 +14,13 @@
  * limitations under the License.
  */
 
-package externalproxy
+package externalproxy_test
 
 import (
 	"net/http"
 	"testing"
 
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/externalproxy"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -40,10 +41,10 @@ func TestShouldFilterRequestHeader(t *testing.T) {
 	}
 
 	for _, header := range filtered {
-		assert.Truef(t, ShouldFilterRequestHeader(header), "expected %s to be filtered", header)
+		assert.Truef(t, externalproxy.ShouldFilterRequestHeader(header), "expected %s to be filtered", header)
 	}
 
-	assert.False(t, ShouldFilterRequestHeader("X-Custom-Preserve"))
+	assert.False(t, externalproxy.ShouldFilterRequestHeader("X-Custom-Preserve"))
 }
 
 func TestCopyFilteredHeaders(t *testing.T) {
@@ -61,7 +62,7 @@ func TestCopyFilteredHeaders(t *testing.T) {
 	src.Set("X-Custom-Preserve", "keep")
 
 	dst := http.Header{}
-	CopyFilteredHeaders(dst, src)
+	externalproxy.CopyFilteredHeaders(dst, src)
 
 	assert.Equal(t, "keep", dst.Get("X-Custom-Preserve"))
 	assert.Empty(t, dst.Get("Authorization"))

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-package externalproxy
+package externalproxy_test
 
 import (
 	"context"
@@ -24,6 +24,7 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/externalproxy"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -33,6 +34,7 @@ func TestHandlerFiltersSensitiveHeaders(t *testing.T) {
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		received = r.Header.Clone()
+
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	}))
@@ -41,10 +43,10 @@ func TestHandlerFiltersSensitiveHeaders(t *testing.T) {
 	upstreamURL, err := url.Parse(upstream.URL)
 	require.NoError(t, err)
 
-	allowlist, err := CompileAllowlist([]string{upstreamURL.String()})
+	allowlist, err := externalproxy.CompileAllowlist([]string{upstreamURL.String()})
 	require.NoError(t, err)
 
-	handler := NewHandler(func() []AllowlistEntry { return allowlist })
+	handler := externalproxy.NewHandler(func() []externalproxy.AllowlistEntry { return allowlist })
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/externalproxy", nil)
 	req.Header.Set("proxy-to", upstream.URL)
@@ -84,10 +86,10 @@ func TestHandlerBlocksDisallowedRedirect(t *testing.T) {
 	upstreamURL, err := url.Parse(upstream.URL)
 	require.NoError(t, err)
 
-	allowlist, err := CompileAllowlist([]string{upstreamURL.String()})
+	allowlist, err := externalproxy.CompileAllowlist([]string{upstreamURL.String()})
 	require.NoError(t, err)
 
-	handler := NewHandler(func() []AllowlistEntry { return allowlist })
+	handler := externalproxy.NewHandler(func() []externalproxy.AllowlistEntry { return allowlist })
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/externalproxy", nil)
 	req.Header.Set("proxy-to", upstream.URL)
@@ -116,10 +118,10 @@ func TestHandlerFollowsAllowedRedirect(t *testing.T) {
 	}))
 	defer upstream.Close()
 
-	allowlist, err := CompileAllowlist([]string{upstream.URL + "*", final.URL + "*"})
+	allowlist, err := externalproxy.CompileAllowlist([]string{upstream.URL + "*", final.URL + "*"})
 	require.NoError(t, err)
 
-	handler := NewHandler(func() []AllowlistEntry { return allowlist })
+	handler := externalproxy.NewHandler(func() []externalproxy.AllowlistEntry { return allowlist })
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/externalproxy", nil)
 	req.Header.Set("proxy-to", upstream.URL)
