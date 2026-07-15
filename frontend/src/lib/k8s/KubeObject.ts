@@ -423,7 +423,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
     // Create requests for each cluster and namespace
     // eslint-disable-next-line react-hooks/rules-of-hooks
-    const requests = useMemo(() => {
+    const { requests, pendingDiscovery } = useMemo(() => {
       const hasExplicitNamespace =
         (typeof namespace === 'string' && namespace.length > 0) ||
         (Array.isArray(namespace) && namespace.length > 0);
@@ -432,8 +432,11 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
         ? clusterList
         : clusterList.filter(currentCluster => !isLoadingByCluster[currentCluster]);
 
-      if (isNamespaced && !hasExplicitNamespace && clustersForRequests.length === 0) {
-        return [];
+      const isPendingDiscovery =
+        isNamespaced && !hasExplicitNamespace && clustersForRequests.length === 0;
+
+      if (isPendingDiscovery) {
+        return { requests: [], pendingDiscovery: true };
       }
 
       const namespacesFromParams =
@@ -443,17 +446,20 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
           ? namespace
           : undefined;
 
-      return makeListRequests(
-        clustersForRequests,
-        currentCluster =>
-          getNamespaceListConfig(
-            currentCluster,
-            discoveryMap[currentCluster ?? ''],
-            (namespacesFromParams?.length ?? 0) > 0
-          ),
-        isNamespaced,
-        namespacesFromParams
-      );
+      return {
+        requests: makeListRequests(
+          clustersForRequests,
+          currentCluster =>
+            getNamespaceListConfig(
+              currentCluster,
+              discoveryMap[currentCluster ?? ''],
+              (namespacesFromParams?.length ?? 0) > 0
+            ),
+          isNamespaced,
+          namespacesFromParams
+        ),
+        pendingDiscovery: false,
+      };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
       cluster,
@@ -470,6 +476,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       queryParams: queryParams,
       kubeObjectClass: this,
       requests,
+      pendingDiscovery,
       refetchInterval,
     });
 

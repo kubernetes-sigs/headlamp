@@ -427,6 +427,7 @@ export function useKubeObjectList<K extends KubeObject>({
   queryParams,
   watch = true,
   refetchInterval,
+  pendingDiscovery = false,
 }: {
   requests: KubeListRequest[];
   /** Class to instantiate the object with */
@@ -436,17 +437,21 @@ export function useKubeObjectList<K extends KubeObject>({
   watch?: boolean;
   /** How often to refetch the list. Won't refetch by default. Disables watching if set. */
   refetchInterval?: number;
+  /** When true, callers are waiting for namespace discovery routing before list requests exist. */
+  pendingDiscovery?: boolean;
 }): [Array<K> | null, ApiError | null] &
   QueryListResponse<Array<ListResponse<K> | undefined | null>, K, ApiError> {
-  const isPendingDiscovery = requests.length === 0;
-  const maybeNamespace = isPendingDiscovery
-    ? undefined
-    : requests.find(it => it.namespaces)?.namespaces?.[0];
+  const isPendingDiscovery = pendingDiscovery;
+  const hasRequests = requests.length > 0;
+  const shouldProbeEndpoints = hasRequests && !isPendingDiscovery;
+  const maybeNamespace = shouldProbeEndpoints
+    ? requests.find(it => it.namespaces)?.namespaces?.[0]
+    : undefined;
 
   // Skip endpoint probing while callers wait for namespace discovery routing.
   const { endpoint, error: endpointError } = useEndpoints(
-    isPendingDiscovery ? [] : kubeObjectClass.apiEndpoint.apiInfo,
-    isPendingDiscovery ? '' : requests[0]!.cluster,
+    shouldProbeEndpoints ? kubeObjectClass.apiEndpoint.apiInfo : [],
+    shouldProbeEndpoints ? requests[0]!.cluster : '',
     maybeNamespace
   );
 

@@ -350,6 +350,7 @@ describe('useKubeObjectList', () => {
         useKubeObjectList({
           kubeObjectClass: mockMultiEndpointClass,
           requests: [],
+          pendingDiscovery: true,
         }),
       {
         wrapper: ({ children }) => (
@@ -360,6 +361,28 @@ describe('useKubeObjectList', () => {
 
     expect(mockClusterFetch).not.toHaveBeenCalled();
     expect(result.current.isLoading).toBe(true);
+  });
+
+  it('does not report loading when requests are empty without pendingDiscovery', () => {
+    mockClusterFetch.mockClear();
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false } },
+    });
+
+    const { result } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockMultiEndpointClass,
+          requests: [],
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    expect(result.current.isLoading).toBe(false);
   });
 
   it('should preserve List in the resource kind when parsing a list response', async () => {
