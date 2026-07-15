@@ -45,6 +45,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/externalproxy"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -800,10 +801,10 @@ func TestExternalProxyStreamsLargeBody(t *testing.T) {
 }
 
 func TestExternalProxyTimeout(t *testing.T) {
-	originalLimit := externalProxyTimeout
-	externalProxyTimeout = 50 * time.Millisecond
+	originalLimit := externalproxy.Timeout
+	externalproxy.Timeout = 50 * time.Millisecond
 
-	t.Cleanup(func() { externalProxyTimeout = originalLimit })
+	t.Cleanup(func() { externalproxy.Timeout = originalLimit })
 
 	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(100 * time.Millisecond) // Block longer than the timeout
@@ -838,7 +839,7 @@ func TestExternalProxyTimeout(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusBadGateway, rr.Code)
-	assert.Contains(t, rr.Body.String(), "context deadline exceeded")
+	assert.Contains(t, rr.Body.String(), "external proxy request failed")
 }
 
 func TestDrainAndCordonNode(t *testing.T) { //nolint:funlen
@@ -4017,12 +4018,12 @@ func TestHostValidationMiddleware(t *testing.T) {
 }
 
 func TestExternalProxyOversizeResponse(t *testing.T) {
-	originalLimit := maxProxyResponseSize
-	maxProxyResponseSize = 64 // 64 bytes
+	originalLimit := externalproxy.MaxResponseSize
+	externalproxy.MaxResponseSize = 64 // 64 bytes
 
-	t.Cleanup(func() { maxProxyResponseSize = originalLimit })
+	t.Cleanup(func() { externalproxy.MaxResponseSize = originalLimit })
 
-	oversizeBody := strings.Repeat("X", int(maxProxyResponseSize)+1)
+	oversizeBody := strings.Repeat("X", int(externalproxy.MaxResponseSize)+1)
 
 	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", strconv.Itoa(len(oversizeBody)))
@@ -4061,12 +4062,12 @@ func TestExternalProxyOversizeResponse(t *testing.T) {
 }
 
 func TestExternalProxyOversizeResponseUnknownLength(t *testing.T) {
-	originalLimit := maxProxyResponseSize
-	maxProxyResponseSize = 64
+	originalLimit := externalproxy.MaxResponseSize
+	externalproxy.MaxResponseSize = 64
 
-	t.Cleanup(func() { maxProxyResponseSize = originalLimit })
+	t.Cleanup(func() { externalproxy.MaxResponseSize = originalLimit })
 
-	oversizeBody := strings.Repeat("X", int(maxProxyResponseSize)+1)
+	oversizeBody := strings.Repeat("X", int(externalproxy.MaxResponseSize)+1)
 
 	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Transfer-Encoding", "chunked")
@@ -4102,16 +4103,16 @@ func TestExternalProxyOversizeResponseUnknownLength(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, int(maxProxyResponseSize), rr.Body.Len())
+	assert.Equal(t, int(externalproxy.MaxResponseSize), rr.Body.Len())
 }
 
 func TestExternalProxyOversizeResponseGzip(t *testing.T) {
-	originalLimit := maxProxyResponseSize
-	maxProxyResponseSize = 64
+	originalLimit := externalproxy.MaxResponseSize
+	externalproxy.MaxResponseSize = 64
 
-	t.Cleanup(func() { maxProxyResponseSize = originalLimit })
+	t.Cleanup(func() { externalproxy.MaxResponseSize = originalLimit })
 
-	oversizeBody := strings.Repeat("X", int(maxProxyResponseSize)+1)
+	oversizeBody := strings.Repeat("X", int(externalproxy.MaxResponseSize)+1)
 
 	var buf bytes.Buffer
 
@@ -4156,5 +4157,5 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, int(maxProxyResponseSize), rr.Body.Len())
+	assert.Equal(t, int(externalproxy.MaxResponseSize), rr.Body.Len())
 }
