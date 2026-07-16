@@ -118,16 +118,37 @@ describe('clusterSettings', () => {
       expect(loadClusterSettings('prod.extra')).toEqual({});
     });
 
-    it('returns empty object and logs console error when the stored payload is not valid JSON', () => {
+    it('returns empty object and logs console warning when the stored payload is not valid JSON', () => {
       localStorage.setItem('cluster_settings.prod', '{not json');
 
-      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
       const result = loadClusterSettings('prod');
 
       expect(result).toEqual({});
-      expect(consoleErrorSpy).toHaveBeenCalled();
-      consoleErrorSpy.mockRestore();
+      expect(consoleWarnSpy).toHaveBeenCalled();
+      consoleWarnSpy.mockRestore();
+    });
+
+    it('returns empty object and logs console warning when the stored payload is not an object', () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Test null
+      localStorage.setItem('cluster_settings.prod', 'null');
+      expect(loadClusterSettings('prod')).toEqual({});
+      expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
+
+      // Test array
+      localStorage.setItem('cluster_settings.prod', '[1, 2, 3]');
+      expect(loadClusterSettings('prod')).toEqual({});
+      expect(consoleWarnSpy).toHaveBeenCalledTimes(2);
+
+      // Test string
+      localStorage.setItem('cluster_settings.prod', '"some string"');
+      expect(loadClusterSettings('prod')).toEqual({});
+      expect(consoleWarnSpy).toHaveBeenCalledTimes(3);
+
+      consoleWarnSpy.mockRestore();
     });
   });
 });
