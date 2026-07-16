@@ -43,9 +43,8 @@ export default {
               items: [DEFAULT_BACKEND_TLS_POLICY],
             })
           ),
-          http.get(
-            `${API_BASE}/apis/gateway.networking.k8s.io/v1alpha3/backendtlspolicies`,
-            () => HttpResponse.error()
+          http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1alpha3/backendtlspolicies`, () =>
+            HttpResponse.error()
           ),
         ],
       },
