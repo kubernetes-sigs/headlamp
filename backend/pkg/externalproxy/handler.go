@@ -55,7 +55,7 @@ var (
 // that does not disclose upstream URLs.
 type Handler struct {
 	// GetAllowlist returns the current ProxyURLs allowlist.
-	GetAllowlist func() []AllowlistEntry
+	GetAllowlist func() ([]AllowlistEntry, error)
 	// Timeout overrides DefaultTimeout when non-zero.
 	Timeout time.Duration
 	// MaxResponseSize overrides DefaultMaxResponseSize when non-zero.
@@ -65,7 +65,7 @@ type Handler struct {
 }
 
 // NewHandler constructs a Handler with a shared redirect-aware HTTP client.
-func NewHandler(getAllowlist func() []AllowlistEntry) *Handler {
+func NewHandler(getAllowlist func() ([]AllowlistEntry, error)) *Handler {
 	return &Handler{
 		GetAllowlist: getAllowlist,
 		Client:       NewHTTPClient(),
@@ -122,9 +122,9 @@ func writeTargetURLError(w http.ResponseWriter, r *http.Request, err error) {
 	http.Error(w, "The provided proxy URL is invalid", http.StatusBadRequest)
 }
 
-func (h *Handler) allowlist() []AllowlistEntry {
+func (h *Handler) allowlist() ([]AllowlistEntry, error) {
 	if h.GetAllowlist == nil {
-		return nil
+		return nil, nil
 	}
 
 	return h.GetAllowlist()
@@ -132,9 +132,23 @@ func (h *Handler) allowlist() []AllowlistEntry {
 
 func writeAllowlistDenied(w http.ResponseWriter, targetURL *url.URL) {
 	denyErr := errors.New("no allowed proxy url match, request denied")
-	logger.Log(logger.LevelError, map[string]string{"proxyURL": targetURL.Redacted()},
+	logger.Log(logger.LevelError, map[string]string{"proxyURL": redactURLForLog(targetURL)},
 		denyErr, "no allowed proxy url match, request denied")
 	http.Error(w, "no allowed proxy url match, request denied", http.StatusBadRequest)
+}
+
+func redactURLForLog(targetURL *url.URL) string {
+	if targetURL == nil {
+		return ""
+	}
+
+	redacted := *targetURL
+	redacted.Path = ""
+	redacted.RawPath = ""
+	redacted.RawQuery = ""
+	redacted.Fragment = ""
+
+	return redacted.Redacted()
 }
 
 func setNoCacheHeaders(w http.ResponseWriter) {
@@ -248,7 +262,14 @@ func (h *Handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	allowlist := h.allowlist()
+	allowlist, err := h.allowlist()
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "compiling proxy URL patterns")
+		http.Error(w, "failed to compile proxy URL patterns", http.StatusInternalServerError)
+
+		return
+	}
+
 	if !MatchesAllowlist(targetURL.String(), allowlist) {
 		writeAllowlistDenied(w, targetURL)
 

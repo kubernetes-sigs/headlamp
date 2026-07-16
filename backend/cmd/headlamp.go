@@ -691,15 +691,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	config.handleClusterRequests(r)
 
-	externalProxyHandler := externalproxy.NewHandler(func() []externalproxy.AllowlistEntry {
-		allowlist, err := config.proxyURLAllowlist()
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "compiling proxy URL patterns")
-
-			return nil
-		}
-
-		return allowlist
+	externalProxyHandler := externalproxy.NewHandler(func() ([]externalproxy.AllowlistEntry, error) {
+		return config.proxyURLAllowlist()
 	})
 	r.Handle("/externalproxy", externalProxyHandler)
 

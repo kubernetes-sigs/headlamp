@@ -18,6 +18,7 @@ package externalproxy_test
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
@@ -30,10 +31,14 @@ import (
 )
 
 func TestHandlerFiltersSensitiveHeaders(t *testing.T) {
+	var mu sync.Mutex
+
 	var received http.Header
 
 	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		received = r.Header.Clone()
+		mu.Unlock()
 
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
@@ -46,7 +51,7 @@ func TestHandlerFiltersSensitiveHeaders(t *testing.T) {
 	allowlist, err := externalproxy.CompileAllowlist([]string{upstreamURL.String()})
 	require.NoError(t, err)
 
-	handler := externalproxy.NewHandler(func() []externalproxy.AllowlistEntry { return allowlist })
+	handler := externalproxy.NewHandler(func() ([]externalproxy.AllowlistEntry, error) { return allowlist, nil })
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/externalproxy", nil)
 	req.Header.Set("proxy-to", upstream.URL)
@@ -57,6 +62,9 @@ func TestHandlerFiltersSensitiveHeaders(t *testing.T) {
 
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
+
+	mu.Lock()
+	defer mu.Unlock()
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "keep", received.Get("X-Custom-Preserve"))
@@ -89,7 +97,7 @@ func TestHandlerBlocksDisallowedRedirect(t *testing.T) {
 	allowlist, err := externalproxy.CompileAllowlist([]string{upstreamURL.String()})
 	require.NoError(t, err)
 
-	handler := externalproxy.NewHandler(func() []externalproxy.AllowlistEntry { return allowlist })
+	handler := externalproxy.NewHandler(func() ([]externalproxy.AllowlistEntry, error) { return allowlist, nil })
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/externalproxy", nil)
 	req.Header.Set("proxy-to", upstream.URL)
@@ -121,7 +129,7 @@ func TestHandlerFollowsAllowedRedirect(t *testing.T) {
 	allowlist, err := externalproxy.CompileAllowlist([]string{upstream.URL + "*", final.URL + "*"})
 	require.NoError(t, err)
 
-	handler := externalproxy.NewHandler(func() []externalproxy.AllowlistEntry { return allowlist })
+	handler := externalproxy.NewHandler(func() ([]externalproxy.AllowlistEntry, error) { return allowlist, nil })
 
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/externalproxy", nil)
 	req.Header.Set("proxy-to", upstream.URL)
@@ -131,4 +139,20 @@ func TestHandlerFollowsAllowedRedirect(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, "final", rr.Body.String())
+}
+
+func TestHandlerReturnsInternalErrorOnAllowlistCompileFailure(t *testing.T) {
+	compileErr := errors.New("compile failed")
+	handler := externalproxy.NewHandler(func() ([]externalproxy.AllowlistEntry, error) {
+		return nil, compileErr
+	})
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/externalproxy", nil)
+	req.Header.Set("proxy-to", "https://example.com")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "failed to compile proxy URL patterns")
 }
