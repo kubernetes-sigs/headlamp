@@ -133,7 +133,13 @@ function isFieldValid(field: FormField, value: any): boolean {
         Array.isArray(value) &&
         value.length > 0 &&
         value.every(
-          (c: any) => c?.image && typeof c.image === 'string' && c.image.trim().length > 0
+          (c: any) =>
+            c?.name &&
+            typeof c.name === 'string' &&
+            c.name.trim().length > 0 &&
+            c?.image &&
+            typeof c.image === 'string' &&
+            c.image.trim().length > 0
         )
       );
     case 'boolean':
