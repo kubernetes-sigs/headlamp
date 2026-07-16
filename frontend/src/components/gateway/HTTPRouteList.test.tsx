@@ -78,7 +78,7 @@ describe('HTTPRouteList', () => {
     // Hostnames column
     const hostCol = screen.getByTestId('col-hostnames');
     expect(hostCol.querySelector('.label')).toHaveTextContent('Hostnames');
-    expect(hostCol.querySelector('.value')).toHaveTextContent('app.example.comapi.example.com');
+    expect(hostCol.querySelector('.value')).toHaveTextContent('app.example.com, api.example.com');
     expect(hostCol.querySelector('.node')).toHaveTextContent('app.example.com, api.example.com');
 
     // Rules column
