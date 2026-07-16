@@ -88,6 +88,7 @@
   "Session Persistence": "سیشن مستقل مزاجی",
   "No session persistence configured": "کوئی سیشن persistence کنفیگر نہیں",
   "Backend Traffic Policies": "بیک اینڈ ٹریفک پالیسیاں",
+  "Retry {{percent}}% per {{interval}}": "",
   "Controller Name": "کنٹرولر نام",
   "Gateway Classes": "گیٹ وے کلاسز",
   "Controller": "کنٹرولر",

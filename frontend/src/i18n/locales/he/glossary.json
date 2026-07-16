@@ -88,6 +88,7 @@
   "Session Persistence": "Session Persistence",
   "No session persistence configured": "No session persistence configured",
   "Backend Traffic Policies": "Backend Traffic Policies",
+  "Retry {{percent}}% per {{interval}}": "",
   "Controller Name": "Controller Name",
   "Gateway Classes": "Gateway Classes",
   "Controller": "Controller",

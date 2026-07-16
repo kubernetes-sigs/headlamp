@@ -88,6 +88,7 @@
   "Session Persistence": "",
   "No session persistence configured": "",
   "Backend Traffic Policies": "",
+  "Retry {{percent}}% per {{interval}}": "",
   "Controller Name": "कंट्रोलर नाम",
   "Gateway Classes": "गेटवे क्लासेज",
   "Controller": "कंट्रोलर",
