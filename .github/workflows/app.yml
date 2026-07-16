@@ -73,6 +73,28 @@ jobs:
       uses: crazy-max/ghaction-chocolatey@e80bd39bb49cae70b67ea53d52d00833a7255c21 # v1.7.0
       with:
         args: install make
+    - name: Install app dependencies
+      shell: pwsh
+      # Electron's postinstall downloads its binary from github.com, which
+      # intermittently fails DNS resolution on the Windows runners and takes the
+      # whole job down before a single test runs. Retry the install here so the
+      # later targets find node_modules already in place. Only the install is
+      # retried: a failing test still fails the job on the first attempt.
+      run: |
+        $attempts = 3
+        for ($i = 1; $i -le $attempts; $i++) {
+          Push-Location app
+          npm install
+          $code = $LASTEXITCODE
+          Pop-Location
+          if ($code -eq 0) { exit 0 }
+          if ($i -lt $attempts) {
+            Write-Host "::warning::npm install failed (attempt $i/$attempts), retrying in 15s"
+            Start-Sleep -Seconds 15
+          }
+        }
+        Write-Host "::error::npm install failed after $attempts attempts"
+        exit 1
     - name: Run tests
       run: make app-test
     - name: Run tsc type checker
