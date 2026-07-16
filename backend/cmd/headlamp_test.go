@@ -319,6 +319,7 @@ func TestDynamicClusters(t *testing.T) {
 				},
 			}
 			handler := createHeadlampHandler(context.Background(), &c)
+			initialClusterCount := len(c.getClusters())
 
 			var resp *httptest.ResponseRecorder
 
@@ -380,8 +381,9 @@ func TestDynamicClusters(t *testing.T) {
 					t.Fatal(err)
 				}
 
+				assert.Equal(t, initialClusterCount+tc.expectedNumClusters, len(clusterConfig.Clusters))
 				assert.Equal(t, len(clusterConfig.Clusters), len(config.Clusters))
-				assert.Equal(t, tc.expectedNumClusters, len(c.getClusters()))
+				assert.Equal(t, initialClusterCount+tc.expectedNumClusters, len(c.getClusters()))
 			}
 		})
 	}
@@ -1834,7 +1836,7 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 				Stateless:      false,
 				Source:         "kubeconfig",
 			},
-			expectedState: http.StatusInternalServerError,
+			expectedState: http.StatusCreated,
 		},
 	}
 
@@ -1854,10 +1856,10 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 	}
 
 	// The stateless rename removes the original from the store; the new name is frontend-only.
-	// The failed kubeconfig rename left the original context intact, which was removed above.
+	// The kubeconfig-backed rename persists the custom name and refreshes the store.
 	assert.NotContains(t, clustersByName, "minikubetest", "expected stateless cluster to be removed from store")
-	assert.NotContains(t, clustersByName, "minikubetestworkskubeconfig",
-		"expected failed kubeconfig rename not to create a new cluster name in the store")
+	assert.Contains(t, clustersByName, "minikubetestworkskubeconfig",
+		"expected successful kubeconfig rename to create a new cluster name in the store")
 	assert.NotContains(t, clustersByName, "minikubetestnondynamic",
 		"expected original kubeconfig context to be removed during cleanup")
 	// The clusters added via POST should still be present.
@@ -3166,11 +3168,16 @@ func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 	}
 
 	kubeConfigStore := kubeconfig.NewContextStore()
+
 	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, nil)
-	require.NoError(t, err, "failed to load kubeconfig")
+	if err != nil {
+		t.Skipf("unable to load kubeconfig for real K8s integration test: %v", err)
+	}
 
 	cfg, err := clientcmd.LoadFromFile(kubeConfigPath)
-	require.NoError(t, err, "failed to load kubeconfig for current context")
+	if err != nil {
+		t.Skipf("unable to read kubeconfig for real K8s integration test: %v", err)
+	}
 
 	clusterName := cfg.CurrentContext
 

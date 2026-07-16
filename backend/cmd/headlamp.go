@@ -2539,13 +2539,14 @@ func (c *HeadlampConfig) updateCustomContextToCache(config *api.Config, clusterN
 		return errs
 	}
 
-	for _, context := range contexts {
-		// Remove the old context from the store
-		if err := c.KubeConfigStore.RemoveContext(clusterName); err != nil {
-			logger.Log(logger.LevelError, nil, err, "Removing context from the store")
-			errs = append(errs, err)
-		}
+	// Remove the renamed context once before repopulating the store from the
+	// updated kubeconfig.
+	if err := c.KubeConfigStore.RemoveContext(clusterName); err != nil {
+		logger.Log(logger.LevelError, nil, err, "Removing context from the store")
+		errs = append(errs, err)
+	}
 
+	for _, context := range contexts {
 		// Add the new context to the store
 		if err := c.KubeConfigStore.AddContext(&context); err != nil {
 			logger.Log(logger.LevelError, nil, err, "Adding context to the store")
