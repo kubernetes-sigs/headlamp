@@ -36,7 +36,7 @@ import {
 import CreateNamespaceButton from './CreateNamespaceButton';
 
 export default function NamespacesList() {
-  const { t } = useTranslation(['glossary', 'translation']);
+  const { t, i18n } = useTranslation(['glossary', 'translation']);
   const cluster = useCluster();
   const {
     data: discovery,
@@ -127,8 +127,8 @@ export default function NamespacesList() {
         'age',
       ],
     } satisfies ResourceTableFromResourceClassProps<typeof Namespace>;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [useDiscoveredTable, tableNamespaceItems]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- column labels must refresh on locale change
+  }, [useDiscoveredTable, tableNamespaceItems, i18n.language]);
 
   const discoveryError = getNamespaceDiscoveryAlert({
     effectiveNamespaces,
