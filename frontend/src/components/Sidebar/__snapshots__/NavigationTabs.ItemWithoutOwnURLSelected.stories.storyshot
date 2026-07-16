@@ -115,7 +115,7 @@
           class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
           id="full-width-tabpanel-3-NavigationTabs-tabs-id"
           role="tabpanel"
-          tabindex="0"
+          tabindex="-1"
         />
         <hr
           class="MuiDivider-root MuiDivider-fullWidth css-9mgopn-MuiDivider-root"

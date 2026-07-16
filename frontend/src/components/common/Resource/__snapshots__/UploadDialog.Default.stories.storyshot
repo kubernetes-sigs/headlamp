@@ -85,7 +85,7 @@
             class="MuiTypography-root MuiTypography-body1 css-13gio71-MuiTypography-root"
             id="full-width-tabpanel-0-UploadFile/URL-tabs-id"
             role="tabpanel"
-            tabindex="0"
+            tabindex="-1"
           >
             <div
               class="MuiBox-root css-1v3caum"

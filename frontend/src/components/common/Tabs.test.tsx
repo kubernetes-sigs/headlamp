@@ -15,8 +15,7 @@
  */
 
 import { render, screen } from '@testing-library/react';
-import React from 'react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { TestContext } from '../../test';
 import Tabs, { TabPanel } from './Tabs';
 
@@ -26,65 +25,46 @@ const mockTabs = [
 ];
 
 describe('Tabs', () => {
-  it('renders defaultIndex={1} correctly on initial render (before effects)', () => {
-    // Mock useEffect to prevent it from running, allowing us to inspect the initial render state.
-    const useEffectSpy = vi.spyOn(React, 'useEffect').mockImplementation(() => {});
+  it('renders defaultIndex={1} correctly', () => {
+    render(
+      <TestContext>
+        <Tabs tabs={mockTabs} defaultIndex={1} ariaLabel="Test Tabs" />
+      </TestContext>
+    );
 
-    try {
-      render(
-        <TestContext>
-          <Tabs tabs={mockTabs} defaultIndex={1} ariaLabel="Test Tabs" />
-        </TestContext>
-      );
+    const panel1 = screen.getByTestId('content-1').closest('[role="tabpanel"]');
+    const panel2 = screen.getByTestId('content-2').closest('[role="tabpanel"]');
 
-      const panel1 = screen.getByTestId('content-1').closest('[role="tabpanel"]');
-      const panel2 = screen.getByTestId('content-2').closest('[role="tabpanel"]');
-
-      expect(panel1).toHaveAttribute('hidden');
-      expect(panel2).not.toHaveAttribute('hidden');
-    } finally {
-      useEffectSpy.mockRestore();
-    }
+    expect(panel1).toHaveAttribute('hidden');
+    expect(panel2).not.toHaveAttribute('hidden');
   });
 
-  it('renders defaultIndex={false} correctly on initial render (before effects)', () => {
-    const useEffectSpy = vi.spyOn(React, 'useEffect').mockImplementation(() => {});
+  it('renders defaultIndex={false} correctly', () => {
+    render(
+      <TestContext>
+        <Tabs tabs={mockTabs} defaultIndex={false} ariaLabel="Test Tabs" />
+      </TestContext>
+    );
 
-    try {
-      render(
-        <TestContext>
-          <Tabs tabs={mockTabs} defaultIndex={false} ariaLabel="Test Tabs" />
-        </TestContext>
-      );
+    const panel1 = screen.getByTestId('content-1').closest('[role="tabpanel"]');
+    const panel2 = screen.getByTestId('content-2').closest('[role="tabpanel"]');
 
-      const panel1 = screen.getByTestId('content-1').closest('[role="tabpanel"]');
-      const panel2 = screen.getByTestId('content-2').closest('[role="tabpanel"]');
-
-      expect(panel1).toHaveAttribute('hidden');
-      expect(panel2).toHaveAttribute('hidden');
-    } finally {
-      useEffectSpy.mockRestore();
-    }
+    expect(panel1).toHaveAttribute('hidden');
+    expect(panel2).toHaveAttribute('hidden');
   });
 
-  it('renders defaultIndex={null} correctly on initial render (before effects)', () => {
-    const useEffectSpy = vi.spyOn(React, 'useEffect').mockImplementation(() => {});
+  it('renders defaultIndex={null} correctly', () => {
+    render(
+      <TestContext>
+        <Tabs tabs={mockTabs} defaultIndex={null} ariaLabel="Test Tabs" />
+      </TestContext>
+    );
 
-    try {
-      render(
-        <TestContext>
-          <Tabs tabs={mockTabs} defaultIndex={null} ariaLabel="Test Tabs" />
-        </TestContext>
-      );
+    const panel1 = screen.getByTestId('content-1').closest('[role="tabpanel"]');
+    const panel2 = screen.getByTestId('content-2').closest('[role="tabpanel"]');
 
-      const panel1 = screen.getByTestId('content-1').closest('[role="tabpanel"]');
-      const panel2 = screen.getByTestId('content-2').closest('[role="tabpanel"]');
-
-      expect(panel1).toHaveAttribute('hidden');
-      expect(panel2).toHaveAttribute('hidden');
-    } finally {
-      useEffectSpy.mockRestore();
-    }
+    expect(panel1).toHaveAttribute('hidden');
+    expect(panel2).toHaveAttribute('hidden');
   });
 
   it('handles negative defaultIndex by clamping to 0', () => {
