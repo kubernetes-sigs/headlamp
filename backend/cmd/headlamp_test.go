@@ -1618,6 +1618,7 @@ func TestFindMatchingContextName(t *testing.T) {
 		contexts    map[string]*api.Context
 		clusterName string
 		expected    string
+		expectedErr error
 	}{
 		{
 			label:       "plain name returns itself",
@@ -1665,28 +1666,136 @@ func TestFindMatchingContextName(t *testing.T) {
 		},
 		{
 			// When two keys share the same DNS-friendly form and neither is an exact
-			// match, the lexicographically first key is returned deterministically.
+			// match, the request must fail instead of mutating an arbitrary context.
 			// MakeDNSFriendly("a--b/c") == "a--b--c"
 			// MakeDNSFriendly("a/b--c") == "a--b--c"
 			// Neither key equals "a--b--c" verbatim, so DNS-friendly matching applies
-			// and the lexicographically smaller "a--b/c" must win.
-			label: "ambiguous DNS-friendly match returns lexicographically first key",
+			// and the ambiguity must be rejected.
+			label: "ambiguous DNS-friendly match returns an error",
 			contexts: map[string]*api.Context{
 				"a--b/c": {},
 				"a/b--c": {},
 			},
 			clusterName: "a--b--c",
-			expected:    "a--b/c",
+			expectedErr: errAmbiguousDNSFriendlyContextName,
 		},
 	}
 
 	for _, tc := range cases {
 		t.Run(tc.label, func(t *testing.T) {
 			config := &api.Config{Contexts: tc.contexts}
-			got := findMatchingContextName(config, tc.clusterName)
+
+			got, err := findMatchingContextName(config, tc.clusterName)
+			if tc.expectedErr != nil {
+				require.ErrorIs(t, err, tc.expectedErr)
+				assert.Empty(t, got)
+
+				return
+			}
+
+			require.NoError(t, err)
 			assert.Equal(t, tc.expected, got)
 		})
 	}
+}
+
+func TestHandleClusterRenameRejectsAmbiguousDNSFriendlyContextName(t *testing.T) {
+	tmpFile, err := os.CreateTemp(t.TempDir(), "kubeconfig-*.yaml")
+	require.NoError(t, err)
+	require.NoError(t, tmpFile.Close())
+
+	config := api.Config{
+		Contexts: map[string]*api.Context{
+			"a--b/c": {},
+			"a/b--c": {},
+		},
+	}
+	require.NoError(t, clientcmd.WriteToFile(config, tmpFile.Name()))
+
+	c := HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigPath:  tmpFile.Name(),
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	ctx, span := otel.Tracer("test").Start(context.Background(), "rename-cluster")
+
+	t.Cleanup(func() {
+		span.End()
+	})
+
+	req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/cluster/a--b--c", nil)
+	rr := httptest.NewRecorder()
+
+	err = c.handleClusterRename(rr, req, "a--b--c", RenameClusterRequest{
+		NewClusterName: "renamed",
+		Source:         kubeConfigSource,
+	}, ctx, span)
+	require.ErrorIs(t, err, errAmbiguousDNSFriendlyContextName)
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.NotContains(t, rr.Body.String(), "a--b/c")
+	assert.NotContains(t, rr.Body.String(), "a/b--c")
+
+	saved, loadErr := clientcmd.LoadFromFile(tmpFile.Name())
+	require.NoError(t, loadErr)
+
+	for _, ctx := range saved.Contexts {
+		assert.Nil(t, ctx.Extensions["headlamp_info"])
+	}
+}
+
+func TestHandleClusterRenameReturnsNotFoundForMissingResolvedContext(t *testing.T) {
+	tmpFile, err := os.CreateTemp(t.TempDir(), "kubeconfig-*.yaml")
+	require.NoError(t, err)
+	require.NoError(t, tmpFile.Close())
+
+	config := api.Config{
+		Contexts: map[string]*api.Context{
+			"existing-context": {},
+		},
+	}
+	require.NoError(t, clientcmd.WriteToFile(config, tmpFile.Name()))
+
+	c := HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigPath:  tmpFile.Name(),
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	ctx, span := otel.Tracer("test").Start(context.Background(), "rename-cluster-missing-context")
+
+	t.Cleanup(func() {
+		span.End()
+	})
+
+	req := httptest.NewRequestWithContext(ctx, http.MethodPut, "/cluster/missing-context", nil)
+	rr := httptest.NewRecorder()
+
+	err = c.handleClusterRename(rr, req, "missing-context", RenameClusterRequest{
+		NewClusterName: "renamed",
+		Source:         kubeConfigSource,
+	}, ctx, span)
+	require.Error(t, err)
+	assert.Equal(t, http.StatusNotFound, rr.Code)
+	assert.Contains(t, rr.Body.String(), "context")
+	assert.Contains(t, rr.Body.String(), "not found")
+
+	saved, loadErr := clientcmd.LoadFromFile(tmpFile.Name())
+	require.NoError(t, loadErr)
+	assert.NotContains(t, saved.Contexts, "missing-context")
+	assert.Nil(t, saved.Contexts["existing-context"].Extensions["headlamp_info"])
 }
 
 // TestCustomNameToExtensions verifies that customNameToExtensions writes the
@@ -1798,7 +1907,7 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				UseInCluster:          false,
-				KubeConfigPath:        "./headlamp_testdata/kubeconfig",
+				KubeConfigPath:        "./headlamp_testdata/kubeconfig_rename",
 				EnableDynamicClusters: true,
 				KubeConfigStore:       kubeConfigStore,
 			},
