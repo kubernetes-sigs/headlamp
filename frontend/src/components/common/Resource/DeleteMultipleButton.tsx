@@ -80,10 +80,7 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
 
   // Protected namespaces included in the current selection, if any.
   const protectedNamespaces = (items ?? []).filter(
-    item =>
-      item.kind === Namespace.kind &&
-      typeof (item as any).isProtected === 'function' &&
-      (item as any).isProtected()
+    (item): item is Namespace => item instanceof Namespace && item.isProtected()
   );
   // Build the confirm string from the same label-or-name value that isProtected() checks,
   // de-duped and sorted alphabetically so the expected order is deterministic for the user.
