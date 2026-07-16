@@ -69,10 +69,15 @@ export function loadClusterSettings(clusterName: string): ClusterSettings {
     return {};
   }
   try {
-    const settings = JSON.parse(localStorage.getItem(`cluster_settings.${clusterName}`) || '{}');
-    return settings;
-  } catch (err) {
-    console.error(`Error parsing cluster settings for ${clusterName}:`, err);
-    return {};
+    const raw = localStorage.getItem(`cluster_settings.${clusterName}`) || '{}';
+    const parsed: unknown = JSON.parse(raw);
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      console.warn(`cluster_settings.${clusterName} is not an object, falling back to {}.`);
+      return {};
+    }
+    return parsed as ClusterSettings;
+  } catch (error) {
+    console.warn(`Failed to parse cluster_settings.${clusterName}, falling back to {}:`, error);
   }
+  return {};
 }
