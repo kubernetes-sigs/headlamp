@@ -16,20 +16,21 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
+import { ProjectDefinition } from '../../redux/projectsSlice';
 import { API_BASE, TestContext } from '../../test';
 import { ProjectDeleteButton } from './ProjectDeleteButton';
 
-const mockProject = {
+const mockProject: ProjectDefinition = {
   id: 'test-project',
   namespaces: ['ns1'],
-  clusters: [],
-} as any;
+  clusters: [''],
+};
 
-const mockProjectNoMatch = {
+const mockProjectNoMatch: ProjectDefinition = {
   id: 'orphan-project',
   namespaces: ['nonexistent'],
-  clusters: [],
-} as any;
+  clusters: [''],
+};
 
 export default {
   title: 'project/ProjectDeleteButton',
@@ -44,10 +45,12 @@ export default {
   parameters: {
     msw: {
       handlers: {
-        storyBase: [
+        base: null,
+        story: [
           http.get(`${API_BASE}/api/v1/namespaces`, () =>
             HttpResponse.json({
               kind: 'NamespaceList',
+              apiVersion: 'v1',
               items: [
                 {
                   apiVersion: 'v1',
@@ -59,6 +62,11 @@ export default {
                 },
               ],
               metadata: {},
+            })
+          ),
+          http.post(`${API_BASE}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, () =>
+            HttpResponse.json({
+              status: { allowed: true, reason: '' },
             })
           ),
         ],
