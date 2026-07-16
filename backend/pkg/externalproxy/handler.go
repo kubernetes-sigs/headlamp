@@ -36,7 +36,10 @@ const (
 	DefaultMaxResponseSize int64 = 100 * 1024 * 1024
 )
 
-var errEmptyProxyURL = errors.New("proxy URL is empty")
+var (
+	errEmptyProxyURL   = errors.New("proxy URL is empty")
+	errInvalidProxyURL = errors.New("invalid proxy URL")
+)
 
 // Timeout and MaxResponseSize are package defaults that tests may override.
 //
@@ -106,7 +109,50 @@ func targetURLFromRequest(r *http.Request) (*url.URL, error) {
 		return nil, errEmptyProxyURL
 	}
 
-	return url.Parse(proxyURL)
+	parsed, err := url.Parse(proxyURL)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := validateProxyURL(parsed); err != nil {
+		return nil, err
+	}
+
+	return parsed, nil
+}
+
+func validateProxyURL(targetURL *url.URL) error {
+	if targetURL.Scheme != "http" && targetURL.Scheme != "https" {
+		return errInvalidProxyURL
+	}
+
+	if targetURL.Host == "" {
+		return errInvalidProxyURL
+	}
+
+	if targetURL.User != nil {
+		return errInvalidProxyURL
+	}
+
+	return nil
+}
+
+func proxyURLHeaderForLog(r *http.Request) string {
+	proxyURL := r.Header.Get("proxy-to")
+	if proxyURL == "" {
+		proxyURL = r.Header.Get("Forward-to")
+	}
+
+	if proxyURL == "" {
+		return ""
+	}
+
+	parsed, err := url.Parse(proxyURL)
+	if err != nil {
+		return "[invalid]"
+	}
+
+	return redactURLForLog(parsed)
 }
 
 func writeTargetURLError(w http.ResponseWriter, r *http.Request, err error) {
@@ -117,7 +163,7 @@ func writeTargetURLError(w http.ResponseWriter, r *http.Request, err error) {
 		return
 	}
 
-	logger.Log(logger.LevelError, map[string]string{"proxyURL": r.Header.Get("proxy-to")},
+	logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURLHeaderForLog(r)},
 		err, "The provided proxy URL is invalid")
 	http.Error(w, "The provided proxy URL is invalid", http.StatusBadRequest)
 }

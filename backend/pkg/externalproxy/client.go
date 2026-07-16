@@ -54,6 +54,10 @@ func NewHTTPClient() *http.Client {
 				return http.ErrUseLastResponse
 			}
 
+			if err := validateProxyURL(req.URL); err != nil {
+				return fmt.Errorf("redirect target is invalid: %w", err)
+			}
+
 			if !MatchesAllowlist(req.URL.String(), allowlist) {
 				return fmt.Errorf("redirect target not in allowlist")
 			}

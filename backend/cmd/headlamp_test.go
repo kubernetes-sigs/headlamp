@@ -712,7 +712,7 @@ func newLargeBodyUpstream(t *testing.T, size int) *httptest.Server {
 	}))
 }
 
-func newExternalProxyHandler(t *testing.T, upstream string) http.Handler {
+func newExternalProxyHandler(t *testing.T, upstream string, customize ...func(*externalproxy.Handler)) http.Handler {
 	t.Helper()
 
 	upstreamURL, err := url.Parse(upstream)
@@ -720,16 +720,23 @@ func newExternalProxyHandler(t *testing.T, upstream string) http.Handler {
 		t.Fatal(err)
 	}
 
-	return createHeadlampHandler(context.Background(), &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				UseInCluster:    false,
-				ProxyURLs:       []string{upstreamURL.String()},
-				KubeConfigStore: kubeconfig.NewContextStore(),
-			},
-			Cache: cache.New[interface{}](),
-		},
+	allowlist, err := externalproxy.CompileAllowlist([]string{upstreamURL.String()})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	handler := externalproxy.NewHandler(func() ([]externalproxy.AllowlistEntry, error) {
+		return allowlist, nil
 	})
+
+	for _, fn := range customize {
+		fn(handler)
+	}
+
+	router := mux.NewRouter()
+	router.Handle("/externalproxy", handler)
+
+	return router
 }
 
 func TestExternalProxyForwarding(t *testing.T) {
@@ -801,11 +808,6 @@ func TestExternalProxyStreamsLargeBody(t *testing.T) {
 }
 
 func TestExternalProxyTimeout(t *testing.T) {
-	originalLimit := externalproxy.Timeout
-	externalproxy.Timeout = 50 * time.Millisecond
-
-	t.Cleanup(func() { externalproxy.Timeout = originalLimit })
-
 	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		time.Sleep(100 * time.Millisecond) // Block longer than the timeout
 		w.WriteHeader(http.StatusOK)
@@ -813,27 +815,14 @@ func TestExternalProxyTimeout(t *testing.T) {
 	}))
 	defer proxyServer.Close()
 
-	proxyURL, err := url.Parse(proxyServer.URL)
-	require.NoError(t, err)
-
-	cache := cache.New[interface{}]()
-	kubeConfigStore := kubeconfig.NewContextStore()
-
-	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				UseInCluster:    false,
-				ProxyURLs:       []string{proxyURL.String()},
-				KubeConfigStore: kubeConfigStore,
-			},
-			Cache: cache,
-		},
+	handler := newExternalProxyHandler(t, proxyServer.URL, func(h *externalproxy.Handler) {
+		h.Timeout = 50 * time.Millisecond
 	})
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
 	require.NoError(t, err)
 
-	req.Header.Set("proxy-to", proxyURL.String())
+	req.Header.Set("proxy-to", proxyServer.URL)
 
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -4018,12 +4007,9 @@ func TestHostValidationMiddleware(t *testing.T) {
 }
 
 func TestExternalProxyOversizeResponse(t *testing.T) {
-	originalLimit := externalproxy.MaxResponseSize
-	externalproxy.MaxResponseSize = 64 // 64 bytes
+	const maxSize int64 = 64
 
-	t.Cleanup(func() { externalproxy.MaxResponseSize = originalLimit })
-
-	oversizeBody := strings.Repeat("X", int(externalproxy.MaxResponseSize)+1)
+	oversizeBody := strings.Repeat("X", int(maxSize)+1)
 
 	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Length", strconv.Itoa(len(oversizeBody)))
@@ -4032,27 +4018,14 @@ func TestExternalProxyOversizeResponse(t *testing.T) {
 	}))
 	defer proxyServer.Close()
 
-	proxyURL, err := url.Parse(proxyServer.URL)
-	require.NoError(t, err)
-
-	cache := cache.New[interface{}]()
-	kubeConfigStore := kubeconfig.NewContextStore()
-
-	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				UseInCluster:    false,
-				ProxyURLs:       []string{proxyURL.String()},
-				KubeConfigStore: kubeConfigStore,
-			},
-			Cache: cache,
-		},
+	handler := newExternalProxyHandler(t, proxyServer.URL, func(h *externalproxy.Handler) {
+		h.MaxResponseSize = maxSize
 	})
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
 	require.NoError(t, err)
 
-	req.Header.Set("proxy-to", proxyURL.String())
+	req.Header.Set("proxy-to", proxyServer.URL)
 
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
@@ -4062,12 +4035,9 @@ func TestExternalProxyOversizeResponse(t *testing.T) {
 }
 
 func TestExternalProxyOversizeResponseUnknownLength(t *testing.T) {
-	originalLimit := externalproxy.MaxResponseSize
-	externalproxy.MaxResponseSize = 64
+	const maxSize int64 = 64
 
-	t.Cleanup(func() { externalproxy.MaxResponseSize = originalLimit })
-
-	oversizeBody := strings.Repeat("X", int(externalproxy.MaxResponseSize)+1)
+	oversizeBody := strings.Repeat("X", int(maxSize)+1)
 
 	proxyServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Transfer-Encoding", "chunked")
@@ -4077,42 +4047,26 @@ func TestExternalProxyOversizeResponseUnknownLength(t *testing.T) {
 	}))
 	defer proxyServer.Close()
 
-	proxyURL, err := url.Parse(proxyServer.URL)
-	require.NoError(t, err)
-
-	cache := cache.New[interface{}]()
-	kubeConfigStore := kubeconfig.NewContextStore()
-
-	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				UseInCluster:    false,
-				ProxyURLs:       []string{proxyURL.String()},
-				KubeConfigStore: kubeConfigStore,
-			},
-			Cache: cache,
-		},
+	handler := newExternalProxyHandler(t, proxyServer.URL, func(h *externalproxy.Handler) {
+		h.MaxResponseSize = maxSize
 	})
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
 	require.NoError(t, err)
 
-	req.Header.Set("proxy-to", proxyURL.String())
+	req.Header.Set("proxy-to", proxyServer.URL)
 
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, int(externalproxy.MaxResponseSize), rr.Body.Len())
+	assert.Equal(t, int(maxSize), rr.Body.Len())
 }
 
 func TestExternalProxyOversizeResponseGzip(t *testing.T) {
-	originalLimit := externalproxy.MaxResponseSize
-	externalproxy.MaxResponseSize = 64
+	const maxSize int64 = 64
 
-	t.Cleanup(func() { externalproxy.MaxResponseSize = originalLimit })
-
-	oversizeBody := strings.Repeat("X", int(externalproxy.MaxResponseSize)+1)
+	oversizeBody := strings.Repeat("X", int(maxSize)+1)
 
 	var buf bytes.Buffer
 
@@ -4131,31 +4085,18 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 	}))
 	defer proxyServer.Close()
 
-	proxyURL, err := url.Parse(proxyServer.URL)
-	require.NoError(t, err)
-
-	cache := cache.New[interface{}]()
-	kubeConfigStore := kubeconfig.NewContextStore()
-
-	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
-		HeadlampConfig: &headlampconfig.HeadlampConfig{
-			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				UseInCluster:    false,
-				ProxyURLs:       []string{proxyURL.String()},
-				KubeConfigStore: kubeConfigStore,
-			},
-			Cache: cache,
-		},
+	handler := newExternalProxyHandler(t, proxyServer.URL, func(h *externalproxy.Handler) {
+		h.MaxResponseSize = maxSize
 	})
 
 	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
 	require.NoError(t, err)
 
-	req.Header.Set("proxy-to", proxyURL.String())
+	req.Header.Set("proxy-to", proxyServer.URL)
 
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
 	assert.Equal(t, http.StatusOK, rr.Code)
-	assert.Equal(t, int(externalproxy.MaxResponseSize), rr.Body.Len())
+	assert.Equal(t, int(maxSize), rr.Body.Len())
 }

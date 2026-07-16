@@ -156,3 +156,40 @@ func TestHandlerReturnsInternalErrorOnAllowlistCompileFailure(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	assert.Contains(t, rr.Body.String(), "failed to compile proxy URL patterns")
 }
+
+func TestHandlerRejectsURLWithUserinfo(t *testing.T) {
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	allowlist, err := externalproxy.CompileAllowlist([]string{"https://allowed.example.com*"})
+	require.NoError(t, err)
+
+	handler := externalproxy.NewHandler(func() ([]externalproxy.AllowlistEntry, error) { return allowlist, nil })
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/externalproxy", nil)
+	req.Header.Set("proxy-to", "https://allowed.example.com@evil.example.com/")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Contains(t, rr.Body.String(), "The provided proxy URL is invalid")
+}
+
+func TestHandlerRejectsNonHTTPScheme(t *testing.T) {
+	allowlist, err := externalproxy.CompileAllowlist([]string{"file://*"})
+	require.NoError(t, err)
+
+	handler := externalproxy.NewHandler(func() ([]externalproxy.AllowlistEntry, error) { return allowlist, nil })
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/externalproxy", nil)
+	req.Header.Set("proxy-to", "file:///etc/passwd")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Contains(t, rr.Body.String(), "The provided proxy URL is invalid")
+}
