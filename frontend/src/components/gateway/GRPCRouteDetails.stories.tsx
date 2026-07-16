@@ -41,11 +41,11 @@ export default {
           http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1/grpcroutes`, () =>
             HttpResponse.json({})
           ),
-          http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1beta1/grpcroutes`, () =>
+          http.get(`${API_BASE}/apis/gateway.networking.k8s.io/v1alpha2/grpcroutes`, () =>
             HttpResponse.error()
           ),
           http.get(
-            `${API_BASE}/apis/gateway.networking.k8s.io/v1beta1/grpcroutes/default-grpcroute`,
+            `${API_BASE}/apis/gateway.networking.k8s.io/v1alpha2/grpcroutes/default-grpcroute`,
             () => HttpResponse.error()
           ),
           http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
