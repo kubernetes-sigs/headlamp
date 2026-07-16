@@ -22,6 +22,9 @@ vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key }),
 }));
 
+// Hoist mock classes before imports so vi.mock can use them. We mock KubeObject/namespace
+// (rather than importing the real ones) to avoid a circular-import ordering issue in the
+// lib/k8s barrel when these modules are loaded first by a unit test.
 const { MockKubeObject, MockNamespace } = vi.hoisted(() => {
   class MockKubeObject {
     jsonData: any;
@@ -52,7 +55,6 @@ const { MockKubeObject, MockNamespace } = vi.hoisted(() => {
 
   class MockNamespace extends MockKubeObject {
     static kind = 'Namespace';
-    // Mirrors the production list/logic in src/lib/k8s/namespace.ts.
     static readonly PROTECTED_NAMESPACES = [
       'kube-system',
       'kube-node-lease',
@@ -156,5 +158,12 @@ describe('DeleteMultipleButton', () => {
 
     // Confirm is enabled right away — no type-to-confirm step.
     expect(within(dialog).getByLabelText('confirm-button')).toBeEnabled();
+  });
+
+  it('stays in sync with the production protected namespace list', async () => {
+    const { default: RealNamespace } = await vi.importActual<{ default: typeof MockNamespace }>(
+      '../../../lib/k8s/namespace'
+    );
+    expect(MockNamespace.PROTECTED_NAMESPACES).toEqual(RealNamespace.PROTECTED_NAMESPACES);
   });
 });
