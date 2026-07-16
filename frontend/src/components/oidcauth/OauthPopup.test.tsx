@@ -147,6 +147,7 @@ describe('OauthPopup', () => {
     } as unknown as Window;
 
     vi.spyOn(window, 'open').mockReturnValue(popupWindow);
+    const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
     const initialOnCode = vi.fn();
 
     const { rerender } = render(
@@ -173,6 +174,11 @@ describe('OauthPopup', () => {
         Open Auth Popup
       </OauthPopup>
     );
+
+    const storageListener = addEventListenerSpy.mock.calls.find(
+      ([eventName]) => eventName === 'storage'
+    )?.[1];
+    expect(storageListener).toBeTypeOf('function');
 
     localStorage.setItem(AUTH_STATUS_KEY, 'code=oauth-code');
     window.dispatchEvent(new StorageEvent('storage'));

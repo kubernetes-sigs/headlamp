@@ -43,7 +43,7 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
   const beforeUnloadListenerRef = React.useRef<(() => void) | null>(null);
   const latestProps = React.useRef(props);
 
-  React.useEffect(() => {
+  React.useLayoutEffect(() => {
     latestProps.current = props;
   }, [props]);
 
