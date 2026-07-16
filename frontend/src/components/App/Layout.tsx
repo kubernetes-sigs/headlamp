@@ -158,12 +158,19 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
         isEqualClusterConfigs(clusters, clustersToConfig) ||
         (configToStore.externalLinks !== undefined &&
           !_.isEqual(store.getState().config.externalLinks, configToStore.externalLinks)) ||
-        store.getState().config.isDynamicClusterEnabled !== configToStore.isDynamicClusterEnabled ||
-        store.getState().config.allowKubeconfigChanges !== configToStore.allowKubeconfigChanges ||
-        store.getState().config.defaultPodDebugImage !== configToStore.defaultPodDebugImage ||
-        store.getState().config.defaultNodeShellImage !== configToStore.defaultNodeShellImage ||
-        store.getState().config.defaultNodeShellNamespace !==
-          configToStore.defaultNodeShellNamespace;
+        (configToStore.isDynamicClusterEnabled !== undefined &&
+          store.getState().config.isDynamicClusterEnabled !==
+            configToStore.isDynamicClusterEnabled) ||
+        (configToStore.allowKubeconfigChanges !== undefined &&
+          store.getState().config.allowKubeconfigChanges !==
+            configToStore.allowKubeconfigChanges) ||
+        (configToStore.defaultPodDebugImage !== undefined &&
+          store.getState().config.defaultPodDebugImage !== configToStore.defaultPodDebugImage) ||
+        (configToStore.defaultNodeShellImage !== undefined &&
+          store.getState().config.defaultNodeShellImage !== configToStore.defaultNodeShellImage) ||
+        (configToStore.defaultNodeShellNamespace !== undefined &&
+          store.getState().config.defaultNodeShellNamespace !==
+            configToStore.defaultNodeShellNamespace);
 
       if (configDifferent) {
         // Merge the new config with the current config
