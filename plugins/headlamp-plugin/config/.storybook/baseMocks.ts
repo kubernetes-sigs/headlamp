@@ -15,7 +15,7 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { API_BASE } from '../../../../frontend/src/test/index.tsx';
+import { API_BASE } from '../../../../frontend/src/test/index';
 
 // NOTE: Please keep this synced with headlamp/plugins/headlamp-plugin/config/.storybook/baseMocks.ts
 
