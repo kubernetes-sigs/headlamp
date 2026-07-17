@@ -242,7 +242,19 @@ export function NamespacesAutocomplete() {
   }
 
   if (discoveryLoading || discoveryFetching) {
-    return null;
+    return (
+      <Box width="15rem">
+        <TextField
+          variant="outlined"
+          size="small"
+          label={t('Namespaces')}
+          fullWidth
+          disabled
+          InputLabelProps={{ shrink: true }}
+          placeholder={t('Loading...')}
+        />
+      </Box>
+    );
   }
 
   // Legacy: live namespace list from the API (cluster-admin and default path).
