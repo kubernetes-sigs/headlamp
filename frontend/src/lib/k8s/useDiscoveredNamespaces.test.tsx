@@ -89,6 +89,24 @@ describe('useDiscoveredNamespaces', () => {
     expect(result.current.isLoading).toBe(true);
     expect(namespaceDiscovery.discoverAccessibleNamespaces).not.toHaveBeenCalled();
   });
+
+  it('reports isError when auth probe fails after retries', async () => {
+    vi.spyOn(clusterApi, 'testAuth').mockRejectedValue(new ApiError('Forbidden', { status: 403 }));
+
+    const { result } = renderHook(() => useDiscoveredNamespaces('test-cluster'), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(
+      () => {
+        expect(result.current.isError).toBe(true);
+      },
+      { timeout: 10000 }
+    );
+
+    expect(result.current.isLoading).toBe(false);
+    expect(namespaceDiscovery.discoverAccessibleNamespaces).not.toHaveBeenCalled();
+  });
 });
 
 describe('shouldRetryAuthProbe', () => {
@@ -134,5 +152,23 @@ describe('useDiscoveredNamespacesMap', () => {
     expect(namespaceDiscovery.discoverAccessibleNamespaces).not.toHaveBeenCalledWith(
       'override-cluster'
     );
+  });
+
+  it('reports isErrorByCluster when auth probe fails after retries', async () => {
+    vi.spyOn(clusterApi, 'testAuth').mockRejectedValue(new ApiError('Forbidden', { status: 403 }));
+
+    const { result } = renderHook(() => useDiscoveredNamespacesMap(['auto-cluster']), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(
+      () => {
+        expect(result.current.isErrorByCluster['auto-cluster']).toBe(true);
+      },
+      { timeout: 10000 }
+    );
+
+    expect(result.current.isLoadingByCluster['auto-cluster']).toBe(false);
+    expect(namespaceDiscovery.discoverAccessibleNamespaces).not.toHaveBeenCalled();
   });
 });

@@ -15,7 +15,13 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { API_BASE } from '../../../../frontend/src/test/index';
+
+/**
+ * Dev/test backend origin for MSW handlers in plugin Storybook.
+ * Keep in sync with `frontend/src/test/index.tsx` (`API_BASE`).
+ * Defined locally so Storybook works when the plugin is consumed outside the monorepo.
+ */
+const API_BASE = 'http://localhost:4466';
 
 // NOTE: Please keep this synced with headlamp/plugins/headlamp-plugin/config/.storybook/baseMocks.ts
 
