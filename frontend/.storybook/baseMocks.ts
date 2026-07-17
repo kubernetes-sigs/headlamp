@@ -15,7 +15,7 @@
  */
 
 import { http, HttpResponse } from 'msw';
-import { API_BASE } from '../src/test/index.tsx';
+import { API_BASE } from '../src/test/index';
 import { NODE_DUMMY_DATA } from '../src/components/node/storyHelper';
 
 // NOTE: Please keep this synced with headlamp/plugins/headlamp-plugin/config/.storybook/baseMocks.ts
