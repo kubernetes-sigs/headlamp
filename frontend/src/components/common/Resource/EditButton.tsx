@@ -137,14 +137,10 @@ export default function EditButton(props: EditButtonProps) {
     ],
     queryFn: async () => {
       try {
-        const [update, patch] = await Promise.all([
-          item!.getAuthorization('update', {}),
-          item!.getAuthorization('patch', {}),
-        ]);
-        return { allowed: update?.status?.allowed || patch?.status?.allowed };
+        const auth = await item!.getAuthorization('patch', {});
+        return { allowed: auth?.status?.allowed ?? false };
       } catch (e: any) {
         console.error(`Error while getting authorization for edit button in ${item}:`, e);
-        setIsReadOnly(true);
         return { allowed: false };
       }
     },
