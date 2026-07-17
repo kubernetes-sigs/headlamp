@@ -257,7 +257,7 @@ export function ContainerTextField(props: ContainerTextFieldProps) {
           >
             <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
               <FormTextField
-                label={t('translation|Name')}
+                label={t('translation|Name') + ' *'}
                 value={container.name ?? ''}
                 onChange={e => handleEdit(index, 'name', e.target.value)}
                 inputProps={{ 'aria-label': t('translation|Container name') }}
