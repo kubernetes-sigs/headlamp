@@ -3,6 +3,8 @@ package kubeconfig
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"sync"
 	"time"
 
@@ -78,39 +80,134 @@ func (c *contextStore) notifyListeners() {
 
 // AddContext adds a context to the store.
 func (c *contextStore) AddContext(headlampContext *Context) error {
-	name := headlampContext.Name
+	if headlampContext == nil {
+		return errors.New("context cannot be nil")
+	}
 
-	if headlampContext.KubeContext != nil && headlampContext.KubeContext.Extensions["headlamp_info"] != nil {
-		info := headlampContext.KubeContext.Extensions["headlamp_info"]
-		// Convert the runtime.Unknown object to a byte slice
-		unknownBytes, err := json.Marshal(info)
-		if err != nil {
-			return err
+	name, usesCustomName, err := effectiveContextName(headlampContext)
+	if err != nil {
+		return err
+	}
+
+	c.mu.Lock()
+
+	existingContext, err := c.cache.Get(context.Background(), name)
+
+	existingName, existingUsesCustomName, existingNameErr := effectiveContextName(existingContext)
+	if existingNameErr != nil {
+		c.mu.Unlock()
+
+		return existingNameErr
+	}
+
+	if err == nil &&
+		(existingUsesCustomName || usesCustomName) &&
+		existingName == name &&
+		!isSameLogicalContext(existingContext, headlampContext) {
+		c.mu.Unlock()
+
+		return ContextError{
+			ContextName: name,
+			Reason:      "duplicate effective context name",
 		}
+	}
 
-		// Now, decode the byte slice into your desired struct
-		var customObj CustomObject
+	if err != nil && err != cache.ErrNotFound {
+		c.mu.Unlock()
 
-		err = json.Unmarshal(unknownBytes, &customObj)
-		if err != nil {
-			return err
-		}
-
-		// If the custom name is set, use it as the context name
-		if customObj.CustomName != "" {
-			name = customObj.CustomName
-		}
+		return err
 	}
 
 	// Keep the stored context identifier consistent with the cache key.
 	headlampContext.Name = name
 
-	err := c.cache.Set(context.Background(), name, headlampContext)
-	if err == nil {
-		c.notifyListeners()
+	err = c.cache.Set(context.Background(), name, headlampContext)
+	c.mu.Unlock()
+
+	if err != nil {
+		return err
 	}
 
+	c.notifyListeners()
+
 	return err
+}
+
+func effectiveContextName(headlampContext *Context) (string, bool, error) {
+	if headlampContext == nil {
+		return "", false, nil
+	}
+
+	name := headlampContext.Name
+
+	if headlampContext.KubeContext == nil || headlampContext.KubeContext.Extensions["headlamp_info"] == nil {
+		return name, false, nil
+	}
+
+	info := headlampContext.KubeContext.Extensions["headlamp_info"]
+
+	if typedInfo, ok := info.(*CustomObject); ok {
+		if typedInfo != nil && typedInfo.CustomName != "" {
+			return typedInfo.CustomName, true, nil
+		}
+
+		return name, false, nil
+	}
+
+	unknownBytes, err := json.Marshal(info)
+	if err != nil {
+		return "", false, err
+	}
+
+	var customObj CustomObject
+
+	if err := json.Unmarshal(unknownBytes, &customObj); err != nil {
+		return "", false, err
+	}
+
+	if customObj.CustomName != "" {
+		name = customObj.CustomName
+
+		return name, true, nil
+	}
+
+	return name, false, nil
+}
+
+func isSameLogicalContext(existingContext, newContext *Context) bool {
+	if existingContext == nil || newContext == nil {
+		return existingContext == newContext
+	}
+
+	if existingContext.ClusterID != "" && newContext.ClusterID != "" && existingContext.ClusterID == newContext.ClusterID {
+		return true
+	}
+
+	return fallbackContextIdentity(existingContext) == fallbackContextIdentity(newContext)
+}
+
+func fallbackContextIdentity(headlampContext *Context) string {
+	clusterServer := ""
+	if headlampContext.Cluster != nil {
+		clusterServer = headlampContext.Cluster.Server
+	}
+
+	kubeCluster := ""
+	kubeAuthInfo := ""
+
+	if headlampContext.KubeContext != nil {
+		kubeCluster = headlampContext.KubeContext.Cluster
+		kubeAuthInfo = headlampContext.KubeContext.AuthInfo
+	}
+
+	return fmt.Sprintf(
+		"fallback:%d|%s|%s|%s|%s",
+		headlampContext.Source,
+		headlampContext.KubeConfigPath,
+		clusterServer,
+		kubeCluster,
+		kubeAuthInfo,
+	)
 }
 
 // GetContexts returns all contexts in the store.
@@ -157,28 +254,47 @@ func (c *contextStore) GetContext(name string) (*Context, error) {
 
 // RemoveContext removes a context from the store.
 func (c *contextStore) RemoveContext(name string) error {
+	c.mu.Lock()
+
 	err := c.cache.Delete(context.Background(), name)
-	if err == nil {
-		c.notifyListeners()
+	c.mu.Unlock()
+
+	if err != nil {
+		return err
 	}
+
+	c.notifyListeners()
 
 	return err
 }
 
 // AddContextWithKeyAndTTL adds a context to the store with a ttl.
 func (c *contextStore) AddContextWithKeyAndTTL(headlampContext *Context, key string, ttl time.Duration) error {
+	if headlampContext == nil {
+		return errors.New("context cannot be nil")
+	}
+
 	// Keep the stored context identifier consistent with the cache key.
 	headlampContext.Name = key
 
+	c.mu.Lock()
+
 	err := c.cache.SetWithTTL(context.Background(), key, headlampContext, ttl)
-	if err == nil {
-		c.notifyListeners()
+	c.mu.Unlock()
+
+	if err != nil {
+		return err
 	}
+
+	c.notifyListeners()
 
 	return err
 }
 
 // UpdateTTL updates the ttl of a context.
 func (c *contextStore) UpdateTTL(key string, ttl time.Duration) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
 	return c.cache.UpdateTTL(context.Background(), key, ttl)
 }

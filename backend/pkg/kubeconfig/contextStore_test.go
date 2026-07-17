@@ -1,6 +1,7 @@
 package kubeconfig_test
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -166,4 +167,212 @@ func TestAddContextWithHeadlampInfo(t *testing.T) {
 	_, err = store.GetContext("original-name")
 	require.Error(t, err)
 	require.Equal(t, cache.ErrNotFound, err)
+}
+
+func TestAddContextRejectsDuplicateEffectiveName(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	customName := "shared-custom-name"
+	firstInfo := kubeconfig.CustomObject{CustomName: customName}
+	secondInfo := kubeconfig.CustomObject{CustomName: customName}
+
+	firstContext := &kubeconfig.Context{
+		Name:      "cluster-a",
+		ClusterID: "/tmp/config-a+cluster-a",
+		KubeContext: &api.Context{
+			Cluster:  "cluster-a",
+			AuthInfo: "user-a",
+			Extensions: map[string]runtime.Object{
+				"headlamp_info": &firstInfo,
+			},
+		},
+		Cluster: &api.Cluster{Server: "https://cluster-a.example"},
+	}
+
+	secondContext := &kubeconfig.Context{
+		Name:      "cluster-b",
+		ClusterID: "/tmp/config-b+cluster-b",
+		KubeContext: &api.Context{
+			Cluster:  "cluster-b",
+			AuthInfo: "user-b",
+			Extensions: map[string]runtime.Object{
+				"headlamp_info": &secondInfo,
+			},
+		},
+		Cluster: &api.Cluster{Server: "https://cluster-b.example"},
+	}
+
+	require.NoError(t, store.AddContext(firstContext))
+
+	err := store.AddContext(secondContext)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "duplicate effective context name")
+
+	storedContext, err := store.GetContext(customName)
+	require.NoError(t, err)
+	require.Equal(t, firstContext.ClusterID, storedContext.ClusterID)
+
+	contexts, err := store.GetContexts()
+	require.NoError(t, err)
+	require.Len(t, contexts, 1)
+}
+
+func TestAddContextAllowsUpdatingSameLogicalContext(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	customName := "shared-custom-name"
+	customInfo := kubeconfig.CustomObject{CustomName: customName}
+
+	originalContext := &kubeconfig.Context{
+		Name:      "cluster-a",
+		ClusterID: "/tmp/config-a+cluster-a",
+		KubeContext: &api.Context{
+			Cluster:  "cluster-a",
+			AuthInfo: "user-a",
+			Extensions: map[string]runtime.Object{
+				"headlamp_info": &customInfo,
+			},
+		},
+		Cluster: &api.Cluster{Server: "https://cluster-a.example"},
+	}
+
+	updatedContext := &kubeconfig.Context{
+		Name:      "cluster-a",
+		ClusterID: originalContext.ClusterID,
+		KubeContext: &api.Context{
+			Cluster:  "cluster-a",
+			AuthInfo: "user-a",
+			Extensions: map[string]runtime.Object{
+				"headlamp_info": &customInfo,
+			},
+		},
+		Cluster: &api.Cluster{Server: "https://updated-cluster-a.example"},
+	}
+
+	require.NoError(t, store.AddContext(originalContext))
+	require.NoError(t, store.AddContext(updatedContext))
+
+	storedContext, err := store.GetContext(customName)
+	require.NoError(t, err)
+	require.Equal(t, "https://updated-cluster-a.example", storedContext.Cluster.Server)
+}
+
+func TestAddContextRejectsNilContext(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	err := store.AddContext(nil)
+	require.EqualError(t, err, "context cannot be nil")
+}
+
+func TestAddContextWithKeyAndTTLRejectsNilContext(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	err := store.AddContextWithKeyAndTTL(nil, "nil-context", time.Second)
+	require.EqualError(t, err, "context cannot be nil")
+}
+
+func TestAddContextRejectsConcurrentDuplicateEffectiveName(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	customName := "shared-custom-name"
+	firstContext, secondContext := newConcurrentCollisionContexts(customName)
+
+	errs := addContextsConcurrently(store, firstContext, secondContext)
+
+	successCount := 0
+	duplicateErrCount := 0
+
+	for _, err := range errs {
+		if err == nil {
+			successCount++
+
+			continue
+		}
+
+		require.ErrorContains(t, err, "duplicate effective context name")
+
+		duplicateErrCount++
+	}
+
+	require.Equal(t, 1, successCount)
+	require.Equal(t, 1, duplicateErrCount)
+
+	contexts, err := store.GetContexts()
+	require.NoError(t, err)
+	require.Len(t, contexts, 1)
+
+	storedContext, err := store.GetContext(customName)
+	require.NoError(t, err)
+	require.Contains(t, []string{firstContext.ClusterID, secondContext.ClusterID}, storedContext.ClusterID)
+}
+
+func newConcurrentCollisionContexts(customName string) (*kubeconfig.Context, *kubeconfig.Context) {
+	firstContext := newCustomNamedContext(
+		"cluster-a",
+		"/tmp/config-a+cluster-a",
+		customName,
+		"https://cluster-a.example",
+		"user-a",
+	)
+	secondContext := newCustomNamedContext(
+		"cluster-b",
+		"/tmp/config-b+cluster-b",
+		customName,
+		"https://cluster-b.example",
+		"user-b",
+	)
+
+	return firstContext, secondContext
+}
+
+func addContextsConcurrently(
+	store kubeconfig.ContextStore, firstContext *kubeconfig.Context, secondContext *kubeconfig.Context,
+) []error {
+	var wg sync.WaitGroup
+
+	errs := make(chan error, 2)
+
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+
+		errs <- store.AddContext(firstContext)
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		errs <- store.AddContext(secondContext)
+	}()
+
+	wg.Wait()
+	close(errs)
+
+	results := make([]error, 0, 2)
+
+	for err := range errs {
+		results = append(results, err)
+	}
+
+	return results
+}
+
+func newCustomNamedContext(
+	name string, clusterID string, customName string, server string, authInfo string,
+) *kubeconfig.Context {
+	customInfo := kubeconfig.CustomObject{CustomName: customName}
+
+	return &kubeconfig.Context{
+		Name:      name,
+		ClusterID: clusterID,
+		KubeContext: &api.Context{
+			Cluster:  name,
+			AuthInfo: authInfo,
+			Extensions: map[string]runtime.Object{
+				"headlamp_info": &customInfo,
+			},
+		},
+		Cluster: &api.Cluster{Server: server},
+	}
 }
