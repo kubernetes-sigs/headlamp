@@ -32,6 +32,7 @@ import Deployment from '../../../lib/k8s/deployment';
 import Job from '../../../lib/k8s/job';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
+import StatefulSet from '../../../lib/k8s/statefulSet';
 import { Activity } from '../../activity/Activity';
 import CreateCronJobForm from '../../cronjob/CreateCronJobForm';
 import CreateDaemonSetForm from '../../daemonset/CreateDaemonSetForm';
@@ -39,6 +40,7 @@ import CreateDeploymentForm from '../../deployments/CreateDeploymentForm';
 import CreateJobForm from '../../job/CreateJobForm';
 import CreatePodForm from '../../pod/CreatePodForm';
 import CreateReplicaSetForm from '../../replicaset/CreateReplicaSetForm';
+import CreateStatefulSetForm from '../../statefulset/CreateStatefulSetForm';
 import ActionButton from '../ActionButton';
 import EditorDialog from './EditorDialog';
 
@@ -49,6 +51,7 @@ export const RESOURCE_DEFINITIONS = {
   ReplicaSet: { class: ReplicaSet, form: CreateReplicaSetForm },
   Job: { class: Job, form: CreateJobForm },
   CronJob: { class: CronJob, form: CreateCronJobForm },
+  StatefulSet: { class: StatefulSet, form: CreateStatefulSetForm },
 };
 
 export type ResourceType = keyof typeof RESOURCE_DEFINITIONS;
