@@ -249,6 +249,7 @@ func TestRemoveContextFromFile_NonExistentContext(t *testing.T) {
 
 	t.Cleanup(func() {
 		require.NoError(t, os.Remove("./test_data/config_copy_nonexistent"))
+
 		if err := os.Remove("./test_data/config_copy_nonexistent.lock"); err != nil && !errors.Is(err, os.ErrNotExist) {
 			require.NoError(t, err)
 		}
