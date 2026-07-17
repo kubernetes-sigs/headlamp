@@ -23,8 +23,8 @@ import BackendTrafficPolicyDetails from './BackendTrafficPolicyDetails';
 
 vi.mock('../../lib/k8s/backendTrafficPolicy', () => ({
   default: class BackendTrafficPolicy {
-    static kind = 'BackendTrafficPolicy';
-    static apiName = 'backendtrafficpolicies';
+    static kind = 'XBackendTrafficPolicy';
+    static apiName = 'xbackendtrafficpolicies';
   },
 }));
 
