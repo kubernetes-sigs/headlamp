@@ -36,7 +36,7 @@ func ValidateURL(uri string) error {
 // upstream status code, Content-Type, and response body into w. The body is
 // never fully buffered, so an upstream that returns an arbitrarily large
 // response cannot exhaust server memory.
-func HTTPGetStream(ctx context.Context, uri string, w io.Writer) error {
+func HTTPGetStream(ctx context.Context, uri string, w http.ResponseWriter) error {
 	// Validate the URL before making the request
 	if err := ValidateURL(uri); err != nil {
 		return fmt.Errorf("URL validation failed: %w", err)
@@ -58,13 +58,54 @@ func HTTPGetStream(ctx context.Context, uri string, w io.Writer) error {
 
 	defer func() { _ = resp.Body.Close() }()
 
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("failed HTTP GET, status code %v", resp.StatusCode)
-	}
-
-	if _, err := io.Copy(w, resp.Body); err != nil {
+	if err := streamResponseBody(resp.Body, w, resp.StatusCode, resp.Header.Get("Content-Type")); err != nil {
 		return fmt.Errorf("streaming response: %w", err)
 	}
 
 	return nil
+}
+
+func streamResponseBody(body io.Reader, w http.ResponseWriter, statusCode int, contentType string) error {
+	buf := make([]byte, 32*1024)
+
+	for {
+		n, readErr := body.Read(buf)
+		if n > 0 {
+			writeResponseHeader(w, statusCode, contentType)
+
+			if _, err := w.Write(buf[:n]); err != nil {
+				return err
+			}
+
+			if readErr != nil {
+				if readErr == io.EOF {
+					return nil
+				}
+
+				return readErr
+			}
+
+			_, err := io.CopyBuffer(w, body, buf)
+
+			return err
+		}
+
+		if readErr != nil {
+			if readErr == io.EOF {
+				writeResponseHeader(w, statusCode, contentType)
+
+				return nil
+			}
+
+			return readErr
+		}
+	}
+}
+
+func writeResponseHeader(w http.ResponseWriter, statusCode int, contentType string) {
+	if contentType != "" {
+		w.Header().Set("Content-Type", contentType)
+	}
+
+	w.WriteHeader(statusCode)
 }
