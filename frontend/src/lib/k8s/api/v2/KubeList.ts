@@ -49,11 +49,15 @@ export const KubeList = {
     itemClass: ObjectClass,
     cluster: string
   ): KubeList<KubeObject<ObjectInterface>> {
-    // Skip if the update's resource version is older than or equal to what we have
+    // Skip a duplicate event that carries the same resourceVersion we already
+    // have. resourceVersion is an opaque string in the Kubernetes API and must
+    // not be compared numerically: large values lose precision past
+    // Number.MAX_SAFE_INTEGER, and non-numeric versions parse to NaN. Watch
+    // events arrive in order, so an equality check is enough here.
     if (
       list.metadata.resourceVersion &&
       update.object.metadata.resourceVersion &&
-      parseInt(update.object.metadata.resourceVersion) <= parseInt(list.metadata.resourceVersion)
+      update.object.metadata.resourceVersion === list.metadata.resourceVersion
     ) {
       return list;
     }
