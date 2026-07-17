@@ -9,7 +9,99 @@ import (
 	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
+	"github.com/stretchr/testify/assert"
 )
+
+func TestValidateURL(t *testing.T) {
+	tests := []struct {
+		name    string
+		url     string
+		wantErr bool
+		errMsg  string
+	}{
+		{
+			name:    "valid http URL",
+			url:     "http://example.com",
+			wantErr: false,
+		},
+		{
+			name:    "valid https URL",
+			url:     "https://example.com",
+			wantErr: false,
+		},
+		{
+			name:    "valid http URL with port",
+			url:     "http://example.com:8080",
+			wantErr: false,
+		},
+		{
+			name:    "valid https URL with port",
+			url:     "https://example.com:8443",
+			wantErr: false,
+		},
+		{
+			name:    "valid http URL with path",
+			url:     "http://example.com/path/to/resource",
+			wantErr: false,
+		},
+		{
+			name:    "invalid file:// scheme",
+			url:     "file:///etc/passwd",
+			wantErr: true,
+			errMsg:  "invalid URL scheme: file",
+		},
+		{
+			name:    "invalid ftp:// scheme",
+			url:     "ftp://example.com",
+			wantErr: true,
+			errMsg:  "invalid URL scheme: ftp",
+		},
+		{
+			name:    "invalid scheme",
+			url:     "gopher://example.com",
+			wantErr: true,
+			errMsg:  "invalid URL scheme: gopher",
+		},
+		{
+			name:    "malformed URL",
+			url:     "http://",
+			wantErr: true,
+			errMsg:  "URL must have a host",
+		},
+		{
+			name:    "empty string",
+			url:     "",
+			wantErr: true,
+			errMsg:  "invalid URL",
+		},
+		{
+			name:    "no scheme",
+			url:     "example.com",
+			wantErr: true,
+			errMsg:  "invalid URL scheme",
+		},
+		{
+			name:    "relative path",
+			url:     "/path/to/resource",
+			wantErr: true,
+			errMsg:  "invalid URL scheme",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			err := serviceproxy.ValidateURL(tt.url)
+			if tt.wantErr {
+				assert.Error(t, err)
+				if tt.errMsg != "" {
+					assert.Contains(t, err.Error(), tt.errMsg)
+				}
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
 
 //nolint:funlen
 func TestHTTPGetStream(t *testing.T) {
