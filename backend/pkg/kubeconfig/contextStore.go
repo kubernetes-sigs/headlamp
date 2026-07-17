@@ -194,19 +194,22 @@ func fallbackContextIdentity(headlampContext *Context) string {
 
 	kubeCluster := ""
 	kubeAuthInfo := ""
+	kubeNamespace := ""
 
 	if headlampContext.KubeContext != nil {
 		kubeCluster = headlampContext.KubeContext.Cluster
 		kubeAuthInfo = headlampContext.KubeContext.AuthInfo
+		kubeNamespace = headlampContext.KubeContext.Namespace
 	}
 
 	return fmt.Sprintf(
-		"fallback:%d|%s|%s|%s|%s",
+		"fallback:%d|%s|%s|%s|%s|%s",
 		headlampContext.Source,
 		headlampContext.KubeConfigPath,
 		clusterServer,
 		kubeCluster,
 		kubeAuthInfo,
+		kubeNamespace,
 	)
 }
 

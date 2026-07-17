@@ -306,6 +306,39 @@ func TestAddContextRejectsConcurrentDuplicateEffectiveName(t *testing.T) {
 	require.Contains(t, []string{firstContext.ClusterID, secondContext.ClusterID}, storedContext.ClusterID)
 }
 
+func TestAddContextRejectsDuplicateEffectiveNameWithoutClusterIDWhenNamespaceDiffers(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	customName := "shared-custom-name"
+	firstContext := newCustomNamedContext(
+		"cluster-a",
+		"",
+		customName,
+		"https://cluster-a.example",
+		"user-a",
+	)
+	firstContext.KubeContext.Namespace = "namespace-a"
+
+	secondContext := newCustomNamedContext(
+		"cluster-a",
+		"",
+		customName,
+		"https://cluster-a.example",
+		"user-a",
+	)
+	secondContext.KubeContext.Namespace = "namespace-b"
+
+	require.NoError(t, store.AddContext(firstContext))
+
+	err := store.AddContext(secondContext)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "duplicate effective context name")
+
+	storedContext, err := store.GetContext(customName)
+	require.NoError(t, err)
+	require.Equal(t, "namespace-a", storedContext.KubeContext.Namespace)
+}
+
 func newConcurrentCollisionContexts(customName string) (*kubeconfig.Context, *kubeconfig.Context) {
 	firstContext := newCustomNamedContext(
 		"cluster-a",
