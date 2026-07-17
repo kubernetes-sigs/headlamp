@@ -50,12 +50,14 @@ import PersistentVolume from './persistentVolume';
 import PersistentVolumeClaim from './persistentVolumeClaim';
 import Pod from './pod';
 import PodDisruptionBudget from './podDisruptionBudget';
+import PodGroup from './podGroup';
 import PriorityClass from './priorityClass';
 import ReplicaSet from './replicaSet';
 import ResourceQuota from './resourceQuota';
 import Role from './role';
 import RoleBinding from './roleBinding';
 import { RuntimeClass } from './runtime';
+import SchedulingWorkload from './schedulingWorkload';
 import Secret from './secret';
 import Service from './service';
 import ServiceAccount from './serviceAccount';
@@ -80,6 +82,7 @@ export const ResourceClasses = {
   ResourceQuota,
   HorizontalPodAutoscaler: HPA,
   PodDisruptionBudget,
+  PodGroup,
   PriorityClass,
   Ingress,
   IngressClass,
@@ -105,6 +108,8 @@ export const ResourceClasses = {
   GatewayClass,
   HTTPRoute,
   GRPCRoute,
+  // Keyed by kind, so the scheduling.k8s.io Workload is registered as 'Workload'.
+  Workload: SchedulingWorkload,
 };
 
 /** Hook for getting or fetching the clusters configuration.
@@ -403,6 +408,8 @@ export * as node from './node';
 export * as persistentVolume from './persistentVolume';
 export * as persistentVolumeClaim from './persistentVolumeClaim';
 export * as pod from './pod';
+export * as podGroup from './podGroup';
+export * as schedulingWorkload from './schedulingWorkload';
 export * as replicaSet from './replicaSet';
 export * as role from './role';
 export * as roleBinding from './roleBinding';
