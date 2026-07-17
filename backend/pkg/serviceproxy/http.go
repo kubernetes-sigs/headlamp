@@ -32,9 +32,10 @@ func ValidateURL(uri string) error {
 	return nil
 }
 
-// HTTPGetStream sends an HTTP GET request to the specified URI and streams the
-// response body into w. The body is never fully buffered, so an upstream that
-// returns an arbitrarily large response cannot exhaust server memory.
+// HTTPGetStream sends an HTTP GET request to the specified URI and forwards the
+// upstream status code, Content-Type, and response body into w. The body is
+// never fully buffered, so an upstream that returns an arbitrarily large
+// response cannot exhaust server memory.
 func HTTPGetStream(ctx context.Context, uri string, w io.Writer) error {
 	// Validate the URL before making the request
 	if err := ValidateURL(uri); err != nil {
