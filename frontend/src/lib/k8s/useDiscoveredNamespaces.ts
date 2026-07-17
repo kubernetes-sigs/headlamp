@@ -283,11 +283,13 @@ export function useDiscoveredNamespaces(cluster: string | null = getCluster()) {
 
   const authPending = isAuthProbePending(cluster ?? '', manualOverride, authQuery);
   const discoveryPending = isNamespaceDiscoveryPending(discoveryQuery);
+  const authFailed = !manualOverride && !!authQuery.isError;
 
   return {
     ...discoveryQuery,
     isLoading: authPending || discoveryPending,
     isFetching: authPending || discoveryQuery.isFetching,
+    isError: authFailed || discoveryQuery.isError,
   };
 }
 
@@ -332,7 +334,8 @@ export function useDiscoveredNamespacesMap(clusters: string[]) {
 
       map[cluster] = queries[index]?.data;
       isLoadingByCluster[cluster] = authPending || discoveryPending;
-      isErrorByCluster[cluster] = queries[index]?.isError ?? false;
+      isErrorByCluster[cluster] =
+        (!manualOverride && !!authQuery?.isError) || (queries[index]?.isError ?? false);
     });
     return {
       map,
