@@ -17,17 +17,18 @@
 
 /**
  * Baseline-aware wrapper for axe-storybook accessibility testing.
- * 
+ *
  * This script runs axe-storybook tests and compares the results against a baseline
  * configuration file (.axe-storybook-baseline.test-a11y.json). It allows known accessibility
  * violations to pass while failing the build if any new violations are detected.
- * 
+ *
  * This ensures CI passes with tracked baseline failures but catches any regressions
  * or new accessibility issues introduced by code changes.
  */
 
 import { spawn } from 'child_process';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, unlinkSync } from 'fs';
+import os from 'os';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
@@ -35,6 +36,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const BASELINE_FILE = path.join(__dirname, '.axe-storybook-baseline.test-a11y.json');
+const REPORT_FILE = path.join(os.tmpdir(), `axe-storybook-${process.pid}.json`);
 
 // Load baseline
 let baseline = { baseline: {} };
@@ -48,145 +50,111 @@ if (existsSync(BASELINE_FILE)) {
   }
 }
 
-// Run axe-storybook and capture output
-const axeProcess = spawn('npx', [
-  'axe-storybook',
-  '--build-dir',
-  '../docs/development/storybook'
-], {
-  stdio: ['inherit', 'pipe', 'pipe'],
-  shell: true
-});
+function storyName(test) {
+  const prefix = /^\[[^]]+\] accessibility /;
+  const component = test.fullTitle.slice(0, -` ${test.title}`.length).replace(prefix, '');
+  return `${component}/${test.title}`;
+}
 
-let output = '';
-let errorOutput = '';
-let currentTest = null;
-let currentComponent = null;
-let currentStoryName = null;
-const testResults = {
-  passes: 0,
-  failures: [],
-  total: 0
-};
+function axeRuleIds(message) {
+  return [...message.matchAll(/\d+\.\s+([a-z][a-z0-9-]*)\s+\(/gi)].map(match => match[1]);
+}
 
-// Parse output line by line
-axeProcess.stdout.on('data', (data) => {
-  const text = data.toString();
-  output += text;
-  process.stdout.write(text); // Also print to console
-
-  // Parse test results from spec output
-  const lines = text.split('\n');
-  lines.forEach(line => {
-    // Detect passed tests
-    if (line.includes('✔') || line.includes('✓')) {
-      testResults.passes++;
-      testResults.total++;
-    }
-    
-    // Detect failed test - format: "  1) Component/Path"
-    const failComponentMatch = line.match(/^\s+\d+\)\s+([A-Za-z][\w/]*(?:\/[\w]+)*)\s*$/);
-    if (failComponentMatch) {
-      currentComponent = failComponentMatch[1];
-      currentStoryName = null;
-      currentTest = null;
-    }
-    
-    // Detect story name after component - format: "       Story Name:"
-    // Story names should not start with common violation detail keywords
-    const storyNameMatch = line.match(/^\s{7}([^:]+):\s*$/);
-    if (storyNameMatch && currentComponent) {
-      const storyName = storyNameMatch[1].trim();
-      // Filter out violation details that look like story names
-      if (!storyName.includes('summary') && 
-          !storyName.includes('Check these nodes') &&
-          !storyName.includes('html') &&
-          !storyName.includes('Detected')) {
-        currentStoryName = storyName;
-        currentTest = `${currentComponent}/${currentStoryName}`;
-      }
-    }
-    
-    // Detect violation rules - format: "     1. rule-name (description)"
-    const violationMatch = line.match(/^\s{5,}\d+\.\s+([a-z-]+)\s+\(/);
-    if (violationMatch && currentTest) {
-      const rule = violationMatch[1];
-      let existing = testResults.failures.find(f => f.story === currentTest);
-      if (!existing) {
-        existing = { story: currentTest, violations: [] };
-        testResults.failures.push(existing);
-        testResults.total++;
-      }
-      if (!existing.violations.includes(rule)) {
-        existing.violations.push(rule);
-      }
-    }
+try {
+  const axeProcess = spawn('npx', [
+    'axe-storybook',
+    '--build-dir',
+    '../docs/development/storybook',
+    '--reporter',
+    'json',
+    '--reporter-options',
+    `output=${REPORT_FILE}`,
+  ], {
+    stdio: ['inherit', 'pipe', 'pipe'],
+    shell: true,
   });
-});
 
-axeProcess.stderr.on('data', (data) => {
-  errorOutput += data.toString();
-  process.stderr.write(data);
-});
+  const code = await new Promise((resolve, reject) => {
+    axeProcess.stdout.on('data', (data) => process.stdout.write(data));
+    axeProcess.stderr.on('data', (data) => process.stderr.write(data));
+    axeProcess.once('error', reject);
+    axeProcess.once('close', code => resolve(code));
+  });
 
-axeProcess.on('close', (code) => {
-  // Analyze results against baseline
+  const testResults = JSON.parse(readFileSync(REPORT_FILE, 'utf8'));
+
   const newFailures = [];
   const knownFailures = [];
+  const hardFailures = [];
 
   testResults.failures.forEach(failure => {
-    const baselineRules = baseline.baseline[failure.story] || [];
-    const unexpectedRules = failure.violations.filter(rule => !baselineRules.includes(rule));
+    const currentTest = storyName(failure);
+    const violations = axeRuleIds(failure.err?.message || '');
+    const baselineRules = baseline.baseline[currentTest] || [];
+    const unexpectedRules = violations.filter(rule => !baselineRules.includes(rule));
 
-    if (unexpectedRules.length > 0) {
-      newFailures.push({ story: failure.story, unexpectedRules, allViolations: failure.violations });
+    if (violations.length === 0) {
+      hardFailures.push({ story: currentTest, message: failure.err?.message || 'Unknown test failure' });
+    } else if (unexpectedRules.length > 0) {
+      newFailures.push({ story: currentTest, unexpectedRules, allViolations: violations });
     } else {
-      knownFailures.push({ story: failure.story, violations: failure.violations });
+      knownFailures.push({ story: currentTest, violations });
     }
   });
 
-  // Print summary
+  // Analyze results against baseline
+  testResults.total = testResults.passes.length + testResults.failures.length;
   console.log('\n' + '='.repeat(70));
   console.log('📊 ACCESSIBILITY TEST SUMMARY');
   console.log('='.repeat(70));
   console.log(`\nTotal stories tested: ${testResults.total}`);
-  console.log(`✅ Passing: ${testResults.passes} (${((testResults.passes / testResults.total) * 100).toFixed(1)}%)`);
+  console.log(`✅ Passing: ${testResults.passes.length}`);
   console.log(`📋 Known baseline failures: ${knownFailures.length}`);
-  console.log(`❌ New failures: ${newFailures.length}`);
+  console.log(`❌ New failures: ${newFailures.length + hardFailures.length}`);
 
   if (knownFailures.length > 0) {
     console.log(`\n✓ ${knownFailures.length} stories have known baseline violations (not blocking CI)`);
     console.log(`  See docs/a11y-issues.md for details on known issues`);
   }
 
-  if (newFailures.length > 0) {
+  if (newFailures.length > 0 || hardFailures.length > 0) {
     console.log('\n' + '='.repeat(70));
     console.log('❌ NEW ACCESSIBILITY VIOLATIONS DETECTED');
     console.log('='.repeat(70));
-    newFailures.forEach(({ story, unexpectedRules, allViolations }) => {
-      console.log(`\n📍 Story: ${story}`);
-      console.log(`   New violations: ${unexpectedRules.join(', ')}`);
-      console.log(`   All violations: ${allViolations.join(', ')}`);
-    });
-    
+    for (const failure of newFailures) {
+      console.log(`\n📍 Story: ${failure.story}`);
+      console.log(`   New violations: ${failure.unexpectedRules.join(', ')}`);
+      console.log(`   All violations: ${failure.allViolations.join(', ')}`);
+    }
+    for (const failure of hardFailures) {
+      console.log(`\n📍 Story: ${failure.story}`);
+      console.log(`   Failure: ${failure.message}`);
+    }
     console.log('\n' + '='.repeat(70));
-    console.log(`❌ CI FAILED: ${newFailures.length} new accessibility violation(s)`);
+    console.log(`❌ CI FAILED: ${newFailures.length + hardFailures.length} new accessibility violation(s)`);
     console.log('='.repeat(70));
     console.log('\nTo fix this:');
     console.log('  1. Fix the new accessibility violations in the components');
     console.log('  2. OR if intentional, update frontend/.axe-storybook-baseline.test-a11y.json');
     console.log('  3. Run "npm run frontend:test:a11y" locally to verify\n');
-    process.exit(1);
+  } else {
+    console.log('\n' + '='.repeat(70));
+    console.log('✅ ALL TESTS PASSED - No new accessibility violations detected');
+    console.log('='.repeat(70));
+    console.log('');
   }
 
-  console.log('\n' + '='.repeat(70));
-  console.log('✅ ALL TESTS PASSED - No new accessibility violations detected');
-  console.log('='.repeat(70));
-  console.log('');
-  process.exit(0);
-});
-
-axeProcess.on('error', (error) => {
-  console.error('Failed to run axe-storybook:', error);
-  process.exit(1);
-});
+  const processFailed =
+    code !== 0 &&
+    (testResults.failures.length === 0 || newFailures.length > 0 || hardFailures.length > 0);
+  if (newFailures.length > 0 || hardFailures.length > 0 || processFailed) {
+    process.exitCode = 1;
+  }
+} catch (error) {
+  console.error(`\n❌ Accessibility test runner failed: ${error.message}`);
+  process.exitCode = 1;
+} finally {
+  if (existsSync(REPORT_FILE)) {
+    unlinkSync(REPORT_FILE);
+  }
+}
