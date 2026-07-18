@@ -110,6 +110,11 @@ import {
   setProjectDeleteButton,
 } from '../redux/projectsSlice';
 import { setRoute, setRouteFilter } from '../redux/routesSlice';
+import {
+  deregisterShortcut as deregisterShortcutAction,
+  registerShortcut as registerShortcutAction,
+  ShortcutConfig,
+} from '../redux/shortcutsSlice';
 import store from '../redux/stores/store';
 import { UIPanel, uiSlice } from '../redux/uiSlice';
 import { ConfigStore } from './configStore';
@@ -154,6 +159,7 @@ export type {
   GraphSource,
   IconDefinition,
   OverviewChartsProcessor,
+  ShortcutConfig,
 };
 
 export type { ApiResource } from '../lib/k8s/api/v2/ApiResource';
@@ -1243,6 +1249,24 @@ export function registerProjectApiResource(apiResource: ApiResource) {
       : apiResource;
 
   store.dispatch(addProjectApiResource(normalizedResource));
+}
+
+/**
+ * Register a custom keyboard shortcut.
+ *
+ * @param config - The keyboard shortcut configuration.
+ */
+export function registerShortcut(config: ShortcutConfig) {
+  store.dispatch(registerShortcutAction(config));
+}
+
+/**
+ * Deregister a custom keyboard shortcut.
+ *
+ * @param id - The ID of the shortcut to deregister.
+ */
+export function deregisterShortcut(id: string) {
+  store.dispatch(deregisterShortcutAction(id));
 }
 
 export {
