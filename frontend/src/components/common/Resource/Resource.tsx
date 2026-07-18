@@ -130,6 +130,20 @@ export interface DetailsGridProps<T extends KubeObjectClass>
   onResourceUpdate?: (resource: InstanceType<T>, error: ApiError) => void;
 }
 
+/**
+ * Runs a details-view section builder, returning `fallback` (and logging) if it throws.
+ * These builders run eagerly while assembling the section list — before the per-section
+ * ErrorBoundary can catch them — so an unguarded throw would take down the whole page.
+ */
+function safeSection<T>(label: string, build: () => T, fallback: T): T {
+  try {
+    return build();
+  } catch (e) {
+    console.error(`Headlamp: ${label} threw`, e);
+    return fallback;
+  }
+}
+
 /** Renders the different parts that constibute an actual resource's details view.
  * Those are: the back link, the header, the main info section, the extra sections, and the events section.
  */
@@ -239,6 +253,14 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
 
   const sections: (DetailsViewSection | ReactNode)[] = [];
 
+  // Identifies which details view a section builder threw in — useful when reading
+  // console logs across multiple clusters/resources (see safeSection below).
+  const clusterRef = cluster ?? selectedCluster;
+  const nsRef = namespace ? `/${namespace}` : '';
+  const detailsRef = `${resourceType}${nsRef}/${name}${
+    clusterRef ? ` (cluster: ${clusterRef})` : ''
+  }`;
+
   // Back link
   if (!!actualBackLink || actualBackLink === '') {
     sections.push({
@@ -280,7 +302,9 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
     );
   } else {
     const mainInfoHeader =
-      typeof headerSection === 'function' ? headerSection(item) : headerSection;
+      typeof headerSection === 'function'
+        ? safeSection(`headerSection for ${detailsRef}`, () => headerSection(item), null)
+        : headerSection;
     sections.push({
       id: DefaultDetailsViewSection.METADATA,
       section: (
@@ -317,7 +341,11 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
     );
     sections.push({
       id: 'LEGACY_SECTIONS_FUNC',
-      section: sectionsFunc(item!) as any,
+      section: safeSection(
+        `sectionsFunc for ${detailsRef}`,
+        () => sectionsFunc(item!),
+        null
+      ) as any,
     });
   }
 
@@ -326,7 +354,11 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
     if (Array.isArray(extraSections)) {
       actualExtraSections = extraSections;
     } else if (typeof extraSections === 'function') {
-      const extraSectionsResult = extraSections(item!) || [];
+      const extraSectionsResult = safeSection(
+        `extraSections for ${detailsRef}`,
+        () => extraSections(item!) || [],
+        []
+      );
       if (Array.isArray(extraSectionsResult)) {
         actualExtraSections = extraSectionsResult;
       }
