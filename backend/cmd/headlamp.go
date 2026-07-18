@@ -53,6 +53,7 @@ import (
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
@@ -1398,6 +1399,7 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	router := mux.NewRouter()
 
 	if config.Telemetry != nil && config.Metrics != nil {
+		k8cache.SetMetrics(config.Metrics)
 		router.Use(telemetry.TracingMiddleware("headlamp-server"))
 		router.Use(config.Metrics.RequestCounterMiddleware)
 	}
