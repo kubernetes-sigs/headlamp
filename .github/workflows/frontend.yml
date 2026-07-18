@@ -188,7 +188,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        node-version: [20.x]
+        node-version: [22.x]
         os: [ubuntu-22.04]
 
     steps:
@@ -207,6 +207,7 @@ jobs:
 
       - name: Install Playwright browsers
         run: |
+          cd frontend
           npx playwright install --with-deps chromium
 
       - name: Run accessibility tests
