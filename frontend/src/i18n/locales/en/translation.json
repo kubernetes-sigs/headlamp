@@ -687,6 +687,7 @@
   "Namespaces must be under 64 characters.": "Namespaces must be under 64 characters.",
   "A namespace with this name already exists.": "A namespace with this name already exists.",
   "Create Namespace": "Create Namespace",
+  "Loading pods": "Loading pods",
   "To": "To",
   "used": "used",
   "Scheduling Disabled": "Scheduling Disabled",

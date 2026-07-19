@@ -687,6 +687,7 @@
   "Namespaces must be under 64 characters.": "namespace গুলি অবশ্যই 64 টি অক্ষরের অধীনে থাকতে হবে।",
   "A namespace with this name already exists.": "এই নাম সহ একটি namespace ইতিমধ্যে বিদ্যমান।",
   "Create Namespace": "namespace Create করুন",
+  "Loading pods": "",
   "To": "থেকে",
   "used": "ব্যবহৃত",
   "Scheduling Disabled": "Scheduling Disable করা হয়েছে",
