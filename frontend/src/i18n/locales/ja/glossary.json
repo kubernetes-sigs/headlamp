@@ -117,6 +117,8 @@
   "Job Sets": "",
   "Lease": "リース",
   "LimitRange": "制限範囲",
+  "Selected Pods": "",
+  "No pods in the {{ namespace }} namespace are selected by this policy.": "",
   "Ingress": "イングレス",
   "ipBlock": "IP ブロック",
   "namespaceSelector": "ネームスペースセレクター",

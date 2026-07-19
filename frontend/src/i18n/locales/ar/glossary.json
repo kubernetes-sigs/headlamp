@@ -117,6 +117,8 @@
   "Job Sets": "مجموعات المهام",
   "Lease": "الإيجار",
   "LimitRange": "نطاق الحدود",
+  "Selected Pods": "",
+  "No pods in the {{ namespace }} namespace are selected by this policy.": "",
   "Ingress": "Ingress",
   "ipBlock": "حظر IP",
   "namespaceSelector": "محدد مساحة الأسماء",
