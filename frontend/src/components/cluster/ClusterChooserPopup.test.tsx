@@ -152,21 +152,21 @@ describe('ClusterChooserPopup', () => {
     const input = screen.getByLabelText(/choose cluster/i);
     await user.click(input);
 
-    const menuItems = screen.getAllByRole('menuitem');
-    menuItems.forEach(item => {
+    const options = screen.getAllByRole('option');
+    options.forEach(item => {
       expect(item).not.toHaveClass('Mui-selected');
     });
 
     await user.keyboard('{ArrowDown}');
-    expect(screen.getByRole('menuitem', { name: /dev/i })).toHaveClass('Mui-selected');
+    expect(screen.getByRole('option', { name: /dev/i })).toHaveClass('Mui-selected');
 
     await user.keyboard('{ArrowDown}');
-    expect(screen.getByRole('menuitem', { name: /dev/i })).not.toHaveClass('Mui-selected');
-    expect(screen.getByRole('menuitem', { name: /prod/i })).toHaveClass('Mui-selected');
+    expect(screen.getByRole('option', { name: /dev/i })).not.toHaveClass('Mui-selected');
+    expect(screen.getByRole('option', { name: /prod/i })).toHaveClass('Mui-selected');
 
     await user.keyboard('{ArrowUp}');
-    expect(screen.getByRole('menuitem', { name: /dev/i })).toHaveClass('Mui-selected');
-    expect(screen.getByRole('menuitem', { name: /prod/i })).not.toHaveClass('Mui-selected');
+    expect(screen.getByRole('option', { name: /dev/i })).toHaveClass('Mui-selected');
+    expect(screen.getByRole('option', { name: /prod/i })).not.toHaveClass('Mui-selected');
   });
 
   it('restores list after clearing search', async () => {
