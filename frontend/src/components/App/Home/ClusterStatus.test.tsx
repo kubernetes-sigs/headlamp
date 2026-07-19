@@ -59,6 +59,9 @@ function makeStore(clusterStatuses: ClusterStatusComponent[]) {
         clusterStatuses,
       },
     },
+    // clusterStatuses holds functions, which aren't serializable; matches the app's
+    // own store config (redux/stores/store.tsx), which disables this check too.
+    middleware: getDefaultMiddleware => getDefaultMiddleware({ serializableCheck: false }),
   });
 }
 
