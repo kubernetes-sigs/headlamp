@@ -137,11 +137,15 @@ describe('expandEnvAndResolvePaths', () => {
 describe('MultiServerMCPClient', () => {
   let originalPath: string | undefined;
   let originalHome: string | undefined;
+  let originalMixedCasePath: string | undefined;
+  let hadMixedCasePath: boolean;
 
   beforeEach(() => {
     // ensure predictable env for child process environment tests
     originalPath = process.env.PATH;
     originalHome = process.env.HOME;
+    hadMixedCasePath = Object.prototype.hasOwnProperty.call(process.env, 'Path');
+    originalMixedCasePath = process.env.Path;
     process.env.TEST_ORIG_ENV = 'orig';
     process.env.PATH = process.env.PATH || '/usr/bin';
     process.env.HOME = process.env.HOME || '/tmp/headlamp-home';
@@ -159,6 +163,11 @@ describe('MultiServerMCPClient', () => {
       delete process.env.HOME;
     } else {
       process.env.HOME = originalHome;
+    }
+    if (!hadMixedCasePath || originalMixedCasePath === undefined) {
+      delete process.env.Path;
+    } else {
+      process.env.Path = originalMixedCasePath;
     }
   });
 
@@ -259,6 +268,32 @@ describe('MultiServerMCPClient', () => {
     expect(entry.env.PATH).toBe(process.env.PATH);
     expect(entry.env.HOME).toBe(process.env.HOME);
     expect(entry.env.TEST_ORIG_ENV).toBeUndefined();
+  });
+
+  it('normalizes case-insensitive baseline env keys to the allowlisted name', () => {
+    delete process.env.PATH;
+    process.env.Path = '/mixed/case/path';
+
+    const mcpSettings = {
+      enabled: true,
+      servers: [
+        {
+          name: 'valid',
+          command: 'cmd',
+          args: [],
+          enabled: true,
+          env: { PATH: '/explicit/path' },
+        },
+      ],
+    };
+
+    (loadSettings as Mock).mockReturnValue({ mcp: mcpSettings });
+
+    const result = MCP.makeMcpServersFromSettings('/cfg', ['clusterA']);
+
+    const entry = result['valid'] as any;
+    expect(entry.env.PATH).toBe('/explicit/path');
+    expect(entry.env.Path).toBeUndefined();
   });
 
   it('expands HEADLAMP_CURRENT_CLUSTER placeholder using provided clusters[0]', () => {

@@ -89,7 +89,7 @@ function getProcessEnvEntry(key: (typeof DEFAULT_MCP_ENV_KEYS)[number]): [string
     return null;
   }
 
-  return [matchingKey, matchingValue];
+  return [key, matchingValue];
 }
 
 function buildMcpServerEnv(serverEnv?: Record<string, string>): Record<string, string> {
