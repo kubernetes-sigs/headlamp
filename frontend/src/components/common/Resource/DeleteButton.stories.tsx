@@ -16,6 +16,7 @@
 
 import MenuList from '@mui/material/MenuList';
 import { Meta, StoryFn } from '@storybook/react';
+import { userEvent, within } from 'storybook/test';
 import { getTestDate } from '../../../helpers/testHelpers';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import Namespace from '../../../lib/k8s/namespace';
@@ -109,7 +110,13 @@ export const ProtectedNamespace = Template.bind({});
 ProtectedNamespace.args = {
   item: createMockNamespace('kube-system'),
 };
+ProtectedNamespace.play = async ({ canvasElement }) => {
+  const deleteButton = await within(canvasElement).findByRole('button', { name: 'Delete' });
+  await userEvent.click(deleteButton);
+};
 ProtectedNamespace.parameters = {
+  // Disable snapshots as the dialog only appears after the play interaction
+  storyshots: { disable: true },
   docs: {
     description: {
       story:
@@ -123,7 +130,13 @@ export const NonProtectedNamespace = Template.bind({});
 NonProtectedNamespace.args = {
   item: createMockNamespace('my-app'),
 };
+NonProtectedNamespace.play = async ({ canvasElement }) => {
+  const deleteButton = await within(canvasElement).findByRole('button', { name: 'Delete' });
+  await userEvent.click(deleteButton);
+};
 NonProtectedNamespace.parameters = {
+  // Disable snapshots as the dialog only appears after the play interaction
+  storyshots: { disable: true },
   docs: {
     description: {
       story: 'A regular namespace keeps the standard single-confirmation delete flow.',
