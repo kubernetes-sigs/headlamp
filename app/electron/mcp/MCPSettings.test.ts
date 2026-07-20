@@ -263,26 +263,30 @@ describe('MultiServerMCPClient', () => {
   it('redacts expanded args when MCP debug logging is enabled', () => {
     process.env.HEADLAMP_MCP_DEBUG = 'true';
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
-    const mcpSettings = {
-      enabled: true,
-      servers: [
-        {
-          name: 'withSecret',
-          command: 'cmd',
-          args: ['--token=secret-value', 'HEADLAMP_CURRENT_CLUSTER'],
-          enabled: true,
-        },
-      ],
-    };
+    try {
+      const mcpSettings = {
+        enabled: true,
+        servers: [
+          {
+            name: 'withSecret',
+            command: 'cmd',
+            args: ['--token=secret-value', 'HEADLAMP_CURRENT_CLUSTER'],
+            enabled: true,
+          },
+        ],
+      };
 
-    (loadSettings as Mock).mockReturnValue({ mcp: mcpSettings });
+      (loadSettings as Mock).mockReturnValue({ mcp: mcpSettings });
 
-    MCP.makeMcpServersFromSettings('/cfg', ['prod-cluster']);
+      MCP.makeMcpServersFromSettings('/cfg', ['prod-cluster']);
 
-    expect(logSpy).toHaveBeenCalledWith('Expanded args for MCP server:', {
-      serverName: '[REDACTED]',
-      expandedArgs: ['[REDACTED]', '[REDACTED]'],
-    });
+      expect(logSpy).toHaveBeenCalledWith('Expanded args for MCP server:', {
+        serverName: '[REDACTED]',
+        expandedArgs: ['[REDACTED]', '[REDACTED]'],
+      });
+    } finally {
+      logSpy.mockRestore();
+    }
   });
 });
 

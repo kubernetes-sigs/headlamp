@@ -79,6 +79,33 @@ export default class MCPClient {
     this.setupIpcHandlers();
   }
 
+  private summarizeMCPSettings(mcpSettings: MCPSettings) {
+    return {
+      enabled: mcpSettings.enabled,
+      serverCount: mcpSettings.servers.length,
+      enabledServerCount: mcpSettings.servers.filter(server => server.enabled).length,
+    };
+  }
+
+  private summarizeMCPToolsConfig(toolsConfig: MCPToolsConfig) {
+    const serverNames = Object.keys(toolsConfig);
+    let toolCount = 0;
+    let enabledToolCount = 0;
+
+    for (const serverName of serverNames) {
+      const tools = Object.values(toolsConfig[serverName] ?? {});
+
+      toolCount += tools.length;
+      enabledToolCount += tools.filter(tool => tool.enabled).length;
+    }
+
+    return {
+      serverCount: serverNames.length,
+      toolCount,
+      enabledToolCount,
+    };
+  }
+
   /**
    * Initialize the MCP client.
    */
@@ -369,7 +396,10 @@ export default class MCPClient {
       }
       // Get current configuration for comparison
       const currentSettings = loadMCPSettings(this.settingsPath);
-      mcpDebugLog('Requested MCP configuration update:', mcpSettings);
+      mcpDebugLog(
+        'Requested MCP configuration update:',
+        this.summarizeMCPSettings(mcpSettings)
+      );
       // Show detailed confirmation dialog with changes
       const userConfirmed = await showSettingsChangeDialog(
         this.mainWindow,
@@ -445,7 +475,10 @@ export default class MCPClient {
   }
 
   private async mcpUpdateToolsConfig(toolsConfig: MCPToolsConfig) {
-    mcpDebugLog('Requested MCP tools configuration update:', toolsConfig);
+    mcpDebugLog(
+      'Requested MCP tools configuration update:',
+      this.summarizeMCPToolsConfig(toolsConfig)
+    );
     try {
       if (!this.mainWindow) {
         throw new Error('Main window not set for MCP client');

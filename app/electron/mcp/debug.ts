@@ -39,7 +39,7 @@ export function redactMCPLogValue(value: unknown): unknown {
 
   if (value instanceof Error) {
     return {
-      name: value.name,
+      name: REDACTED,
       message: REDACTED,
     };
   }
