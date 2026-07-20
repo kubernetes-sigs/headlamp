@@ -698,12 +698,11 @@ func TestProxyURLAllowlistReturnsCopy(t *testing.T) {
 	allowlist, err := config.proxyURLAllowlist()
 	require.NoError(t, err)
 	require.Len(t, allowlist, 1)
+	require.Len(t, config.compiledProxyURLs, 1)
 
-	originalLen := len(config.compiledProxyURLs)
-	_ = append(allowlist, allowlist[0])
-
-	assert.Equal(t, originalLen, len(config.compiledProxyURLs),
-		"mutating the returned allowlist must not change the cached slice")
+	// Returned slice must not share backing storage with the cache.
+	assert.False(t, &allowlist[0] == &config.compiledProxyURLs[0],
+		"proxyURLAllowlist must return a copy, not the cached slice")
 }
 
 func newLargeBodyUpstream(t *testing.T, size int) *httptest.Server {
