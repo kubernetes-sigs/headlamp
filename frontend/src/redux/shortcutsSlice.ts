@@ -32,7 +32,7 @@ export interface ShortcutConfig {
   /** The default key combination for the shortcut */
   defaultKey: string;
   /** The category the shortcut belongs to */
-  category: 'navigation' | 'search' | 'general' | 'plugin';
+  category?: 'navigation' | 'search' | 'general' | 'plugin';
 }
 
 import i18next from 'i18next';
@@ -144,6 +144,9 @@ export const shortcutsSlice = createSlice({
     },
     registerShortcut(state, action: PayloadAction<ShortcutConfig>) {
       const config = action.payload;
+      if (DEFAULT_SHORTCUTS[config.id]) {
+        return;
+      }
       let key = config.key;
       try {
         const stored = localStorage.getItem('keyboardShortcuts');
@@ -164,6 +167,9 @@ export const shortcutsSlice = createSlice({
     },
     deregisterShortcut(state, action: PayloadAction<string>) {
       const id = action.payload;
+      if (DEFAULT_SHORTCUTS[id]) {
+        return;
+      }
       if (state.shortcuts[id]) {
         delete state.shortcuts[id];
       }
