@@ -374,6 +374,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const clusterFromUrl = useCluster();
     const namespaceRoutingKey = namespaces.join('\0');
+    const listQueryKey = JSON.stringify(queryParams);
     // eslint-disable-next-line react-hooks/rules-of-hooks
     React.useEffect(() => {
       if (waitingForDiscovery) {
@@ -387,8 +388,9 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
           void cancellablePromise.then(cancellable => cancellable()).catch(() => {});
         }
       };
+      // listCalls is rebuilt when namespaceRoutingKey or listQueryKey change.
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [clusterFromUrl, waitingForDiscovery, activeCluster, namespaceRoutingKey]);
+    }, [clusterFromUrl, waitingForDiscovery, activeCluster, namespaceRoutingKey, listQueryKey]);
   }
 
   static useList<K extends KubeObject>(
