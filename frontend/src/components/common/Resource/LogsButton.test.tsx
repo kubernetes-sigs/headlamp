@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import 'vitest-canvas-mock';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import React from 'react';
 import { labelSelectorToQuery } from '../../../lib/k8s';
