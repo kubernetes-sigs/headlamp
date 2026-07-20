@@ -42,6 +42,16 @@ import envPaths from './env-paths';
 // }
 
 /**
+ * TLS certificate error codes that indicate a certificate verification failure.
+ */
+const TLS_ERROR_CODES = [
+  'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
+  'SELF_SIGNED_CERT_IN_CHAIN',
+  'CERT_UNTRUSTED',
+  'CERT_REJECTED',
+];
+
+/**
  * Extracts TLS error code from an error object.
  * Checks both err.code directly and err.cause.code for TLS error codes.
  *
@@ -732,19 +742,12 @@ async function downloadAndExtractSingleArchive(
   }
 
   // await sleep(4000); // comment out for testing
-  let archResponse;
+  let archResponse: Awaited<ReturnType<typeof fetch>>;
 
   try {
     archResponse = await fetch(archiveURL, { redirect: 'follow', signal });
   } catch (err) {
-    const tlsErrorCodes = [
-      'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
-      'SELF_SIGNED_CERT_IN_CHAIN',
-      'CERT_UNTRUSTED',
-      'CERT_REJECTED',
-    ];
-
-    const tlsCode = extractTlsErrorCode(err, tlsErrorCodes);
+    const tlsCode = extractTlsErrorCode(err, TLS_ERROR_CODES);
     if (tlsCode) {
       throw new Error(
         `TLS certificate verification failed (${tlsCode}). This may be due to a corporate TLS-inspecting proxy. ` +
@@ -978,18 +981,11 @@ async function fetchPluginInfo(
     if (progressCallback) {
       progressCallback({ type: 'info', message: 'Fetching Plugin Metadata' });
     }
-    let response;
+    let response: Awaited<ReturnType<typeof fetch>>;
     try {
       response = await fetch(apiURL, { redirect: 'follow', signal });
     } catch (err) {
-      const tlsErrorCodes = [
-        'UNABLE_TO_GET_ISSUER_CERT_LOCALLY',
-        'SELF_SIGNED_CERT_IN_CHAIN',
-        'CERT_UNTRUSTED',
-        'CERT_REJECTED',
-      ];
-
-      const tlsCode = extractTlsErrorCode(err, tlsErrorCodes);
+      const tlsCode = extractTlsErrorCode(err, TLS_ERROR_CODES);
       if (tlsCode) {
         throw new Error(
           `TLS certificate verification failed (${tlsCode}). This may be due to a corporate TLS-inspecting proxy. ` +
