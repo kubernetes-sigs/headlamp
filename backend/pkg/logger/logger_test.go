@@ -77,9 +77,7 @@ func TestLog(t *testing.T) {
 			logger.Log(test.level, test.str, test.err, test.msg)
 
 			expectedLog := fmt.Sprintf(`{"level":%d, "message":"%s"}`, test.level, test.msg)
-			if len(capturedLogs) != 1 || capturedLogs[0] != expectedLog {
-				t.Errorf("unexpected log output:\n\texpected: %s\n\tgot: %s", expectedLog, capturedLogs)
-			}
+			require.Equal(t, []string{expectedLog}, capturedLogs, "unexpected log output")
 		})
 
 		// Reset capturedLogs for the next test case
