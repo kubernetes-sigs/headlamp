@@ -396,10 +396,7 @@ export default class MCPClient {
       }
       // Get current configuration for comparison
       const currentSettings = loadMCPSettings(this.settingsPath);
-      mcpDebugLog(
-        'Requested MCP configuration update:',
-        this.summarizeMCPSettings(mcpSettings)
-      );
+      mcpDebugLog('Requested MCP configuration update:', this.summarizeMCPSettings(mcpSettings));
       // Show detailed confirmation dialog with changes
       const userConfirmed = await showSettingsChangeDialog(
         this.mainWindow,
