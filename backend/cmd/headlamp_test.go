@@ -686,6 +686,26 @@ func TestProxyURLAllowedCompilesConfiguredProxyURLs(t *testing.T) {
 	assert.NotEmpty(t, config.compiledProxyURLs)
 }
 
+func TestProxyURLAllowlistReturnsCopy(t *testing.T) {
+	config := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				ProxyURLs: []string{"https://example.com/*"},
+			},
+		},
+	}
+
+	allowlist, err := config.proxyURLAllowlist()
+	require.NoError(t, err)
+	require.Len(t, allowlist, 1)
+
+	originalLen := len(config.compiledProxyURLs)
+	_ = append(allowlist, allowlist[0])
+
+	assert.Equal(t, originalLen, len(config.compiledProxyURLs),
+		"mutating the returned allowlist must not change the cached slice")
+}
+
 func newLargeBodyUpstream(t *testing.T, size int) *httptest.Server {
 	t.Helper()
 

@@ -111,7 +111,9 @@ func targetURLFromRequest(r *http.Request) (*url.URL, error) {
 
 	parsed, err := url.Parse(proxyURL)
 	if err != nil {
-		return nil, err
+		// url.Parse errors embed the raw input; return a generic error so
+		// logs do not leak potentially sensitive proxy-to values.
+		return nil, errInvalidProxyURL
 	}
 
 	if err := validateProxyURL(parsed); err != nil {

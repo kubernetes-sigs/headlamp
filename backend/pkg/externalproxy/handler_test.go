@@ -193,3 +193,21 @@ func TestHandlerRejectsNonHTTPScheme(t *testing.T) {
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 	assert.Contains(t, rr.Body.String(), "The provided proxy URL is invalid")
 }
+
+func TestHandlerRejectsMalformedURL(t *testing.T) {
+	allowlist, err := externalproxy.CompileAllowlist([]string{"https://*"})
+	require.NoError(t, err)
+
+	handler := externalproxy.NewHandler(func() ([]externalproxy.AllowlistEntry, error) { return allowlist, nil })
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/externalproxy", nil)
+	// Unclosed IPv6 bracket makes url.Parse fail and embed the raw input in err.
+	req.Header.Set("proxy-to", "https://[::1/secret-token")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusBadRequest, rr.Code)
+	assert.Contains(t, rr.Body.String(), "The provided proxy URL is invalid")
+	assert.NotContains(t, rr.Body.String(), "secret-token")
+}

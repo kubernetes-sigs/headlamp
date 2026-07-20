@@ -99,7 +99,8 @@ func (c *HeadlampConfig) proxyURLAllowlist() ([]externalproxy.AllowlistEntry, er
 		c.compiledProxyURLs = compiledProxyURLs
 	}
 
-	return c.compiledProxyURLs, nil
+	// Return a copy so callers cannot mutate the cached allowlist.
+	return append([]externalproxy.AllowlistEntry(nil), c.compiledProxyURLs...), nil
 }
 
 func (c *HeadlampConfig) proxyURLAllowed(proxyURL string) (bool, error) {
