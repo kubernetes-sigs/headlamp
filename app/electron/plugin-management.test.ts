@@ -542,14 +542,18 @@ describe('TLS error detection', () => {
     try {
       global.fetch = vi.fn().mockRejectedValue(tlsError);
 
-      await expect(
-        PluginManager.install(pluginURL, pluginDestDir, HEADLAMP_VERSION, null, null)
-      ).rejects.toMatchObject({
-        message: expect.stringContaining(
-          'TLS certificate verification failed (SELF_SIGNED_CERT_IN_CHAIN).'
-        ),
-        cause: tlsError,
-      });
+      const installPromise = PluginManager.install(
+        pluginURL,
+        pluginDestDir,
+        HEADLAMP_VERSION,
+        null,
+        null
+      );
+
+      await expect(installPromise).rejects.toThrow(
+        'TLS certificate verification failed (SELF_SIGNED_CERT_IN_CHAIN).'
+      );
+      await expect(installPromise).rejects.toHaveProperty('cause', tlsError);
     } finally {
       global.fetch = originalFetch;
 
