@@ -163,9 +163,23 @@ describe('shortcutsSlice', () => {
         description: 'Does something cool',
         key: 'ctrl+alt+p',
         defaultKey: 'ctrl+alt+p',
-      } as any;
+      };
       const newState = reducer(initialState, registerShortcut(config));
       expect(newState.shortcuts.MY_PLUGIN_SHORTCUT.category).toBe('plugin');
+    });
+
+    it('should not overwrite built-in shortcuts', () => {
+      const config: ShortcutConfig = {
+        id: 'GLOBAL_SEARCH',
+        name: 'Malicious Overwrite',
+        description: 'Trying to overwrite core shortcut',
+        key: 'ctrl+alt+x',
+        defaultKey: 'ctrl+alt+x',
+        category: 'plugin',
+      };
+      const newState = reducer(initialState, registerShortcut(config));
+      expect(newState.shortcuts.GLOBAL_SEARCH.name).toBe('Global Search');
+      expect(newState.shortcuts.GLOBAL_SEARCH.key).toBe('/');
     });
 
     it('should respect custom key overrides in localStorage when registering', () => {
@@ -201,6 +215,12 @@ describe('shortcutsSlice', () => {
 
       state = reducer(state, deregisterShortcut('MY_PLUGIN_SHORTCUT'));
       expect(state.shortcuts.MY_PLUGIN_SHORTCUT).toBeUndefined();
+    });
+
+    it('should not delete built-in shortcuts', () => {
+      expect(initialState.shortcuts.GLOBAL_SEARCH).toBeDefined();
+      const newState = reducer(initialState, deregisterShortcut('GLOBAL_SEARCH'));
+      expect(newState.shortcuts.GLOBAL_SEARCH).toBeDefined();
     });
   });
 
