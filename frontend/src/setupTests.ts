@@ -18,6 +18,34 @@
 import '@testing-library/jest-dom/vitest';
 import 'vitest-canvas-mock';
 import indexeddb from 'fake-indexeddb';
+import i18next from 'i18next';
+import { initReactI18next } from 'react-i18next';
+import sharedConfig from './i18n/i18nextSharedConfig.mjs';
+
+const testI18nResources = {
+  en: Object.fromEntries(sharedConfig.namespaces.map(namespace => [namespace, {}])),
+};
+
+if (!i18next.isInitialized) {
+  await i18next.use(initReactI18next).init({
+    resources: testI18nResources,
+    lng: 'en',
+    fallbackLng: 'en',
+    supportedLngs: ['en'],
+    ns: sharedConfig.namespaces,
+    defaultNS: sharedConfig.defaultNamespace,
+    contextSeparator: sharedConfig.contextSeparator,
+    interpolation: {
+      escapeValue: false,
+    },
+    returnEmptyString: false,
+    react: {
+      useSuspense: false,
+    },
+    nsSeparator: '|',
+    keySeparator: false,
+  });
+}
 
 // xterm initializes canvas APIs during module setup, so install the canvas mock
 // here once for the entire Vitest environment instead of per test file.
