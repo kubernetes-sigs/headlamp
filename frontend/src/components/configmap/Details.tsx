@@ -35,13 +35,10 @@ function ConfigMapDataSection({ item }: { item: ConfigMap }) {
   const [data, setData] = React.useState(() => _.cloneDeep(item.data || {}));
   const [binaryData, setBinaryData] = React.useState(() => _.cloneDeep(item.binaryData || {}));
   const [isDirty, setIsDirty] = React.useState(false);
- fix-configmap-hooks
-  const lastDataRef = React.useRef(_.cloneDeep(item.data));
-  const lastUidRef = React.useRef(item.metadata?.uid);
 
   const lastDataRef = React.useRef(_.cloneDeep(item.data || {}));
   const lastBinaryDataRef = React.useRef(_.cloneDeep(item.binaryData || {}));
- main
+  const lastUidRef = React.useRef(item.metadata?.uid);
 
   const handleDataFieldChange = (key: string, newValue: string) => {
     setData(prev => {
