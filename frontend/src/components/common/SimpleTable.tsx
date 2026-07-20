@@ -342,6 +342,7 @@ export default function SimpleTable(props: SimpleTableProps) {
     }
 
     if (
+      filterFunction &&
       (filteredData?.length === 0 || (filteredData?.length ?? 0) <= page * rowsPerPage) &&
       page !== 0
     ) {

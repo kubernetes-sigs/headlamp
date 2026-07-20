@@ -16,11 +16,17 @@
 
 import { ThemeProvider } from '@mui/material/styles';
 import { render, screen } from '@testing-library/react';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createMuiTheme } from '../../lib/themes';
 import { TestContext } from '../../test';
 import SimpleTable from './SimpleTable';
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string) => key.split('|')[1] || key,
+    i18n: { language: 'en' },
+  }),
+}));
 const theme = createMuiTheme({ name: 'light', base: 'light' });
 
 describe('SimpleTable Component', () => {
