@@ -895,13 +895,14 @@ export function WorkloadDiagnosticsSection(props: {
 }) {
   const { workload, pods, errors } = props;
   const { t } = useTranslation('translation');
-  const podsLoading = pods === null && !errors?.length;
+  const effectivePods = pods ?? null;
+  const podsLoading = effectivePods === null && !errors?.length;
 
   const diagnostics = React.useMemo(() => {
     if (podsLoading) {
       return [];
     }
-    const items = getWorkloadDiagnostics(workload, pods || [], t);
+    const items = getWorkloadDiagnostics(workload, effectivePods ?? [], t);
     if (errors?.length) {
       items.push({
         id: 'workload-owned-pods-error',
@@ -911,7 +912,7 @@ export function WorkloadDiagnosticsSection(props: {
       });
     }
     return items;
-  }, [workload, pods, errors, podsLoading, t]);
+  }, [workload, effectivePods, errors, podsLoading, t]);
 
   // No logs action here: workload detail pages already expose an in-place logs
   // button in the page header, and each failing pod below links to its own page.
