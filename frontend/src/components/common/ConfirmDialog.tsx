@@ -76,10 +76,13 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
         aria-labelledby="alert-dialog-title"
         aria-describedby="alert-dialog-description"
         PaperProps={{
-          sx: {
-            minWidth: 'clamp(280px, 25vw, 600px)',
-          },
           ...muiDialogProps.PaperProps,
+          sx: [
+            { minWidth: 'clamp(280px, 25vw, 600px)' },
+            ...(Array.isArray(muiDialogProps.PaperProps?.sx)
+              ? muiDialogProps.PaperProps.sx
+              : [muiDialogProps.PaperProps?.sx ?? false]),
+          ],
         }}
       >
         <DialogTitle id="alert-dialog-title">{title}</DialogTitle>
