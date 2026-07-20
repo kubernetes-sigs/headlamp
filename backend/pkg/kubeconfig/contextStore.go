@@ -3,6 +3,7 @@ package kubeconfig
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"sync"
 	"time"
 
@@ -122,8 +123,15 @@ func (c *contextStore) GetContexts() ([]*Context, error) {
 		return nil, err
 	}
 
-	for _, ctx := range contextMap {
-		contexts = append(contexts, ctx)
+	keys := make([]string, 0, len(contextMap))
+	for key := range contextMap {
+		keys = append(keys, key)
+	}
+
+	slices.Sort(keys)
+
+	for _, key := range keys {
+		contexts = append(contexts, contextMap[key])
 	}
 
 	return contexts, nil
@@ -141,6 +149,8 @@ func (c *contextStore) GetContextKeys() ([]string, error) {
 	for key := range contextMap {
 		keys = append(keys, key)
 	}
+
+	slices.Sort(keys)
 
 	return keys, nil
 }
