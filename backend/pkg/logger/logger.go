@@ -86,7 +86,7 @@ func Log(level uint, str map[string]string, err interface{}, msg string) {
 	fn(level, str, err, msg)
 }
 
-// Log is a wrapper function for logging. It uses zlog package and logs to stdout.
+// log is a wrapper function for logging. It uses zlog package and logs to stdout.
 // It logs the message, source file and line number.
 // It logs the message at the level specified.
 func log(level uint, str map[string]string, err interface{}, msg string) {
