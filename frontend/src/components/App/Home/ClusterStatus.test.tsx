@@ -103,6 +103,10 @@ describe('ClusterStatus — registerClusterStatus callback loop', () => {
   });
 
   it('skips a throwing callback and falls through to the next one', () => {
+    // The component logs the caught error via console.error; silence it here so the
+    // expected failure mode doesn't spam test output, and assert it was still logged.
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
     const throwingCallback: ClusterStatusComponent = () => {
       throw new Error('hooks called outside component');
     };
@@ -118,6 +122,12 @@ describe('ClusterStatus — registerClusterStatus callback loop', () => {
     );
 
     expect(screen.getByTestId('recovery-status')).toBeInTheDocument();
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining('[ClusterStatus] A registerClusterStatus callback threw.'),
+      expect.any(Error)
+    );
+
+    consoleErrorSpy.mockRestore();
   });
 
   it('skips a callback that returns undefined and falls through to the next one', () => {
