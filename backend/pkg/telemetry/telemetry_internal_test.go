@@ -46,12 +46,10 @@ func TestNormalizeEndpoint(t *testing.T) {
 
 func TestCreateTracingExporter_JaegerFallback(t *testing.T) {
 	jaegerEndpoint := "http://localhost:4318/v1/traces"
-	useHTTP := true
 	stdoutEnabled := false
 
 	config := cfg.Config{
 		JaegerEndpoint:     &jaegerEndpoint,
-		UseOTLPHTTP:        &useHTTP,
 		StdoutTraceEnabled: &stdoutEnabled,
 	}
 
