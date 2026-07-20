@@ -151,3 +151,4 @@ The typical development workflow for the desktop app:
 - Compiled `.js` files in `app/electron/` are git-ignored
 - The app uses the frontend's ESLint and Prettier configuration
 - For linting/formatting, the app scripts delegate to the frontend scripts
+- MCP child processes receive a minimal default environment. Add required variables explicitly in the MCP server `env` configuration instead of relying on full desktop environment inheritance.
