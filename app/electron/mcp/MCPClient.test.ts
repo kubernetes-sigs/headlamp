@@ -20,6 +20,18 @@ import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import MCPClient from './MCPClient';
 
+vi.mock('electron', () => ({
+  app: {
+    getPath: vi.fn().mockReturnValue('/tmp'),
+  },
+  dialog: {
+    showMessageBox: vi.fn(),
+  },
+  ipcMain: {
+    handle: vi.fn(),
+  },
+}));
+
 function tmpPath(): string {
   return path.join(os.tmpdir(), `mcp-test-${Date.now()}-${Math.random()}.json`);
 }
@@ -27,11 +39,15 @@ function tmpPath(): string {
 describe('MCPClient', () => {
   let client: MCPClient;
   let infoSpy: Mock;
+  let logSpy: Mock;
+  let originalMCPDebug: string | undefined;
 
   let cfgPath: string;
   let settingsPath: string;
 
   beforeEach(() => {
+    originalMCPDebug = process.env.HEADLAMP_MCP_DEBUG;
+    delete process.env.HEADLAMP_MCP_DEBUG;
     cfgPath = tmpPath();
     settingsPath = tmpPath();
     try {
@@ -47,6 +63,11 @@ describe('MCPClient', () => {
   });
 
   afterEach(() => {
+    if (originalMCPDebug === undefined) {
+      delete process.env.HEADLAMP_MCP_DEBUG;
+    } else {
+      process.env.HEADLAMP_MCP_DEBUG = originalMCPDebug;
+    }
     try {
       if (fs.existsSync(cfgPath)) fs.unlinkSync(cfgPath);
     } catch {
@@ -63,6 +84,7 @@ describe('MCPClient', () => {
     client = new MCPClient(cfgPath, settingsPath);
     // spy on console.info to avoid noisy output and to assert calls
     infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {}) as unknown as Mock;
+    logSpy = vi.spyOn(console, 'log').mockImplementation(() => {}) as unknown as Mock;
   });
 
   afterEach(() => {
@@ -75,12 +97,12 @@ describe('MCPClient', () => {
     );
   });
 
-  it('initialize is idempotent and logs exactly once', async () => {
+  it('initialize is idempotent and does not emit debug logs by default', async () => {
     await client.initialize();
     await client.initialize(); // second call should be a no-op
 
-    expect(infoSpy).toHaveBeenCalledTimes(1);
-    expect(infoSpy).toHaveBeenCalledWith('MCPClient: initialized');
+    expect(infoSpy).not.toHaveBeenCalled();
+    expect(logSpy).not.toHaveBeenCalled();
   });
 
   it('config is set after initialize', async () => {
@@ -89,12 +111,12 @@ describe('MCPClient', () => {
     expect((client as any).mcpToolState).not.toBeNull();
   });
 
-  it('handleClustersChange resolves when initialized and logs clusters', async () => {
+  it('handleClustersChange resolves when initialized without default debug logs', async () => {
     await client.initialize();
     await expect(client.handleClustersChange(['cluster-1'])).resolves.toBeUndefined();
 
-    // initialize + clusters change => at least two calls
-    expect(infoSpy).toHaveBeenCalledWith('MCPClient: clusters changed ->', ['cluster-1']);
+    expect(infoSpy).not.toHaveBeenCalled();
+    expect(logSpy).not.toHaveBeenCalled();
   });
 
   it('setMainWindow accepts a BrowserWindow-like object and cleanup resets state', async () => {
@@ -107,9 +129,10 @@ describe('MCPClient', () => {
     // handleClustersChange should work when initialized
     await expect(client.handleClustersChange(['c-x'])).resolves.toBeUndefined();
 
-    // cleanup should reset initialized and log cleanup
+    // cleanup should reset initialized without debug logging by default
     await client.cleanup();
-    expect(infoSpy).toHaveBeenCalledWith('MCPClient: cleaned up');
+    expect(infoSpy).not.toHaveBeenCalled();
+    expect(logSpy).not.toHaveBeenCalled();
 
     // after cleanup, handleClustersChange should again reject as not initialized
     await expect(client.handleClustersChange(['after-cleanup'])).rejects.toThrow(
@@ -144,8 +167,7 @@ describe('MCPClient', () => {
 
     expect((client as any).isInitialized).toBe(true);
     expect((client as any).client).toBeNull();
-    // ensure the public log happened
-    expect(infoSpy).toHaveBeenCalledWith('MCPClient: initialized');
+    expect(infoSpy).not.toHaveBeenCalled();
   });
 
   it('initialize constructs MCP client and caches tools when servers exist', async () => {
@@ -287,7 +309,22 @@ describe('MCPClient', () => {
 });
 
 describe('MCPClient logging behavior', () => {
-  it('logs clusters change even when not initialized', async () => {
+  let originalMCPDebug: string | undefined;
+
+  beforeEach(() => {
+    originalMCPDebug = process.env.HEADLAMP_MCP_DEBUG;
+    delete process.env.HEADLAMP_MCP_DEBUG;
+  });
+
+  afterEach(() => {
+    if (originalMCPDebug === undefined) {
+      delete process.env.HEADLAMP_MCP_DEBUG;
+    } else {
+      process.env.HEADLAMP_MCP_DEBUG = originalMCPDebug;
+    }
+  });
+
+  it('does not log clusters change when debug logging is disabled', async () => {
     const cfgPath = path.join(os.tmpdir(), `mcp-test-${Date.now()}-${Math.random()}.json`);
     const { default: MCPClientLocal } = await import('./MCPClient');
     const client = new MCPClientLocal(cfgPath, cfgPath) as InstanceType<
@@ -300,7 +337,26 @@ describe('MCPClient logging behavior', () => {
       'MCPClient: not initialized'
     );
 
-    expect(infoSpy).toHaveBeenCalledWith('MCPClient: clusters changed ->', ['cluster-log']);
+    expect(infoSpy).not.toHaveBeenCalled();
+
+    infoSpy.mockRestore();
+  });
+
+  it('redacts clusters when debug logging is enabled', async () => {
+    process.env.HEADLAMP_MCP_DEBUG = 'true';
+    const cfgPath = path.join(os.tmpdir(), `mcp-test-${Date.now()}-${Math.random()}.json`);
+    const { default: MCPClientLocal } = await import('./MCPClient');
+    const client = new MCPClientLocal(cfgPath, cfgPath) as InstanceType<
+      typeof import('./MCPClient').default
+    >;
+
+    const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {}) as unknown as Mock;
+
+    await expect(client.handleClustersChange(['cluster-log'])).rejects.toThrow(
+      'MCPClient: not initialized'
+    );
+
+    expect(infoSpy).toHaveBeenCalledWith('MCPClient: clusters changed ->', ['[REDACTED]']);
 
     infoSpy.mockRestore();
   });
@@ -309,14 +365,25 @@ describe('MCPClient logging behavior', () => {
 describe('MCPClient#mcpExecuteTool', () => {
   const cfgPath = tmpPath();
   const settingsPath = tmpPath();
+  let originalMCPDebug: string | undefined;
 
   beforeEach(() => {
+    originalMCPDebug = process.env.HEADLAMP_MCP_DEBUG;
+    delete process.env.HEADLAMP_MCP_DEBUG;
     try {
       if (fs.existsSync(cfgPath)) fs.unlinkSync(cfgPath);
     } catch {}
     try {
       if (fs.existsSync(settingsPath)) fs.unlinkSync(settingsPath);
     } catch {}
+  });
+
+  afterEach(() => {
+    if (originalMCPDebug === undefined) {
+      delete process.env.HEADLAMP_MCP_DEBUG;
+    } else {
+      process.env.HEADLAMP_MCP_DEBUG = originalMCPDebug;
+    }
   });
 
   it('executes a tool successfully and records usage', async () => {
