@@ -16,7 +16,11 @@
 
 /// <reference types="@testing-library/jest-dom" />
 import '@testing-library/jest-dom/vitest';
+import 'vitest-canvas-mock';
 import indexeddb from 'fake-indexeddb';
+
+// xterm initializes canvas APIs during module setup, so install the canvas mock
+// here once for the entire Vitest environment instead of per test file.
 
 // nock v14 uses @mswjs/interceptors, which calls `new Request(url, init)` internally when
 // intercepting a fetch. In jsdom v24+, globalThis.Request wraps undici's native Request,
