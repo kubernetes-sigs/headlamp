@@ -74,7 +74,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   // The workload aware scheduling APIs are alpha and are only served when the cluster
   // enables the GenericWorkload feature gate, so only show them when they are available.
   const { data: schedulingWorkloadsEnabled = false } = useQuery({
-    queryKey: ['podGroupsEnabled', ...selectedClusters],
+    queryKey: ['schedulingWorkloadsEnabled', ...selectedClusters],
     queryFn: async () => {
       const enabledPerCluster = await Promise.all(
         selectedClusters.map(cluster => PodGroup.isEnabled(cluster))

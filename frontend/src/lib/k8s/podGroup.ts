@@ -91,7 +91,7 @@ export function getSchedulingPolicyKind(
 class PodGroup extends KubeObject<KubePodGroup> {
   static kind = 'PodGroup';
   static apiName = 'podgroups';
-  static apiVersion = 'scheduling.k8s.io/v1alpha2';
+  static apiVersion = ['scheduling.k8s.io/v1alpha3', 'scheduling.k8s.io/v1alpha2'];
   static isNamespaced = true;
 
   static getBaseObject(): KubePodGroup {
@@ -105,21 +105,29 @@ class PodGroup extends KubeObject<KubePodGroup> {
    * Whether the cluster serves the workload aware scheduling APIs, which requires the
    * alpha GenericWorkload feature gate to be enabled.
    *
-   * This asks for the version directly instead of using apiDiscovery, because discovery
-   * only reports the first version of each group and scheduling.k8s.io also serves v1.
+   * This asks for each candidate version directly instead of using apiDiscovery, because
+   * discovery only reports the first version of each group and scheduling.k8s.io also
+   * serves v1.
    *
    * @param cluster - The cluster to check. Defaults to the current one.
    * @returns true when the PodGroup resource is served.
    */
   static async isEnabled(cluster?: string): Promise<boolean> {
-    try {
-      const response = await request(`/apis/${PodGroup.apiVersion}`, { cluster });
-      return !!response?.resources?.some(
-        (resource: { name?: string }) => resource.name === PodGroup.apiName
-      );
-    } catch {
-      return false;
+    for (const version of PodGroup.apiVersion) {
+      try {
+        const response = await request(`/apis/${version}`, { cluster });
+        if (
+          response?.resources?.some(
+            (resource: { name?: string }) => resource.name === PodGroup.apiName
+          )
+        ) {
+          return true;
+        }
+      } catch {
+        continue;
+      }
     }
+    return false;
   }
 
   get spec() {
