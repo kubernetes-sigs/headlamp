@@ -53,7 +53,7 @@ class Namespace extends KubeObject<KubeNamespace> {
    * @returns true if the namespace is protected, false otherwise.
    */
   isProtected(): boolean {
-    const name = this.metadata.labels?.['kubernetes.io/metadata.name'] ?? this.metadata.name;
+    const name = this.metadata.labels?.['kubernetes.io/metadata.name'] || this.metadata.name;
     return Namespace.PROTECTED_NAMESPACES.includes(name);
   }
 
