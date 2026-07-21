@@ -763,11 +763,18 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		// We may want to filter some headers, otherwise we could just use a shallow copy
 		proxyReq.Header = make(http.Header)
 		for h, val := range r.Header {
 			proxyReq.Header[h] = val
 		}
+
+		// Don't leak the caller's credentials or Headlamp's own auth/routing
+		// headers to the (external) proxy target. The target only needs the
+		// proxied request, not the user's Kubernetes token or Headlamp's secrets.
+		clearRequestAuthorization(proxyReq)
+		proxyReq.Header.Del("X-HEADLAMP_BACKEND-TOKEN")
+		proxyReq.Header.Del("proxy-to")
+		proxyReq.Header.Del("Forward-to")
 
 		// Disable caching
 		w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
@@ -1163,6 +1170,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 func clearRequestAuthorization(r *http.Request) {
 	r.Header.Del("Authorization")
+	r.Header.Del("Proxy-Authorization")
 	r.Header.Del("Cookie")
 }
 
