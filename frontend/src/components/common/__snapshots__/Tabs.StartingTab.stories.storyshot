@@ -22,7 +22,7 @@
             class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
             id="full-width-tab-0-StartingTabs-tabs-id"
             role="tab"
-            tabindex="-1"
+            tabindex="0"
             type="button"
           >
             tab 1 label
@@ -57,6 +57,7 @@
       hidden=""
       id="full-width-tabpanel-0-StartingTabs-tabs-id"
       role="tabpanel"
+      tabindex="-1"
     >
       <p>
         tab body 1
@@ -67,6 +68,7 @@
       class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
       id="full-width-tabpanel-1-StartingTabs-tabs-id"
       role="tabpanel"
+      tabindex="0"
     >
       <p>
         We start on the second tab using defaultIndex=1

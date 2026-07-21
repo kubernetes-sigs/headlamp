@@ -177,7 +177,7 @@
                   class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
                   id="full-width-tab-1-Editor-tabs-id"
                   role="tab"
-                  tabindex="-1"
+                  tabindex="0"
                   type="button"
                 >
                   Documentation
@@ -191,7 +191,7 @@
                   class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
                   id="full-width-tab-2-Editor-tabs-id"
                   role="tab"
-                  tabindex="-1"
+                  tabindex="0"
                   type="button"
                 >
                   Review Changes
@@ -211,6 +211,7 @@
             class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
             id="full-width-tabpanel-0-Editor-tabs-id"
             role="tabpanel"
+            tabindex="0"
           >
             <div
               class="MuiBox-root css-10klw3m"
@@ -226,6 +227,7 @@
             hidden=""
             id="full-width-tabpanel-1-Editor-tabs-id"
             role="tabpanel"
+            tabindex="-1"
           >
             <div
               class="MuiBox-root css-u718rw"
@@ -247,6 +249,7 @@
             hidden=""
             id="full-width-tabpanel-2-Editor-tabs-id"
             role="tabpanel"
+            tabindex="-1"
           />
         </div>
         <div

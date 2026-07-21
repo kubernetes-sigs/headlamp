@@ -110,6 +110,7 @@ export default function Tabs(props: TabsProps) {
           <MuiTab
             key={i}
             label={label}
+            tabIndex={0}
             sx={
               tabs?.length > 7
                 ? {
@@ -170,6 +171,7 @@ export function TabPanel(props: TabPanelProps) {
       hidden={tabIndex !== index}
       id={id}
       aria-labelledby={labeledBy}
+      tabIndex={tabIndex === index ? 0 : -1}
       sx={{ flexGrow: 1, overflow: 'hidden' }}
     >
       {children}

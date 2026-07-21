@@ -35,11 +35,13 @@ const { mockSetModelMarkers, mockGetModel, mockTextarea, mockEditorInstance, moc
             }
             return null;
           },
+          closest: () => null,
         }),
         getScrollTop: vi.fn(() => 123),
         getPosition: vi.fn(() => ({ lineNumber: 5, column: 10 })),
         setScrollTop: vi.fn(),
         setPosition: vi.fn(),
+        addCommand: vi.fn(),
       },
       mockOnChangeRef: { current: undefined as ((value: string | undefined) => void) | undefined },
     };
@@ -78,7 +80,11 @@ vi.mock('@monaco-editor/react', () => {
       React.useEffect(() => {
         onMount?.(
           { ...mockEditorInstance, getModel: mockGetModel },
-          { editor: { setModelMarkers: mockSetModelMarkers }, MarkerSeverity: { Error: 8 } }
+          {
+            editor: { setModelMarkers: mockSetModelMarkers },
+            MarkerSeverity: { Error: 8 },
+            KeyCode: { Escape: 9 },
+          }
         );
       }, [onMount]);
 
@@ -315,5 +321,17 @@ describe('EditorDialog', () => {
 
     expect(mockEditorInstance.setScrollTop).not.toHaveBeenCalled();
     expect(mockEditorInstance.setPosition).not.toHaveBeenCalled();
+  });
+
+  it('registers an Escape command with the correct precondition to exit the Monaco editor', () => {
+    localStorage.setItem('useSimpleEditor', 'false');
+
+    renderEditorDialog();
+
+    expect(mockEditorInstance.addCommand).toHaveBeenCalledWith(
+      9, // KeyCode.Escape from the mock
+      expect.any(Function),
+      '!suggestWidgetVisible && !findWidgetVisible && !renameInputVisible && !parameterHintsVisible && !inSnippetMode && !editorHasMultipleSelections'
+    );
   });
 });

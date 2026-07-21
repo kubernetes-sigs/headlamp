@@ -570,6 +570,25 @@ export default function EditorDialog(props: EditorDialogProps) {
               if (textarea && editorId) {
                 textarea.id = editorId;
               }
+              // Escape exits the editor so Tab can reach the action buttons.
+              // The precondition prevents stealing Escape from autocomplete, find, etc.
+              editor.addCommand(
+                monaco.KeyCode.Escape,
+                () => {
+                  // Find the first focusable button in DialogActions (the sibling
+                  // of DialogContent) so Tab doesn't loop back into the editor.
+                  const dialogContent = editor.getDomNode()?.closest('.MuiDialogContent-root');
+                  const actions =
+                    dialogContent?.parentElement?.querySelector('.MuiDialogActions-root');
+                  const firstBtn = actions?.querySelector(
+                    'button:not([disabled])'
+                  ) as HTMLElement | null;
+                  if (firstBtn) {
+                    firstBtn.focus();
+                  }
+                },
+                '!suggestWidgetVisible && !findWidgetVisible && !renameInputVisible && !parameterHintsVisible && !inSnippetMode && !editorHasMultipleSelections'
+              );
             }}
             height="100%"
           />
