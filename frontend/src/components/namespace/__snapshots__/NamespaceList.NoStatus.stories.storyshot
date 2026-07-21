@@ -39,7 +39,7 @@
           </div>
         </div>
         <div
-          class="MuiBox-root css-8atqhb"
+          class="MuiBox-root css-1txv3mw"
         >
           <div
             aria-atomic="true"
@@ -146,7 +146,6 @@
                     />
                   </button>
                   <button
-                    aria-haspopup="menu"
                     aria-label="Show/Hide columns"
                     class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
                     data-mui-internal-clone-element="true"
