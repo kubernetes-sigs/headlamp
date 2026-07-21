@@ -109,6 +109,8 @@ export default function ErrorComponent(props: ErrorComponentProps) {
     graphic = headlampBrokenImage,
     error,
   } = props;
+  const useHeadingMessage = typeof message === 'string' || typeof message === 'number';
+
   return (
     <Grid
       container
@@ -128,15 +130,21 @@ export default function ErrorComponent(props: ErrorComponentProps) {
           title
         )}
         {withTypography ? (
-          <Typography variant="h2" sx={{ fontSize: '1.25rem', lineHeight: 3.6, fontWeight: 500 }}>
-            {!!message ? (
-              message
-            ) : (
+          !!message ? (
+            <Typography
+              variant="h2"
+              component={useHeadingMessage ? 'h2' : 'div'}
+              sx={{ fontSize: '1.25rem', lineHeight: 3.6, fontWeight: 500 }}
+            >
+              {message}
+            </Typography>
+          ) : (
+            <Typography variant="h2" sx={{ fontSize: '1.25rem', lineHeight: 3.6, fontWeight: 500 }}>
               <Trans t={t}>
                 Head back <Link href={window.desktopApi ? '#' : '/'}>home</Link>.
               </Trans>
-            )}
-          </Typography>
+            </Typography>
+          )
         ) : (
           message
         )}
