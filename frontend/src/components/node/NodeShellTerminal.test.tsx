@@ -222,4 +222,36 @@ describe('NodeShellTerminal', () => {
       'test-cluster'
     );
   });
+
+  it('deletes the pod when window beforeunload event is dispatched', async () => {
+    render(
+      <TestContext>
+        <NodeShellTerminal item={mockNode} />
+      </TestContext>
+    );
+
+    // Invoke connectStream to create the pod
+    let connectPromise: Promise<any>;
+    await act(async () => {
+      connectPromise = capturedOptions.connectStream(vi.fn());
+    });
+    await connectPromise!;
+
+    const createdPod = (apply as any).mock.calls[0][0];
+    const podName = createdPod.metadata.name;
+    const namespace = createdPod.metadata.namespace;
+
+    // Dispatch beforeunload event on window
+    await act(async () => {
+      window.dispatchEvent(new Event('beforeunload'));
+    });
+
+    // Verify pod deletion was triggered
+    expect(Pod.apiEndpoint.delete).toHaveBeenCalledWith(
+      namespace,
+      podName,
+      undefined,
+      'test-cluster'
+    );
+  });
 });

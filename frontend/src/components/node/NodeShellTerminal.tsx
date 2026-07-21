@@ -349,6 +349,10 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
   useEffect(() => {
     const handleBeforeUnload = () => {
       requestShellExitRef.current('window-beforeunload');
+      if (shellPodInfoRef.current) {
+        const { podName, namespace } = shellPodInfoRef.current;
+        deletePodRef.current(namespace, podName);
+      }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
