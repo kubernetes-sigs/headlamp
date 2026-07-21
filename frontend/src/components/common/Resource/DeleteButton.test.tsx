@@ -29,6 +29,7 @@ const { MockKubeObject, MockNamespace } = vi.hoisted(() => {
   class MockKubeObject {
     jsonData: any;
     static kind = '';
+    static apiGroupName = '';
     constructor(data: any) {
       this.jsonData = data;
     }
@@ -51,6 +52,12 @@ const { MockKubeObject, MockNamespace } = vi.hoisted(() => {
     _class() {
       return this.constructor as any;
     }
+    static isClassOf(maybeInstance: any) {
+      return (
+        maybeInstance._class().apiGroupName === (this as any).apiGroupName &&
+        maybeInstance.kind === (this as any).kind
+      );
+    }
   }
 
   class MockNamespace extends MockKubeObject {
@@ -62,7 +69,7 @@ const { MockKubeObject, MockNamespace } = vi.hoisted(() => {
       'default',
     ];
     isProtected() {
-      const name = this.metadata.labels?.['kubernetes.io/metadata.name'] ?? this.metadata.name;
+      const name = this.metadata.labels?.['kubernetes.io/metadata.name'] || this.metadata.name;
       return MockNamespace.PROTECTED_NAMESPACES.includes(name);
     }
   }

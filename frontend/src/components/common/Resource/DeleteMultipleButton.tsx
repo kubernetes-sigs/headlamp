@@ -80,13 +80,13 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
 
   // Protected namespaces included in the current selection, if any.
   const protectedNamespaces = (items ?? []).filter(
-    (item): item is Namespace => item.kind === 'Namespace' && (item as Namespace).isProtected()
+    (item): item is Namespace => Namespace.isClassOf(item) && item.isProtected()
   );
   // Build the confirm string from the same label-or-name value that isProtected() checks,
   // de-duped and sorted alphabetically so the expected order is deterministic for the user.
   const protectedNamespaceNames = uniq(
     protectedNamespaces.map(
-      item => item.metadata.labels?.['kubernetes.io/metadata.name'] ?? item.metadata.name
+      item => item.metadata.labels?.['kubernetes.io/metadata.name'] || item.metadata.name
     )
   ).sort();
   const confirmString = protectedNamespaceNames.join(', ');
