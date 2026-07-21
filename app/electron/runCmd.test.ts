@@ -26,7 +26,7 @@ vi.mock('./plugin-management', () => ({
 
 vi.mock('./settings', () => ({
   loadSettings: vi.fn(() => ({
-    confirmedCommands: { 'minikube start': true, gh: true, az: true },
+    confirmedCommands: { 'minikube start': true, 'gh auth': true, az: true },
   })),
   saveSettings: vi.fn(),
   SETTINGS_PATH: '/fake/settings.json',
@@ -34,6 +34,12 @@ vi.mock('./settings', () => ({
 
 vi.mock('./i18next.config', () => ({
   default: { t: (s: string) => s },
+}));
+
+const shellEnvironment = { PATH: '/opt/homebrew/bin:/usr/bin', SHELL: '/bin/zsh' };
+
+vi.mock('./main', () => ({
+  getShellEnvironment: vi.fn(async () => shellEnvironment),
 }));
 
 describe('checkPermissionSecret', () => {
@@ -240,8 +246,8 @@ describe('validateCommandData', () => {
   });
 });
 
-describe('handleRunCommand - child process error event', () => {
-  it('sends command-stderr and command-exit with -1 when child emits error', async () => {
+describe('handleRunCommand', () => {
+  it('runs gh with the login-shell environment and reports child errors', async () => {
     const childEmitter = new EventEmitter() as any;
     childEmitter.stdout = new EventEmitter();
     childEmitter.stderr = new EventEmitter();
@@ -261,17 +267,23 @@ describe('handleRunCommand - child process error event', () => {
     } as any;
 
     const fakeMainWindow = { id: 1 } as any;
-    const permissionSecrets = { 'runCmd-minikube': 99 };
+    const permissionSecrets = { 'runCmd-gh': 99 };
 
     const eventData = {
       id: 'test-id',
-      command: 'minikube',
-      args: ['start'],
+      command: 'gh',
+      args: ['auth', 'token'],
       options: {},
-      permissionSecrets: { 'runCmd-minikube': 99 },
+      permissionSecrets: { 'runCmd-gh': 99 },
     };
 
-    handleRunCommand(fakeEvent, eventData, fakeMainWindow, permissionSecrets);
+    await handleRunCommand(fakeEvent, eventData, fakeMainWindow, permissionSecrets);
+
+    expect(spawn).toHaveBeenCalledWith(
+      'gh',
+      ['auth', 'token'],
+      expect.objectContaining({ env: shellEnvironment })
+    );
 
     const err = new Error('spawn error');
     childEmitter.emit('error', err);
