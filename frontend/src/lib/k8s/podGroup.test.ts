@@ -14,10 +14,17 @@
  * limitations under the License.
  */
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import type { KubePodGroup } from './podGroup';
 import PodGroup, { getSchedulingPolicyKind } from './podGroup';
+
+const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }));
+
+vi.mock('./api/v1/clusterRequests', async importOriginal => ({
+  ...(await importOriginal<typeof import('./api/v1/clusterRequests')>()),
+  request: mockRequest,
+}));
 
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
@@ -95,5 +102,39 @@ describe('PodGroup', () => {
   it('has no scheduling condition when the status is empty', () => {
     expect(makePodGroup({}).schedulingCondition).toBeUndefined();
     expect(makePodGroup({}, { conditions: [] }).schedulingCondition).toBeUndefined();
+  });
+});
+
+describe('PodGroup.isEnabled', () => {
+  beforeEach(() => {
+    mockRequest.mockReset();
+  });
+
+  it('is true when the newest served version has the resource', async () => {
+    mockRequest.mockResolvedValueOnce({ resources: [{ name: 'podgroups' }] });
+
+    expect(await PodGroup.isEnabled()).toBe(true);
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(mockRequest.mock.calls[0][0]).toBe('/apis/scheduling.k8s.io/v1alpha3');
+  });
+
+  it('falls back to the previous version when the newest is not served', async () => {
+    mockRequest.mockRejectedValueOnce(
+      new Error('the server could not find the requested resource')
+    );
+    mockRequest.mockResolvedValueOnce({ resources: [{ name: 'podgroups' }] });
+
+    expect(await PodGroup.isEnabled()).toBe(true);
+    expect(mockRequest.mock.calls.map(call => call[0])).toEqual([
+      '/apis/scheduling.k8s.io/v1alpha3',
+      '/apis/scheduling.k8s.io/v1alpha2',
+    ]);
+  });
+
+  it('is false when no candidate version is served', async () => {
+    mockRequest.mockRejectedValue(new Error('the server could not find the requested resource'));
+
+    expect(await PodGroup.isEnabled()).toBe(false);
+    expect(mockRequest).toHaveBeenCalledTimes(2);
   });
 });
