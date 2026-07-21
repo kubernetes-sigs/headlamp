@@ -710,6 +710,22 @@ async function getShellEnv(): Promise<NodeJS.ProcessEnv> {
   }
 }
 
+let shellEnvironmentPromise: Promise<NodeJS.ProcessEnv> | null = null;
+
+/**
+ * Returns the user's login-shell environment, cached after the first request.
+ * Falls back to Electron's process environment when shell discovery fails.
+ */
+export async function getShellEnvironment(): Promise<NodeJS.ProcessEnv> {
+  if (!shellEnvironmentPromise) {
+    shellEnvironmentPromise = getShellEnv().catch(error => {
+      console.warn('Failed to get shell environment, using process.env:', error);
+      return process.env;
+    });
+  }
+  return shellEnvironmentPromise;
+}
+
 /**
  * Check if a port is available by attempting to create a server on it
  */
