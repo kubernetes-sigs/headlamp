@@ -29,7 +29,7 @@
                 class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
                 id="full-width-tab-0-NavigationTabs-tabs-id"
                 role="tab"
-                tabindex="-1"
+                tabindex="0"
                 type="button"
               >
                 Services
@@ -43,7 +43,7 @@
                 class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
                 id="full-width-tab-1-NavigationTabs-tabs-id"
                 role="tab"
-                tabindex="-1"
+                tabindex="0"
                 type="button"
               >
                 Endpoints
@@ -57,7 +57,7 @@
                 class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
                 id="full-width-tab-2-NavigationTabs-tabs-id"
                 role="tab"
-                tabindex="-1"
+                tabindex="0"
                 type="button"
               >
                 Endpoint Slices
@@ -71,7 +71,7 @@
                 class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
                 id="full-width-tab-3-NavigationTabs-tabs-id"
                 role="tab"
-                tabindex="-1"
+                tabindex="0"
                 type="button"
               >
                 Ingresses
@@ -85,7 +85,7 @@
                 class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
                 id="full-width-tab-4-NavigationTabs-tabs-id"
                 role="tab"
-                tabindex="-1"
+                tabindex="0"
                 type="button"
               >
                 Ingress Classes
@@ -120,6 +120,7 @@
           hidden=""
           id="full-width-tabpanel-0-NavigationTabs-tabs-id"
           role="tabpanel"
+          tabindex="-1"
         />
         <div
           aria-labelledby="full-width-tab-1-NavigationTabs-tabs-id"
@@ -127,6 +128,7 @@
           hidden=""
           id="full-width-tabpanel-1-NavigationTabs-tabs-id"
           role="tabpanel"
+          tabindex="-1"
         />
         <div
           aria-labelledby="full-width-tab-2-NavigationTabs-tabs-id"
@@ -134,6 +136,7 @@
           hidden=""
           id="full-width-tabpanel-2-NavigationTabs-tabs-id"
           role="tabpanel"
+          tabindex="-1"
         />
         <div
           aria-labelledby="full-width-tab-3-NavigationTabs-tabs-id"
@@ -141,6 +144,7 @@
           hidden=""
           id="full-width-tabpanel-3-NavigationTabs-tabs-id"
           role="tabpanel"
+          tabindex="-1"
         />
         <div
           aria-labelledby="full-width-tab-4-NavigationTabs-tabs-id"
@@ -148,12 +152,14 @@
           hidden=""
           id="full-width-tabpanel-4-NavigationTabs-tabs-id"
           role="tabpanel"
+          tabindex="-1"
         />
         <div
           aria-labelledby="full-width-tab-5-NavigationTabs-tabs-id"
           class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
           id="full-width-tabpanel-5-NavigationTabs-tabs-id"
           role="tabpanel"
+          tabindex="0"
         />
         <hr
           class="MuiDivider-root MuiDivider-fullWidth css-9mgopn-MuiDivider-root"
