@@ -55,7 +55,7 @@ export interface KubeSchedulingWorkload extends KubeObjectInterface {
 class Workload extends KubeObject<KubeSchedulingWorkload> {
   static kind = 'Workload';
   static apiName = 'workloads';
-  static apiVersion = 'scheduling.k8s.io/v1alpha2';
+  static apiVersion = ['scheduling.k8s.io/v1alpha3', 'scheduling.k8s.io/v1alpha2'];
   static isNamespaced = true;
 
   /**
