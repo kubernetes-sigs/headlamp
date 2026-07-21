@@ -75,17 +75,23 @@ export default function ActionButton({
       </MenuItem>
     );
   }
+
+  const isDisabled = !!iconButtonProps?.disabled;
+  const button = (
+    <IconButton
+      aria-label={description}
+      onClick={onClick}
+      edge={edge}
+      size="medium"
+      {...iconButtonProps}
+    >
+      <Icon icon={icon} color={color} width={width} {...iconProps} />
+    </IconButton>
+  );
+
   return (
     <Tooltip title={longDescription || description}>
-      <IconButton
-        aria-label={description}
-        onClick={onClick}
-        edge={edge}
-        size="medium"
-        {...iconButtonProps}
-      >
-        <Icon icon={icon} color={color} width={width} {...iconProps} />
-      </IconButton>
+      {isDisabled ? <span style={{ display: 'inline-flex' }}>{button}</span> : button}
     </Tooltip>
   );
 }
