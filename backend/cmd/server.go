@@ -118,6 +118,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		NodeShellImage:                        conf.NodeShellImage,
 		NodeShellNamespace:                    conf.NodeShellNamespace,
 		OidcUseCookie:                         conf.OidcUseCookie,
+		OidcUseTokenBroadcast:                 conf.OidcUseTokenBroadcast,
 		DefaultLightTheme:                     conf.DefaultLightTheme,
 		DefaultDarkTheme:                      conf.DefaultDarkTheme,
 		ForceTheme:                            conf.ForceTheme,

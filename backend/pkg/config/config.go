@@ -80,6 +80,7 @@ type Config struct {
 	OidcScopes                   string `koanf:"oidc-scopes"`
 	OidcUseAccessToken           bool   `koanf:"oidc-use-access-token"`
 	OidcUseCookie                bool   `koanf:"oidc-use-cookie"`
+	OidcUseTokenBroadcast        bool   `koanf:"oidc-use-token-broadcast"`
 	OidcSkipTLSVerify            bool   `koanf:"oidc-skip-tls-verify"`
 	OidcCAFile                   string `koanf:"oidc-ca-file"`
 	MeUsernamePath               string `koanf:"me-username-path"`
@@ -602,6 +603,26 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.String("oidc-ca-file", "", "CA file for OIDC")
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
 	f.Bool("oidc-use-cookie", false, "Enable OIDC cookie usage even when not running in-cluster")
+	f.Bool("oidc-use-token-broadcast", false,
+		"After a successful OIDC login on one cluster, also set the auth cookie for every other "+
+			"kubeconfig context whose OIDC auth-provider has the same idp-issuer-url AND client-id. "+
+			"This precondition is required because the issued token's audience (aud) claim defaults "+
+			"to the client-id; broadcasting only when both match keeps the token valid against the "+
+			"target cluster's apiserver. Disabled by default. "+
+			"Scope: broadcasting fires only at initial OIDC login, not on token refresh. Whichever "+
+			"token is in use is broadcast (the id_token, or the access_token when "+
+			"--oidc-use-access-token is set). Because refresh happens per-cluster, sibling cookies "+
+			"diverge as soon as any cluster refreshes its token; with short token lifetimes (e.g., "+
+			"~1h on EKS by default) siblings then fall back to per-cluster re-login. "+
+			"Broadcast-on-refresh is tracked as a follow-up. "+
+			"Operational caveats: each target cluster receives one or more Set-Cookie headers per "+
+			"login, so enabling this with very large multi-cluster kubeconfigs may approach browser "+
+			"and proxy cookie count/size limits. Pre-existing chunk-cookie limitation: chunk "+
+			"cleanup at login runs only against cookies the browser sent for the current request "+
+			"path (cluster cookies live under /clusters/<cluster>, while login completes on "+
+			"/oidc-callback). This applies to all OIDC logins; broadcast simply increases how many "+
+			"clusters experience it at once. In the rare case a re-issued token is shorter than the "+
+			"previous one, the affected cluster(s) may need a one-time re-login.")
 	f.Bool("oidc-use-pkce", false, "Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow")
 	f.String("me-username-path", DefaultMeUsernamePath,
 		"Comma separated JMESPath expressions used to read username from the JWT payload")
