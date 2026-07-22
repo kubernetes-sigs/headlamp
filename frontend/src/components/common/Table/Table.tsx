@@ -50,7 +50,16 @@ import { MRT_Localization_PT } from 'material-react-table/locales/pt';
 import { MRT_Localization_RU } from 'material-react-table/locales/ru';
 import { MRT_Localization_ZH_HANS } from 'material-react-table/locales/zh-Hans';
 import { MRT_Localization_ZH_HANT } from 'material-react-table/locales/zh-Hant';
-import { memo, ReactNode, useEffect, useMemo, useState } from 'react';
+import {
+  memo,
+  ReactNode,
+  useCallback,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
 import { useShortcut } from '../../../lib/useShortcut';
@@ -277,6 +286,7 @@ export default function Table<RowItem extends Record<string, any>>({
     ...tableProps,
     columns: tableColumns ?? [],
     data: tableData,
+    columnResizeMode: tableProps.columnResizeMode ?? 'onEnd',
     enablePagination: tableData.length > rowsPerPageOptions[0],
     enableDensityToggle: tableProps.enableDensityToggle ?? false,
     enableFullScreenToggle: tableProps.enableFullScreenToggle ?? false,
@@ -395,6 +405,8 @@ export default function Table<RowItem extends Record<string, any>>({
     },
   });
 
+  const { columnSizing, columnSizingInfo, columnVisibility } = table.getState();
+
   useShortcut(
     'TABLE_COLUMN_FILTERS',
     event => {
@@ -407,7 +419,7 @@ export default function Table<RowItem extends Record<string, any>>({
 
   // Hide actions column when others are hidden
   useEffect(() => {
-    const visibility = table.getState().columnVisibility || {};
+    const visibility = columnVisibility || {};
 
     const shouldHideActions = tableColumns
       .filter(col => (col.id ?? '') !== 'actions')
@@ -418,19 +430,122 @@ export default function Table<RowItem extends Record<string, any>>({
     } else if (!shouldHideActions && visibility['actions'] === false) {
       table.setColumnVisibility(prev => ({ ...prev, actions: true }));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table.getState().columnVisibility, tableColumns, table]);
+  }, [columnVisibility, tableColumns, table]);
+
+  // Ref for the table element, used to measure actual column widths on resize
+  const tableRef = useRef<HTMLTableElement>(null);
+  // Stores the actual DOM pixel widths of currently visible columns
+  const measuredWidths = useRef<Record<string, number> | null>(null);
+  const [measurementVersion, setMeasurementVersion] = useState(0);
+
+  // Measure actual column widths from the DOM and keep the cache in sync with visible columns.
+  const captureColumnWidths = useCallback(() => {
+    if (!tableRef.current) return;
+    const headerCells = tableRef.current.querySelectorAll('thead th');
+    if (!headerCells.length) return;
+    const visibleCols = table.getVisibleLeafColumns();
+    const existingWidths = measuredWidths.current ?? {};
+    const widths: Record<string, number> = { ...existingWidths };
+    let changed = false;
+
+    const visibleColumnIds = new Set(visibleCols.map(col => col.id));
+    // Remove widths for columns that are no longer visible
+    for (const id of Object.keys(widths)) {
+      if (!visibleColumnIds.has(id)) {
+        delete widths[id];
+        changed = true;
+      }
+    }
+
+    visibleCols.forEach((col, i) => {
+      const cell = headerCells[i];
+      if (!cell) return;
+      const nextWidth = Math.round(cell.getBoundingClientRect().width);
+      if (nextWidth === 0) return;
+      if (widths[col.id] !== nextWidth) {
+        widths[col.id] = nextWidth;
+        changed = true;
+      }
+    });
+
+    if (changed || measuredWidths.current === null) {
+      measuredWidths.current = widths;
+      setMeasurementVersion(v => v + 1);
+    }
+  }, [table]);
+
+  const columnLayoutSignature = useMemo(
+    () =>
+      JSON.stringify({
+        columns: tableColumns.map(col => {
+          const columnId = col.id ?? '';
+          return {
+            id: columnId,
+            visible: columnVisibility?.[columnId] !== false,
+          };
+        }),
+        enableRowSelection: !!tableProps.enableRowSelection,
+        enableRowActions: !!tableProps.enableRowActions,
+      }),
+    [tableColumns, columnVisibility, tableProps.enableRowSelection, tableProps.enableRowActions]
+  );
+
+  const hasSizing = Object.keys(columnSizing ?? {}).length > 0;
+
+  // Reset cached measurements whenever the effective column layout changes,
+  // then immediately re-capture widths from the updated DOM so existing
+  // columnSizing state continues to be reflected after visibility changes.
+  // We only do this if resizing is active (measuredWidths is already set) or has occurred.
+  useLayoutEffect(() => {
+    if (!tableProps.enableColumnResizing) {
+      if (measuredWidths.current !== null) {
+        measuredWidths.current = null;
+        setMeasurementVersion(v => v + 1);
+      }
+      return;
+    }
+
+    if (measuredWidths.current !== null || hasSizing) {
+      captureColumnWidths();
+    }
+  }, [columnLayoutSignature, captureColumnWidths, tableProps.enableColumnResizing, hasSizing]);
+
+  // Detect when resize starts and capture widths
+  useLayoutEffect(() => {
+    if (columnSizingInfo?.isResizingColumn) {
+      captureColumnWidths();
+    }
+  }, [columnSizingInfo?.isResizingColumn, captureColumnWidths]);
 
   const gridTemplateColumns = useMemo(() => {
+    const sizing = columnSizing ?? {};
+
     let preGridTemplateColumns = tableProps.columns
       .filter((it, i) => {
         const id = it.id ?? String(i);
         const isHidden =
-          table.getState().columnVisibility?.[id] === false ||
-          tableProps.state?.columnVisibility?.[id] === false;
+          columnVisibility?.[id] === false || tableProps.state?.columnVisibility?.[id] === false;
         return !isHidden;
       })
-      .map(it => {
+      .map((it, i) => {
+        const id = it.id ?? String(i);
+
+        // If we have measured widths (i.e. user has started resizing),
+        // compute the new width from the measured baseline + MRT's delta.
+        if (measuredWidths.current) {
+          const defaultSize = (it as any).size ?? 180;
+          const baseWidth = measuredWidths.current[id] ?? defaultSize;
+          // sizing[id] is the absolute new size (defaultSize + drag delta),
+          // so the delta from the default is sizing[id] - defaultSize.
+          const delta = id in sizing ? sizing[id] - defaultSize : 0;
+          const minW = (it as any).minSize;
+          const maxW = (it as any).maxSize;
+          let width = baseWidth + delta;
+          if (typeof minW === 'number') width = Math.max(minW, width);
+          if (typeof maxW === 'number') width = Math.min(maxW, width);
+          return `${Math.round(width)}px`;
+        }
+
         if (typeof it.gridTemplate === 'number') {
           return `${it.gridTemplate}fr`;
         }
@@ -448,11 +563,12 @@ export default function Table<RowItem extends Record<string, any>>({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     tableProps.columns,
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    table.getState()?.columnVisibility,
+    columnVisibility,
     tableProps.state?.columnVisibility,
     tableProps.enableRowActions,
     tableProps.enableRowSelection,
+    columnSizing,
+    measurementVersion,
   ]);
 
   const rows = useMRT_Rows(table);
@@ -533,6 +649,7 @@ export default function Table<RowItem extends Record<string, any>>({
       <>
         <MRT_TopToolbar table={table} />
         <MuiTable
+          ref={tableRef}
           sx={{
             display: 'grid',
             border: '1px solid',
@@ -652,6 +769,7 @@ const MemoCell = memo(
   <RowItem extends Record<string, any>>({
     cell,
     table,
+    isRowSelected,
   }: {
     cell: MRT_Cell<RowItem, unknown>;
     table: MRT_TableInstance<RowItem>;
@@ -672,6 +790,7 @@ const MemoCell = memo(
             minWidth: 'unset',
             wordBreak: column.gridTemplate === 'min-content' ? 'normal' : 'break-word',
             borderColor: theme.palette.divider,
+            backgroundColor: isRowSelected ? alpha(theme.palette.primary.main, 0.2) : undefined,
             ...(column.muiTableBodyCellProps as TableCellProps)?.sx,
           } as any)
         }

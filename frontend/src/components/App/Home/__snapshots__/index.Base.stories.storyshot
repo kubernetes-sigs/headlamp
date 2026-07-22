@@ -221,7 +221,7 @@
                 </div>
               </div>
               <table
-                class="MuiTable-root css-g0cegk-MuiTable-root"
+                class="MuiTable-root css-s3a3ew-MuiTable-root"
               >
                 <thead
                   class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
@@ -280,7 +280,7 @@
                     </th>
                     <th
                       aria-sort="ascending"
-                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-pksupb-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1hxm85w-MuiTableCell-root"
                       colspan="1"
                       data-can-sort="true"
                       data-index="-1"
@@ -288,7 +288,7 @@
                       scope="col"
                     >
                       <div
-                        class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                        class="Mui-TableHeadCell-Content MuiBox-root css-c8wlay"
                       >
                         <div
                           class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
@@ -331,18 +331,25 @@
                         <div
                           class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
                         />
+                        <div
+                          class="Mui-TableHeadCell-ResizeHandle-Wrapper MuiBox-root css-1l66gie"
+                        >
+                          <hr
+                            class="MuiDivider-root MuiDivider-fullWidth MuiDivider-vertical MuiDivider-flexItem Mui-TableHeadCell-ResizeHandle-Divider css-f5y87h-MuiDivider-root"
+                          />
+                        </div>
                       </div>
                     </th>
                     <th
                       aria-sort="none"
-                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-4ks04s-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-osniy0-MuiTableCell-root"
                       colspan="1"
                       data-can-sort="true"
                       data-index="-1"
                       scope="col"
                     >
                       <div
-                        class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                        class="Mui-TableHeadCell-Content MuiBox-root css-c8wlay"
                       >
                         <div
                           class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
@@ -386,18 +393,25 @@
                         <div
                           class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
                         />
+                        <div
+                          class="Mui-TableHeadCell-ResizeHandle-Wrapper MuiBox-root css-1l66gie"
+                        >
+                          <hr
+                            class="MuiDivider-root MuiDivider-fullWidth MuiDivider-vertical MuiDivider-flexItem Mui-TableHeadCell-ResizeHandle-Divider css-f5y87h-MuiDivider-root"
+                          />
+                        </div>
                       </div>
                     </th>
                     <th
                       aria-sort="none"
-                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-13c0hsi-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-64sqew-MuiTableCell-root"
                       colspan="1"
                       data-can-sort="true"
                       data-index="-1"
                       scope="col"
                     >
                       <div
-                        class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                        class="Mui-TableHeadCell-Content MuiBox-root css-c8wlay"
                       >
                         <div
                           class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
@@ -441,18 +455,25 @@
                         <div
                           class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
                         />
+                        <div
+                          class="Mui-TableHeadCell-ResizeHandle-Wrapper MuiBox-root css-1l66gie"
+                        >
+                          <hr
+                            class="MuiDivider-root MuiDivider-fullWidth MuiDivider-vertical MuiDivider-flexItem Mui-TableHeadCell-ResizeHandle-Divider css-f5y87h-MuiDivider-root"
+                          />
+                        </div>
                       </div>
                     </th>
                     <th
                       aria-sort="none"
-                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-rymsnu-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-48ukgw-MuiTableCell-root"
                       colspan="1"
                       data-can-sort="true"
                       data-index="-1"
                       scope="col"
                     >
                       <div
-                        class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                        class="Mui-TableHeadCell-Content MuiBox-root css-c8wlay"
                       >
                         <div
                           class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
@@ -496,18 +517,25 @@
                         <div
                           class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
                         />
+                        <div
+                          class="Mui-TableHeadCell-ResizeHandle-Wrapper MuiBox-root css-1l66gie"
+                        >
+                          <hr
+                            class="MuiDivider-root MuiDivider-fullWidth MuiDivider-vertical MuiDivider-flexItem Mui-TableHeadCell-ResizeHandle-Divider css-f5y87h-MuiDivider-root"
+                          />
+                        </div>
                       </div>
                     </th>
                     <th
                       aria-sort="none"
-                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1bc3cd9-MuiTableCell-root"
+                      class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-ew1ib1-MuiTableCell-root"
                       colspan="1"
                       data-can-sort="true"
                       data-index="-1"
                       scope="col"
                     >
                       <div
-                        class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                        class="Mui-TableHeadCell-Content MuiBox-root css-c8wlay"
                       >
                         <div
                           class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
@@ -551,6 +579,13 @@
                         <div
                           class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
                         />
+                        <div
+                          class="Mui-TableHeadCell-ResizeHandle-Wrapper MuiBox-root css-1l66gie"
+                        >
+                          <hr
+                            class="MuiDivider-root MuiDivider-fullWidth MuiDivider-vertical MuiDivider-flexItem Mui-TableHeadCell-ResizeHandle-Divider css-f5y87h-MuiDivider-root"
+                          />
+                        </div>
                       </div>
                     </th>
                     <th
