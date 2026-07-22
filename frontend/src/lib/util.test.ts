@@ -344,6 +344,14 @@ describe('normalizeUnit', () => {
     it('shows plural cores', () => {
       expect(normalizeUnit('cpu', '2')).toBe('2 cores');
     });
+
+    it('shows singular core from decimal', () => {
+      expect(normalizeUnit('cpu', '1.0')).toBe('1 core');
+    });
+
+    it('shows plural cores from decimal', () => {
+      expect(normalizeUnit('cpu', '2.0')).toBe('2 cores');
+    });
   });
 });
 
