@@ -18,6 +18,7 @@ import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { useSelector } from 'react-redux';
 import { AppTheme } from '../../lib/AppTheme';
 import { getThemeName, setTheme as setAppTheme } from '../../lib/themes';
+import type { RootState } from '../../redux/stores/store';
 import { AppLogoType } from './AppLogo';
 import defaultAppThemes from './defaultAppThemes';
 export interface ThemeState {
@@ -102,13 +103,13 @@ const themeSlice = createSlice({
 });
 
 export const useAppThemes = (): AppTheme[] => {
-  return useSelector((state: any) => state.theme.appThemes);
+  return useSelector((state: RootState) => state.theme.appThemes);
 };
 
 const currentThemeCacheKey = 'cached-current-theme';
 
 export const useCurrentAppTheme = () => {
-  let themeName = useSelector((state: any) => state.theme.name);
+  let themeName = useSelector((state: RootState) => state.theme.name);
   if (!themeName) {
     themeName = getThemeName();
   }

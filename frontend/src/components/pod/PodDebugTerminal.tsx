@@ -150,9 +150,9 @@ async function debugPod(
     }
 
     throw new Error('Timeout waiting for ephemeral container to start');
-  } catch (e: any) {
+  } catch (e: unknown) {
     console.error('Error:DebugPod: creating ephemeral container', e);
-    onError(e.message || 'Failed to create debug container');
+    onError(e instanceof Error && e.message ? e.message : 'Failed to create debug container');
     return {};
   }
 }

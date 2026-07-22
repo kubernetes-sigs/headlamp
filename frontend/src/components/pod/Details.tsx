@@ -21,7 +21,7 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import InputLabel from '@mui/material/InputLabel';
 import ListItemText from '@mui/material/ListItemText';
 import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
+import Select, { type SelectChangeEvent } from '@mui/material/Select';
 import Switch from '@mui/material/Switch';
 import { styled } from '@mui/system';
 import { Terminal as XTerminal } from '@xterm/xterm';
@@ -31,7 +31,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
 import { getDefaultContainer, resolveContainerName } from '../../helpers/podContainer';
 import { KubeContainerStatus } from '../../lib/k8s/cluster';
-import Pod from '../../lib/k8s/pod';
+import Pod, { type KubeToleration } from '../../lib/k8s/pod';
 import { localeDate } from '../../lib/util';
 import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
 import { EventStatus, HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
@@ -230,13 +230,13 @@ export function PodLogViewer(props: PodLogViewerProps) {
     [container, lines, open, showPrevious, showTimestamps, follow, prettifyLogs, formatJsonValues]
   );
 
-  function handleContainerChange(event: any) {
+  function handleContainerChange(event: SelectChangeEvent<string>) {
     setContainer(event.target.value);
     setHasJsonLogs(false);
   }
 
-  function handleLinesChange(event: any) {
-    setLines(event.target.value);
+  function handleLinesChange(event: SelectChangeEvent<string>) {
+    setLines(Number(event.target.value));
   }
 
   function handlePreviousChange() {
@@ -364,15 +364,15 @@ export function PodLogViewer(props: PodLogViewerProps) {
           <Select
             labelId="container-lines-chooser-label"
             id="container-lines-chooser"
-            value={lines}
+            value={String(lines)}
             onChange={handleLinesChange}
           >
             {[100, 1000, 2500].map(i => (
-              <MenuItem value={i} key={i}>
+              <MenuItem value={String(i)} key={i}>
                 {i}
               </MenuItem>
             ))}
-            <MenuItem value={-1}>All</MenuItem>
+            <MenuItem value={String(-1)}>All</MenuItem>
           </Select>
         </FormControl>,
         <LightTooltip
@@ -528,7 +528,7 @@ export function VolumeDetails(props: VolumeDetailsProps) {
   );
 }
 
-function TolerationsSection(props: { tolerations: any[] }) {
+function TolerationsSection(props: { tolerations: KubeToleration[] }) {
   const { tolerations } = props;
   const { t } = useTranslation(['glossary', 'translation']);
 
