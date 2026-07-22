@@ -20,13 +20,14 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMuiTheme } from '../../../lib/themes';
 import { PluginInfo } from '../../../plugin/pluginsSlice';
 import { TestContext } from '../../../test';
+import { lightTheme } from '../defaultAppThemes';
 import { PluginSettingsPure } from './PluginSettings';
 
 vi.mock('../../../helpers/isElectron', () => ({
   isElectron: () => true,
 }));
 
-const theme = createMuiTheme({ name: 'Light', base: 'light' });
+const theme = createMuiTheme({ name: lightTheme.name, base: 'light' });
 
 function createPlugins(count: number): PluginInfo[] {
   return Array.from({ length: count }, (_, i) => ({
