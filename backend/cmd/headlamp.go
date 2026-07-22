@@ -650,7 +650,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	// load kubeConfig clusters
 	err := kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
-	if err != nil {
+	if err != nil && !errors.Is(err, os.ErrNotExist) {
 		logger.Log(logger.LevelError, nil, err, "loading kubeconfig")
 	}
 
