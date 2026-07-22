@@ -77,6 +77,7 @@ import {
 } from '../redux/clusterProviderSlice';
 import {
   addEventCallback,
+  AIAssistantOpenEvent,
   CreateResourceEvent,
   DeleteResourceEvent,
   EditResourceEvent,
@@ -149,6 +150,7 @@ export type {
   ResourceDetailsViewLoadedEvent,
   ResourceListViewLoadedEvent,
   EventListEvent,
+  AIAssistantOpenEvent,
   PluginSettingsDetailsProps,
   PluginSettingsComponentType,
   GraphSource,
