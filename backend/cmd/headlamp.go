@@ -173,6 +173,40 @@ const (
 	logFieldDurationMs = "duration_ms"
 )
 
+// externalProxyClient is the shared HTTP client used by the /externalproxy
+// handler. It is configured with transport-level timeouts so a slow or hung
+// upstream cannot block goroutines and exhaust file descriptors, and with a
+// larger per-host idle-connection pool than the net/http default so
+// connections can be reused under load.
+//
+// Redirects are not followed: an allowed upstream could otherwise return a
+// 30x pointing at a disallowed or internal address, which the client would
+// fetch server-side and bypass the /externalproxy allowlist. Returning
+// http.ErrUseLastResponse hands the 30x response back to the handler, which
+// forwards its status and Location header to the caller so the redirect can
+// still be followed client-side.
+//
+//nolint:gochecknoglobals // shared client reused across all proxy requests
+var externalProxyClient = &http.Client{
+	CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+		return http.ErrUseLastResponse
+	},
+	Transport: &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		DialContext: (&net.Dialer{
+			Timeout:   30 * time.Second,
+			KeepAlive: 30 * time.Second,
+		}).DialContext,
+		ForceAttemptHTTP2:     true,
+		MaxIdleConns:          100,
+		MaxIdleConnsPerHost:   10,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		ResponseHeaderTimeout: 30 * time.Second,
+	},
+}
+
 type clientConfig struct {
 	Clusters                  []Cluster `json:"clusters"`
 	IsDynamicClusterEnabled   bool      `json:"isDynamicClusterEnabled"`
@@ -775,9 +809,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		w.Header().Set("Pragma", "no-cache")
 		w.Header().Set("X-Accel-Expires", "0")
 
-		client := http.Client{}
-
-		resp, err := client.Do(proxyReq) //nolint:gosec
+		resp, err := externalProxyClient.Do(proxyReq) //nolint:gosec
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "making request")
 			http.Error(w, err.Error(), http.StatusBadGateway)
@@ -827,6 +859,12 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			http.Error(w, "response too large", http.StatusBadGateway)
 
 			return
+		}
+
+		// Forward Location so the caller can act on redirect (30x) responses,
+		// which are passed through unfollowed rather than chased server-side.
+		if location := resp.Header.Get("Location"); location != "" {
+			w.Header().Set("Location", location)
 		}
 
 		w.WriteHeader(resp.StatusCode)
