@@ -421,6 +421,42 @@ describe('useKubeObjectList', () => {
     expect(spy.mock.calls[3][0].connections.length).toBe(1);
     expect(spy.mock.calls[3][0].connections[0].cluster).toBe('cluster-1');
   });
+
+  it('should report pending while endpoint discovery is in progress', () => {
+    // Never resolve so useEndpoints stays probing (multiple apiInfo → async discovery).
+    mockClusterFetch.mockReturnValue(new Promise(() => {}));
+
+    const multiEndpointClass = class {
+      static apiVersion = 'v1';
+      static apiName = 'pods';
+      static apiEndpoint = {
+        apiInfo: [
+          { group: '', resource: 'pods', version: 'v1' },
+          { group: 'apps', resource: 'pods', version: 'v1' },
+        ],
+      };
+      constructor(public jsonData: any) {}
+    } as any;
+
+    const { result } = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: multiEndpointClass,
+          requests: [{ cluster: 'default', namespaces: ['a'] }],
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    expect(result.current.status).toBe('pending');
+    expect(result.current.data).toBeNull();
+    expect(result.current.isLoading).toBe(true);
+    expect(result.current.isFetching).toBe(true);
+    expect(result.current.isSuccess).toBe(false);
+  });
 });
 
 describe('useWatchKubeObjectLists (Multiplexer)', () => {
