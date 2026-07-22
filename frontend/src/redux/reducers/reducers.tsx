@@ -19,6 +19,7 @@ import { activityReducer } from '../../components/activity/activitySlice';
 import notificationsReducer from '../../components/App/Notifications/notificationsSlice';
 import themeReducer from '../../components/App/themeSlice';
 import graphViewReducer from '../../components/resourceMap/graphViewSlice';
+import pluginExtensionsReducer from '../../plugin/pluginExtensionsSlice';
 import pluginsReducer from '../../plugin/pluginsSlice';
 import actionButtons from '../actionButtonsSlice';
 import clusterAction from '../clusterActionSlice';
@@ -43,6 +44,7 @@ const reducers = combineReducers({
   clusterAction: clusterAction,
   config: configReducer,
   plugins: pluginsReducer,
+  pluginExtensions: pluginExtensionsReducer,
   actionButtons: actionButtons,
   notifications: notificationsReducer,
   theme: themeReducer,
