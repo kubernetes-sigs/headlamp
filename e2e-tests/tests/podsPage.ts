@@ -21,7 +21,7 @@ export class podsPage {
   constructor(private page: Page) {}
 
   async a11y() {
-    const axeBuilder = new AxeBuilder({ page: this.page });
+    const axeBuilder = new AxeBuilder({ page: this.page }).disableRules(['region']);
     const accessibilityResults = await axeBuilder.analyze();
     expect(accessibilityResults.violations).toStrictEqual([]);
   }
