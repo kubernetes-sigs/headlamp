@@ -234,6 +234,8 @@
   "Node Port": "",
   "App Protocol": "",
   "Services": "சேவைகள்",
+  "No role bindings reference this service account.": "",
+  "Unable to list the role bindings for this service account.": "",
   "Image Pull Secrets": "",
   "Automount Service Account Token": "",
   "Map": "வரைபடம்",

@@ -234,6 +234,8 @@
   "Node Port": "Node Port",
   "App Protocol": "App Protocol",
   "Services": "Services",
+  "No role bindings reference this service account.": "No role bindings reference this service account.",
+  "Unable to list the role bindings for this service account.": "Unable to list the role bindings for this service account.",
   "Image Pull Secrets": "Image Pull Secrets",
   "Automount Service Account Token": "Automount Service Account Token",
   "Map": "Map",
