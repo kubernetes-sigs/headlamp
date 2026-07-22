@@ -75,6 +75,8 @@
   "Not connected. Connect to load this cluster.": "",
   "Connect": "",
   "Connecting…": "",
+  "Kubeconfig: {{path}}": "",
+  "Kubeconfig": "",
   "Plugin": "",
   "In-cluster": "",
   "Cluster Inventory": "",

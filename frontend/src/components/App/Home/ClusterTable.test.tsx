@@ -36,7 +36,13 @@ vi.mock('react-i18next', async importOriginal => {
   return {
     ...actual,
     useTranslation: () => ({
-      t: (key: string) => key.split('|').pop() ?? key,
+      t: (key: string, options?: Record<string, string>) => {
+        const text = key.split('|').pop() ?? key;
+        if (!options) {
+          return text;
+        }
+        return text.replace(/{{\s*(\w+)\s*}}/g, (_, token) => options[token] ?? `{{${token}}}`);
+      },
     }),
   };
 });
@@ -96,6 +102,57 @@ vi.mock('../../common/Table', () => ({
 describe('ClusterTable', () => {
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  it('renders kubeconfig origin with path when origin.kubeconfig is set', () => {
+    const cluster = {
+      name: 'kubeconfig-cluster',
+      auth_type: '',
+      meta_data: {
+        source: 'kubeconfig',
+        origin: {
+          kubeconfig: '/home/user/.kube/config',
+        },
+      },
+    } as Cluster;
+
+    renderWithTheme(
+      <MemoryRouter>
+        <ClusterTable
+          customNameClusters={[cluster]}
+          clusters={{ 'kubeconfig-cluster': cluster }}
+          versions={{}}
+          errors={{ 'kubeconfig-cluster': null }}
+          warningLabels={{}}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Kubeconfig: /home/user/.kube/config')).toBeInTheDocument();
+  });
+
+  it('renders Kubeconfig label without a path when origin.kubeconfig is missing', () => {
+    const cluster = {
+      name: 'kubeconfig-cluster',
+      auth_type: '',
+      meta_data: {
+        source: 'kubeconfig',
+      },
+    } as Cluster;
+
+    renderWithTheme(
+      <MemoryRouter>
+        <ClusterTable
+          customNameClusters={[cluster]}
+          clusters={{ 'kubeconfig-cluster': cluster }}
+          versions={{}}
+          errors={{ 'kubeconfig-cluster': null }}
+          warningLabels={{}}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Kubeconfig')).toBeInTheDocument();
   });
 
   it('renders Cluster Inventory source labels', () => {
