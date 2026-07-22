@@ -245,5 +245,27 @@ describe('Ingress class', () => {
       // Rules object should be reused from cache (same identity)
       expect(rules1).toBe(rules2);
     });
+
+    it('skips caching when resourceVersion is undefined', () => {
+      const data = JSON.parse(JSON.stringify(mockIngressData));
+      delete data.metadata.resourceVersion;
+      const ingress = new Ingress(data);
+      const rules1 = ingress.getRules();
+      const rules2 = ingress.getRules();
+      // Without a resourceVersion to key the cache, rules should be recomputed.
+      expect(rules1).not.toBe(rules2);
+    });
+    it('recomputes cached rules when resourceVersion changes', () => {
+      const data = JSON.parse(JSON.stringify(mockIngressData));
+      const ingress = new Ingress(data);
+      const rules1 = ingress.getRules();
+      // Simulate a watch/update that mutates the existing instance's jsonData.
+      ingress.jsonData.spec.rules = [{ host: 'updated.example.com' }];
+      ingress.jsonData.metadata.resourceVersion = '999999';
+      const rules2 = ingress.getRules();
+      expect(rules1).not.toBe(rules2);
+      expect(rules2).toHaveLength(1);
+      expect(rules2[0].host).toBe('updated.example.com');
+    });
   });
 });
