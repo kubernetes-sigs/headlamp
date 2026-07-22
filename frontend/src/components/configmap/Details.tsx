@@ -35,8 +35,10 @@ function ConfigMapDataSection({ item }: { item: ConfigMap }) {
   const [data, setData] = React.useState(() => _.cloneDeep(item.data || {}));
   const [binaryData, setBinaryData] = React.useState(() => _.cloneDeep(item.binaryData || {}));
   const [isDirty, setIsDirty] = React.useState(false);
+
   const lastDataRef = React.useRef(_.cloneDeep(item.data || {}));
   const lastBinaryDataRef = React.useRef(_.cloneDeep(item.binaryData || {}));
+  const lastUidRef = React.useRef(item.metadata?.uid);
 
   const handleDataFieldChange = (key: string, newValue: string) => {
     setData(prev => {
@@ -60,16 +62,16 @@ function ConfigMapDataSection({ item }: { item: ConfigMap }) {
 
   React.useEffect(() => {
     const newData = _.cloneDeep(item.data || {});
-    if (!isDirty && !_.isEqual(newData, lastDataRef.current)) {
+    const resourceChanged = item.metadata?.uid !== lastUidRef.current;
+    if (resourceChanged || (!isDirty && !_.isEqual(newData, lastDataRef.current))) {
       setData(newData);
       lastDataRef.current = newData;
+      if (resourceChanged) {
+        setIsDirty(false);
+        lastUidRef.current = item.metadata?.uid;
+      }
     }
-    const newBinaryData = _.cloneDeep(item.binaryData || {});
-    if (!isDirty && !_.isEqual(newBinaryData, lastBinaryDataRef.current)) {
-      setBinaryData(newBinaryData);
-      lastBinaryDataRef.current = newBinaryData;
-    }
-  }, [item.data, item.binaryData, isDirty]);
+  }, [item.data, isDirty, item.metadata?.uid]);
 
   const handleSave = () => {
     const updatedConfigMap = { ...item.jsonData, data, binaryData };
