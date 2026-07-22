@@ -54,6 +54,7 @@ import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
 import store from '../redux/stores/store';
 import { PluginSettingsAPI } from '../settings/pluginSettings';
 import * as stateless from '../stateless/index';
+import { createAksDesktopRunCommand, getClusterProxyArgValues } from './clusterProxy';
 import {
   createPluginRunCommand,
   findCommandCapability,
@@ -666,6 +667,7 @@ export async function fetchAndExecutePlugins(
   const pluginDesktopApiSend = window?.desktopApi?.send;
   const pluginDesktopApiReceive = window?.desktopApi?.receive;
   const pluginRegisterCluster = window?.desktopApi?.registerCluster;
+  const pluginStartClusterProxy = window?.desktopApi?.startClusterProxy;
   const internalRunCommand = runCommand;
   const PrivateFunction = Function;
   const internalRunPlugin = runPlugin;
@@ -717,6 +719,7 @@ export async function fetchAndExecutePlugins(
           if (isPackage['azure-aks']) {
             secretsToReturn['runCmd-scriptjs-azure-aks/azure-api.js'] =
               secrets['runCmd-scriptjs-azure-aks/azure-api.js'];
+            secretsToReturn.startClusterProxy = secrets.startClusterProxy;
           }
 
           return secretsToReturn;
@@ -724,6 +727,7 @@ export async function fetchAndExecutePlugins(
         getArgValues: (pluginName, pluginPath, allowedPermissions) => {
           const argumentNames: string[] = [];
           const argumentValues: unknown[] = [];
+          const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
           const commandCapability = findCommandCapability(
             commandCapabilities,
             packageInfosToExecute[index]
@@ -735,9 +739,28 @@ export async function fetchAndExecutePlugins(
             pluginDesktopApiSend,
             pluginDesktopApiReceive
           );
-          if (productRunCommand) {
+          const pluginRunCommand =
+            productRunCommand ??
+            createAksDesktopRunCommand(
+              isPackage['azure-aks'],
+              internalRunCommand,
+              allowedPermissions,
+              pluginDesktopApiSend,
+              pluginDesktopApiReceive
+            );
+          if (pluginRunCommand) {
             argumentNames.push('pluginRunCommand', 'pluginPath');
-            argumentValues.push(productRunCommand, pluginPath);
+            argumentValues.push(pluginRunCommand, pluginPath);
+          }
+
+          if (isPackage['azure-aks']) {
+            const [proxyArgs, proxyValues] = getClusterProxyArgValues(
+              true,
+              pluginStartClusterProxy,
+              allowedPermissions
+            );
+            argumentNames.push(...proxyArgs);
+            argumentValues.push(...proxyValues);
           }
           const [registrationArgs, registrationValues] = getPluginClusterRegistrationArgValues(
             commandCapabilities,
