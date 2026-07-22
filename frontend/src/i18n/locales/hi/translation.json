@@ -443,6 +443,7 @@
   "from": "से",
   "I/O": "I/O",
   "Ready": "तैयार",
+  "Not Ready": "",
   "Waiting": "प्रतीक्षारत",
   "Running": "चल रहा है",
   "Exit Code": "एग्जिट कोड",
