@@ -31,6 +31,8 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
 import { getDefaultContainer, resolveContainerName } from '../../helpers/podContainer';
 import { KubeContainerStatus } from '../../lib/k8s/cluster';
+import { matchesLabelSelector } from '../../lib/k8s/labelSelector';
+import NetworkPolicy from '../../lib/k8s/networkpolicy';
 import Pod from '../../lib/k8s/pod';
 import { localeDate } from '../../lib/util';
 import { DefaultHeaderAction } from '../../redux/actionButtonsSlice';
@@ -528,6 +530,29 @@ export function VolumeDetails(props: VolumeDetailsProps) {
   );
 }
 
+function PodNetworkPolicies(props: { policies: NetworkPolicy[] }) {
+  const { policies } = props;
+  const { t } = useTranslation(['glossary', 'translation']);
+
+  return (
+    <SectionBox title={t('glossary|Network Policies')}>
+      <SimpleTable
+        columns={[
+          {
+            label: t('translation|Name'),
+            getter: (policy: NetworkPolicy) => <Link kubeObject={policy}>{policy.getName()}</Link>,
+          },
+          {
+            label: t('glossary|Policy Types'),
+            getter: (policy: NetworkPolicy) => policy.policyTypes.join(', ') || '-',
+          },
+        ]}
+        data={policies}
+      />
+    </SectionBox>
+  );
+}
+
 function TolerationsSection(props: { tolerations: any[] }) {
   const { tolerations } = props;
   const { t } = useTranslation(['glossary', 'translation']);
@@ -585,6 +610,16 @@ export default function PodDetails(props: PodDetailsProps) {
   const autoLaunchView = queryParams.get('view');
   const autoLaunchContainer = queryParams.get('container') ?? undefined;
   const [podItem, setPodItem] = React.useState<Pod | null>(null);
+
+  const { items: networkPolicies } = NetworkPolicy.useList({ namespace, cluster });
+  const applicableNetworkPolicies = React.useMemo(
+    () =>
+      (networkPolicies ?? []).filter(
+        policy =>
+          !!podItem && matchesLabelSelector(podItem.metadata.labels, policy.spec?.podSelector)
+      ),
+    [networkPolicies, podItem]
+  );
 
   const launchLogs = React.useCallback(
     (item: Pod) => {
@@ -892,6 +927,13 @@ export default function PodDetails(props: PodDetailsProps) {
       extraInfo={item => prepareExtraInfo(item)}
       extraSections={item =>
         item && [
+          {
+            id: 'headlamp.pod-network-policies',
+            section:
+              applicableNetworkPolicies.length > 0 ? (
+                <PodNetworkPolicies policies={applicableNetworkPolicies} />
+              ) : null,
+          },
           {
             id: 'headlamp.pod-tolerations',
             section: <TolerationsSection tolerations={item?.spec?.tolerations || []} />,
