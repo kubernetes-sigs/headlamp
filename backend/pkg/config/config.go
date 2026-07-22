@@ -111,6 +111,9 @@ type Config struct {
 	DefaultLightTheme string `koanf:"default-light-theme"`
 	DefaultDarkTheme  string `koanf:"default-dark-theme"`
 	ForceTheme        string `koanf:"force-theme"`
+	// Favicon config
+	Favicon       string `koanf:"favicon"`
+	FaviconBase64 string `koanf:"favicon-base64"`
 }
 
 func (c *Config) warnRedundantThemeDefaults() {
@@ -582,6 +585,9 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.String("default-light-theme", "", "Default theme to use when user prefers light mode")
 	f.String("default-dark-theme", "", "Default theme to use when user prefers dark mode")
 	f.String("force-theme", "", "Force a specific theme, overriding user preferences")
+	f.String("favicon", "", "Path to a custom favicon file (.png or .ico) replacing the bundled tab icon")
+	f.String("favicon-base64", "",
+		"Base64-encoded PNG to use as the custom favicon; useful for containers without mounting files")
 	f.Bool("unsafe-use-service-account-token", false,
 		"UNSAFE: use the pod's service account token to authenticate all users in-cluster. "+
 			"Disables per-user auth; only safe behind an auth proxy")
