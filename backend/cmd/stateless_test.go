@@ -26,6 +26,7 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
@@ -416,7 +417,7 @@ func TestStatelessContextKeyCollision(t *testing.T) {
 }
 
 func TestStatelessContextKeyWithoutUserID(t *testing.T) {
-	assert.Equal(t, "cluster-a", statelessContextKey("cluster-a", ""))
+	assert.Equal(t, "cluster-a"+statelessContextKeySep, statelessContextKey("cluster-a", ""))
 }
 
 func TestWebsocketConnContextKey(t *testing.T) {
@@ -448,11 +449,28 @@ func TestWebsocketConnContextKey(t *testing.T) {
 			req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
 			req.Header.Set("Sec-Websocket-Protocol", tc.protocols)
 
-			key := websocketConnContextKey(req, tc.clusterName)
+			key := websocketConnContextKey(req, tc.clusterName, nil)
 			assert.Equal(t, tc.expectedKey, key)
 			assert.Equal(t, tc.expectedHeader, req.Header.Get("Sec-Websocket-Protocol"))
 		})
 	}
+}
+
+func TestWebsocketConnContextKeyStatelessStore(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	clusterName := "my-stateless-cluster"
+	statelessKey := statelessContextKey(clusterName, "")
+
+	err := store.AddContextWithKeyAndTTL(&kubeconfig.Context{
+		Name: clusterName,
+	}, statelessKey, 5*time.Minute)
+	require.NoError(t, err)
+
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
+	req.Header.Set("Sec-Websocket-Protocol", "v4.channel.k8s.io")
+
+	key := websocketConnContextKey(req, clusterName, store)
+	assert.Equal(t, statelessKey, key)
 }
 
 func TestMarshalCustomObject_InvalidJSON(t *testing.T) {
@@ -462,4 +480,9 @@ func TestMarshalCustomObject_InvalidJSON(t *testing.T) {
 
 	_, err := MarshalCustomObject(mockInfo, "test-context")
 	assert.Error(t, err)
+}
+
+func TestStatelessContextKeyFormat(t *testing.T) {
+	assert.Equal(t, "ab"+statelessContextKeySep+"c", statelessContextKey("ab", "c"))
+	assert.Equal(t, "a"+statelessContextKeySep+"bc", statelessContextKey("a", "bc"))
 }
