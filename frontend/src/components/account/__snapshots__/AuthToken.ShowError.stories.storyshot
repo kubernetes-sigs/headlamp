@@ -176,6 +176,7 @@
                 <a
                   class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                   href="https://headlamp.dev/docs/latest/installation/#create-a-service-account-token"
+                  rel="noopener noreferrer"
                   style="cursor: pointer; margin-left: 0.4rem;"
                   target="_blank"
                 >
