@@ -17,7 +17,7 @@
 import Box from '@mui/material/Box';
 import DialogContent from '@mui/material/DialogContent';
 import _ from 'lodash';
-import { useEffect, useRef, useState } from 'react';
+import { MutableRefObject, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   DEFAULT_NODE_SHELL_LINUX_IMAGE,
   DEFAULT_NODE_SHELL_NAMESPACE,
@@ -27,7 +27,7 @@ import { getCluster } from '../../lib/cluster';
 import { apply } from '../../lib/k8s/api/v1/apply';
 import { stream, StreamResultsCb } from '../../lib/k8s/api/v1/streamingApi';
 import Node from '../../lib/k8s/node';
-import { KubePod } from '../../lib/k8s/pod';
+import Pod, { KubePod } from '../../lib/k8s/pod';
 import { Channel, useTerminalStream, XTerminalConnected } from '../../lib/k8s/useTerminalStream';
 import store from '../../redux/stores/store';
 
@@ -105,7 +105,7 @@ function uniqueString() {
 }
 
 async function shell(item: Node, onExec: StreamResultsCb) {
-  const cluster = getCluster();
+  const cluster = item.cluster || getCluster();
   if (!cluster) {
     return {};
   }
@@ -119,7 +119,7 @@ async function shell(item: Node, onExec: StreamResultsCb) {
   const podName = `node-debugger-${item.getName()}-${uniqueString()}`;
   const kubePod = shellPod(podName, namespace, item.getName(), linuxImage);
   try {
-    await apply(kubePod);
+    await apply(kubePod, cluster);
   } catch (e) {
     console.error('Error:DebugNode: creating pod', e);
     return {};
@@ -138,7 +138,9 @@ async function shell(item: Node, onExec: StreamResultsCb) {
     'channel.k8s.io',
   ];
   return {
-    stream: stream(url, onExec, { additionalProtocols, isJson: false }),
+    stream: stream(url, onExec, { additionalProtocols, isJson: false, cluster }),
+    podName,
+    namespace,
   };
 }
 
@@ -147,25 +149,81 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
   const [terminalContainerRef, setTerminalContainerRef] = useState<HTMLElement | null>(null);
   const exitSentRef = useRef(false);
   const pendingExitRef = useRef(false);
+  const shellPodInfoRef = useRef<{ podName: string; namespace: string } | null>(null);
+  const unmountedRef = useRef(false);
+  const deletingPodRef = useRef<string | null>(null);
 
-  const { xtermRef, streamRef, send } = useTerminalStream({
-    containerRef: terminalContainerRef,
-    connectStream: async onDataCallback => {
-      xtermRef.current?.xterm.writeln('Trying to open a shell');
-      const { stream } = await shell(item, onDataCallback);
+  const onCloseRef = useRef<() => void>(() => {});
+  const isSuccessfulExitRef = useRef<(channel: number, text: string) => boolean>(() => false);
+  const isShellNotFoundRef = useRef<(channel: number, text: string) => boolean>(() => false);
+  const shellConnectFailedRef = useRef<(xtermc: XTerminalConnected) => void>(() => {});
+  const terminalRef = useRef<MutableRefObject<XTerminalConnected | null> | null>(null);
+
+  const deletePod = useCallback(
+    async (namespace: string, podName: string) => {
+      if (deletingPodRef.current === podName) {
+        return;
+      }
+      deletingPodRef.current = podName;
+      try {
+        await Pod.apiEndpoint.delete(
+          namespace,
+          podName,
+          undefined,
+          item.cluster || getCluster() || undefined
+        );
+        if (shellPodInfoRef.current?.podName === podName) {
+          shellPodInfoRef.current = null;
+        }
+      } catch (err) {
+        console.error('Failed to delete node shell pod:', err);
+      } finally {
+        deletingPodRef.current = null;
+      }
+    },
+    [item]
+  );
+
+  const connectStream = useCallback(
+    async (onDataCallback: (data: ArrayBuffer) => void) => {
+      terminalRef.current?.current?.xterm.writeln('Trying to open a shell');
+      const { stream, podName, namespace } = await shell(item, onDataCallback);
+      if (podName && namespace) {
+        if (unmountedRef.current) {
+          // Component already unmounted while pod was being created — stop stream retries and delete immediately
+          stream?.cancel?.();
+          deletePod(namespace, podName);
+        } else {
+          shellPodInfoRef.current = { podName, namespace };
+        }
+      }
       return {
         stream,
       };
     },
-    onClose: wrappedOnClose,
-    errorHandlers: {
-      isSuccessfulExit: isSuccessfulExitError,
-      isShellNotFound: isShellNotFoundError,
-      onConnectionFailed: shellConnectFailed,
-    },
+    [item, deletePod]
+  );
+
+  const errorHandlers = useMemo(
+    () => ({
+      isSuccessfulExit: (channel: number, text: string) =>
+        isSuccessfulExitRef.current(channel, text),
+      isShellNotFound: (channel: number, text: string) => isShellNotFoundRef.current(channel, text),
+      onConnectionFailed: (xtermc: XTerminalConnected) => shellConnectFailedRef.current(xtermc),
+    }),
+    []
+  );
+
+  const handleTerminalClose = useCallback(() => onCloseRef.current(), []);
+
+  const { xtermRef, streamRef, send } = useTerminalStream({
+    containerRef: terminalContainerRef,
+    connectStream,
+    onClose: handleTerminalClose,
+    errorHandlers,
   });
 
-  const sendExitIfPossible = () => {
+  const sendExitIfPossible = useCallback(() => {
     if (exitSentRef.current) {
       return true;
     }
@@ -180,52 +238,67 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
     pendingExitRef.current = false;
     setTimeout(() => streamRef.current?.cancel(), 1000);
     return true;
-  };
+  }, [send, streamRef]);
 
-  const requestShellExit = (reason: string) => {
-    if (exitSentRef.current) {
-      return;
-    }
+  const requestShellExit = useCallback(
+    (reason: string) => {
+      if (exitSentRef.current) {
+        return;
+      }
 
-    const sent = sendExitIfPossible();
-    if (!sent) {
-      console.debug('Queueing exit for shell (not yet connected)', { reason });
-      pendingExitRef.current = true;
-    } else {
-      console.debug('Exit command sent to shell', { reason });
-    }
-  };
+      const sent = sendExitIfPossible();
+      if (!sent) {
+        console.debug('Queueing exit for shell (not yet connected)', { reason });
+        pendingExitRef.current = true;
+      } else {
+        console.debug('Exit command sent to shell', { reason });
+      }
+    },
+    [sendExitIfPossible]
+  );
 
-  function wrappedOnClose() {
+  const deletePodRef = useRef(deletePod);
+  const requestShellExitRef = useRef(requestShellExit);
+
+  const wrappedOnClose = useCallback(() => {
     requestShellExit('dialog-close');
+
+    if (shellPodInfoRef.current) {
+      const { podName, namespace } = shellPodInfoRef.current;
+      deletePod(namespace, podName);
+    }
+
     if (onClose) {
       onClose();
     }
-  }
+  }, [deletePod, onClose, requestShellExit]);
 
-  function isSuccessfulExitError(channel: number, text: string): boolean {
-    // Linux container Error
-    if (channel === Channel.ServerError) {
-      try {
-        const error = JSON.parse(text);
-        if (_.isEmpty(error.metadata) && error.status === 'Success') {
-          if (pendingExitRef.current && !exitSentRef.current) {
-            sendExitIfPossible();
+  const isSuccessfulExitError = useCallback(
+    (channel: number, text: string): boolean => {
+      // Linux container Error
+      if (channel === Channel.ServerError) {
+        try {
+          const error = JSON.parse(text);
+          if (_.isEmpty(error.metadata) && error.status === 'Success') {
+            if (pendingExitRef.current && !exitSentRef.current) {
+              sendExitIfPossible();
+            }
+            return true;
           }
-          return true;
+        } catch (e) {
+          console.debug('NodeShellTerminal: failed to parse server error channel data', {
+            channel,
+            text,
+            error: e,
+          });
         }
-      } catch (e) {
-        console.debug('NodeShellTerminal: failed to parse server error channel data', {
-          channel,
-          text,
-          error: e,
-        });
       }
-    }
-    return false;
-  }
+      return false;
+    },
+    [sendExitIfPossible]
+  );
 
-  function isShellNotFoundError(channel: number, text: string): boolean {
+  const isShellNotFoundError = useCallback((channel: number, text: string): boolean => {
     // Linux container Error
     if (channel === Channel.ServerError) {
       try {
@@ -248,17 +321,39 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
       }
     }
     return false;
-  }
+  }, []);
 
-  function shellConnectFailed(xtermc: XTerminalConnected) {
+  const shellConnectFailed = useCallback((xtermc: XTerminalConnected) => {
     const xterm = xtermc.xterm;
     xterm.clear();
     xterm.write('Failed to connect…\r\n');
-  }
+  }, []);
+
+  useEffect(() => {
+    terminalRef.current = xtermRef;
+    onCloseRef.current = wrappedOnClose;
+    isSuccessfulExitRef.current = isSuccessfulExitError;
+    isShellNotFoundRef.current = isShellNotFoundError;
+    shellConnectFailedRef.current = shellConnectFailed;
+    deletePodRef.current = deletePod;
+    requestShellExitRef.current = requestShellExit;
+  }, [
+    xtermRef,
+    wrappedOnClose,
+    isSuccessfulExitError,
+    isShellNotFoundError,
+    shellConnectFailed,
+    deletePod,
+    requestShellExit,
+  ]);
 
   useEffect(() => {
     const handleBeforeUnload = () => {
-      requestShellExit('window-beforeunload');
+      requestShellExitRef.current('window-beforeunload');
+      if (shellPodInfoRef.current) {
+        const { podName, namespace } = shellPodInfoRef.current;
+        deletePodRef.current(namespace, podName);
+      }
     };
 
     window.addEventListener('beforeunload', handleBeforeUnload);
@@ -266,7 +361,16 @@ export function NodeShellTerminal(props: NodeShellTerminalProps) {
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      unmountedRef.current = true;
+      if (shellPodInfoRef.current) {
+        const { podName, namespace } = shellPodInfoRef.current;
+        deletePodRef.current(namespace, podName);
+      }
+    };
   }, []);
 
   return (
