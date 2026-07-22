@@ -28,46 +28,6 @@
         class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm MuiDialog-paperFullWidth css-1ehm288-MuiPaper-root-MuiDialog-paper"
         role="dialog"
       >
-        <h2
-          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
-          id=":mock-test-id:"
-          style="display: flex;"
-        >
-          <div
-            class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
-          >
-            <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-            >
-              <h1
-                class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
-                id=":mock-test-id:"
-                style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
-              >
-                Headlamp
-              </h1>
-            </div>
-            <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
-            >
-              <div
-                class="MuiBox-root css-0"
-              >
-                <button
-                  aria-label="Close"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
-                  data-mui-internal-clone-element="true"
-                  tabindex="0"
-                  type="button"
-                >
-                  <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                  />
-                </button>
-              </div>
-            </div>
-          </div>
-        </h2>
         <div
           class="MuiDialogContent-root css-ypiqx9-MuiDialogContent-root"
         >

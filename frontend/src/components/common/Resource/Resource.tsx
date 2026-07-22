@@ -375,31 +375,62 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
     sectionsProcessed = processorsSections;
   }
 
+  // IDs of sections that belong in the sticky header
+  const STICKY_HEADER_IDS: ReadonlySet<string> = new Set([
+    DefaultDetailsViewSection.BACK_LINK,
+    DefaultDetailsViewSection.MAIN_HEADER,
+  ]);
+
+  const isHeaderSection = (section: DetailsViewSection | ReactNode): boolean =>
+    has(section, 'id') && STICKY_HEADER_IDS.has((section as DetailsViewSection).id);
+
+  // Split processed sections into header (sticky) vs body (scrollable)
+  const headerSections = sectionsProcessed.filter(isHeaderSection);
+  const bodySections = sectionsProcessed.filter(s => !isHeaderSection(s));
+
+  /** Renders a single section, handling DetailsViewSection objects, ReactElements, and components. */
+  const renderSection = (section: DetailsViewSection | ReactNode) => {
+    const Section = has(section, 'section') ? (section as DetailsViewSection).section : section;
+    if (React.isValidElement(Section)) {
+      return <ErrorBoundary>{Section}</ErrorBoundary>;
+    } else if (Section === null) {
+      return null;
+    } else if (typeof Section === 'function') {
+      return (
+        <ErrorBoundary>
+          <Section resource={item} />
+        </ErrorBoundary>
+      );
+    }
+  };
+
   return (
-    <PageGrid
-      sx={theme => ({
-        marginBottom: theme.spacing(2),
-      })}
-    >
-      {React.Children.toArray(
-        sectionsProcessed.map(section => {
-          const Section = has(section, 'section')
-            ? (section as DetailsViewSection).section
-            : section;
-          if (React.isValidElement(Section)) {
-            return <ErrorBoundary>{Section}</ErrorBoundary>;
-          } else if (Section === null) {
-            return null;
-          } else if (typeof Section === 'function') {
-            return (
-              <ErrorBoundary>
-                <Section resource={item} />
-              </ErrorBoundary>
-            );
-          }
-        })
+    <>
+      {/* Sticky header: Back button + resource title + action buttons */}
+      {headerSections.length > 0 && (
+        <Box
+          sx={theme => ({
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+            backgroundColor: theme.palette.background.default,
+            borderBottom: `1px solid ${theme.palette.divider}`,
+            paddingBottom: theme.spacing(1),
+          })}
+        >
+          {React.Children.toArray(headerSections.map(renderSection))}
+        </Box>
       )}
-    </PageGrid>
+
+      {/* Body: metadata, custom sections, events */}
+      <PageGrid
+        sx={theme => ({
+          marginBottom: theme.spacing(2),
+        })}
+      >
+        {React.Children.toArray(bodySections.map(renderSection))}
+      </PageGrid>
+    </>
   );
 }
 
