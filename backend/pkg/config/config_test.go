@@ -793,6 +793,20 @@ func TestApplyMeDefaults(t *testing.T) {
 	}
 }
 
+func TestApplyMeDefaults_TrimsWhitespace(t *testing.T) {
+	gotUsername, gotEmail, gotGroups, gotUserInfo := config.ApplyMeDefaults(
+		"  user.name  ",
+		"  user.email  ",
+		"  user.groups  ",
+		"  /oauth2/userinfo  ",
+	)
+
+	assert.Equal(t, "user.name", gotUsername)
+	assert.Equal(t, "user.email", gotEmail)
+	assert.Equal(t, "user.groups", gotGroups)
+	assert.Equal(t, "/oauth2/userinfo", gotUserInfo)
+}
+
 func TestValidateSessionTTL(t *testing.T) {
 	tests := []struct {
 		name          string
