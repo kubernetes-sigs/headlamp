@@ -73,6 +73,38 @@ export const DEFAULT_SHORTCUTS: Record<string, ShortcutConfig> = {
     defaultKey: 'ctrl+shift+f',
     category: 'search',
   },
+  CLOSE_ACTIVE_OVERLAYS: {
+    id: 'CLOSE_ACTIVE_OVERLAYS',
+    name: i18next.t('Close Details Drawer'),
+    description: i18next.t('Close the active details drawer'),
+    key: 'escape',
+    defaultKey: 'escape',
+    category: 'general',
+  },
+  NAVIGATE_TO_PODS: {
+    id: 'NAVIGATE_TO_PODS',
+    name: i18next.t('Navigate to Pods'),
+    description: i18next.t('Go to the Pods list page'),
+    key: 'alt+shift+p',
+    defaultKey: 'alt+shift+p',
+    category: 'navigation',
+  },
+  NAVIGATE_TO_DEPLOYMENTS: {
+    id: 'NAVIGATE_TO_DEPLOYMENTS',
+    name: i18next.t('Navigate to Deployments'),
+    description: i18next.t('Go to the Deployments list page'),
+    key: 'alt+shift+d',
+    defaultKey: 'alt+shift+d',
+    category: 'navigation',
+  },
+  SHORTCUTS_HELP: {
+    id: 'SHORTCUTS_HELP',
+    name: i18next.t('Show Shortcuts Help'),
+    description: i18next.t('Show the keyboard shortcuts cheat sheet'),
+    key: 'shift+?',
+    defaultKey: 'shift+?',
+    category: 'general',
+  },
 };
 
 export interface ShortcutsState {

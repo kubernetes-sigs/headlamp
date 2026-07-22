@@ -768,6 +768,78 @@
                     </div>
                   </dd>
                   <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiBox-root css-0"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-1k32pko-MuiTypography-root"
+                      >
+                        Navigate to Pods
+                      </p>
+                      <span
+                        class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                      >
+                        Go to the Pods list page
+                      </span>
+                    </div>
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiBox-root css-42kczj"
+                    >
+                      <button
+                        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-14ebh8n-MuiButtonBase-root-MuiButton-root"
+                        tabindex="0"
+                        type="button"
+                      >
+                        Alt + Shift + P
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
+                    </div>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiBox-root css-0"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-1k32pko-MuiTypography-root"
+                      >
+                        Navigate to Deployments
+                      </p>
+                      <span
+                        class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                      >
+                        Go to the Deployments list page
+                      </span>
+                    </div>
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiBox-root css-42kczj"
+                    >
+                      <button
+                        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-14ebh8n-MuiButtonBase-root-MuiButton-root"
+                        tabindex="0"
+                        type="button"
+                      >
+                        Alt + Shift + D
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
+                    </div>
+                  </dd>
+                  <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 MuiGrid-grid-md-12 css-gvwr1e-MuiGrid-root"
                   >
                     <span
@@ -777,7 +849,7 @@
                     </span>
                   </dt>
                   <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
                   >
                     <div
                       class="MuiBox-root css-0"
@@ -795,7 +867,7 @@
                     </div>
                   </dt>
                   <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
                   >
                     <div
                       class="MuiBox-root css-42kczj"
@@ -806,6 +878,78 @@
                         type="button"
                       >
                         Alt + Shift + T
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
+                    </div>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiBox-root css-0"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-1k32pko-MuiTypography-root"
+                      >
+                        Close Details Drawer
+                      </p>
+                      <span
+                        class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                      >
+                        Close the active details drawer
+                      </span>
+                    </div>
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiBox-root css-42kczj"
+                    >
+                      <button
+                        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-14ebh8n-MuiButtonBase-root-MuiButton-root"
+                        tabindex="0"
+                        type="button"
+                      >
+                        Esc
+                        <span
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        />
+                      </button>
+                    </div>
+                  </dd>
+                  <dt
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiBox-root css-0"
+                    >
+                      <p
+                        class="MuiTypography-root MuiTypography-body2 css-1k32pko-MuiTypography-root"
+                      >
+                        Show Shortcuts Help
+                      </p>
+                      <span
+                        class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                      >
+                        Show the keyboard shortcuts cheat sheet
+                      </span>
+                    </div>
+                  </dt>
+                  <dd
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+                  >
+                    <div
+                      class="MuiBox-root css-42kczj"
+                    >
+                      <button
+                        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-14ebh8n-MuiButtonBase-root-MuiButton-root"
+                        tabindex="0"
+                        type="button"
+                      >
+                        Shift + ?
                         <span
                           class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                         />

@@ -919,5 +919,13 @@
   "Toggle Table Filters": "Переключить фильтры таблиц",
   "Toggle column filters in tables": "Переключить фильтры столбцов в таблицах",
   "Log Viewer Search": "Поиск в средстве просмотра журнала",
-  "Toggle search in log viewer": "Переключить поиск в средстве просмотра журнала"
+  "Toggle search in log viewer": "Переключить поиск в средстве просмотра журнала",
+  "Close Details Drawer": "",
+  "Close the active details drawer": "",
+  "Navigate to Pods": "",
+  "Go to the Pods list page": "",
+  "Navigate to Deployments": "",
+  "Go to the Deployments list page": "",
+  "Show Shortcuts Help": "",
+  "Show the keyboard shortcuts cheat sheet": ""
 }

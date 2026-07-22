@@ -905,5 +905,13 @@
   "Toggle Table Filters": "ٹیبل فلٹرز ٹوگل کریں",
   "Toggle column filters in tables": "ٹیبلز میں کالم فلٹرز ٹوگل کریں",
   "Log Viewer Search": "لاگ ویور تلاش",
-  "Toggle search in log viewer": "لاگ ویور میں تلاش ٹوگل کریں"
+  "Toggle search in log viewer": "لاگ ویور میں تلاش ٹوگل کریں",
+  "Close Details Drawer": "",
+  "Close the active details drawer": "",
+  "Navigate to Pods": "",
+  "Go to the Pods list page": "",
+  "Navigate to Deployments": "",
+  "Go to the Deployments list page": "",
+  "Show Shortcuts Help": "",
+  "Show the keyboard shortcuts cheat sheet": ""
 }
