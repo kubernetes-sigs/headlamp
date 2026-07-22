@@ -20,18 +20,20 @@ import { MemoryRouter } from 'react-router-dom';
 import { describe, expect, it, vi } from 'vitest';
 import Overview from './Overview';
 
-const { chartMocks, eventUseList, nodeUseList, nodeUseMetrics, podUseList } = vi.hoisted(() => ({
-  chartMocks: {
-    CpuCircularChart: () => <div>cpu</div>,
-    MemoryCircularChart: () => <div>memory</div>,
-    NodesStatusCircleChart: () => <div>nodes</div>,
-    PodsStatusCircleChart: () => <div>pods</div>,
-  },
-  eventUseList: vi.fn(() => ({ items: [], errors: null })),
-  nodeUseList: vi.fn(() => [[]]),
-  nodeUseMetrics: vi.fn(() => [[], null]),
-  podUseList: vi.fn(() => [[]]),
-}));
+const { chartMocks, eventUseList, nodeUseList, nodeUseMetrics, nodeUseSummaryStats, podUseList } =
+  vi.hoisted(() => ({
+    chartMocks: {
+      CpuCircularChart: () => <div>cpu</div>,
+      MemoryCircularChart: () => <div>memory</div>,
+      NodesStatusCircleChart: () => <div>nodes</div>,
+      PodsStatusCircleChart: () => <div>pods</div>,
+    },
+    eventUseList: vi.fn(() => ({ items: [], errors: null })),
+    nodeUseList: vi.fn(() => [[]]),
+    nodeUseMetrics: vi.fn(() => [[], null]),
+    nodeUseSummaryStats: vi.fn(() => [null, null]),
+    podUseList: vi.fn(() => [[]]),
+  }));
 
 vi.mock('react-i18next', async importOriginal => ({
   ...(await importOriginal<typeof import('react-i18next')>()),
@@ -52,6 +54,8 @@ vi.mock('../../lib/k8s/node', () => ({
     useList: nodeUseList,
     useMetrics: nodeUseMetrics,
   },
+  useNodeMetrics: nodeUseMetrics,
+  useNodeSummaryStats: nodeUseSummaryStats,
 }));
 
 vi.mock('../../lib/k8s/pod', () => ({
