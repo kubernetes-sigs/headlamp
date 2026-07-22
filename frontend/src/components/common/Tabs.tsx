@@ -43,7 +43,7 @@ export interface TabsProps {
     [propName: string]: any;
   };
   /** The index of the initially active tab. Defaults to 0. Set to null or false to disable initial selection. */
-  defaultIndex?: number | null | boolean;
+  defaultIndex?: number | null | false;
   /** Callback invoked when the active tab changes.
    * @param tabIndex - The index of the newly selected tab.
    */
@@ -64,8 +64,8 @@ export interface TabsProps {
  */
 export default function Tabs(props: TabsProps) {
   const { tabs, tabProps = {}, defaultIndex = 0, onTabChanged = null, ariaLabel } = props;
-  const [tabIndex, setTabIndex] = React.useState<TabsProps['defaultIndex']>(
-    defaultIndex && Math.min(defaultIndex as number, 0)
+  const [tabIndex, setTabIndex] = React.useState<number | null | false>(
+    typeof defaultIndex === 'number' ? Math.max(defaultIndex, 0) : false
   );
 
   /**
@@ -83,11 +83,11 @@ export default function Tabs(props: TabsProps) {
   }
 
   React.useEffect(() => {
-    if (defaultIndex === null) {
+    if (typeof defaultIndex === 'number') {
+      setTabIndex(Math.max(defaultIndex, 0));
+    } else {
       setTabIndex(false);
-      return;
     }
-    setTabIndex(defaultIndex);
   }, [defaultIndex]);
 
   const uniqueIdSuffix = useId('tabs-');
@@ -128,7 +128,7 @@ export default function Tabs(props: TabsProps) {
       {tabs.map(({ component }, i) => (
         <TabPanel
           key={i}
-          tabIndex={Number(tabIndex)}
+          activeValue={tabIndex}
           index={i}
           id={`full-width-tabpanel-${i}-${ariaLabel.replace(' ', '')}-${uniqueIdSuffix}`}
           labeledBy={`full-width-tab-${i}-${ariaLabel.replace(' ', '')}-${uniqueIdSuffix}`}
@@ -143,9 +143,7 @@ export default function Tabs(props: TabsProps) {
 /**
  * Props for a single tab panel.
  */
-interface TabPanelProps extends TypographyProps {
-  /** The index of the currently active tab. */
-  tabIndex: number;
+interface TabPanelPropsBase extends Omit<TypographyProps<'div'>, 'tabIndex'> {
   /** The index of this tab panel. */
   index: number;
   /** The unique ID for the tab panel, used for accessibility. */
@@ -155,22 +153,43 @@ interface TabPanelProps extends TypographyProps {
 }
 
 /**
+ * Props for a single tab panel. Requires either `activeValue` or `tabIndex` to be provided.
+ */
+export type TabPanelProps = TabPanelPropsBase &
+  (
+    | {
+        /** The index of the currently active tab. */
+        activeValue: number | null | false;
+        /** @deprecated Use `activeValue` instead. */
+        tabIndex?: number | null | false;
+      }
+    | {
+        /** The index of the currently active tab. */
+        activeValue?: number | null | false;
+        /** @deprecated Use `activeValue` instead. */
+        tabIndex: number | null | false;
+      }
+  );
+
+/**
  * Renders a panel for the currently active tab.
  *
  * @param props - The properties of the tab panel.
  * @returns A container showing the content if this panel is active.
  */
 export function TabPanel(props: TabPanelProps) {
-  const { children, tabIndex, index, id, labeledBy } = props;
+  const { children, activeValue, tabIndex, index, id, labeledBy, sx, ...other } = props;
+  const currentActiveValue = activeValue !== undefined ? activeValue : tabIndex;
 
   return (
     <Typography
+      {...other}
       component="div"
       role="tabpanel"
-      hidden={tabIndex !== index}
+      hidden={currentActiveValue !== index}
       id={id}
       aria-labelledby={labeledBy}
-      sx={{ flexGrow: 1, overflow: 'hidden' }}
+      sx={[{ flexGrow: 1, overflow: 'hidden' }, ...(Array.isArray(sx) ? sx : sx ? [sx] : [])]}
     >
       {children}
     </Typography>
