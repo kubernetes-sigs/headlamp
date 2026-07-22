@@ -104,6 +104,9 @@ export const Activity = {
   reset() {
     store.dispatch(activitySlice.actions.reset());
   },
+  minimizeAll() {
+    store.dispatch(activitySlice.actions.minimizeAll());
+  },
 };
 
 /** Context for the currently viewed activity */
