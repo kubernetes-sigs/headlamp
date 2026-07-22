@@ -825,6 +825,7 @@ func TestRefreshAndCacheNewToken_Success(t *testing.T) {
 
 	fc := &fakeCache{store: map[string]interface{}{oldKey: "REFRESH_OLD"}}
 	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
 		require.NoError(t, r.ParseForm())
 		require.Equal(t, "refresh_token", r.PostForm.Get("grant_type"))
 		require.Equal(t, "REFRESH_OLD", r.PostForm.Get("refresh_token"))
@@ -862,6 +863,7 @@ func TestRefreshAndCacheNewToken_ValidatorIssuerOverride(t *testing.T) {
 
 	fc := &fakeCache{store: map[string]interface{}{oldKey: refreshToken}}
 	srv := newOIDCProviderServer(t, issuerURL, func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 1024*1024)
 		require.NoError(t, r.ParseForm())
 		require.Equal(t, "refresh_token", r.PostForm.Get("grant_type"))
 		require.Equal(t, refreshToken, r.PostForm.Get("refresh_token"))

@@ -16,9 +16,12 @@
 
 import { Base64 } from 'js-base64';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { getAppUrl } from '../helpers/getAppUrl';
 import store from '../redux/stores/store';
-import { getUserInfo, setToken } from './auth';
+import { deleteTokens, getUserInfo, logout, setToken } from './auth';
 import { backendFetch } from './k8s/api/v2/fetch';
+import { getClusterAuthType } from './k8s/clusterAuthType';
+import { queryClient } from './queryClient';
 
 // Mock the dependencies
 vi.mock('./k8s/api/v2/fetch');
@@ -28,9 +31,20 @@ vi.mock('../redux/stores/store', () => ({
     getState: vi.fn(),
   },
 }));
+vi.mock('./k8s/clusterAuthType');
+vi.mock('../helpers/getAppUrl');
+vi.mock('./queryClient', () => ({
+  queryClient: {
+    removeQueries: vi.fn(),
+    invalidateQueries: vi.fn(),
+  },
+}));
 
 const mockBackendFetch = vi.mocked(backendFetch);
 const mockStore = vi.mocked(store);
+const mockGetClusterAuthType = vi.mocked(getClusterAuthType);
+const mockGetAppUrl = vi.mocked(getAppUrl);
+const mockQueryClient = vi.mocked(queryClient);
 
 describe('auth', () => {
   beforeEach(() => {
@@ -39,6 +53,8 @@ describe('auth', () => {
       ui: { functionsToOverride: {} },
       config: { allClusters: {} },
     } as any);
+    mockGetClusterAuthType.mockReturnValue('');
+    mockGetAppUrl.mockReturnValue('http://localhost:4466/');
   });
 
   describe('setToken', () => {
@@ -161,6 +177,249 @@ describe('auth', () => {
       expect(spy).toHaveBeenCalled();
 
       spy.mockRestore();
+    });
+  });
+
+  describe('logout', () => {
+    it('should redirect to oidc-logout endpoint for OIDC cluster when skipRedirect is false', async () => {
+      const cluster = 'test-cluster';
+      mockGetClusterAuthType.mockReturnValue('oidc');
+
+      const mockResponse: Partial<Response> = {
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({}),
+      };
+      mockBackendFetch.mockResolvedValue(mockResponse as Response);
+
+      const mockLocation = { href: '' };
+      vi.stubGlobal('location', mockLocation);
+
+      const result = await logout(cluster);
+
+      expect(result).toBe(false);
+      expect(mockQueryClient.removeQueries).toHaveBeenCalledWith({
+        queryKey: ['auth'],
+        exact: false,
+      });
+      expect(mockQueryClient.removeQueries).toHaveBeenCalledWith({
+        queryKey: ['clusterMe', cluster],
+        exact: true,
+      });
+      expect(mockBackendFetch).toHaveBeenCalledWith(
+        `/clusters/${cluster}/set-token`,
+        expect.objectContaining({
+          body: JSON.stringify({ token: null }),
+        })
+      );
+      expect(mockLocation.href).toBe(
+        `http://localhost:4466/clusters/${encodeURIComponent(cluster)}/oidc-logout`
+      );
+    });
+
+    it('should return true for OIDC cluster when skipRedirect is true', async () => {
+      const cluster = 'test-cluster';
+      mockGetClusterAuthType.mockReturnValue('oidc');
+
+      const mockResponse: Partial<Response> = {
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({}),
+      };
+      mockBackendFetch.mockResolvedValue(mockResponse as Response);
+
+      const mockLocation = { href: '' };
+      vi.stubGlobal('location', mockLocation);
+
+      const result = await logout(cluster, true);
+
+      expect(result).toBe(true);
+      expect(mockQueryClient.removeQueries).toHaveBeenCalledWith({
+        queryKey: ['auth'],
+        exact: false,
+      });
+      expect(mockQueryClient.removeQueries).toHaveBeenCalledWith({
+        queryKey: ['clusterMe', cluster],
+        exact: true,
+      });
+      expect(mockBackendFetch).toHaveBeenCalledWith(
+        `/clusters/${cluster}/set-token`,
+        expect.objectContaining({
+          body: JSON.stringify({ token: null }),
+        })
+      );
+      expect(mockLocation.href).toBe('');
+    });
+
+    it('should still redirect to oidc-logout when setToken fails for OIDC cluster', async () => {
+      const cluster = 'test-cluster';
+      mockGetClusterAuthType.mockReturnValue('oidc');
+
+      const mockResponse: Partial<Response> = {
+        ok: false,
+        status: 500,
+      };
+      mockBackendFetch.mockResolvedValue(mockResponse as Response);
+
+      const mockLocation = { href: '' };
+      vi.stubGlobal('location', mockLocation);
+
+      const result = await logout(cluster);
+
+      expect(result).toBe(false);
+      expect(mockQueryClient.removeQueries).toHaveBeenCalledWith({
+        queryKey: ['auth'],
+        exact: false,
+      });
+      expect(mockQueryClient.removeQueries).toHaveBeenCalledWith({
+        queryKey: ['clusterMe', cluster],
+        exact: true,
+      });
+      expect(mockLocation.href).toBe(
+        `http://localhost:4466/clusters/${encodeURIComponent(cluster)}/oidc-logout`
+      );
+    });
+
+    it('should clear token and queries for non-OIDC cluster', async () => {
+      const cluster = 'test-cluster';
+      mockGetClusterAuthType.mockReturnValue('');
+
+      const mockResponse: Partial<Response> = {
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({}),
+      };
+      mockBackendFetch.mockResolvedValue(mockResponse as Response);
+
+      const mockLocation = { href: '' };
+      vi.stubGlobal('location', mockLocation);
+
+      const result = await logout(cluster);
+
+      expect(result).toBe(false);
+      expect(mockBackendFetch).toHaveBeenCalledWith(
+        `/clusters/${cluster}/set-token`,
+        expect.objectContaining({
+          body: JSON.stringify({ token: null }),
+        })
+      );
+      expect(mockQueryClient.removeQueries).toHaveBeenCalledWith({
+        queryKey: ['auth'],
+        exact: false,
+      });
+      expect(mockQueryClient.removeQueries).toHaveBeenCalledWith({
+        queryKey: ['clusterMe', cluster],
+        exact: true,
+      });
+      expect(mockLocation.href).toBe('');
+    });
+  });
+
+  describe('deleteTokens', () => {
+    it('should redirect to oidc-logout when there is one OIDC cluster', async () => {
+      mockStore.getState.mockReturnValue({
+        ui: { functionsToOverride: {} },
+        config: { allClusters: { 'oidc-cluster': {} } },
+      } as any);
+      mockGetClusterAuthType.mockReturnValue('oidc');
+
+      const mockResponse: Partial<Response> = {
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({}),
+      };
+      mockBackendFetch.mockResolvedValue(mockResponse as Response);
+
+      const mockLocation = { href: '' };
+      vi.stubGlobal('location', mockLocation);
+
+      await deleteTokens();
+
+      expect(mockQueryClient.removeQueries).toHaveBeenCalledWith({
+        queryKey: ['auth'],
+        exact: false,
+      });
+      expect(mockQueryClient.removeQueries).toHaveBeenCalledWith({
+        queryKey: ['clusterMe', 'oidc-cluster'],
+        exact: true,
+      });
+      expect(mockBackendFetch).toHaveBeenCalledWith(
+        '/clusters/oidc-cluster/set-token',
+        expect.objectContaining({
+          body: JSON.stringify({ token: null }),
+        })
+      );
+      expect(mockLocation.href).toBe(
+        `http://localhost:4466/clusters/${encodeURIComponent('oidc-cluster')}/oidc-logout`
+      );
+    });
+
+    it('should redirect to the OIDC cluster logout when there are mixed clusters', async () => {
+      mockStore.getState.mockReturnValue({
+        ui: { functionsToOverride: {} },
+        config: { allClusters: { 'oidc-cluster': {}, 'non-oidc-cluster': {} } },
+      } as any);
+
+      mockGetClusterAuthType.mockImplementation((cluster: string) => {
+        return cluster === 'oidc-cluster' ? 'oidc' : '';
+      });
+
+      const mockResponse: Partial<Response> = {
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({}),
+      };
+      mockBackendFetch.mockResolvedValue(mockResponse as Response);
+
+      const mockLocation = { href: '' };
+      vi.stubGlobal('location', mockLocation);
+
+      await deleteTokens();
+
+      expect(mockBackendFetch).toHaveBeenCalledTimes(2);
+      expect(mockBackendFetch).toHaveBeenCalledWith(
+        '/clusters/oidc-cluster/set-token',
+        expect.objectContaining({
+          body: JSON.stringify({ token: null }),
+        })
+      );
+      expect(mockBackendFetch).toHaveBeenCalledWith(
+        '/clusters/non-oidc-cluster/set-token',
+        expect.objectContaining({
+          body: JSON.stringify({ token: null }),
+        })
+      );
+      expect(mockLocation.href).toBe(
+        `http://localhost:4466/clusters/${encodeURIComponent('oidc-cluster')}/oidc-logout`
+      );
+    });
+
+    it('should not redirect when there are no OIDC clusters', async () => {
+      mockStore.getState.mockReturnValue({
+        ui: { functionsToOverride: {} },
+        config: { allClusters: { 'non-oidc-cluster': {} } },
+      } as any);
+      mockGetClusterAuthType.mockReturnValue('');
+
+      const mockResponse: Partial<Response> = {
+        ok: true,
+        status: 200,
+        json: vi.fn().mockResolvedValue({}),
+      };
+      mockBackendFetch.mockResolvedValue(mockResponse as Response);
+
+      const mockLocation = { href: '' };
+      vi.stubGlobal('location', mockLocation);
+
+      await deleteTokens();
+
+      expect(mockBackendFetch).toHaveBeenCalledWith(
+        '/clusters/non-oidc-cluster/set-token',
+        expect.objectContaining({
+          body: JSON.stringify({ token: null }),
+        })
+      );
+      expect(mockLocation.href).toBe('');
     });
   });
 });

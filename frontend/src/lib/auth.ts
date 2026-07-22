@@ -19,9 +19,11 @@
  */
 
 import { Base64 } from 'js-base64';
+import { getAppUrl } from '../helpers/getAppUrl';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
 import store from '../redux/stores/store';
 import { backendFetch } from './k8s/api/v2/fetch';
+import { getClusterAuthType } from './k8s/clusterAuthType';
 import { queryClient } from './queryClient';
 
 /**
@@ -133,15 +135,44 @@ export function setToken(cluster: string, token: string | null) {
 
 /**
  * Logs out the user by clearing the authentication token for the specified cluster.
+ * For OIDC clusters, redirects to the IdP logout endpoint to properly end the session.
  *
  * @param cluster - The name of the cluster to log out from.
+ * @param skipRedirect - If true, skip the OIDC logout redirect (caller handles navigation).
+ * @returns True if an OIDC redirect was skipped (caller should handle navigation), false otherwise.
  * @throws {Error} When logout request fails
  */
-export async function logout(cluster: string) {
-  return setToken(cluster, null).then(() => {
+export async function logout(cluster: string, skipRedirect = false): Promise<boolean> {
+  const authType = getClusterAuthType(cluster);
+
+  // For OIDC auth, redirect to the backend OIDC logout endpoint which will
+  // redirect to the IdP's end_session_endpoint to properly terminate the session.
+  if (authType === 'oidc') {
+    // Clear local state first
     queryClient.removeQueries({ queryKey: ['auth'], exact: false });
     queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
-  });
+
+    // Clear the cluster auth cookie before redirecting (cookie path is cluster-scoped).
+    try {
+      await setToken(cluster, null);
+    } catch {
+      // Continue with logout redirect even if cookie clearing fails.
+    }
+
+    if (skipRedirect) {
+      return true;
+    }
+
+    // Redirect to the OIDC logout endpoint
+    // The backend will clear cookies and redirect to the IdP logout endpoint
+    window.location.href = `${getAppUrl()}clusters/${encodeURIComponent(cluster)}/oidc-logout`;
+    return false;
+  }
+
+  await setToken(cluster, null);
+  queryClient.removeQueries({ queryKey: ['auth'], exact: false });
+  queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
+  return false;
 }
 
 /**
@@ -149,7 +180,25 @@ export async function logout(cluster: string) {
  *
  * @returns {void}
  */
-export function deleteTokens() {
+export async function deleteTokens() {
   const clusters = Object.keys(store.getState().config.allClusters ?? {});
-  return Promise.all(clusters.map(cluster => logout(cluster)));
+
+  let oidcClusterToRedirect: string | null = null;
+  for (const cluster of clusters) {
+    if (getClusterAuthType(cluster) === 'oidc') {
+      oidcClusterToRedirect = cluster;
+    }
+  }
+
+  await Promise.all(
+    clusters.map(async cluster => {
+      await logout(cluster, true);
+    })
+  );
+
+  if (oidcClusterToRedirect) {
+    window.location.href = `${getAppUrl()}clusters/${encodeURIComponent(
+      oidcClusterToRedirect
+    )}/oidc-logout`;
+  }
 }

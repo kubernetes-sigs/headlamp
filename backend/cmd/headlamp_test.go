@@ -4158,3 +4158,218 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, int(maxProxyResponseSize), rr.Body.Len())
 }
+
+func TestOIDCLogoutEndpoint(t *testing.T) {
+	setupTestEnv(t)
+
+	testCluster := "test-cluster"
+
+	tests := getOIDCLogoutTestCases(t, testCluster)
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			rr := runOIDCLogoutTest(t, testCluster, tc)
+			assertOIDCLogoutResponse(t, rr, tc, testCluster)
+		})
+	}
+}
+
+func setupTestEnv(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("APPDATA", t.TempDir())
+}
+
+func getOIDCLogoutTestCases(t *testing.T, testCluster string) []oidcLogoutTestCase {
+	return []oidcLogoutTestCase{
+		{
+			name:                       "OidcSkipLogout=true clears cookies and redirects to login",
+			oidcSkipLogout:             true,
+			setIDTokenCookie:           true,
+			expectedStatusCode:         http.StatusFound,
+			expectedRedirectContains:   "/c/" + testCluster + "/login",
+			expectTokenCookieCleared:   true,
+			expectIDTokenCookieCleared: true,
+		},
+		{
+			name: "provider discovery failure clears cookies and redirects to home",
+			setupOIDCProvider: func(t *testing.T) string {
+				return "http://invalid-provider.example.com"
+			},
+			setIDTokenCookie:           true,
+			expectedStatusCode:         http.StatusFound,
+			expectedRedirectContains:   "/",
+			expectTokenCookieCleared:   true,
+			expectIDTokenCookieCleared: true,
+		},
+		{
+			name:                       "missing end_session_endpoint clears cookies",
+			setupOIDCProvider:          setupOIDCProviderWithoutEndSessionEndpoint(t),
+			setIDTokenCookie:           true,
+			expectedStatusCode:         http.StatusFound,
+			expectedRedirectContains:   "/",
+			expectTokenCookieCleared:   true,
+			expectIDTokenCookieCleared: true,
+		},
+		{
+			name:                       "successful logout with id_token_hint",
+			setupOIDCProvider:          setupOIDCProviderWithEndSessionEndpoint(t),
+			setIDTokenCookie:           true,
+			expectedStatusCode:         http.StatusFound,
+			expectedRedirectContains:   "/logout",
+			expectTokenCookieCleared:   true,
+			expectIDTokenCookieCleared: true,
+		},
+		{
+			name:                       "successful logout without id_token_hint",
+			setupOIDCProvider:          setupOIDCProviderWithEndSessionEndpoint(t),
+			setIDTokenCookie:           false,
+			expectedStatusCode:         http.StatusFound,
+			expectedRedirectContains:   "/logout",
+			expectTokenCookieCleared:   false,
+			expectIDTokenCookieCleared: false,
+		},
+	}
+}
+
+type oidcLogoutTestCase struct {
+	name                       string
+	oidcSkipLogout             bool
+	setupOIDCProvider          func(t *testing.T) string
+	setIDTokenCookie           bool
+	expectedStatusCode         int
+	expectedRedirectContains   string
+	expectTokenCookieCleared   bool
+	expectIDTokenCookieCleared bool
+}
+
+func setupOIDCProviderWithEndSessionEndpoint(t *testing.T) func(t *testing.T) string {
+	return func(t *testing.T) string {
+		providerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/.well-known/openid-configuration" {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+					"issuer":                 "http://" + r.Host,
+					"authorization_endpoint": "http://" + r.Host + "/auth",
+					"token_endpoint":         "http://" + r.Host + "/token",
+					"end_session_endpoint":   "http://" + r.Host + "/logout",
+				})
+
+				return
+			}
+
+			http.NotFound(w, r)
+		}))
+		t.Cleanup(providerServer.Close)
+
+		return providerServer.URL
+	}
+}
+
+func setupOIDCProviderWithoutEndSessionEndpoint(t *testing.T) func(t *testing.T) string {
+	return func(t *testing.T) string {
+		providerServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if r.URL.Path == "/.well-known/openid-configuration" {
+				w.Header().Set("Content-Type", "application/json")
+				_ = json.NewEncoder(w).Encode(map[string]interface{}{
+					"issuer":                 "http://" + r.Host,
+					"authorization_endpoint": "http://" + r.Host + "/auth",
+					"token_endpoint":         "http://" + r.Host + "/token",
+				})
+
+				return
+			}
+
+			http.NotFound(w, r)
+		}))
+		t.Cleanup(providerServer.Close)
+
+		return providerServer.URL
+	}
+}
+
+func runOIDCLogoutTest(t *testing.T, cluster string, tc oidcLogoutTestCase) *httptest.ResponseRecorder {
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	var issuerURL string
+	if tc.setupOIDCProvider != nil {
+		issuerURL = tc.setupOIDCProvider(t)
+	}
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeConfigStore,
+			},
+			OidcSkipLogout:   tc.oidcSkipLogout,
+			Cache:            cache.New[interface{}](),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	if issuerURL != "" {
+		err := kubeConfigStore.AddContext(&kubeconfig.Context{
+			Name: cluster,
+			OidcConf: &kubeconfig.OidcConfig{
+				ClientID:     "test-client",
+				ClientSecret: "test-secret",
+				IdpIssuerURL: issuerURL,
+			},
+		})
+		require.NoError(t, err)
+	}
+
+	handler := createHeadlampHandler(context.Background(), cfg)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/clusters/"+url.PathEscape(cluster)+"/oidc-logout", nil)
+	require.NoError(t, err)
+
+	if tc.setIDTokenCookie {
+		//nolint:gosec
+		req.AddCookie(&http.Cookie{
+			Name:  "headlamp-id-token-" + cluster + ".0",
+			Value: "test-id-token",
+			Path:  "/clusters/" + cluster,
+		})
+		//nolint:gosec
+		req.AddCookie(&http.Cookie{
+			Name:  "headlamp-auth-" + cluster + ".0",
+			Value: "test-auth-token",
+			Path:  "/clusters/" + cluster,
+		})
+	}
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	return rr
+}
+
+func assertOIDCLogoutResponse(t *testing.T, rr *httptest.ResponseRecorder, tc oidcLogoutTestCase, cluster string) {
+	assert.Equal(t, tc.expectedStatusCode, rr.Code, "Unexpected status code")
+	assert.Contains(t, rr.Header().Get("Location"), tc.expectedRedirectContains,
+		"Unexpected redirect location")
+
+	if tc.expectTokenCookieCleared {
+		assertCookieCleared(t, rr, "headlamp-auth-"+cluster)
+	}
+
+	if tc.expectIDTokenCookieCleared {
+		assertCookieCleared(t, rr, "headlamp-id-token-"+cluster)
+	}
+}
+
+func assertCookieCleared(t *testing.T, rr *httptest.ResponseRecorder, cookiePrefix string) {
+	var foundCookie bool
+
+	for _, cookie := range rr.Result().Cookies() {
+		if strings.HasPrefix(cookie.Name, cookiePrefix) {
+			assert.Equal(t, "", cookie.Value, "Cookie should be cleared")
+			assert.Equal(t, -1, cookie.MaxAge, "Cookie MaxAge should be -1")
+
+			foundCookie = true
+		}
+	}
+
+	assert.True(t, foundCookie, "Expected cookie with prefix %q to be cleared", cookiePrefix)
+}

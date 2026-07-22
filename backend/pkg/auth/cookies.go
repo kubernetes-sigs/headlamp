@@ -170,6 +170,123 @@ func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL s
 	}
 }
 
+// SetIDTokenCookie sets an ID token cookie for a specific cluster.
+// This is used for OIDC RP-initiated logout (id_token_hint parameter).
+// The cookie path is set to the cluster path ("/clusters/{clusterName}" or e.g. "/headlamp/clusters/{clusterName}"),
+// so it's available on the /clusters/{clusterName}/oidc-logout endpoint.
+// Large ID tokens are split into chunks to avoid exceeding per-cookie size limits (~4KB).
+func SetIDTokenCookie(w http.ResponseWriter, r *http.Request, cluster, idToken, baseURL string, sessionTTL int) {
+	if cluster == "" || idToken == "" {
+		return
+	}
+
+	sanitizedCluster := SanitizeClusterName(cluster)
+	if sanitizedCluster == "" {
+		return
+	}
+
+	secure := IsSecureContext(r)
+
+	cookiePath := GetCookiePath(baseURL, cluster)
+
+	// Split large ID tokens into chunks to avoid exceeding cookie size limits
+	chunks := splitToken(idToken, chunkSize)
+	for i, chunk := range chunks {
+		// G124: Secure is set from IsSecureContext so localhost development still works;
+		// HttpOnly and SameSite are set unconditionally.
+		cookie := &http.Cookie{ //nolint:gosec
+			Name:     fmt.Sprintf("headlamp-id-token-%s.%d", sanitizedCluster, i),
+			Value:    chunk,
+			HttpOnly: true,
+			Secure:   secure,
+			SameSite: http.SameSiteStrictMode,
+			Path:     cookiePath,
+			MaxAge:   sessionTTL,
+		}
+
+		http.SetCookie(w, cookie)
+	}
+
+	// Clear the first cookie after the last chunk index so GetIDTokenFromCookie
+	// won't append stale higher-index chunks from a previous login.
+	// G124: Secure is set from IsSecureContext so localhost development still works;
+	// HttpOnly and SameSite are set unconditionally.
+	cleanupCookie := &http.Cookie{ //nolint:gosec
+		Name:     fmt.Sprintf("headlamp-id-token-%s.%d", sanitizedCluster, len(chunks)),
+		Value:    "",
+		HttpOnly: true,
+		Secure:   secure,
+		SameSite: http.SameSiteStrictMode,
+		Path:     cookiePath,
+		MaxAge:   -1,
+	}
+	http.SetCookie(w, cleanupCookie)
+}
+
+// GetIDTokenFromCookie retrieves the ID token cookie for a specific cluster.
+// Supports chunked cookies for large ID tokens.
+func GetIDTokenFromCookie(r *http.Request, cluster string) (string, error) {
+	sanitizedCluster := SanitizeClusterName(cluster)
+	if sanitizedCluster == "" {
+		return "", errors.New("invalid cluster name")
+	}
+
+	// Check for chunked cookies
+	var idToken strings.Builder
+
+	for i := 0; ; i++ {
+		cookie, err := r.Cookie(fmt.Sprintf("headlamp-id-token-%s.%d", sanitizedCluster, i))
+		if err != nil {
+			break
+		}
+
+		idToken.WriteString(cookie.Value)
+	}
+
+	if idToken.Len() > 0 {
+		return idToken.String(), nil
+	}
+
+	return "", http.ErrNoCookie
+}
+
+// ClearIDTokenCookie clears the ID token cookie for a specific cluster.
+// Supports chunked cookies for large ID tokens.
+func ClearIDTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL string) {
+	sanitizedCluster := SanitizeClusterName(cluster)
+	if sanitizedCluster == "" {
+		return
+	}
+
+	secure := IsSecureContext(r)
+
+	cookiePath := GetCookiePath(baseURL, cluster)
+
+	// Clear chunked cookies
+	for i := 0; ; i++ {
+		cookieName := fmt.Sprintf("headlamp-id-token-%s.%d", sanitizedCluster, i)
+
+		_, err := r.Cookie(cookieName)
+		if err != nil {
+			// No more cookies for this cluster
+			break
+		}
+
+		// G124: Secure is set from IsSecureContext so localhost development still works;
+		// HttpOnly and SameSite are set unconditionally.
+		cookie := &http.Cookie{ //nolint:gosec
+			Name:     cookieName,
+			Value:    "",
+			HttpOnly: true,
+			Secure:   secure,
+			SameSite: http.SameSiteStrictMode,
+			Path:     cookiePath,
+			MaxAge:   -1,
+		}
+		http.SetCookie(w, cookie)
+	}
+}
+
 // splitToken splits a token into chunks of a given size.
 func splitToken(token string, size int) []string {
 	var chunks []string

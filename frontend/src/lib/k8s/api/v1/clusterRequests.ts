@@ -21,7 +21,6 @@ import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHea
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
 import { isBackstage } from '../../../../helpers/isBackstage';
-import store from '../../../../redux/stores/store';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { logout } from '../../../auth';
@@ -65,18 +64,6 @@ export interface ClusterRequest {
 export interface ClusterRequestParams extends RequestParams {
   cluster?: string | null;
   autoLogoutOnAuthError?: boolean;
-}
-
-/**
- * @returns Auth type of the cluster, or an empty string if the cluster is not found.
- * It could return 'oidc' or '' for example.
- *
- * @param cluster - Name of the cluster.
- */
-export function getClusterAuthType(cluster: string): string {
-  const state = store.getState();
-  const authType: string = state.config?.clusters?.[cluster]?.['auth_type'] || '';
-  return authType;
 }
 
 /**
@@ -192,7 +179,9 @@ export async function clusterRequest(
     const { status, statusText } = response;
     if (autoLogoutOnAuthError && status === 401 && opts.headers.Authorization) {
       console.error('Logging out due to auth error', { status, statusText, path });
-      logout(cluster);
+      logout(cluster, true).catch(err => {
+        console.error('Auto-logout failed after auth error:', err);
+      });
     }
 
     let message = statusText;

@@ -81,6 +81,7 @@ type Config struct {
 	OidcUseAccessToken           bool   `koanf:"oidc-use-access-token"`
 	OidcUseCookie                bool   `koanf:"oidc-use-cookie"`
 	OidcSkipTLSVerify            bool   `koanf:"oidc-skip-tls-verify"`
+	OidcSkipLogout               bool   `koanf:"oidc-skip-logout"`
 	OidcCAFile                   string `koanf:"oidc-ca-file"`
 	MeUsernamePath               string `koanf:"me-username-path"`
 	MeEmailPath                  string `koanf:"me-email-path"`
@@ -599,6 +600,7 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.String("oidc-validator-idp-issuer-url", "", "Override Identity provider issuer URL for OIDC during validation")
 	f.String("oidc-scopes", "profile,email", "A comma separated list of scopes needed from the OIDC provider")
 	f.Bool("oidc-skip-tls-verify", false, "Skip TLS verification for OIDC")
+	f.Bool("oidc-skip-logout", false, "Skip logout from OIDC provider")
 	f.String("oidc-ca-file", "", "CA file for OIDC")
 	f.Bool("oidc-use-access-token", false, "Setup oidc to pass through the access_token instead of the default id_token")
 	f.Bool("oidc-use-cookie", false, "Enable OIDC cookie usage even when not running in-cluster")
