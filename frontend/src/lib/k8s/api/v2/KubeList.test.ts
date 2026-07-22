@@ -112,6 +112,53 @@ describe('KubeList.applyUpdate', () => {
     expect(updatedList.items).toHaveLength(0);
   });
 
+  it('should skip an update carrying the same resourceVersion as the list', () => {
+    const updateEvent: KubeListUpdateEvent<MockKubeObject> = {
+      type: 'MODIFIED',
+      object: {
+        apiVersion: 'v1',
+        kind: 'MockKubeObject',
+        metadata: { uid: '1', resourceVersion: '1' },
+      },
+    };
+
+    const updatedList = KubeList.applyUpdate(initialList, updateEvent, itemClass, cluster);
+
+    // Same resourceVersion means a duplicate event, so the list is returned as is.
+    expect(updatedList).toBe(initialList);
+  });
+
+  it('should apply a newer update whose resourceVersion exceeds MAX_SAFE_INTEGER', () => {
+    // Both strings parse to the same float via parseInt (2^53), so a numeric
+    // comparison would wrongly drop this genuinely newer update.
+    const list: KubeList<any> = {
+      kind: 'MockKubeList',
+      apiVersion: 'v1',
+      items: [
+        {
+          apiVersion: 'v1',
+          kind: 'MockKubeObject',
+          metadata: { uid: '1', resourceVersion: '9007199254740992' },
+        },
+      ],
+      metadata: { resourceVersion: '9007199254740992' },
+    };
+    const updateEvent: KubeListUpdateEvent<MockKubeObject> = {
+      type: 'MODIFIED',
+      object: {
+        apiVersion: 'v1',
+        kind: 'MockKubeObject',
+        metadata: { uid: '1', resourceVersion: '9007199254740993' },
+      },
+    };
+
+    const updatedList = KubeList.applyUpdate(list, updateEvent, itemClass, cluster);
+
+    expect(updatedList).not.toBe(list);
+    expect(updatedList.metadata.resourceVersion).toBe('9007199254740993');
+    expect(updatedList.items[0].metadata.resourceVersion).toBe('9007199254740993');
+  });
+
   it('should log an error on ERROR event', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const updateEvent: KubeListUpdateEvent<MockKubeObject> = {
