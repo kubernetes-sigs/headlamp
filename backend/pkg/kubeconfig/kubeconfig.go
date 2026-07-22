@@ -1,6 +1,7 @@
 package kubeconfig
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -1053,6 +1055,61 @@ func resolveServiceAccountTokenPath(clusterConfig *rest.Config, serviceAccountTo
 	return "/var/run/secrets/kubernetes.io/serviceaccount/token" // #nosec G101
 }
 
+// deriveInClusterNameTimeout bounds the kubeadm-config lookup so it cannot block startup indefinitely.
+const deriveInClusterNameTimeout = 2 * time.Second
+
+// deriveInClusterName reads the cluster name from the kube-system/kubeadm-config
+// ConfigMap, which kubeadm and KiND populate at creation time. It returns an error
+// when the ConfigMap, the ClusterConfiguration key, or the clusterName field is missing
+// (or when clusterName is kubeadm's default "kubernetes").
+func deriveInClusterName(ctx context.Context, clientset kubernetes.Interface) (string, error) {
+	cm, err := clientset.CoreV1().ConfigMaps("kube-system").Get(ctx, "kubeadm-config", metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	clusterConfiguration, ok := cm.Data["ClusterConfiguration"]
+	if !ok {
+		return "", errors.New("kubeadm-config ConfigMap has no ClusterConfiguration entry")
+	}
+
+	var parsed struct {
+		ClusterName string `yaml:"clusterName"`
+	}
+
+	if err := yaml.Unmarshal([]byte(clusterConfiguration), &parsed); err != nil {
+		return "", fmt.Errorf("parsing kubeadm ClusterConfiguration: %w", err)
+	}
+
+	name := strings.TrimSpace(parsed.ClusterName)
+	if name == "" || strings.EqualFold(name, "kubernetes") {
+		return "", errors.New("kubeadm ClusterConfiguration clusterName is empty or default (kubernetes)")
+	}
+
+	return name, nil
+}
+
+func deriveInClusterContextName(clusterConfig *rest.Config) string {
+	clientset, err := kubernetes.NewForConfig(clusterConfig)
+	if err != nil {
+		logger.Log(logger.LevelInfo, nil, err, "deriving in-cluster context name: creating clientset")
+
+		return ""
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), deriveInClusterNameTimeout)
+	defer cancel()
+
+	name, err := deriveInClusterName(ctx, clientset)
+	if err != nil {
+		logger.Log(logger.LevelInfo, nil, err, "deriving in-cluster context name from kubeadm-config")
+
+		return ""
+	}
+
+	return name
+}
+
 // GetInClusterContext returns the in-cluster context.
 func GetInClusterContext(
 	contextName string,
@@ -1067,6 +1124,10 @@ func GetInClusterContext(
 	clusterConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
+	}
+
+	if strings.TrimSpace(contextName) == "" {
+		contextName = deriveInClusterContextName(clusterConfig)
 	}
 
 	return newInClusterContextFromConfig(

@@ -541,7 +541,10 @@ func flagset() *flag.FlagSet {
 func addGeneralFlags(f *flag.FlagSet) {
 	f.Bool("version", false, "Print version information and exit")
 	f.Bool("in-cluster", false, "Set when running from a k8s cluster")
-	f.String("in-cluster-context-name", "main", "Name to use for the in-cluster Kubernetes context")
+	f.String("in-cluster-context-name", "",
+		"Name to use for the in-cluster Kubernetes context. "+
+			"If unset, it is derived from the kube-system/kubeadm-config ConfigMap (treating \"kubernetes\" as unset), "+
+			"falling back to \"main\"")
 	f.Bool("dev", false, "Allow connections from other origins")
 	f.Bool("cache-enabled", false, "K8s cache in backend")
 	f.Bool("no-browser", false, "Disable automatically opening the browser when using embedded frontend")
