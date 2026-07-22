@@ -202,29 +202,30 @@ func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolin
 		enabledTypes = append(enabledTypes, "stdout")
 	}
 
-	isJaegerConfigured := *cfg.JaegerEndpoint != ""
-	isOTLPConfigured := *cfg.OTLPEndpoint != ""
+	isJaegerConfigured := strings.TrimSpace(*cfg.JaegerEndpoint) != ""
+	isOTLPDirectlyConfigured := strings.TrimSpace(*cfg.OTLPEndpoint) != ""
+	otlpEndpoint := resolveOTLPEndpoint(cfg)
+	isOTLPConfigured := otlpEndpoint != ""
 
-	if isJaegerConfigured {
-		enabledExporters++
-
-		enabledTypes = append(enabledTypes, "Jaeger")
-
-		if !isOTLPConfigured {
-			isOTLPConfigured = true
-		}
-	}
-
-	if isOTLPConfigured && !isJaegerConfigured {
+	if isOTLPDirectlyConfigured {
 		enabledExporters++
 
 		enabledTypes = append(enabledTypes, "OTLP")
+	} else if isJaegerConfigured {
+		enabledExporters++
+
+		enabledTypes = append(enabledTypes, "Jaeger")
 	}
 
 	if enabledExporters > 1 {
+		selectedExporter := "stdout"
+		if !*cfg.StdoutTraceEnabled && isOTLPConfigured {
+			selectedExporter = "OTLP"
+		}
+
 		logger.Log(logger.LevelWarn, map[string]string{
 			"configured": strings.Join(enabledTypes, ", "),
-			"selected":   enabledTypes[0],
+			"selected":   selectedExporter,
 		}, nil, "Multiple trace exporters configured, using highest priority exporter")
 	}
 
@@ -238,10 +239,10 @@ func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolin
 	}
 
 	if isOTLPConfigured {
-		exporter, err := createOTLPExporter(cfg)
+		exporter, err := createOTLPExporter(cfg, otlpEndpoint)
 		if err != nil {
 			return nil, fmt.Errorf("failed to create OTLP exporter with endpoint %s: %w",
-				*cfg.OTLPEndpoint, err)
+				otlpEndpoint, err)
 		}
 
 		return exporter, nil
@@ -258,17 +259,17 @@ func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolin
 // createOTLPExporter creates an OpenTelemetry Protocol (OTLP) exporter
 // that can send traces to compatible backends like Jaeger, etc
 // OTLP-compatible systems. It supports both HTTP and gRPC transport protocols.
-func createOTLPExporter(cfg cfg.Config) (trace.SpanExporter, error) {
+func createOTLPExporter(cfg cfg.Config, endpoint string) (trace.SpanExporter, error) {
 	var client otlptrace.Client
 
 	if *cfg.UseOTLPHTTP {
 		client = otlptracehttp.NewClient(
-			otlptracehttp.WithEndpoint(*cfg.OTLPEndpoint),
+			otlptracehttp.WithEndpoint(endpoint),
 			otlptracehttp.WithInsecure(),
 		)
 	} else {
 		client = otlptracegrpc.NewClient(
-			otlptracegrpc.WithEndpoint(*cfg.OTLPEndpoint),
+			otlptracegrpc.WithEndpoint(endpoint),
 			otlptracegrpc.WithInsecure(),
 		)
 	}

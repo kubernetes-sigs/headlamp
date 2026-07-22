@@ -159,25 +159,38 @@ func (c *Config) Validate() error {
 		return errors.New("session-ttl cannot be greater than 1 year")
 	}
 
-	if c.TracingEnabled != nil && *c.TracingEnabled {
-		if c.ServiceName == "" {
-			return errors.New("service-name is required when tracing is enabled")
-		}
-
-		if (c.JaegerEndpoint != nil && *c.JaegerEndpoint == "") &&
-			(c.OTLPEndpoint != nil && *c.OTLPEndpoint == "") &&
-			(c.StdoutTraceEnabled != nil && *c.StdoutTraceEnabled) {
-			return errors.New("at least one tracing exporter (jaeger, otlp, or stdout) must be configured")
-		}
-
-		if (c.UseOTLPHTTP != nil && *c.UseOTLPHTTP) &&
-			(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") {
-			return errors.New("otlp-endpoint must be configured when use-otlp-http is enabled")
-		}
+	if err := c.validateTracingConfig(); err != nil {
+		return err
 	}
 
 	if err := c.validateClusterInventory(); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// validateTracingConfig checks tracing-related flags for consistency.
+// Extracted from Validate to keep its cyclomatic complexity within the linter limit.
+func (c *Config) validateTracingConfig() error {
+	if c.TracingEnabled == nil || !*c.TracingEnabled {
+		return nil
+	}
+
+	if c.ServiceName == "" {
+		return errors.New("service-name is required when tracing is enabled")
+	}
+
+	if (c.JaegerEndpoint == nil || strings.TrimSpace(*c.JaegerEndpoint) == "") &&
+		(c.OTLPEndpoint == nil || strings.TrimSpace(*c.OTLPEndpoint) == "") &&
+		(c.StdoutTraceEnabled == nil || !*c.StdoutTraceEnabled) {
+		return errors.New("at least one tracing exporter (jaeger, otlp, or stdout) must be configured")
+	}
+
+	if (c.UseOTLPHTTP != nil && *c.UseOTLPHTTP) &&
+		(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") &&
+		(c.JaegerEndpoint == nil || *c.JaegerEndpoint == "") {
+		return errors.New("otlp-endpoint or jaeger-endpoint must be configured when use-otlp-http is enabled")
 	}
 
 	return nil
@@ -628,6 +641,7 @@ func addTelemetryFlags(f *flag.FlagSet) {
 	f.Bool("tracing-enabled", false, "Enable distributed tracing")
 	f.Bool("metrics-enabled", false, "Enable metrics collection")
 	f.String("otlp-endpoint", "localhost:4317", "OTLP collector endpoint")
+	f.String("jaeger-endpoint", "", "Jaeger OTLP receiver endpoint (host:port); used when otlp-endpoint is empty")
 	f.Bool("use-otlp-http", false, "Use HTTP instead of gRPC for OTLP export")
 	f.Bool("stdout-trace-enabled", false, "Enable tracing output to stdout")
 	f.Float64("sampling-rate", 1.0, "Sampling rate for traces")

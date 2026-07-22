@@ -132,6 +132,17 @@ func TestParseBasic(t *testing.T) {
 	}
 }
 
+func TestParseJaegerEndpointFlag(t *testing.T) {
+	conf, err := config.Parse([]string{
+		"go run ./cmd",
+		"--jaeger-endpoint=localhost:4317",
+	})
+	require.NoError(t, err)
+	require.NotNil(t, conf)
+	require.NotNil(t, conf.JaegerEndpoint)
+	assert.Equal(t, "localhost:4317", *conf.JaegerEndpoint)
+}
+
 var ParseWithEnvTests = []struct {
 	name   string
 	args   []string
@@ -882,11 +893,12 @@ var validateTracingTests = []struct {
 			"go run ./cmd",
 			"--tracing-enabled=true",
 			"--service-name=myapp",
+			"--stdout-trace-enabled=true",
 			"--use-otlp-http=true",
 			"--otlp-endpoint=",
 		},
 		expectError:   true,
-		errorContains: "otlp-endpoint must be configured when use-otlp-http is enabled",
+		errorContains: "otlp-endpoint or jaeger-endpoint must be configured when use-otlp-http is enabled",
 	},
 	{
 		name: "tracing_disabled_no_validation",
