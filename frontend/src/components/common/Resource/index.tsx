@@ -35,6 +35,8 @@ export * from '../../deployments/CreateDeploymentForm';
 export { default as CreateDeploymentForm } from '../../deployments/CreateDeploymentForm';
 export * from '../../replicaset/CreateReplicaSetForm';
 export { default as CreateReplicaSetForm } from '../../replicaset/CreateReplicaSetForm';
+export * from '../../statefulset/CreateStatefulSetForm';
+export { default as CreateStatefulSetForm } from '../../statefulset/CreateStatefulSetForm';
 export * from '../../job/CreateJobForm';
 export { default as CreateJobForm } from '../../job/CreateJobForm';
 export * from './CreateResourceForm';
