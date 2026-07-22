@@ -198,9 +198,15 @@ serviceAccount:
 clusterRoleBinding:
   # -- Specified whether a cluster role binding should be created
   create: true
-  # -- Set name of the Cluster Role with limited permissions from you cluster
+  # -- Name of the ClusterRole to bind Headlamp's ServiceAccount to.
+  # Defaults to "view" (read-only, least-privilege) rather than "cluster-admin"
+  # for security. Headlamp relies on the user's own Bearer Token for
+  # authorization against the Kubernetes API in most setups — the pod's own
+  # ServiceAccount typically does not need write/admin access.
+  # Set to "cluster-admin" only if you rely on unsafeUseServiceAccountToken
+  # or another setup where the pod itself must act with elevated permissions.
   # for example - clusterRoleName: user-ro
-  clusterRoleName: cluster-admin
+  clusterRoleName: view
   # -- Annotations to add to the cluster role binding
   annotations: {}
 
