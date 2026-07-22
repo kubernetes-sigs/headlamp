@@ -33,7 +33,7 @@ export default function HTTPRouteList() {
         {
           id: 'hostnames',
           label: t('Hostnames'),
-          getValue: httpRoute => httpRoute.hostnames.join(''),
+          getValue: httpRoute => httpRoute.hostnames.join(', '),
           render: httpRoute => (
             <LabelListItem labels={httpRoute.hostnames.map(host => host || '*')} />
           ),

@@ -88,6 +88,7 @@
   "Session Persistence": "",
   "No session persistence configured": "",
   "Backend Traffic Policies": "",
+  "Retry {{percent}}% per {{interval}}": "",
   "Controller Name": "கன்ட்ரோலர் பெயர்",
   "Gateway Classes": "கேட்வே கிளாச்கள்",
   "Controller": "கன்ட்ரோலர்",

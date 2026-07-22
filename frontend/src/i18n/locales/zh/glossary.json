@@ -88,6 +88,7 @@
   "Session Persistence": "",
   "No session persistence configured": "",
   "Backend Traffic Policies": "",
+  "Retry {{percent}}% per {{interval}}": "",
   "Controller Name": "控制器名称",
   "Gateway Classes": "网关类别",
   "Controller": "控制器",

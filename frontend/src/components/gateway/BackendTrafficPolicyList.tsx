@@ -44,11 +44,21 @@ export default function BackendTrafficPolicyList() {
           label: t('Retry Constraint'),
           getValue: (policy: BackendTrafficPolicy) => {
             const budget = policy.retryConstraint?.budget;
-            return budget ? `Retry ${budget.percent ?? 20}% per ${budget.interval ?? '10s'}` : '—';
+            return budget
+              ? t('Retry {{percent}}% per {{interval}}', {
+                  percent: budget.percent ?? 20,
+                  interval: budget.interval ?? '10s',
+                })
+              : '—';
           },
           render: (policy: BackendTrafficPolicy) => {
             const budget = policy.retryConstraint?.budget;
-            const label = budget ? `Retry ${budget.percent}% per ${budget.interval}` : '—';
+            const label = budget
+              ? t('Retry {{percent}}% per {{interval}}', {
+                  percent: budget.percent ?? 20,
+                  interval: budget.interval ?? '10s',
+                })
+              : '—';
             return <LabelListItem labels={[label]} />;
           },
         },
