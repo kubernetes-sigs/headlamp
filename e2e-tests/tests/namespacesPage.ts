@@ -13,16 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import { AxeBuilder } from '@axe-core/playwright';
+
 import { expect, Page } from '@playwright/test';
+import { runA11yScan } from './a11yHelper';
 
 export class NamespacesPage {
   constructor(private page: Page) {}
 
   async a11y() {
-    const axeBuilder = new AxeBuilder({ page: this.page });
-    const accessibilityResults = await axeBuilder.analyze();
-    expect(accessibilityResults.violations).toStrictEqual([]);
+    await runA11yScan(this.page, expect);
   }
 
   async navigateToNamespaces() {
@@ -33,7 +32,7 @@ export class NamespacesPage {
     await this.page.waitForLoadState('load');
   }
 
-  async createNamespace(name) {
+  async createNamespace(name: string) {
     const yaml = `
     apiVersion: v1
     kind: Namespace
@@ -72,7 +71,7 @@ export class NamespacesPage {
     await this.a11y();
   }
 
-  async deleteNamespace(name) {
+  async deleteNamespace(name: string) {
     const page = this.page;
     await page.waitForSelector('span:has-text("Namespaces")');
     await page.click('span:has-text("Namespaces")');
@@ -88,8 +87,10 @@ export class NamespacesPage {
 
     await namespaceLink.click();
     await page.getByRole('button', { name: 'Delete' }).click();
-    await page.waitForSelector(`text=Are you sure you want to delete item ${name}?`);
-    await page.click('button:has-text("Yes")');
+    await expect(page.getByRole('dialog')).toBeVisible();
+    const confirmButton = page.locator('button[aria-label="confirm-button"]');
+    await expect(confirmButton).toBeVisible();
+    await confirmButton.click();
     await page.waitForSelector(`text=Deleted item ${name}`);
 
     await this.a11y();
