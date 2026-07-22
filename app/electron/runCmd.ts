@@ -32,6 +32,7 @@ import {
   removePreparedPluginScript,
   verifyPluginInstallationIntegrity,
 } from './plugin-management';
+import { setupProxyHandlers } from './proxies';
 import { isRunCommandAllowed, RunCommandGrant } from './runCommandPolicy';
 import { isTrustedDocumentUrl } from './secureStorage';
 import { loadSettings, saveSettings, SETTINGS_PATH } from './settings';
@@ -543,12 +544,10 @@ const COMMANDS_WITH_CONSENT = {
     'scriptjs minikube/manage-minikube.js',
   ],
   headlamp_ai_assistant: ['gh auth', 'az account', 'az cognitiveservices'],
-  azure_aks: ['scriptjs azure-aks/azure-api.js'],
 };
 
 const LEGACY_MINIKUBE_COMMANDS = new Set(COMMANDS_WITH_CONSENT.headlamp_minikube);
 const LEGACY_AI_ASSISTANT_COMMANDS = new Set(COMMANDS_WITH_CONSENT.headlamp_ai_assistant);
-const LEGACY_AZURE_AKS_COMMANDS = new Set(COMMANDS_WITH_CONSENT.azure_aks);
 const LEGACY_CONSENT_PLUGIN_COMMANDS = new Map<string, ReadonlySet<string>>([
   ['development\0@headlamp-k8s/minikube\0minikube', LEGACY_MINIKUBE_COMMANDS],
   ['development\0@headlamp-k8s/minikube\0headlamp_minikube', LEGACY_MINIKUBE_COMMANDS],
@@ -571,7 +570,6 @@ const LEGACY_CONSENT_PLUGIN_COMMANDS = new Map<string, ReadonlySet<string>>([
     'development\0@headlamp-k8s/ai-assistantprerelease\0headlamp_ai_assistantprerelease',
     LEGACY_AI_ASSISTANT_COMMANDS,
   ],
-  ['development\0azure-aks\0azure-aks', LEGACY_AZURE_AKS_COMMANDS],
 ]);
 
 /**
@@ -608,10 +606,6 @@ export function addRunCmdConsent(pluginInfo: { name: string }): void {
     (process.env.NODE_ENV === 'development' && pluginInfo.name === 'ai-assistant');
   if (pluginIsAiAssistant) {
     commands = COMMANDS_WITH_CONSENT.headlamp_ai_assistant;
-  }
-
-  if (pluginInfo.name === 'azure-aks') {
-    commands = COMMANDS_WITH_CONSENT.azure_aks;
   }
 
   for (const command of commands) {
@@ -1169,6 +1163,11 @@ function cryptoRandom() {
   return array[0] / (0xffffffff + 1);
 }
 
+/** Returns a 128-bit bearer capability encoded without shell-sensitive characters. */
+function cryptoRandomToken(): string {
+  return crypto.randomBytes(16).toString('hex');
+}
+
 /**
  * Sets up the IPC handlers for running commands.
  * Called in the main process to handle 'run-command' events.
@@ -1218,8 +1217,9 @@ export function setupRunCmdHandlers(
     'runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js': cryptoRandom(),
     'runCmd-gh': cryptoRandom(),
     'runCmd-az': cryptoRandom(),
-    'runCmd-scriptjs-azure-aks/azure-api.js': cryptoRandom(),
+    startClusterProxy: cryptoRandomToken(),
   };
+  const { startClusterProxy, ...commandPermissionSecrets } = permissionSecrets;
 
   const requestPermissionSecrets = () => {
     if (!pluginPermissionSecretsSent) {
@@ -1279,13 +1279,23 @@ export function setupRunCmdHandlers(
       event,
       eventData,
       mainWindow,
-      permissionSecrets,
+      commandPermissionSecrets,
       capabilityRegistry,
       trustedStartUrl,
       pluginRoots ?? defaultPluginRoots()
     );
   ipcMain.on('run-command', runCommand);
   runCmdIpcListeners.set(ipcMain, { requestPermissionSecrets, revokeCapabilities, runCommand });
+
+  setupProxyHandlers(mainWindow, ipcMain, startClusterProxy, async () => {
+    try {
+      const { getShellEnvironment } = await import('./main');
+      return await getShellEnvironment();
+    } catch (error) {
+      console.warn('Failed to get shell environment, using process.env:', error);
+      return process.env;
+    }
+  });
 }
 
 /** Revokes every command capability issued by handlers registered on this IPC instance. */
