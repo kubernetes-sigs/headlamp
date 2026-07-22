@@ -23,6 +23,7 @@ import { pathToFileURL } from 'node:url';
 import path from 'path';
 import i18n from './i18next.config';
 import { defaultPluginsDir, defaultUserPluginsDir } from './plugin-management';
+import { setupProxyHandlers } from './proxies';
 import { loadSettings, saveSettings, SETTINGS_PATH } from './settings';
 
 /**
@@ -133,8 +134,9 @@ const COMMANDS_WITH_CONSENT = {
     'scriptjs minikube/manage-minikube.js',
   ],
   headlamp_ai_assistant: ['gh auth', 'az account', 'az cognitiveservices'],
-  azure_aks: ['scriptjs azure-aks/azure-api.js'],
+  aks_desktop: ['scriptjs azure-aks/azure-api.js'],
 };
+const AKS_DESKTOP_LEGACY_SCRIPT = 'azure-aks/azure-api.js';
 
 /**
  * Adds the runCmd consent for the plugin.
@@ -172,8 +174,8 @@ export function addRunCmdConsent(pluginInfo: { name: string }): void {
     commands = COMMANDS_WITH_CONSENT.headlamp_ai_assistant;
   }
 
-  if (pluginInfo.name === 'azure-aks') {
-    commands = COMMANDS_WITH_CONSENT.azure_aks;
+  if (pluginInfo.name === 'aks-desktop') {
+    commands = COMMANDS_WITH_CONSENT.aks_desktop;
   }
 
   for (const command of commands) {
@@ -244,6 +246,13 @@ export function checkPermissionSecret(
  * @param scriptName script relative to plugins folder. "headlamp-k8s-minikube/bin/manage-minikube.js"
  */
 function getPluginsScriptPath(scriptName: string) {
+  if (scriptName === AKS_DESKTOP_LEGACY_SCRIPT) {
+    if (process.env.NODE_ENV === 'development') {
+      return path.join(defaultPluginsDir(), scriptName);
+    }
+    return path.join(process.resourcesPath, '.plugins', scriptName);
+  }
+
   const userPlugins = defaultUserPluginsDir();
   if (fs.existsSync(path.join(userPlugins, scriptName))) {
     return path.join(userPlugins, scriptName);
@@ -411,6 +420,11 @@ function cryptoRandom() {
   return array[0] / (0xffffffff + 1);
 }
 
+/** Returns a 128-bit bearer capability encoded without shell-sensitive characters. */
+function cryptoRandomToken(): string {
+  return crypto.randomBytes(16).toString('hex');
+}
+
 /**
  * Sets up the IPC handlers for running commands.
  * Called in the main process to handle 'run-command' events.
@@ -436,7 +450,9 @@ export function setupRunCmdHandlers(mainWindow: BrowserWindow | null, ipcMain: E
     'runCmd-gh': cryptoRandom(),
     'runCmd-az': cryptoRandom(),
     'runCmd-scriptjs-azure-aks/azure-api.js': cryptoRandom(),
+    startClusterProxy: cryptoRandomToken(),
   };
+  const { startClusterProxy, ...commandPermissionSecrets } = permissionSecrets;
 
   ipcMain.on('request-plugin-permission-secrets', function giveSecrets() {
     if (!pluginPermissionSecretsSent) {
@@ -453,8 +469,18 @@ export function setupRunCmdHandlers(mainWindow: BrowserWindow | null, ipcMain: E
   });
 
   ipcMain.on('run-command', (event, eventData) =>
-    handleRunCommand(event, eventData, mainWindow, permissionSecrets)
+    handleRunCommand(event, eventData, mainWindow, commandPermissionSecrets)
   );
+
+  setupProxyHandlers(mainWindow, ipcMain, startClusterProxy, async () => {
+    try {
+      const { getShellEnvironment } = await import('./main');
+      return await getShellEnvironment();
+    } catch (error) {
+      console.warn('Failed to get shell environment, using process.env:', error);
+      return process.env;
+    }
+  });
 }
 
 /**

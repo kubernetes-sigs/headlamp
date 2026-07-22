@@ -53,6 +53,7 @@ import * as Utils from '../lib/util';
 import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
 import store from '../redux/stores/store';
 import * as stateless from '../stateless/index';
+import { getClusterProxyArgValues } from './clusterProxy';
 import { Headlamp, Plugin } from './lib';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
@@ -589,6 +590,7 @@ export async function fetchAndExecutePlugins(
   // This is to prevent plugins from snooping on the permission secrets.
   const pluginDesktopApiSend = window?.desktopApi?.send;
   const pluginDesktopApiReceive = window?.desktopApi?.receive;
+  const pluginStartClusterProxy = window?.desktopApi?.startClusterProxy;
   const internalRunCommand = runCommand;
   const PrivateFunction = Function;
   const internalRunPlugin = runPlugin;
@@ -640,6 +642,7 @@ export async function fetchAndExecutePlugins(
           if (isPackage['azure-aks']) {
             secretsToReturn['runCmd-scriptjs-azure-aks/azure-api.js'] =
               secrets['runCmd-scriptjs-azure-aks/azure-api.js'];
+            secretsToReturn.startClusterProxy = secrets.startClusterProxy;
           }
 
           return secretsToReturn;
@@ -707,6 +710,13 @@ export async function fetchAndExecutePlugins(
             }
             argumentNames.push('pluginRunCommand', 'pluginPath');
             argumentValues.push(pluginRunCommand, pluginPath);
+            const [proxyArgs, proxyValues] = getClusterProxyArgValues(
+              true,
+              pluginStartClusterProxy,
+              allowedPermissions
+            );
+            argumentNames.push(...proxyArgs);
+            argumentValues.push(...proxyValues);
           }
 
           const storageNamespace = secureStorageNamespaces[index];
