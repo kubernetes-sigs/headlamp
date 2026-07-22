@@ -18,6 +18,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -123,6 +124,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		ForceTheme:                            conf.ForceTheme,
 		UnsafeUseServiceAccountToken:          conf.UnsafeUseServiceAccountToken,
 		ServiceAccountTokenPath:               conf.ServiceAccountTokenPath,
+		ExternalLinks:                         conf.ExternalLinks,
 	}
 }
 
@@ -236,9 +238,23 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		os.Exit(1)
 	}
 
+	externalLinks := []ExternalLink{}
+	if cfg.ExternalLinks != "" {
+		if err := json.Unmarshal([]byte(cfg.ExternalLinks), &externalLinks); err != nil {
+			logger.Log(logger.LevelError, nil, err, "parsing external links config")
+
+			externalLinks = []ExternalLink{}
+		}
+
+		if externalLinks == nil {
+			externalLinks = []ExternalLink{}
+		}
+	}
+
 	return &HeadlampConfig{
 		HeadlampConfig:    cfg,
 		compiledProxyURLs: compiledProxyURLs,
+		externalLinks:     externalLinks,
 	}
 }
 

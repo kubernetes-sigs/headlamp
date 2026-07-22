@@ -122,8 +122,6 @@ spec:
             runAsUser: 100
           image: "ghcr.io/headlamp-k8s/headlamp:v0.43.0"
           imagePullPolicy: IfNotPresent
-          
-          env:
           args:
             - "-in-cluster"
             - "-in-cluster-context-name=main"

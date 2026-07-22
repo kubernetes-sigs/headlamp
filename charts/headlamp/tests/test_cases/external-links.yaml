@@ -1,0 +1,7 @@
+config:
+  externalLinks:
+    - label: "Google"
+      url: "https://google.com"
+      icon: "mdi:google"
+    - label: "GitHub"
+      url: "https://github.com"

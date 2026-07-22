@@ -106,12 +106,14 @@ spec:
             runAsUser: 100
           image: "ghcr.io/headlamp-k8s/headlamp:v0.43.0"
           imagePullPolicy: IfNotPresent
+          env:
+            - name: HEADLAMP_CONFIG_EXTERNAL_LINKS
+              value: "[{\"icon\":\"mdi:google\",\"label\":\"Google\",\"url\":\"https://google.com\"},{\"label\":\"GitHub\",\"url\":\"https://github.com\"}]"
           args:
             - "-in-cluster"
             - "-in-cluster-context-name=main"
             - "-plugins-dir=/headlamp/plugins"
             - "-session-ttl=86400"
-            - "-unsafe-use-service-account-token"
             # Check if externalSecret is disabled
           ports:
             - name: http

@@ -120,14 +120,18 @@ spec:
             {{- end }}
           image: "{{ .Values.image.registry}}/{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{ if or $oidc .Values.env $staticPluginsDisabled }}
+          {{- if or $oidc.externalSecret.enabled $oidc.clientID $oidc.clientSecret $oidc.issuerURL $oidc.scopes $oidc.callbackURL $oidc.validatorClientID $oidc.validatorIssuerURL $oidc.usePKCE $oidc.useAccessToken $oidc.meUserInfoURL .Values.env .Values.config.externalLinks $staticPluginsDisabled }}
           {{- if $oidc.externalSecret.enabled }}
           # Check if externalSecret is enabled
           envFrom:
           - secretRef:
               name: {{ $oidc.externalSecret.name }}
-          {{- if or .Values.env $staticPluginsDisabled }}
+          {{- if or .Values.env .Values.config.externalLinks $staticPluginsDisabled }}
           env:
+            {{- if .Values.config.externalLinks }}
+            - name: HEADLAMP_CONFIG_EXTERNAL_LINKS
+              value: {{ toJson .Values.config.externalLinks | quote }}
+            {{- end }}
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
@@ -138,6 +142,10 @@ spec:
           {{- end }}
           {{- else }}
           env:
+            {{- if .Values.config.externalLinks }}
+            - name: HEADLAMP_CONFIG_EXTERNAL_LINKS
+              value: {{ toJson .Values.config.externalLinks | quote }}
+            {{- end }}
             {{- if $oidc.secret.create }}
             {{- if $oidc.clientID }}
             - name: OIDC_CLIENT_ID

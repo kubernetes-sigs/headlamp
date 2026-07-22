@@ -45,6 +45,7 @@ const makeStore = () => {
         defaultPodDebugImage: '',
         defaultNodeShellImage: '',
         defaultNodeShellNamespace: '',
+        externalLinks: [],
         settings: {
           tableRowsPerPageOptions: [15, 25, 50],
           timezone: 'UTC',

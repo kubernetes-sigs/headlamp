@@ -865,6 +865,7 @@
   "Main Navigation": "مرکزی نیویگیشن",
   "Navigation Tabs": "نیویگیشن ٹیبز",
   "Instances": "انسٹینسز",
+  "External Links": "",
   "Cluster version upgraded to {{ gitVersion }}": "کلسٹر ورژن {{ gitVersion }} تک اپ گریڈ ہو گیا",
   "Cluster version downgraded to {{ gitVersion }}": "کلسٹر ورژن {{ gitVersion }} تک ڈاؤن گریڈ ہو گیا",
   "Controlled Resources": "کنٹرول شدہ وسائل",
