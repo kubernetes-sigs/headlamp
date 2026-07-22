@@ -117,6 +117,7 @@ export default function ObjectEventList(props: ObjectEventListProps) {
                   label={label}
                   hoverInfo={localeDate(item.lastOccurrence)}
                   icon="mdi:calendar"
+                  labelProps={{ sx: { whiteSpace: 'normal', overflowWrap: 'anywhere' } }}
                 />
               );
             },

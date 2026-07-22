@@ -457,7 +457,7 @@
                       >
                         <p
                           aria-label="2022-10-20T11:11:01.000Z"
-                          class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
                           90d
@@ -473,7 +473,7 @@
                       >
                         <p
                           aria-label="the HPA controller was able to get the target's current scale"
-                          class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
                           SucceededGetScale
@@ -502,7 +502,7 @@
                       >
                         <p
                           aria-label="2022-10-26T12:53:22.000Z"
-                          class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
                           90d
@@ -518,7 +518,7 @@
                       >
                         <p
                           aria-label="the HPA was unable to compute the replica count: failed to get memory utilization: unable to get metrics for resource memory: no metrics returned from resource metrics API"
-                          class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
                           FailedGetResourceMetric
@@ -547,7 +547,7 @@
                       >
                         <p
                           aria-label="2022-10-20T11:11:01.000Z"
-                          class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
                           90d
@@ -563,7 +563,7 @@
                       >
                         <p
                           aria-label="the desired count is within the acceptable range"
-                          class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
                           DesiredWithinRange

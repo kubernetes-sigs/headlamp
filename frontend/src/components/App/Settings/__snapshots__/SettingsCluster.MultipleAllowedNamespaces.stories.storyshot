@@ -650,7 +650,7 @@
           >
             <p
               aria-label="Ephemeral debug containers cannot be removed via Kubernetes API. They will remain in the pod specification even after the terminal closes. To remove them, the pod must be recreated."
-              class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+              class="MuiTypography-root MuiTypography-body1 css-1t59wre-MuiTypography-root"
               data-mui-internal-clone-element="true"
             >
               <span
