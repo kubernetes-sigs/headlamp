@@ -14,9 +14,39 @@
  * limitations under the License.
  */
 
+import Container from '@mui/material/Container';
 import { Meta, StoryFn } from '@storybook/react';
-import { TestContext } from '../../test';
+import { http, HttpResponse } from 'msw';
+import type { KubeNamespace } from '../../lib/k8s/namespace';
+import { API_BASE, TestContext } from '../../test';
 import NamespacesList from './List';
+
+const items: KubeNamespace[] = [
+  {
+    apiVersion: 'v1',
+    kind: 'Namespace',
+    metadata: {
+      name: 'default',
+      creationTimestamp: '2024-01-01T00:00:00Z',
+      uid: 'ns-001',
+    },
+    status: {
+      phase: 'Active',
+    },
+  },
+  {
+    apiVersion: 'v1',
+    kind: 'Namespace',
+    metadata: {
+      name: 'terminating-ns',
+      creationTimestamp: '2024-01-02T00:00:00Z',
+      uid: 'ns-002',
+    },
+    status: {
+      phase: 'Terminating',
+    },
+  },
+];
 
 export default {
   title: 'Namespace/ListView',
@@ -26,7 +56,9 @@ export default {
     Story => {
       return (
         <TestContext>
-          <Story />
+          <Container maxWidth="xl">
+            <Story />
+          </Container>
         </TestContext>
       );
     },
@@ -38,3 +70,47 @@ const Template: StoryFn = () => {
 };
 
 export const Regular = Template.bind({});
+Regular.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/api/v1/namespaces`, () =>
+          HttpResponse.json({
+            kind: 'NamespaceList',
+            items,
+            metadata: {},
+          })
+        ),
+      ],
+    },
+  },
+};
+
+const noStatusItems: Partial<KubeNamespace>[] = [
+  {
+    apiVersion: 'v1',
+    kind: 'Namespace',
+    metadata: {
+      name: 'no-status-ns',
+      creationTimestamp: '2024-01-01T00:00:00Z',
+      uid: 'ns-003',
+    },
+  },
+];
+
+export const NoStatus = Template.bind({});
+NoStatus.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/api/v1/namespaces`, () =>
+          HttpResponse.json({
+            kind: 'NamespaceList',
+            items: noStatusItems,
+            metadata: {},
+          })
+        ),
+      ],
+    },
+  },
+};
