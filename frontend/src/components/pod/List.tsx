@@ -98,7 +98,7 @@ export function makePodStatusLabel(pod: Pod, showContainerStatus: boolean, t: TF
         <Box display="inline">
           <StatusLabel status={status}>
             {(status === 'warning' || status === 'error') && (
-              <Icon aria-label="hidden" icon="mdi:alert-outline" width="1.2rem" height="1.2rem" />
+              <Icon aria-hidden="true" icon="mdi:alert-outline" width="1.2rem" height="1.2rem" />
             )}
             {reason}
           </StatusLabel>
