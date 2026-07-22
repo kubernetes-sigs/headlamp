@@ -1,0 +1,13 @@
+# Helm values for Headlamp.
+#
+# Headlamp does not participate in the OIDC flow; OAuth2-Proxy handles auth
+# and forwards an Authorization: Bearer <id_token> header to Headlamp.
+# In these scripts the API server has no oidc-* flags, so K8s access runs
+# under Headlamp's in-cluster ServiceAccount (id_token not validated).
+#
+# No config.oidc.* settings are needed.
+config: {}
+
+service:
+  type: ClusterIP
+  port: 80

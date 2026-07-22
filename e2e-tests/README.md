@@ -65,6 +65,58 @@ npx playwright test -g "404 page is present"
 npx playwright test -g "404 page is present" --headed
 ```
 
+## OAuth2-Proxy + Dex e2e test (opt-in)
+
+The spec `tests/dexOauth2Proxy.spec.ts` exercises the
+[Headlamp + OAuth2-Proxy + Dex tutorial](../docs/installation/in-cluster/dex/index.md)
+end-to-end against the runnable
+[`test-scripts/`](../docs/installation/in-cluster/dex/test-scripts/)
+stack (Minikube + Dex + Headlamp + OAuth2-Proxy). It covers the
+unauthenticated splash, deep-link gating, `/ping` liveness, invalid
+credentials, full sign-in, the `/oauth2/userinfo` endpoint, session
+persistence across reload, `/oauth2/sign_out`, post-sign-in deep-link
+redirect preservation, OAuth2-Proxy session-cookie `HttpOnly` /
+`SameSite=Lax` flags, cross-browser-context session isolation,
+forged-`Authorization`-header bypass attempts, a multi-user check
+(a second static Dex user signs in and `/oauth2/userinfo` reflects
+that identity), and a CSRF-state-tampering check (a direct hit on
+`/oauth2/callback` with a forged `state` is rejected). It is **opt-in** —
+the whole `describe` block is skipped unless
+`HEADLAMP_TEST_DEX_OAUTH2_PROXY=1` is set — because the stack takes
+several minutes to bring up.
+
+Two modes are supported:
+
+1. **Have the test bring the stack up and tear it down (recommended):**
+
+   ```shell
+   export HEADLAMP_TEST_DEX_OAUTH2_PROXY=1
+   export HEADLAMP_TEST_DEX_OAUTH2_PROXY_MANAGE=1
+   npx playwright test tests/dexOauth2Proxy.spec.ts
+   ```
+
+   The test runs
+   `docs/installation/in-cluster/dex/test-scripts/run.sh`
+   in `beforeAll` and `cleanup.sh` in `afterAll`.
+
+2. **Use a stack you already brought up:**
+
+   ```shell
+   cd docs/installation/in-cluster/dex/test-scripts
+   ./run.sh
+   cd -
+   export HEADLAMP_TEST_DEX_OAUTH2_PROXY=1
+   npx playwright test tests/dexOauth2Proxy.spec.ts
+   # …when done:
+   docs/installation/in-cluster/dex/test-scripts/cleanup.sh
+   ```
+
+The test points at `http://localhost:8080` (the port `run.sh`
+port-forwards to OAuth2-Proxy) and signs in to Dex as
+`admin@example.com` / `password` (the static user from
+`dex-config.yaml`). Override with `HEADLAMP_TEST_DEX_OAUTH2_PROXY_URL`,
+`HEADLAMP_TEST_DEX_USER` and `HEADLAMP_TEST_DEX_PASSWORD` if needed.
+
 ## Recommended configuration
 
 ### Playwright UI Mode
