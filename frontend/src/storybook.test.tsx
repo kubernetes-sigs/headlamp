@@ -131,6 +131,14 @@ function replaceUseId(node: any) {
         'xterm-dom-renderer-owner'
       );
     }
+
+    // Also replace in <style> tags where xterm injects CSS rules
+    if (node.nodeName.toLowerCase() === 'style' && node.textContent) {
+      node.textContent = node.textContent.replace(
+        /xterm-dom-renderer-owner-\d+/g,
+        'xterm-dom-renderer-owner'
+      );
+    }
   }
 
   // Recursively update child nodes
