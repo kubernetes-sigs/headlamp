@@ -267,7 +267,8 @@ export function getStatelessClusterKubeConfigs(): Promise<string[]> {
          * The result is the cursor. It is used to iterate through the object store.
          * The cursor is null when there are no more objects to iterate through.
          * */
-        store.openCursor().onsuccess = function storeSuccess(event: Event) {
+        const cursorRequest = store.openCursor();
+        cursorRequest.onsuccess = function storeSuccess(event: Event) {
           const successEvent = event as CursorSuccessEvent;
           const cursor = successEvent.target.result;
           if (cursor) {
@@ -275,6 +276,8 @@ export function getStatelessClusterKubeConfigs(): Promise<string[]> {
             cursor.continue();
           }
         };
+        cursorRequest.onerror = (event: Event) =>
+          handleDataBaseError(event as DatabaseErrorEvent, reject);
       } else {
         reject('Failed to open IndexedDB');
       }
@@ -449,34 +452,35 @@ export function fetchStatelessClusterKubeConfigs(dispatch: any): Promise<void> {
 }
 
 async function refreshStatelessClusterKubeConfigs(dispatch: any) {
-  const config = await getStatelessClusterKubeConfigs();
+  try {
+    const config = await getStatelessClusterKubeConfigs();
 
-  if (!config || config.length === 0) {
-    const statelessClusters = store.getState().config.statelessClusters;
-    if (statelessClusters && Object.keys(statelessClusters).length > 0) {
-      dispatch(setStatelessConfig({ statelessClusters: {} }));
+    if (!config || config.length === 0) {
+      const statelessClusters = store.getState().config.statelessClusters;
+      if (statelessClusters === null || Object.keys(statelessClusters).length > 0) {
+        dispatch(setStatelessConfig({ statelessClusters: {} }));
+      }
+      return;
     }
-    return;
-  }
 
-  const headers = addBackstageAuthHeaders(JSON_HEADERS);
-  const clusterReq = {
-    kubeconfigs: config,
-  };
+    const headers = addBackstageAuthHeaders(JSON_HEADERS);
+    const clusterReq = {
+      kubeconfigs: config,
+    };
 
-  return request(
-    '/parseKubeConfig',
-    {
-      method: 'POST',
-      body: JSON.stringify(clusterReq),
-      headers: {
-        ...headers,
-        ...getHeadlampAPIHeaders(),
+    const parsed = (await request(
+      '/parseKubeConfig',
+      {
+        method: 'POST',
+        body: JSON.stringify(clusterReq),
+        headers: {
+          ...headers,
+          ...getHeadlampAPIHeaders(),
+        },
       },
-    },
-    false,
-    false
-  ).then(async (parsed: ParsedConfig) => {
+      false,
+      false
+    )) as ParsedConfig;
     if (!_.isEqual(config, await getStatelessClusterKubeConfigs())) {
       return;
     }
@@ -486,7 +490,12 @@ async function refreshStatelessClusterKubeConfigs(dispatch: any) {
     if (isEqualClusterConfigs(statelessClusters, nextState.statelessClusters)) {
       dispatch(setStatelessConfig(nextState));
     }
-  });
+  } catch (error) {
+    console.error('Error getting stateless config:', error);
+    if (store.getState().config.statelessClusters === null) {
+      dispatch(setStatelessConfig({ statelessClusters: {} }));
+    }
+  }
 }
 
 const exportFunctions = {

@@ -130,6 +130,7 @@ describe('plugin initialization', () => {
   afterEach(() => {
     window.plugins = originalPlugins;
     vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
     vi.restoreAllMocks();
   });
 
@@ -161,6 +162,60 @@ describe('plugin initialization', () => {
     expect(onSettingsChange).not.toHaveBeenCalled();
     expect(onIncompatible).not.toHaveBeenCalled();
   });
+
+  it.each([
+    ['development', 'development', 'function'],
+    ['shipped', 'shipped', 'function'],
+    ['user', 'development', 'undefined'],
+    ['user', 'shipped', 'undefined'],
+  ] as const)(
+    'grants proxy arguments only for matching %s/%s metadata',
+    async (type, source, expected) => {
+      const callbacks = new Map<string, (value: Record<string, unknown>) => void>();
+      vi.stubGlobal('desktopApi', {
+        platform: 'darwin',
+        isDevelopment: true,
+        startClusterProxy: vi.fn(),
+        getDevelopmentPluginsEnabled: async () => true,
+        receive: (channel: string, callback: (value: Record<string, unknown>) => void) =>
+          callbacks.set(channel, callback),
+        send: () =>
+          callbacks.get('plugin-permission-secrets')?.({
+            startClusterProxy: '0123456789abcdef0123456789abcdef',
+          }),
+      });
+      vi.stubEnv('NODE_ENV', 'development');
+      vi.stubGlobal('__proxyCapabilityKind', 'not-run');
+      vi.stubGlobal(
+        'fetch',
+        vi.fn<typeof globalThis.fetch>().mockImplementation(async input => {
+          const url = String(input);
+          if (url.endsWith('/plugins')) {
+            return new Response(
+              JSON.stringify([{ path: 'plugins/aks-desktop', name: 'aks-desktop', type, source }])
+            );
+          }
+          if (url.endsWith('/main.js')) {
+            return new Response('globalThis.__proxyCapabilityKind = typeof startClusterProxy;');
+          }
+          if (url.endsWith('/package.json')) {
+            return new Response(
+              JSON.stringify({
+                name: 'aks-desktop',
+                version: '1.0.0',
+                type: 'development',
+                devDependencies: { '@kinvolk/headlamp-plugin': '0.13.0' },
+              })
+            );
+          }
+          throw new Error(`Unexpected plugin request: ${url}`);
+        })
+      );
+      window.plugins = {};
+      await fetchAndExecutePlugins([], vi.fn(), vi.fn());
+      expect(Reflect.get(globalThis, '__proxyCapabilityKind')).toBe(expected);
+    }
+  );
 
   it('gives each plugin a registry and continues after one plugin fails', async () => {
     const error = new Error('initialization failed');
