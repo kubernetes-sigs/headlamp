@@ -1035,6 +1035,27 @@ export function defaultUserPluginsDir() {
 }
 
 /**
+ * Reports whether targetPath resolves to a location strictly inside baseDir.
+ *
+ * Used to validate renderer-supplied path segments (e.g. a plugin folder
+ * name) before they're used in filesystem operations, so a value like
+ * "../../../../etc" can't escape the intended directory.
+ *
+ * @param baseDir - The directory targetPath is expected to stay within.
+ * @param targetPath - The resolved path to check.
+ * @returns {boolean} True if targetPath is a strict subpath of baseDir.
+ */
+export function isPathWithinDirectory(baseDir: string, targetPath: string): boolean {
+  const relative = path.relative(baseDir, targetPath);
+  return (
+    relative !== '' &&
+    relative !== '..' &&
+    !relative.startsWith(`..${path.sep}`) &&
+    !path.isAbsolute(relative)
+  );
+}
+
+/**
  * Checks if a given folder is a valid plugin bin folder.
  *
  * @param {string} folder - The path to the folder to check. Should not include /bin in the path.
