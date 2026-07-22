@@ -103,8 +103,10 @@ func (r *restConfigGetter) ToDiscoveryClient() (discovery.CachedDiscoveryInterfa
 	// double it just so we don't end up here again for a while.  This config is only used for discovery.
 	config.Burst = 100
 
-	discoveryClient, _ := discovery.NewDiscoveryClientForConfig(config)
-
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
+		return nil, err
+	}
 	return memory.NewMemCacheClient(discoveryClient), nil
 }
 
