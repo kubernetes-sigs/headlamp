@@ -504,9 +504,8 @@ async function start() {
   async function copyToPluginsFolder(viteConfig) {
     const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 
-    // @todo: should the whole package name be used here,
-    //    and the load be fixed to use? What about namespace packages?
-    const packageName = packageJson.name.split('/').splice(-1)[0];
+    // Support scoped packages safely by mapping them to flat naming (e.g. @org/plugin -> org_plugin)
+    const packageName = packageJson.name.replace('@', '').replace('/', '_');
     const paths = envPaths('Headlamp', { suffix: '' });
     const configDir = fs.existsSync(paths.data) ? paths.data : paths.config;
 

@@ -125,6 +125,14 @@ export type PluginInfo = {
   displaySettingsComponentWithSaveButton?: boolean;
 };
 
+/**
+ * Returns the folder name of a plugin on the local filesystem.
+ * Handles scoped packages cleanly by mapping them to flat naming (e.g. @org/plugin -> org-plugin).
+ */
+export function getPluginFolderName(plugin: PluginInfo): string {
+  return plugin.folderName || plugin.name.replace('@', '').replace('/', '-');
+}
+
 export interface PluginsState {
   /** Have plugins finished executing? */
   loaded: boolean;
