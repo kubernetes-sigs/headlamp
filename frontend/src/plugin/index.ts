@@ -53,16 +53,20 @@ import * as Utils from '../lib/util';
 import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
 import store from '../redux/stores/store';
 import * as stateless from '../stateless/index';
-import { getClusterProxyArgValues } from './clusterProxy';
+import {
+  getAksDesktopCommandPermissions,
+  getClusterProxyArgValues,
+  isTrustedClusterProxyPlugin,
+} from './clusterProxy';
 import { Headlamp, Plugin } from './lib';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
 import { PluginInfo } from './pluginsSlice';
 import Registry, * as registryToExport from './registry';
-import { getInfoForRunningPlugins, identifyPackages, runPlugin, runPluginProps } from './runPlugin';
+import { getInfoForRunningPlugins, identifyPackages, runPlugin } from './runPlugin';
 import { createPluginSecureStorage, getPluginSecureStorageNamespace } from './secureStorage';
 
-window.pluginLib = {
+const pluginLib = {
   ApiProxy,
   ReactMonacoEditor: {
     ...ReactMonacoEditor,
@@ -109,6 +113,18 @@ window.pluginLib = {
   Activity,
   stateless,
 };
+Object.defineProperty(pluginLib, 'registerClusterProviderPreOpen', {
+  configurable: false,
+  enumerable: true,
+  value: registryToExport.registerClusterProviderPreOpen,
+  writable: false,
+});
+Object.defineProperty(window, 'pluginLib', {
+  configurable: false,
+  enumerable: true,
+  value: pluginLib,
+  writable: false,
+});
 
 // backwards compat.
 window.pluginLib.MuiCore = window.pluginLib.MuiMaterial;
@@ -336,26 +352,6 @@ export function updateSettingsPackages(
   });
 }
 
-/**
- * Runs a plugin with the given info.
- *
- * This is not a closure, so it doens't have access to the variables
- *  in the scope of the function that called it.
- */
-function runPluginInner(info: runPluginProps) {
-  // We avoid destructuring here in case that is overridden by a plugin.
-  const source = info[0];
-  const packageName = info[1];
-  const packageVersion = info[2];
-  const handleError = info[3];
-  const PrivateFunction = info[4];
-  const args = info[5];
-  const values = info[6];
-  const privateRunPlugin = info[7];
-
-  privateRunPlugin(source, packageName, packageVersion, handleError, PrivateFunction, args, values);
-}
-
 const PLUGIN_LOADING_ERROR = HeadlampEventType.PLUGIN_LOADING_ERROR;
 const consoleError = console.error;
 const storeDispatch = store.dispatch;
@@ -506,6 +502,15 @@ export async function fetchAndExecutePlugins(
   const sources = await sourcesPromise;
   const packageInfos = await packageInfosPromise;
   const permissionSecrets = await permissionSecretsPromise;
+  const commandPermissionSecrets = Object.fromEntries(
+    Object.entries(permissionSecrets).filter((entry): entry is [string, number] =>
+      Number.isFinite(entry[1])
+    )
+  );
+  const clusterProxyCapability =
+    typeof permissionSecrets.startClusterProxy === 'string'
+      ? permissionSecrets.startClusterProxy
+      : undefined;
 
   // Update settings to include all plugin versions (by name + type)
   let updatedSettingsPackages = updateSettingsPackages(packageInfos, settingsPackages);
@@ -613,7 +618,7 @@ export async function fetchAndExecutePlugins(
         pluginPath: pluginPathsToExecute[index],
         packageName: packageInfosToExecute[index].name,
         packageVersion: packageInfosToExecute[index].version || '',
-        permissionSecrets,
+        permissionSecrets: commandPermissionSecrets,
         handleError: handlePluginRunError,
         getAllowedPermissions: (pluginName, pluginPath, secrets): Record<string, number> => {
           const secretsToReturn: Record<string, number> = {};
@@ -639,11 +644,15 @@ export async function fetchAndExecutePlugins(
             secretsToReturn['runCmd-az'] = secrets['runCmd-az'];
           }
 
-          if (isPackage['azure-aks']) {
-            secretsToReturn['runCmd-scriptjs-azure-aks/azure-api.js'] =
-              secrets['runCmd-scriptjs-azure-aks/azure-api.js'];
-            secretsToReturn.startClusterProxy = secrets.startClusterProxy;
-          }
+          Object.assign(
+            secretsToReturn,
+            getAksDesktopCommandPermissions(
+              isPackage['aks-desktop'],
+              packageInfosToExecute[index].source,
+              isDevelopmentMode,
+              secrets
+            )
+          );
 
           return secretsToReturn;
         },
@@ -652,6 +661,11 @@ export async function fetchAndExecutePlugins(
           const argumentValues: unknown[] = [];
           // allowedPermissions is the return value of getAllowedPermissions
           const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
+          const isTrustedAksDesktop = isTrustedClusterProxyPlugin(
+            isPackage['aks-desktop'],
+            packageInfosToExecute[index].source,
+            isDevelopmentMode
+          );
           if (isPackage['@headlamp-k8s/minikube']) {
             // We construct a pluginRunCommand that has private
             //  - permission secrets
@@ -693,7 +707,7 @@ export async function fetchAndExecutePlugins(
             argumentValues.push(pluginRunCommand, pluginPath);
           }
 
-          if (isPackage['azure-aks']) {
+          if (isPackage['aks-desktop']) {
             function pluginRunCommand(
               command: 'scriptjs',
               args: string[],
@@ -711,9 +725,9 @@ export async function fetchAndExecutePlugins(
             argumentNames.push('pluginRunCommand', 'pluginPath');
             argumentValues.push(pluginRunCommand, pluginPath);
             const [proxyArgs, proxyValues] = getClusterProxyArgValues(
-              true,
+              isTrustedAksDesktop,
               pluginStartClusterProxy,
-              allowedPermissions
+              clusterProxyCapability
             );
             argumentNames.push(...proxyArgs);
             argumentValues.push(...proxyValues);
@@ -746,7 +760,9 @@ export async function fetchAndExecutePlugins(
     return 0;
   });
 
-  infoForRunningPlugins.forEach(runPluginInner);
+  infoForRunningPlugins.forEach(info => {
+    info[7](info[0], info[1], info[2], info[3], info[4], info[5], info[6]);
+  });
 
   // Initialize plugin i18n after plugins are loaded
   await initializePluginsI18n(packageInfos, pluginPaths);
@@ -816,11 +832,11 @@ async function afterPluginsRun(
  *
  * @returns promise with permissions secrets like { 'runCmd-minikube': 1235555 }
  */
-export async function permissionSecretsFromApp(): Promise<Record<string, number>> {
+export async function permissionSecretsFromApp(): Promise<Record<string, unknown>> {
   const { desktopApi } = window;
   if (desktopApi) {
     return new Promise(resolve => {
-      desktopApi.receive('plugin-permission-secrets', (secrets: Record<string, number>) => {
+      desktopApi.receive('plugin-permission-secrets', (secrets: Record<string, unknown>) => {
         resolve(secrets);
       });
       desktopApi.send('request-plugin-permission-secrets');

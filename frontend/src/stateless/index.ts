@@ -212,7 +212,7 @@ export function storeStatelessClusterKubeconfig(kubeconfig: string): Promise<voi
 
     // The onerror event is fired when the database is opened.
     // This is where you handle errors.
-    request.onerror = handleDataBaseError;
+    request.onerror = (event: Event) => handleDataBaseError(event as DatabaseErrorEvent, reject);
   });
 }
 
@@ -266,7 +266,7 @@ export function getStatelessClusterKubeConfigs(): Promise<string[]> {
 
     // The onerror event is fired when the database is opened.
     // This is where you handle errors.
-    request.onerror = handleDataBaseError;
+    request.onerror = (event: Event) => handleDataBaseError(event as DatabaseErrorEvent, reject);
   });
 }
 
@@ -416,45 +416,47 @@ export function isEqualClusterConfigs(
  * if the present stored config is different from the fetched one.
  */
 export async function fetchStatelessClusterKubeConfigs(dispatch: any) {
-  const config = await getStatelessClusterKubeConfigs();
+  try {
+    const config = await getStatelessClusterKubeConfigs();
 
-  if (!config || config.length === 0) {
+    if (!config || config.length === 0) {
+      const statelessClusters = store.getState().config.statelessClusters;
+      if (statelessClusters === null || Object.keys(statelessClusters).length > 0) {
+        dispatch(setStatelessConfig({ statelessClusters: {} }));
+      }
+      return;
+    }
+
+    const headers = addBackstageAuthHeaders(JSON_HEADERS);
+    const clusterReq = {
+      kubeconfigs: config,
+    };
+
+    const parsedConfig = (await request(
+      '/parseKubeConfig',
+      {
+        method: 'POST',
+        body: JSON.stringify(clusterReq),
+        headers: {
+          ...headers,
+          ...getHeadlampAPIHeaders(),
+        },
+      },
+      false,
+      false
+    )) as ParsedConfig;
+    const nextState = toStatelessConfigState(parsedConfig);
     const statelessClusters = store.getState().config.statelessClusters;
-    if (statelessClusters && Object.keys(statelessClusters).length > 0) {
+
+    if (isEqualClusterConfigs(statelessClusters, nextState.statelessClusters)) {
+      dispatch(setStatelessConfig(nextState));
+    }
+  } catch (error) {
+    console.error('Error getting stateless config:', error);
+    if (store.getState().config.statelessClusters === null) {
       dispatch(setStatelessConfig({ statelessClusters: {} }));
     }
-    return;
   }
-
-  const headers = addBackstageAuthHeaders(JSON_HEADERS);
-  const clusterReq = {
-    kubeconfigs: config,
-  };
-
-  return request(
-    '/parseKubeConfig',
-    {
-      method: 'POST',
-      body: JSON.stringify(clusterReq),
-      headers: {
-        ...headers,
-        ...getHeadlampAPIHeaders(),
-      },
-    },
-    false,
-    false
-  )
-    .then((config: ParsedConfig) => {
-      const nextState = toStatelessConfigState(config);
-      const statelessClusters = store.getState().config.statelessClusters;
-
-      if (isEqualClusterConfigs(statelessClusters, nextState.statelessClusters)) {
-        dispatch(setStatelessConfig(nextState));
-      }
-    })
-    .catch((err: Error) => {
-      console.error('Error getting config:', err);
-    });
 }
 
 const exportFunctions = {

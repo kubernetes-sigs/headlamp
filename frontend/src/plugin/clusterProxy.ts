@@ -28,33 +28,69 @@ export interface ClusterProxyTarget {
 export interface StartClusterProxyResult {
   /** Whether the proxy process started or was already running. */
   success: boolean;
+  /** Provider endpoint made available after readiness, when needed by the caller. */
+  endpoint?: {
+    /** Loopback host owned by Headlamp's proxy lifecycle. */
+    host: '127.0.0.1';
+    /** Allocated local port forwarded to the provider endpoint. */
+    port: number;
+  };
   /** Failure detail when startup did not succeed. */
   error?: string;
 }
 
-/** Proxy function injected into the authorized Azure AKS plugin. */
+/** Proxy function injected into the authorized AKS Desktop plugin. */
 export type StartClusterProxy = (target: ClusterProxyTarget) => Promise<StartClusterProxyResult>;
 
 type DesktopStartClusterProxy = (
   target: ClusterProxyTarget,
-  capabilitySecret: number
+  capabilitySecret: string
 ) => Promise<StartClusterProxyResult>;
+
+/** Returns whether desktop-attested provenance permits the Azure proxy capability. */
+export function isTrustedClusterProxyPlugin(
+  isAksDesktop: boolean,
+  source: 'development' | 'user' | 'shipped' | undefined,
+  isDevelopmentMode: boolean
+): boolean {
+  return isAksDesktop && (source === 'shipped' || (source === 'development' && isDevelopmentMode));
+}
+
+/** Returns legacy command permissions only for a trusted AKS Desktop install. */
+export function getAksDesktopCommandPermissions(
+  isAksDesktop: boolean,
+  source: 'development' | 'user' | 'shipped' | undefined,
+  isDevelopmentMode: boolean,
+  permissionSecrets: Record<string, number>
+): Record<string, number> {
+  if (!isTrustedClusterProxyPlugin(isAksDesktop, source, isDevelopmentMode)) {
+    return {};
+  }
+
+  const permissionName = 'runCmd-scriptjs-azure-aks/azure-api.js';
+  const permissionSecret = permissionSecrets[permissionName];
+  return Number.isFinite(permissionSecret) ? { [permissionName]: permissionSecret } : {};
+}
 
 /**
  * Builds plugin arguments for the scoped Azure proxy capability.
  *
- * @param isAzureAks - Whether both package name and installation path identify Azure AKS.
+ * @param isAksDesktop - Whether package name and installation path identify AKS Desktop.
  * @param desktopStartClusterProxy - Private preload bridge captured before plugins run.
- * @param allowedPermissions - Secrets already filtered for the identified plugin.
+ * @param capabilitySecret - Desktop-generated bearer granted only to trusted AKS Desktop installs.
  * @returns Matching argument names and values, or empty arrays for unauthorized callers.
  */
 export function getClusterProxyArgValues(
-  isAzureAks: boolean,
+  isAksDesktop: boolean,
   desktopStartClusterProxy: DesktopStartClusterProxy | undefined,
-  allowedPermissions: Record<string, number>
+  capabilitySecret: string | undefined
 ): [string[], unknown[]] {
-  const capabilitySecret = allowedPermissions.startClusterProxy;
-  if (!isAzureAks || !desktopStartClusterProxy || typeof capabilitySecret !== 'number') {
+  if (
+    !isAksDesktop ||
+    !desktopStartClusterProxy ||
+    typeof capabilitySecret !== 'string' ||
+    !/^[0-9a-f]{32}$/.test(capabilitySecret)
+  ) {
     return [[], []];
   }
 

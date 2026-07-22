@@ -50,6 +50,58 @@ export type ClusterEmptyStateComponent = (
 ) => React.ReactElement | null;
 
 /**
+ * Context passed to a {@link ClusterPreOpenHook} when a cluster is about to be opened.
+ */
+export interface ClusterPreOpenContext {
+  /** The name of the cluster being opened. */
+  readonly cluster: string;
+  /**
+   * The cluster's configuration, as known to the app, or `null` if unavailable.
+   * Typed `unknown` so this slice does not depend on the k8s cluster
+   * types while still requiring hook authors to narrow before use.
+   */
+  readonly clusterConf: unknown;
+  /**
+   * Aborts when preparation is no longer wanted — the user left the cluster
+   * before the hooks finished. Long-running hooks should pass it to whatever
+   * they await, or check it between steps, so abandoned preparation does not
+   * keep running; the app stops waiting on it either way.
+   */
+  readonly signal?: AbortSignal;
+  /**
+   * Reports human-readable progress for the "connecting" popup shown while the
+   * cluster is being prepared (e.g. "Starting proxy…", "Verifying connection…").
+   * Optional — hooks that don't report progress just show a generic message.
+   */
+  readonly reportProgress?: (message: string) => void;
+}
+
+/**
+ * A hook run once, before a cluster's views are rendered.
+ *
+ * Use it to perform any asynchronous preparation a cluster needs before it can
+ * be used — starting a proxy/tunnel, refreshing credentials, writing a
+ * kubeconfig context, warming a cache, etc. Hooks run for each single-cluster
+ * open; combined multi-cluster views currently skip preparation. A hook that
+ * only applies to certain clusters should inspect the context and resolve
+ * immediately for the ones it does not own.
+ *
+ * The returned promise gates entry to the cluster: while it is pending the app
+ * shows a neutral loading state, and if it rejects the thrown error's message
+ * is surfaced to the user with a retry affordance. Resolve to allow the cluster
+ * to open.
+ */
+export type ClusterPreOpenHook = (context: ClusterPreOpenContext) => Promise<void>;
+
+/** State owned by one active cluster pre-open run. */
+export interface ClusterPreparingState {
+  /** Unique identifier that prevents an abandoned run from mutating a newer run. */
+  runId: string;
+  /** Latest human-readable progress reported by the run. */
+  message: string;
+}
+
+/**
  * Information about a cluster provider, that is shown on the add cluster page.
  */
 export interface ClusterProviderInfo {
@@ -74,6 +126,16 @@ export interface ClusterProviderSliceState {
   clusterStatuses: ClusterStatusComponent[];
   /** Optional product-owned replacement for the Home page's empty cluster state. */
   clusterEmptyState: ClusterEmptyStateComponent | null;
+  /** Revision incremented when the private pre-open hook registry changes. */
+  preOpenHooksRevision: number;
+  /**
+   * Clusters currently being prepared by pre-open hooks. Each key is a cluster
+   * name and its value identifies the active run and its optional latest progress
+   * message. Presence of a cluster name in this map means "preparation in
+   * progress" — used to show the connecting popup and suppress the app's "Lost
+   * connection" health banner during preparation.
+   */
+  preparing: Record<string, ClusterPreparingState>;
 }
 
 export const initialState: ClusterProviderSliceState = {
@@ -82,6 +144,8 @@ export const initialState: ClusterProviderSliceState = {
   clusterProviders: [],
   clusterStatuses: [],
   clusterEmptyState: null,
+  preOpenHooksRevision: 0,
+  preparing: Object.create(null),
 };
 
 const clusterProviderSlice = createSlice({
@@ -103,6 +167,34 @@ const clusterProviderSlice = createSlice({
     setClusterEmptyState(state, action: PayloadAction<ClusterEmptyStateComponent>) {
       state.clusterEmptyState = action.payload;
     },
+    clusterPreOpenHooksChanged(state) {
+      state.preOpenHooksRevision += 1;
+    },
+    /** Starts a new preparation run, replacing ownership from an abandoned run. */
+    startClusterPreparing(state, action: PayloadAction<{ cluster: string; runId: string }>) {
+      // Ensure a null-prototype map, including when rehydrating persisted/older
+      // state that predates this field or was stored as a plain object.
+      if (!state.preparing || Object.getPrototypeOf(state.preparing) !== null) {
+        state.preparing = Object.assign(Object.create(null), state.preparing);
+      }
+      state.preparing[action.payload.cluster] = { runId: action.payload.runId, message: '' };
+    },
+    /** Updates progress only while the reporting run still owns the cluster. */
+    setClusterPreparing(
+      state,
+      action: PayloadAction<{ cluster: string; runId: string; message: string }>
+    ) {
+      const current = state.preparing?.[action.payload.cluster];
+      if (current?.runId === action.payload.runId) {
+        current.message = action.payload.message;
+      }
+    },
+    /** Clears preparation only while the settling run still owns the cluster. */
+    clearClusterPreparing(state, action: PayloadAction<{ cluster: string; runId: string }>) {
+      if (state.preparing?.[action.payload.cluster]?.runId === action.payload.runId) {
+        delete state.preparing[action.payload.cluster];
+      }
+    },
   },
 });
 
@@ -112,6 +204,10 @@ export const {
   addAddClusterProvider,
   addClusterStatus,
   setClusterEmptyState,
+  clusterPreOpenHooksChanged,
+  startClusterPreparing,
+  setClusterPreparing,
+  clearClusterPreparing,
 } = clusterProviderSlice.actions;
 
 export default clusterProviderSlice.reducer;
