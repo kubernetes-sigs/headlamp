@@ -80,6 +80,10 @@ Example:
 npm run backend:start -- --log-level warn
 ```
 
+### Backend telemetry
+
+Headlamp supports OpenTelemetry tracing and Prometheus metrics on the backend. See the [Telemetry guide](./telemetry.md) for how to enable and use them locally or in-cluster.
+
 ## Generate API documentation
 
 To generate the TypeScript API documentation:
