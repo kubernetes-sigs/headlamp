@@ -14,16 +14,14 @@
  * limitations under the License.
  */
 
-import { AxeBuilder } from '@axe-core/playwright';
 import { expect, Page } from '@playwright/test';
+import { runA11yScan } from './a11yHelper';
 
 export class podsPage {
   constructor(private page: Page) {}
 
   async a11y() {
-    const axeBuilder = new AxeBuilder({ page: this.page });
-    const accessibilityResults = await axeBuilder.analyze();
-    expect(accessibilityResults.violations).toStrictEqual([]);
+    await runA11yScan(this.page, expect);
   }
 
   async navigateToPods() {
@@ -99,10 +97,10 @@ spec:
     await expect(page.getByRole('button', { name: 'Delete' })).toBeVisible();
     await page.getByRole('button', { name: 'Delete' }).click();
 
-    await page.waitForSelector(`text=Are you sure you want to delete item ${name}?`);
+    await expect(page.getByRole('dialog')).toBeVisible();
 
-    await expect(page.getByRole('button', { name: 'Yes' })).toBeVisible();
-    await page.getByRole('button', { name: 'Yes' }).click();
+    await expect(page.locator('button[aria-label="confirm-button"]')).toBeVisible();
+    await page.locator('button[aria-label="confirm-button"]').click();
 
     await page.waitForSelector(`text=Deleted item ${name}`);
 

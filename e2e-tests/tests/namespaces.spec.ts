@@ -14,8 +14,7 @@
  * limitations under the License.
  */
 
-import { AxeBuilder } from '@axe-core/playwright';
-import { expect, test } from '@playwright/test';
+import { test } from '@playwright/test';
 import { HeadlampPage } from './headlampPage';
 import { NamespacesPage } from './namespacesPage';
 
