@@ -1,0 +1,75 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1fvfakn"
+    >
+      <div
+        class="MuiBox-root css-1hdbc19"
+      >
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+          >
+            <strong>
+              Documentation
+              :
+            </strong>
+             
+            <a
+              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+              href="https://docs.example.com/api"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              https://docs.example.com/api
+            </a>
+          </p>
+        </div>
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+          >
+            <strong>
+              Repository
+              :
+            </strong>
+             
+            <a
+              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+              href="https://github.com/example/api"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              https://github.com/example/api
+            </a>
+          </p>
+        </div>
+        <div
+          class="MuiBox-root css-70qvj9"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+          >
+            <strong>
+              Logs
+              :
+            </strong>
+             
+            <a
+              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+              href="https://kibana.example.com/app/logs"
+              rel="noopener noreferrer"
+              target="_blank"
+            >
+              https://kibana.example.com/app/logs
+            </a>
+          </p>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
