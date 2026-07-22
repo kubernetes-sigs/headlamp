@@ -206,20 +206,16 @@ export function useKubeObject<K extends KubeObject>({
     connections: connectionsRequests,
   });
 
-  // @ts-ignore
-  return {
+  const error = endpointError ?? query.error;
+  return Object.assign([data, error] as [K | null, ApiError | null], {
     data,
-    error: endpointError ?? query.error,
+    error,
     isError: query.isError,
     isLoading: query.isLoading,
     isFetching: query.isFetching,
     isSuccess: query.isSuccess,
     status: query.status,
-    *[Symbol.iterator](): ArrayIterator<ApiError | K | null> {
-      yield data;
-      yield endpointError ?? query.error;
-    },
-  };
+  });
 }
 
 /**

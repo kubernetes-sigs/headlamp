@@ -513,8 +513,11 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       params.gracePeriodSeconds = 0;
     }
 
-    // @ts-ignore
-    return this._class().apiEndpoint.delete(...args, params, this._clusterName);
+    return (this._class().apiEndpoint.delete as (...args: any[]) => Promise<any>)(
+      ...args,
+      params,
+      this._clusterName
+    );
   }
 
   update(data: KubeObjectInterface) {
@@ -611,8 +614,11 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
     args.push(this.getName());
 
-    // @ts-ignore
-    return this._class().apiEndpoint.patch(...args, {}, this._clusterName);
+    return (this._class().apiEndpoint.patch as (...args: any[]) => Promise<any>)(
+      ...args,
+      {},
+      this._clusterName
+    );
   }
 
   /** Performs a request to check if the user has the given permission.
