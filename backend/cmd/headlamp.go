@@ -2928,13 +2928,15 @@ func (c *HeadlampConfig) drainNodePods(
 
 	var deleteErrors []string
 
-	for _, pod := range pods {
+	for i := range pods {
 		if ctx.Err() != nil {
 			return
 		}
 
+		pod := &pods[i]
+
 		// ignore daemonsets
-		if pod.Labels["kubernetes.io/created-by"] == "daemonset-controller" {
+		if isDaemonSetPod(pod) {
 			continue
 		}
 
@@ -2959,6 +2961,15 @@ func (c *HeadlampConfig) drainNodePods(
 	} else {
 		_ = c.Cache.SetWithTTL(ctx, cacheKey, "success", cacheItemTTL)
 	}
+}
+
+func isDaemonSetPod(pod *corev1.Pod) bool {
+	controllerRef := v1.GetControllerOf(pod)
+	if controllerRef == nil {
+		return false
+	}
+
+	return controllerRef.Kind == "DaemonSet"
 }
 
 /*
