@@ -16,6 +16,7 @@
 
 import '../../../i18n/config';
 import { DiffEditor, Editor, Monaco } from '@monaco-editor/react';
+import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import DialogActions from '@mui/material/DialogActions';
@@ -125,6 +126,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     isKubeObjectIsh(item) ? item?.metadata?.resourceVersion || '' : ''
   );
   const [error, setError] = React.useState('');
+  const [resourceModifiedWarning, setResourceModifiedWarning] = React.useState(false);
   const [docSpecs, setDocSpecs] = React.useState<
     KubeObjectInterface | KubeObjectInterface[] | null
   >([]);
@@ -207,6 +209,42 @@ export default function EditorDialog(props: EditorDialogProps) {
     const format = looksLikeJson(originalCodeRef.current.code) ? 'json' : 'yaml';
     const itemCode = format === 'json' ? JSON.stringify(clonedItem) : yaml.dump(clonedItem);
 
+    // Check for external modification conflict BEFORE any setCode call so that
+    // user edits are never silently overwritten when a version conflict is detected.
+    if (isKubeObjectIsh(item) && item.metadata) {
+      const newVersion = item.metadata!.resourceVersion || '';
+      const resourceVersionsDiffer = (previousVersionRef.current || '') !== newVersion;
+      // We use the codeRef in this effect instead of the code, because we need to access
+      // the current state of the code but we don't want to trigger a re-render here.
+      const userHasEdits = codeRef.current.code !== originalCodeRef.current.code;
+
+      if (resourceVersionsDiffer && userHasEdits && !treatItemChangesAsEdits && onSave !== null) {
+        // Resource was externally modified (server-side) while the user has unsaved edits —
+        // warn them and return early to preserve their work. Skipped when treatItemChangesAsEdits
+        // is true because in that mode item changes come from the user's own form, not the server.
+        // Update the baseline so "Undo Changes" restores to the latest server
+        // version rather than the stale version the editor was opened with.
+        originalCodeRef.current = { code: itemCode, format };
+        if (newVersion !== '') {
+          previousVersionRef.current = newVersion;
+        }
+        // The server's change may coincidentally match what the user already has in the
+        // editor (e.g. once rebased onto the baseline above) — only warn and preserve the
+        // early return when there is still a real difference from the latest version.
+        if (codeRef.current.code !== itemCode) {
+          setResourceModifiedWarning(true);
+          return;
+        }
+      }
+      // Conflict condition is no longer met — clear any stale warning.
+      setResourceModifiedWarning(false);
+    } else {
+      // A non-Kubernetes item (or one without metadata) can never be in a version
+      // conflict, so make sure a warning left over from a previous item doesn't stay
+      // stuck on screen.
+      setResourceModifiedWarning(false);
+    }
+
     // Update the code if the item representation has changed.
     // When treatItemChangesAsEdits is true, originalCodeRef is intentionally
     // not updated, so compare against the current editor content instead —
@@ -215,6 +253,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     const referenceCode = treatItemChangesAsEdits
       ? codeRef.current.code
       : originalCodeRef.current.code;
+    let didSetCode = false;
     if (itemCode !== referenceCode) {
       if (!treatItemChangesAsEdits) {
         originalCodeRef.current = { code: itemCode, format };
@@ -222,24 +261,25 @@ export default function EditorDialog(props: EditorDialogProps) {
       setCode({ code: itemCode, format });
       // Drop stale apply errors so a failed apply doesn't leave Apply disabled after the user edits.
       setError('');
+      didSetCode = true;
     }
 
-    // Additional handling for Kubernetes objects
+    // Additional handling for Kubernetes objects (no conflict — track version and sync)
     if (isKubeObjectIsh(item) && item.metadata) {
-      const resourceVersionsDiffer =
-        (previousVersionRef.current || '') !== (item.metadata!.resourceVersion || '');
-      // Only change if the code hasn't been touched.
-      // We use the codeRef in this effect instead of the code, because we need to access the current
-      // state of the code but we don't want to trigger a re-render when we set the code here.
-      if (resourceVersionsDiffer || codeRef.current.code === originalCodeRef.current.code) {
+      const newVersion = item.metadata!.resourceVersion || '';
+      const resourceVersionsDiffer = (previousVersionRef.current || '') !== newVersion;
+      const userHasEdits = codeRef.current.code !== originalCodeRef.current.code;
+
+      if (resourceVersionsDiffer || !userHasEdits) {
         // Prevent updating to the same code, which would lead to an infinite loop.
-        if (codeRef.current.code !== itemCode) {
+        // Skip if the first block already called setCode with the same itemCode.
+        if (!didSetCode && codeRef.current.code !== itemCode) {
           setCode({ code: itemCode, format: originalCodeRef.current.format });
           setError('');
         }
 
-        if (resourceVersionsDiffer && !!item.metadata!.resourceVersion) {
-          previousVersionRef.current = item.metadata!.resourceVersion;
+        if (resourceVersionsDiffer && newVersion !== '') {
+          previousVersionRef.current = newVersion;
         }
       }
     }
@@ -435,6 +475,7 @@ export default function EditorDialog(props: EditorDialogProps) {
         monacoRef.current.editor.setModelMarkers(model, 'headlamp-yaml-parse', []);
       }
     }
+    setResourceModifiedWarning(false);
   }
 
   const applyFunc = async (
@@ -677,6 +718,17 @@ export default function EditorDialog(props: EditorDialogProps) {
             </Grid>
           </Grid>
         </Box>
+        {resourceModifiedWarning && (
+          <Alert
+            severity="warning"
+            onClose={() => setResourceModifiedWarning(false)}
+            sx={{ mb: 1 }}
+          >
+            {t(
+              'translation|This resource was modified while you were editing. Your changes may conflict with the latest version.'
+            )}
+          </Alert>
+        )}
         {isReadOnly() ? (
           makeEditor()
         ) : (
