@@ -266,3 +266,16 @@ func (c *OIDCTokenRefreshConfig) handleOIDCAuthConfigError(
 
 	return false
 }
+
+// StripImpersonationHeadersMiddleware deletes all client-supplied Impersonate- headers.
+func StripImpersonationHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		for key := range r.Header {
+			if strings.HasPrefix(strings.ToLower(key), "impersonate-") {
+				r.Header.Del(key)
+			}
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}

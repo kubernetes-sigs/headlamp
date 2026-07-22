@@ -35,6 +35,12 @@ const (
 	DefaultMeUserInfoURL  = ""
 )
 
+type MappingRule struct {
+	Target    string `yaml:"target" json:"target" koanf:"target"`
+	FromClaim string `yaml:"fromClaim" json:"fromClaim" koanf:"fromClaim"`
+	Template  string `yaml:"template" json:"template" koanf:"template"`
+}
+
 type Config struct {
 	Version              bool   `koanf:"version"`
 	InCluster            bool   `koanf:"in-cluster"`
@@ -94,6 +100,10 @@ type Config struct {
 	ProxyAuthTokenHeader         string `koanf:"proxy-auth-token-header"`
 	UnsafeUseServiceAccountToken bool   `koanf:"unsafe-use-service-account-token"`
 	ServiceAccountTokenPath      string `koanf:"service-account-token-path"`
+	// impersonation config
+	ImpersonationEnabled   bool   `koanf:"impersonation-enabled"`
+	ImpersonationRules     string `koanf:"impersonation-rules"`
+	ImpersonationRulesFile string `koanf:"impersonation-rules-file"`
 	// telemetry configs
 	ServiceName        string   `koanf:"service-name"`
 	ServiceVersion     *string  `koanf:"service-version"`
@@ -532,10 +542,17 @@ func flagset() *flag.FlagSet {
 	addGeneralFlags(f)
 	addOIDCFlags(f)
 	addProxyAuthFlags(f)
+	addImpersonationFlags(f)
 	addTelemetryFlags(f)
 	addTLSFlags(f)
 
 	return f
+}
+
+func addImpersonationFlags(f *flag.FlagSet) {
+	f.Bool("impersonation-enabled", false, "Enable Kubernetes-native user/group impersonation")
+	f.String("impersonation-rules", "", "JSON/YAML string of identity mapping rules for impersonation")
+	f.String("impersonation-rules-file", "", "Path to a JSON/YAML file containing identity mapping rules")
 }
 
 func addGeneralFlags(f *flag.FlagSet) {
