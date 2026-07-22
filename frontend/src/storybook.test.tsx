@@ -146,6 +146,15 @@ describe('Storybook Tests', () => {
   afterEach(() => {
     vi.useRealTimers();
     vi.restoreAllMocks();
+    // Remove xterm-injected <style> elements that accumulate in the document
+    // across tests. Each XTerminal instance injects ~60KB of colour CSS into
+    // the DOM; without cleanup replaceUseId would process megabytes of CSS
+    // for every subsequent story (causing 30+ minute CI runs).
+    document.querySelectorAll('style').forEach(el => {
+      if (el.textContent && el.textContent.includes('xterm-dom-renderer-owner')) {
+        el.remove();
+      }
+    });
   });
 
   getAllStoryFiles().forEach(({ storyFile, componentName, storyDir }) => {
@@ -251,6 +260,15 @@ describe('Storybook Tests', () => {
 
           // Get rid of random id's in the ouput
           replaceUseId(document);
+
+          // Remove xterm style sheets before snapshotting. They are
+          // implementation details (~60KB of colour tables and cursor
+          // animation keyframes) that make snapshots very large and fragile.
+          document.querySelectorAll('style').forEach(el => {
+            if (el.textContent && el.textContent.includes('xterm-dom-renderer-owner')) {
+              el.remove();
+            }
+          });
 
           document.body.removeAttribute('style');
 
