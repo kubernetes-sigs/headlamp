@@ -141,6 +141,26 @@ func TestDeleteKeys(t *testing.T) { //nolint:funlen
 	}
 }
 
+type deleteCountingCache struct {
+	*MockCache
+	deletedKeys []string
+}
+
+func (c *deleteCountingCache) Delete(ctx context.Context, key string) error {
+	c.deletedKeys = append(c.deletedKeys, key)
+
+	return c.MockCache.Delete(ctx, key)
+}
+
+func TestDeleteKeysDeletesClusterScopedKeyOnce(t *testing.T) {
+	cache := &deleteCountingCache{MockCache: NewMockCache()}
+	key := "+nodes++test-context"
+
+	k8cache.DeleteKeys(key, cache)
+
+	assert.Equal(t, []string{key}, cache.deletedKeys)
+}
+
 func TestSkipWebSocket(t *testing.T) {
 	tests := []struct {
 		name           string
