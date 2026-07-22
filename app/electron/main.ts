@@ -1554,7 +1554,22 @@ function startElectron() {
       },
     });
 
-    // Load the frontend
+    // Load the frontend. For a dev/external server (http URL) the dev server may not be
+    // listening yet, especially on Windows where it can take seconds to start. Retry on
+    // connection errors (< -100) instead of leaving a blank screen; ignore ERR_ABORTED (-3)
+    // so in-app navigation isn't disrupted.
+    if (startUrl.startsWith('http')) {
+      let retryTimer: ReturnType<typeof setTimeout> | null = null;
+      mainWindow.webContents.on('did-fail-load', (_event, errorCode, _desc, _url, isMainFrame) => {
+        if (isMainFrame && errorCode <= -100 && !retryTimer) {
+          retryTimer = setTimeout(() => {
+            retryTimer = null;
+            mainWindow && !mainWindow.isDestroyed() && mainWindow.loadURL(startUrl);
+          }, 1000);
+        }
+      });
+    }
+
     mainWindow.loadURL(startUrl);
 
     setMenu(mainWindow, currentMenu);
