@@ -234,11 +234,10 @@ export default function ClusterContextMenu({
           <ListItemText>{t('translation|Edit tags')}</ListItemText>
         </MenuItem>
         {(pluginDeleteDialog !== null ||
-          ((!menuItems || menuItems.length === 0) &&
-            ((cluster.meta_data?.source === 'dynamic_cluster' &&
-              (helpers.isElectron() || isDynamicClusterEnabled)) ||
-              (cluster.meta_data?.source === 'kubeconfig' &&
-                (helpers.isElectron() || allowKubeconfigChanges))))) && (
+          (cluster.meta_data?.source === 'dynamic_cluster' &&
+            (helpers.isElectron() || isDynamicClusterEnabled)) ||
+          (cluster.meta_data?.source === 'kubeconfig' &&
+            (helpers.isElectron() || allowKubeconfigChanges))) && (
           <MenuItem
             onClick={() => {
               setOpenConfirmDialog(pluginDeleteDialog ?? BUILT_IN_DELETE_DIALOG);
