@@ -34,6 +34,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { getProductName, getVersion } from '../../helpers/getProductInfo';
+import { isElectron } from '../../helpers/isElectron';
 import { logout } from '../../lib/auth';
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import { ClusterUserInfo, getClusterUserInfo } from '../../lib/k8s/api/v1/clusterApi';
@@ -505,6 +506,8 @@ export const PureTopBar = memo(
       );
     });
 
+    const isMacElectron = isElectron() && navigator.userAgent.indexOf('Mac') > -1;
+
     return (
       <>
         <AppBar
@@ -519,6 +522,7 @@ export const PureTopBar = memo(
             boxShadow: 'none',
             borderBottom: '1px solid #eee',
             borderColor: theme.palette.divider,
+            paddingLeft: isMacElectron ? '72px' : undefined,
           })}
           elevation={1}
           component="nav"
@@ -530,6 +534,10 @@ export const PureTopBar = memo(
               [theme.breakpoints.down('sm')]: {
                 paddingLeft: 0,
                 paddingRight: 0,
+              },
+              appRegion: 'drag',
+              '> *': {
+                appRegion: 'no-drag',
               },
             }}
           >

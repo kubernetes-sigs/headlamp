@@ -1539,6 +1539,22 @@ function startElectron() {
     }
   }
 
+  function getPlatformWindowOptions(): Partial<Electron.BrowserWindowConstructorOptions> {
+    if (process.platform === 'darwin') {
+      const trafficLightSize = 14; // px
+      return {
+        titleBarStyle: 'hidden',
+        trafficLightPosition: {
+          // Top toolbar is 64px tall
+          // Apple traffic light buttons are 14px tall
+          y: (64 - trafficLightSize) / 2,
+          x: trafficLightSize,
+        },
+      };
+    }
+    return {};
+  }
+
   async function createWindow() {
     // WSL has a problem with full size window placement, so make it smaller.
     const withMargin = await isWSL();
@@ -1547,6 +1563,7 @@ function startElectron() {
     mainWindow = new BrowserWindow({
       width,
       height,
+      ...getPlatformWindowOptions(),
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
