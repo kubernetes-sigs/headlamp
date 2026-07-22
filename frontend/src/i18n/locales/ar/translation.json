@@ -666,6 +666,7 @@
   "Section Name": "اسم القسم",
   "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "اضغط <1>{formatShortcutKey(searchShortcutKey)}</1> للبحث",
   "Search resources, pages, clusters by name": "ابحث عن الموارد والصفحات والكتل حسب الاسم",
+  "Unable to load search resources. Refresh the page and try again.": "",
   "Current Namespace": "النطاق الحالي",
   "Set namespace: {{namespace}}": "تعيين النطاق: {{namespace}}",
   "Page": "الصفحة",

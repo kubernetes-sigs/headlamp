@@ -651,6 +651,7 @@
   "Section Name": "Section Name",
   "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search",
   "Search resources, pages, clusters by name": "Search resources, pages, clusters by name",
+  "Unable to load search resources. Refresh the page and try again.": "",
   "Current Namespace": "Current Namespace",
   "Set namespace: {{namespace}}": "Set namespace: {{namespace}}",
   "Page": "Page",

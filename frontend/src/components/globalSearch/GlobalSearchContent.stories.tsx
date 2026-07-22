@@ -25,7 +25,7 @@ import reducers from '../../redux/reducers/reducers';
 import { API_BASE, TestContext } from '../../test';
 import { generateK8sResourceList } from '../../test/mocker';
 import { podList } from '../pod/storyHelper';
-import { GlobalSearchContent } from './GlobalSearchContent';
+import { GlobalSearchContent, GlobalSearchContentPlaceholder } from './GlobalSearchContent';
 
 const phonyPods = generateK8sResourceList(
   {
@@ -185,6 +185,28 @@ export default meta;
 type Story = StoryObj<typeof GlobalSearchContent>;
 
 export const WithEmptyInput: Story = {};
+
+export const LoadingResourceClasses: Story = {
+  render: args => (
+    <GlobalSearchContentPlaceholder
+      {...args}
+      query={args.defaultValue ?? ''}
+      onQueryChange={() => {}}
+      loadFailed={false}
+    />
+  ),
+};
+
+export const ResourceClassesLoadFailed: Story = {
+  render: args => (
+    <GlobalSearchContentPlaceholder
+      {...args}
+      query={args.defaultValue ?? ''}
+      onQueryChange={() => {}}
+      loadFailed
+    />
+  ),
+};
 
 export const LoadingResources: Story = {
   args: {

@@ -646,6 +646,7 @@
   "Section Name": "বিভাগের নাম",
   "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "<1>{formatShortcutKey(searchShortcutKey)}</1> টিপুন অনুসন্ধান করতে",
   "Search resources, pages, clusters by name": "নাম অনুসারে Resources, Page, Cluster Search করুন",
+  "Unable to load search resources. Refresh the page and try again.": "",
   "Current Namespace": "বর্তমান নেমস্পেস",
   "Set namespace: {{namespace}}": "নেমস্পেস সেট করুন: {{namespace}}",
   "Page": "Page",

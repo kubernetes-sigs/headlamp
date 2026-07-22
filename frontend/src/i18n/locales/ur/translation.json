@@ -646,6 +646,7 @@
   "Section Name": "سیکشن کا نام",
   "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "تلاش کے لیے <1>{formatShortcutKey(searchShortcutKey)}</1> دبائیں",
   "Search resources, pages, clusters by name": "نام کے ذریعے ریسورسز، صفحات اور کلسٹرز تلاش کریں",
+  "Unable to load search resources. Refresh the page and try again.": "",
   "Current Namespace": "موجودہ نیم اسپیس",
   "Set namespace: {{namespace}}": "نیم اسپیس سیٹ کریں: {{namespace}}",
   "Page": "صفحہ",

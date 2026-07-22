@@ -656,6 +656,7 @@
   "Section Name": "Название раздела",
   "Press<1>{formatShortcutKey(searchShortcutKey)}</1>to search": "Нажмите <1>{formatShortcutKey(searchShortcutKey)}</1>, чтобы выполнить поиск",
   "Search resources, pages, clusters by name": "Поиск ресурсов, страниц, кластеров по названию",
+  "Unable to load search resources. Refresh the page and try again.": "",
   "Current Namespace": "Текущее пространство имён",
   "Set namespace: {{namespace}}": "Установить пространство имён: {{namespace}}",
   "Page": "Страница",

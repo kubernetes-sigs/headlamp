@@ -26,30 +26,15 @@ import Typography from '@mui/material/Typography';
 import useAutocomplete from '@mui/material/useAutocomplete';
 import { UseAutocompleteReturnValue } from '@mui/material/useAutocomplete';
 import Fuse, { Expression, FuseResultMatch } from 'fuse.js';
-import { lazy, Suspense, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation, useRouteMatch } from 'react-router';
 import { FixedSizeList } from 'react-window';
 import { loadClusterSettings } from '../../helpers/clusterSettings';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
-import ConfigMap from '../../lib/k8s/configMap';
-import CronJob from '../../lib/k8s/cronJob';
-import Deployment from '../../lib/k8s/deployment';
-import Endpoints from '../../lib/k8s/endpoints';
-import EndpointSlice from '../../lib/k8s/endpointSlices';
-import Ingress from '../../lib/k8s/ingress';
-import Job from '../../lib/k8s/job';
-import JobSet from '../../lib/k8s/jobSet';
 import { KubeObject, KubeObjectClass } from '../../lib/k8s/KubeObject';
-import Namespace from '../../lib/k8s/namespace';
-import Node from '../../lib/k8s/node';
-import PersistentVolumeClaim from '../../lib/k8s/persistentVolumeClaim';
-import Pod from '../../lib/k8s/pod';
-import ReplicaSet from '../../lib/k8s/replicaSet';
-import Service from '../../lib/k8s/service';
-import ServiceAccount from '../../lib/k8s/serviceAccount';
-import StatefulSet from '../../lib/k8s/statefulSet';
+import type Namespace from '../../lib/k8s/namespace';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getDefaultRoutes } from '../../lib/router/getDefaultRoutes';
 import { getClusterPrefixedPath } from '../../lib/util';
@@ -62,14 +47,19 @@ import { ThemePreview } from '../App/Settings/ThemePreview';
 import { setTheme, useAppThemes } from '../App/themeSlice';
 import { LightTooltip } from '../common/Tooltip';
 import { KubeObjectDetails } from '../resourceMap/details/KubeNodeDetails';
-import { KubeIcon } from '../resourceMap/kubeIcon/KubeIcon';
 import { Delayed } from './Delayed';
+import { loadSearchResourceClasses } from './searchResourceClasses';
 import { useLocalStorageState } from './useLocalStorageState';
 import { useRecent } from './useRecent';
 
 const LazyKubeIcon = lazy(() =>
   import('../resourceMap/kubeIcon/KubeIcon').then(it => ({ default: it.KubeIcon }))
 );
+
+const NAMESPACE_KIND = 'Namespace';
+const MAX_RESOURCE_CLASS_LOAD_ATTEMPTS = 5;
+const LOAD_RETRY_DELAY_MS = 3000;
+const NO_SELECTED_CLUSTERS: string[] = [];
 
 /**
  * Object representing a single search result
@@ -89,45 +79,148 @@ interface SearchResult {
   namespaceMatch?: FuseResultMatch;
 }
 
+interface GlobalSearchContentProps {
+  /** The maximum width of the results list. */
+  maxWidth: number;
+  /** The initial search query to display in the search field. */
+  defaultValue: string;
+  /** Callback called when the search field loses focus. */
+  onBlur: () => void;
+}
+
 /**
- * An array of Kubernetes object classes to search through
+ * The `GlobalSearchContent` component provides the search field and results list for global search.
+ * Resource class modules are loaded on demand so opening search does not bundle every list model
+ * in the initial chunk.
  */
-const classes: KubeObjectClass[] = [
-  Pod,
-  Deployment,
-  Service,
-  Job,
-  CronJob,
-  ConfigMap,
-  Namespace,
-  StatefulSet,
-  ReplicaSet,
-  PersistentVolumeClaim,
-  Endpoints,
-  EndpointSlice,
-  Ingress,
-  ServiceAccount,
-  Node,
-  JobSet,
-];
+export function GlobalSearchContent(props: GlobalSearchContentProps) {
+  const [resourceClasses, setResourceClasses] = useState<KubeObjectClass[] | null>(null);
+  const [queryDraft, setQueryDraft] = useState(props.defaultValue ?? '');
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout> | undefined;
+
+    loadSearchResourceClasses()
+      .then(classes => {
+        if (!cancelled) {
+          setLoadFailed(false);
+          setResourceClasses(classes);
+        }
+      })
+      .catch(error => {
+        if (cancelled) {
+          return;
+        }
+        console.error('Failed to load global search resource classes', error);
+        if (loadAttempt + 1 >= MAX_RESOURCE_CLASS_LOAD_ATTEMPTS) {
+          setLoadFailed(true);
+          return;
+        }
+        retryTimer = setTimeout(() => {
+          setLoadAttempt(attempt => attempt + 1);
+        }, LOAD_RETRY_DELAY_MS);
+      });
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) {
+        clearTimeout(retryTimer);
+      }
+    };
+  }, [loadAttempt]);
+
+  if (!resourceClasses) {
+    return (
+      <GlobalSearchContentPlaceholder
+        {...props}
+        query={queryDraft}
+        onQueryChange={setQueryDraft}
+        loadFailed={loadFailed}
+      />
+    );
+  }
+
+  return (
+    <GlobalSearchContentLoaded
+      {...props}
+      resourceClasses={resourceClasses}
+      initialQuery={queryDraft}
+    />
+  );
+}
+
+interface GlobalSearchContentPlaceholderProps extends GlobalSearchContentProps {
+  query: string;
+  onQueryChange: (value: string) => void;
+  loadFailed?: boolean;
+}
+
+/** Loading / error UI while searchable resource classes are being loaded. */
+export function GlobalSearchContentPlaceholder(props: GlobalSearchContentPlaceholderProps) {
+  const { onBlur, query, onQueryChange, loadFailed } = props;
+  const { t } = useTranslation();
+
+  return (
+    <TextField
+      fullWidth
+      size="small"
+      variant="outlined"
+      placeholder={t('Search resources, pages, clusters by name')}
+      value={query}
+      onChange={event => onQueryChange(event.target.value)}
+      onBlur={onBlur}
+      helperText={
+        loadFailed
+          ? t('Unable to load search resources. Refresh the page and try again.')
+          : undefined
+      }
+      error={loadFailed}
+      InputProps={{
+        autoFocus: true,
+        sx: theme => ({
+          background: theme.palette.background.default,
+        }),
+        endAdornment: loadFailed ? undefined : (
+          <Delayed display="flex" mr={1}>
+            <CircularProgress size="16px" />
+          </Delayed>
+        ),
+      }}
+    />
+  );
+}
+
+interface GlobalSearchContentLoadedProps extends GlobalSearchContentProps {
+  resourceClasses: KubeObjectClass[];
+  initialQuery: string;
+}
 
 /**
  * Loads lists of Kubernetes objects for searching
  */
-function useSearchResources() {
+function useSearchResources(resourceClasses: KubeObjectClass[]) {
   const inACluster = useSelectedClusters().length > 0;
-  const results = classes.map(cls => cls.useList({ clusters: inACluster ? undefined : [] }));
+  const results = resourceClasses.map(cls =>
+    cls.useList({ clusters: inACluster ? undefined : NO_SELECTED_CLUSTERS })
+  );
 
-  return useMemo(() => {
-    return results.map((result, index) => {
-      return {
+  // Depend on fetch flags and item list identities (not `results`, which is a new
+  // array every render) so the returned resources array stays referentially stable.
+  const resourceDeps = results.flatMap(result => [result.isFetching, result.items]);
+
+  return useMemo(
+    () =>
+      results.map((result, index) => ({
         isLoading: result.isFetching,
         items: result.items,
-        kind: classes[index].kind,
-      };
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results.map(it => it.data)]);
+        kind: resourceClasses[index].kind,
+      })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- resourceDeps tracks isFetching/items
+    [resourceClasses, ...resourceDeps]
+  );
 }
 
 function makeKubeObjectResults(
@@ -159,28 +252,12 @@ function makeKubeObjectResults(
   );
 }
 
-interface GlobalSearchContentProps {
-  /** The maximum width of the results list. */
-  maxWidth: number;
-  /** The initial search query to display in the search field. */
-  defaultValue: string;
-  /** Callback called when the search field loses focus. */
-  onBlur: () => void;
-}
-
-/**
- * The `GlobalSearchContent` component provides the search field and results list for global search.
- * The default results include Kubernetes objects, clusters, app pages, namespace filters,
- * theme switching, keyboard shortcut settings, and advanced search suggestions.
- *
- * @param props - The component props.
- */
-export function GlobalSearchContent(props: GlobalSearchContentProps) {
-  const { maxWidth, defaultValue, onBlur } = props;
+function GlobalSearchContentLoaded(props: GlobalSearchContentLoadedProps) {
+  const { maxWidth, onBlur, resourceClasses, initialQuery } = props;
   const { t } = useTranslation();
   const history = useHistory();
   const dispatch = useDispatch();
-  const [query, setQuery] = useState(defaultValue ?? '');
+  const [query, setQuery] = useState(initialQuery);
   const clusters = useClustersConf() ?? {};
   const selectedClusters = useSelectedClusters();
   const drawerEnabled = useTypedSelector(state => state?.drawerMode?.isDetailDrawerEnabled);
@@ -188,10 +265,10 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
   const [recent, bump] = useRecent('search-recent-items');
 
   // Resource search items
-  const resources = useSearchResources();
+  const resources = useSearchResources(resourceClasses);
   const loading = resources.filter(it => it.isLoading).map(it => it.kind);
   const namespaceItems = useMemo(() => {
-    const namespaceResource = resources.find(resource => resource.kind === Namespace.kind);
+    const namespaceResource = resources.find(resource => resource.kind === NAMESPACE_KIND);
     return (namespaceResource?.items as Namespace[]) ?? [];
   }, [resources]);
   const namespaceOptions = useMemo(() => {
@@ -263,7 +340,11 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
             cluster: item.cluster,
             location: 'split-right',
             title: item.kind + ': ' + item.metadata.name,
-            icon: <KubeIcon kind={item.kind} width="100%" height="100%" />,
+            icon: (
+              <Suspense fallback={null}>
+                <LazyKubeIcon kind={item.kind} width="100%" height="100%" />
+              </Suspense>
+            ),
           });
         } else {
           history.push(url);
@@ -533,7 +614,6 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
             // this is suboptimal and doesn't fit for the search UX
             // so we're overriding onMouseDown for our own that doesn't do anything
             onMouseDown: () => {},
-            defaultValue,
             autoFocus: true,
             endAdornment: (
               <>

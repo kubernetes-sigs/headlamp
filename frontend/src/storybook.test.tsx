@@ -33,6 +33,17 @@ vi.mock('./lib/k8s/api/v1/clusterRequests', async () => {
   };
 });
 
+// Dynamic import() of the resource-class aggregator does not settle under Vitest
+// fake timers used by storyshots; resolve the classes eagerly for snapshots.
+vi.mock('./components/globalSearch/searchResourceClasses', async () => {
+  const { searchResourceClasses } = await vi.importActual<
+    typeof import('./components/globalSearch/searchResourceClassesList')
+  >('./components/globalSearch/searchResourceClassesList');
+  return {
+    loadSearchResourceClasses: () => Promise.resolve(searchResourceClasses),
+  };
+});
+
 const annotations = setProjectAnnotations([previewAnnotations, { testingLibraryRender }]);
 beforeAll(annotations.beforeAll!);
 
