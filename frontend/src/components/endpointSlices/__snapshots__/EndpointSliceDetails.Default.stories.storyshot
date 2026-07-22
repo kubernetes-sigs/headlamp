@@ -196,7 +196,228 @@
       >
         <div
           class="MuiBox-root css-p0cik4"
-        />
+        >
+          <div
+            class="MuiBox-root css-j1fy4m"
+          >
+            <div
+              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+            >
+              <div
+                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              >
+                <div
+                  class="MuiBox-root css-70qvj9"
+                >
+                  <h2
+                    class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+                  >
+                    Endpoints
+                  </h2>
+                  <div
+                    class="MuiBox-root css-ldp2l3"
+                  />
+                </div>
+              </div>
+            </div>
+            <div
+              class="MuiBox-root css-1txv3mw"
+            >
+              <div
+                aria-atomic="true"
+                aria-live="polite"
+                class="MuiBox-root css-ty8jgw"
+                role="status"
+              />
+              <div
+                class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-onzayo-MuiPaper-root-MuiTableContainer-root"
+                tabindex="0"
+              >
+                <table
+                  class="MuiTable-root css-r7i92b-MuiTable-root"
+                >
+                  <thead
+                    class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
+                  >
+                    <tr
+                      class="MuiTableRow-root MuiTableRow-head css-13jktim-MuiTableRow-root"
+                    >
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-d9iroo-MuiTableCell-root"
+                        scope="col"
+                      >
+                        Hostname
+                        <button
+                          aria-label="Sort descending"
+                          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                          data-mui-internal-clone-element="true"
+                          tabindex="0"
+                          type="button"
+                        >
+                          <span
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          />
+                        </button>
+                      </th>
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-d9iroo-MuiTableCell-root"
+                        scope="col"
+                      >
+                        Node Name
+                        <button
+                          aria-label="Sort ascending"
+                          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                          data-mui-internal-clone-element="true"
+                          tabindex="0"
+                          type="button"
+                        >
+                          <span
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          />
+                        </button>
+                      </th>
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-d9iroo-MuiTableCell-root"
+                        scope="col"
+                      >
+                        Zone
+                        <button
+                          aria-label="Sort ascending"
+                          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+                          data-mui-internal-clone-element="true"
+                          tabindex="0"
+                          type="button"
+                        >
+                          <span
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          />
+                        </button>
+                      </th>
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                        scope="col"
+                      >
+                        Addresses
+                      </th>
+                      <th
+                        class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                        scope="col"
+                      >
+                        Conditions
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody
+                    class="MuiTableBody-root css-apqrd9-MuiTableBody-root"
+                  >
+                    <tr
+                      class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                    >
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      />
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        mynode
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      />
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        127.0.0.1
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        <div
+                          class="MuiBox-root css-1baulvz"
+                        >
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                          >
+                            Ready
+                          </span>
+                        </div>
+                        <div
+                          class="MuiBox-root css-1baulvz"
+                        >
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                          >
+                            Serving
+                          </span>
+                        </div>
+                        <div
+                          class="MuiBox-root css-1baulvz"
+                        >
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                          >
+                            Terminating
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                    <tr
+                      class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                    >
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      />
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        mynode
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      />
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        127.0.0.2
+                      </td>
+                      <td
+                        class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                      >
+                        <div
+                          class="MuiBox-root css-1baulvz"
+                        >
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                          >
+                            Ready
+                          </span>
+                        </div>
+                        <div
+                          class="MuiBox-root css-1baulvz"
+                        >
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                          >
+                            Serving
+                          </span>
+                        </div>
+                        <div
+                          class="MuiBox-root css-1baulvz"
+                        >
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                          >
+                            Terminating
+                          </span>
+                        </div>
+                      </td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
       <div
         class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
