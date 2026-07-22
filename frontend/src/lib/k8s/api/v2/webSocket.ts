@@ -67,6 +67,18 @@ const sockets = new Map<string, WebSocket | 'pending'>();
 const listeners = new Map<string, Array<(update: any) => void>>();
 
 /**
+ * Tracks which in-flight connection attempt "owns" a given connection key.
+ *
+ * This is needed because openWebSocket() is async: if a hook instance
+ * unmounts and a new one remounts for the same connectionKey before the
+ * original connection promise resolves (e.g. React 18 StrictMode, or fast
+ * navigation between views sharing a watch), the stale promise must not be
+ * allowed to overwrite or delete the newer connection when it finally
+ * settles.
+ */
+const pendingConnectionIds = new Map<string, symbol>();
+
+/**
  * Create new WebSocket connection to the backend
  *
  * @param url - WebSocket URL
@@ -159,8 +171,6 @@ export function useWebSockets<T>({
   useEffect(() => {
     if (!enabled) return;
 
-    let isCurrent = true;
-
     /** Open a connection to websocket */
     function connect({ cluster, url, onMessage }: WebSocketConnectionRequest<T>) {
       const connectionKey = cluster + url;
@@ -172,20 +182,25 @@ export function useWebSockets<T>({
         // Mark socket as pending, so we don't open more than one
         sockets.set(connectionKey, 'pending');
 
-        let ws: WebSocket | undefined;
+        // Claim ownership of this connectionKey for this specific connection
+        // attempt. If a newer attempt claims the same key before this one's
+        // promise resolves, connectionId will no longer match when we check
+        // below, and we know our result is stale.
+        const connectionId = Symbol('websocket-connection');
+        pendingConnectionIds.set(connectionKey, connectionId);
+
         openWebSocket(url, { protocols, type, cluster, onMessage })
           .then(socket => {
-            ws = socket;
-
-            // Hook was unmounted while it was connecting to WebSocket
-            // so we close the socket and clean up
-            if (!isCurrent) {
-              ws.close();
-              sockets.delete(connectionKey);
+            // A newer connect() call has since claimed this key (e.g. after
+            // a fast unmount/remount). Close the socket we just opened and
+            // leave the map alone so we don't clobber the newer connection.
+            if (pendingConnectionIds.get(connectionKey) !== connectionId) {
+              socket.close();
               return;
             }
 
-            sockets.set(connectionKey, ws);
+            sockets.set(connectionKey, socket);
+            pendingConnectionIds.delete(connectionKey);
           })
           .catch(err => {
             console.error(err);
@@ -208,6 +223,7 @@ export function useWebSockets<T>({
               maybeExisting.close();
             }
             sockets.delete(connectionKey);
+            pendingConnectionIds.delete(connectionKey);
           }
         }
       };
@@ -216,7 +232,6 @@ export function useWebSockets<T>({
     const disconnectCallbacks = connections.map(endpoint => connect(endpoint));
 
     return () => {
-      isCurrent = false;
       disconnectCallbacks.forEach(fn => fn());
     };
   }, [enabled, type, connections, protocols]);
