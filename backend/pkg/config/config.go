@@ -104,6 +104,8 @@ type Config struct {
 	UseOTLPHTTP        *bool    `koanf:"use-otlp-http"`
 	StdoutTraceEnabled *bool    `koanf:"stdout-trace-enabled"`
 	SamplingRate       *float64 `koanf:"sampling-rate"`
+	// Admin settings
+	SettingsPath string `koanf:"settings"`
 	// TLS config
 	TLSCertPath string `koanf:"tls-cert-path"`
 	TLSKeyPath  string `koanf:"tls-key-path"`
@@ -588,6 +590,7 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.String("service-account-token-path", "",
 		"Path to the service account token. "+
 			"Only used when --unsafe-use-service-account-token is set and in-cluster")
+	f.String("settings", "", "Path to admin settings JSON file")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {
