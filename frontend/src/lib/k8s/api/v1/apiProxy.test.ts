@@ -652,6 +652,53 @@ describe('apiProxy', () => {
           done();
         });
       }));
+
+    it('Does not reconnect or call connectCb after cancel during retry delay', () =>
+      new Promise<void>(done => {
+        expect.assertions(4);
+
+        const { cancel } = apiProxy.stream(testPath, cb, {
+          connectCb,
+          reconnectOnFailure: true,
+          isJson: true,
+        });
+
+        mockServer.on('connection', async (socket: any) => {
+          try {
+            // Initial connection established with real timers
+            expect(connectCb).toHaveBeenCalledTimes(1);
+
+            // Switch to fake timers now so we can control the 3-second retry delay
+            vi.useFakeTimers();
+
+            // Capture baseline so any pre-existing timers don't skew the assertions
+            const timerBaseline = vi.getTimerCount();
+
+            // Close server-side to trigger onClose → onFail → retryOnFail → setTimeout(connect, 3000)
+            socket.close();
+
+            // Advance fake timers so the close event propagates and the retry timer is scheduled
+            await vi.advanceTimersByTimeAsync(100);
+
+            // The 3-second reconnect timer must now be pending (one more than baseline)
+            expect(vi.getTimerCount()).toBe(timerBaseline + 1);
+
+            // Cancel before the 3-second retry fires; this clears the pending timer
+            cancel();
+
+            // The pending timer must have been cleared by cancel()
+            expect(vi.getTimerCount()).toBe(timerBaseline);
+
+            // Advance past the retry window — the cleared timer must not invoke connect() or connectCb
+            await vi.advanceTimersByTimeAsync(5000);
+
+            expect(connectCb).toHaveBeenCalledTimes(1);
+            done();
+          } finally {
+            vi.useRealTimers();
+          }
+        });
+      }));
   });
 
   describe('apply', () => {
