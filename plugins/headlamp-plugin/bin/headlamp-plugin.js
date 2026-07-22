@@ -47,12 +47,40 @@ const vitePromise = import('vite');
  * Copies the files within template, and modifies a couple.
  * Then runs "npm ci" inside of the folder.
  *
+/**
+ * Adds the opt-in Claude Code agent harness to a plugin folder.
+ *
+ * Copies CLAUDE.md, .claude/ (skills + settings) and .mcp.json from the
+ * "template-claude" folder into dstFolder, and drops AGENTS.md since CLAUDE.md
+ * supersedes it as the single agent guide. Existing files are left untouched
+ * (overwrite: false), so it is safe to run against an already-scaffolded plugin.
+ *
+ * @param {string} dstFolder - plugin folder to add the harness to.
+ */
+function addClaudeHarness(dstFolder) {
+  const claudeTemplateFolder = path.resolve(__dirname, '..', 'template-claude');
+  console.log('Adding Claude Code agent skills (CLAUDE.md, .claude/, .mcp.json)');
+  fs.copySync(claudeTemplateFolder, dstFolder, {
+    overwrite: false,
+    errorOnExist: false,
+  });
+  const agentsPath = path.join(dstFolder, 'AGENTS.md');
+  if (fs.existsSync(agentsPath)) {
+    fs.removeSync(agentsPath);
+  }
+}
+
+/**
  * @param {string} name - name of package and output folder.
  * @param {boolean} link - if we link @kinvolk/headlamp-plugin for testing
  * @param {boolean} noInstall - if we skip installing with "npm ci"
+ * @param {boolean} withClaudeSkills - if we also scaffold the Claude Code agent
+ *   harness (CLAUDE.md, .claude/skills, .claude/settings.json, .mcp.json) from
+ *   the "template-claude" folder. When set, the default template's AGENTS.md is
+ *   dropped in favour of CLAUDE.md.
  * @returns {0 | 1 | 2 | 3} Exit code, where 0 is success, 1, 2, and 3 are failures.
  */
-function create(name, link, noInstall) {
+function create(name, link, noInstall, withClaudeSkills) {
   const dstFolder = name;
   const templateFolder = path.resolve(__dirname, '..', 'template');
   const indexPath = path.join(dstFolder, 'src', 'index.tsx');
@@ -97,6 +125,13 @@ function create(name, link, noInstall) {
   replaceFileVariables(packageLockPath);
   replaceFileVariables(indexPath);
   replaceFileVariables(readmePath);
+
+  // Opt-in Claude Code agent harness. Copied from a separate "template-claude"
+  // folder so the default scaffold stays untouched unless --with-claude-skills
+  // is passed.
+  if (withClaudeSkills) {
+    addClaudeHarness(dstFolder);
+  }
 
   // This can be used to make testing locally easier.
   if (link) {
@@ -945,9 +980,12 @@ function getNpmOutdated() {
  * @param packageFolder {string} - folder where the package, or folder of packages is.
  * @parm skipPackageUpdates {boolean} - do not upgrade packages if true.
  * @param headlampPluginVersion {string} - tag or version of headlamp-plugin to upgrade to.
+ * @param withClaudeSkills {boolean} - if true, add the Claude Code agent harness
+ *   (CLAUDE.md, .claude/, .mcp.json) to the package(s) being upgraded. Existing
+ *   harness files are left untouched; AGENTS.md is dropped in favour of CLAUDE.md.
  * @returns {0 | 1} Exit code, where 0 is success, 1 is failure.
  */
-function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
+function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion, withClaudeSkills) {
   /**
    * Files from the template might not be there.
    *
@@ -965,6 +1003,17 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
       'tsconfig.json',
       'AGENTS.md',
     ];
+
+    // Plugins scaffolded with `create --with-claude-skills` use CLAUDE.md as the
+    // single agent guide instead of AGENTS.md, so don't reintroduce AGENTS.md on
+    // upgrade for them.
+    if (fs.existsSync('CLAUDE.md')) {
+      const agentsIndex = missingFiles.indexOf('AGENTS.md');
+      if (agentsIndex !== -1) {
+        missingFiles.splice(agentsIndex, 1);
+      }
+    }
+
     const templateFolder = path.resolve(__dirname, '..', 'template');
 
     missingFiles.forEach(pathToCheck => {
@@ -1193,6 +1242,12 @@ function upgrade(packageFolder, skipPackageUpdates, headlampPluginVersion) {
 
     process.chdir(folder);
     console.log(`Upgrading "${folder}"...`);
+
+    // Opt-in: add the Claude Code harness. Run before addMissingTemplateFiles so
+    // that CLAUDE.md exists and AGENTS.md is not (re)added for harness plugins.
+    if (withClaudeSkills) {
+      addClaudeHarness('.');
+    }
 
     addMissingTemplateFiles();
     addMissingConfiguration();
@@ -1756,11 +1811,17 @@ yargs(process.argv.slice(2))
         .option('noinstall', {
           describe: 'Skip installing dependencies with npm ci',
           type: 'boolean',
+        })
+        .option('with-claude-skills', {
+          describe:
+            'Also scaffold the Claude Code agent harness (CLAUDE.md, .claude/skills, ' +
+            '.claude/settings.json, .mcp.json). Replaces the default AGENTS.md with CLAUDE.md.',
+          type: 'boolean',
         });
     },
     argv => {
       // @ts-ignore
-      process.exitCode = create(argv.name, argv.link, argv.noinstall);
+      process.exitCode = create(argv.name, argv.link, argv.noinstall, argv['with-claude-skills']);
     }
   )
   .command(
@@ -1978,11 +2039,23 @@ yargs(process.argv.slice(2))
           describe:
             'Use a specific headlamp-plugin-version when upgrading packages. Defaults to "latest".',
           type: 'string',
+        })
+        .option('with-claude-skills', {
+          describe:
+            'Add the Claude Code agent harness (CLAUDE.md, .claude/skills, ' +
+            '.claude/settings.json, .mcp.json) to the upgraded plugin(s). Replaces AGENTS.md ' +
+            'with CLAUDE.md. Existing harness files are left untouched.',
+          type: 'boolean',
         });
     },
     argv => {
       // @ts-ignore
-      process.exitCode = upgrade(argv.package, argv.skipPackageUpdates, argv.headlampPluginVersion);
+      process.exitCode = upgrade(
+        argv.package,
+        argv.skipPackageUpdates,
+        argv.headlampPluginVersion,
+        argv['with-claude-skills']
+      );
     }
   )
   .command(
