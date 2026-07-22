@@ -1,0 +1,85 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-1hdbc19"
+    >
+      <div
+        class="MuiBox-root css-70qvj9"
+      >
+        <p
+          class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+        >
+          <strong>
+            Owner
+            :
+          </strong>
+           
+          sre-team
+        </p>
+      </div>
+      <div
+        class="MuiBox-root css-70qvj9"
+      >
+        <p
+          class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+        >
+          <strong>
+            Documentation
+            :
+          </strong>
+           
+          <a
+            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+            href="https://docs.example.com/my-service"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            https://docs.example.com/my-service
+          </a>
+        </p>
+      </div>
+      <div
+        class="MuiBox-root css-70qvj9"
+      >
+        <p
+          class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+        >
+          <strong>
+            Repository
+            :
+          </strong>
+           
+          <a
+            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+            href="https://github.com/example/my-service"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            https://github.com/example/my-service
+          </a>
+        </p>
+      </div>
+      <div
+        class="MuiBox-root css-70qvj9"
+      >
+        <p
+          class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+        >
+          <strong>
+            Support
+            :
+          </strong>
+           
+          <a
+            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+            href="https://support.example.com"
+            rel="noopener noreferrer"
+            target="_blank"
+          >
+            https://support.example.com
+          </a>
+        </p>
+      </div>
+    </div>
+  </div>
+</body>
