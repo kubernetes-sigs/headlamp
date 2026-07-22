@@ -18,7 +18,9 @@ import Box from '@mui/material/Box';
 import MuiDialog, { DialogProps as MuiDialogProps } from '@mui/material/Dialog';
 import MuiDialogTitle, { DialogTitleProps } from '@mui/material/DialogTitle';
 import Grid from '@mui/material/Grid';
+import { useTheme } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import ActionButton from './ActionButton';
@@ -117,19 +119,19 @@ export function Dialog(props: DialogProps) {
     titleProps,
     ...other
   } = props;
-  const [fullScreen, setFullScreen] = React.useState(false);
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  // null = user hasn't toggled; fall back to the reactive isMobile value.
+  const [userOverride, setUserOverride] = React.useState<boolean | null>(null);
+  const fullScreen = userOverride ?? isMobile;
   const { t } = useTranslation();
 
   function handleFullScreen() {
-    setFullScreen(fs => {
-      const newFullScreenState = !fs;
-
-      if (!!onFullScreenToggled) {
-        onFullScreenToggled(newFullScreenState);
-      }
-
-      return newFullScreenState;
-    });
+    const newFullScreenState = !fullScreen;
+    setUserOverride(newFullScreenState);
+    if (onFullScreenToggled) {
+      onFullScreenToggled(newFullScreenState);
+    }
   }
 
   const generatedId = React.useId();
@@ -141,9 +143,9 @@ export function Dialog(props: DialogProps) {
       maxWidth="lg"
       scroll="paper"
       fullWidth
-      fullScreen={fullScreen}
       {...dialogAriaProps}
       {...other}
+      fullScreen={fullScreen}
     >
       {(!!title || withFullScreen) && (
         <DialogTitle
