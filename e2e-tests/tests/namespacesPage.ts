@@ -13,6 +13,7 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+
 import { AxeBuilder } from '@axe-core/playwright';
 import { expect, Page } from '@playwright/test';
 
@@ -33,7 +34,7 @@ export class NamespacesPage {
     await this.page.waitForLoadState('load');
   }
 
-  async createNamespace(name) {
+  async createNamespace(name: string) {
     const yaml = `
     apiVersion: v1
     kind: Namespace
@@ -72,7 +73,7 @@ export class NamespacesPage {
     await this.a11y();
   }
 
-  async deleteNamespace(name) {
+  async deleteNamespace(name: string) {
     const page = this.page;
     await page.waitForSelector('span:has-text("Namespaces")');
     await page.click('span:has-text("Namespaces")');

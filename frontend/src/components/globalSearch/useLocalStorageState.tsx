@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
 /** Store listeners to allow updates outside of the hook */
 const updateListeners: Record<string, Array<(newValue: any) => void>> = {};
@@ -38,11 +38,8 @@ export function useLocalStorageState<T>(key: string, defaultValue: T) {
 
     try {
       maybeValue = localStorage.getItem(key);
-    } catch (error) {
-      console.warn(
-        `Failed to read ${key} from local storage, falling back to default value:`,
-        error
-      );
+    } catch (e) {
+      console.warn(`Failed to read "${key}" from localStorage, falling back to default value:`, e);
       return defaultValue;
     }
 
@@ -52,52 +49,76 @@ export function useLocalStorageState<T>(key: string, defaultValue: T) {
 
     try {
       return JSON.parse(maybeValue);
-    } catch (error) {
-      console.warn(
-        `Failed to parse ${key} from local storage, falling back to default value:`,
-        error
-      );
+    } catch (e) {
+      console.warn(`Failed to parse "${key}" from localStorage, falling back to default value:`, e);
       return defaultValue;
-    }
-  };
-  const put = (value: T) => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (error) {
-      console.error(`Error occurred while setting ${key} in local storage:`, error);
     }
   };
 
   const [state, setState] = useState<T>(() => get());
 
-  const set = (updater: (old: T) => T) => {
-    const newValue = updater(state);
-    put(newValue);
-    setState(newValue);
-  };
-
-  // Listen to any updates to local storage
+  // Keep a ref of the latest known state (used to avoid stale closures across batched updates).
+  const stateRef = useRef(state);
   useEffect(() => {
-    const listener = (newValue: any) => set(() => newValue);
+    stateRef.current = state;
+  }, [state]);
+
+  // Update state and persist the new value to localStorage.
+  // - Computes from a mutable ref (stateRef) that is updated on every call, so consecutive
+  //   synchronous calls accumulate correctly even within a single batched render.
+  // - Writes to localStorage outside the caller-provided `updater` function (so the updater can stay pure).
+  // - Deps: [key]
+  const set = useCallback(
+    (updater: (old: T) => T) => {
+      const newValue = updater(stateRef.current);
+      stateRef.current = newValue;
+      try {
+        localStorage.setItem(key, JSON.stringify(newValue));
+      } catch (e) {
+        console.error(`Failed to save "${key}" to localStorage`, e);
+      }
+      setState(newValue);
+    },
+    [key]
+  );
+
+  // Subscribe to cross-component updates triggered via useLocalStorageState.update().
+  // - Updates stateRef and setState directly (instead of calling set()) because
+  //   update() already persisted the value to localStorage. Calling set() would
+  //   cause 1 + N redundant localStorage.setItem() calls for N subscribers.
+  useEffect(() => {
+    const listener = (newValue: any) => {
+      stateRef.current = newValue;
+      setState(newValue);
+    };
 
     updateListeners[key] ??= [];
     updateListeners[key].push(listener);
 
     return () => {
-      updateListeners[key] = updateListeners[key].filter(it => it !== listener);
+      const listeners = updateListeners[key]?.filter(it => it !== listener) ?? [];
+      if (listeners.length === 0) {
+        delete updateListeners[key];
+      } else {
+        updateListeners[key] = listeners;
+      }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [key]);
 
   return [state, set] as const;
 }
 
 /**
- * Update the value in local storage and notify all `useLocalStorageState` hooks
+ * Update the value in local storage and notify all `useLocalStorageState` hooks.
  *
  * @param key - local storage key
  * @param value - local storage value
  */
-useLocalStorageState.update = (key: string, value: any) => {
+useLocalStorageState.update = (key: string, value: any): void => {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (e) {
+    console.error(`Failed to save "${key}" to localStorage`, e);
+  }
   updateListeners[key]?.forEach(fn => fn(value));
 };

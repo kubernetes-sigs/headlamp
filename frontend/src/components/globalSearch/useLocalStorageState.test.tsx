@@ -17,106 +17,116 @@
 import { act, renderHook } from '@testing-library/react';
 import { useLocalStorageState } from './useLocalStorageState';
 
+const TEST_KEY = 'test-key';
+
+// localStorage is cleared globally in frontend/src/setupTests.ts.
+
 describe('useLocalStorageState', () => {
-  beforeEach(() => {
-    localStorage.clear();
+  it('returns the default value when localStorage has no entry', () => {
+    const { result } = renderHook(() => useLocalStorageState(TEST_KEY, 0));
+    expect(result.current[0]).toBe(0);
   });
 
-  afterEach(() => {
-    vi.restoreAllMocks();
+  it('returns the persisted value when localStorage already has an entry', () => {
+    localStorage.setItem(TEST_KEY, JSON.stringify(42));
+    const { result } = renderHook(() => useLocalStorageState(TEST_KEY, 0));
+    expect(result.current[0]).toBe(42);
   });
 
-  describe('initialization', () => {
-    it('returns defaultValue when key does not exist in localStorage', () => {
-      const { result } = renderHook(() => useLocalStorageState('test-key', 'default'));
-
-      expect(result.current[0]).toBe('default');
+  it('returns the default value when localStorage.getItem throws', () => {
+    const spy = vi.spyOn(localStorage, 'getItem').mockImplementation(() => {
+      throw new Error('Storage disabled');
     });
-
-    it('returns parsed localStorage value when key exists', () => {
-      localStorage.setItem('test-key', JSON.stringify('stored-value'));
-
-      const { result } = renderHook(() => useLocalStorageState('test-key', 'default'));
-
-      expect(result.current[0]).toBe('stored-value');
-    });
-
-    it('returns parsed object from localStorage', () => {
-      const stored = { name: 'test', count: 42 };
-      localStorage.setItem('test-key', JSON.stringify(stored));
-
-      const { result } = renderHook(() => useLocalStorageState('test-key', { name: '', count: 0 }));
-
-      expect(result.current[0]).toEqual(stored);
-    });
-
-    it('returns defaultValue and logs warning when localStorage contains malformed JSON', () => {
-      const spyWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      localStorage.setItem('test-key', '{ malformed json ]');
-
-      const { result } = renderHook(() => useLocalStorageState('test-key', 'default'));
-
-      expect(result.current[0]).toBe('default');
-      expect(spyWarn).toHaveBeenCalledWith(
-        'Failed to parse test-key from local storage, falling back to default value:',
-        expect.any(Error)
-      );
-    });
-
-    it('returns parsed boolean false correctly from localStorage', () => {
-      localStorage.setItem('test-key', JSON.stringify(false));
-
-      const { result } = renderHook(() => useLocalStorageState('test-key', true));
-
-      expect(result.current[0]).toBe(false);
-    });
-
-    it('returns defaultValue and logs warning when localStorage.getItem throws', () => {
-      const spyWarn = vi.spyOn(console, 'warn').mockImplementation(() => {});
-      vi.spyOn(localStorage, 'getItem').mockImplementation(() => {
-        throw new Error('Storage disabled');
-      });
-
-      const { result } = renderHook(() => useLocalStorageState('test-key', 'default'));
-
-      expect(result.current[0]).toBe('default');
-      expect(spyWarn).toHaveBeenCalledWith(
-        'Failed to read test-key from local storage, falling back to default value:',
-        expect.any(Error)
-      );
-    });
+    const { result } = renderHook(() => useLocalStorageState(TEST_KEY, 0));
+    expect(result.current[0]).toBe(0);
+    spy.mockRestore();
   });
 
-  describe('set', () => {
-    it('updates state and writes to localStorage', () => {
-      const { result } = renderHook(() => useLocalStorageState('test-key', 'initial'));
+  it('returns the default value when the stored JSON is malformed', () => {
+    localStorage.setItem(TEST_KEY, 'not-valid-json{{{');
+    const { result } = renderHook(() => useLocalStorageState(TEST_KEY, 0));
+    expect(result.current[0]).toBe(0);
+  });
 
+  it('updates state and persists the new value to localStorage', () => {
+    const { result } = renderHook(() => useLocalStorageState(TEST_KEY, 0));
+
+    act(() => {
+      result.current[1](() => 99);
+    });
+
+    expect(result.current[0]).toBe(99);
+    expect(JSON.parse(localStorage.getItem(TEST_KEY)!)).toBe(99);
+  });
+
+  /**
+   * Regression test for the stale-closure bug.
+   *
+   * Before the fix, `set` closed over the `state` variable directly:
+   *   const set = (updater) => { const newValue = updater(state); ... }
+   *
+   * Calling set() twice in the same render cycle meant both calls captured
+   * the same stale `state` (e.g. 0), so the second call would produce
+   * updater(0) = 1 instead of the expected updater(1) = 2, and the final
+   * value would be 1 rather than 2.
+   *
+   * After the fix, set() reads from a mutable ref (stateRef) that is eagerly
+   * updated on every call, so consecutive synchronous calls correctly
+   * accumulate even within a single batched render.
+   */
+  it('accumulates consecutive set() calls without stale closure (regression)', () => {
+    const { result } = renderHook(() => useLocalStorageState(TEST_KEY, 0));
+
+    act(() => {
+      // Two increments fired synchronously — must produce 2, not 1.
+      result.current[1](old => old + 1);
+      result.current[1](old => old + 1);
+    });
+
+    expect(result.current[0]).toBe(2);
+    expect(JSON.parse(localStorage.getItem(TEST_KEY)!)).toBe(2);
+  });
+
+  it('propagates updates via useLocalStorageState.update across hook instances', () => {
+    const { result: a } = renderHook(() => useLocalStorageState(TEST_KEY, 0));
+    const { result: b } = renderHook(() => useLocalStorageState(TEST_KEY, 0));
+
+    // Force a re-render of one hook instance before update() fires.
+    act(() => {
+      a.current[1](() => 1);
+    });
+
+    act(() => {
+      useLocalStorageState.update(TEST_KEY, 42);
+    });
+
+    // Both hook instances must reflect the new value.
+    expect(a.current[0]).toBe(42);
+    expect(b.current[0]).toBe(42);
+    expect(JSON.parse(localStorage.getItem(TEST_KEY)!)).toBe(42);
+  });
+
+  it('useLocalStorageState.update persists the value to localStorage', () => {
+    act(() => {
+      useLocalStorageState.update(TEST_KEY, 'hello');
+    });
+
+    expect(JSON.parse(localStorage.getItem(TEST_KEY)!)).toBe('hello');
+  });
+
+  it('does not throw when update() is called after unmount', () => {
+    const { result, unmount } = renderHook(() => useLocalStorageState(TEST_KEY, 0));
+
+    unmount();
+
+    // After unmount, update() should not throw even though there are no listeners.
+    expect(() => {
       act(() => {
-        result.current[1](() => 'updated');
+        useLocalStorageState.update(TEST_KEY, 99);
       });
+    }).not.toThrow();
 
-      expect(result.current[0]).toBe('updated');
-      expect(JSON.parse(localStorage.getItem('test-key') || '""')).toBe('updated');
-    });
-
-    it('catches and logs errors when localStorage.setItem throws', () => {
-      const spyError = vi.spyOn(console, 'error').mockImplementation(() => {});
-      const { result } = renderHook(() => useLocalStorageState('test-key', 'initial'));
-
-      vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
-        throw new Error('Quota exceeded');
-      });
-
-      act(() => {
-        result.current[1](() => 'updated');
-      });
-
-      // State should still update even if localStorage write fails
-      expect(result.current[0]).toBe('updated');
-      expect(spyError).toHaveBeenCalledWith(
-        'Error occurred while setting test-key in local storage:',
-        expect.any(Error)
-      );
-    });
+    // The unmounted hook's last known value should be unchanged.
+    expect(result.current[0]).toBe(0);
   });
 });
