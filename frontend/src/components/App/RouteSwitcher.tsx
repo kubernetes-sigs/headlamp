@@ -148,7 +148,7 @@ interface AuthRouteProps {
   [otherProps: string]: any;
 }
 
-function AuthRoute(props: AuthRouteProps) {
+export function AuthRoute(props: AuthRouteProps) {
   const {
     children,
     sidebar,
@@ -160,6 +160,9 @@ function AuthRoute(props: AuthRouteProps) {
 
   useSidebarItem(sidebar, computedMatch);
   const cluster = useCluster();
+
+  const clusters = useClustersConf();
+
   const query = useQuery({
     queryKey: ['auth', cluster],
     queryFn: () => testAuth(cluster!),
@@ -167,7 +170,6 @@ function AuthRoute(props: AuthRouteProps) {
     retry: 0,
   });
 
-  const clusters = useClustersConf();
   const currentCluster = getCluster();
   const clusterConf = currentCluster && clusters ? clusters[currentCluster] : null;
   const authError = query.error as any;
