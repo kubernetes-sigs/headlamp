@@ -217,7 +217,13 @@ function EventsSection() {
           label: t('glossary|Node'),
           gridTemplate: 'min-content',
           filterVariant: 'multi-select',
-          getValue: event => event.source?.host ?? '',
+          getValue: event =>
+            (event.involvedObject.kind === 'Node' && event.involvedObject.name) ||
+            event.source?.host ||
+            ((event.reportingComponent === 'kubelet' || event.source?.component === 'kubelet') &&
+              event.reportingInstance) ||
+            '',
+          show: false,
         },
         {
           id: 'reason',
