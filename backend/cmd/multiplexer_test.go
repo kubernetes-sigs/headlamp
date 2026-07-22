@@ -1934,3 +1934,114 @@ func BenchmarkCreateConnectionKey(b *testing.B) {
 		benchConnectionKeySink = m.createConnectionKey(clusterID, path, userID)
 	}
 }
+
+// TestConcurrentClusterWrites verifies that concurrent writes to the cluster
+// WebSocket connection are properly serialized by conn.writeMu.
+//
+// Note: This test simulates the heartbeat ping writer; it does not invoke
+// monitorConnection directly (HeartbeatInterval is a const).
+func TestConcurrentClusterWrites(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	// Create a WebSocket pair for the cluster-side connection.
+	clusterConn, clusterServer := createTestWebSocketConnection()
+	defer clusterServer.Close()
+
+	conn := &Connection{
+		ClusterID: "test-cluster",
+		UserID:    "test-user",
+		Path:      "/api/v1/pods",
+		WSConn:    clusterConn.conn,
+		Done:      make(chan struct{}),
+		Status: ConnectionStatus{
+			State:   StateConnected,
+			LastMsg: time.Now(),
+		},
+	}
+
+	drainAndCleanup(t, clusterConn)
+
+	var wg sync.WaitGroup
+
+	// Simulate heartbeat pings (what monitorConnection does).
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		for i := 0; i < 50; i++ {
+			conn.writeMu.Lock()
+			err := conn.WSConn.WriteMessage(websocket.PingMessage, nil)
+			conn.writeMu.Unlock()
+
+			if err != nil {
+				t.Errorf("ping write failed: %v", err)
+
+				return
+			}
+		}
+	}()
+
+	// Simulate client data forwarding (what writeMessageToCluster does).
+	wg.Add(1)
+
+	go func() {
+		defer wg.Done()
+
+		for i := 0; i < 50; i++ {
+			if err := m.writeMessageToCluster(conn, []byte(fmt.Sprintf("msg-%d", i))); err != nil {
+				t.Errorf("cluster write failed: %v", err)
+
+				return
+			}
+		}
+	}()
+
+	waitWithTimeout(t, &wg, 5*time.Second, "concurrent cluster writes timed out — possible deadlock")
+}
+
+// waitWithTimeout waits for a WaitGroup to finish within the given timeout,
+// calling t.Fatal with msg if the deadline is exceeded.
+func waitWithTimeout(t *testing.T, wg *sync.WaitGroup, timeout time.Duration, msg string) {
+	t.Helper()
+
+	done := make(chan struct{})
+
+	go func() {
+		wg.Wait()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+		// Success: goroutines completed without deadlock (run with `-race` to check for data races).
+	case <-time.After(timeout):
+		t.Fatal(msg)
+	}
+}
+
+// drainAndCleanup starts a goroutine that drains reads from conn so
+// writes on the other end don't block, and registers a t.Cleanup to
+// close the connection (which also terminates the drain goroutine).
+func drainAndCleanup(t *testing.T, conn *WSConnLock) {
+	t.Helper()
+
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		for {
+			_, _, err := conn.conn.ReadMessage()
+			if err != nil {
+				return
+			}
+		}
+	}()
+
+	t.Cleanup(func() {
+		_ = conn.conn.Close()
+
+		<-done
+	})
+}
