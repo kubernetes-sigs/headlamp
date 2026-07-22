@@ -8,7 +8,7 @@ on:
         required: true
       run_ids:
         description: 'Comma-separated run IDs of workflows with artifacts to download'
-        required: false
+        required: true
       force:
         description: 'Force upload even if the release is no longer a draft'
         type: boolean
@@ -24,6 +24,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # need to write to releases and download artifacts
+      actions: read
     steps:
       - name: Checkout code
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -35,6 +36,42 @@ jobs:
 
       - name: Create artifacts directory
         run: mkdir -p ./artifacts
+        
+      # Ensure workflow runs used to generate release artifacts were executed
+      # from the same commit as the release tag. See app/scripts/validate-run-shas.sh.
+      - name: Validate workflow run SHAs match release tag
+        id: validate_run_shas
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          # Source the script so we can reuse resolve_tag/get_tag_sha/validate_runs
+          # without executing its main() function.
+          # shellcheck source=app/scripts/validate-run-shas.sh
+          source app/scripts/validate-run-shas.sh
+
+          gh_token="${GH_TOKEN:-${GITHUB_TOKEN:-}}"
+          if [ -z "$gh_token" ]; then
+            echo "Error: GH_TOKEN or GITHUB_TOKEN is required for GitHub CLI authentication." >&2
+            exit 1
+          fi
+          export GH_TOKEN="$gh_token"
+
+          # Ensure tags are available locally before resolving.
+          git fetch --tags --force origin
+
+          tag_name="$(resolve_tag "${{ inputs.release_name }}")" || exit 1
+          if ! expected_sha=$(get_tag_sha "$tag_name"); then
+            echo "Error: Failed to determine SHA for tag '$tag_name'." >&2
+            exit 1
+          fi
+          if [ -z "$expected_sha" ]; then
+            echo "Error: Could not determine SHA for tag '$tag_name'." >&2
+            exit 1
+          fi
+
+          validate_runs "$expected_sha" "$tag_name" "${{ github.repository }}" "${{ inputs.run_ids }}"
+
+          echo "tag_name=$tag_name" >> "$GITHUB_OUTPUT"
 
       - name: Download artifacts from workflow runs
         if: ${{ inputs.run_ids != '' }}
@@ -45,7 +82,9 @@ jobs:
           IFS=',' read -ra RUN_IDS <<< "${{ inputs.run_ids }}"
 
           for run_id in "${RUN_IDS[@]}"; do
-            run_id=$(echo $run_id | xargs)  # Trim whitespace
+            # Trim surrounding whitespace
+            run_id="${run_id#"${run_id%%[![:space:]]*}"}"
+            run_id="${run_id%"${run_id##*[![:space:]]}"}"
             if [ -n "$run_id" ]; then
               echo "Downloading artifacts from run ID: $run_id"
 
@@ -54,7 +93,7 @@ jobs:
 
               # Download artifacts for this run ID
               # Note: This action will automatically download all artifacts from the run
-              gh run download $run_id --dir "./artifacts/run-$run_id"
+              gh run download "$run_id" --repo "${{ github.repository }}" --dir "./artifacts/run-$run_id"
             fi
           done
         env:
@@ -67,6 +106,7 @@ jobs:
 
       # Flatten directory structure for easier upload
       - name: Prepare artifacts for upload
+        id: prepare_artifacts
         run: |
           mkdir -p ./flattened-artifacts
           find ./artifacts -type f -not -path "*/\.*" -exec cp {} ./flattened-artifacts/ \;
@@ -77,13 +117,16 @@ jobs:
           echo "Files prepared for upload:"
           ls -la ./flattened-artifacts/
 
-          # Exit if no files are found
-          if [ -z "$(ls -A ./flattened-artifacts)" ]; then
+          # Check if any files are found and set output
+          if [ -z "$(find ./flattened-artifacts -mindepth 1 -print -quit)" ]; then
             echo "No artifacts found to upload!"
-            exit 0
+            echo "has_artifacts=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "has_artifacts=true" >> "$GITHUB_OUTPUT"
           fi
 
       - name: Prepare GPG key
+        if: ${{ steps.prepare_artifacts.outputs.has_artifacts == 'true' }}
         run: |
           gpg_dir=.cr-gpg
           mkdir "$gpg_dir"
@@ -112,33 +155,41 @@ jobs:
           GPG_PASSPHRASE: "${{ secrets.GPG_PASSPHRASE }}"
 
       - name: Install script dependencies
+        if: ${{ steps.prepare_artifacts.outputs.has_artifacts == 'true' }}
         working-directory: ./app/scripts/push-release-assets
         run: npm ci
 
       - name: Upload assets to release
+        if: ${{ steps.prepare_artifacts.outputs.has_artifacts == 'true' }}
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_UPDATE_TOKEN }}
         run: |
-          FORCE_FLAG=""
-          if [ "${{ github.event.inputs.force }}" == "true" ]; then
-            FORCE_FLAG="--force"
-          fi
-
           ARTIFACTS_PATH="$(pwd)/flattened-artifacts"
-          ASSETS=($(ls -1 $ARTIFACTS_PATH))
+          
+          # Gather assets safely into an array
+          ASSETS=()
+          while IFS= read -r -d '' file; do
+            ASSETS+=("$file")
+          done < <(find "$ARTIFACTS_PATH" -maxdepth 1 -type f -print0 | sort -z)
 
-          # Create the command with all artifact paths
           cd ./app/scripts/push-release-assets/
-          CMD="node push-release-assets.js $FORCE_FLAG ${{ inputs.release_name }}"
+          
+          # Build the command arguments
+          ARGS=()
+          if [ "${{ inputs.force }}" == "true" ]; then
+            ARGS+=("--force")
+          fi
+          RELEASE_NAME="${{ inputs.release_name }}"
+          ARGS+=("$RELEASE_NAME")
+          ARGS+=("${ASSETS[@]}")
 
-          for asset in "${ASSETS[@]}"; do
-            CMD+=" $ARTIFACTS_PATH/$asset"
-          done
-
-          echo "Executing: $CMD"
-          eval $CMD
+          printf 'Executing: node push-release-assets.js'
+          printf ' %q' "${ARGS[@]}"
+          printf '\n'
+          node push-release-assets.js "${ARGS[@]}"
 
       - name: Create and sign checksums signature
+        if: ${{ steps.prepare_artifacts.outputs.has_artifacts == 'true' }}
         run: |
           # Wait a moment for the checksums.txt to be available
           sleep 5
@@ -147,14 +198,13 @@ jobs:
           mkdir -p ./temp-checksums
 
           # Download the checksums.txt file that was just uploaded
-          gh release download ${{ inputs.release_name }} --pattern "checksums.txt" --dir ./temp-checksums --clobber
+          gh release download "${{ steps.validate_run_shas.outputs.tag_name }}" --repo "${{ github.repository }}" --pattern "checksums.txt" --dir ./temp-checksums --clobber
 
           # Create detached signature for checksums.txt
           gpg --batch --yes --passphrase-file "$CR_PASSPHRASE_FILE" --default-key "${{ secrets.GPG_SIGNING_KEY_NAME }}" --armor --detach-sign ./temp-checksums/checksums.txt
 
           # Upload the signature file
-          gh release upload ${{ inputs.release_name }} ./temp-checksums/checksums.txt.asc --clobber
-
+          gh release upload "${{ steps.validate_run_shas.outputs.tag_name }}" --repo "${{ github.repository }}" ./temp-checksums/checksums.txt.asc --clobber           
           echo "Checksums signature created and uploaded successfully"
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_UPDATE_TOKEN }}
