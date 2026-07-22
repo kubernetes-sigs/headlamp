@@ -152,7 +152,9 @@ describe('MCPClient', () => {
     const fakeTools = [{ name: 't1' }, { name: 't2' }];
     const getTools = vi.fn().mockResolvedValue(fakeTools);
     const close = vi.fn().mockResolvedValue(undefined);
-    const MultiServerMCPClientMock = vi.fn().mockImplementation(() => ({ getTools, close }));
+    const MultiServerMCPClientMock = vi.fn(function () {
+      return { getTools, close };
+    });
 
     vi.resetModules();
     vi.doMock('@langchain/mcp-adapters', () => ({
@@ -179,7 +181,9 @@ describe('MCPClient', () => {
   it('handleClustersChange logs and returns early when no cluster-dependent servers', async () => {
     const getTools = vi.fn().mockResolvedValue([]);
     const close = vi.fn().mockResolvedValue(undefined);
-    const MultiServerMCPClientMock = vi.fn().mockImplementation(() => ({ getTools, close }));
+    const MultiServerMCPClientMock = vi.fn(function () {
+      return { getTools, close };
+    });
 
     vi.resetModules();
     vi.doMock('@langchain/mcp-adapters', () => ({
@@ -209,7 +213,9 @@ describe('MCPClient', () => {
   it('handleClustersChange does nothing when clusters array is identical', async () => {
     const getTools = vi.fn().mockResolvedValue([]);
     const close = vi.fn().mockResolvedValue(undefined);
-    const MultiServerMCPClientMock = vi.fn().mockImplementation(() => ({ getTools, close }));
+    const MultiServerMCPClientMock = vi.fn(function () {
+      return { getTools, close };
+    });
 
     vi.resetModules();
     vi.doMock('@langchain/mcp-adapters', () => ({
@@ -248,7 +254,9 @@ describe('MCPClient', () => {
       { getTools: getToolsFirst, close: closeFirst },
       { getTools: getToolsSecond, close: closeSecond },
     ];
-    const MultiServerMCPClientMock = vi.fn().mockImplementation(() => instances.shift());
+    const MultiServerMCPClientMock = vi.fn(function () {
+      return instances.shift();
+    });
 
     // Ensure module cache is cleared so our doMock is respected when importing the MCPClient module
     vi.resetModules();
@@ -331,19 +339,23 @@ describe('MCPClient#mcpExecuteTool', () => {
         return { serverName, toolName: rest.join('.') };
       }),
       validateToolArgs: vi.fn().mockReturnValue({ valid: true }),
-      MCPToolStateStore: vi.fn().mockImplementation(() => ({
-        // initialize config from client tools is invoked during MCPClient.initialize
-        // provide a no-op mock so tests that don't assert this behavior don't fail
-        initConfigFromClientTools: vi.fn(),
-      })),
+      MCPToolStateStore: vi.fn(function () {
+        return {
+          // initialize config from client tools is invoked during MCPClient.initialize
+          // provide a no-op mock so tests that don't assert this behavior don't fail
+          initConfigFromClientTools: vi.fn(),
+        };
+      }),
     }));
 
     // Ensure initialize can construct a client with getTools/close methods
     vi.doMock('@langchain/mcp-adapters', () => ({
-      MultiServerMCPClient: vi.fn().mockImplementation(() => ({
-        getTools: vi.fn().mockResolvedValue([]),
-        close: vi.fn().mockResolvedValue(undefined),
-      })),
+      MultiServerMCPClient: vi.fn(function () {
+        return {
+          getTools: vi.fn().mockResolvedValue([]),
+          close: vi.fn().mockResolvedValue(undefined),
+        };
+      }),
     }));
 
     const { default: MCPClient } = await import('./MCPClient');
@@ -379,9 +391,11 @@ describe('MCPClient#mcpExecuteTool', () => {
         .fn()
         .mockReturnValue({ serverName: 'serverA', toolName: 'tool1' }),
       validateToolArgs: vi.fn().mockReturnValue({ valid: false, error: 'bad-params' }),
-      MCPToolStateStore: vi.fn().mockImplementation(() => ({
-        initConfigFromClientTools: vi.fn(),
-      })),
+      MCPToolStateStore: vi.fn(function () {
+        return {
+          initConfigFromClientTools: vi.fn(),
+        };
+      }),
     }));
 
     const { default: MCPClient } = await import('./MCPClient');
@@ -410,7 +424,9 @@ describe('MCPClient#mcpExecuteTool', () => {
     vi.doMock('./MCPToolStateStore', () => ({
       parseServerNameToolName: vi.fn().mockReturnValue({ serverName: 's', toolName: 't' }),
       validateToolArgs: vi.fn().mockReturnValue({ valid: true }),
-      MCPToolStateStore: vi.fn().mockImplementation(() => ({})),
+      MCPToolStateStore: vi.fn(function () {
+        return {};
+      }),
     }));
 
     const client = new MCPClient(cfgPath, settingsPath) as any;
@@ -434,7 +450,9 @@ describe('MCPClient#mcpExecuteTool', () => {
     vi.doMock('./MCPToolStateStore', () => ({
       parseServerNameToolName: vi.fn().mockReturnValue({ serverName: 'srv', toolName: 'missing' }),
       validateToolArgs: vi.fn().mockReturnValue({ valid: true }),
-      MCPToolStateStore: vi.fn().mockImplementation(() => ({})),
+      MCPToolStateStore: vi.fn(function () {
+        return {};
+      }),
     }));
 
     const client = new MCPClient(cfgPath, settingsPath) as any;
@@ -461,7 +479,9 @@ describe('MCPClient#mcpExecuteTool', () => {
     vi.doMock('./MCPToolStateStore', () => ({
       parseServerNameToolName: vi.fn().mockReturnValue({ serverName: 'x', toolName: 'y' }),
       validateToolArgs: vi.fn().mockReturnValue({ valid: true }),
-      MCPToolStateStore: vi.fn().mockImplementation(() => ({})),
+      MCPToolStateStore: vi.fn(function () {
+        return {};
+      }),
     }));
 
     const client = new MCPClient(cfgPath, settingsPath) as any;
