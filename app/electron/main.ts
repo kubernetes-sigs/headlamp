@@ -72,8 +72,11 @@ import {
 } from './plugin-management';
 import { readProtocolScheme } from './protocol';
 import { createProtocolHandler } from './protocolHandler';
+import { killAllProxies } from './proxies';
+import { createBeforeQuitHandler } from './quitCleanup';
 import {
   addRunCmdConsent,
+  applyCommandEnvironment,
   environmentOverrides,
   removeRunCmdConsent,
   runScript,
@@ -788,7 +791,14 @@ export async function getShellEnvironment(): Promise<NodeJS.ProcessEnv> {
         return {};
       });
   }
-  return { ...process.env, ...(await shellEnvironmentPromise) };
+  const resourcesDirectory = isDev
+    ? path.resolve(__dirname, '../resources')
+    : process.resourcesPath;
+  return applyCommandEnvironment(
+    { ...process.env, ...(await shellEnvironmentPromise) },
+    loadBuildManifest(appBuildManifestPath),
+    resourcesDirectory
+  );
 }
 
 /**
@@ -1938,13 +1948,13 @@ function startElectron() {
 
     // Also add bundled plugin bin directories to PATH
     const bundledPlugins = path.join(process.resourcesPath, '.plugins');
-    const bundledPluginBinDirs = getPluginBinDirectories(bundledPlugins);
+    const bundledPluginBinDirs = getPluginBinDirectories(bundledPlugins, 'bundled');
     if (bundledPluginBinDirs.length > 0) {
       addToPath(bundledPluginBinDirs, 'bundled plugin');
     }
 
     // Add the installed plugins as well
-    const userPluginBinDirs = getPluginBinDirectories(defaultUserPluginsDir());
+    const userPluginBinDirs = getPluginBinDirectories(defaultUserPluginsDir(), 'user');
     if (userPluginBinDirs.length > 0) {
       addToPath(userPluginBinDirs, 'userPluginBinDirs plugin');
     }
@@ -2034,26 +2044,31 @@ function startElectron() {
     }
   });
 
-  app.once('before-quit', async () => {
-    isQuitting = true;
-    // Persist any zoom change still waiting on the debounced save.
-    flushZoomFactorSave();
-    cleanupHeadlampTray();
-    hasTray = false;
-    i18n.off('languageChanged');
-    if (mainWindow) {
-      mainWindow.removeAllListeners('close');
-    }
-
-    if (mcpClient) {
-      try {
-        await mcpClient.cleanup();
-        mcpClient = null;
-      } catch (err) {
-        console.error('Failed to clean up mcpClient:', err);
+  const beforeQuit = createBeforeQuitHandler(
+    async () => {
+      isQuitting = true;
+      await killAllProxies();
+      // Persist any zoom change still waiting on the debounced save.
+      flushZoomFactorSave();
+      cleanupHeadlampTray();
+      hasTray = false;
+      i18n.off('languageChanged');
+      if (mainWindow) {
+        mainWindow.removeAllListeners('close');
       }
-    }
-  });
+
+      if (mcpClient) {
+        try {
+          await mcpClient.cleanup();
+          mcpClient = null;
+        } catch (err) {
+          console.error('Failed to clean up mcpClient:', err);
+        }
+      }
+    },
+    () => app.quit()
+  );
+  app.on('before-quit', beforeQuit);
 }
 
 if (!isRunningScript) {

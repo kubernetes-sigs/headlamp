@@ -32,6 +32,7 @@ import {
   removePreparedPluginScript,
   verifyPluginInstallationIntegrity,
 } from './plugin-management';
+import { setupProxyHandlers } from './proxies';
 import { isRunCommandAllowed, RunCommandGrant } from './runCommandPolicy';
 import { isTrustedDocumentUrl } from './secureStorage';
 import { loadSettings, saveSettings, SETTINGS_PATH } from './settings';
@@ -300,6 +301,60 @@ export async function verifyPluginCommandPolicies(
   return verifiedPolicies;
 }
 
+/**
+ * Applies an optional app-owned environment callback, never a renderer/plugin supplied module.
+ *
+ * @param environment - Merged process and login-shell environment; the callback receives a copy.
+ * @param manifest - Trusted application build manifest selecting the optional commandEnvironment module.
+ * @param resourcesDirectory - App resources root used to resolve and confine the callback module.
+ * @returns A copy of the callback's environment, or a copy of the input when no module is configured.
+ * @throws When the module is invalid or outside app-owned resources, the callback throws, or its
+ * return value is not a synchronous environment object.
+ */
+export function applyCommandEnvironment(
+  environment: NodeJS.ProcessEnv,
+  manifest: Record<string, unknown>,
+  resourcesDirectory: string
+): NodeJS.ProcessEnv {
+  const modulePath = manifest.commandEnvironment;
+  if (modulePath === undefined) return { ...environment };
+  if (
+    typeof modulePath !== 'string' ||
+    !modulePath.endsWith('.cjs') ||
+    modulePath.includes('\0') ||
+    path.posix.isAbsolute(modulePath) ||
+    path.win32.isAbsolute(modulePath)
+  ) {
+    throw new Error('commandEnvironment must reference a resource-relative CommonJS module');
+  }
+  const root = fs.realpathSync(resourcesDirectory);
+  const candidate = path.resolve(root, modulePath);
+  if (!isPathWithin(root, candidate)) throw new Error('commandEnvironment escapes resources');
+  const canonical = fs.realpathSync(candidate);
+  if (
+    !isPathWithin(root, canonical) ||
+    !fs.statSync(canonical).isFile() ||
+    isPathWithin(path.join(root, '.plugins'), canonical)
+  ) {
+    throw new Error('commandEnvironment must be an app-owned resource');
+  }
+  const { configureEnvironment } = require(canonical);
+  if (typeof configureEnvironment !== 'function') {
+    throw new Error('commandEnvironment must export configureEnvironment');
+  }
+  const result = configureEnvironment({ ...environment }, manifest, root);
+  if (
+    !result ||
+    typeof result !== 'object' ||
+    Array.isArray(result) ||
+    typeof result.then === 'function' ||
+    Object.values(result).some(value => value !== undefined && typeof value !== 'string')
+  ) {
+    throw new Error('commandEnvironment must return an environment object synchronously');
+  }
+  return { ...result };
+}
+
 /** Returns only values changed by shell initialization. */
 export function environmentOverrides(
   environment: NodeJS.ProcessEnv,
@@ -543,12 +598,10 @@ const COMMANDS_WITH_CONSENT = {
     'scriptjs minikube/manage-minikube.js',
   ],
   headlamp_ai_assistant: ['gh auth', 'az account', 'az cognitiveservices'],
-  azure_aks: ['scriptjs azure-aks/azure-api.js'],
 };
 
 const LEGACY_MINIKUBE_COMMANDS = new Set(COMMANDS_WITH_CONSENT.headlamp_minikube);
 const LEGACY_AI_ASSISTANT_COMMANDS = new Set(COMMANDS_WITH_CONSENT.headlamp_ai_assistant);
-const LEGACY_AZURE_AKS_COMMANDS = new Set(COMMANDS_WITH_CONSENT.azure_aks);
 const LEGACY_CONSENT_PLUGIN_COMMANDS = new Map<string, ReadonlySet<string>>([
   ['development\0@headlamp-k8s/minikube\0minikube', LEGACY_MINIKUBE_COMMANDS],
   ['development\0@headlamp-k8s/minikube\0headlamp_minikube', LEGACY_MINIKUBE_COMMANDS],
@@ -571,7 +624,6 @@ const LEGACY_CONSENT_PLUGIN_COMMANDS = new Map<string, ReadonlySet<string>>([
     'development\0@headlamp-k8s/ai-assistantprerelease\0headlamp_ai_assistantprerelease',
     LEGACY_AI_ASSISTANT_COMMANDS,
   ],
-  ['development\0azure-aks\0azure-aks', LEGACY_AZURE_AKS_COMMANDS],
 ]);
 
 /**
@@ -608,10 +660,6 @@ export function addRunCmdConsent(pluginInfo: { name: string }): void {
     (process.env.NODE_ENV === 'development' && pluginInfo.name === 'ai-assistant');
   if (pluginIsAiAssistant) {
     commands = COMMANDS_WITH_CONSENT.headlamp_ai_assistant;
-  }
-
-  if (pluginInfo.name === 'azure-aks') {
-    commands = COMMANDS_WITH_CONSENT.azure_aks;
   }
 
   for (const command of commands) {
@@ -939,7 +987,12 @@ export async function handleRunCommand(
     const { getShellEnvironment } = await import('./main');
     shellEnvironment = await getShellEnvironment();
   } catch (error) {
-    console.warn('Failed to get shell environment, using process.env:', error);
+    console.error(
+      'Command environment unavailable',
+      commandFailureContext(spawnFailureReason(error))
+    );
+    sendRejectedExit(-1);
+    return;
   }
 
   // Get the command and args to run. With the correct paths for "scriptjs" commands.
@@ -1081,7 +1134,7 @@ export async function handleRunCommand(
       ...commandData.options,
       shell: false,
       env: {
-        ...(registeredCapability && commandData.command !== 'scriptjs'
+        ...(commandData.command !== 'scriptjs'
           ? systemCommandEnvironment(shellEnvironment, pluginRoots)
           : shellEnvironment),
         ...(commandData.command === 'scriptjs' ? { HEADLAMP_RUN_SCRIPT: 'true' } : {}),
@@ -1169,6 +1222,11 @@ function cryptoRandom() {
   return array[0] / (0xffffffff + 1);
 }
 
+/** Returns a 128-bit bearer capability encoded without shell-sensitive characters. */
+function cryptoRandomToken(): string {
+  return crypto.randomBytes(16).toString('hex');
+}
+
 /**
  * Sets up the IPC handlers for running commands.
  * Called in the main process to handle 'run-command' events.
@@ -1218,8 +1276,9 @@ export function setupRunCmdHandlers(
     'runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js': cryptoRandom(),
     'runCmd-gh': cryptoRandom(),
     'runCmd-az': cryptoRandom(),
-    'runCmd-scriptjs-azure-aks/azure-api.js': cryptoRandom(),
+    startClusterProxy: cryptoRandomToken(),
   };
+  const { startClusterProxy, ...commandPermissionSecrets } = permissionSecrets;
 
   const requestPermissionSecrets = () => {
     if (!pluginPermissionSecretsSent) {
@@ -1279,13 +1338,18 @@ export function setupRunCmdHandlers(
       event,
       eventData,
       mainWindow,
-      permissionSecrets,
+      commandPermissionSecrets,
       capabilityRegistry,
       trustedStartUrl,
       pluginRoots ?? defaultPluginRoots()
     );
   ipcMain.on('run-command', runCommand);
   runCmdIpcListeners.set(ipcMain, { requestPermissionSecrets, revokeCapabilities, runCommand });
+
+  setupProxyHandlers(mainWindow, ipcMain, startClusterProxy, async () => {
+    const { getShellEnvironment } = await import('./main');
+    return getShellEnvironment();
+  });
 }
 
 /** Revokes every command capability issued by handlers registered on this IPC instance. */
