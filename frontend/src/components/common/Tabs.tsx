@@ -43,7 +43,7 @@ export interface TabsProps {
     [propName: string]: any;
   };
   /** The index of the initially active tab. Defaults to 0. Set to null or false to disable initial selection. */
-  defaultIndex?: number | null | boolean;
+  defaultIndex?: number | null | false;
   /** Callback invoked when the active tab changes.
    * @param tabIndex - The index of the newly selected tab.
    */
@@ -65,7 +65,7 @@ export interface TabsProps {
 export default function Tabs(props: TabsProps) {
   const { tabs, tabProps = {}, defaultIndex = 0, onTabChanged = null, ariaLabel } = props;
   const [tabIndex, setTabIndex] = React.useState<TabsProps['defaultIndex']>(
-    defaultIndex && Math.min(defaultIndex as number, 0)
+    typeof defaultIndex === 'number' ? Math.max(defaultIndex, 0) : false
   );
 
   /**
@@ -83,11 +83,7 @@ export default function Tabs(props: TabsProps) {
   }
 
   React.useEffect(() => {
-    if (defaultIndex === null) {
-      setTabIndex(false);
-      return;
-    }
-    setTabIndex(defaultIndex);
+    setTabIndex(typeof defaultIndex === 'number' ? Math.max(defaultIndex, 0) : false);
   }, [defaultIndex]);
 
   const uniqueIdSuffix = useId('tabs-');
@@ -128,7 +124,7 @@ export default function Tabs(props: TabsProps) {
       {tabs.map(({ component }, i) => (
         <TabPanel
           key={i}
-          tabIndex={Number(tabIndex)}
+          selectedTab={tabIndex}
           index={i}
           id={`full-width-tabpanel-${i}-${ariaLabel.replace(' ', '')}-${uniqueIdSuffix}`}
           labeledBy={`full-width-tab-${i}-${ariaLabel.replace(' ', '')}-${uniqueIdSuffix}`}
@@ -143,9 +139,11 @@ export default function Tabs(props: TabsProps) {
 /**
  * Props for a single tab panel.
  */
-interface TabPanelProps extends TypographyProps {
-  /** The index of the currently active tab. */
-  tabIndex: number;
+interface TabPanelProps extends Omit<TypographyProps, 'tabIndex'> {
+  /** The index of the currently active tab (preferred). */
+  selectedTab?: TabsProps['defaultIndex'];
+  /** Deprecated fallback for backward compatibility. Use selectedTab instead. */
+  tabIndex?: TabsProps['defaultIndex'];
   /** The index of this tab panel. */
   index: number;
   /** The unique ID for the tab panel, used for accessibility. */
@@ -161,16 +159,21 @@ interface TabPanelProps extends TypographyProps {
  * @returns A container showing the content if this panel is active.
  */
 export function TabPanel(props: TabPanelProps) {
-  const { children, tabIndex, index, id, labeledBy } = props;
+  const { children, selectedTab, tabIndex, index, id, labeledBy, ...otherProps } = props;
+  const activeTab = selectedTab !== undefined ? selectedTab : tabIndex;
 
   return (
     <Typography
       component="div"
+      {...otherProps}
       role="tabpanel"
-      hidden={tabIndex !== index}
+      hidden={activeTab !== index}
       id={id}
       aria-labelledby={labeledBy}
-      sx={{ flexGrow: 1, overflow: 'hidden' }}
+      sx={[
+        { flexGrow: 1, overflow: 'hidden' },
+        ...(Array.isArray(otherProps.sx) ? otherProps.sx : [otherProps.sx]),
+      ]}
     >
       {children}
     </Typography>
