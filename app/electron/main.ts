@@ -887,9 +887,40 @@ function quitServerProcess() {
   }
 
   serverProcess.stdin.destroy();
-  // @todo: should we try and end the process a bit more gracefully?
-  //       What happens if the kill signal doesn't kill it?
-  serverProcess.kill();
+
+  // Try graceful termination first
+  try {
+    serverProcess.kill('SIGTERM');
+  } catch (err) {
+    console.error('Failed to send SIGTERM to server process:', err);
+  }
+
+  // Fallback to forceful termination if it hasn't quit after a timeout
+  const currentProcess = serverProcess;
+  const fallbackTimeout = setTimeout(() => {
+    // A null exitCode and null signalCode means the process is still running
+    if (currentProcess && currentProcess.exitCode === null && currentProcess.signalCode === null) {
+      console.warn('Server process did not exit gracefully, forcing kill...');
+      try {
+        if (process.platform === 'win32' && currentProcess.pid !== undefined) {
+          killProcess(currentProcess.pid);
+        } else {
+          currentProcess.kill('SIGKILL');
+        }
+      } catch (err) {
+        console.error('Failed to force kill server process:', err);
+      }
+    }
+  }, 5000); // 5 seconds
+
+  const clearFallbackTimeout = () => clearTimeout(fallbackTimeout);
+  currentProcess.once('exit', clearFallbackTimeout);
+  currentProcess.once('close', clearFallbackTimeout);
+
+  // If the process already exited before handlers were attached, clear immediately.
+  if (currentProcess.exitCode !== null || currentProcess.signalCode !== null) {
+    clearFallbackTimeout();
+  }
 
   serverProcess = null;
 }
