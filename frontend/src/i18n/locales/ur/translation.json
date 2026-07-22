@@ -840,6 +840,8 @@
   "Selects which pods belong to this ReplicaSet. Entries are mirrored read-only into the pod template labels below; extra pod-template-only labels can be added there.": "",
   "Current//context:replicas": "موجودہ",
   "Desired//context:replicas": "مطلوبہ",
+  "more_count_one": "",
+  "more_count_other": "",
   "Graph controls": "",
   "Zoom in": "زوم اِن",
   "Zoom out": "زوم آؤٹ",
