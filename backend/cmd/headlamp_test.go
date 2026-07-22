@@ -3837,6 +3837,66 @@ func TestClusterRequestHandlerUsesServiceAccountToken(t *testing.T) { //nolint:f
 	assert.Empty(t, receivedProxyAuthToken)
 }
 
+func TestClusterRequestHandlerFallsBackToClusterContextForWebSocketCookie(t *testing.T) {
+	const cluster = "main"
+
+	var receivedAuth, receivedProtocol string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		receivedProtocol = r.Header.Get("Sec-Websocket-Protocol")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{},
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	router := mux.NewRouter()
+	handleClusterAPI(c, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/main/api/v1/pods", nil)
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set(
+		"Sec-Websocket-Protocol",
+		"base64url.headlamp.authorization.k8s.io.stale-user, v4.channel.k8s.io",
+	)
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-main.0",
+		Value:    "cookie-token",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "Bearer cookie-token", receivedAuth)
+	assert.Equal(t, "v4.channel.k8s.io", receivedProtocol)
+}
+
 func TestClusterRequestHandlerStripsProxyAuthTokenHeader(t *testing.T) {
 	const cluster, proxyAuthTokenHeader = "main", "Impersonate-User"
 

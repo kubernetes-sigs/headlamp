@@ -1181,6 +1181,28 @@ func (c *HeadlampConfig) shouldUseUnsafeServiceAccountTokenForContext(kContext *
 	return c.shouldUseUnsafeServiceAccountToken() && kContext.UsesInClusterServiceAccountToken()
 }
 
+func (c *HeadlampConfig) getContextWithWebSocketFallback(
+	r *http.Request,
+	contextKey string,
+) (string, *kubeconfig.Context, error) {
+	kContext, err := c.KubeConfigStore.GetContext(contextKey)
+	if err == nil {
+		return contextKey, kContext, nil
+	}
+
+	clusterName := mux.Vars(r)["clusterName"]
+	if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") &&
+		contextKey != clusterName &&
+		errors.Is(err, cache.ErrNotFound) {
+		kContext, fallbackErr := c.KubeConfigStore.GetContext(clusterName)
+		if fallbackErr == nil {
+			return clusterName, kContext, nil
+		}
+	}
+
+	return contextKey, nil, err
+}
+
 func tokenFromCookie(r *http.Request, clusterName string) string {
 	if cookieToken, err := auth.GetTokenFromCookie(r, clusterName); err == nil && cookieToken != "" {
 		return cookieToken
@@ -1807,7 +1829,7 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 			return
 		}
 
-		kContext, err := c.KubeConfigStore.GetContext(contextKey)
+		contextKey, kContext, err := c.getContextWithWebSocketFallback(r, contextKey)
 		if err != nil {
 			c.handleError(w, ctx, span, err, "failed to get context", http.StatusNotFound)
 			return
