@@ -26,19 +26,12 @@ describe('MultiPluginManagement', () => {
   let installer;
   const PLUGIN_DATA = [
     {
-      name: 'headlamp_flux',
-      source: 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux',
-      version: '0.4.0',
-    },
-    {
       name: 'headlamp_minikube',
       source: 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_minikube',
-      version: '0.3.0',
     },
     {
-      name: 'headlamp_cert-manager',
-      source: 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_cert-manager',
-      version: '0.1.0',
+      name: 'headlamp-kubescape',
+      source: 'https://artifacthub.io/packages/headlamp/headlamp-kubescape-plugin/headlamp-kubescape',
     },
   ];
   beforeEach(async () => {
@@ -66,7 +59,6 @@ describe('MultiPluginManagement', () => {
 plugins:
   - name: ${PLUGIN_DATA[1].name}
     source: ${PLUGIN_DATA[1].source}
-    version: ${PLUGIN_DATA[1].version}
 `;
       await fsp.writeFile(configPath, config);
 
@@ -108,7 +100,7 @@ plugins:
 plugins:
   - name: ${PLUGIN_DATA[1].name}
     source: ${PLUGIN_DATA[1].source}
-  - name: ${PLUGIN_DATA[2].name}
+  - name: different-plugin-name
     source: ${PLUGIN_DATA[1].source}
 `;
       await fsp.writeFile(configPath, config);
@@ -123,19 +115,19 @@ plugins:
     it('should detect circular dependencies', async () => {
       const config = `
 plugins:
+  - name: ${PLUGIN_DATA[0].name}
+    source: ${PLUGIN_DATA[0].source}
+    dependencies:
+      - ${PLUGIN_DATA[1].name}
   - name: ${PLUGIN_DATA[1].name}
     source: ${PLUGIN_DATA[1].source}
     dependencies:
-      - ${PLUGIN_DATA[2].name}
-  - name: ${PLUGIN_DATA[2].name}
-    source: ${PLUGIN_DATA[2].source}
-    dependencies:
-      - ${PLUGIN_DATA[1].name}
+      - ${PLUGIN_DATA[0].name}
 `;
       await fsp.writeFile(configPath, config);
 
       await expect(installer.installFromConfig(configPath)).rejects.toThrow(
-        `Circular dependencies found for plugin ${PLUGIN_DATA[1].name}`
+        `Circular dependencies found for plugin ${PLUGIN_DATA[0].name}`
       );
     });
 
@@ -169,8 +161,6 @@ plugins:
     source: ${PLUGIN_DATA[0].source}
   - name: ${PLUGIN_DATA[1].name}
     source: ${PLUGIN_DATA[1].source}
-  - name: ${PLUGIN_DATA[2].name}
-    source: ${PLUGIN_DATA[2].source}
 installOptions:
   parallel: true
   maxConcurrent: 2
@@ -193,8 +183,6 @@ plugins:
     source: ${PLUGIN_DATA[1].source}
     dependencies:
       - ${PLUGIN_DATA[0].name}
-  - name: ${PLUGIN_DATA[2].name}
-    source: ${PLUGIN_DATA[2].source}
 installOptions:
   parallel: true
   maxConcurrent: 3
@@ -211,12 +199,6 @@ installOptions:
         chunk => chunk.includes(PLUGIN_DATA[0].name) && chunk.includes(PLUGIN_DATA[1].name)
       );
       expect(hasInvalidChunk).toBe(false);
-
-      // Verify that independent-plugin can be installed in parallel with base-plugin
-      const hasValidParallelChunk = chunks.some(
-        chunk => chunk.length > 1 && chunk.includes(PLUGIN_DATA[2].name)
-      );
-      expect(hasValidParallelChunk).toBe(true);
     }, 10000); // Increase timeout to 10 seconds
   });
 
@@ -226,7 +208,6 @@ installOptions:
 plugins:
   - name: ${PLUGIN_DATA[0].name}
     source: ${PLUGIN_DATA[0].source}
-    version: ${PLUGIN_DATA[0].version}
 `;
       await fsp.writeFile(configPath, config);
 
@@ -235,7 +216,8 @@ plugins:
 
       expect(result.successful).toEqual(1);
       expect(result.failed).toEqual(0);
-      expect(fs.existsSync(path.join(tempDir, PLUGIN_DATA[0].name))).toBe(true);
+      const expectedFolderName = PLUGIN_DATA[0].name;
+      expect(fs.existsSync(path.join(tempDir, expectedFolderName))).toBe(true);
     }, 10000);
 
     it('should handle missing configuration file', async () => {

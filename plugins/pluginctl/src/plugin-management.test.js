@@ -17,6 +17,7 @@
 const pluginManagement = require('./plugin-management.js');
 const tmp = require('tmp');
 const fs = require('fs');
+const path = require('path');
 
 const PluginManager = pluginManagement.PluginManager;
 const validateArchiveURL = pluginManagement.validateArchiveURL;
@@ -28,92 +29,96 @@ const mockProgressCallback = jest.fn(args => {
   // console.log("Progress Callback:", args);  // Uncomment for debugging
 });
 
+const FLUX_URL = 'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux';
+
 describe('PluginManager Test Cases', () => {
   let tempDir;
 
-  beforeAll(() => {
-    // Create a temporary directory before all tests
+  beforeAll(async () => {
+    // Create a temporary directory and install the plugin once for the entire suite.
+    // Pass null so installation errors are thrown and fail test setup immediately.
     tempDir = tmp.dirSync({ unsafeCleanup: true }).name;
-  });
+    await PluginManager.install(FLUX_URL, tempDir, '', null);
+  }, 30000);
 
   afterAll(() => {
-    // Remove the temporary directory after all tests
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
   beforeEach(() => {
-    // Initialize a new PluginManager instance before each test
     jest.clearAllMocks();
   });
 
   test('Install Plugin', async () => {
-    await PluginManager.install(
-      'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux',
-      tempDir,
-      '',
-      mockProgressCallback
-    );
-    expect(mockProgressCallback).toHaveBeenCalledWith({
-      type: 'success',
-      message: 'Plugin Installed',
-    });
-  });
+    // Verify that installing to a fresh directory emits the success callback.
+    const freshDir = tmp.dirSync({ unsafeCleanup: true }).name;
+    try {
+      await PluginManager.install(FLUX_URL, freshDir, '', mockProgressCallback);
+      expect(mockProgressCallback).toHaveBeenCalledWith({
+        type: 'success',
+        message: 'Plugin Installed',
+      });
+    } finally {
+      fs.rmSync(freshDir, { recursive: true, force: true });
+    }
+  }, 30000);
 
-  test('List Plugins', () => {
-    PluginManager.list(tempDir, mockProgressCallback);
-    // Assuming "flux" plugin is in the list of plugins
-    expect(mockProgressCallback).toHaveBeenCalledWith({
-      type: 'success',
-      message: 'Plugins Listed',
-      data: expect.any(Array),
-    });
-  });
+  describe('with installed plugin', () => {
+    // Each test receives its own isolated copy of the pre-installed plugin so
+    // tests are fully independent — no shared mutation, no order dependency.
+    // The copy is cheap (local fs) so there are no extra network calls.
+    let workDir;
 
-  test('No Update available for Plugin', async () => {
-    // No updates available for "flux" plugin
-    await PluginManager.update('@headlamp-k8s/flux', tempDir, '', mockProgressCallback);
-    expect(mockProgressCallback).toHaveBeenCalledWith({
-      type: 'error',
-      message: 'No updates available',
-    });
-  });
-
-  test('Update Plugin', async () => {
-    // update the "flux" plugin package.json with lower version
-    const packageJSONPath = `${tempDir}/headlamp_flux/package.json`;
-    const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath));
-    packageJSON.artifacthub.version = '0.0.1'; // Set to a version lower than the latest
-    // Write the updated package.json back to the file
-    fs.writeFileSync(packageJSONPath, JSON.stringify(packageJSON, null, 2));
-
-    await PluginManager.update('@headlamp-k8s/flux', tempDir, '', mockProgressCallback);
-    expect(mockProgressCallback).toHaveBeenCalledWith({
-      type: 'success',
-      message: 'Plugin Updated',
-    });
-  });
-
-  test('Uninstall Plugin', async () => {
-    const tempDir = tmp.dirSync({ unsafeCleanup: true }).name;
-
-    await PluginManager.install(
-      'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux',
-      tempDir,
-      '',
-      mockProgressCallback
-    );
-    expect(mockProgressCallback).toHaveBeenCalledWith({
-      type: 'success',
-      message: 'Plugin Installed',
+    beforeEach(() => {
+      workDir = tmp.dirSync({ unsafeCleanup: true }).name;
+      for (const entry of fs.readdirSync(tempDir)) {
+        fs.cpSync(path.join(tempDir, entry), path.join(workDir, entry), { recursive: true });
+      }
     });
 
-    PluginManager.uninstall('@headlamp-k8s/flux', tempDir, mockProgressCallback);
-    expect(mockProgressCallback).toHaveBeenCalledWith({
-      type: 'success',
-      message: 'Plugin Uninstalled',
+    afterEach(() => {
+      fs.rmSync(workDir, { recursive: true, force: true });
     });
 
-    fs.rmSync(tempDir, { recursive: true, force: true });
+    test('List Plugins', () => {
+      PluginManager.list(workDir, mockProgressCallback);
+      expect(mockProgressCallback).toHaveBeenCalledWith({
+        type: 'success',
+        message: 'Plugins Listed',
+        data: expect.any(Array),
+      });
+    });
+
+    test('No Update available for Plugin', async () => {
+      // No updates available when the installed version matches the latest.
+      await PluginManager.update('@headlamp-k8s/flux', workDir, '', mockProgressCallback);
+      expect(mockProgressCallback).toHaveBeenCalledWith({
+        type: 'error',
+        message: 'No updates available',
+      });
+    }, 30000);
+
+    test('Update Plugin', async () => {
+      // Downgrade the recorded version so an update is detected.
+      const packageJSONPath = `${workDir}/headlamp_flux/package.json`;
+      const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath));
+      packageJSON.artifacthub.version = '0.0.0'; // Guarantee a strictly lower version
+      fs.writeFileSync(packageJSONPath, JSON.stringify(packageJSON, null, 2));
+
+      await PluginManager.update('@headlamp-k8s/flux', workDir, '', mockProgressCallback);
+      expect(mockProgressCallback).toHaveBeenCalledWith({
+        type: 'success',
+        message: 'Plugin Updated',
+      });
+    }, 30000);
+
+    test('Uninstall Plugin', () => {
+      PluginManager.uninstall('@headlamp-k8s/flux', workDir, mockProgressCallback);
+      expect(mockProgressCallback).toHaveBeenCalledWith({
+        type: 'success',
+        message: 'Plugin Uninstalled',
+      });
+    });
   });
 });
 

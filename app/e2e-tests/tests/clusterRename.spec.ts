@@ -92,6 +92,8 @@ test.describe('Cluster rename functionality', () => {
     const headlampPage = new HeadlampPage(page);
     await headlampPage.authenticate();
 
+    await headlampPage.a11y();
+
     await navigateToSettings(page);
     await expect(page.locator('h2')).toContainText('Cluster Settings');
 
