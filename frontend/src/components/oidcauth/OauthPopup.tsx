@@ -41,10 +41,16 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
   const externalWindowRef = React.useRef<Window | null>(null);
   const storageListenerRef = React.useRef<(() => void) | null>(null);
   const beforeUnloadListenerRef = React.useRef<(() => void) | null>(null);
+  const intervalRef = React.useRef<number | null>(null);
 
   const cleanupPopup = React.useCallback(
     (closeWindow = false) => {
       const popupWindow = externalWindowRef.current;
+
+      if (intervalRef.current !== null) {
+        window.clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
 
       if (storageListenerRef.current) {
         window.removeEventListener('storage', storageListenerRef.current);
@@ -106,14 +112,65 @@ const OauthPopup: React.FC<OauthPopupProps> = props => {
     storageListenerRef.current = storageListener;
     window.addEventListener('storage', storageListener);
 
+    intervalRef.current = window.setInterval(() => {
+      if (externalWindowRef.current?.closed) {
+        // Check localStorage before treating the close as a cancellation.
+        // In Safari the storage event is unreliable, so the interval is the
+        // primary detection mechanism and must read localStorage here too.
+        try {
+          const authStatus = localStorage.getItem(AUTH_STATUS_KEY);
+          if (authStatus) {
+            onCode(authStatus);
+            localStorage.removeItem(AUTH_STATUS_KEY);
+            cleanupPopup(true);
+            return;
+          }
+        } catch (e) {
+          console.error('Error occurred while closing auth window', e);
+        }
+        cleanupPopup();
+        if (!!props.onClose) {
+          props.onClose();
+        }
+        return;
+      }
+
+      try {
+        const authStatus = localStorage.getItem(AUTH_STATUS_KEY);
+        if (authStatus) {
+          onCode(authStatus);
+          localStorage.removeItem(AUTH_STATUS_KEY);
+          cleanupPopup(true);
+        }
+      } catch (e) {
+        // ignore
+      }
+    }, 500);
+
     if (externalWindowRef.current) {
       try {
         const beforeUnloadListener = () => {
-          cleanupPopup();
-          externalWindowRef.current = null;
-          if (!!props.onClose) {
-            props.onClose();
-          }
+          // Safari fires beforeunload before the popup's useEffect has committed
+          // the localStorage write, and also suppresses the cross-window storage
+          // event due to ITP. Defer by one task so localStorage is readable.
+          setTimeout(() => {
+            try {
+              const authStatus = localStorage.getItem(AUTH_STATUS_KEY);
+              if (authStatus) {
+                onCode(authStatus);
+                localStorage.removeItem(AUTH_STATUS_KEY);
+                cleanupPopup(true);
+                return;
+              }
+            } catch (e) {
+              console.error('Error occurred while closing auth window', e);
+            }
+            cleanupPopup();
+            externalWindowRef.current = null;
+            if (!!props.onClose) {
+              props.onClose();
+            }
+          }, 0);
         };
 
         externalWindowRef.current.addEventListener('beforeunload', beforeUnloadListener, false);
