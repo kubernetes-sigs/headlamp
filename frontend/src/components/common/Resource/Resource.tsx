@@ -40,7 +40,7 @@ import { labelSelectorToQuery, ResourceClasses, useCluster } from '../../../lib/
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { KubeCondition, KubeContainer, KubeContainerStatus } from '../../../lib/k8s/cluster';
 import ConfigMap from '../../../lib/k8s/configMap';
-import { KubeEvent } from '../../../lib/k8s/event';
+import type { default as Event, KubeEvent } from '../../../lib/k8s/event';
 import Job from '../../../lib/k8s/job';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
@@ -70,6 +70,7 @@ import ErrorBoundary from '../ErrorBoundary';
 import InnerTable from '../InnerTable';
 import { DateLabel, HoverInfoLabel, StatusLabel, StatusLabelProps, ValueLabel } from '../Label';
 import Link, { LinkProps } from '../Link';
+import { useObjectEvents } from '../ObjectEventList';
 import { metadataStyles } from '.';
 import A8RInfo from './A8RInfo';
 import { MainInfoSection, MainInfoSectionProps } from './MainInfoSection/MainInfoSection';
@@ -119,7 +120,10 @@ export interface DetailsGridProps<T extends KubeObjectClass>
   cluster?: string;
   /** Sections to show in the details grid (besides the default ones). */
   extraSections?:
-    | ((item: InstanceType<T>) => boolean | DetailsViewSection[] | ReactNode[])
+    | ((
+        item: InstanceType<T>,
+        context: { events: Event[] }
+      ) => boolean | DetailsViewSection[] | ReactNode[])
     | boolean
     | DetailsViewSection[];
   /** @deprecated Use extraSections instead. */
@@ -164,6 +168,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
   const [item, error] = resourceType.useGet(name, namespace, {
     cluster: cluster ?? selectedCluster ?? undefined,
   }) as [InstanceType<T> | null, ApiError | null];
+  const events = useObjectEvents(withEvents ? item : null);
   const prevItemRef = React.useRef<{ uid?: string; version?: string; error?: ApiError | null }>({});
 
   React.useEffect(() => {
@@ -326,7 +331,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
     if (Array.isArray(extraSections)) {
       actualExtraSections = extraSections;
     } else if (typeof extraSections === 'function') {
-      const extraSectionsResult = extraSections(item!) || [];
+      const extraSectionsResult = extraSections(item!, { events }) || [];
       if (Array.isArray(extraSectionsResult)) {
         actualExtraSections = extraSectionsResult;
       }
@@ -352,7 +357,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
   if (withEvents && item) {
     sections.push({
       id: DefaultDetailsViewSection.EVENTS,
-      section: <ObjectEventList object={item} />,
+      section: <ObjectEventList object={item} events={events} />,
     });
   }
 
@@ -1711,10 +1716,11 @@ export interface OwnedPodsSectionProps {
    * Hides the namespace selector
    */
   noSearch?: boolean;
+  onPodsUpdate?: (resource: KubeObject, pods: Pod[] | null, errors: ApiError[] | null) => void;
 }
 
 export function OwnedPodsSection(props: OwnedPodsSectionProps) {
-  const { resource, hideColumns, noSearch } = props;
+  const { resource, hideColumns, noSearch, onPodsUpdate } = props;
   let namespace;
 
   if (resource.kind === 'Namespace') {
@@ -1746,6 +1752,23 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
     ...podMetricsQueryData,
     refetchInterval: METRIC_REFETCH_INTERVAL_MS,
   });
+  const resourceRef = React.useRef(resource);
+  const resourceIdentity = [
+    resource.cluster,
+    resource.kind,
+    resource.metadata.uid ?? '',
+    resource.metadata.namespace ?? '',
+    resource.metadata.name,
+  ].join('|');
+
+  React.useEffect(() => {
+    resourceRef.current = resource;
+  }, [resource]);
+
+  React.useEffect(() => {
+    onPodsUpdate?.(resourceRef.current, pods, errors ?? null);
+  }, [onPodsUpdate, resourceIdentity, pods, errors]);
+
   const onlyOneNamespace = !!resource.metadata.namespace || resource.kind === 'Namespace';
   const hideNamespaceFilter = onlyOneNamespace || noSearch;
 
