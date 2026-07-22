@@ -164,20 +164,19 @@ export default function ClusterContextMenu({
         >
           <ListItemText>{t('translation|Settings')}</ListItemText>
         </MenuItem>
-        {(!menuItems || menuItems.length === 0) &&
-          ((cluster.meta_data?.source === 'dynamic_cluster' &&
-            (helpers.isElectron() || isDynamicClusterEnabled)) ||
-            (cluster.meta_data?.source === 'kubeconfig' &&
-              (helpers.isElectron() || allowKubeconfigChanges))) && (
-            <MenuItem
-              onClick={() => {
-                setOpenConfirmDialog('deleteDynamic');
-                handleMenuClose();
-              }}
-            >
-              <ListItemText>{t('translation|Delete')}</ListItemText>
-            </MenuItem>
-          )}
+        {((cluster.meta_data?.source === 'dynamic_cluster' &&
+          (helpers.isElectron() || isDynamicClusterEnabled)) ||
+          (cluster.meta_data?.source === 'kubeconfig' &&
+            (helpers.isElectron() || allowKubeconfigChanges))) && (
+          <MenuItem
+            onClick={() => {
+              setOpenConfirmDialog('deleteDynamic');
+              handleMenuClose();
+            }}
+          >
+            <ListItemText>{t('translation|Delete')}</ListItemText>
+          </MenuItem>
+        )}
         {menuItems.map((Item, index) => {
           return (
             <Item
