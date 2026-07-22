@@ -19,8 +19,7 @@ import Paper from '@mui/material/Paper';
 import { useTheme } from '@mui/material/styles';
 import { styled } from '@mui/material/styles';
 import Typography from '@mui/material/Typography';
-import React, { ReactNode } from 'react';
-import { useRef } from 'react';
+import React, { ReactNode, useCallback, useEffect, useRef, useState } from 'react';
 import ReactDOM from 'react-dom';
 import {
   Bar,
@@ -199,6 +198,30 @@ export function PercentageBar(props: PercentageBarProps) {
   const { data, total = 100, tooltipFunc = null } = props;
 
   const containerRef = useRef<HTMLDivElement>(null);
+  const [containerRect, setContainerRect] = useState<DOMRect | null>(null);
+
+  useEffect(() => {
+    if (!tooltipFunc) {
+      return;
+    }
+    const handle = requestAnimationFrame(() => {
+      setContainerRect(containerRef.current?.getBoundingClientRect() ?? null);
+    });
+    return () => cancelAnimationFrame(handle);
+  }, [tooltipFunc]);
+
+  const handleMouseEnter = useCallback(() => {
+    const next = containerRef.current?.getBoundingClientRect() ?? null;
+
+    setContainerRect(prev =>
+      prev?.left === next?.left &&
+      prev?.top === next?.top &&
+      prev?.width === next?.width &&
+      prev?.height === next?.height
+        ? prev
+        : next
+    );
+  }, []);
 
   function formatData() {
     const dataItems: { [name: string]: number } = {};
@@ -218,7 +241,13 @@ export function PercentageBar(props: PercentageBarProps) {
 
   return (
     <StyledResponsiveContainer width="95%" height={20} ref={containerRef}>
-      <StyledBarChart layout="vertical" maxBarSize={5} data={[formatData()]}>
+      <StyledBarChart
+        layout="vertical"
+        maxBarSize={5}
+        data={[formatData()]}
+        onMouseEnter={tooltipFunc ? handleMouseEnter : undefined}
+        onMouseMove={tooltipFunc ? handleMouseEnter : undefined}
+      >
         {tooltipFunc && (
           <Tooltip
             content={props => (
@@ -226,7 +255,7 @@ export function PercentageBar(props: PercentageBarProps) {
                 rechartsProps={props}
                 tooltipFunc={tooltipFunc}
                 data={data}
-                containerRef={containerRef}
+                containerRect={containerRect}
               />
             )}
           />
@@ -255,18 +284,16 @@ interface PaperTooltipProps {
   rechartsProps?: any;
   tooltipFunc: (data: any) => ReactNode;
   data: any;
-  containerRef: React.RefObject<HTMLDivElement>;
+  containerRect: DOMRect | null;
 }
 
-function PaperTooltip({ rechartsProps, tooltipFunc, data, containerRef }: PaperTooltipProps) {
-  if (!rechartsProps || !rechartsProps.active || !rechartsProps.coordinate) return null;
-
-  // eslint-disable-next-line react-hooks/refs
-  const rect = containerRef.current?.getBoundingClientRect();
+function PaperTooltip({ rechartsProps, tooltipFunc, data, containerRect }: PaperTooltipProps) {
+  if (!rechartsProps || !rechartsProps.active || !rechartsProps.coordinate || !containerRect)
+    return null;
 
   const { x, y } = rechartsProps.coordinate;
-  const left = (rect?.left || 0) + x;
-  const top = (rect?.top ?? 0) + y - 5;
+  const left = (containerRect?.left ?? 0) + x;
+  const top = (containerRect?.top ?? 0) + y - 5;
 
   return ReactDOM.createPortal(
     <Paper
