@@ -219,6 +219,8 @@ const DEFAULT_NODE_WEIGHTS = {
   // Network supporting resources (cascading from Service/NetworkPolicy)
   Endpoints: 780,
   EndpointSlice: 780,
+  MutatingAdmissionPolicy: 780,
+  MutatingAdmissionPolicyBinding: 780,
   MutatingWebhookConfiguration: 780,
   ValidatingWebhookConfiguration: 780,
   IngressClass: 780,
