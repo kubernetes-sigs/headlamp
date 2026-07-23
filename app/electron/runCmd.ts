@@ -422,7 +422,7 @@ function confirmCommandDialog(command: string, mainWindow: BrowserWindow): boole
  * @param args - The arguments to the command.
  * @returns true if the user has consented to running the command, false otherwise.
  */
-function checkCommandConsent(
+export function checkCommandConsent(
   command: string,
   args: string[],
   mainWindow: BrowserWindow,
