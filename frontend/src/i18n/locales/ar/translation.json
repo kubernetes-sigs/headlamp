@@ -707,6 +707,7 @@
   "Namespaces must be under 64 characters.": "يجب أن يكون اسم النطاق أقل من 64 حرفًا",
   "A namespace with this name already exists.": "يوجد نطاق بهذا الاسم بالفعل",
   "Create Namespace": "إنشاء نطاق",
+  "Loading pods": "",
   "To": "إلى",
   "used": "مستخدم",
   "Scheduling Disabled": "تم تعطيل الجدولة",

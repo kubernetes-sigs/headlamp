@@ -687,6 +687,7 @@
   "Namespaces must be under 64 characters.": "نیم اسپیس 64 حروف سے کم ہونا چاہیے",
   "A namespace with this name already exists.": "اس نام کا نیم اسپیس پہلے سے موجود ہے",
   "Create Namespace": "نیم اسپیس بنائیں",
+  "Loading pods": "",
   "To": "تک",
   "used": "استعمال شدہ",
   "Scheduling Disabled": "شیڈولنگ غیر فعال",

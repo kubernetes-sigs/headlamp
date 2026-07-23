@@ -117,6 +117,8 @@
   "Job Sets": "",
   "Lease": "लीज़",
   "LimitRange": "लिमिट रेंज",
+  "Selected Pods": "",
+  "No pods in the {{ namespace }} namespace are selected by this policy.": "",
   "Ingress": "इंग्रेस",
   "ipBlock": "ipBlock",
   "namespaceSelector": "namespaceSelector",
