@@ -113,7 +113,7 @@ describe('PodGroup.isEnabled', () => {
   it('is true when the newest served version has the resource', async () => {
     mockRequest.mockResolvedValueOnce({ resources: [{ name: 'podgroups' }] });
 
-    expect(await PodGroup.isEnabled()).toBe(true);
+    expect(await PodGroup.isEnabled('test-cluster')).toBe(true);
     expect(mockRequest).toHaveBeenCalledTimes(1);
     expect(mockRequest.mock.calls[0][0]).toBe('/apis/scheduling.k8s.io/v1alpha3');
   });
@@ -124,7 +124,7 @@ describe('PodGroup.isEnabled', () => {
     );
     mockRequest.mockResolvedValueOnce({ resources: [{ name: 'podgroups' }] });
 
-    expect(await PodGroup.isEnabled()).toBe(true);
+    expect(await PodGroup.isEnabled('test-cluster')).toBe(true);
     expect(mockRequest.mock.calls.map(call => call[0])).toEqual([
       '/apis/scheduling.k8s.io/v1alpha3',
       '/apis/scheduling.k8s.io/v1alpha2',
@@ -134,7 +134,7 @@ describe('PodGroup.isEnabled', () => {
   it('is false when no candidate version is served', async () => {
     mockRequest.mockRejectedValue(new Error('the server could not find the requested resource'));
 
-    expect(await PodGroup.isEnabled()).toBe(false);
+    expect(await PodGroup.isEnabled('test-cluster')).toBe(false);
     expect(mockRequest).toHaveBeenCalledTimes(2);
   });
 });

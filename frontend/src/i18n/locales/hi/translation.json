@@ -740,7 +740,7 @@
   "Allowed Disruptions": "",
   "Policy": "पॉलिसी",
   "Min Count": "न्यूनतम संख्या",
-  "Pod Group Template": "पॉड ग्रुप टेम्पलेट",
+  "Pod Group Template Name": "पॉड ग्रुप टेम्पलेट नाम",
   "Disruption Mode": "डिसरप्शन मोड",
   "Topology Keys": "टोपोलॉजी कीज़",
   "Scheduled": "शेड्यूल्ड",

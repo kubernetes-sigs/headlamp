@@ -62,7 +62,7 @@ export default function PodGroupDetails(props: {
             hide: !item.workloadName,
           },
           {
-            name: t('translation|Pod Group Template'),
+            name: t('translation|Pod Group Template Name'),
             value: item.spec?.podGroupTemplateRef?.workload?.podGroupTemplateName,
             hide: !item.spec?.podGroupTemplateRef?.workload?.podGroupTemplateName,
           },

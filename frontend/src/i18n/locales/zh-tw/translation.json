@@ -734,7 +734,7 @@
   "Allowed Disruptions": "",
   "Policy": "原則",
   "Min Count": "最小數量",
-  "Pod Group Template": "Pod 群組範本",
+  "Pod Group Template Name": "Pod 群組範本名稱",
   "Disruption Mode": "中斷模式",
   "Topology Keys": "拓撲金鑰",
   "Scheduled": "已排程",

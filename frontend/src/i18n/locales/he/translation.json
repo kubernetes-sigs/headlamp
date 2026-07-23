@@ -746,7 +746,7 @@
   "Allowed Disruptions": "Allowed Disruptions",
   "Policy": "מדיניות",
   "Min Count": "מספר מינימלי",
-  "Pod Group Template": "תבנית קבוצת Pod",
+  "Pod Group Template Name": "שם תבנית קבוצת Pod",
   "Disruption Mode": "מצב שיבוש",
   "Topology Keys": "מפתחות טופולוגיה",
   "Scheduled": "מתוזמן",

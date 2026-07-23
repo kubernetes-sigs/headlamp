@@ -752,7 +752,7 @@
   "Allowed Disruptions": "Разрешённые сбои",
   "Policy": "Политика",
   "Min Count": "Минимальное количество",
-  "Pod Group Template": "Шаблон группы подов",
+  "Pod Group Template Name": "Имя шаблона группы подов",
   "Disruption Mode": "Режим прерывания",
   "Topology Keys": "Ключи топологии",
   "Scheduled": "Запланировано",

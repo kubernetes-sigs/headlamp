@@ -740,7 +740,7 @@
   "Allowed Disruptions": "اجازت شدہ رکاوٹیں",
   "Policy": "پالیسی",
   "Min Count": "کم از کم تعداد",
-  "Pod Group Template": "پوڈ گروپ ٹیمپلیٹ",
+  "Pod Group Template Name": "پوڈ گروپ ٹیمپلیٹ کا نام",
   "Disruption Mode": "خلل موڈ",
   "Topology Keys": "ٹوپولوجی کیز",
   "Scheduled": "شیڈول شدہ",

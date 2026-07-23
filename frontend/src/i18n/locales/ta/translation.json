@@ -740,7 +740,7 @@
   "Allowed Disruptions": "",
   "Policy": "கொள்கை",
   "Min Count": "குறைந்தபட்ச எண்ணிக்கை",
-  "Pod Group Template": "பாட் குழு டெம்ப்ளேட்",
+  "Pod Group Template Name": "பாட் குழு டெம்ப்ளேட் பெயர்",
   "Disruption Mode": "இடையூறு பயன்முறை",
   "Topology Keys": "இடவியல் விசைகள்",
   "Scheduled": "திட்டமிடப்பட்டது",

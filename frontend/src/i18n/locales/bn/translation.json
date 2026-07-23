@@ -740,7 +740,7 @@
   "Allowed Disruptions": "Allowed Disruptions",
   "Policy": "পলিসি",
   "Min Count": "সর্বনিম্ন সংখ্যা",
-  "Pod Group Template": "পড গ্রুপ টেমপ্লেট",
+  "Pod Group Template Name": "পড গ্রুপ টেমপ্লেট নাম",
   "Disruption Mode": "ডিসরাপশন মোড",
   "Topology Keys": "টপোলজি কী",
   "Scheduled": "শিডিউল করা হয়েছে",

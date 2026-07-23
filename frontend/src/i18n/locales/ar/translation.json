@@ -764,7 +764,7 @@
   "Allowed Disruptions": "الاضطرابات المسموح بها",
   "Policy": "السياسة",
   "Min Count": "الحد الأدنى للعدد",
-  "Pod Group Template": "قالب مجموعة البودات",
+  "Pod Group Template Name": "اسم قالب مجموعة البودات",
   "Disruption Mode": "وضع التعطيل",
   "Topology Keys": "مفاتيح الطوبولوجيا",
   "Scheduled": "مجدول",

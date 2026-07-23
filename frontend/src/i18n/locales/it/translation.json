@@ -746,7 +746,7 @@
   "Allowed Disruptions": "",
   "Policy": "Criterio",
   "Min Count": "Conteggio minimo",
-  "Pod Group Template": "Modello di gruppo di Pod",
+  "Pod Group Template Name": "Nome del modello di gruppo di Pod",
   "Disruption Mode": "Modalità di interruzione",
   "Topology Keys": "Chiavi di topologia",
   "Scheduled": "Pianificato",

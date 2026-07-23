@@ -109,10 +109,10 @@ class PodGroup extends KubeObject<KubePodGroup> {
    * discovery only reports the first version of each group and scheduling.k8s.io also
    * serves v1.
    *
-   * @param cluster - The cluster to check. Defaults to the current one.
+   * @param cluster - The cluster to check.
    * @returns true when the PodGroup resource is served.
    */
-  static async isEnabled(cluster?: string): Promise<boolean> {
+  static async isEnabled(cluster: string): Promise<boolean> {
     for (const version of PodGroup.apiVersion) {
       try {
         const response = await request(`/apis/${version}`, { cluster });
