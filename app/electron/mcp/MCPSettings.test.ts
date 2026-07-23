@@ -63,7 +63,18 @@ describe('MCPSettings', () => {
     saveMCPSettings('/cfg', newMCP);
 
     expect(loadSettings).toHaveBeenCalledWith('/cfg');
-    expect((existing as any).mcp).toBe(newMCP);
+    expect((existing as any).mcp).toMatchObject(newMCP);
+    expect((existing as any).mcp.servers[0].permissions).toMatchObject({
+      command: 'c',
+      args: [],
+      envKeys: [],
+      clusterDependent: false,
+      restart: {
+        enabled: true,
+        maxAttempts: 3,
+        delayMs: 2000,
+      },
+    });
     expect(saveSettings).toHaveBeenCalledWith('/cfg', existing);
   });
 });
@@ -198,7 +209,9 @@ describe('MultiServerMCPClient', () => {
       ],
     };
 
-    (loadSettings as Mock).mockReturnValue({ mcp: mcpSettings });
+    (loadSettings as Mock).mockReturnValue({
+      mcp: MCP.withApprovedMCPPermissions(mcpSettings as any),
+    });
 
     const result = MCP.makeMcpServersFromSettings('/cfg', ['clusterA']);
 
@@ -219,6 +232,28 @@ describe('MultiServerMCPClient', () => {
     expect(entry.restart.delayMs).toBe(2000);
   });
 
+  it('skips enabled servers with unapproved broadened permissions', () => {
+    const approved = MCP.withApprovedMCPPermissions({
+      enabled: true,
+      servers: [
+        {
+          name: 'changed',
+          command: 'cmd',
+          args: ['old'],
+          enabled: true,
+          env: { SAFE_VAR: 'ok' },
+        },
+      ],
+    } as any);
+    approved.servers[0].env = { SAFE_VAR: 'ok', NEW_SECRET: 'secret' };
+
+    (loadSettings as Mock).mockReturnValue({ mcp: approved });
+
+    const result = MCP.makeMcpServersFromSettings('/cfg', ['clusterA']);
+
+    expect(result).toEqual({});
+  });
+
   it('expands HEADLAMP_CURRENT_CLUSTER placeholder using provided clusters[0]', () => {
     const mcpSettings = {
       enabled: true,
@@ -232,7 +267,9 @@ describe('MultiServerMCPClient', () => {
       ],
     };
 
-    (loadSettings as Mock).mockReturnValue({ mcp: mcpSettings });
+    (loadSettings as Mock).mockReturnValue({
+      mcp: MCP.withApprovedMCPPermissions(mcpSettings as any),
+    });
 
     const result = MCP.makeMcpServersFromSettings('/cfg', ['my-current-cluster']);
 
@@ -240,6 +277,57 @@ describe('MultiServerMCPClient', () => {
     const entry = result['withCluster'] as any;
     // the expand function should have replaced the placeholder
     expect(entry.args).toEqual(['connect', 'my-current-cluster']);
+  });
+});
+
+describe('mcpPermissionsCenter', () => {
+  it('reports effective server permissions and recent tool usage', () => {
+    const mcpSettings = MCP.withApprovedMCPPermissions({
+      enabled: true,
+      servers: [
+        {
+          name: 'cluster-tools',
+          command: 'node',
+          args: ['server.js', 'HEADLAMP_CURRENT_CLUSTER'],
+          enabled: true,
+          env: { TOKEN: 'value', PATH: '/bin' },
+        },
+      ],
+    } as any);
+
+    const result = MCP.mcpPermissionsCenter(mcpSettings, {
+      'cluster-tools': {
+        list: {
+          enabled: true,
+          lastUsed: '2026-07-23T10:00:00.000Z',
+          usageCount: 2,
+        },
+      },
+    });
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        serverName: 'cluster-tools',
+        enabled: true,
+        approved: true,
+        command: 'node',
+        args: ['server.js', 'HEADLAMP_CURRENT_CLUSTER'],
+        envKeys: ['PATH', 'TOKEN'],
+        clusterDependent: true,
+        restart: {
+          enabled: true,
+          maxAttempts: 3,
+          delayMs: 2000,
+        },
+        recentToolUsage: [
+          {
+            toolName: 'list',
+            lastUsed: '2026-07-23T10:00:00.000Z',
+            usageCount: 2,
+          },
+        ],
+      }),
+    ]);
   });
 });
 
@@ -325,10 +413,10 @@ describe('settingsChanges', () => {
   });
 
   it('returns empty array when there are no changes', () => {
-    const s = {
+    const s = MCP.withApprovedMCPPermissions({
       enabled: true,
       servers: [{ name: 's', command: 'c', args: ['x'], enabled: true, env: { K: 'v' } }],
-    };
+    } as any);
 
     const result = MCP.settingsChanges(s as any, s as any);
     expect(result).toEqual([]);
