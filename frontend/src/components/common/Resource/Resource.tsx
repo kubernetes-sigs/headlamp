@@ -462,22 +462,25 @@ export function DataField(props: DataFieldProps) {
     }
   };
 
-  function handleEditorDidMount(editor: any) {
-    const editorElement: HTMLElement | null = editor.getDomNode();
-    if (!editorElement) {
-      return;
+  const editorHeight = React.useMemo(() => {
+    let lineCount = 1;
+    const str = data ?? '';
+    for (let i = 0; i < str.length; i++) {
+      if (str[i] === '\n') {
+        lineCount++;
+        if (lineCount > 10) {
+          break;
+        }
+      }
     }
-
-    const lineCount = editor.getModel()?.getLineCount() || 1;
     if (lineCount < 2) {
-      editorElement.style.height = '3vh';
+      return '3vh';
     } else if (lineCount <= 10) {
-      editorElement.style.height = '10vh';
-    } else {
-      editorElement.style.height = '40vh';
+      return '10vh';
     }
-    editor.layout();
-  }
+    return '40vh';
+  }, [data]);
+
   let language = (label as string).split('.').pop() as string;
   if (language !== 'json') {
     language = 'yaml';
@@ -485,10 +488,10 @@ export function DataField(props: DataFieldProps) {
 
   const editorComponent = (
     <Editor
+      height={editorHeight}
       value={data}
       language={language}
       onChange={handleChange}
-      onMount={handleEditorDidMount}
       options={{ lineNumbers: 'off', automaticLayout: true }}
       theme={theme.palette.mode === 'dark' ? 'vs-dark' : 'light'}
     />
@@ -505,7 +508,7 @@ export function DataField(props: DataFieldProps) {
           <Box width="100%" borderTop={1} height={'1px'}></Box>
         </Box>
       )}
-      <Box mt={1} px={1} pb={1}>
+      <Box mt={1} px={1} pb={1} sx={{ minHeight: editorHeight }}>
         {editorComponent}
       </Box>
     </Box>
