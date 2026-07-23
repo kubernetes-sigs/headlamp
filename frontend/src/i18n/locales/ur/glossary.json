@@ -117,6 +117,8 @@
   "Job Sets": "جاب سیٹس",
   "Lease": "لیز",
   "LimitRange": "لمٹ رینج",
+  "Selected Pods": "",
+  "No pods in the {{ namespace }} namespace are selected by this policy.": "",
   "Ingress": "انگریس",
   "ipBlock": "ipBlock",
   "namespaceSelector": "نییم اسپیس سلیکٹر",
