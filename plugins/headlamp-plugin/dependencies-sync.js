@@ -75,6 +75,7 @@ const dependenciesToNotCopy = [
   '@tanstack/react-query-devtools',
   'remark-gfm',
   '@typescript/native-preview',
+  '@chanzuckerberg/axe-storybook-testing',
 ];
 
 // Dependencies that can have different versions

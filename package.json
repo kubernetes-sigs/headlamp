@@ -46,6 +46,7 @@
     "frontend:lint:fix": "cd frontend && npm run lint -- --fix && npm run format",
     "frontend:tsc": "cd frontend && npm run tsc",
     "frontend:test": "cd frontend && npm test -- --coverage",
+    "frontend:test:a11y": "cd frontend && npm run test:a11y",
     "frontend:start": "cd frontend && npm start",
     "frontend:storybook": "cd frontend && npm run storybook",
     "docs": "cd frontend && npm run build-typedoc",

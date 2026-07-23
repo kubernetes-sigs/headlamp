@@ -95,7 +95,6 @@
     "yaml": "^2.7.0"
   },
   "overrides": {
-    "axe-core": "npm:dry-uninstall",
     "domain-browser": "npm:dry-uninstall",
     "typescript": "5.6.2",
     "cheerio": "1.0.0-rc.12",
@@ -115,6 +114,7 @@
     "build": "cross-env PUBLIC_URL=./ NODE_OPTIONS=--max-old-space-size=8096 vite build && npx shx rm -f build/frontend/index.baseUrl.html",
     "pretest": "npm run make-version",
     "test": "vitest",
+    "test:a11y": "npm run build-storybook && node test-a11y-with-baseline.mjs",
     "start-without-multiplexer": "cross-env REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER=false npm run start",
     "lint": "eslint --cache -c package.json --ext .js,.ts,.tsx src/ ../app/electron ../plugins/headlamp-plugin --ignore-pattern ../plugins/headlamp-plugin/template --ignore-pattern ../plugins/headlamp-plugin/lib/ --ignore-pattern ../plugins/headlamp-plugin/examples --ignore-pattern ../plugins/headlamp-plugin/official-plugins",
     "ci-lint": "eslint --cache -c .eslintrc.ci.cjs --ext .js,.ts,.tsx --max-warnings 0 src/ ../app/electron ../plugins/headlamp-plugin --ignore-pattern ../plugins/headlamp-plugin/template --ignore-pattern ../plugins/headlamp-plugin/lib/ --ignore-pattern ../plugins/headlamp-plugin/examples --ignore-pattern ../plugins/headlamp-plugin/official-plugins && npm run format-check",
@@ -232,6 +232,7 @@
     "@storybook/addon-docs": "^9.1.19",
     "@storybook/addon-links": "^9.1.19",
     "@storybook/react-vite": "^9.1.19",
+    "@chanzuckerberg/axe-storybook-testing": "^9.0.0",
     "@testing-library/jest-dom": "^6.4.8",
     "@testing-library/user-event": "^14.5.2",
     "@vitest/coverage-istanbul": "^3.0.5",

@@ -185,6 +185,9 @@ LoadingLogs.args = {
   item: mockDeployment,
 };
 LoadingLogs.parameters = {
+  axe: {
+    timeout: 10000,
+  },
   msw: {
     handlers: standardHandlers,
   },
@@ -221,6 +224,9 @@ LogsViewerOpened.args = {
   item: mockDeployment,
 };
 LogsViewerOpened.parameters = {
+  axe: {
+    timeout: 10000,
+  },
   msw: {
     handlers: standardHandlers,
   },
