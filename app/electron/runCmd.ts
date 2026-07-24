@@ -250,12 +250,12 @@ function getPluginsScriptPath(scriptName: string) {
  * @param permissionSecrets - The permission secrets required for the command to run.
  *                            Checks against eventData.permissionSecrets.
  */
-export function handleRunCommand(
+export async function handleRunCommand(
   event: IpcMainEvent,
   eventData: CommandDataPartial,
   mainWindow: BrowserWindow | null,
   permissionSecrets: Record<string, number>
-): void {
+): Promise<void> {
   if (mainWindow === null) {
     console.error('Main window is null, cannot run command');
     return;
@@ -285,13 +285,21 @@ export function handleRunCommand(
       ? [getPluginsScriptPath(commandData.args[0]), ...commandData.args.slice(1)]
       : commandData.args;
 
+  let shellEnvironment = process.env;
+  try {
+    const { getShellEnvironment } = await import('./main');
+    shellEnvironment = await getShellEnvironment();
+  } catch (error) {
+    console.warn('Failed to get shell environment, using process.env:', error);
+  }
+
   // If the command is 'scriptjs', we pass the HEADLAMP_RUN_SCRIPT=true
   // env var so that the Headlamp or Electron process runs the script.
   const child: ChildProcessWithoutNullStreams = spawn(command, args, {
     ...commandData.options,
     shell: false,
     env: {
-      ...process.env,
+      ...shellEnvironment,
       ...(commandData.command === 'scriptjs' ? { HEADLAMP_RUN_SCRIPT: 'true' } : {}),
     },
   });

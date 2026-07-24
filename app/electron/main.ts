@@ -710,6 +710,26 @@ async function getShellEnv(): Promise<NodeJS.ProcessEnv> {
   }
 }
 
+let shellEnvironmentPromise: Promise<NodeJS.ProcessEnv> | null = null;
+
+/** Returns the cached login-shell changes merged with the current process environment. */
+export async function getShellEnvironment(): Promise<NodeJS.ProcessEnv> {
+  if (!shellEnvironmentPromise) {
+    const initialEnvironment = { ...process.env };
+    shellEnvironmentPromise = getShellEnv()
+      .then(environment =>
+        Object.fromEntries(
+          Object.entries(environment).filter(([key, value]) => initialEnvironment[key] !== value)
+        )
+      )
+      .catch(error => {
+        console.warn('Failed to get shell environment, using process.env:', error);
+        return {};
+      });
+  }
+  return { ...process.env, ...(await shellEnvironmentPromise) };
+}
+
 /**
  * Check if a port is available by attempting to create a server on it
  */

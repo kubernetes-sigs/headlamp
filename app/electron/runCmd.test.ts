@@ -17,7 +17,15 @@
 import { EventEmitter } from 'events';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
-import { checkPermissionSecret, handleRunCommand, validateCommandData } from './runCmd';
+
+const { getShellEnvironmentMock, spawnMock } = vi.hoisted(() => ({
+  getShellEnvironmentMock: vi.fn(),
+  spawnMock: vi.fn(),
+}));
+
+vi.mock('child_process', () => ({
+  spawn: spawnMock,
+}));
 
 vi.mock('./plugin-management', () => ({
   defaultPluginsDir: vi.fn(() => '/plugins/default'),
@@ -26,7 +34,7 @@ vi.mock('./plugin-management', () => ({
 
 vi.mock('./settings', () => ({
   loadSettings: vi.fn(() => ({
-    confirmedCommands: { 'minikube start': true, gh: true, az: true },
+    confirmedCommands: { 'minikube start': true, 'gh auth': true, 'az account': true },
   })),
   saveSettings: vi.fn(),
   SETTINGS_PATH: '/fake/settings.json',
@@ -35,6 +43,14 @@ vi.mock('./settings', () => ({
 vi.mock('./i18next.config', () => ({
   default: { t: (s: string) => s },
 }));
+
+const shellEnvironment = { PATH: '/opt/homebrew/bin:/usr/bin', SHELL: '/bin/zsh' };
+
+vi.mock('./main', () => ({
+  getShellEnvironment: getShellEnvironmentMock,
+}));
+
+import { checkPermissionSecret, handleRunCommand, validateCommandData } from './runCmd';
 
 describe('checkPermissionSecret', () => {
   const baseCommandData = {
@@ -240,44 +256,79 @@ describe('validateCommandData', () => {
   });
 });
 
-describe('handleRunCommand - child process error event', () => {
-  it('sends command-stderr and command-exit with -1 when child emits error', async () => {
-    const childEmitter = new EventEmitter() as any;
+describe('handleRunCommand', () => {
+  let childEmitter: any;
+  let fakeEvent: any;
+  let sentMessages: Array<[string, ...unknown[]]>;
+
+  beforeEach(() => {
+    getShellEnvironmentMock.mockReset();
+    getShellEnvironmentMock.mockResolvedValue(shellEnvironment);
+    spawnMock.mockReset();
+    childEmitter = new EventEmitter();
     childEmitter.stdout = new EventEmitter();
     childEmitter.stderr = new EventEmitter();
-
-    vi.mock('child_process', () => ({
-      spawn: vi.fn(() => childEmitter),
-    }));
-
-    const { spawn } = await import('child_process');
-    (spawn as Mock).mockReturnValue(childEmitter);
-
-    const sentMessages: Array<[string, ...unknown[]]> = [];
-    const fakeEvent = {
+    spawnMock.mockReturnValue(childEmitter);
+    sentMessages = [];
+    fakeEvent = {
       sender: {
         send: vi.fn((...args: [string, ...unknown[]]) => sentMessages.push(args)),
       },
     } as any;
+  });
 
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('runs gh with the login-shell environment and reports child errors', async () => {
     const fakeMainWindow = { id: 1 } as any;
-    const permissionSecrets = { 'runCmd-minikube': 99 };
+    const permissionSecrets = { 'runCmd-gh': 99 };
 
     const eventData = {
       id: 'test-id',
-      command: 'minikube',
-      args: ['start'],
+      command: 'gh',
+      args: ['auth', 'token'],
       options: {},
-      permissionSecrets: { 'runCmd-minikube': 99 },
+      permissionSecrets: { 'runCmd-gh': 99 },
     };
 
-    handleRunCommand(fakeEvent, eventData, fakeMainWindow, permissionSecrets);
+    await handleRunCommand(fakeEvent, eventData, fakeMainWindow, permissionSecrets);
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      'gh',
+      ['auth', 'token'],
+      expect.objectContaining({ env: shellEnvironment })
+    );
 
     const err = new Error('spawn error');
     childEmitter.emit('error', err);
 
     expect(sentMessages).toContainEqual(['command-stderr', 'test-id', 'spawn error']);
     expect(sentMessages).toContainEqual(['command-exit', 'test-id', -1]);
+  });
+
+  it('falls back to process.env when shell environment resolution fails', async () => {
+    getShellEnvironmentMock.mockRejectedValue(new Error('shell unavailable'));
+    vi.stubEnv('HEADLAMP_TEST_ENV', 'current');
+    const eventData = {
+      id: 'test-id',
+      command: 'gh',
+      args: ['auth', 'token'],
+      options: {},
+      permissionSecrets: { 'runCmd-gh': 99 },
+    };
+
+    await expect(
+      handleRunCommand(fakeEvent, eventData, { id: 1 } as any, { 'runCmd-gh': 99 })
+    ).resolves.toBeUndefined();
+    expect(spawnMock).toHaveBeenCalledWith(
+      'gh',
+      ['auth', 'token'],
+      expect.objectContaining({
+        env: expect.objectContaining({ HEADLAMP_TEST_ENV: 'current' }),
+      })
+    );
   });
 });
 
