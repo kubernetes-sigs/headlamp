@@ -1934,3 +1934,150 @@ func BenchmarkCreateConnectionKey(b *testing.B) {
 		benchConnectionKeySink = m.createConnectionKey(clusterID, path, userID)
 	}
 }
+
+func TestCalculateBackoffInterval(t *testing.T) {
+	baseInterval := 30 * time.Second
+	maxInterval := 10 * time.Minute
+
+	tests := []struct {
+		failures int
+		expected time.Duration
+	}{
+		{failures: -5, expected: 30 * time.Second},
+		{failures: 0, expected: 30 * time.Second},
+		{failures: 1, expected: 60 * time.Second},
+		{failures: 2, expected: 120 * time.Second},
+		{failures: 3, expected: 240 * time.Second},
+		{failures: 4, expected: 480 * time.Second},
+		{failures: 5, expected: 10 * time.Minute},
+		{failures: 6, expected: 10 * time.Minute},
+		{failures: 15, expected: 10 * time.Minute},
+		{failures: 100, expected: 10 * time.Minute},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("failures_%d", tt.failures), func(t *testing.T) {
+			got := calculateBackoffInterval(tt.failures, baseInterval, maxInterval)
+			assert.Equal(t, tt.expected, got)
+		})
+	}
+
+	// Extra parameter boundary testing
+	assert.Equal(t, 10*time.Minute, calculateBackoffInterval(5, -10*time.Second, 10*time.Minute))
+	assert.Equal(t, 30*time.Second, calculateBackoffInterval(5, 30*time.Second, -10*time.Second))
+	assert.Equal(t, 10*time.Second, calculateBackoffInterval(5, 30*time.Second, 10*time.Second))
+}
+
+func TestSendDataMessage_ReturnsClientWriteErrorOnWriteFailure(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	_ = clientConn.Close()
+
+	err := m.sendDataMessage(conn, clientConn, websocket.TextMessage, []byte("test"))
+	require.Error(t, err)
+
+	var writeErr clientWriteError
+	assert.ErrorAs(t, err, &writeErr)
+}
+
+func createFailServer(t *testing.T, requestTimes *[]time.Time, mu *sync.Mutex) *httptest.Server {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+
+		*requestTimes = append(*requestTimes, time.Now())
+
+		mu.Unlock()
+
+		http.Error(w, "unavailable", http.StatusServiceUnavailable)
+	}))
+
+	t.Cleanup(server.Close)
+
+	return server
+}
+
+func assertBackoffResults(t *testing.T, requestTimes []time.Time, mu *sync.Mutex, state ConnectionState) {
+	mu.Lock()
+	times := make([]time.Time, len(requestTimes))
+	copy(times, requestTimes)
+	mu.Unlock()
+
+	assert.Equal(t, StateClosed, state)
+	require.GreaterOrEqual(t, len(times), 3)
+
+	minInterval := times[1].Sub(times[0])
+	maxInterval := minInterval
+
+	for i := 2; i < len(times); i++ {
+		d := times[i].Sub(times[i-1])
+		if d < minInterval {
+			minInterval = d
+		}
+
+		if d > maxInterval {
+			maxInterval = d
+		}
+	}
+	// Allow for scheduler/network jitter; ensure we observed some growth in retry intervals.
+	assert.GreaterOrEqual(t, maxInterval-minInterval, getHeartbeatInterval()/2)
+}
+
+func TestMonitorConnection_ExponentialBackoff(t *testing.T) {
+	originalInterval := heartbeatInterval
+
+	heartbeatInterval = 50 * time.Millisecond
+
+	defer func() {
+		heartbeatInterval = originalInterval
+	}()
+
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	var (
+		requestTimes []time.Time
+		mu           sync.Mutex
+	)
+
+	failServer := createFailServer(t, &requestTimes, &mu)
+	err := store.AddContext(&kubeconfig.Context{
+		Name:    "test-cluster",
+		Cluster: &api.Cluster{Server: failServer.URL},
+	})
+	require.NoError(t, err)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn, nil)
+	conn.Status.State = StateError
+	conn.WSConn = nil
+	done := make(chan struct{})
+
+	go func() {
+		m.monitorConnection(conn)
+		close(done)
+	}()
+
+	require.Eventually(t, func() bool {
+		mu.Lock()
+		n := len(requestTimes)
+		mu.Unlock()
+
+		return n >= 4
+	}, 2*time.Second, 10*time.Millisecond)
+
+	select {
+	case <-conn.Done:
+	default:
+		close(conn.Done)
+	}
+
+	<-done
+
+	assertBackoffResults(t, requestTimes, &mu, conn.Status.State)
+}
