@@ -662,6 +662,59 @@ func TestExternalProxy(t *testing.T) {
 	}
 }
 
+func TestExternalProxyStripsAuthHeaders(t *testing.T) {
+	// The proxy target sends back the headers it received over a channel, so the
+	// test goroutine reads them without racing the server goroutine.
+	receivedCh := make(chan http.Header, 1)
+
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedCh <- r.Header.Clone()
+
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte("OK"))
+	}))
+	defer target.Close()
+
+	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				ProxyURLs:       []string{target.URL},
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache: cache.New[interface{}](),
+		},
+	})
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/externalproxy", nil)
+	req.Header.Set("proxy-to", target.URL)
+	req.Header.Set("Authorization", "Bearer user-kubernetes-token")
+	req.Header.Set("X-HEADLAMP_BACKEND-TOKEN", "headlamp-backend-secret")
+	req.Header.Set("Cookie", "headlamp-auth=secret-cookie")
+	req.Header.Set("X-Custom-Header", "keep-me")
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	var received http.Header
+	select {
+	case received = <-receivedCh:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for the proxy target to receive the request")
+	}
+
+	// Sensitive/internal headers must not reach the external target.
+	assert.Empty(t, received.Get("Authorization"), "Authorization should be stripped")
+	assert.Empty(t, received.Get("X-HEADLAMP_BACKEND-TOKEN"), "backend token should be stripped")
+	assert.Empty(t, received.Get("Cookie"), "Cookie should be stripped")
+	assert.Empty(t, received.Get("proxy-to"), "proxy-to should be stripped")
+
+	// Ordinary headers are still forwarded.
+	assert.Equal(t, "keep-me", received.Get("X-Custom-Header"))
+}
+
 func TestCompileProxyURLPatternsInvalidPattern(t *testing.T) {
 	_, err := compileProxyURLPatterns([]string{"["})
 
