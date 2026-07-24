@@ -33,11 +33,18 @@ export interface PodGroupSchedulingPolicy {
   };
 }
 
+/** How v1alpha2 references the Workload a group was templated from. */
 export interface PodGroupTemplateReference {
   workload?: {
     workloadName: string;
     podGroupTemplateName: string;
   };
+}
+
+/** How v1alpha3 references the Workload a group was templated from. */
+export interface PodGroupWorkloadReference {
+  workloadName: string;
+  templateName: string;
 }
 
 export interface PodGroupResourceClaim {
@@ -51,13 +58,33 @@ export interface PodGroupSchedulingConstraints {
   topology?: { key: string }[];
 }
 
+/**
+ * How v1alpha3 describes which pods a disruption affects. Exactly one field is set:
+ * `single` matches the v1alpha2 'Pod' mode, `all` matches 'PodGroup'.
+ */
+export interface PodGroupDisruptionMode {
+  single?: Record<string, never>;
+  all?: Record<string, never>;
+}
+
 export interface PodGroupSpec {
   schedulingPolicy: PodGroupSchedulingPolicy;
+  /** Served by v1alpha2. v1alpha3 uses `workloadRef` instead. */
   podGroupTemplateRef?: PodGroupTemplateReference;
+  /** Served by v1alpha3. v1alpha2 uses `podGroupTemplateRef` instead. */
+  workloadRef?: PodGroupWorkloadReference;
+  /** The composite group this group belongs to, when nested. Served by v1alpha3. */
+  parentCompositePodGroupName?: string;
   /** Set only when the WorkloadAwarePreemption feature gate is enabled. */
   priorityClassName?: string;
   priority?: number;
-  disruptionMode?: 'Pod' | 'PodGroup';
+  /** Served by v1alpha3. Whether preemption may evict lower priority pods. */
+  preemptionPolicy?: 'PreemptLowerPriority' | 'Never';
+  /**
+   * v1alpha2 serves this as the string 'Pod' or 'PodGroup'; v1alpha3 serves it as an
+   * object with a `single` or `all` field. Read it through the `disruptionMode` getter.
+   */
+  disruptionMode?: 'Pod' | 'PodGroup' | PodGroupDisruptionMode;
   /** Set only when the TopologyAwareWorkloadScheduling feature gate is enabled. */
   schedulingConstraints?: PodGroupSchedulingConstraints;
   /** Set only when the DRAWorkloadResourceClaims feature gate is enabled. */
@@ -88,18 +115,33 @@ export function getSchedulingPolicyKind(
   return undefined;
 }
 
+/**
+ * Human readable disruption mode across API versions. v1alpha2 uses the strings
+ * 'Pod'/'PodGroup'; v1alpha3 uses an object with a `single` or `all` field. Both
+ * describe the same choice: disrupt one pod at a time, or the whole group together.
+ * @param mode - The disruptionMode field of a PodGroup spec.
+ * @returns 'Pod', 'PodGroup', or undefined when no mode is set.
+ */
+export function getDisruptionMode(
+  mode: PodGroupSpec['disruptionMode']
+): 'Pod' | 'PodGroup' | undefined {
+  if (typeof mode === 'string') {
+    return mode;
+  }
+  if (mode?.single) {
+    return 'Pod';
+  }
+  if (mode?.all) {
+    return 'PodGroup';
+  }
+  return undefined;
+}
+
 class PodGroup extends KubeObject<KubePodGroup> {
   static kind = 'PodGroup';
   static apiName = 'podgroups';
   static apiVersion = ['scheduling.k8s.io/v1alpha3', 'scheduling.k8s.io/v1alpha2'];
   static isNamespaced = true;
-
-  static getBaseObject(): KubePodGroup {
-    const baseObject = super.getBaseObject() as KubePodGroup;
-    baseObject.metadata = { ...baseObject.metadata, namespace: '' };
-    baseObject.spec = { schedulingPolicy: { gang: { minCount: 1 } } };
-    return baseObject;
-  }
 
   /**
    * Whether the cluster serves the workload aware scheduling APIs, which requires the
@@ -150,7 +192,27 @@ class PodGroup extends KubeObject<KubePodGroup> {
 
   /** Name of the Workload this group was templated from, if any. */
   get workloadName(): string | undefined {
-    return this.spec?.podGroupTemplateRef?.workload?.workloadName;
+    return (
+      this.spec?.workloadRef?.workloadName ?? this.spec?.podGroupTemplateRef?.workload?.workloadName
+    );
+  }
+
+  /** Name of the template within the Workload this group was created from, if any. */
+  get podGroupTemplateName(): string | undefined {
+    return (
+      this.spec?.workloadRef?.templateName ??
+      this.spec?.podGroupTemplateRef?.workload?.podGroupTemplateName
+    );
+  }
+
+  /** Which pods a disruption affects: 'Pod' one at a time, or 'PodGroup' all together. */
+  get disruptionMode(): 'Pod' | 'PodGroup' | undefined {
+    return getDisruptionMode(this.spec?.disruptionMode);
+  }
+
+  /** The composite group this group belongs to, when nested. */
+  get parentCompositePodGroupName(): string | undefined {
+    return this.spec?.parentCompositePodGroupName;
   }
 
   get schedulingCondition(): KubeCondition | undefined {

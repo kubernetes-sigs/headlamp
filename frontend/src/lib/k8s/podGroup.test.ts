@@ -17,7 +17,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
 import type { KubePodGroup } from './podGroup';
-import PodGroup, { getSchedulingPolicyKind } from './podGroup';
+import PodGroup, { getDisruptionMode, getSchedulingPolicyKind } from './podGroup';
 
 const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }));
 
@@ -30,10 +30,14 @@ vi.mock('./api/v1/clusterRequests', async importOriginal => ({
 // eslint-disable-next-line no-unused-vars
 const _dont_delete_me = App;
 
-const makePodGroup = (spec: Partial<KubePodGroup['spec']>, status?: KubePodGroup['status']) =>
+const makePodGroup = (
+  spec: Partial<KubePodGroup['spec']>,
+  status?: KubePodGroup['status'],
+  apiVersion = 'scheduling.k8s.io/v1alpha2'
+) =>
   new PodGroup({
     kind: 'PodGroup',
-    apiVersion: 'scheduling.k8s.io/v1alpha2',
+    apiVersion,
     metadata: {
       name: 'training-job-workers',
       namespace: 'gang-demo',
@@ -56,6 +60,23 @@ describe('getSchedulingPolicyKind', () => {
   });
 });
 
+describe('getDisruptionMode', () => {
+  it('reads the v1alpha2 string form', () => {
+    expect(getDisruptionMode('Pod')).toBe('Pod');
+    expect(getDisruptionMode('PodGroup')).toBe('PodGroup');
+  });
+
+  it('maps the v1alpha3 object form to the same values', () => {
+    expect(getDisruptionMode({ single: {} })).toBe('Pod');
+    expect(getDisruptionMode({ all: {} })).toBe('PodGroup');
+  });
+
+  it('returns undefined when no mode is set', () => {
+    expect(getDisruptionMode(undefined)).toBeUndefined();
+    expect(getDisruptionMode({})).toBeUndefined();
+  });
+});
+
 describe('PodGroup', () => {
   it('exposes the gang policy and its minimum count', () => {
     const podGroup = makePodGroup({ schedulingPolicy: { gang: { minCount: 4 } } });
@@ -71,18 +92,49 @@ describe('PodGroup', () => {
     expect(podGroup.minCount).toBeUndefined();
   });
 
-  it('reads the workload name from the template reference', () => {
+  describe.each<[string, Partial<KubePodGroup['spec']>]>([
+    [
+      'scheduling.k8s.io/v1alpha2',
+      {
+        podGroupTemplateRef: {
+          workload: { workloadName: 'training-job', podGroupTemplateName: 'workers' },
+        },
+      },
+    ],
+    [
+      'scheduling.k8s.io/v1alpha3',
+      { workloadRef: { workloadName: 'training-job', templateName: 'workers' } },
+    ],
+  ])('on %s', (apiVersion, spec) => {
+    it('reads the workload and template names from the workload reference', () => {
+      const podGroup = makePodGroup(spec, undefined, apiVersion);
+
+      expect(podGroup.workloadName).toBe('training-job');
+      expect(podGroup.podGroupTemplateName).toBe('workers');
+    });
+  });
+
+  it('prefers the v1alpha3 reference when a cluster serves both shapes', () => {
     const podGroup = makePodGroup({
+      workloadRef: { workloadName: 'from-v1alpha3', templateName: 'v1alpha3-workers' },
       podGroupTemplateRef: {
-        workload: { workloadName: 'training-job', podGroupTemplateName: 'workers' },
+        workload: { workloadName: 'from-v1alpha2', podGroupTemplateName: 'v1alpha2-workers' },
       },
     });
 
-    expect(podGroup.workloadName).toBe('training-job');
+    expect(podGroup.workloadName).toBe('from-v1alpha3');
+    expect(podGroup.podGroupTemplateName).toBe('v1alpha3-workers');
   });
 
-  it('has no workload name when the group was not templated', () => {
+  it('has no workload or template name when the group was not templated', () => {
     expect(makePodGroup({}).workloadName).toBeUndefined();
+    expect(makePodGroup({}).podGroupTemplateName).toBeUndefined();
+  });
+
+  it('normalizes the disruption mode from either API shape', () => {
+    expect(makePodGroup({ disruptionMode: 'PodGroup' }).disruptionMode).toBe('PodGroup');
+    expect(makePodGroup({ disruptionMode: { all: {} } }).disruptionMode).toBe('PodGroup');
+    expect(makePodGroup({}).disruptionMode).toBeUndefined();
   });
 
   it('picks the PodGroupScheduled condition out of the status', () => {

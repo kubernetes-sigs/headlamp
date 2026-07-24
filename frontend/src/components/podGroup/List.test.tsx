@@ -66,6 +66,10 @@ describe('PodGroupList', () => {
     ]);
   });
 
+  it('offers no create button, because the base object cannot pick an API version', () => {
+    expect(renderList().headerProps.titleSideActions).toEqual([]);
+  });
+
   it('reads the policy, min count and workload from the item', () => {
     const props = renderList();
 

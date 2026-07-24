@@ -564,6 +564,7 @@
     "podGroup": {
       "POD_GROUP_SCHEDULED_CONDITION": "PodGroupScheduled",
       "default": [Function],
+      "getDisruptionMode": [Function],
       "getSchedulingPolicyKind": [Function],
     },
     "replicaSet": {

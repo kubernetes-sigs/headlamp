@@ -64,6 +64,10 @@ describe('SchedulingWorkloadList', () => {
     ]);
   });
 
+  it('offers no create button, because the base object cannot pick an API version', () => {
+    expect(renderList().headerProps.titleSideActions).toEqual([]);
+  });
+
   it('joins the names of the pod group templates', () => {
     const props = renderList();
     const templates = column(props, 'podGroupTemplates');

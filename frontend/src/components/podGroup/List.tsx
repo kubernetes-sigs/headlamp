@@ -39,9 +39,12 @@ function SchedulingStatus({ podGroup }: { podGroup: PodGroup }) {
 export default function PodGroupList() {
   const { t } = useTranslation(['glossary', 'translation']);
 
+  const headerPropsNoCreateButton = { titleSideActions: [] };
+
   return (
     <ResourceListView
       title={t('glossary|Pod Groups')}
+      headerProps={headerPropsNoCreateButton}
       resourceClass={PodGroup}
       columns={[
         'name',

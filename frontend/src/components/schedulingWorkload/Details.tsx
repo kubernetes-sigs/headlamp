@@ -17,7 +17,7 @@
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { getSchedulingPolicyKind } from '../../lib/k8s/podGroup';
-import type { PodGroupTemplate } from '../../lib/k8s/schedulingWorkload';
+import type { CompositePodGroupTemplate, PodGroupTemplate } from '../../lib/k8s/schedulingWorkload';
 import Workload from '../../lib/k8s/schedulingWorkload';
 import { DetailsGrid } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
@@ -58,6 +58,47 @@ function PodGroupTemplatesSection({ templates }: { templates: PodGroupTemplate[]
   );
 }
 
+/** The composite pod group templates a Workload is made of, when it has any. */
+function CompositePodGroupTemplatesSection({
+  templates,
+}: {
+  templates: CompositePodGroupTemplate[];
+}) {
+  const { t } = useTranslation(['glossary', 'translation']);
+
+  return (
+    <SectionBox title={t('translation|Composite Pod Group Templates')}>
+      <SimpleTable
+        columns={[
+          {
+            label: t('translation|Name'),
+            getter: (template: CompositePodGroupTemplate) => template.name,
+          },
+          {
+            label: t('glossary|Priority Class'),
+            getter: (template: CompositePodGroupTemplate) => template.priorityClassName ?? '',
+          },
+          {
+            label: t('glossary|Priority'),
+            getter: (template: CompositePodGroupTemplate) => template.priority ?? '',
+          },
+          {
+            label: t('translation|Preemption Policy'),
+            getter: (template: CompositePodGroupTemplate) => template.preemptionPolicy ?? '',
+          },
+          {
+            label: t('translation|Pod Group Templates'),
+            getter: (template: CompositePodGroupTemplate) =>
+              template.podGroupTemplates?.length ?? 0,
+          },
+        ]}
+        data={templates}
+        reflectInURL="compositePodGroupTemplates"
+      />
+    </SectionBox>
+  );
+}
+
 export default function SchedulingWorkloadDetails(props: {
   name?: string;
   namespace?: string;
@@ -81,6 +122,11 @@ export default function SchedulingWorkloadDetails(props: {
             value: item.podGroupTemplates.length,
           },
           {
+            name: t('translation|Composite Pod Group Templates'),
+            value: item.compositePodGroupTemplates.length,
+            hide: item.compositePodGroupTemplates.length === 0,
+          },
+          {
             name: t('glossary|Controller'),
             value:
               item.spec?.controllerRef &&
@@ -90,7 +136,12 @@ export default function SchedulingWorkloadDetails(props: {
         ]
       }
       extraSections={item =>
-        item && [<PodGroupTemplatesSection templates={item.podGroupTemplates} />]
+        item && [
+          <PodGroupTemplatesSection templates={item.podGroupTemplates} />,
+          ...(item.compositePodGroupTemplates.length > 0
+            ? [<CompositePodGroupTemplatesSection templates={item.compositePodGroupTemplates} />]
+            : []),
+        ]
       }
     />
   );

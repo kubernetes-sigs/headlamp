@@ -36,10 +36,27 @@ export interface PodGroupTemplate {
   schedulingPolicy: PodGroupSchedulingPolicy;
   schedulingConstraints?: PodGroupSchedulingConstraints;
   resourceClaims?: PodGroupResourceClaim[];
+  /** Served by v1alpha3. Whether preemption may evict lower priority pods. */
+  preemptionPolicy?: 'PreemptLowerPriority' | 'Never';
+}
+
+/**
+ * A group of pod group templates scheduled together. Served by v1alpha3, and may
+ * nest further composite templates.
+ */
+export interface CompositePodGroupTemplate {
+  name: string;
+  priorityClassName?: string;
+  priority?: number;
+  preemptionPolicy?: 'PreemptLowerPriority' | 'Never';
+  podGroupTemplates?: PodGroupTemplate[];
+  compositePodGroupTemplates?: CompositePodGroupTemplate[];
 }
 
 export interface WorkloadSpec {
   podGroupTemplates: PodGroupTemplate[];
+  /** Served by v1alpha3. Templates that schedule several pod groups together. */
+  compositePodGroupTemplates?: CompositePodGroupTemplate[];
   /** The object this Workload was created for, such as a Deployment or a Job. */
   controllerRef?: {
     apiGroup?: string;
@@ -66,21 +83,16 @@ class Workload extends KubeObject<KubeSchedulingWorkload> {
     return 'schedulingWorkloads';
   }
 
-  static getBaseObject(): KubeSchedulingWorkload {
-    const baseObject = super.getBaseObject() as KubeSchedulingWorkload;
-    baseObject.metadata = { ...baseObject.metadata, namespace: '' };
-    baseObject.spec = {
-      podGroupTemplates: [{ name: '', schedulingPolicy: { gang: { minCount: 1 } } }],
-    };
-    return baseObject;
-  }
-
   get spec() {
     return this.jsonData.spec;
   }
 
   get podGroupTemplates(): PodGroupTemplate[] {
     return this.spec?.podGroupTemplates ?? [];
+  }
+
+  get compositePodGroupTemplates(): CompositePodGroupTemplate[] {
+    return this.spec?.compositePodGroupTemplates ?? [];
   }
 }
 
