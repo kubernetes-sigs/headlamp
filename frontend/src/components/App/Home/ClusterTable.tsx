@@ -55,7 +55,7 @@ import {
 } from './ClusterInventory';
 import { canSelectCluster } from './clusterStatus';
 import { CONNECT_ON_CLUSTER_LINK, MULTI_HOME_ENABLED } from './config';
-import { getCustomClusterNames } from './customClusterNames';
+import { getClusterDisplayLabel, getCustomClusterNames } from './customClusterNames';
 
 /**
  * ClusterStatus component displays the status of a cluster.
@@ -312,12 +312,16 @@ export default function ClusterTable({
         {
           id: 'name',
           header: t('Name'),
-          accessorKey: 'name',
+          // Sort/filter by the rendered display label, not the real (possibly
+          // generated) context name, so Cluster Inventory clusters order the
+          // way they read on screen.
+          accessorFn: cluster => getClusterDisplayLabel(cluster),
           gridTemplate: 2,
           Cell: ({ row: { original } }) => {
             const appearance = getClusterAppearanceFromMeta(original.name);
+            const label = getClusterDisplayLabel(original);
             return (
-              <LightTooltip title={original.name}>
+              <LightTooltip title={label}>
                 {/* Record as recently-used on open so it auto-connects on return.
                     onClickCapture on the wrapper keeps the Link's native
                     navigation (and works for keyboard activation) while the Link
@@ -332,7 +336,7 @@ export default function ClusterTable({
                 >
                   <Link routeName="cluster" params={{ cluster: original.name }}>
                     <ClusterBadge
-                      name={original.name}
+                      name={label}
                       icon={appearance.icon}
                       accentColor={appearance.accentColor}
                     />

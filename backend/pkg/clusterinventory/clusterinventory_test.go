@@ -333,6 +333,7 @@ func TestContextFromClusterProfilePreservesInventoryMetadata(t *testing.T) {
 	runner := newTestRunner(t, Options{})
 	profileKey := "in-cluster/default/spoke-a"
 	cp := clusterProfile("spoke-a", "static-token", "https://spoke-a.example.com")
+	cp.Spec.DisplayName = "Spoke A"
 	cp.Status.Conditions = []metav1.Condition{
 		{
 			Type:               apisv1alpha1.ClusterConditionControlPlaneHealthy,
@@ -357,9 +358,10 @@ func TestContextFromClusterProfilePreservesInventoryMetadata(t *testing.T) {
 
 	require.NotNil(t, headlampContext.ClusterInventory)
 	assert.Equal(t, inventorymetadata.Profile{
-		Namespace: "default",
-		Name:      "spoke-a",
-		Key:       profileKey,
+		Namespace:   "default",
+		Name:        "spoke-a",
+		Key:         profileKey,
+		DisplayName: "Spoke A",
 	}, headlampContext.ClusterInventory.Profile)
 	assert.Equal(t, cp.Status.Conditions, headlampContext.ClusterInventory.Conditions)
 	require.NotNil(t, headlampContext.ClusterInventory.Version)

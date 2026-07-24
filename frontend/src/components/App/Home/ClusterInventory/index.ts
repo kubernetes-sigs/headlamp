@@ -54,6 +54,19 @@ export function isClusterInventoryCluster(cluster: Cluster): boolean {
   return cluster?.meta_data?.source === CLUSTER_INVENTORY_SOURCE;
 }
 
+/**
+ * Returns the ClusterProfile's displayName when the cluster was discovered from
+ * Cluster Inventory and a displayName was reported, for a cleaner name than the
+ * generated context name.
+ */
+export function getClusterInventoryDisplayName(cluster: Cluster): string | undefined {
+  if (!isClusterInventoryCluster(cluster)) {
+    return undefined;
+  }
+
+  return cluster?.meta_data?.clusterInventory?.profile?.displayName || undefined;
+}
+
 /** Returns the Cluster Inventory control plane health condition when present. */
 export function getControlPlaneHealthyCondition(
   cluster: Cluster
