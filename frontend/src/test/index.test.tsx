@@ -29,17 +29,21 @@ describe('TestContext', () => {
   it('provides an initialized i18n instance for translated components', () => {
     const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
 
-    render(
-      <TestContext>
-        <TranslationProbe />
-      </TestContext>
-    );
+    try {
+      render(
+        <TestContext>
+          <TranslationProbe />
+        </TestContext>
+      );
 
-    expect(screen.getByText('Loading...')).toBeInTheDocument();
-    expect(
-      warnSpy.mock.calls.some(call => call.some(arg => String(arg).includes('NO_I18NEXT_INSTANCE')))
-    ).toBe(false);
-
-    warnSpy.mockRestore();
+      expect(screen.getByText('Loading...')).toBeInTheDocument();
+      expect(
+        warnSpy.mock.calls.some(call =>
+          call.some(arg => String(arg).includes('NO_I18NEXT_INSTANCE'))
+        )
+      ).toBe(false);
+    } finally {
+      warnSpy.mockRestore();
+    }
   });
 });
