@@ -531,51 +531,23 @@ func GetGroupAndNamespace(r *http.Request) (string, string) {
 		return "", ""
 	}
 
-	parts := strings.Split(strings.Trim(apiPath, "/"), "/")
+	if request, ok := parseAPIResourceRequest(apiPath); ok {
+		return request.group, request.namespace
+	}
 
-	group := ""
-	rest := parts
+	parts := strings.Split(strings.Trim(apiPath, "/"), "/")
 
 	switch parts[0] {
 	case "apis":
-		if len(parts) < 2 {
+		if len(parts) < 3 {
 			return "", ""
 		}
 
-		group = parts[1]
-		rest = parts[2:] // Drop "apis" and the group, keep the version onward.
+		return parts[1], ""
 	case "api":
-		rest = parts[1:] // Drop "api", keep the version onward.
+		return "", ""
 	default:
 		return "", ""
-	}
-
-	if len(rest) > 0 {
-		rest = rest[1:] // Drop the version segment.
-	}
-
-	namespace := ""
-
-	for i, seg := range rest {
-		if seg == "namespaces" && hasNamespacedResourcePath(rest, i) {
-			namespace = rest[i+1]
-			break
-		}
-	}
-
-	return group, namespace
-}
-
-func hasNamespacedResourcePath(rest []string, namespaceIndex int) bool {
-	if namespaceIndex+2 >= len(rest) {
-		return false
-	}
-
-	switch rest[namespaceIndex+2] {
-	case "finalize", "status":
-		return false
-	default:
-		return true
 	}
 }
 

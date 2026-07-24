@@ -99,7 +99,7 @@ func ReturnAuthErrorResponse(w http.ResponseWriter, r *http.Request, contextKey 
 		APIVersion: "v1",
 		MetaData:   Metadata{}, // In this case the Metadata will always be empty.
 		Message:    message,
-		Reason:     "Forbidden", // For this scenerio the reason should be forbidden.
+		Reason:     "Forbidden", // For this scenario the reason should be forbidden.
 		Details: Details{
 			Kind: last,
 		},
