@@ -217,6 +217,40 @@ func TestAddContextRejectsDuplicateEffectiveName(t *testing.T) {
 	require.Len(t, contexts, 1)
 }
 
+func TestAddContextRejectsDuplicateNonCustomEffectiveName(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	firstContext := &kubeconfig.Context{
+		Name:      "shared-context-name",
+		ClusterID: "/tmp/config-a+shared-context-name",
+		KubeContext: &api.Context{
+			Cluster:  "cluster-a",
+			AuthInfo: "user-a",
+		},
+		Cluster: &api.Cluster{Server: "https://cluster-a.example"},
+	}
+
+	secondContext := &kubeconfig.Context{
+		Name:      "shared-context-name",
+		ClusterID: "/tmp/config-b+shared-context-name",
+		KubeContext: &api.Context{
+			Cluster:  "cluster-b",
+			AuthInfo: "user-b",
+		},
+		Cluster: &api.Cluster{Server: "https://cluster-b.example"},
+	}
+
+	require.NoError(t, store.AddContext(firstContext))
+
+	err := store.AddContext(secondContext)
+	require.Error(t, err)
+	require.ErrorContains(t, err, "duplicate effective context name")
+
+	storedContext, err := store.GetContext("shared-context-name")
+	require.NoError(t, err)
+	require.Equal(t, firstContext.ClusterID, storedContext.ClusterID)
+}
+
 func TestAddContextAllowsUpdatingSameLogicalContext(t *testing.T) {
 	store := kubeconfig.NewContextStore()
 

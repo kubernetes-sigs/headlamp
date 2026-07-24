@@ -84,7 +84,7 @@ func (c *contextStore) AddContext(headlampContext *Context) error {
 		return errors.New("context cannot be nil")
 	}
 
-	name, usesCustomName, err := effectiveContextName(headlampContext)
+	name, _, err := effectiveContextName(headlampContext)
 	if err != nil {
 		return err
 	}
@@ -93,17 +93,14 @@ func (c *contextStore) AddContext(headlampContext *Context) error {
 
 	existingContext, err := c.cache.Get(context.Background(), name)
 
-	existingName, existingUsesCustomName, existingNameErr := effectiveContextName(existingContext)
+	_, _, existingNameErr := effectiveContextName(existingContext)
 	if existingNameErr != nil {
 		c.mu.Unlock()
 
 		return existingNameErr
 	}
 
-	if err == nil &&
-		(existingUsesCustomName || usesCustomName) &&
-		existingName == name &&
-		!isSameLogicalContext(existingContext, headlampContext) {
+	if err == nil && !isSameLogicalContext(existingContext, headlampContext) {
 		c.mu.Unlock()
 
 		return ContextError{
