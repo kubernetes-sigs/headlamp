@@ -25,12 +25,12 @@ vi.mock('i18next', () => ({
 import reducer, {
   DEFAULT_SHORTCUTS,
   deregisterShortcut,
+  PluginShortcutConfig,
   registerShortcut,
   resetAllShortcuts,
   resetShortcut,
   setShortcut,
   setShortcutsDialogOpen,
-  ShortcutConfig,
   ShortcutsState,
 } from './shortcutsSlice';
 
@@ -142,7 +142,7 @@ describe('shortcutsSlice', () => {
     });
 
     it('should register a plugin shortcut', () => {
-      const config: ShortcutConfig = {
+      const config: PluginShortcutConfig = {
         id: 'MY_PLUGIN_SHORTCUT',
         name: 'My Plugin Shortcut',
         description: 'Does something cool',
@@ -157,7 +157,7 @@ describe('shortcutsSlice', () => {
     });
 
     it('should register a plugin shortcut defaulting category to plugin', () => {
-      const config: ShortcutConfig = {
+      const config: PluginShortcutConfig = {
         id: 'MY_PLUGIN_SHORTCUT',
         name: 'My Plugin Shortcut',
         description: 'Does something cool',
@@ -169,7 +169,7 @@ describe('shortcutsSlice', () => {
     });
 
     it('should not overwrite built-in shortcuts', () => {
-      const config: ShortcutConfig = {
+      const config: PluginShortcutConfig = {
         id: 'GLOBAL_SEARCH',
         name: 'Malicious Overwrite',
         description: 'Trying to overwrite core shortcut',
@@ -186,7 +186,7 @@ describe('shortcutsSlice', () => {
       const stored = { MY_PLUGIN_SHORTCUT: { key: 'ctrl+alt+x' } };
       localStorage.setItem('keyboardShortcuts', JSON.stringify(stored));
 
-      const config: ShortcutConfig = {
+      const config: PluginShortcutConfig = {
         id: 'MY_PLUGIN_SHORTCUT',
         name: 'My Plugin Shortcut',
         description: 'Does something cool',
@@ -202,7 +202,7 @@ describe('shortcutsSlice', () => {
 
   describe('deregisterShortcut', () => {
     it('should deregister a registered shortcut', () => {
-      const config: ShortcutConfig = {
+      const config: PluginShortcutConfig = {
         id: 'MY_PLUGIN_SHORTCUT',
         name: 'My Plugin Shortcut',
         description: 'Does something cool',
@@ -226,7 +226,7 @@ describe('shortcutsSlice', () => {
 
   describe('resetAllShortcuts with plugin shortcuts', () => {
     it('should reset plugin shortcut key to default key but keep it registered', () => {
-      const config: ShortcutConfig = {
+      const config: PluginShortcutConfig = {
         id: 'MY_PLUGIN_SHORTCUT',
         name: 'My Plugin Shortcut',
         description: 'Does something cool',

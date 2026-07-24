@@ -81,7 +81,7 @@ import Registry, {
   registerUIPanel,
   runCommand,
 } from './plugin/registry';
-export type { ApiResource, ShortcutConfig } from './plugin/registry';
+export type { ApiResource, ShortcutConfig, PluginShortcutConfig } from './plugin/registry';
 
 // We export k8s (lowercase) since someone may use it as we do in the Headlamp source code.
 export {

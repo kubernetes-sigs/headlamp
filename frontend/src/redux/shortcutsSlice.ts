@@ -32,6 +32,11 @@ export interface ShortcutConfig {
   /** The default key combination for the shortcut */
   defaultKey: string;
   /** The category the shortcut belongs to */
+  category: 'navigation' | 'search' | 'general' | 'plugin';
+}
+
+export interface PluginShortcutConfig extends Omit<ShortcutConfig, 'category'> {
+  /** The category the shortcut belongs to */
   category?: 'navigation' | 'search' | 'general' | 'plugin';
 }
 
@@ -142,7 +147,7 @@ export const shortcutsSlice = createSlice({
     setShortcutsDialogOpen(state, action: PayloadAction<boolean>) {
       state.isShortcutsDialogOpen = action.payload;
     },
-    registerShortcut(state, action: PayloadAction<ShortcutConfig>) {
+    registerShortcut(state, action: PayloadAction<PluginShortcutConfig>) {
       const config = action.payload;
       if (DEFAULT_SHORTCUTS[config.id]) {
         return;

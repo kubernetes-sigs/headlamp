@@ -112,6 +112,7 @@ import {
 import { setRoute, setRouteFilter } from '../redux/routesSlice';
 import {
   deregisterShortcut as deregisterShortcutAction,
+  PluginShortcutConfig,
   registerShortcut as registerShortcutAction,
   ShortcutConfig,
 } from '../redux/shortcutsSlice';
@@ -160,6 +161,7 @@ export type {
   IconDefinition,
   OverviewChartsProcessor,
   ShortcutConfig,
+  PluginShortcutConfig,
 };
 
 export type { ApiResource } from '../lib/k8s/api/v2/ApiResource';
@@ -1256,7 +1258,7 @@ export function registerProjectApiResource(apiResource: ApiResource) {
  *
  * @param config - The keyboard shortcut configuration.
  */
-export function registerShortcut(config: ShortcutConfig) {
+export function registerShortcut(config: PluginShortcutConfig) {
   store.dispatch(registerShortcutAction(config));
 }
 
