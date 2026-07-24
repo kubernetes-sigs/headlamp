@@ -91,7 +91,19 @@ export default function ActionButton({
 
   return (
     <Tooltip title={longDescription || description}>
-      {isDisabled ? <span style={{ display: 'inline-flex' }}>{button}</span> : button}
+      {isDisabled ? (
+        <span
+          role="button"
+          aria-label={description}
+          aria-disabled="true"
+          tabIndex={0}
+          style={{ display: 'inline-flex' }}
+        >
+          {React.cloneElement(button, { 'aria-hidden': true, tabIndex: -1 })}
+        </span>
+      ) : (
+        button
+      )}
     </Tooltip>
   );
 }

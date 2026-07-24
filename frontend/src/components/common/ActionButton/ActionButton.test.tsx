@@ -38,13 +38,19 @@ describe('ActionButton', () => {
       iconButtonProps: { disabled: true },
     });
 
-    const button = screen.getByRole('button', { name: 'Delete' });
-    const wrapper = button.parentElement;
+    const wrapper = screen.getByRole('button', { name: 'Delete' });
 
     expect(wrapper?.tagName).toBe('SPAN');
+    expect(wrapper).toHaveAttribute('aria-disabled', 'true');
 
-    await user.hover(wrapper!);
+    await user.hover(wrapper);
 
+    expect(await screen.findByRole('tooltip')).toHaveTextContent('Delete');
+
+    await user.unhover(wrapper);
+    await user.tab();
+
+    expect(wrapper).toHaveFocus();
     expect(await screen.findByRole('tooltip')).toHaveTextContent('Delete');
 
     const tooltipWarnings = consoleErrorSpy.mock.calls.filter(([message]) =>
