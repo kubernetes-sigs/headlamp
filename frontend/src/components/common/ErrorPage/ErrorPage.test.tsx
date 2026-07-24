@@ -56,6 +56,16 @@ describe('ErrorComponent', () => {
     expect(screen.queryByRole('link', { name: 'home' })).not.toBeInTheDocument();
   });
 
+  it('renders the fallback message for boolean false', () => {
+    render(
+      <TestContext>
+        <ErrorComponent message={false} />
+      </TestContext>
+    );
+
+    expect(screen.getByRole('heading', { level: 2 })).toHaveTextContent(/^Head back\s+home\.$/);
+  });
+
   it('keeps the default fallback message as a level-two heading', () => {
     render(
       <TestContext>

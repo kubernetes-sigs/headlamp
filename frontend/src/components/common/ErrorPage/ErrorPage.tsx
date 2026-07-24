@@ -110,7 +110,8 @@ export default function ErrorComponent(props: ErrorComponentProps) {
     error,
   } = props;
   const useHeadingMessage = typeof message === 'string' || typeof message === 'number';
-  const hasMessage = message !== null && message !== undefined && message !== '';
+  const hasMessage =
+    message !== null && message !== undefined && message !== '' && typeof message !== 'boolean';
 
   return (
     <Grid
