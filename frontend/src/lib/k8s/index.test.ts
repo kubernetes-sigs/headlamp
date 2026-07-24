@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import { createElement, type ReactNode } from 'react';
+import { Provider } from 'react-redux';
 import { afterEach, beforeEach, vi } from 'vitest';
+import configReducer, { setConfig } from '../../redux/configSlice';
 import { createRouteURL } from '../router/createRouteURL';
-import { labelSelectorToQuery, ResourceClasses, useClustersVersion } from '.';
+import { labelSelectorToQuery, ResourceClasses, useClustersConf, useClustersVersion } from '.';
 import { clusterRequest } from './api/v1/clusterRequests';
 import { Cluster, LabelSelector } from './cluster';
 import { KubeObjectClass } from './KubeObject';
@@ -30,6 +33,46 @@ vi.mock('./api/v1/clusterRequests', async () => {
     './api/v1/clusterRequests'
   );
   return { ...actual, clusterRequest: vi.fn() };
+});
+
+describe('useClustersConf', () => {
+  it('updates cluster metadata when a profile display name changes without changing its key', () => {
+    const store = configureStore({ reducer: { config: configReducer } });
+    const clusterName = 'cluster-inventory-root-default-spoke-a--abc123';
+    const makeCluster = (displayName: string) =>
+      ({
+        name: clusterName,
+        auth_type: '',
+        meta_data: {
+          source: 'cluster_inventory',
+          clusterInventory: {
+            profile: {
+              namespace: 'default',
+              name: 'spoke-a',
+              key: 'root/default/spoke-a',
+              displayName,
+            },
+          },
+        },
+      } as Cluster);
+
+    store.dispatch(setConfig({ clusters: { [clusterName]: makeCluster('Spoke A') } }));
+    const wrapper = ({ children }: { children: ReactNode }) =>
+      createElement(Provider, { store, children });
+    const { result } = renderHook(() => useClustersConf(), { wrapper });
+
+    expect(result.current?.[clusterName].meta_data?.clusterInventory?.profile?.displayName).toBe(
+      'Spoke A'
+    );
+
+    act(() => {
+      store.dispatch(setConfig({ clusters: { [clusterName]: makeCluster('Renamed Spoke') } }));
+    });
+
+    expect(result.current?.[clusterName].meta_data?.clusterInventory?.profile?.displayName).toBe(
+      'Renamed Spoke'
+    );
+  });
 });
 
 // Remove NetworkPolicy and ControllerRevision since we don't have list/details pages for them.
