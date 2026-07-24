@@ -24,6 +24,7 @@ import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import CRD from '../../lib/k8s/crd';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
+import { usePluginManagerInfo } from '../App/PluginManagerPage';
 import { DefaultSidebars, SidebarEntryProps, SidebarItemProps } from '.';
 import ClusterBadge from './ClusterBadge';
 
@@ -63,6 +64,11 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   const allClustersConf = useClustersConf();
   const { t } = useTranslation();
   const theme = useTheme();
+  const { info: pluginManagerInfo } = usePluginManagerInfo(
+    60000,
+    sidebarName === DefaultSidebars.IN_CLUSTER
+  );
+  const pluginManagerEnabled = !!pluginManagerInfo?.enabled;
 
   const [crds, error] = CRD.useList();
   if (error !== null) {
@@ -453,6 +459,14 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
       });
     }
 
+    if (pluginManagerEnabled) {
+      inClusterItems.push({
+        name: 'pluginManager',
+        label: t('translation|Plugin Manager'),
+        icon: 'mdi:puzzle-outline',
+      });
+    }
+
     // List of sidebars, they act as roots for the sidebar tree
     const sidebarsList: SidebarItemProps[] = [
       { name: DefaultSidebars.HOME, subList: homeItems, label: '' },
@@ -546,6 +560,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     selectedClusters.join(','),
     allClustersConf,
     crdsSidebarEntries,
+    pluginManagerEnabled,
     t,
   ]);
 

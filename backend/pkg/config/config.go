@@ -53,6 +53,8 @@ type Config struct {
 	AllowKubeconfigChanges bool   `koanf:"allow-kubeconfig-changes"`
 	ListenAddr             string `koanf:"listen-addr"`
 	WatchPluginsChanges    bool   `koanf:"watch-plugins-changes"`
+	EnablePluginManager    bool   `koanf:"enable-plugin-manager"`
+	PluginManagerConfigMap string `koanf:"plugin-manager-configmap"`
 	Port                   uint   `koanf:"port"`
 	KubeConfigPath         string `koanf:"kubeconfig"`
 	SkippedKubeContexts    string `koanf:"skipped-kube-contexts"`
@@ -331,8 +333,10 @@ func unmarshalConfig(k *koanf.Koanf, config *Config) error {
 }
 
 // patchWatchPluginsChanges disables plugin watching if running in-cluster and user didn't set the flag or env var.
+// The plugin manager relies on watching to hot-reload installed plugins, so it keeps the default on.
 func patchWatchPluginsChanges(config *Config, explicitFlags map[string]bool, watchPluginsChangesEnvSet bool) {
-	if config.InCluster && !explicitFlags["watch-plugins-changes"] && !watchPluginsChangesEnvSet {
+	if config.InCluster && !explicitFlags["watch-plugins-changes"] && !watchPluginsChangesEnvSet &&
+		!config.EnablePluginManager {
 		config.WatchPluginsChanges = false
 	}
 }
@@ -553,6 +557,10 @@ func addGeneralFlags(f *flag.FlagSet) {
 			"E.g. to remove a cluster via the UI. May not be recommendable when Headlamp is deployed as a service.")
 	// Note: When running in-cluster and if not explicitly set, this flag defaults to false.
 	f.Bool("watch-plugins-changes", true, "Reloads plugins when there are changes to them or their directory")
+	f.Bool("enable-plugin-manager", false,
+		"Enable the in-cluster plugin manager, which installs plugins from a ConfigMap-defined desired state")
+	f.String("plugin-manager-configmap", "headlamp-plugin-manager",
+		"Name of the ConfigMap (in Headlamp's own namespace) holding the plugin manager state")
 
 	f.String("kubeconfig", "", "Absolute path to the kubeconfig file")
 	f.String("skipped-kube-contexts", "", "Context name which should be ignored in kubeconfig file")

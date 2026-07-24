@@ -21,6 +21,7 @@ import AuthToken from '../../components/account/Auth';
 import AddCluster from '../../components/App/CreateCluster/AddCluster';
 import Home from '../../components/App/Home';
 import NotificationList from '../../components/App/Notifications/List';
+import { PluginManager } from '../../components/App/PluginManagerPage';
 import PluginSettings from '../../components/App/PluginSettings';
 import PluginSettingsDetails from '../../components/App/PluginSettings/PluginSettingsDetails';
 import Settings from '../../components/App/Settings';
@@ -966,6 +967,14 @@ const defaultRoutes: { [routeName: string]: Route } = {
     useClusterURL: false,
     noAuthRequired: true,
     component: () => <PluginSettingsDetails />,
+  },
+  pluginManager: {
+    path: '/plugin-manager',
+    exact: true,
+    name: 'Plugin Manager',
+    sidebar: 'pluginManager',
+    useClusterURL: true,
+    component: () => <PluginManager />,
   },
   portforwards: {
     path: '/portforwards',
