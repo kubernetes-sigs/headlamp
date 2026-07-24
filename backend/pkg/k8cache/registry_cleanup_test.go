@@ -9,25 +9,29 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestRunWatcherCleansUpRegistryOnFailure(t *testing.T) {
+func TestRunWatcherEnforcesCooldownOnFailure(t *testing.T) {
 	key := t.Name()
 	// Ensure clean state before and after the test.
 	k8cache.ResetRegistries(key)
 	defer k8cache.ResetRegistries(key)
 
-	// Simulate what CheckForChanges does before launching the goroutine.
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-
-	k8cache.StoreTestRegistry(key, cancel)
 
 	// An empty Context causes RESTConfig() to return an error,
 	// which makes runWatcher exit on its first error path.
 	k8cache.ExportedRunWatcher(ctx, nil, key, kubeconfig.Context{})
 
-	// After the early return, both registry entries must be cleaned up
-	// so that a subsequent CheckForChanges call can start a new watcher.
-	watcherLoaded, cancelLoaded := k8cache.RegistryLoaded(key)
-	assert.False(t, watcherLoaded, "watcherRegistry entry should be removed after early exit")
-	assert.False(t, cancelLoaded, "contextCancel entry should be removed after early exit")
+	// After early return on failure, watcher should no longer be running,
+	// but must be in cooldown state to prevent per-HTTP-request goroutine churn.
+	running, loaded := k8cache.RegistryLoaded(key)
+	assert.True(t, loaded, "watcher state should remain registered during cooldown")
+	assert.False(t, running, "watcher should not be running after error exit")
+	assert.True(t, k8cache.ExportedWatcherInCooldown(key), "watcher should be in cooldown after failure")
+
+	// Verify CheckForChanges does not spawn a new watcher while in cooldown
+	k8cache.CheckForChanges(nil, key, kubeconfig.Context{})
+	runningAfterCheck, loadedAfterCheck := k8cache.RegistryLoaded(key)
+	assert.True(t, loadedAfterCheck)
+	assert.False(t, runningAfterCheck, "CheckForChanges must not start watcher during cooldown")
 }

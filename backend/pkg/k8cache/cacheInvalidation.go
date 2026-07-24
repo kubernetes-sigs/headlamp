@@ -22,11 +22,13 @@ package k8cache
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -179,29 +181,71 @@ func filterImportantResources(gvrList []schema.GroupVersionResource) []schema.Gr
 	return filtered
 }
 
-// Corrected CheckForChanges.
-var (
-	watcherRegistry sync.Map
-	contextCancel   sync.Map
-)
+type watcherState struct {
+	mu           sync.Mutex
+	running      bool
+	retryAfter   time.Time
+	failureCount int
+	lastError    error
+	cancel       context.CancelFunc
+}
+
+func (s *watcherState) recordSuccess() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.running = false
+	s.failureCount = 0
+	s.lastError = nil
+	s.retryAfter = time.Time{}
+}
+
+func (s *watcherState) recordFailure(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.running = false
+	s.failureCount++
+	s.lastError = err
+
+	backoffShift := min(s.failureCount-1, 4)
+	backoff := time.Duration(1<<uint(backoffShift)) * 30 * time.Second
+
+	if backoff > 60*time.Second {
+		backoff = 60 * time.Second
+	}
+
+	s.retryAfter = time.Now().Add(backoff)
+}
+
+var watcherRegistry sync.Map
 
 // CheckForChanges lets 1 go routine to run for a contextKey which prevents
-// running go routines for every requests which can become performance issue if
+// running go routines for every request which can become performance issue if
 // there are many resource and events are going on.
 func CheckForChanges(
 	k8scache cache.Cache[string],
 	contextKey string,
 	kContext kubeconfig.Context,
 ) {
-	if _, loaded := watcherRegistry.LoadOrStore(contextKey, struct{}{}); loaded {
+	val, _ := watcherRegistry.LoadOrStore(contextKey, &watcherState{})
+	state := val.(*watcherState)
+
+	state.mu.Lock()
+	now := time.Now()
+
+	if state.running || now.Before(state.retryAfter) {
+		state.mu.Unlock()
+
 		return
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
+	state.running = true
+	state.cancel = cancel
+	state.mu.Unlock()
 
-	contextCancel.Store(contextKey, cancel)
-
-	go runWatcher(ctx, k8scache, contextKey, kContext)
+	go runWatcher(ctx, k8scache, contextKey, kContext, state)
 }
 
 // SyncWatchers stops watchers for contexts that are no longer active and purges
@@ -217,18 +261,22 @@ func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
 
 	cleaned := make(map[string]struct{})
 
-	contextCancel.Range(func(key, value interface{}) bool {
+	watcherRegistry.Range(func(key, value interface{}) bool {
 		contextKey, ok := key.(string)
 		if !ok {
 			return true
 		}
 
 		if !activeMap[contextKey] {
-			if cancel, ok := value.(context.CancelFunc); ok {
-				logger.Log(logger.LevelInfo, nil, nil, "canceling watcher for removed context: "+redactContextKey(contextKey))
-				cancel()
+			if state, ok := value.(*watcherState); ok {
+				state.mu.Lock()
+				if state.cancel != nil {
+					logger.Log(logger.LevelInfo, nil, nil, "canceling watcher for removed context: "+redactContextKey(contextKey))
+					state.cancel()
+				}
+				state.mu.Unlock()
+
 				watcherRegistry.Delete(contextKey)
-				contextCancel.Delete(contextKey)
 				cleanupRemovedContext(k8scache, contextKey)
 				cleaned[contextKey] = struct{}{}
 			}
@@ -250,6 +298,25 @@ func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
 	}
 }
 
+func createKubeClients(kContext kubeconfig.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
+	config, err := kContext.RESTConfig()
+	if err != nil {
+		return nil, nil, fmt.Errorf("error getting REST config: %w", err)
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error creating dynamic client: %w", err)
+	}
+
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error creating discovery client: %w", err)
+	}
+
+	return dynamicClient, discoveryClient, nil
+}
+
 // runWatcher is a long-lived goroutine that sets up and runs Kubernetes informers.
 // It watches for resource changes and invalidates corresponding cache entries.
 // This function will only exit when its context is cancelled.
@@ -258,31 +325,33 @@ func runWatcher(
 	k8scache cache.Cache[string],
 	contextKey string,
 	kContext kubeconfig.Context,
+	state *watcherState,
 ) {
+	var runErr error
+
 	defer func() {
-		watcherRegistry.Delete(contextKey)
-		contextCancel.Delete(contextKey)
+		if ctx.Err() != nil || runErr == nil {
+			state.recordSuccess()
+		} else {
+			state.recordFailure(runErr)
+		}
 	}()
 
 	logger.Log(logger.LevelInfo, nil, nil, "running runWatcher for watching k8s resource: "+redactContextKey(contextKey))
 
-	config, err := kContext.RESTConfig()
+	dynamicClient, discoveryClient, err := createKubeClients(kContext)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "error getting REST config for context:")
+		logger.Log(logger.LevelError, nil, err, "error creating clients for context: "+redactContextKey(contextKey))
+		runErr = err
+
 		return
 	}
-
-	dynamicClient, err := dynamic.NewForConfig(config)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "error creating dynamic client for context: "+redactContextKey(contextKey))
-		return
-	}
-
-	discoveryClient := discovery.NewDiscoveryClientForConfigOrDie(config)
 
 	apiResourceLists, err := discoveryClient.ServerPreferredResources()
 	if apiResourceLists == nil && err != nil {
 		logger.Log(logger.LevelError, nil, err, "error fetching resource list for context: "+redactContextKey(contextKey))
+		runErr = err
+
 		return
 	}
 
