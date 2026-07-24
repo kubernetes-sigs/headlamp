@@ -51,9 +51,67 @@ interface MCPServer {
    */
   enabled: boolean;
   /**
-   * Environment variables for the MCP tool command
+   * Environment variables to explicitly pass to the MCP tool command
    */
   env?: Record<string, string>;
+}
+
+const DEFAULT_MCP_ENV_KEYS = [
+  'APPDATA',
+  'COMSPEC',
+  'HOME',
+  'LANG',
+  'LOCALAPPDATA',
+  'PATH',
+  'PATHEXT',
+  'SHELL',
+  'SYSTEMROOT',
+  'TEMP',
+  'TERM',
+  'TMP',
+  'TMPDIR',
+  'USERPROFILE',
+] as const;
+
+function getProcessEnvEntry(key: (typeof DEFAULT_MCP_ENV_KEYS)[number]): [string, string] | null {
+  const directValue = process.env[key];
+  if (typeof directValue === 'string') {
+    return [key, directValue];
+  }
+
+  const matchingKey = Object.keys(process.env).find(envKey => envKey.toUpperCase() === key);
+  if (!matchingKey) {
+    return null;
+  }
+
+  const matchingValue = process.env[matchingKey];
+  if (typeof matchingValue !== 'string') {
+    return null;
+  }
+
+  return [key, matchingValue];
+}
+
+function buildMcpServerEnv(serverEnv?: Record<string, string>): Record<string, string> {
+  const envEntries = DEFAULT_MCP_ENV_KEYS.flatMap(key => {
+    const entry = getProcessEnvEntry(key);
+
+    return entry ? [entry] : [];
+  });
+  const explicitEnvEntries = Object.entries(serverEnv || {})
+    .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    .map(([key, value]) => {
+      const allowlistedKey = DEFAULT_MCP_ENV_KEYS.find(
+        envKey => envKey.toUpperCase() === key.toUpperCase()
+      );
+
+      return [allowlistedKey || key, value];
+    });
+
+  return {
+    ...Object.fromEntries(envEntries),
+    ...Object.fromEntries(explicitEnvEntries),
+  };
 }
 
 /**
@@ -181,13 +239,11 @@ export function makeMcpServersFromSettings(
       console.log(`Expanded args for ${server.name}:`, expandedArgs);
     }
 
-    const serverEnv = server.env ? { ...process.env, ...server.env } : process.env;
-
     mcpServers[server.name] = {
       transport: 'stdio',
       command: server.command,
       args: expandedArgs,
-      env: serverEnv as Record<string, string>,
+      env: buildMcpServerEnv(server.env),
       restart: {
         enabled: true,
         maxAttempts: 3,

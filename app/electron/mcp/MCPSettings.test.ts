@@ -135,14 +135,40 @@ describe('expandEnvAndResolvePaths', () => {
 });
 
 describe('MultiServerMCPClient', () => {
+  let originalPath: string | undefined;
+  let originalHome: string | undefined;
+  let originalMixedCasePath: string | undefined;
+  let hadMixedCasePath: boolean;
+
   beforeEach(() => {
-    // ensure predictable env for merging tests
+    // ensure predictable env for child process environment tests
+    originalPath = process.env.PATH;
+    originalHome = process.env.HOME;
+    hadMixedCasePath = Object.prototype.hasOwnProperty.call(process.env, 'Path');
+    originalMixedCasePath = process.env.Path;
     process.env.TEST_ORIG_ENV = 'orig';
+    process.env.PATH = process.env.PATH || '/usr/bin';
+    process.env.HOME = process.env.HOME || '/tmp/headlamp-home';
     vi.resetAllMocks();
   });
 
   afterEach(() => {
     delete process.env.TEST_ORIG_ENV;
+    if (originalPath === undefined) {
+      delete process.env.PATH;
+    } else {
+      process.env.PATH = originalPath;
+    }
+    if (originalHome === undefined) {
+      delete process.env.HOME;
+    } else {
+      process.env.HOME = originalHome;
+    }
+    if (!hadMixedCasePath || originalMixedCasePath === undefined) {
+      delete process.env.Path;
+    } else {
+      process.env.Path = originalMixedCasePath;
+    }
   });
 
   it('returns empty when no mcp settings', () => {
@@ -209,14 +235,116 @@ describe('MultiServerMCPClient', () => {
     expect(entry.transport).toBe('stdio');
     expect(entry.command).toBe('cmd');
     expect(entry.args).toEqual(['arg1']);
-    // env should include process.env and server.env overrides
+    // env should keep the safe baseline and explicit server overrides
     expect(entry.env.MCP_VAR).toBe('mcp');
-    expect(entry.env.TEST_ORIG_ENV).toBe('orig');
+    expect(entry.env.PATH).toBe(process.env.PATH);
+    expect(entry.env.HOME).toBe(process.env.HOME);
+    expect(entry.env.TEST_ORIG_ENV).toBeUndefined();
     // restart settings
     expect(entry.restart).toBeDefined();
     expect(entry.restart.enabled).toBe(true);
     expect(entry.restart.maxAttempts).toBe(3);
     expect(entry.restart.delayMs).toBe(2000);
+  });
+
+  it('passes only the safe baseline when no explicit server env is configured', () => {
+    const mcpSettings = {
+      enabled: true,
+      servers: [
+        {
+          name: 'valid',
+          command: 'cmd',
+          args: [],
+          enabled: true,
+        },
+      ],
+    };
+
+    (loadSettings as Mock).mockReturnValue({ mcp: mcpSettings });
+
+    const result = MCP.makeMcpServersFromSettings('/cfg', ['clusterA']);
+
+    const entry = result['valid'] as any;
+    expect(entry.env.PATH).toBe(process.env.PATH);
+    expect(entry.env.HOME).toBe(process.env.HOME);
+    expect(entry.env.TEST_ORIG_ENV).toBeUndefined();
+  });
+
+  it('filters malformed explicit server env values', () => {
+    const mcpSettings = {
+      enabled: true,
+      servers: [
+        {
+          name: 'valid',
+          command: 'cmd',
+          args: [],
+          enabled: true,
+          env: {
+            STRING_VALUE: 'ok',
+            NULL_VALUE: null,
+            NUMBER_VALUE: 1,
+          },
+        },
+      ],
+    };
+
+    (loadSettings as Mock).mockReturnValue({ mcp: mcpSettings });
+
+    const result = MCP.makeMcpServersFromSettings('/cfg', ['clusterA']);
+
+    const entry = result['valid'] as any;
+    expect(entry.env.STRING_VALUE).toBe('ok');
+    expect(entry.env.NULL_VALUE).toBeUndefined();
+    expect(entry.env.NUMBER_VALUE).toBeUndefined();
+  });
+
+  it('normalizes case-insensitive baseline env keys to the allowlisted name', () => {
+    delete process.env.PATH;
+    process.env.Path = '/mixed/case/path';
+
+    const mcpSettings = {
+      enabled: true,
+      servers: [
+        {
+          name: 'valid',
+          command: 'cmd',
+          args: [],
+          enabled: true,
+          env: { PATH: '/explicit/path' },
+        },
+      ],
+    };
+
+    (loadSettings as Mock).mockReturnValue({ mcp: mcpSettings });
+
+    const result = MCP.makeMcpServersFromSettings('/cfg', ['clusterA']);
+
+    const entry = result['valid'] as any;
+    expect(entry.env.PATH).toBe('/explicit/path');
+    expect(entry.env.Path).toBeUndefined();
+  });
+
+  it('normalizes case-insensitive explicit env keys to the allowlisted name', () => {
+    const mcpSettings = {
+      enabled: true,
+      servers: [
+        {
+          name: 'valid',
+          command: 'cmd',
+          args: [],
+          enabled: true,
+          env: { Path: '/explicit/path' },
+        },
+      ],
+    };
+
+    (loadSettings as Mock).mockReturnValue({ mcp: mcpSettings });
+
+    const result = MCP.makeMcpServersFromSettings('/cfg', ['clusterA']);
+    const entry = result['valid'] as any;
+
+    expect(entry.env.PATH).toBe('/explicit/path');
+    expect(entry.env.Path).toBeUndefined();
   });
 
   it('expands HEADLAMP_CURRENT_CLUSTER placeholder using provided clusters[0]', () => {
