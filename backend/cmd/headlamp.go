@@ -1785,7 +1785,7 @@ func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,
 	http.Error(w, err.Error(), status)
 }
 
-func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
+func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen,gocognit
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		ctx := r.Context()
@@ -1848,6 +1848,7 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 		// Process WebSocket protocol headers if present
 		processWebSocketProtocolHeader(r)
 
+		//nolint:nestif
 		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
 			clearRequestAuthorization(r)
 		} else {
@@ -1862,6 +1863,47 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 			}
 
 			if token != "" {
+				if c.OidcStsEnabled {
+					stsOpts := auth.STSOptions{
+						Enabled:      c.OidcStsEnabled,
+						IssuerURL:    c.OidcStsIssuerURL,
+						ClientID:     c.OidcStsClientID,
+						ClientSecret: c.OidcStsClientSecret,
+						AudienceMap:  auth.ParseAudienceMap(c.OidcStsAudienceMap),
+					}
+					if stsOpts.IssuerURL == "" {
+						stsOpts.IssuerURL = c.OidcIdpIssuerURL
+					}
+
+					if stsOpts.ClientID == "" {
+						stsOpts.ClientID = c.OidcClientID
+					}
+
+					if stsOpts.ClientSecret == "" && c.OidcStsClientID == "" {
+						stsOpts.ClientSecret = c.OidcClientSecret
+					}
+
+					ctxWithTLS := auth.ConfigureTLSContext(ctx, &c.OidcSkipTLSVerify, &c.OidcCACert)
+
+					exchangedToken, err := auth.ExchangeTokenForCluster(ctxWithTLS, stsOpts, token, mux.Vars(r)["clusterName"])
+					if err != nil {
+						logger.Log(logger.LevelError, map[string]string{
+							"cluster": mux.Vars(r)["clusterName"],
+						}, err, "STS token exchange failed")
+						c.TelemetryHandler.RecordError(span, err, "STS token exchange failed")
+						c.handleError(
+							w, ctx, span,
+							errors.New("STS token exchange failed"),
+							"STS token exchange failed",
+							http.StatusUnauthorized,
+						)
+
+						return
+					}
+
+					token = exchangedToken
+				}
+
 				r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 			}
 		}
