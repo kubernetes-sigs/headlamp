@@ -47,6 +47,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'request-tray-icon',
       'set-tray-icon',
       'cluster-changed',
+      'route-changed',
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
