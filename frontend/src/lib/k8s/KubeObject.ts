@@ -435,7 +435,10 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
         : clusterList.filter(currentCluster => !isLoadingByCluster[currentCluster]);
 
       const isPendingDiscovery =
-        isNamespaced && !hasExplicitNamespace && clustersForRequests.length === 0;
+        isNamespaced &&
+        !hasExplicitNamespace &&
+        clusterList.length > 0 &&
+        clustersForRequests.length === 0;
 
       if (isPendingDiscovery) {
         return { requests: [], pendingDiscovery: true };
