@@ -10,6 +10,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync"
 
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -435,6 +436,31 @@ func (c *Context) SetupProxy() error {
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(URL)
+
+	// For OIDC clusters, log a hint upon receiving a 401 from the API server (StatusUnauthorized),
+	// as it can indicate the API server does not trust the same OIDC provider as Headlamp.
+	if c.AuthType() == "oidc" {
+		// Log at most once per proxy to avoid flooding the logs on repeated 401s.
+		var warnOnce sync.Once
+
+		proxy.ModifyResponse = func(resp *http.Response) error {
+			authHeader := ""
+			if resp.Request != nil {
+				authHeader = resp.Request.Header.Get("Authorization")
+			}
+
+			if resp.StatusCode == http.StatusUnauthorized && strings.HasPrefix(authHeader, "Bearer ") {
+				warnOnce.Do(func() {
+					logger.Log(logger.LevelWarn, map[string]string{"context": c.Name}, nil,
+						"API server rejected the forwarded bearer token (401); the token may be "+
+							"expired/invalid, or the API server may not trust the same OIDC issuer "+
+							"and client-id as Headlamp")
+				})
+			}
+
+			return nil
+		}
+	}
 
 	restConf, err := c.RESTConfig()
 	if err == nil {

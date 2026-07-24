@@ -214,6 +214,7 @@
   "Getting auth info: {{ clusterName }}": "Получение информации для авторизации: {{ clusterName }}",
   "Getting auth info": "Получение информации для авторизации",
   "Testing auth": "Тестирование авторизации",
+  "The cluster did not accept your sign-in. Its API server may not trust this OIDC provider (issuer, client ID, or audience), or your token may be expired or lack the required permissions. Please check the cluster API server OIDC configuration.": "",
   "Headlamp Cluster Authentication": "Аутентификация кластера Headlamp",
   "Sign In": "Войти",
   "Use A Token": "Использовать токен",
