@@ -28,9 +28,12 @@ describe('loadNotifications', () => {
   it('should return an empty array when localStorage.getItem returns null', () => {
     const orig = Storage.prototype.getItem;
     Storage.prototype.getItem = vi.fn(() => null);
-    const result = loadNotifications();
-    expect(result).toEqual([]);
-    Storage.prototype.getItem = orig;
+    try {
+      const result = loadNotifications();
+      expect(result).toEqual([]);
+    } finally {
+      Storage.prototype.getItem = orig;
+    }
   });
 
   it('should return an empty array (not throw) when stored JSON is corrupt', () => {
