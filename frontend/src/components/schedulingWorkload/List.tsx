@@ -21,9 +21,12 @@ import ResourceListView from '../common/Resource/ResourceListView';
 export default function SchedulingWorkloadList() {
   const { t } = useTranslation(['glossary', 'translation']);
 
+  const headerPropsNoCreateButton = { titleSideActions: [] };
+
   return (
     <ResourceListView
       title={t('glossary|Workloads (scheduling)')}
+      headerProps={headerPropsNoCreateButton}
       resourceClass={Workload}
       columns={[
         'name',

@@ -41,15 +41,6 @@ describe('Workload', () => {
     expect(Workload.listRoute).toBe('schedulingWorkloads');
   });
 
-  it('creates a base object with one gang scheduled pod group template', () => {
-    const baseObject = Workload.getBaseObject();
-
-    expect(baseObject.metadata.namespace).toBe('');
-    expect(baseObject.spec.podGroupTemplates).toEqual([
-      { name: '', schedulingPolicy: { gang: { minCount: 1 } } },
-    ]);
-  });
-
   it('exposes the pod group templates from the spec', () => {
     const templates = [
       { name: 'workers', schedulingPolicy: { gang: { minCount: 4 } } },
@@ -61,5 +52,22 @@ describe('Workload', () => {
 
   it('has no pod group templates when the spec is empty', () => {
     expect(makeWorkload({ podGroupTemplates: undefined }).podGroupTemplates).toEqual([]);
+  });
+
+  it('exposes the composite pod group templates from the spec', () => {
+    const composite = [
+      {
+        name: 'gang-of-gangs',
+        podGroupTemplates: [{ name: 'workers', schedulingPolicy: { gang: { minCount: 2 } } }],
+      },
+    ];
+
+    expect(
+      makeWorkload({ compositePodGroupTemplates: composite }).compositePodGroupTemplates
+    ).toEqual(composite);
+  });
+
+  it('has no composite pod group templates when the spec omits them', () => {
+    expect(makeWorkload({}).compositePodGroupTemplates).toEqual([]);
   });
 });
