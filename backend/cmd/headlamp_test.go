@@ -54,6 +54,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
@@ -912,6 +913,120 @@ func TestDrainAndCordonNode(t *testing.T) { //nolint:funlen
 	}
 }
 
+func daemonSetPod(name, namespace, nodeName string) *corev1.Pod {
+	controller := true
+
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "apps/v1",
+					Kind:       "DaemonSet",
+					Name:       "kube-proxy",
+					Controller: &controller,
+				},
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName: nodeName,
+		},
+	}
+}
+
+func ownerRef(kind string, controller bool) metav1.OwnerReference {
+	return metav1.OwnerReference{
+		APIVersion: "apps/v1",
+		Kind:       kind,
+		Name:       "owner",
+		Controller: &controller,
+	}
+}
+
+func podWithOwners(refs ...metav1.OwnerReference) corev1.Pod {
+	return corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{OwnerReferences: refs},
+	}
+}
+
+type daemonSetPodTestCase struct {
+	name string
+	pod  corev1.Pod
+	want bool
+}
+
+func daemonSetPodTestCases() []daemonSetPodTestCase {
+	wrongAPIVersion := ownerRef("DaemonSet", true)
+	wrongAPIVersion.APIVersion = "example.io/v1"
+
+	return []daemonSetPodTestCase{
+		{
+			name: "DaemonSet controller owner reference",
+			pod:  *daemonSetPod("kube-proxy-abc", "kube-system", "node-1"),
+			want: true,
+		},
+		{
+			// Nothing else controls the pod, so drain must still skip it.
+			name: "DaemonSet owner reference without controller",
+			pod:  podWithOwners(ownerRef("DaemonSet", false)),
+			want: true,
+		},
+		{
+			name: "DaemonSet owner reference with nil controller",
+			pod: podWithOwners(metav1.OwnerReference{
+				APIVersion: "apps/v1",
+				Kind:       "DaemonSet",
+				Name:       "kube-proxy",
+			}),
+			want: true,
+		},
+		{
+			// The ReplicaSet recreates the pod, so it is drainable.
+			name: "controlled by another controller with DaemonSet owner",
+			pod:  podWithOwners(ownerRef("DaemonSet", false), ownerRef("ReplicaSet", true)),
+			want: false,
+		},
+		{
+			name: "DaemonSet controller with another non-controller owner",
+			pod:  podWithOwners(ownerRef("ReplicaSet", false), ownerRef("DaemonSet", true)),
+			want: true,
+		},
+		{
+			name: "DaemonSet kind from another API",
+			pod:  podWithOwners(wrongAPIVersion),
+			want: false,
+		},
+		{
+			name: "deprecated label only",
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"kubernetes.io/created-by": "daemonset-controller"},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "regular pod",
+			pod:  podWithOwners(ownerRef("ReplicaSet", true)),
+			want: false,
+		},
+	}
+}
+
+func TestIsDaemonSetPod(t *testing.T) {
+	t.Parallel()
+
+	for _, tt := range daemonSetPodTestCases() {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, isDaemonSetPod(tt.pod))
+		})
+	}
+}
+
 func TestDrainNodePodDeletionFailure(t *testing.T) { //nolint:funlen
 	podOk := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -922,16 +1037,7 @@ func TestDrainNodePodDeletionFailure(t *testing.T) { //nolint:funlen
 			NodeName: "test-node",
 		},
 	}
-	podDaemonset := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "pod-daemonset",
-			Namespace: "default",
-			Labels:    map[string]string{"kubernetes.io/created-by": "daemonset-controller"},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "test-node",
-		},
-	}
+	podDaemonset := daemonSetPod("pod-daemonset", "default", "test-node")
 	podFail := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "pod-fail",
@@ -992,6 +1098,15 @@ func TestDrainNodePodDeletionFailure(t *testing.T) { //nolint:funlen
 	assert.True(t, strings.HasPrefix(status, "error:"),
 		"expected error status, got: %s", status)
 	assert.Contains(t, status, "failed to delete")
+
+	_, err = fakeClient.CoreV1().Pods("default").Get(ctx, "pod-ok", metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err))
+
+	_, err = fakeClient.CoreV1().Pods("default").Get(ctx, "pod-daemonset", metav1.GetOptions{})
+	assert.NoError(t, err)
+
+	_, err = fakeClient.CoreV1().Pods("kube-system").Get(ctx, "pod-fail", metav1.GetOptions{})
+	assert.NoError(t, err)
 }
 
 func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
@@ -1004,16 +1119,7 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 			NodeName: "test-node",
 		},
 	}
-	podDaemonset := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "pod-daemonset",
-			Namespace: "default",
-			Labels:    map[string]string{"kubernetes.io/created-by": "daemonset-controller"},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "test-node",
-		},
-	}
+	podDaemonset := daemonSetPod("pod-daemonset", "default", "test-node")
 
 	node := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1053,6 +1159,12 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 	require.True(t, ok)
 
 	assert.Equal(t, "success", status)
+
+	_, err = fakeClient.CoreV1().Pods("default").Get(ctx, "pod-1", metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err))
+
+	_, err = fakeClient.CoreV1().Pods("default").Get(ctx, "pod-daemonset", metav1.GetOptions{})
+	assert.NoError(t, err)
 }
 
 func TestHandleNodeDrainUsesRequestedClusterCookieForCustomNamedContext(t *testing.T) { //nolint:funlen

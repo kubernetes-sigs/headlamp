@@ -64,6 +64,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
+	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -2918,6 +2919,32 @@ func (c *HeadlampConfig) drainNode(
 	}()
 }
 
+// isDaemonSetPod reports whether pod is managed by a DaemonSet. It replaces the
+// kubernetes.io/created-by label, which was removed in Kubernetes 1.16.
+//
+// A DaemonSet controller reference is the normal case. A pod owned by some other
+// controller is not a DaemonSet pod even if it also lists a DaemonSet owner. When
+// no controller reference is set at all, a plain DaemonSet owner still counts,
+// because drain must not delete a pod nothing will recreate.
+func isDaemonSetPod(pod corev1.Pod) bool {
+	if controller := v1.GetControllerOf(&pod); controller != nil {
+		return isDaemonSetOwner(*controller)
+	}
+
+	for _, ref := range pod.OwnerReferences {
+		if isDaemonSetOwner(ref) {
+			return true
+		}
+	}
+
+	return false
+}
+
+func isDaemonSetOwner(ref v1.OwnerReference) bool {
+	return ref.APIVersion == appsv1.SchemeGroupVersion.String() &&
+		ref.Kind == "DaemonSet"
+}
+
 func (c *HeadlampConfig) drainNodePods(
 	ctx context.Context,
 	clientset kubernetes.Interface,
@@ -2935,7 +2962,7 @@ func (c *HeadlampConfig) drainNodePods(
 		}
 
 		// ignore daemonsets
-		if pod.Labels["kubernetes.io/created-by"] == "daemonset-controller" {
+		if isDaemonSetPod(pod) {
 			continue
 		}
 
