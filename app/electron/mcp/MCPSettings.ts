@@ -98,9 +98,15 @@ function buildMcpServerEnv(serverEnv?: Record<string, string>): Record<string, s
 
     return entry ? [entry] : [];
   });
-  const explicitEnvEntries = Object.entries(serverEnv || {}).filter(
-    (entry): entry is [string, string] => typeof entry[1] === 'string'
-  );
+  const explicitEnvEntries = Object.entries(serverEnv || {})
+    .filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+    .map(([key, value]) => {
+      const allowlistedKey = DEFAULT_MCP_ENV_KEYS.find(
+        envKey => envKey.toUpperCase() === key.toUpperCase()
+      );
+
+      return [allowlistedKey || key, value];
+    });
 
   return {
     ...Object.fromEntries(envEntries),

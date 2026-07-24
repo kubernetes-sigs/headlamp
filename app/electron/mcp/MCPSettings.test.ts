@@ -324,6 +324,29 @@ describe('MultiServerMCPClient', () => {
     expect(entry.env.Path).toBeUndefined();
   });
 
+  it('normalizes case-insensitive explicit env keys to the allowlisted name', () => {
+    const mcpSettings = {
+      enabled: true,
+      servers: [
+        {
+          name: 'valid',
+          command: 'cmd',
+          args: [],
+          enabled: true,
+          env: { Path: '/explicit/path' },
+        },
+      ],
+    };
+
+    (loadSettings as Mock).mockReturnValue({ mcp: mcpSettings });
+
+    const result = MCP.makeMcpServersFromSettings('/cfg', ['clusterA']);
+    const entry = result['valid'] as any;
+
+    expect(entry.env.PATH).toBe('/explicit/path');
+    expect(entry.env.Path).toBeUndefined();
+  });
+
   it('expands HEADLAMP_CURRENT_CLUSTER placeholder using provided clusters[0]', () => {
     const mcpSettings = {
       enabled: true,
