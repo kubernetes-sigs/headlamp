@@ -22,6 +22,7 @@ package k8cache
 import (
 	"context"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"slices"
@@ -189,6 +190,34 @@ type watcherState struct {
 	cancel       context.CancelFunc
 }
 
+func (s *watcherState) recordSuccess() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.running = false
+	s.failureCount = 0
+	s.lastError = nil
+	s.retryAfter = time.Time{}
+}
+
+func (s *watcherState) recordFailure(err error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	s.running = false
+	s.failureCount++
+	s.lastError = err
+
+	backoffShift := min(s.failureCount-1, 4)
+	backoff := time.Duration(1<<uint(backoffShift)) * 30 * time.Second
+
+	if backoff > 60*time.Second {
+		backoff = 60 * time.Second
+	}
+
+	s.retryAfter = time.Now().Add(backoff)
+}
+
 var watcherRegistry sync.Map
 
 // CheckForChanges lets 1 go routine to run for a contextKey which prevents
@@ -204,8 +233,10 @@ func CheckForChanges(
 
 	state.mu.Lock()
 	now := time.Now()
+
 	if state.running || now.Before(state.retryAfter) {
 		state.mu.Unlock()
+
 		return
 	}
 
@@ -267,6 +298,25 @@ func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
 	}
 }
 
+func createKubeClients(kContext kubeconfig.Context) (dynamic.Interface, discovery.DiscoveryInterface, error) {
+	config, err := kContext.RESTConfig()
+	if err != nil {
+		return nil, nil, fmt.Errorf("error getting REST config: %w", err)
+	}
+
+	dynamicClient, err := dynamic.NewForConfig(config)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error creating dynamic client: %w", err)
+	}
+
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
+		return nil, nil, fmt.Errorf("error creating discovery client: %w", err)
+	}
+
+	return dynamicClient, discoveryClient, nil
+}
+
 // runWatcher is a long-lived goroutine that sets up and runs Kubernetes informers.
 // It watches for resource changes and invalidates corresponding cache entries.
 // This function will only exit when its context is cancelled.
@@ -278,48 +328,30 @@ func runWatcher(
 	state *watcherState,
 ) {
 	var runErr error
+
 	defer func() {
-		state.mu.Lock()
-		state.running = false
-		if ctx.Err() != nil {
-			state.failureCount = 0
-			state.lastError = nil
-			state.retryAfter = time.Time{}
-		} else if runErr != nil {
-			state.failureCount++
-			state.lastError = runErr
-			backoffShift := min(state.failureCount-1, 4)
-			backoff := time.Duration(1<<uint(backoffShift)) * 30 * time.Second
-			if backoff > 60*time.Second {
-				backoff = 60 * time.Second
-			}
-			state.retryAfter = time.Now().Add(backoff)
+		if ctx.Err() != nil || runErr == nil {
+			state.recordSuccess()
+		} else {
+			state.recordFailure(runErr)
 		}
-		state.mu.Unlock()
 	}()
 
 	logger.Log(logger.LevelInfo, nil, nil, "running runWatcher for watching k8s resource: "+redactContextKey(contextKey))
 
-	config, err := kContext.RESTConfig()
+	dynamicClient, discoveryClient, err := createKubeClients(kContext)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "error getting REST config for context:")
+		logger.Log(logger.LevelError, nil, err, "error creating clients for context: "+redactContextKey(contextKey))
 		runErr = err
+
 		return
 	}
-
-	dynamicClient, err := dynamic.NewForConfig(config)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "error creating dynamic client for context: "+redactContextKey(contextKey))
-		runErr = err
-		return
-	}
-
-	discoveryClient := discovery.NewDiscoveryClientForConfigOrDie(config)
 
 	apiResourceLists, err := discoveryClient.ServerPreferredResources()
 	if apiResourceLists == nil && err != nil {
 		logger.Log(logger.LevelError, nil, err, "error fetching resource list for context: "+redactContextKey(contextKey))
 		runErr = err
+
 		return
 	}
 

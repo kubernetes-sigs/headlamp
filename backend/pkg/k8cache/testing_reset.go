@@ -35,6 +35,7 @@ func clearWatcherRegistriesForTesting() {
 			}
 			state.mu.Unlock()
 		}
+
 		watcherRegistry.Delete(key)
 
 		return true

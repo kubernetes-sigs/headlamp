@@ -35,7 +35,9 @@ func ResetRegistries(keys ...string) {
 				}
 				state.mu.Unlock()
 			}
+
 			watcherRegistry.Delete(key)
+
 			return true
 		})
 

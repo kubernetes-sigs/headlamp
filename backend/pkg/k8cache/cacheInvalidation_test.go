@@ -886,9 +886,11 @@ func TestSyncWatchers(t *testing.T) {
 func TestCheckForChangesGoroutineRateLimiting(t *testing.T) {
 	key := t.Name()
 	k8cache.ResetRegistries(key)
+
 	defer k8cache.ResetRegistries(key)
 
 	ctx, cancel := context.WithCancel(context.Background())
+
 	defer cancel()
 
 	// Trigger runWatcher with an empty Context (which fails RESTConfig immediately)
@@ -896,13 +898,16 @@ func TestCheckForChangesGoroutineRateLimiting(t *testing.T) {
 
 	// Simulate 100 concurrent incoming HTTP requests during failure cooldown
 	var wg sync.WaitGroup
+
 	for range 100 {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
+
 			k8cache.CheckForChanges(nil, key, kubeconfig.Context{})
 		}()
 	}
+
 	wg.Wait()
 
 	running, loaded := k8cache.RegistryLoaded(key)
@@ -914,9 +919,11 @@ func TestCheckForChangesGoroutineRateLimiting(t *testing.T) {
 func TestCheckForChanges_NoGoroutineSpamDuringCooldown(t *testing.T) {
 	key := t.Name()
 	k8cache.ResetRegistries(key)
+
 	defer k8cache.ResetRegistries(key)
 
 	ctx, cancel := context.WithCancel(context.Background())
+
 	defer cancel()
 
 	// Initial failing execution sets failureCount to 1 and places watcher in cooldown
@@ -940,9 +947,11 @@ func TestCheckForChanges_NoGoroutineSpamDuringCooldown(t *testing.T) {
 func TestCheckForChanges_RestartsWatcherAfterCooldownExpiry(t *testing.T) {
 	key := t.Name()
 	k8cache.ResetRegistries(key)
+
 	defer k8cache.ResetRegistries(key)
 
 	ctx, cancel := context.WithCancel(context.Background())
+
 	defer cancel()
 
 	// First attempt fails and starts cooldown (failureCount = 1)
@@ -968,6 +977,7 @@ func TestSyncWatchers_CleansUpWatcherStateOnContextRemoval(t *testing.T) {
 	removedKey := "ctx-removed"
 
 	k8cache.ResetRegistries(activeKey, removedKey)
+
 	defer k8cache.ResetRegistries(activeKey, removedKey)
 
 	activeCanceled := false
