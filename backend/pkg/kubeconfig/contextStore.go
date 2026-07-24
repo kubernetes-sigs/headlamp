@@ -100,7 +100,7 @@ func (c *contextStore) AddContext(headlampContext *Context) error {
 		return existingNameErr
 	}
 
-	if err == nil && !isSameLogicalContext(existingContext, headlampContext) {
+	if err == nil && !isSameLogicalContext(existingContext, headlampContext, name) {
 		c.mu.Unlock()
 
 		return ContextError{
@@ -171,7 +171,7 @@ func effectiveContextName(headlampContext *Context) (string, error) {
 	return name, nil
 }
 
-func isSameLogicalContext(existingContext, newContext *Context) bool {
+func isSameLogicalContext(existingContext, newContext *Context, newContextName string) bool {
 	if existingContext == nil || newContext == nil {
 		return existingContext == newContext
 	}
@@ -180,7 +180,51 @@ func isSameLogicalContext(existingContext, newContext *Context) bool {
 		return true
 	}
 
+	if isDynamicManualUpdate(existingContext, newContext, newContextName) {
+		return true
+	}
+
+	if isDynamicReloadOfKubeConfigContext(existingContext, newContext) {
+		return true
+	}
+
 	return fallbackContextIdentity(existingContext) == fallbackContextIdentity(newContext)
+}
+
+func isDynamicManualUpdate(existingContext, newContext *Context, newContextName string) bool {
+	return existingContext.Source == DynamicCluster &&
+		newContext.Source == DynamicCluster &&
+		existingContext.ClusterID == "" &&
+		newContext.ClusterID == "" &&
+		existingContext.Name == newContextName
+}
+
+func isDynamicReloadOfKubeConfigContext(existingContext, newContext *Context) bool {
+	return existingContext.Source == KubeConfig &&
+		newContext.Source == DynamicCluster &&
+		newContext.ClusterID == "" &&
+		sameKubeContextTarget(existingContext, newContext)
+}
+
+func sameKubeContextTarget(existingContext, newContext *Context) bool {
+	if existingContext.KubeContext == nil || newContext.KubeContext == nil {
+		return false
+	}
+
+	existingServer := ""
+	if existingContext.Cluster != nil {
+		existingServer = existingContext.Cluster.Server
+	}
+
+	newServer := ""
+	if newContext.Cluster != nil {
+		newServer = newContext.Cluster.Server
+	}
+
+	return existingServer == newServer &&
+		existingContext.KubeContext.Cluster == newContext.KubeContext.Cluster &&
+		existingContext.KubeContext.AuthInfo == newContext.KubeContext.AuthInfo &&
+		existingContext.KubeContext.Namespace == newContext.KubeContext.Namespace
 }
 
 func fallbackContextIdentity(headlampContext *Context) string {
