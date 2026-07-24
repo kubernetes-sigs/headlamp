@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -202,17 +203,34 @@ func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolin
 		enabledTypes = append(enabledTypes, "stdout")
 	}
 
-	isJaegerConfigured := *cfg.JaegerEndpoint != ""
-	isOTLPConfigured := *cfg.OTLPEndpoint != ""
+	jaegerEndpoint := strings.TrimSpace(*cfg.JaegerEndpoint)
+	otlpEndpoint := strings.TrimSpace(*cfg.OTLPEndpoint)
+	isJaegerConfigured := jaegerEndpoint != ""
+	isOTLPConfigured := otlpEndpoint != ""
 
 	if isJaegerConfigured {
 		enabledExporters++
 
 		enabledTypes = append(enabledTypes, "Jaeger")
+	}
 
-		if !isOTLPConfigured {
-			isOTLPConfigured = true
+	if isJaegerConfigured && !isOTLPConfigured {
+		normalizedEndpoint := normalizeEndpoint(jaegerEndpoint)
+		cfg.OTLPEndpoint = &normalizedEndpoint
+
+		// Ensure OTLP transport is configured when enabling OTLP via Jaeger fallback.
+		if cfg.UseOTLPHTTP == nil {
+			useHTTP := strings.HasPrefix(jaegerEndpoint, "http://") ||
+				strings.HasPrefix(jaegerEndpoint, "https://") ||
+				strings.Contains(jaegerEndpoint, "/v1/traces") ||
+				strings.Contains(jaegerEndpoint, "/api/traces") ||
+				strings.Contains(jaegerEndpoint, ":4318") ||
+				strings.Contains(jaegerEndpoint, ":14268")
+
+			cfg.UseOTLPHTTP = &useHTTP
 		}
+
+		isOTLPConfigured = true
 	}
 
 	if isOTLPConfigured && !isJaegerConfigured {
@@ -253,6 +271,24 @@ func createTracingExporter(cfg cfg.Config) (trace.SpanExporter, error) { //nolin
 	}
 
 	return exporter, nil
+}
+
+func normalizeEndpoint(endpoint string) string {
+	endpoint = strings.TrimSpace(endpoint)
+	if endpoint == "" {
+		return endpoint
+	}
+
+	parsedURL, err := url.Parse(endpoint)
+	if err == nil && parsedURL.Host != "" {
+		return parsedURL.Host
+	}
+
+	endpoint, _, _ = strings.Cut(endpoint, "/")
+	endpoint, _, _ = strings.Cut(endpoint, "?")
+	endpoint, _, _ = strings.Cut(endpoint, "#")
+
+	return endpoint
 }
 
 // createOTLPExporter creates an OpenTelemetry Protocol (OTLP) exporter

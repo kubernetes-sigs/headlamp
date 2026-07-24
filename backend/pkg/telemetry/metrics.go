@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"time"
 
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -127,6 +128,8 @@ func initApplicationMetrics(meter metric.Meter, metrics *Metrics) error {
 // RequestCounterMiddleware creates HTTP middleware that tracks request metrics.
 func (m *Metrics) RequestCounterMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
+
 		m.ActiveRequestsGauge.Add(r.Context(), 1)
 
 		wrapper := newResponseWriter(w)
@@ -141,7 +144,7 @@ func (m *Metrics) RequestCounterMiddleware(next http.Handler) http.Handler {
 			if rec := recover(); rec != nil {
 				wrapper.statusCode = http.StatusInternalServerError
 				attrs[2] = attribute.Int("http.status_code", http.StatusInternalServerError)
-
+				m.RequestDuration.Record(r.Context(), float64(time.Since(start).Milliseconds()), metric.WithAttributes(attrs...))
 				m.RequestCounter.Add(r.Context(), 1, metric.WithAttributes(attrs...))
 
 				m.ActiveRequestsGauge.Add(r.Context(), -1)
@@ -149,6 +152,7 @@ func (m *Metrics) RequestCounterMiddleware(next http.Handler) http.Handler {
 				panic(rec)
 			}
 
+			m.RequestDuration.Record(r.Context(), float64(time.Since(start).Milliseconds()), metric.WithAttributes(attrs...))
 			m.RequestCounter.Add(r.Context(), 1, metric.WithAttributes(attrs...))
 
 			m.ActiveRequestsGauge.Add(r.Context(), -1)
