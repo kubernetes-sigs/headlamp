@@ -472,11 +472,11 @@ export default class MCPClient {
   }
 
   private async mcpUpdateToolsConfig(toolsConfig: MCPToolsConfig) {
-    mcpDebugLog(
-      'Requested MCP tools configuration update:',
-      this.summarizeMCPToolsConfig(toolsConfig)
-    );
     try {
+      mcpDebugLog(
+        'Requested MCP tools configuration update:',
+        this.summarizeMCPToolsConfig(toolsConfig)
+      );
       if (!this.mainWindow) {
         throw new Error('Main window not set for MCP client');
       }

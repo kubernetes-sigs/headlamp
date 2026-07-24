@@ -111,6 +111,19 @@ describe('MCPClient', () => {
     expect((client as any).mcpToolState).not.toBeNull();
   });
 
+  it('handles malformed tool config update payloads through IPC error handling', async () => {
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    try {
+      const result = await (client as any).mcpUpdateToolsConfig(null);
+
+      expect(result.success).toBe(false);
+      expect(result.error).toMatch(/Cannot convert undefined or null to object/);
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
   it('handleClustersChange resolves when initialized without default debug logs', async () => {
     await client.initialize();
     await expect(client.handleClustersChange(['cluster-1'])).resolves.toBeUndefined();
