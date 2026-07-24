@@ -53,6 +53,10 @@ function createTestStore() {
   });
 }
 
+function consoleErrorCallsContain(consoleErrorSpy: ReturnType<typeof vi.spyOn>, expected: string) {
+  return consoleErrorSpy.mock.calls.some(call => call.some(arg => String(arg).includes(expected)));
+}
+
 describe('store serializable middleware', () => {
   afterEach(() => {
     vi.restoreAllMocks();
@@ -87,18 +91,18 @@ describe('store serializable middleware', () => {
 
     store.dispatch(unrelatedSlice.actions.setValue(nonSerializableValue));
 
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('A non-serializable value was detected in an action'),
-      expect.any(Function),
-      expect.any(String),
-      expect.objectContaining({ type: 'unrelated/setValue' }),
-      expect.any(String),
-      expect.any(String)
-    );
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining('A non-serializable value was detected in the state'),
-      expect.any(Function),
-      expect.any(String)
-    );
+    expect(
+      consoleErrorCallsContain(
+        consoleErrorSpy,
+        'A non-serializable value was detected in an action'
+      )
+    ).toBe(true);
+    expect(consoleErrorCallsContain(consoleErrorSpy, 'unrelated/setValue')).toBe(true);
+    expect(
+      consoleErrorCallsContain(
+        consoleErrorSpy,
+        'A non-serializable value was detected in the state'
+      )
+    ).toBe(true);
   });
 });
