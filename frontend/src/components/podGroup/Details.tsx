@@ -63,13 +63,18 @@ export default function PodGroupDetails(props: {
           },
           {
             name: t('translation|Pod Group Template Name'),
-            value: item.spec?.podGroupTemplateRef?.workload?.podGroupTemplateName,
-            hide: !item.spec?.podGroupTemplateRef?.workload?.podGroupTemplateName,
+            value: item.podGroupTemplateName,
+            hide: !item.podGroupTemplateName,
+          },
+          {
+            name: t('translation|Composite Pod Group'),
+            value: item.parentCompositePodGroupName,
+            hide: !item.parentCompositePodGroupName,
           },
           {
             name: t('translation|Disruption Mode'),
-            value: item.spec?.disruptionMode,
-            hide: !item.spec?.disruptionMode,
+            value: item.disruptionMode,
+            hide: !item.disruptionMode,
           },
           {
             name: t('glossary|Priority Class'),
@@ -88,6 +93,11 @@ export default function PodGroupDetails(props: {
             name: t('glossary|Priority'),
             value: item.spec?.priority,
             hide: item.spec?.priority === undefined,
+          },
+          {
+            name: t('translation|Preemption Policy'),
+            value: item.spec?.preemptionPolicy,
+            hide: !item.spec?.preemptionPolicy,
           },
           {
             name: t('translation|Topology Keys'),
