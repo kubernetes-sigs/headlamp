@@ -110,6 +110,7 @@ export default function ErrorComponent(props: ErrorComponentProps) {
     error,
   } = props;
   const useHeadingMessage = typeof message === 'string' || typeof message === 'number';
+  const hasMessage = message !== null && message !== undefined && message !== '';
 
   return (
     <Grid
@@ -130,7 +131,7 @@ export default function ErrorComponent(props: ErrorComponentProps) {
           title
         )}
         {withTypography ? (
-          !!message ? (
+          hasMessage ? (
             <Typography
               variant="h2"
               component={useHeadingMessage ? 'h2' : 'div'}

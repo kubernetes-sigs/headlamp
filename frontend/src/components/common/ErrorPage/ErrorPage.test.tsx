@@ -39,10 +39,21 @@ describe('ErrorComponent', () => {
 
     expect(customHeading.closest('h2')).toBeNull();
     expect(
-      consoleErrorSpy.mock.calls.some(([message]) =>
-        String(message).includes('validateDOMNesting(...): <h3> cannot appear as a child of <h2>')
+      consoleErrorSpy.mock.calls.some(call =>
+        call.some(arg => String(arg).includes('validateDOMNesting'))
       )
     ).toBe(false);
+  });
+
+  it('renders numeric zero as a custom message', () => {
+    render(
+      <TestContext>
+        <ErrorComponent message={0} />
+      </TestContext>
+    );
+
+    expect(screen.getByRole('heading', { level: 2, name: '0' })).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'home' })).not.toBeInTheDocument();
   });
 
   it('keeps the default fallback message as a level-two heading', () => {
