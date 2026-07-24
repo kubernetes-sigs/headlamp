@@ -17,11 +17,9 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { SnackbarProvider } from 'notistack';
 import { PropsWithChildren } from 'react';
-import { I18nextProvider } from 'react-i18next';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route } from 'react-router-dom';
 import defaultStore from '../redux/stores/store';
-import { testI18n } from './i18n';
 
 /**
  * Origin (scheme/host/port) of the dev/test backend that MSW handlers intercept
@@ -61,14 +59,12 @@ export function TestContext(props: TestContextProps) {
   }
 
   return (
-    <I18nextProvider i18n={testI18n}>
-      <Provider store={store || defaultStore}>
-        <SnackbarProvider>
-          <MemoryRouter initialEntries={url ? [url] : undefined}>
-            {routePath ? <Route path={routePath}>{children}</Route> : children}
-          </MemoryRouter>
-        </SnackbarProvider>
-      </Provider>
-    </I18nextProvider>
+    <Provider store={store || defaultStore}>
+      <SnackbarProvider>
+        <MemoryRouter initialEntries={url ? [url] : undefined}>
+          {routePath ? <Route path={routePath}>{children}</Route> : children}
+        </MemoryRouter>
+      </SnackbarProvider>
+    </Provider>
   );
 }
