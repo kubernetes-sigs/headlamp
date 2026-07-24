@@ -266,7 +266,9 @@ func (h *Handler) proxyRequest(
 
 	proxyReq, err := http.NewRequestWithContext(proxyCtx, r.Method, targetURL.String(), r.Body) //nolint:gosec
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "creating request")
+		// Omit the raw error: it can embed the upstream URL (path/query).
+		logger.Log(logger.LevelError, map[string]string{"proxyURL": redactURLForLog(targetURL)},
+			nil, "creating request")
 		http.Error(w, "external proxy request failed", http.StatusInternalServerError)
 
 		return
@@ -283,7 +285,9 @@ func (h *Handler) proxyRequest(
 			_ = resp.Body.Close()
 		}
 
-		logger.Log(logger.LevelError, nil, err, "making request")
+		// Omit the raw error: net/http errors include the full request URL.
+		logger.Log(logger.LevelError, map[string]string{"proxyURL": redactURLForLog(targetURL)},
+			nil, "making request")
 		http.Error(w, "external proxy request failed", http.StatusBadGateway)
 
 		return
