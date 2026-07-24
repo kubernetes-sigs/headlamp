@@ -24,6 +24,9 @@ vi.mock('i18next', () => ({
 
 import reducer, {
   DEFAULT_SHORTCUTS,
+  deregisterShortcut,
+  PluginShortcutConfig,
+  registerShortcut,
   resetAllShortcuts,
   resetShortcut,
   setShortcut,
@@ -130,6 +133,114 @@ describe('shortcutsSlice', () => {
         expect(shortcut.defaultKey).toBeDefined();
         expect(shortcut.category).toBeDefined();
       });
+    });
+  });
+
+  describe('registerShortcut', () => {
+    beforeEach(() => {
+      localStorage.clear();
+    });
+
+    it('should register a plugin shortcut', () => {
+      const config: PluginShortcutConfig = {
+        id: 'MY_PLUGIN_SHORTCUT',
+        name: 'My Plugin Shortcut',
+        description: 'Does something cool',
+        key: 'ctrl+alt+p',
+        defaultKey: 'ctrl+alt+p',
+        category: 'plugin',
+      };
+      const newState = reducer(initialState, registerShortcut(config));
+      expect(newState.shortcuts.MY_PLUGIN_SHORTCUT).toBeDefined();
+      expect(newState.shortcuts.MY_PLUGIN_SHORTCUT.key).toBe('ctrl+alt+p');
+      expect(newState.shortcuts.MY_PLUGIN_SHORTCUT.category).toBe('plugin');
+    });
+
+    it('should register a plugin shortcut defaulting category to plugin', () => {
+      const config: PluginShortcutConfig = {
+        id: 'MY_PLUGIN_SHORTCUT',
+        name: 'My Plugin Shortcut',
+        description: 'Does something cool',
+        key: 'ctrl+alt+p',
+        defaultKey: 'ctrl+alt+p',
+      };
+      const newState = reducer(initialState, registerShortcut(config));
+      expect(newState.shortcuts.MY_PLUGIN_SHORTCUT.category).toBe('plugin');
+    });
+
+    it('should not overwrite built-in shortcuts', () => {
+      const config: PluginShortcutConfig = {
+        id: 'GLOBAL_SEARCH',
+        name: 'Malicious Overwrite',
+        description: 'Trying to overwrite core shortcut',
+        key: 'ctrl+alt+x',
+        defaultKey: 'ctrl+alt+x',
+        category: 'plugin',
+      };
+      const newState = reducer(initialState, registerShortcut(config));
+      expect(newState.shortcuts.GLOBAL_SEARCH.name).toBe('Global Search');
+      expect(newState.shortcuts.GLOBAL_SEARCH.key).toBe('/');
+    });
+
+    it('should respect custom key overrides in localStorage when registering', () => {
+      const stored = { MY_PLUGIN_SHORTCUT: { key: 'ctrl+alt+x' } };
+      localStorage.setItem('keyboardShortcuts', JSON.stringify(stored));
+
+      const config: PluginShortcutConfig = {
+        id: 'MY_PLUGIN_SHORTCUT',
+        name: 'My Plugin Shortcut',
+        description: 'Does something cool',
+        key: 'ctrl+alt+p',
+        defaultKey: 'ctrl+alt+p',
+        category: 'plugin',
+      };
+
+      const newState = reducer(initialState, registerShortcut(config));
+      expect(newState.shortcuts.MY_PLUGIN_SHORTCUT.key).toBe('ctrl+alt+x');
+    });
+  });
+
+  describe('deregisterShortcut', () => {
+    it('should deregister a registered shortcut', () => {
+      const config: PluginShortcutConfig = {
+        id: 'MY_PLUGIN_SHORTCUT',
+        name: 'My Plugin Shortcut',
+        description: 'Does something cool',
+        key: 'ctrl+alt+p',
+        defaultKey: 'ctrl+alt+p',
+        category: 'plugin',
+      };
+      let state = reducer(initialState, registerShortcut(config));
+      expect(state.shortcuts.MY_PLUGIN_SHORTCUT).toBeDefined();
+
+      state = reducer(state, deregisterShortcut('MY_PLUGIN_SHORTCUT'));
+      expect(state.shortcuts.MY_PLUGIN_SHORTCUT).toBeUndefined();
+    });
+
+    it('should not delete built-in shortcuts', () => {
+      expect(initialState.shortcuts.GLOBAL_SEARCH).toBeDefined();
+      const newState = reducer(initialState, deregisterShortcut('GLOBAL_SEARCH'));
+      expect(newState.shortcuts.GLOBAL_SEARCH).toBeDefined();
+    });
+  });
+
+  describe('resetAllShortcuts with plugin shortcuts', () => {
+    it('should reset plugin shortcut key to default key but keep it registered', () => {
+      const config: PluginShortcutConfig = {
+        id: 'MY_PLUGIN_SHORTCUT',
+        name: 'My Plugin Shortcut',
+        description: 'Does something cool',
+        key: 'ctrl+alt+p',
+        defaultKey: 'ctrl+alt+p',
+        category: 'plugin',
+      };
+      let state = reducer(initialState, registerShortcut(config));
+      state = reducer(state, setShortcut({ id: 'MY_PLUGIN_SHORTCUT', key: 'ctrl+alt+z' }));
+      expect(state.shortcuts.MY_PLUGIN_SHORTCUT.key).toBe('ctrl+alt+z');
+
+      state = reducer(state, resetAllShortcuts());
+      expect(state.shortcuts.MY_PLUGIN_SHORTCUT.key).toBe('ctrl+alt+p');
+      expect(state.shortcuts.MY_PLUGIN_SHORTCUT).toBeDefined();
     });
   });
 });

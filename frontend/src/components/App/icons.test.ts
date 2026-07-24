@@ -17,7 +17,7 @@
 import fs from 'fs';
 import path from 'path';
 import * as filesFilter from '../../filesFilter/filesFilter';
-import mdiIcons from './icons';
+import mdiIcons, { configureOfflineIconProvider, getOfflineIcon } from './icons';
 
 // the cachedIcons array is used to check that all icons are cached in the frontend
 // we take the keys from the mdiIcons and add the prefix to it as a string
@@ -26,8 +26,8 @@ const cachedAliases = Object.keys(mdiIcons.aliases).map(alias => `${mdiIcons.pre
 
 describe('Icon tests', () => {
   test('Check icon', () => {
-    const files = filesFilter.sync('^.*\\.tsx$', {
-      ignore: /node_modules/,
+    const files = filesFilter.sync('^.*\\.[jt]sx?$', {
+      ignore: [/node_modules/, /icons\.test\.ts$/],
       baseDir: path.resolve(__dirname, '..', '..'),
     });
 
@@ -67,5 +67,16 @@ describe('Icon tests', () => {
     }
 
     expect(uncachedIcons.size, 'Icons with missing cache').toBe(0);
+  });
+
+  test('getOfflineIcon returns cached icon or fallback when uncached', () => {
+    expect(getOfflineIcon('mdi:home')).toBe('mdi:home');
+    expect(getOfflineIcon('mdi:unknown-icon-test-key')).toBe('mdi:help-circle');
+    expect(getOfflineIcon('mdi:unknown-icon-test-key', 'mdi:alert')).toBe('mdi:alert');
+  });
+
+  test('configureOfflineIconProvider accepts disableRemote flag without throwing', () => {
+    expect(() => configureOfflineIconProvider(true)).not.toThrow();
+    expect(() => configureOfflineIconProvider(false)).not.toThrow();
   });
 });

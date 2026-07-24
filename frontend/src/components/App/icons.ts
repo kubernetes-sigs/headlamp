@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { addCollection } from '@iconify/react';
+import { addAPIProvider, addCollection, iconExists } from '@iconify/react';
 
 /**
  * This is for bundling icons for offline use.
@@ -561,5 +561,28 @@ const mdiIcons = {
 
 // Load icons
 addCollection(mdiIcons);
+
+/**
+ * Ensures offline asset availability for Iconify icons by checking if an icon
+ * is present in Iconify's local icon storage (populated via addCollection),
+ * returning a fallback icon name if missing.
+ */
+export function getOfflineIcon(name: string, fallbackName: string = 'mdi:help-circle'): string {
+  const iconName = name.startsWith('mdi:') ? name : `mdi:${name}`;
+  if (iconExists(iconName)) {
+    return iconName;
+  }
+  return fallbackName;
+}
+
+/**
+ * Configure Iconify API provider options for air-gapped / offline operation.
+ * When disableRemote is true, prevents Iconify from attempting outbound CDN fetches.
+ */
+export function configureOfflineIconProvider(disableRemote: boolean = false) {
+  if (disableRemote) {
+    addAPIProvider('', { resources: [] });
+  }
+}
 
 export default mdiIcons;
