@@ -207,6 +207,9 @@ func captureLog(t *testing.T, level uint, str map[string]string, err interface{}
 //
 //nolint:funlen // table-driven test, splitting hurts readability
 func TestDefaultLogFunc(t *testing.T) {
+	origLogFunc := logger.SetLogFunc(nil)
+	t.Cleanup(func() { logger.SetLogFunc(origLogFunc) })
+
 	tests := []struct {
 		name     string
 		level    uint
