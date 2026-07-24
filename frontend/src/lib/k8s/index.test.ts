@@ -257,6 +257,7 @@ const namespacedClasses = [
   'LimitRange',
   'NetworkPolicy',
   'Pod',
+  'PodGroup',
   'ReplicaSet',
   'ResourceQuota',
   'Role',
@@ -267,6 +268,7 @@ const namespacedClasses = [
   'StatefulSet',
   'PodDisruptionBudget',
   'PersistentVolumeClaim',
+  'Workload',
 ];
 
 describe('Test class namespaces', () => {

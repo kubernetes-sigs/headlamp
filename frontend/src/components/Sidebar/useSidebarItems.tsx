@@ -15,6 +15,7 @@
  */
 
 import { useTheme } from '@mui/material/styles';
+import { useQuery } from '@tanstack/react-query';
 import _ from 'lodash';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -22,6 +23,7 @@ import { getClusterAppearanceFromMeta } from '../../helpers/clusterAppearance';
 import { isElectron } from '../../helpers/isElectron';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import CRD from '../../lib/k8s/crd';
+import PodGroup from '../../lib/k8s/podGroup';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
 import { DefaultSidebars, SidebarEntryProps, SidebarItemProps } from '.';
@@ -68,6 +70,19 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   if (error !== null) {
     console.error('Failed to fetch CRDs:', error);
   }
+
+  // The workload aware scheduling APIs are alpha and are only served when the cluster
+  // enables the GenericWorkload feature gate, so only show them when they are available.
+  const { data: schedulingWorkloadsEnabled = false } = useQuery({
+    queryKey: ['schedulingWorkloadsEnabled', ...selectedClusters],
+    queryFn: async () => {
+      const enabledPerCluster = await Promise.all(
+        selectedClusters.map(cluster => PodGroup.isEnabled(cluster))
+      );
+      return enabledPerCluster.some(Boolean);
+    },
+    enabled: selectedClusters.length > 0,
+  });
 
   const crdsSidebarEntries = useMemo(() => {
     const crdsSidebarEntries: SidebarItemProps[] = [];
@@ -421,6 +436,24 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
       },
     ];
 
+    if (schedulingWorkloadsEnabled) {
+      inClusterItems.push({
+        name: 'scheduling',
+        label: t('glossary|Scheduling (alpha)'),
+        icon: 'mdi:group',
+        subList: [
+          {
+            name: 'podGroups',
+            label: t('glossary|Pod Groups'),
+          },
+          {
+            name: 'schedulingWorkloads',
+            label: t('glossary|Workloads'),
+          },
+        ],
+      });
+    }
+
     if (crdsSidebarEntries.length !== 0) {
       const sublist: SidebarItemProps[] = [
         {
@@ -546,6 +579,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     selectedClusters.join(','),
     allClustersConf,
     crdsSidebarEntries,
+    schedulingWorkloadsEnabled,
     t,
   ]);
 

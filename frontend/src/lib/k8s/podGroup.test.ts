@@ -1,0 +1,192 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import App from '../../App';
+import type { KubePodGroup } from './podGroup';
+import PodGroup, { getDisruptionMode, getSchedulingPolicyKind } from './podGroup';
+
+const { mockRequest } = vi.hoisted(() => ({ mockRequest: vi.fn() }));
+
+vi.mock('./api/v1/clusterRequests', async importOriginal => ({
+  ...(await importOriginal<typeof import('./api/v1/clusterRequests')>()),
+  request: mockRequest,
+}));
+
+// cyclic imports fix
+// eslint-disable-next-line no-unused-vars
+const _dont_delete_me = App;
+
+const makePodGroup = (
+  spec: Partial<KubePodGroup['spec']>,
+  status?: KubePodGroup['status'],
+  apiVersion = 'scheduling.k8s.io/v1alpha2'
+) =>
+  new PodGroup({
+    kind: 'PodGroup',
+    apiVersion,
+    metadata: {
+      name: 'training-job-workers',
+      namespace: 'gang-demo',
+      uid: 'uid-1',
+      creationTimestamp: '2026-01-01T00:00:00Z',
+    },
+    spec: { schedulingPolicy: {}, ...spec },
+    status,
+  } as KubePodGroup);
+
+describe('getSchedulingPolicyKind', () => {
+  it('recognizes the gang and basic policies', () => {
+    expect(getSchedulingPolicyKind({ gang: { minCount: 4 } })).toBe('Gang');
+    expect(getSchedulingPolicyKind({ basic: {} })).toBe('Basic');
+  });
+
+  it('returns undefined when no policy is set', () => {
+    expect(getSchedulingPolicyKind({})).toBeUndefined();
+    expect(getSchedulingPolicyKind(undefined)).toBeUndefined();
+  });
+});
+
+describe('getDisruptionMode', () => {
+  it('reads the v1alpha2 string form', () => {
+    expect(getDisruptionMode('Pod')).toBe('Pod');
+    expect(getDisruptionMode('PodGroup')).toBe('PodGroup');
+  });
+
+  it('maps the v1alpha3 object form to the same values', () => {
+    expect(getDisruptionMode({ single: {} })).toBe('Pod');
+    expect(getDisruptionMode({ all: {} })).toBe('PodGroup');
+  });
+
+  it('returns undefined when no mode is set', () => {
+    expect(getDisruptionMode(undefined)).toBeUndefined();
+    expect(getDisruptionMode({})).toBeUndefined();
+  });
+});
+
+describe('PodGroup', () => {
+  it('exposes the gang policy and its minimum count', () => {
+    const podGroup = makePodGroup({ schedulingPolicy: { gang: { minCount: 4 } } });
+
+    expect(podGroup.policyKind).toBe('Gang');
+    expect(podGroup.minCount).toBe(4);
+  });
+
+  it('has no minimum count for the basic policy', () => {
+    const podGroup = makePodGroup({ schedulingPolicy: { basic: {} } });
+
+    expect(podGroup.policyKind).toBe('Basic');
+    expect(podGroup.minCount).toBeUndefined();
+  });
+
+  describe.each<[string, Partial<KubePodGroup['spec']>]>([
+    [
+      'scheduling.k8s.io/v1alpha2',
+      {
+        podGroupTemplateRef: {
+          workload: { workloadName: 'training-job', podGroupTemplateName: 'workers' },
+        },
+      },
+    ],
+    [
+      'scheduling.k8s.io/v1alpha3',
+      { workloadRef: { workloadName: 'training-job', templateName: 'workers' } },
+    ],
+  ])('on %s', (apiVersion, spec) => {
+    it('reads the workload and template names from the workload reference', () => {
+      const podGroup = makePodGroup(spec, undefined, apiVersion);
+
+      expect(podGroup.workloadName).toBe('training-job');
+      expect(podGroup.podGroupTemplateName).toBe('workers');
+    });
+  });
+
+  it('prefers the v1alpha3 reference when a cluster serves both shapes', () => {
+    const podGroup = makePodGroup({
+      workloadRef: { workloadName: 'from-v1alpha3', templateName: 'v1alpha3-workers' },
+      podGroupTemplateRef: {
+        workload: { workloadName: 'from-v1alpha2', podGroupTemplateName: 'v1alpha2-workers' },
+      },
+    });
+
+    expect(podGroup.workloadName).toBe('from-v1alpha3');
+    expect(podGroup.podGroupTemplateName).toBe('v1alpha3-workers');
+  });
+
+  it('has no workload or template name when the group was not templated', () => {
+    expect(makePodGroup({}).workloadName).toBeUndefined();
+    expect(makePodGroup({}).podGroupTemplateName).toBeUndefined();
+  });
+
+  it('normalizes the disruption mode from either API shape', () => {
+    expect(makePodGroup({ disruptionMode: 'PodGroup' }).disruptionMode).toBe('PodGroup');
+    expect(makePodGroup({ disruptionMode: { all: {} } }).disruptionMode).toBe('PodGroup');
+    expect(makePodGroup({}).disruptionMode).toBeUndefined();
+  });
+
+  it('picks the PodGroupScheduled condition out of the status', () => {
+    const podGroup = makePodGroup(
+      {},
+      {
+        conditions: [
+          { type: 'DisruptionTarget', status: 'False', lastProbeTime: '' },
+          { type: 'PodGroupScheduled', status: 'True', reason: 'Scheduled', lastProbeTime: '' },
+        ],
+      }
+    );
+
+    expect(podGroup.schedulingCondition?.reason).toBe('Scheduled');
+  });
+
+  it('has no scheduling condition when the status is empty', () => {
+    expect(makePodGroup({}).schedulingCondition).toBeUndefined();
+    expect(makePodGroup({}, { conditions: [] }).schedulingCondition).toBeUndefined();
+  });
+});
+
+describe('PodGroup.isEnabled', () => {
+  beforeEach(() => {
+    mockRequest.mockReset();
+  });
+
+  it('is true when the newest served version has the resource', async () => {
+    mockRequest.mockResolvedValueOnce({ resources: [{ name: 'podgroups' }] });
+
+    expect(await PodGroup.isEnabled('test-cluster')).toBe(true);
+    expect(mockRequest).toHaveBeenCalledTimes(1);
+    expect(mockRequest.mock.calls[0][0]).toBe('/apis/scheduling.k8s.io/v1alpha3');
+  });
+
+  it('falls back to the previous version when the newest is not served', async () => {
+    mockRequest.mockRejectedValueOnce(
+      new Error('the server could not find the requested resource')
+    );
+    mockRequest.mockResolvedValueOnce({ resources: [{ name: 'podgroups' }] });
+
+    expect(await PodGroup.isEnabled('test-cluster')).toBe(true);
+    expect(mockRequest.mock.calls.map(call => call[0])).toEqual([
+      '/apis/scheduling.k8s.io/v1alpha3',
+      '/apis/scheduling.k8s.io/v1alpha2',
+    ]);
+  });
+
+  it('is false when no candidate version is served', async () => {
+    mockRequest.mockRejectedValue(new Error('the server could not find the requested resource'));
+
+    expect(await PodGroup.isEnabled('test-cluster')).toBe(false);
+    expect(mockRequest).toHaveBeenCalledTimes(2);
+  });
+});
