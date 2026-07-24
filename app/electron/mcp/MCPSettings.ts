@@ -98,10 +98,13 @@ function buildMcpServerEnv(serverEnv?: Record<string, string>): Record<string, s
 
     return entry ? [entry] : [];
   });
+  const explicitEnvEntries = Object.entries(serverEnv || {}).filter(
+    (entry): entry is [string, string] => typeof entry[1] === 'string'
+  );
 
   return {
     ...Object.fromEntries(envEntries),
-    ...serverEnv,
+    ...Object.fromEntries(explicitEnvEntries),
   };
 }
 
