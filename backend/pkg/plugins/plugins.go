@@ -64,6 +64,30 @@ const (
 	PluginTypeShipped     = "shipped"
 )
 
+// Sentinel errors for Delete. Callers can map these to HTTP status codes with
+// DeleteHTTPStatus (404 for not found, 400 for invalid type).
+var (
+	ErrNotFound    = errors.New("plugin not found")
+	ErrInvalidType = errors.New("invalid plugin type")
+)
+
+// DeleteHTTPStatus maps a Delete error to an HTTP status code.
+// Not-found → 404, invalid type → 400, other errors → 500.
+func DeleteHTTPStatus(err error) int {
+	if err == nil {
+		return http.StatusOK
+	}
+
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, ErrInvalidType):
+		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
 // Watch watches the given path for changes and sends the events to the notify channel.
 // It runs until the provided context is cancelled.
 func Watch(ctx context.Context, watchPath string, notify chan<- string, ready ...chan<- struct{}) {
@@ -600,7 +624,7 @@ func tryDeletePlugin(dir string, filename string) (bool, error) {
 func Delete(userPluginDir, pluginDir, filename, pluginType string) error {
 	// Validate plugin type if provided
 	if pluginType != "" && pluginType != PluginTypeUser && pluginType != PluginTypeDevelopment {
-		return fmt.Errorf("invalid plugin type '%s': must be 'user' or 'development'", pluginType)
+		return fmt.Errorf("%w '%s': must be 'user' or 'development'", ErrInvalidType, pluginType)
 	}
 
 	// Attempt deletion according to requested/implicit order
@@ -614,7 +638,7 @@ func Delete(userPluginDir, pluginDir, filename, pluginType string) error {
 		}
 
 		if pluginType == PluginTypeUser && !deleted {
-			return fmt.Errorf("plugin '%s' not found in user-plugins directory", filename)
+			return fmt.Errorf("plugin '%s' not found in user-plugins directory: %w", filename, ErrNotFound)
 		}
 	}
 
@@ -624,12 +648,15 @@ func Delete(userPluginDir, pluginDir, filename, pluginType string) error {
 		}
 
 		if pluginType == PluginTypeDevelopment && !deleted {
-			return fmt.Errorf("plugin '%s' not found in development directory", filename)
+			return fmt.Errorf("plugin '%s' not found in development directory: %w", filename, ErrNotFound)
 		}
 	}
 
 	if !deleted {
-		return fmt.Errorf("plugin '%s' not found or cannot be deleted (shipped plugins cannot be deleted)", filename)
+		return fmt.Errorf(
+			"plugin '%s' not found or cannot be deleted (shipped plugins cannot be deleted): %w",
+			filename, ErrNotFound,
+		)
 	}
 
 	return nil

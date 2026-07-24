@@ -1254,6 +1254,63 @@ func TestDeletePlugin(t *testing.T) {
 	assert.True(t, os.IsNotExist(err))
 }
 
+// TestDeletePluginHTTPStatus checks client-error status codes for DELETE /plugins/{name}.
+func TestDeletePluginHTTPStatus(t *testing.T) {
+	tempDir, err := os.MkdirTemp("", "plugins-status")
+	require.NoError(t, err)
+
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	userPluginDir := filepath.Join(tempDir, "user-plugins")
+	devPluginDir := filepath.Join(tempDir, "plugins")
+
+	require.NoError(t, os.Mkdir(userPluginDir, 0o750))
+	require.NoError(t, os.Mkdir(devPluginDir, 0o750))
+
+	c := HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				KubeConfigPath:  filepath.Join("headlamp_testdata", "kubeconfig"),
+				PluginDir:       devPluginDir,
+				UserPluginDir:   userPluginDir,
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handler := createHeadlampHandler(context.Background(), &c)
+
+	t.Run("not found returns 404", func(t *testing.T) {
+		rr, err := getResponseFromRestrictedEndpoint(handler, "DELETE", "/plugins/does-not-exist?type=user", nil)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusNotFound, rr.Code)
+
+		var body map[string]any
+
+		err = json.Unmarshal(rr.Body.Bytes(), &body)
+		require.NoError(t, err)
+		assert.Equal(t, false, body["success"])
+		assert.Contains(t, body["message"], "not found")
+	})
+
+	t.Run("invalid type returns 400", func(t *testing.T) {
+		rr, err := getResponseFromRestrictedEndpoint(handler, "DELETE", "/plugins/test-plugin?type=invalid", nil)
+		require.NoError(t, err)
+		assert.Equal(t, http.StatusBadRequest, rr.Code)
+
+		var body map[string]any
+
+		err = json.Unmarshal(rr.Body.Bytes(), &body)
+		require.NoError(t, err)
+		assert.Equal(t, false, body["success"])
+		assert.Contains(t, body["message"], "invalid plugin type")
+	})
+}
+
 // TestRestrictedEndpointsRequireToken is the canary for the backend-token gate:
 // dropping checkHeadlampBackendToken from any listed route would fail here.
 // PUT /cluster/{name} (renameCluster) is omitted because it isn't gated yet.
