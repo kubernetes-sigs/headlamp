@@ -332,6 +332,27 @@ describe('normalizeUnit', () => {
     });
   });
 
+  describe('memory — sub-1-byte values (regression for #6628)', () => {
+    it('formats a milli-suffixed quantity as Bytes, not "undefined"', () => {
+      expect(normalizeUnit('memory', '500m')).toBe('0.5 Bytes');
+    });
+
+    it('formats a plain fractional quantity as Bytes', () => {
+      expect(normalizeUnit('memory', '0.5')).toBe('0.5 Bytes');
+    });
+
+    it('never emits the literal string "undefined" for tiny quantities', () => {
+      expect(normalizeUnit('memory', '1m')).not.toContain('undefined');
+      expect(normalizeUnit('memory', '1u')).not.toContain('undefined');
+      expect(normalizeUnit('memory', '1n')).not.toContain('undefined');
+    });
+
+    it('handles negative quantities gracefully instead of "NaN undefined"', () => {
+      expect(normalizeUnit('memory', '-1')).toBe('-1 Bytes');
+      expect(normalizeUnit('memory', '-1Gi')).toBe('-1.07 GB');
+    });
+  });
+
   describe('cpu', () => {
     it('converts millicores', () => {
       expect(normalizeUnit('cpu', '500m')).toBe('0.5 cores');
