@@ -55,6 +55,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/pluginmanager"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/portforward"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
@@ -675,6 +676,17 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	}
 
 	addPluginRoutes(config, r)
+
+	if config.EnablePluginManager && config.UseInCluster {
+		manager, err := pluginmanager.New(config.PluginManagerConfigMap, config.UserPluginDir)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "starting plugin manager")
+		} else {
+			manager.Run(ctx)
+			manager.RegisterRoutes(r)
+			logger.Log(logger.LevelInfo, nil, nil, "plugin manager endpoint: /plugin-manager")
+		}
+	}
 
 	// Setup port forwarding handlers.
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
