@@ -16,6 +16,7 @@
 
 import { has } from 'lodash';
 import React, { ReactNode } from 'react';
+import type { UnknownAction } from 'redux';
 import { AppLogoProps, AppLogoType } from '../components/App/AppLogo';
 import { PluginManager } from '../components/App/pluginManager';
 import { type PluginRunCommand, runCommand } from '../components/App/runCommand';
@@ -136,6 +137,11 @@ import {
   PluginSettingsDetailsProps,
   setPluginSettingsComponent,
 } from './pluginsSlice';
+import { recordPluginRegistration } from './runPlugin';
+
+function dispatchRegistration(action: UnknownAction) {
+  if (recordPluginRegistration(action)) store.dispatch(action);
+}
 
 export { DefaultCreateProject } from '../redux/projectsSlice';
 
@@ -218,7 +224,7 @@ export default class Registry {
   ) {
     console.warn('Registry.registerSidebarItem is deprecated. Please use registerSidebarItem.');
     const { useClusterURL = true, ...options } = opts;
-    store.dispatch(
+    dispatchRegistration(
       setSidebarItem({
         name: itemName,
         label: itemLabel,
@@ -245,7 +251,7 @@ export default class Registry {
     console.warn(
       'Registry.registerDetailsViewHeaderAction is deprecated. Please use registerDetailsViewHeaderAction.'
     );
-    store.dispatch(setDetailsViewHeaderAction(actionFunc));
+    dispatchRegistration(setDetailsViewHeaderAction(actionFunc));
   }
 
   /**
@@ -340,7 +346,7 @@ export function registerSidebarEntry({
   entryType,
   sx,
 }: SidebarEntryProps) {
-  store.dispatch(
+  dispatchRegistration(
     setSidebarItem({
       name,
       label,
@@ -392,7 +398,7 @@ registerKubeObjectGlance({ id: 'node-glance', component: NodeGlance });
  * ```
  */
 export function registerKubeObjectGlance(glance: Glance) {
-  store.dispatch(graphViewSlice.actions.setGlance(glance));
+  dispatchRegistration(graphViewSlice.actions.setGlance(glance));
 }
 
 /**
@@ -411,7 +417,7 @@ export function registerKubeObjectGlance(glance: Glance) {
 export function registerSidebarEntryFilter(
   filterFunc: (entry: SidebarEntryProps) => SidebarEntryProps | null
 ) {
-  store.dispatch(setSidebarItemFilter(filterFunc));
+  dispatchRegistration(setSidebarItemFilter(filterFunc));
 }
 
 /**
@@ -430,7 +436,7 @@ export function registerSidebarEntryFilter(
 export function registerHomeSidebarEntryFilter(
   filterFunc: (entry: SidebarEntryProps) => SidebarEntryProps | null
 ) {
-  store.dispatch(setHomeSidebarItemFilter(filterFunc));
+  dispatchRegistration(setHomeSidebarItemFilter(filterFunc));
 }
 
 /**
@@ -447,7 +453,7 @@ export function registerHomeSidebarEntryFilter(
  * ```
  */
 export function registerRouteFilter(filterFunc: (entry: Route) => Route | null) {
-  store.dispatch(setRouteFilter(filterFunc));
+  dispatchRegistration(setRouteFilter(filterFunc));
 }
 
 /**
@@ -474,7 +480,7 @@ export function registerRouteFilter(filterFunc: (entry: Route) => Route | null) 
  *
  */
 export function registerRoute(routeSpec: Route) {
-  store.dispatch(setRoute(routeSpec));
+  dispatchRegistration(setRoute(routeSpec));
 }
 
 /**
@@ -502,7 +508,7 @@ export function registerRoute(routeSpec: Route) {
  * ```
  */
 export function registerDetailsViewHeaderAction(headerAction: DetailsViewHeaderActionType) {
-  store.dispatch(setDetailsViewHeaderAction(headerAction));
+  dispatchRegistration(setDetailsViewHeaderAction(headerAction));
 }
 
 /**
@@ -527,7 +533,7 @@ export function registerDetailsViewHeaderAction(headerAction: DetailsViewHeaderA
 export function registerDetailsViewHeaderActionsProcessor(
   processor: DetailsViewHeaderActionsProcessor | DetailsViewHeaderActionsProcessor['processor']
 ) {
-  store.dispatch(addDetailsViewHeaderActionsProcessor(processor));
+  dispatchRegistration(addDetailsViewHeaderActionsProcessor(processor));
 }
 
 /**
@@ -561,7 +567,7 @@ export function registerDetailsViewHeaderActionsProcessor(
 export function registerResourceTableColumnsProcessor(
   processor: TableColumnsProcessor | TableColumnsProcessor['processor']
 ) {
-  store.dispatch(addResourceTableColumnsProcessor(processor));
+  dispatchRegistration(addResourceTableColumnsProcessor(processor));
 }
 
 function isProcessor(
@@ -604,9 +610,9 @@ export function registerAppBarAction(
   headerAction: AppBarActionType | AppBarAction | AppBarActionsProcessor | AppBarActionProcessorType
 ) {
   if (isProcessor(headerAction)) {
-    store.dispatch(setAppBarActionsProcessor(headerAction as AppBarActionsProcessor));
+    dispatchRegistration(setAppBarActionsProcessor(headerAction as AppBarActionsProcessor));
   }
-  store.dispatch(setAppBarAction(headerAction as AppBarAction));
+  dispatchRegistration(setAppBarAction(headerAction as AppBarAction));
 }
 
 /**
@@ -635,7 +641,7 @@ export function registerAppBarAction(
  * ```
  */
 export function registerDetailsViewSection(viewSection: DetailsViewSectionType) {
-  store.dispatch(setDetailsViewSection(viewSection));
+  dispatchRegistration(setDetailsViewSection(viewSection));
 }
 
 /**
@@ -675,7 +681,7 @@ export function registerDetailsViewSection(viewSection: DetailsViewSectionType) 
 export function registerDetailsViewSectionsProcessor(
   processor: DetailsViewsSectionProcessor | DetailsViewsSectionProcessor['processor']
 ) {
-  store.dispatch(addDetailsViewSectionsProcessor(processor));
+  dispatchRegistration(addDetailsViewSectionsProcessor(processor));
 }
 
 /**
@@ -701,7 +707,7 @@ export function registerDetailsViewSectionsProcessor(
  *
  */
 export function registerAppLogo(logo: AppLogoType) {
-  store.dispatch(setBrandingAppLogoComponent(logo));
+  dispatchRegistration(setBrandingAppLogoComponent(logo));
 }
 
 /**
@@ -724,7 +730,7 @@ export function registerAppLogo(logo: AppLogoType) {
  *
  */
 export function registerClusterChooser(chooser: ClusterChooserType) {
-  store.dispatch(uiSlice.actions.setClusterChooserButton(chooser));
+  dispatchRegistration(uiSlice.actions.setClusterChooserButton(chooser));
 }
 
 /**
@@ -742,7 +748,7 @@ export function registerClusterChooser(chooser: ClusterChooserType) {
 export function registerSetTokenFunction(
   override: (cluster: string, token: string | null) => void
 ) {
-  store.dispatch(uiSlice.actions.setFunctionsToOverride({ setToken: override }));
+  dispatchRegistration(uiSlice.actions.setFunctionsToOverride({ setToken: override }));
 }
 
 /**
@@ -758,7 +764,7 @@ export function registerSetTokenFunction(
  * ```
  */
 export function registerGetTokenFunction(override: (cluster: string) => string | undefined) {
-  store.dispatch(uiSlice.actions.setFunctionsToOverride({ getToken: override }));
+  dispatchRegistration(uiSlice.actions.setFunctionsToOverride({ getToken: override }));
 }
 
 /**
@@ -784,7 +790,7 @@ export function registerGetTokenFunction(override: (cluster: string) => string |
  * ```
  */
 export function registerHeadlampEventCallback(callback: HeadlampEventCallback) {
-  store.dispatch(addEventCallback(callback));
+  dispatchRegistration(addEventCallback(callback));
 }
 
 /**
@@ -834,7 +840,7 @@ export function registerPluginSettings(
   component: PluginSettingsComponentType,
   displaySaveButton: boolean = false
 ) {
-  store.dispatch(setPluginSettingsComponent({ name, component, displaySaveButton }));
+  dispatchRegistration(setPluginSettingsComponent({ name, component, displaySaveButton }));
 }
 
 /**
@@ -859,7 +865,7 @@ export function registerPluginSettings(
  * ```
  */
 export function registerOverviewChartsProcessor(processor: OverviewChartsProcessor) {
-  store.dispatch(addOverviewChartsProcessor(processor));
+  dispatchRegistration(addOverviewChartsProcessor(processor));
 }
 
 /**
@@ -884,7 +890,7 @@ export function registerOverviewChartsProcessor(processor: OverviewChartsProcess
  * ```
  */
 export function registerMapSource(source: GraphSource) {
-  store.dispatch(graphViewSlice.actions.addGraphSource(source));
+  dispatchRegistration(graphViewSlice.actions.addGraphSource(source));
 }
 
 /**
@@ -916,7 +922,7 @@ export function registerMapSource(source: GraphSource) {
  * ```
  */
 export function registerKindIcon(kind: string, definition: IconDefinition, apiGroup?: string) {
-  store.dispatch(graphViewSlice.actions.addKindIcon({ kind, definition, apiGroup }));
+  dispatchRegistration(graphViewSlice.actions.addKindIcon({ kind, definition, apiGroup }));
 }
 
 /**
@@ -949,7 +955,7 @@ export function registerKindIcon(kind: string, definition: IconDefinition, apiGr
  *
  */
 export function registerClusterProviderMenuItem(item: MenuItemComponent) {
-  store.dispatch(addMenuItem(item));
+  dispatchRegistration(addMenuItem(item));
 }
 
 /**
@@ -971,7 +977,7 @@ export function registerClusterProviderMenuItem(item: MenuItemComponent) {
  * ```
  */
 export function registerClusterStatus(item: ClusterStatusComponent) {
-  store.dispatch(addClusterStatus(item));
+  dispatchRegistration(addClusterStatus(item));
 }
 
 /**
@@ -997,7 +1003,7 @@ export function registerClusterStatus(item: ClusterStatusComponent) {
  * ```
  */
 export function registerClusterEmptyState(component: ClusterEmptyStateComponent): void {
-  store.dispatch(setClusterEmptyState(component));
+  dispatchRegistration(setClusterEmptyState(component));
 }
 
 /**
@@ -1044,7 +1050,7 @@ export function registerClusterEmptyState(component: ClusterEmptyStateComponent)
  *
  */
 export function registerClusterProviderDialog(item: DialogComponent) {
-  store.dispatch(addDialog(item));
+  dispatchRegistration(addDialog(item));
 }
 
 /**
@@ -1091,7 +1097,7 @@ export function registerClusterProviderDeleteHandler(handler: ClusterDeleteHandl
     );
     return;
   }
-  store.dispatch(addDeleteHandler(handler));
+  dispatchRegistration(addDeleteHandler(handler));
 }
 
 /**
@@ -1119,7 +1125,7 @@ export function registerClusterProviderDeleteHandler(handler: ClusterDeleteHandl
  *
  */
 export function registerAddClusterProvider(item: ClusterProviderInfo) {
-  store.dispatch(addAddClusterProvider(item));
+  dispatchRegistration(addAddClusterProvider(item));
 }
 
 /** Options that control app theme registration. */
@@ -1148,9 +1154,9 @@ export interface AppThemeRegistrationOptions {
  *
  */
 export function registerAppTheme(theme: AppTheme, options: AppThemeRegistrationOptions = {}): void {
-  store.dispatch(themeSlice.actions.addCustomAppTheme(theme));
+  dispatchRegistration(themeSlice.actions.addCustomAppTheme(theme));
   if (options.default) {
-    store.dispatch(themeSlice.actions.setPluginDefaultTheme(theme.name));
+    dispatchRegistration(themeSlice.actions.setPluginDefaultTheme(theme.name));
   }
 }
 
@@ -1200,7 +1206,7 @@ export function clusterAction(
  * ```
  */
 export function registerUIPanel(panel: UIPanel) {
-  store.dispatch(uiSlice.actions.addUIPanel(panel));
+  dispatchRegistration(uiSlice.actions.addUIPanel(panel));
 }
 
 /**
@@ -1230,7 +1236,7 @@ export function registerUIPanel(panel: UIPanel) {
  * ```
  */
 export function registerCustomCreateProject(customCreateProject: CustomCreateProject) {
-  store.dispatch(addCustomCreateProject(customCreateProject));
+  dispatchRegistration(addCustomCreateProject(customCreateProject));
 }
 
 /**
@@ -1254,7 +1260,7 @@ export function registerCustomCreateProject(customCreateProject: CustomCreatePro
  * @returns Nothing.
  */
 export function registerProjectGrouping(projectGrouping: ProjectGrouping) {
-  store.dispatch(setProjectGrouping(projectGrouping));
+  dispatchRegistration(setProjectGrouping(projectGrouping));
 }
 
 /**
@@ -1280,7 +1286,7 @@ export function registerProjectGrouping(projectGrouping: ProjectGrouping) {
  * ```
  */
 export function registerProjectDetailsTab(projectDetailsTab: ProjectDetailsTab) {
-  store.dispatch(addDetailsTab(projectDetailsTab));
+  dispatchRegistration(addDetailsTab(projectDetailsTab));
 }
 
 /**
@@ -1305,7 +1311,7 @@ export function registerProjectDetailsTab(projectDetailsTab: ProjectDetailsTab) 
  * ```
  */
 export function registerProjectOverviewSection(projectOverviewSection: ProjectOverviewSection) {
-  store.dispatch(addOverviewSection(projectOverviewSection));
+  dispatchRegistration(addOverviewSection(projectOverviewSection));
 }
 
 /**
@@ -1315,7 +1321,7 @@ export function registerProjectOverviewSection(projectOverviewSection: ProjectOv
  * @param projectDeleteButton.isEnabled - Optional function to determine if button is enabled
  */
 export function registerProjectDeleteButton(projectDeleteButton: ProjectDeleteButton) {
-  store.dispatch(setProjectDeleteButton(projectDeleteButton));
+  dispatchRegistration(setProjectDeleteButton(projectDeleteButton));
 }
 
 /**
@@ -1342,7 +1348,7 @@ export function registerProjectDeleteButton(projectDeleteButton: ProjectDeleteBu
  * ```
  */
 export function registerProjectHeaderAction(projectHeaderAction: ProjectHeaderAction) {
-  store.dispatch(addHeaderAction(projectHeaderAction));
+  dispatchRegistration(addHeaderAction(projectHeaderAction));
 }
 
 /**
@@ -1390,7 +1396,7 @@ export function registerProjectApiResource(apiResource: ApiResource) {
       ? { ...apiResource, groupName: apiResource.apiVersion.split('/')[0] }
       : apiResource;
 
-  store.dispatch(addProjectApiResource(normalizedResource));
+  dispatchRegistration(addProjectApiResource(normalizedResource));
 }
 
 /**
@@ -1467,7 +1473,7 @@ export function registerResourceRelationProvider(relation: Relation) {
     console.warn(`Relation with id "${relation.id}" already exists. Skipping.`);
     return;
   }
-  store.dispatch(graphViewSlice.actions.addRelation(relation));
+  dispatchRegistration(graphViewSlice.actions.addRelation(relation));
 }
 
 export {

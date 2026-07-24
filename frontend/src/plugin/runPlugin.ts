@@ -325,3 +325,30 @@ export function identifyPackages(
   }
   return isPackage;
 }
+
+export type PluginRegistration = {
+  active: boolean;
+  actions: import('redux').UnknownAction[];
+};
+
+let currentRegistration: PluginRegistration | undefined;
+
+export function withPluginRegistration<T>(
+  registration: PluginRegistration,
+  run: () => T
+): T | undefined {
+  if (!registration.active) return undefined;
+  const previous = currentRegistration;
+  currentRegistration = registration;
+  try {
+    return run();
+  } finally {
+    currentRegistration = previous;
+  }
+}
+
+export function recordPluginRegistration(action: import('redux').UnknownAction): boolean {
+  if (currentRegistration && !currentRegistration.active) return false;
+  currentRegistration?.actions.push(action);
+  return true;
+}
