@@ -55,7 +55,7 @@ export const baseMocks = [
   ),
   http.get(`${API_BASE}/clusters/*/api/v1/namespaces`, () =>
     HttpResponse.json({
-      kind: 'NamespacesList',
+      kind: 'NamespaceList',
       items: [
         {
           kind: 'Namespace',
@@ -78,7 +78,7 @@ export const baseMocks = [
   ),
   http.get(`${API_BASE}/api/v1/namespaces`, () =>
     HttpResponse.json({
-      kind: 'NamespacesList',
+      kind: 'NamespaceList',
       items: [
         {
           kind: 'Namespace',
