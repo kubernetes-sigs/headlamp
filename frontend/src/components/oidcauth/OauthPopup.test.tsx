@@ -138,4 +138,59 @@ describe('OauthPopup', () => {
     );
     expect(popupWindow.close).toHaveBeenCalled();
   });
+
+  it('uses fallback interval to detect popup closure when addEventListener throws', async () => {
+    try {
+      let isClosed = false;
+      const popupWindow = {
+        addEventListener: vi.fn(() => {
+          throw new Error(
+            'SecurityError: Blocked a frame with origin from accessing a cross-origin frame.'
+          );
+        }),
+        removeEventListener: vi.fn(),
+        close: vi.fn(),
+        get closed() {
+          return isClosed;
+        },
+      } as unknown as Window;
+
+      vi.spyOn(window, 'open').mockReturnValue(popupWindow);
+      const addEventListenerSpy = vi.spyOn(window, 'addEventListener');
+      const removeEventListenerSpy = vi.spyOn(window, 'removeEventListener');
+      const onClose = vi.fn();
+
+      render(
+        <OauthPopup
+          button={Button}
+          url="https://example.com/auth"
+          title="Auth Popup"
+          onCode={vi.fn()}
+          onClose={onClose}
+        >
+          Open Auth Popup
+        </OauthPopup>
+      );
+
+      fireEvent.click(screen.getByRole('button', { name: 'Open Auth Popup' }));
+
+      const storageListener = addEventListenerSpy.mock.calls.find(
+        ([eventName]) => eventName === 'storage'
+      )?.[1];
+
+      // Wait a bit, shouldn't trigger onClose yet
+      await new Promise(r => setTimeout(r, 100));
+      expect(onClose).not.toHaveBeenCalled();
+
+      // Simulate user closing the window
+      isClosed = true;
+
+      // Wait for the next 500ms interval to tick
+      await new Promise(r => setTimeout(r, 600));
+
+      expect(removeEventListenerSpy).toHaveBeenCalledWith('storage', storageListener);
+      expect(onClose).toHaveBeenCalled();
+    } finally {
+    }
+  });
 });
