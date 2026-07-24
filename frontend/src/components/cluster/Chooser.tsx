@@ -49,6 +49,7 @@ import { getCluster, getClusterPrefixedPath } from '../../lib/util';
 import { useTypedSelector } from '../../redux/hooks';
 import { uiSlice } from '../../redux/uiSlice';
 import { AppLogo } from '../App/AppLogo';
+import { getClusterDisplayLabel } from '../App/Home/customClusterNames';
 import ActionButton from '../common/ActionButton';
 import { DialogTitle } from '../common/Dialog';
 import ErrorBoundary from '../common/ErrorBoundary';
@@ -134,6 +135,7 @@ const ClusterButton = React.forwardRef<HTMLButtonElement, ClusterButtonProps>((p
   const appearance = getClusterAppearanceFromMeta(cluster?.name || '');
   const icon = appearance.icon || 'mdi:kubernetes';
   const iconColor = appearance.accentColor || theme.palette.primaryColor;
+  const label = getClusterDisplayLabel(cluster);
 
   return (
     <ButtonBase focusRipple ref={ref} onClick={onClick}>
@@ -151,7 +153,7 @@ const ClusterButton = React.forwardRef<HTMLButtonElement, ClusterButtonProps>((p
           }}
         >
           <Icon icon={icon} width="50" height="50" color={iconColor} />
-          <LightTooltip title={cluster.name}>
+          <LightTooltip title={label}>
             <Typography
               color="textSecondary"
               gutterBottom
@@ -162,7 +164,7 @@ const ClusterButton = React.forwardRef<HTMLButtonElement, ClusterButtonProps>((p
                 display: 'block',
               }}
             >
-              {cluster.name}
+              {label}
             </Typography>
           </LightTooltip>
         </CardContent>
@@ -258,7 +260,7 @@ function ClusterList(props: ClusterListProps) {
             <Autocomplete
               id="cluster-selector-autocomplete"
               options={clusters}
-              getOptionLabel={option => option.name}
+              getOptionLabel={option => getClusterDisplayLabel(option)}
               style={{ width: '100%' }}
               disableClearable
               autoComplete
@@ -382,6 +384,7 @@ export function ClusterDialog(props: ClusterDialogProps) {
 function Chooser(props: ClusterDialogProps) {
   const history = useHistory();
   const clusters = useClustersConf();
+  const clusterList = React.useMemo(() => Object.values(clusters || {}), [clusters]);
   const { open = null, onClose, children = [], ...otherProps } = props;
   // Only used if open is not provided
   const [show, setShow] = React.useState(props.open);
@@ -396,12 +399,12 @@ function Chooser(props: ClusterDialogProps) {
 
       // If we only have one cluster configured, then we skip offering
       // the choice to the user.
-      if (!!clusters && Object.keys(clusters).length === 1) {
-        handleButtonClick(Object.values(clusters)[0]);
+      if (clusterList.length === 1) {
+        handleButtonClick(clusterList[0]);
       }
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [open, show, clusters]
+    [open, show, clusterList]
   );
 
   function handleButtonClick(cluster: Cluster) {
@@ -431,7 +434,6 @@ function Chooser(props: ClusterDialogProps) {
     }
   }
 
-  const clusterList = Object.values(clusters || {});
   if (!show) {
     return null;
   }
