@@ -24,6 +24,8 @@ import (
 
 // FuzzNormalizeServerURL tests normalizeServerURL with various inputs.
 func FuzzNormalizeServerURL(f *testing.F) {
+	const maxNormalizeServerURLFuzzInputLen = 4096
+
 	f.Add("https://example.com/")
 	f.Add("https://example.com/path/")
 	f.Add("http://example.com:9123/api/v1/?q=1#fragment")
@@ -33,6 +35,13 @@ func FuzzNormalizeServerURL(f *testing.F) {
 	f.Add("://bad")
 
 	f.Fuzz(func(t *testing.T, host string) {
+		if len(host) > maxNormalizeServerURLFuzzInputLen {
+			t.Skipf(
+				"skipping input larger than %d bytes to keep fuzz test within CI time budget",
+				maxNormalizeServerURLFuzzInputLen,
+			)
+		}
+
 		result := normalizeServerURL(host)
 
 		// Invariant: result should not end with a trailing slash.

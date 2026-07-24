@@ -176,6 +176,7 @@ export type GraphSource = {
 );
 
 export interface Relation {
+  id: string;
   fromSource: string;
   toSource?: string;
   predicate: (from: GraphNode, to: GraphNode) => boolean;
@@ -186,6 +187,7 @@ export interface Relation {
    * and returns edges in O(fromNodes × avgRefs) time instead of O(fromNodes × allNodes).
    */
   buildEdgesWithIndex?: (fromNodes: GraphNode[], nodesByUid: Map<string, GraphNode>) => GraphEdge[];
+  label?: string;
 }
 
 /**

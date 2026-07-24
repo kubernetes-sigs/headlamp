@@ -33,8 +33,9 @@ import {
   DetailsViewsSectionProcessor,
   setDetailsViewSection,
 } from '../components/DetailsViewSection/detailsViewSectionSlice';
-import { GraphSource } from '../components/resourceMap/graph/graphModel';
+import { GraphSource, Relation } from '../components/resourceMap/graph/graphModel';
 import { Glance, graphViewSlice, IconDefinition } from '../components/resourceMap/graphViewSlice';
+import { BUILT_IN_RELATION_IDS } from '../components/resourceMap/sources/definitions/relationIds';
 import { DefaultSidebars, SidebarEntryProps } from '../components/Sidebar';
 import {
   setHomeSidebarItemFilter,
@@ -154,6 +155,7 @@ export type {
   GraphSource,
   IconDefinition,
   OverviewChartsProcessor,
+  Relation,
 };
 
 export type { ApiResource } from '../lib/k8s/api/v2/ApiResource';
@@ -1243,6 +1245,83 @@ export function registerProjectApiResource(apiResource: ApiResource) {
       : apiResource;
 
   store.dispatch(addProjectApiResource(normalizedResource));
+}
+
+/**
+ * Registers a custom resource relation definition (a Relation object) for the Resource Map.
+ *
+ * @param relation - The Relation definition object to add.
+ *                   Note: relation.id must be globally unique (across core, CRD, and plugin relations)
+ *                   to prevent silent edge loss and collision-based deduplication issues.
+ *                   It is highly recommended to namespace the ID with the plugin name
+ *                   (e.g., `'my-plugin.deployment-secret'`).
+ *
+ * @example
+ * ```tsx
+ * registerResourceRelationProvider({
+ *   id: 'my-plugin.deployment-secret',
+ *   fromSource: 'apps/Deployment',
+ *   toSource: 'Secret',
+ *   label: 'Uses Secret',
+ *   predicate: (from, to) => ...
+ * });
+ * ```
+ */
+
+export function registerResourceRelationProvider(relation: Relation) {
+  if (
+    !relation ||
+    typeof relation.id !== 'string' ||
+    relation.id.length === 0 ||
+    typeof relation.fromSource !== 'string' ||
+    relation.fromSource.length === 0 ||
+    typeof relation.predicate !== 'function'
+  ) {
+    console.warn(
+      `Invalid relation registration: relation must have a non-empty "id" string, a non-empty "fromSource" string, and a "predicate" function.`
+    );
+    return;
+  }
+
+  if (
+    relation.toSource !== undefined &&
+    (typeof relation.toSource !== 'string' || relation.toSource.length === 0)
+  ) {
+    console.warn(
+      `Invalid relation registration: if "toSource" is provided, it must be a non-empty string.`
+    );
+    return;
+  }
+
+  if (
+    relation.label !== undefined &&
+    (typeof relation.label !== 'string' || relation.label.length === 0)
+  ) {
+    console.warn(
+      `Invalid relation registration: if "label" is provided, it must be a non-empty string.`
+    );
+    return;
+  }
+
+  const isBuiltIn =
+    BUILT_IN_RELATION_IDS.includes(relation.id) ||
+    relation.id.startsWith('owner-') ||
+    relation.id.startsWith('owner-reversed-');
+
+  if (isBuiltIn) {
+    console.warn(
+      `Relation with id "${relation.id}" collides with a built-in relation ID. Skipping.`
+    );
+    return;
+  }
+
+  const relations = store.getState().graphView.relations;
+  const exists = relations.some(r => r.id === relation.id);
+  if (exists) {
+    console.warn(`Relation with id "${relation.id}" already exists. Skipping.`);
+    return;
+  }
+  store.dispatch(graphViewSlice.actions.addRelation(relation));
 }
 
 export {

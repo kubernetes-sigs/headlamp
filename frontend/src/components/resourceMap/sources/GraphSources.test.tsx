@@ -138,8 +138,13 @@ describe('GraphSourceManager', () => {
       source('disabled', null, { enabled: false, hook: disabledHook }),
     ];
     const relations: Relation[] = [
-      { fromSource: 'first', toSource: 'second', predicate: relationPredicate },
-      { fromSource: 'first', toSource: 'disabled', predicate: disabledPredicate },
+      { id: 'first-second', fromSource: 'first', toSource: 'second', predicate: relationPredicate },
+      {
+        id: 'first-disabled',
+        fromSource: 'first',
+        toSource: 'disabled',
+        predicate: disabledPredicate,
+      },
     ];
 
     render(
@@ -155,7 +160,12 @@ describe('GraphSourceManager', () => {
     expect(context.nodes.map(node => node.id)).toEqual(['first-node', 'second-node']);
     expect(context.edges).toEqual([
       { id: 'provided', source: 'first-node', target: 'second-node' },
-      { id: 'first-node-second-node', source: 'first-node', target: 'second-node' },
+      {
+        id: 'first-node-second-node-first-second',
+        source: 'first-node',
+        target: 'second-node',
+        label: undefined,
+      },
     ]);
     expect(relationPredicate).toHaveBeenCalledTimes(1);
     expect(disabledPredicate).not.toHaveBeenCalled();
@@ -213,7 +223,7 @@ describe('GraphSourceManager', () => {
           source('first', { nodes: [{ id: 'first-node' }] }),
           source('second', { nodes: [{ id: 'second-node' }] }),
         ]}
-        relations={[{ fromSource: 'first', predicate }]}
+        relations={[{ id: 'first-all', fromSource: 'first', predicate }]}
       >
         <Probe />
       </GraphSourceManager>
@@ -222,7 +232,12 @@ describe('GraphSourceManager', () => {
     await waitFor(() => expect(context.isLoading).toBe(false));
     expect(predicate).toHaveBeenCalledTimes(2);
     expect(context.edges).toEqual([
-      { id: 'first-node-second-node', source: 'first-node', target: 'second-node' },
+      {
+        id: 'first-node-second-node-first-all',
+        source: 'first-node',
+        target: 'second-node',
+        label: undefined,
+      },
     ]);
   });
 });

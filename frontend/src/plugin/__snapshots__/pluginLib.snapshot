@@ -699,6 +699,7 @@
   "registerProjectDetailsTab": [Function],
   "registerProjectHeaderAction": [Function],
   "registerProjectOverviewSection": [Function],
+  "registerResourceRelationProvider": [Function],
   "registerResourceTableColumnsProcessor": [Function],
   "registerRoute": [Function],
   "registerRouteFilter": [Function],
