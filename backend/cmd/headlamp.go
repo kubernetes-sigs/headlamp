@@ -386,25 +386,20 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 		var span trace.Span
 
 		pluginName := mux.Vars(r)["name"]
-
-		// Get plugin type from query parameter (optional)
 		pluginType := r.URL.Query().Get("type")
 
-		// Start tracing for deletePlugin.
 		if config.Telemetry != nil {
 			_, span = telemetry.CreateSpan(ctx, r, "plugins", "deletePlugin",
 				attribute.String("plugin.name", pluginName),
 			)
-
 			defer span.End()
 		}
 
-		// Increment deletion attempt metric
 		if config.Telemetry != nil && config.Metrics != nil {
 			config.Metrics.PluginDeleteCount.Add(ctx, 1)
 		}
 
-		logger.Log(logger.LevelInfo, nil, nil, "Received DELETE request for plugin: "+mux.Vars(r)["name"])
+		logger.Log(logger.LevelInfo, nil, nil, "Received DELETE request for plugin: "+pluginName)
 
 		if err := config.checkHeadlampBackendToken(w, r); err != nil {
 			if config.TelemetryHandler != nil {
@@ -418,18 +413,7 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 
 		err := plugins.Delete(config.UserPluginDir, config.PluginDir, pluginName, pluginType)
 		if err != nil {
-			if config.TelemetryHandler != nil {
-				config.TelemetryHandler.RecordError(span, err, "Failed to delete plugin")
-			}
-
-			logger.Log(logger.LevelError, nil, err, "Error deleting plugin: "+pluginName)
-
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusInternalServerError)
-
-			if err := json.NewEncoder(w).Encode(map[string]any{"success": false, "message": err.Error()}); err != nil {
-				logger.Log(logger.LevelError, nil, err, "Error writing delete error response")
-			}
+			writePluginDeleteError(w, config, span, pluginName, err)
 
 			return
 		}
@@ -442,6 +426,35 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 			logger.Log(logger.LevelError, nil, err, "Error writing delete response")
 		}
 	}).Methods("DELETE")
+}
+
+// writePluginDeleteError maps Delete failures to HTTP status and writes the JSON body.
+// Client errors (404/400) are logged as warnings; unexpected failures as errors.
+func writePluginDeleteError(
+	w http.ResponseWriter,
+	config *HeadlampConfig,
+	span trace.Span,
+	pluginName string,
+	err error,
+) {
+	status := plugins.DeleteHTTPStatus(err)
+
+	if status >= http.StatusInternalServerError {
+		if config.TelemetryHandler != nil {
+			config.TelemetryHandler.RecordError(span, err, "Failed to delete plugin")
+		}
+
+		logger.Log(logger.LevelError, nil, err, "Error deleting plugin: "+pluginName)
+	} else {
+		logger.Log(logger.LevelWarn, nil, err, "Failed to delete plugin: "+pluginName)
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+
+	if encErr := json.NewEncoder(w).Encode(map[string]any{"success": false, "message": err.Error()}); encErr != nil {
+		logger.Log(logger.LevelError, nil, encErr, "Error writing delete error response")
+	}
 }
 
 // addPluginListRoute registers a GET endpoint handler at "/plugins" that serves the list of available plugins.

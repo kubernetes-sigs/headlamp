@@ -18,6 +18,9 @@ package plugins_test
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
@@ -692,4 +695,49 @@ func TestDelete(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDeleteHTTPStatus(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+	}{
+		{name: "nil", err: nil, wantStatus: http.StatusOK},
+		{name: "not found", err: plugins.ErrNotFound, wantStatus: http.StatusNotFound},
+		{
+			name:       "wrapped not found",
+			err:        fmt.Errorf("plugin 'x' not found in user-plugins directory: %w", plugins.ErrNotFound),
+			wantStatus: http.StatusNotFound,
+		},
+		{name: "invalid type", err: plugins.ErrInvalidType, wantStatus: http.StatusBadRequest},
+		{
+			name:       "wrapped invalid type",
+			err:        fmt.Errorf("%w 'bad': must be 'user' or 'development'", plugins.ErrInvalidType),
+			wantStatus: http.StatusBadRequest,
+		},
+		{
+			name:       "other error",
+			err:        fmt.Errorf("disk full"),
+			wantStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.wantStatus, plugins.DeleteHTTPStatus(tt.err))
+		})
+	}
+}
+
+func TestDeleteSentinelErrors(t *testing.T) {
+	err := plugins.Delete("/tmp/no-such-user-plugins", "/tmp/no-such-dev-plugins", "missing", "user")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, plugins.ErrNotFound))
+	assert.Equal(t, http.StatusNotFound, plugins.DeleteHTTPStatus(err))
+
+	err = plugins.Delete("", "", "x", "invalid")
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, plugins.ErrInvalidType))
+	assert.Equal(t, http.StatusBadRequest, plugins.DeleteHTTPStatus(err))
 }
