@@ -179,7 +179,7 @@ func (h *Handler) allowlist() ([]AllowlistEntry, error) {
 }
 
 func writeAllowlistDenied(w http.ResponseWriter, targetURL *url.URL) {
-	denyErr := errors.New("No allowed proxy URL match, request denied")
+	denyErr := errors.New("no allowed proxy URL match, request denied")
 	logger.Log(logger.LevelError, map[string]string{"proxyURL": redactURLForLog(targetURL)},
 		denyErr, "No allowed proxy URL match, request denied")
 	http.Error(w, "No allowed proxy URL match, request denied", http.StatusBadRequest)
