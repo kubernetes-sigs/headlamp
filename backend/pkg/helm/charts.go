@@ -60,7 +60,8 @@ func listCharts(filter string, settings *cli.EnvSettings) ([]chartInfo, error) {
 
 		indexFile, err := repo.LoadIndexFile(repoIndexFile)
 		if err != nil {
-			return nil, err
+			logger.Log(logger.LevelWarn, map[string]string{"repo": name, "indexFile": repoIndexFile}, err, "skipping repo: failed to load cached index")
+			continue
 		}
 
 		index.AddRepo(name, indexFile, true)
