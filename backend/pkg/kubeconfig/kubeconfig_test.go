@@ -9,10 +9,12 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -405,6 +407,48 @@ func TestContext(t *testing.T) {
 	t.Logf("Proxy request Response: %s", rr.Body.String())
 	assert.Contains(t, rr.Body.String(), "major")
 	assert.Contains(t, rr.Body.String(), "minor")
+}
+
+// Check that a hint is logged when an OIDC cluster returns a 401.
+func TestSetupProxyOIDCTokenRejectionWarning(t *testing.T) {
+	tests := []struct {
+		name     string
+		oidc     bool
+		status   int
+		wantWarn bool
+	}{
+		{"oidc 401 warns", true, http.StatusUnauthorized, true},
+		{"oidc 200 is silent", true, http.StatusOK, false},
+		{"non-oidc 401 is silent", false, http.StatusUnauthorized, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			warned := false
+
+			original := logger.SetLogFunc(func(_ uint, _ map[string]string, _ interface{}, msg string) {
+				warned = warned || strings.Contains(msg, "rejected the forwarded bearer token")
+			})
+			defer logger.SetLogFunc(original)
+
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(tt.status)
+			}))
+			defer server.Close()
+
+			ctx := &kubeconfig.Context{Name: "oidc-test-context", Cluster: &api.Cluster{Server: server.URL}}
+			if tt.oidc {
+				ctx.OidcConf = &kubeconfig.OidcConfig{ClientID: "test-client-id", IdpIssuerURL: "https://oidc.example.com"}
+			}
+
+			request, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "/api", nil)
+			require.NoError(t, err)
+			request.Header.Set("Authorization", "Bearer test-token")
+
+			require.NoError(t, ctx.ProxyRequest(httptest.NewRecorder(), request))
+			assert.Equal(t, tt.wantWarn, warned)
+		})
+	}
 }
 
 func TestLoadContextsFromBase64String(t *testing.T) {
