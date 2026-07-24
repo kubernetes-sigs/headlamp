@@ -18,6 +18,7 @@ import type { QueryObserverOptions } from '@tanstack/react-query';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { KubeObject, KubeObjectClass } from '../../KubeObject';
+import type { NamespaceListConfig } from '../../useDiscoveredNamespaces';
 import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
@@ -379,12 +380,17 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
   });
 }
 
+export type KubeListRequest = {
+  cluster: string;
+  namespaces?: string[];
+};
+
 /**
  * Creates multiple requests to list Kube objects
- * Handles multiple clusters, namespaces and allowed namespaces
+ * Handles multiple clusters, namespaces and discovered namespaces
  *
  * @param clusters - list of clusters
- * @param getAllowedNamespaces -  function to get allowed namespaces for a cluster
+ * @param getNamespaceConfig - function to get namespace routing config for a cluster
  * @param isResourceNamespaced - if the resource is namespaced
  * @param requestedNamespaces - requested namespaces(optional)
  *
@@ -392,12 +398,12 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
  */
 export function makeListRequests(
   clusters: string[],
-  getAllowedNamespaces: (cluster: string | null) => string[],
+  getNamespaceConfig: (cluster: string | null) => NamespaceListConfig,
   isResourceNamespaced: boolean,
   requestedNamespaces: string[] = []
-): Array<{ cluster: string; namespaces?: string[] }> {
+): KubeListRequest[] {
   return clusters.map(cluster => {
-    const allowedNamespaces = getAllowedNamespaces(cluster);
+    const { namespaces: allowedNamespaces } = getNamespaceConfig(cluster);
 
     let namespaces = requestedNamespaces.length > 0 ? requestedNamespaces : allowedNamespaces;
 
@@ -421,8 +427,9 @@ export function useKubeObjectList<K extends KubeObject>({
   queryParams,
   watch = true,
   refetchInterval,
+  pendingDiscovery = false,
 }: {
-  requests: Array<{ cluster: string; namespaces?: string[] }>;
+  requests: KubeListRequest[];
   /** Class to instantiate the object with */
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
   queryParams?: QueryParameters;
@@ -430,15 +437,21 @@ export function useKubeObjectList<K extends KubeObject>({
   watch?: boolean;
   /** How often to refetch the list. Won't refetch by default. Disables watching if set. */
   refetchInterval?: number;
+  /** When true, callers are waiting for namespace discovery routing before list requests exist. */
+  pendingDiscovery?: boolean;
 }): [Array<K> | null, ApiError | null] &
   QueryListResponse<Array<ListResponse<K> | undefined | null>, K, ApiError> {
-  const maybeNamespace = requests.find(it => it.namespaces)?.namespaces?.[0];
+  const isPendingDiscovery = pendingDiscovery;
+  const hasRequests = requests.length > 0;
+  const shouldProbeEndpoints = hasRequests && !isPendingDiscovery;
+  const maybeNamespace = shouldProbeEndpoints
+    ? requests.find(it => it.namespaces)?.namespaces?.[0]
+    : undefined;
 
-  // Get working endpoint from the first cluster
-  // Now if clusters have different apiVersions for the same resource for example, this will not work
+  // Skip endpoint probing while callers wait for namespace discovery routing.
   const { endpoint, error: endpointError } = useEndpoints(
-    kubeObjectClass.apiEndpoint.apiInfo,
-    requests[0]?.cluster,
+    shouldProbeEndpoints ? kubeObjectClass.apiEndpoint.apiInfo : [],
+    shouldProbeEndpoints ? requests[0]!.cluster : '',
     maybeNamespace
   );
 
@@ -449,8 +462,8 @@ export function useKubeObjectList<K extends KubeObject>({
   const queries = useMemo(
     () =>
       endpoint
-        ? requests.flatMap(({ cluster, namespaces }) =>
-            namespaces && namespaces.length > 0
+        ? requests.flatMap(({ cluster, namespaces }) => {
+            return namespaces && namespaces.length > 0
               ? namespaces.map(namespace =>
                   kubeObjectListQuery<K>(
                     kubeObjectClass,
@@ -461,15 +474,17 @@ export function useKubeObjectList<K extends KubeObject>({
                     refetchInterval
                   )
                 )
-              : kubeObjectListQuery<K>(
-                  kubeObjectClass,
-                  endpoint,
-                  undefined,
-                  cluster,
-                  cleanedUpQueryParams,
-                  refetchInterval
-                )
-          )
+              : [
+                  kubeObjectListQuery<K>(
+                    kubeObjectClass,
+                    endpoint,
+                    undefined,
+                    cluster,
+                    cleanedUpQueryParams,
+                    refetchInterval
+                  ),
+                ];
+          })
         : [],
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [requests, kubeObjectClass, endpoint, cleanedUpQueryParams]
@@ -478,6 +493,19 @@ export function useKubeObjectList<K extends KubeObject>({
   const query = useQueries({
     queries,
     combine(results) {
+      if (isPendingDiscovery) {
+        return {
+          data: [],
+          clusterResults: {},
+          items: null,
+          errors: [],
+          isError: false,
+          isLoading: true,
+          isFetching: false,
+          isSuccess: false,
+        };
+      }
+
       return {
         data: results.map(result => result.data),
         clusterResults: results.reduce((acc, result) => {

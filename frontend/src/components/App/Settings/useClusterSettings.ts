@@ -20,6 +20,33 @@ import {
   loadClusterSettings,
   storeClusterSettings,
 } from '../../../helpers/clusterSettings';
+import { NAMESPACE_DISCOVERY_QUERY_KEY } from '../../../lib/k8s/useDiscoveredNamespaces';
+import { queryClient } from '../../../lib/queryClient';
+
+function allowedNamespacesChanged(prev: ClusterSettings, next: ClusterSettings): boolean {
+  const prevAllowed = prev.allowedNamespaces ?? [];
+  const nextAllowed = next.allowedNamespaces ?? [];
+  if (prevAllowed.length !== nextAllowed.length) {
+    return true;
+  }
+  return prevAllowed.some((ns, index) => ns !== nextAllowed[index]);
+}
+
+function defaultNamespaceChanged(prev: ClusterSettings, next: ClusterSettings): boolean {
+  return (prev.defaultNamespace ?? '') !== (next.defaultNamespace ?? '');
+}
+
+function namespaceDiscoverySettingsChanged(prev: ClusterSettings, next: ClusterSettings): boolean {
+  return allowedNamespacesChanged(prev, next) || defaultNamespaceChanged(prev, next);
+}
+
+function invalidateNamespaceDiscoveryForCluster(cluster: string) {
+  queryClient.invalidateQueries({ queryKey: ['auth', cluster], exact: true });
+  queryClient.invalidateQueries({
+    queryKey: [NAMESPACE_DISCOVERY_QUERY_KEY, cluster],
+    exact: true,
+  });
+}
 
 /**
  * Single source of truth for a cluster's settings, backed by localStorage.
@@ -49,6 +76,9 @@ export function useClusterSettings(
         const next = typeof action === 'function' ? action(prev) : action;
         if (cluster) {
           storeClusterSettings(cluster, next);
+          if (namespaceDiscoverySettingsChanged(prev, next)) {
+            invalidateNamespaceDiscoveryForCluster(cluster);
+          }
         }
         return next;
       });

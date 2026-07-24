@@ -16,6 +16,13 @@
 
 import { http, HttpResponse } from 'msw';
 
+/**
+ * Dev/test backend origin for MSW handlers in plugin Storybook.
+ * Keep in sync with `frontend/src/test/index.tsx` (`API_BASE`).
+ * Defined locally so Storybook works when the plugin is consumed outside the monorepo.
+ */
+const API_BASE = 'http://localhost:4466';
+
 // NOTE: Please keep this synced with headlamp/plugins/headlamp-plugin/config/.storybook/baseMocks.ts
 
 const creationTimestamp = new Date('2022-01-01').toISOString();
@@ -98,14 +105,36 @@ export const NODE_DUMMY_DATA = [
  *
  */
 export const baseMocks = [
-  http.get('http://localhost:4466/wsMultiplexer', () => HttpResponse.error()),
+  http.get(`${API_BASE}/wsMultiplexer`, () => HttpResponse.error()),
   http.get('https://api.iconify.design/mdi.json', () => HttpResponse.json({})),
-  http.post('http://localhost:4466/apis/authorization.k8s.io/v1/selfsubjectaccessreviews', () =>
+  http.post(`${API_BASE}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, () =>
     HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
   ),
-  http.get('http://localhost:4466/api/v1/namespaces', () =>
+  http.post(`${API_BASE}/apis/authorization.k8s.io/v1/selfsubjectrulesreviews`, () =>
+    HttpResponse.json({ status: { resourceRules: [] } })
+  ),
+  http.post(`${API_BASE}/clusters/*/apis/authorization.k8s.io/v1/selfsubjectrulesreviews`, () =>
+    HttpResponse.json({ status: { resourceRules: [] } })
+  ),
+  http.post(`${API_BASE}/clusters/*/apis/authentication.k8s.io/v1/selfsubjectreviews`, () =>
     HttpResponse.json({
-      kind: 'NamespacesList',
+      status: {
+        userInfo: {
+          username: 'storybook-user',
+          groups: [],
+        },
+      },
+    })
+  ),
+  http.post(`${API_BASE}/clusters/*/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, () =>
+    HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
+  ),
+  http.get(`${API_BASE}/clusters/*/apis/rbac.authorization.k8s.io/v1/rolebindings`, () =>
+    HttpResponse.json({ kind: 'RoleBindingList', items: [], metadata: {} })
+  ),
+  http.get(`${API_BASE}/clusters/*/api/v1/namespaces`, () =>
+    HttpResponse.json({
+      kind: 'NamespaceList',
       items: [
         {
           kind: 'Namespace',
@@ -126,46 +155,69 @@ export const baseMocks = [
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/clusters/cluster0/version', () => HttpResponse.json({})),
-  http.get('http://localhost:4466/clusters/cluster1/version', () => HttpResponse.json({})),
-  http.get('http://localhost:4466/clusters/cluster2/version', () => HttpResponse.json({})),
-  http.get('http://localhost:4466/clusters/cluster0/api/v1/events', () =>
+  http.get(`${API_BASE}/api/v1/namespaces`, () =>
+    HttpResponse.json({
+      kind: 'NamespaceList',
+      items: [
+        {
+          kind: 'Namespace',
+          apiVersion: 'v1',
+          metadata: {
+            name: 'default',
+            creationTimestamp: '2024-08-16T11:12:37.179Z',
+            uid: '123456',
+          },
+          spec: {
+            finalizers: ['kubernetes'],
+          },
+          status: {
+            phase: 'Active',
+          },
+        },
+      ],
+      metadata: {},
+    })
+  ),
+  http.get(`${API_BASE}/clusters/cluster0/version`, () => HttpResponse.json({})),
+  http.get(`${API_BASE}/clusters/cluster1/version`, () => HttpResponse.json({})),
+  http.get(`${API_BASE}/clusters/cluster2/version`, () => HttpResponse.json({})),
+  http.get(`${API_BASE}/clusters/cluster0/api/v1/events`, () =>
     HttpResponse.json({
       kind: 'EventList',
       items: [],
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/clusters/cluster1/api/v1/events', () =>
+  http.get(`${API_BASE}/clusters/cluster1/api/v1/events`, () =>
     HttpResponse.json({
       kind: 'EventList',
       items: [],
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/clusters/cluster2/api/v1/events', () =>
+  http.get(`${API_BASE}/clusters/cluster2/api/v1/events`, () =>
     HttpResponse.json({
       kind: 'EventList',
       items: [],
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/version', () => HttpResponse.json({})),
-  http.get('http://localhost:4466/api/v1/events', () =>
+  http.get(`${API_BASE}/version`, () => HttpResponse.json({})),
+  http.get(`${API_BASE}/api/v1/events`, () =>
     HttpResponse.json({
       kind: 'EventList',
       items: [],
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/api/v1/namespaces/kube-system/events', () =>
+  http.get(`${API_BASE}/api/v1/namespaces/kube-system/events`, () =>
     HttpResponse.json({
       kind: 'EventList',
       items: [],
       metadata: {},
     })
   ),
-  http.get('http://localhost:4466/api/v1/nodes', () =>
+  http.get(`${API_BASE}/api/v1/nodes`, () =>
     HttpResponse.json({
       kind: 'NodesList',
       apiVersion: 'v1',
@@ -175,7 +227,7 @@ export const baseMocks = [
       items: NODE_DUMMY_DATA,
     })
   ),
-  http.get('http://localhost:4466/api/v1/namespaces/default/pods', () =>
+  http.get(`${API_BASE}/api/v1/namespaces/default/pods`, () =>
     HttpResponse.json({
       kind: 'PodList',
       apiVersion: 'v1',
@@ -183,7 +235,16 @@ export const baseMocks = [
       items: [],
     })
   ),
-  http.get('http://localhost:4466/apis/metrics.k8s.io/v1beta1/nodes', () =>
+  http.get(`${API_BASE}/clusters/*/apis/networking.k8s.io/v1/ingresses`, () =>
+    HttpResponse.json({
+      kind: 'IngressList',
+      apiVersion: 'networking.k8s.io/v1',
+      metadata: {},
+      items: [],
+    })
+  ),
+  http.get(`${API_BASE}/clusters/*/apis/extensions/v1beta1/ingresses`, () => HttpResponse.error()),
+  http.get(`${API_BASE}/apis/metrics.k8s.io/v1beta1/nodes`, () =>
     HttpResponse.json({
       apiVersion: 'metrics.k8s.io/v1beta1',
       kind: 'NodeMetricsList',
