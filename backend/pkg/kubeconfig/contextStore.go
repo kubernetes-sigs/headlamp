@@ -84,7 +84,7 @@ func (c *contextStore) AddContext(headlampContext *Context) error {
 		return errors.New("context cannot be nil")
 	}
 
-	name, _, err := effectiveContextName(headlampContext)
+	name, err := effectiveContextName(headlampContext)
 	if err != nil {
 		return err
 	}
@@ -93,7 +93,7 @@ func (c *contextStore) AddContext(headlampContext *Context) error {
 
 	existingContext, err := c.cache.Get(context.Background(), name)
 
-	_, _, existingNameErr := effectiveContextName(existingContext)
+	_, existingNameErr := effectiveContextName(existingContext)
 	if existingNameErr != nil {
 		c.mu.Unlock()
 
@@ -130,45 +130,45 @@ func (c *contextStore) AddContext(headlampContext *Context) error {
 	return err
 }
 
-func effectiveContextName(headlampContext *Context) (string, bool, error) {
+func effectiveContextName(headlampContext *Context) (string, error) {
 	if headlampContext == nil {
-		return "", false, nil
+		return "", nil
 	}
 
 	name := headlampContext.Name
 
 	if headlampContext.KubeContext == nil || headlampContext.KubeContext.Extensions["headlamp_info"] == nil {
-		return name, false, nil
+		return name, nil
 	}
 
 	info := headlampContext.KubeContext.Extensions["headlamp_info"]
 
 	if typedInfo, ok := info.(*CustomObject); ok {
 		if typedInfo != nil && typedInfo.CustomName != "" {
-			return typedInfo.CustomName, true, nil
+			return typedInfo.CustomName, nil
 		}
 
-		return name, false, nil
+		return name, nil
 	}
 
 	unknownBytes, err := json.Marshal(info)
 	if err != nil {
-		return "", false, err
+		return "", err
 	}
 
 	var customObj CustomObject
 
 	if err := json.Unmarshal(unknownBytes, &customObj); err != nil {
-		return "", false, err
+		return "", err
 	}
 
 	if customObj.CustomName != "" {
 		name = customObj.CustomName
 
-		return name, true, nil
+		return name, nil
 	}
 
-	return name, false, nil
+	return name, nil
 }
 
 func isSameLogicalContext(existingContext, newContext *Context) bool {
