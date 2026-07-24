@@ -801,3 +801,14 @@ func TestDelete(t *testing.T) {
 		})
 	}
 }
+
+func TestGeneratePluginPathsIgnoresManagerStagingAndBackups(t *testing.T) {
+	dir := t.TempDir()
+	createPlugin(t, dir, "active")
+	createPlugin(t, dir, ".staging-active-123")
+	createPlugin(t, dir, ".backup-active")
+	paths, err := plugins.GeneratePluginPaths("", dir, "")
+	require.NoError(t, err)
+	require.Len(t, paths, 1)
+	assert.Equal(t, "user-plugins/active", paths[0].Path)
+}
