@@ -3279,14 +3279,10 @@ func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 	kubeConfigStore := kubeconfig.NewContextStore()
 
 	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, nil)
-	if err != nil {
-		t.Skipf("unable to load kubeconfig for real K8s integration test: %v", err)
-	}
+	require.NoErrorf(t, err, "unable to load kubeconfig for real K8s integration test")
 
 	cfg, err := clientcmd.LoadFromFile(kubeConfigPath)
-	if err != nil {
-		t.Skipf("unable to read kubeconfig for real K8s integration test: %v", err)
-	}
+	require.NoErrorf(t, err, "unable to read kubeconfig for real K8s integration test")
 
 	clusterName := cfg.CurrentContext
 
