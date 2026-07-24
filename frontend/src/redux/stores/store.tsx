@@ -15,6 +15,7 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
+import { activitySlice } from '../../components/activity/activitySlice';
 import { setBrandingAppLogoComponent } from '../../components/App/themeSlice';
 import { addResourceTableColumnsProcessor } from '../../components/common/Resource/resourceTableSlice';
 import {
@@ -32,6 +33,7 @@ import {
   setSidebarItem,
   setSidebarItemFilter,
 } from '../../components/Sidebar/sidebarSlice';
+import { setPluginSettingsComponent } from '../../plugin/pluginsSlice';
 import {
   addDetailsViewHeaderActionsProcessor,
   setAppBarAction,
@@ -91,6 +93,9 @@ export const serializableCheckOptions = {
     setProjectDeleteButton.type,
     setRoute.type,
     setRouteFilter.type,
+    setPluginSettingsComponent.type,
+    activitySlice.actions.launchActivity.type,
+    activitySlice.actions.update.type,
     uiSlice.actions.addUIPanel.type,
     uiSlice.actions.setClusterChooserButton.type,
     uiSlice.actions.setFunctionsToOverride.type,
@@ -118,6 +123,7 @@ export const serializableCheckOptions = {
     'graphView.graphSources',
     'graphView.kindIcons',
     'overviewCharts.processors',
+    'plugins.pluginSettings',
     'projects.customCreateProject',
     'projects.detailsTabs',
     'projects.headerActions',
@@ -128,6 +134,7 @@ export const serializableCheckOptions = {
     'sidebar.filters',
     'sidebar.homeFilters',
     'theme.logo',
+    'activity.activities',
     'ui.clusterChooserButtonComponent',
     'ui.functionsToOverride',
     'ui.panels',

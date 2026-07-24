@@ -16,10 +16,12 @@
 
 import type { PayloadAction } from '@reduxjs/toolkit';
 import { configureStore, createSlice } from '@reduxjs/toolkit';
+import { activityReducer, activitySlice } from '../../components/activity/activitySlice';
 import resourceTableReducer, {
   addResourceTableColumnsProcessor,
 } from '../../components/common/Resource/resourceTableSlice';
 import type { Route } from '../../lib/router/Route';
+import pluginsReducer, { setPluginSettingsComponent } from '../../plugin/pluginsSlice';
 import filterReducer, { setNamespaceFilter } from '../filterSlice';
 import eventCallbackReducer, { addEventCallback, listenerMiddleware } from '../headlampEventSlice';
 import routesReducer, { setRoute, setRouteFilter } from '../routesSlice';
@@ -44,6 +46,8 @@ function createTestStore() {
       routes: routesReducer,
       resourceTable: resourceTableReducer,
       eventCallbackReducer,
+      plugins: pluginsReducer,
+      activity: activityReducer,
       unrelated: unrelatedSlice.reducer,
     },
     middleware: getDefaultMiddleware =>
@@ -73,12 +77,31 @@ describe('store serializable middleware', () => {
     const processor = () => [];
     const routeFilter = (candidate: Route) => candidate;
     const eventCallback = () => {};
+    const PluginSettings = () => <div>Plugin settings</div>;
+    const activityContent = <div>Activity</div>;
 
     store.dispatch(setNamespaceFilter(['default']));
     store.dispatch(setRoute(route));
     store.dispatch(setRouteFilter(routeFilter));
     store.dispatch(addResourceTableColumnsProcessor(processor));
     store.dispatch(addEventCallback(eventCallback));
+    store.dispatch(
+      setPluginSettingsComponent({
+        name: 'plugin',
+        component: PluginSettings,
+        displaySaveButton: true,
+      })
+    );
+    store.dispatch(
+      activitySlice.actions.launchActivity({
+        id: 'activity',
+        title: 'Activity',
+        icon: null,
+        location: 'full',
+        content: activityContent,
+      })
+    );
+    store.dispatch(activitySlice.actions.update({ id: 'activity', content: activityContent }));
     store.dispatch(unrelatedSlice.actions.setValue('serializable'));
 
     expect(consoleErrorSpy).not.toHaveBeenCalled();
