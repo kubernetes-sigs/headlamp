@@ -93,13 +93,6 @@ func (c *contextStore) AddContext(headlampContext *Context) error {
 
 	existingContext, err := c.cache.Get(context.Background(), name)
 
-	_, existingNameErr := effectiveContextName(existingContext)
-	if existingNameErr != nil {
-		c.mu.Unlock()
-
-		return existingNameErr
-	}
-
 	if err == nil && !isSameLogicalContext(existingContext, headlampContext, name) {
 		c.mu.Unlock()
 
