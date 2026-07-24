@@ -240,11 +240,11 @@ export function ShortcutsList() {
     [shortcuts]
   );
 
-  const categories = ['search', 'navigation', 'general'];
+  const categories = ['search', 'navigation', 'general', 'plugin'];
   const groupedShortcuts = useMemo(
     () =>
       Object.values(shortcuts).reduce((acc, shortcut) => {
-        const cat = shortcut.category;
+        const cat = shortcut.category || 'plugin';
         if (!acc[cat]) acc[cat] = [];
         acc[cat].push(shortcut);
         return acc;
@@ -257,6 +257,7 @@ export function ShortcutsList() {
       navigation: t('Navigation'),
       search: t('Search'),
       general: t('General'),
+      plugin: t('Plugin Shortcuts'),
     }),
     [t]
   );
