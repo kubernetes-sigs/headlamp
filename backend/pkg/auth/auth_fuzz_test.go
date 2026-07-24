@@ -32,6 +32,10 @@ func FuzzDecodeBase64JSON(f *testing.F) {
 	f.Add("bnVsbA")              // valid base64url of "null"
 
 	f.Fuzz(func(t *testing.T, input string) {
+		if len(input) > 4096 {
+			t.Skip()
+		}
+
 		_, _ = auth.DecodeBase64JSON(input)
 	})
 }

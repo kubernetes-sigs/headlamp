@@ -14,7 +14,11 @@
  * limitations under the License.
  */
 
-import { registerKubeObjectGlance, registerMapSource } from '@kinvolk/headlamp-plugin/lib';
+import {
+  registerKubeObjectGlance,
+  registerMapSource,
+  registerResourceRelationProvider,
+} from '@kinvolk/headlamp-plugin/lib';
 import { KubeObject } from '@kinvolk/headlamp-plugin/lib/K8s/cluster';
 import { useMemo } from 'react';
 
@@ -113,5 +117,22 @@ registerMapSource({
         ],
       };
     }, []);
+  },
+});
+
+// Example: Register a custom resource relation for the Resource Map.
+// This creates an edge between nodes from the "my-source" graph source
+// and Deployment nodes.
+registerResourceRelationProvider({
+  id: 'customizing-map.custom-relation',
+  fromSource: 'my-source',
+  toSource: 'apps/Deployment',
+  label: 'Depends On',
+  predicate: (from, to) => {
+    // predicate receives GraphNode objects; access the underlying K8s object via kubeObject.
+    return (
+      from.kubeObject?.jsonData.metadata.name === 'my-test-resource' &&
+      to.kubeObject?.jsonData.metadata.name === 'my-deployment'
+    );
   },
 });
