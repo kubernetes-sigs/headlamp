@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
@@ -93,6 +94,8 @@ func newTestCFG(store kubeconfig.ContextStore) *headlampconfig.HeadlampCFG {
 		UserPluginDir:                         "user-plugins",
 		StaticPluginDir:                       "static-plugins",
 		KubeConfigStore:                       store,
+		Telemetry:                             nil,
+		Metrics:                               nil,
 		BaseURL:                               "/headlamp",
 		ProxyURLs:                             []string{"https://example.com"},
 		TLSCertPath:                           "/tls/cert.pem",
@@ -137,6 +140,8 @@ func TestHeadlampConfigConstruction(t *testing.T) {
 		OidcScopes:                []string{"openid", "profile", "email"},
 		Cache:                     c,
 		Multiplexer:               mux,
+		TelemetryConfig:           config.Config{},
+		TelemetryHandler:          nil,
 		MeUsernamePaths:           "username",
 		MeEmailPaths:              "email",
 		MeGroupsPaths:             "groups",
@@ -146,6 +151,7 @@ func TestHeadlampConfigConstruction(t *testing.T) {
 		ProxyAuthGroupHeader:      "X-Groups",
 		ProxyAuthEmailHeader:      "X-Email",
 		ProxyAuthTokenHeader:      "X-Token",
+		ServerCtx:                 nil,
 	}
 
 	// Embedded fields are reachable directly on HeadlampConfig.
