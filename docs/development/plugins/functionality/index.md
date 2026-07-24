@@ -225,6 +225,51 @@ Check the
 [example plugin](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/ui-panels)
 for the full code.
 
+### Resource Map Relations
+
+Register a custom relation provider for the Resource Map graph with
+`registerResourceRelationProvider`. This enables plugins to define custom edges
+and surface implicit dependencies between resources. Each relation needs a
+globally unique `id`, a `fromSource` graph source ID, and a `predicate` that
+returns whether two graph nodes should be connected. Use a plugin-prefixed
+relation ID to avoid colliding with Headlamp's built-in relations.
+
+```tsx
+import { registerResourceRelationProvider } from '@kinvolk/headlamp-plugin/lib';
+
+registerResourceRelationProvider({
+  id: 'my-plugin.deployment-secret',
+  fromSource: 'apps/Deployment',
+  toSource: 'Secret',
+  label: 'Uses Secret',
+  predicate: (from, to) => {
+    // predicate receives GraphNode objects; access K8s data via kubeObject.
+    return (
+      from.kubeObject?.jsonData.metadata.name === 'my-deployment' &&
+      to.kubeObject?.jsonData.metadata.name === 'my-secret'
+    );
+  }
+});
+
+registerResourceRelationProvider({
+  id: 'my-plugin.custom-source-deployment',
+  fromSource: 'my-source',
+  toSource: 'apps/Deployment',
+  label: 'Depends On',
+  predicate: (from, to) => {
+    // `my-source` is the ID passed to registerMapSource.
+    return (
+      from.kubeObject?.jsonData.metadata.name === 'my-test-resource' &&
+      to.kubeObject?.jsonData.metadata.name === 'my-deployment'
+    );
+  }
+});
+```
+
+Check the
+[example plugin](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/customizing-map)
+for the full code.
+
 ### Projects customization
 
 Customize Headlamp's Projects feature with several registration functions:

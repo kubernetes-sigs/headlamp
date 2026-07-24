@@ -311,9 +311,10 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
           toNodes.forEach(to => {
             if (relation.predicate(from, to)) {
               edges.push({
-                id: from.id + '-' + to.id,
+                id: from.id + '-' + to.id + '-' + relation.id,
                 source: from.id,
                 target: to.id,
+                label: relation.label,
               });
             }
           });
