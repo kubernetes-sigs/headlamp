@@ -103,6 +103,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
     resetClient: () => ipcRenderer.invoke('mcp-reset-client'),
     getConfig: () => ipcRenderer.invoke('mcp-get-config'),
     updateConfig: (config: any) => ipcRenderer.invoke('mcp-update-config', config),
+    getPermissions: () => ipcRenderer.invoke('mcp-get-permissions'),
     getToolsConfig: () => ipcRenderer.invoke('mcp-get-tools-config'),
     updateToolsConfig: (config: any) => ipcRenderer.invoke('mcp-update-tools-config', config),
     setToolEnabled: (serverName: string, toolName: string, enabled: boolean) =>
