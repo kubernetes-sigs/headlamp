@@ -623,8 +623,6 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			pluginEventChan,
 			config.Cache,
 		)
-		// in-cluster mode is unlikely to want reloading kubeconfig.
-		go kubeconfig.LoadAndWatchFiles(ctx, config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
 	}
 
 	// In-cluster
@@ -652,6 +650,11 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	err := kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "loading kubeconfig")
+	}
+
+	// in-cluster mode is unlikely to want reloading kubeconfig.
+	if !config.UseInCluster {
+		go kubeconfig.LoadAndWatchFiles(ctx, config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
 	}
 
 	// Prometheus metrics endpoint

@@ -3,6 +3,7 @@ package kubeconfig_test
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -31,6 +32,10 @@ func TestWatchAndLoadFiles(t *testing.T) {
 
 	kubeConfigStore := kubeconfig.NewContextStore()
 
+	// Perform initial load as done by the Headlamp server
+	err := kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, path, kubeconfig.KubeConfig, nil)
+	require.NoError(t, err)
+
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel() // Ensure the watcher goroutine is stopped when the test ends
 
@@ -39,7 +44,7 @@ func TestWatchAndLoadFiles(t *testing.T) {
 	// Test adding a context
 	t.Run("Add context", func(t *testing.T) {
 		// Sleep to ensure watcher is ready
-		time.Sleep(2 * time.Second)
+		time.Sleep(200 * time.Millisecond)
 
 		// Read existing config
 		config, err := clientcmd.LoadFromFile("./test_data/kubeconfig1")
@@ -115,4 +120,80 @@ func TestWatchAndLoadFiles(t *testing.T) {
 			require.NoError(t, err)
 		}
 	}()
+}
+
+//nolint:funlen
+func TestWatchAndLoadReferencedCredentialFiles(t *testing.T) {
+	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != "true" {
+		t.Skip("skipping integration test")
+	}
+
+	// Create a temp directory for the test files
+	tempDir, err := os.MkdirTemp("", "headlamp-watcher-test")
+	require.NoError(t, err)
+
+	defer func() { _ = os.RemoveAll(tempDir) }()
+
+	// Create a mock token file
+	tokenPath := filepath.Join(tempDir, "token")
+	err = os.WriteFile(tokenPath, []byte("initial-token"), 0o600)
+	require.NoError(t, err)
+
+	// Create a mock kubeconfig referencing the token file
+	kubeconfigPath := filepath.Join(tempDir, "kubeconfig")
+	config := clientcmdapi.NewConfig()
+	config.Clusters["test-cluster"] = &clientcmdapi.Cluster{
+		Server: "https://127.0.0.1:6443",
+	}
+	config.AuthInfos["test-user"] = &clientcmdapi.AuthInfo{
+		TokenFile: tokenPath,
+	}
+	config.Contexts["test-context"] = &clientcmdapi.Context{
+		Cluster:  "test-cluster",
+		AuthInfo: "test-user",
+	}
+	config.CurrentContext = "test-context"
+
+	err = clientcmd.WriteToFile(*config, kubeconfigPath)
+	require.NoError(t, err)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	// Perform initial load as done by the Headlamp server
+	err = kubeconfig.LoadAndStoreKubeConfigs(kubeConfigStore, kubeconfigPath, kubeconfig.KubeConfig, nil)
+	require.NoError(t, err)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	go kubeconfig.LoadAndWatchFiles(ctx, kubeConfigStore, kubeconfigPath, kubeconfig.KubeConfig, nil)
+
+	// Sleep to ensure watcher is ready
+	time.Sleep(200 * time.Millisecond)
+
+	// Verify context exists
+	_, err = kubeConfigStore.GetContext("test-context")
+	require.NoError(t, err)
+
+	// Add listener to track notifications
+	reloadChan := make(chan struct{}, 10)
+
+	kubeConfigStore.AddListener(func() {
+		select {
+		case reloadChan <- struct{}{}:
+		default:
+		}
+	})
+
+	// Modify the referenced token file
+	err = os.WriteFile(tokenPath, []byte("updated-token"), 0o600)
+	require.NoError(t, err)
+
+	// Wait for reload to be triggered
+	select {
+	case <-reloadChan:
+		// Success: token file change triggered reload!
+	case <-time.After(5 * time.Second):
+		t.Fatal("Timeout waiting for watcher to trigger reload on credential file change")
+	}
 }
