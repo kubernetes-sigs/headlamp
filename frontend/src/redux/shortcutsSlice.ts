@@ -32,7 +32,7 @@ export interface ShortcutConfig {
   /** The default key combination for the shortcut */
   defaultKey: string;
   /** The category the shortcut belongs to */
-  category: 'navigation' | 'search' | 'general';
+  category?: 'navigation' | 'search' | 'general' | 'plugin';
 }
 
 import i18next from 'i18next';
@@ -134,16 +134,56 @@ export const shortcutsSlice = createSlice({
       }
     },
     resetAllShortcuts(state) {
-      state.shortcuts = { ...DEFAULT_SHORTCUTS };
+      for (const id in state.shortcuts) {
+        state.shortcuts[id].key = state.shortcuts[id].defaultKey;
+      }
       localStorage.removeItem('keyboardShortcuts');
     },
     setShortcutsDialogOpen(state, action: PayloadAction<boolean>) {
       state.isShortcutsDialogOpen = action.payload;
     },
+    registerShortcut(state, action: PayloadAction<ShortcutConfig>) {
+      const config = action.payload;
+      if (DEFAULT_SHORTCUTS[config.id]) {
+        return;
+      }
+      let key = config.key;
+      try {
+        const stored = localStorage.getItem('keyboardShortcuts');
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          if (parsed[config.id] && parsed[config.id].key) {
+            key = parsed[config.id].key;
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load keyboard shortcut override from localStorage:', e);
+      }
+      state.shortcuts[config.id] = {
+        ...config,
+        key,
+        category: config.category || 'plugin',
+      };
+    },
+    deregisterShortcut(state, action: PayloadAction<string>) {
+      const id = action.payload;
+      if (DEFAULT_SHORTCUTS[id]) {
+        return;
+      }
+      if (state.shortcuts[id]) {
+        delete state.shortcuts[id];
+      }
+    },
   },
 });
 
-export const { setShortcut, resetShortcut, resetAllShortcuts, setShortcutsDialogOpen } =
-  shortcutsSlice.actions;
+export const {
+  setShortcut,
+  resetShortcut,
+  resetAllShortcuts,
+  setShortcutsDialogOpen,
+  registerShortcut,
+  deregisterShortcut,
+} = shortcutsSlice.actions;
 
 export default shortcutsSlice.reducer;
