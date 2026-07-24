@@ -18,6 +18,8 @@ import { http, HttpResponse } from 'msw';
 
 // NOTE: Please keep this synced with headlamp/plugins/headlamp-plugin/config/.storybook/baseMocks.ts
 
+const API_BASE = 'http://localhost:4466';
+
 const creationTimestamp = new Date('2022-01-01').toISOString();
 
 export const NODE_DUMMY_DATA = [
@@ -98,6 +100,7 @@ export const NODE_DUMMY_DATA = [
  *
  */
 export const baseMocks = [
+  http.get(`${API_BASE}/plugin-manager`, () => new HttpResponse(null, { status: 404 })),
   http.get('http://localhost:4466/wsMultiplexer', () => HttpResponse.error()),
   http.get('https://api.iconify.design/mdi.json', () => HttpResponse.json({})),
   http.post('http://localhost:4466/apis/authorization.k8s.io/v1/selfsubjectaccessreviews', () =>
