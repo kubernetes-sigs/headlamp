@@ -54,7 +54,7 @@ export interface MCPServerPermissionView extends MCPServerPermissions {
   approved: boolean;
   recentToolUsage: Array<{
     toolName: string;
-    lastUsed?: Date | string;
+    lastUsed?: string;
     usageCount: number;
   }>;
 }
@@ -146,6 +146,29 @@ function permissionArraysEqual(left: string[], right: string[]): boolean {
   return left.length === right.length && left.every((value, index) => value === right[index]);
 }
 
+function permissionArrayIncludes(approved: string[], effective: string[]): boolean {
+  return effective.every(value => approved.includes(value));
+}
+
+function restartPermissionIncludes(
+  approved?: MCPServerRestartPolicy,
+  effective?: MCPServerRestartPolicy
+): boolean {
+  if (!approved || !effective) {
+    return false;
+  }
+
+  if (!effective.enabled) {
+    return true;
+  }
+
+  return (
+    approved.enabled === effective.enabled &&
+    approved.maxAttempts >= effective.maxAttempts &&
+    approved.delayMs <= effective.delayMs
+  );
+}
+
 export function hasApprovedMCPServerPermissions(server: MCPServer): boolean {
   if (!server.permissions) {
     return false;
@@ -155,11 +178,10 @@ export function hasApprovedMCPServerPermissions(server: MCPServer): boolean {
   return (
     server.permissions.command === effective.command &&
     permissionArraysEqual(server.permissions.args || [], effective.args) &&
-    permissionArraysEqual(server.permissions.envKeys || [], effective.envKeys) &&
-    server.permissions.clusterDependent === effective.clusterDependent &&
-    server.permissions.restart?.enabled === effective.restart.enabled &&
-    server.permissions.restart?.maxAttempts === effective.restart.maxAttempts &&
-    server.permissions.restart?.delayMs === effective.restart.delayMs
+    permissionArrayIncludes(server.permissions.envKeys || [], effective.envKeys) &&
+    (!effective.clusterDependent ||
+      server.permissions.clusterDependent === effective.clusterDependent) &&
+    restartPermissionIncludes(server.permissions.restart, effective.restart)
   );
 }
 
@@ -393,6 +415,14 @@ export function mcpPermissionsCenter(
     Record<string, { enabled?: boolean; lastUsed?: Date | string; usageCount?: number }>
   > = {}
 ): MCPServerPermissionView[] {
+  function normalizeLastUsed(lastUsed?: Date | string): string | undefined {
+    if (!lastUsed) {
+      return undefined;
+    }
+
+    return new Date(lastUsed).toISOString();
+  }
+
   return (mcpSettings?.servers || []).map(server => {
     const permissions = getMCPServerPermissions(server);
     const toolUsage = toolsConfig[server.name] || {};
@@ -407,7 +437,7 @@ export function mcpPermissionsCenter(
         .filter(([, state]) => state.lastUsed || state.usageCount)
         .map(([toolName, state]) => ({
           toolName,
-          lastUsed: state.lastUsed,
+          lastUsed: normalizeLastUsed(state.lastUsed),
           usageCount: state.usageCount || 0,
         }))
         .sort((left, right) => {

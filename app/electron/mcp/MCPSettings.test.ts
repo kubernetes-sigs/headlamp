@@ -254,6 +254,29 @@ describe('MultiServerMCPClient', () => {
     expect(result).toEqual({});
   });
 
+  it('allows enabled servers with narrowed approved permissions', () => {
+    const approved = MCP.withApprovedMCPPermissions({
+      enabled: true,
+      servers: [
+        {
+          name: 'narrowed',
+          command: 'cmd',
+          args: ['run'],
+          enabled: true,
+          env: { SAFE_VAR: 'ok', OPTIONAL_VAR: 'ok' },
+        },
+      ],
+    } as any);
+    approved.servers[0].env = { SAFE_VAR: 'ok' };
+
+    (loadSettings as Mock).mockReturnValue({ mcp: approved });
+
+    const result = MCP.makeMcpServersFromSettings('/cfg', ['clusterA']);
+
+    expect(result).toHaveProperty('narrowed');
+    expect((result['narrowed'] as any).env).toEqual({ SAFE_VAR: 'ok' });
+  });
+
   it('expands HEADLAMP_CURRENT_CLUSTER placeholder using provided clusters[0]', () => {
     const mcpSettings = {
       enabled: true,
@@ -302,6 +325,11 @@ describe('mcpPermissionsCenter', () => {
           lastUsed: '2026-07-23T10:00:00.000Z',
           usageCount: 2,
         },
+        get: {
+          enabled: true,
+          lastUsed: new Date('2026-07-23T11:00:00.000Z'),
+          usageCount: 1,
+        },
       },
     });
 
@@ -321,6 +349,11 @@ describe('mcpPermissionsCenter', () => {
           delayMs: 2000,
         },
         recentToolUsage: [
+          {
+            toolName: 'get',
+            lastUsed: '2026-07-23T11:00:00.000Z',
+            usageCount: 1,
+          },
           {
             toolName: 'list',
             lastUsed: '2026-07-23T10:00:00.000Z',
