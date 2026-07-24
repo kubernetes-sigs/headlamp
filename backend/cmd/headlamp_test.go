@@ -1527,6 +1527,198 @@ func TestDeletePlugin(t *testing.T) {
 	assert.True(t, os.IsNotExist(err))
 }
 
+type pluginDeleteHTTPTestCase struct {
+	name        string
+	path        string
+	wantStatus  int
+	wantMessage string
+}
+
+func pluginDeleteHTTPTestCases() []pluginDeleteHTTPTestCase {
+	return []pluginDeleteHTTPTestCase{
+		{
+			name:        "user plugin not found returns 404",
+			path:        "/plugins/missing?type=user",
+			wantStatus:  http.StatusNotFound,
+			wantMessage: "plugin 'missing' not found in user-plugins or development directory",
+		},
+		{
+			name:        "development plugin not found returns 404",
+			path:        "/plugins/missing?type=development",
+			wantStatus:  http.StatusNotFound,
+			wantMessage: "plugin 'missing' not found in development directory",
+		},
+		{
+			name:       "plugin not found without type returns 404",
+			path:       "/plugins/missing",
+			wantStatus: http.StatusNotFound,
+			wantMessage: "plugin 'missing' not found or cannot be deleted " +
+				"(shipped plugins cannot be deleted)",
+		},
+		{
+			name:        "invalid type returns 400",
+			path:        "/plugins/test-plugin?type=invalid",
+			wantStatus:  http.StatusBadRequest,
+			wantMessage: "invalid plugin type 'invalid': must be 'user' or 'development'",
+		},
+	}
+}
+
+func newPluginDeleteTestHandler(t *testing.T) http.Handler {
+	t.Helper()
+
+	tempDir := t.TempDir()
+	userPluginDir := filepath.Join(tempDir, "user-plugins")
+	devPluginDir := filepath.Join(tempDir, "plugins")
+
+	require.NoError(t, os.Mkdir(userPluginDir, 0o750))
+	require.NoError(t, os.Mkdir(devPluginDir, 0o750))
+
+	return newPluginDeleteTestHandlerForDirs(t, userPluginDir, devPluginDir)
+}
+
+func newPluginDeleteTestHandlerForDirs(t *testing.T, userPluginDir, devPluginDir string) http.Handler {
+	t.Helper()
+
+	c := HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				KubeConfigPath:  filepath.Join("headlamp_testdata", "kubeconfig"),
+				PluginDir:       devPluginDir,
+				UserPluginDir:   userPluginDir,
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	return createHeadlampHandler(ctx, &c)
+}
+
+// TestDeletePluginHTTPStatus checks client-error status codes for DELETE /plugins/{name}.
+func TestDeletePluginHTTPStatus(t *testing.T) {
+	handler := newPluginDeleteTestHandler(t)
+
+	for _, tt := range pluginDeleteHTTPTestCases() {
+		t.Run(tt.name, func(t *testing.T) {
+			rr, err := getResponseFromRestrictedEndpoint(
+				handler,
+				http.MethodDelete,
+				tt.path,
+				nil,
+			)
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantStatus, rr.Code)
+			assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+			assert.JSONEq(t, fmt.Sprintf(
+				`{"success":false,"message":%q}`,
+				tt.wantMessage,
+			), rr.Body.String())
+		})
+	}
+}
+
+type pluginDeleteSuccessTestCase struct {
+	name       string
+	query      string
+	deleteFrom string
+	preserveIn string
+}
+
+func pluginDeleteSuccessTestCases() []pluginDeleteSuccessTestCase {
+	return []pluginDeleteSuccessTestCase{
+		{
+			name:       "type user deletes only user plugin",
+			query:      "?type=user",
+			deleteFrom: "user",
+			preserveIn: "development",
+		},
+		{
+			name:       "type development deletes only development plugin",
+			query:      "?type=development",
+			deleteFrom: "development",
+			preserveIn: "user",
+		},
+		{
+			name:       "no type deletes user plugin first",
+			deleteFrom: "user",
+			preserveIn: "development",
+		},
+	}
+}
+
+func TestDeletePluginSuccessByType(t *testing.T) {
+	const pluginName = "shared-plugin"
+
+	for _, tt := range pluginDeleteSuccessTestCases() {
+		t.Run(tt.name, func(t *testing.T) {
+			tempDir := t.TempDir()
+			userDir := filepath.Join(tempDir, "user-plugins")
+			devDir := filepath.Join(tempDir, "plugins")
+			require.NoError(t, os.MkdirAll(filepath.Join(userDir, pluginName), 0o750))
+			require.NoError(t, os.MkdirAll(filepath.Join(devDir, pluginName), 0o750))
+
+			handler := newPluginDeleteTestHandlerForDirs(t, userDir, devDir)
+			rr, err := getResponseFromRestrictedEndpoint(
+				handler,
+				http.MethodDelete,
+				"/plugins/"+pluginName+tt.query,
+				nil,
+			)
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, rr.Code)
+			assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+			assert.JSONEq(t, `{"success":true}`, rr.Body.String())
+
+			pluginDirs := map[string]string{
+				"user":        filepath.Join(userDir, pluginName),
+				"development": filepath.Join(devDir, pluginName),
+			}
+			assert.NoDirExists(t, pluginDirs[tt.deleteFrom])
+			assert.DirExists(t, pluginDirs[tt.preserveIn])
+		})
+	}
+}
+
+func TestDeletePluginMetadataErrorReturns500(t *testing.T) {
+	const pluginName = "broken-catalog-plugin"
+
+	tempDir := t.TempDir()
+	userPluginDir := filepath.Join(tempDir, "user-plugins")
+	devPluginDir := filepath.Join(tempDir, "plugins")
+	pluginDir := filepath.Join(devPluginDir, pluginName)
+
+	require.NoError(t, os.Mkdir(userPluginDir, 0o750))
+	require.NoError(t, os.MkdirAll(pluginDir, 0o750))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(pluginDir, "package.json"),
+		[]byte("{"),
+		0o600,
+	))
+
+	handler := newPluginDeleteTestHandlerForDirs(t, userPluginDir, devPluginDir)
+	rr, err := getResponseFromRestrictedEndpoint(
+		handler,
+		http.MethodDelete,
+		"/plugins/"+pluginName+"?type=user",
+		nil,
+	)
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+	assert.JSONEq(t,
+		`{"success":false,"message":"failed to delete plugin"}`,
+		rr.Body.String(),
+	)
+	assert.DirExists(t, pluginDir)
+}
+
 // TestRestrictedEndpointsRequireToken is the canary for the backend-token gate:
 // dropping checkHeadlampBackendToken from any listed route would fail here.
 // PUT /cluster/{name} (renameCluster) is omitted because it isn't gated yet.

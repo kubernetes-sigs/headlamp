@@ -64,6 +64,53 @@ const (
 	PluginTypeShipped     = "shipped"
 )
 
+// Sentinel errors for Delete. Callers can map these to HTTP status codes with
+// DeleteHTTPStatus (404 for not found, 400 for invalid type).
+var (
+	ErrNotFound    = errors.New("plugin not found")
+	ErrInvalidType = errors.New("invalid plugin type")
+	ErrInvalidName = errors.New("invalid plugin name")
+)
+
+// deleteError preserves the existing client-facing message while exposing a
+// sentinel through errors.Is for status-code mapping.
+type deleteError struct {
+	kind    error
+	message string
+}
+
+func (e deleteError) Error() string {
+	return e.message
+}
+
+func (e deleteError) Unwrap() error {
+	return e.kind
+}
+
+func newDeleteError(kind error, format string, args ...any) error {
+	return deleteError{
+		kind:    kind,
+		message: fmt.Sprintf(format, args...),
+	}
+}
+
+// DeleteHTTPStatus maps a Delete error to an HTTP status code.
+// Not-found → 404, invalid input → 400, other errors → 500.
+func DeleteHTTPStatus(err error) int {
+	if err == nil {
+		return http.StatusOK
+	}
+
+	switch {
+	case errors.Is(err, ErrNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, ErrInvalidType), errors.Is(err, ErrInvalidName):
+		return http.StatusBadRequest
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
 // Watch watches the given path for changes and sends the events to the notify channel.
 // It runs until the provided context is cancelled.
 func Watch(ctx context.Context, watchPath string, notify chan<- string, ready ...chan<- struct{}) {
@@ -298,25 +345,45 @@ func GeneratePluginPaths(
 // pluginName may come from a request path, so paths escaping pluginDir are rejected
 // before any file is read.
 func isCatalogInstalledPlugin(pluginDir, pluginName string) bool {
+	isCatalogInstalled, _ := readCatalogInstalledPlugin(pluginDir, pluginName)
+
+	return isCatalogInstalled
+}
+
+func readCatalogInstalledPlugin(pluginDir, pluginName string) (bool, error) {
 	if pluginDir == "" {
-		return false
+		return false, nil
 	}
 
 	absDir, err := filepath.Abs(pluginDir)
 	if err != nil {
-		return false
+		return false, fmt.Errorf("resolve plugin directory: %w", err)
 	}
 
 	pluginPath := filepath.Join(absDir, pluginName)
 	if !isSubdirectory(absDir, pluginPath) {
-		return false
+		return false, ErrInvalidName
 	}
 
-	packageJSONPath := filepath.Join(pluginPath, "package.json")
-
-	content, err := os.ReadFile(packageJSONPath) //nolint:gosec
+	root, err := os.OpenRoot(absDir)
 	if err != nil {
-		return false
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("open plugin directory: %w", err)
+	}
+	defer func() { _ = root.Close() }()
+
+	packageJSONPath := filepath.Join(pluginName, "package.json")
+
+	content, err := root.ReadFile(packageJSONPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return false, nil
+		}
+
+		return false, fmt.Errorf("read plugin metadata: %w", err)
 	}
 
 	var packageData struct {
@@ -324,10 +391,10 @@ func isCatalogInstalledPlugin(pluginDir, pluginName string) bool {
 	}
 
 	if err := json.Unmarshal(content, &packageData); err != nil {
-		return false
+		return false, fmt.Errorf("parse plugin metadata: %w", err)
 	}
 
-	return packageData.IsManagedByHeadlampPlugin
+	return packageData.IsManagedByHeadlampPlugin, nil
 }
 
 // getPluginName reads the plugin's package.json to extract its display name.
@@ -589,6 +656,10 @@ func tryDeletePlugin(dir string, filename string) (bool, error) {
 	}
 
 	absPath := filepath.Join(absDir, filename)
+	if !isSubdirectory(absDir, absPath) {
+		return false, ErrInvalidName
+	}
+
 	if _, err := os.Stat(absPath); err != nil {
 		if os.IsNotExist(err) {
 			return false, nil
@@ -597,15 +668,28 @@ func tryDeletePlugin(dir string, filename string) (bool, error) {
 		return false, err
 	}
 
-	if !isSubdirectory(absDir, absPath) {
-		return false, fmt.Errorf("plugin path '%s' is not a subdirectory of '%s'", absPath, absDir)
-	}
-
 	if err := os.RemoveAll(absPath); err != nil && !os.IsNotExist(err) {
 		return false, err
 	}
 
 	return true, nil
+}
+
+// validateDeleteInput rejects unsupported types and non-local plugin names.
+func validateDeleteInput(filename, pluginType string) error {
+	if pluginType != "" && pluginType != PluginTypeUser && pluginType != PluginTypeDevelopment {
+		return newDeleteError(
+			ErrInvalidType,
+			"invalid plugin type '%s': must be 'user' or 'development'",
+			pluginType,
+		)
+	}
+
+	if !filepath.IsLocal(filename) || filename == "." || strings.ContainsAny(filename, `/\`) {
+		return ErrInvalidName
+	}
+
+	return nil
 }
 
 // Delete deletes the plugin from the appropriate plugin directory (user or development).
@@ -619,9 +703,8 @@ func tryDeletePlugin(dir string, filename string) (bool, error) {
 // headlamp_kubescape fail to delete even though they are listed as user.
 // Returns an error if the plugin is not found or if it's a shipped plugin.
 func Delete(userPluginDir, pluginDir, filename, pluginType string) error {
-	// Validate plugin type if provided
-	if pluginType != "" && pluginType != PluginTypeUser && pluginType != PluginTypeDevelopment {
-		return fmt.Errorf("invalid plugin type '%s': must be 'user' or 'development'", pluginType)
+	if err := validateDeleteInput(filename, pluginType); err != nil {
+		return err
 	}
 
 	// Attempt deletion according to requested/implicit order
@@ -641,7 +724,10 @@ func Delete(userPluginDir, pluginDir, filename, pluginType string) error {
 	// - type=user and the plugin is a migrated catalog install under plugins/
 	checkDev := pluginType == "" || pluginType == PluginTypeDevelopment
 	if !deleted && pluginType == PluginTypeUser {
-		checkDev = isCatalogInstalledPlugin(pluginDir, filename)
+		checkDev, err = readCatalogInstalledPlugin(pluginDir, filename)
+		if err != nil {
+			return err
+		}
 	}
 
 	if !deleted && checkDev {
@@ -650,16 +736,28 @@ func Delete(userPluginDir, pluginDir, filename, pluginType string) error {
 		}
 
 		if pluginType == PluginTypeDevelopment && !deleted {
-			return fmt.Errorf("plugin '%s' not found in development directory", filename)
+			return newDeleteError(
+				ErrNotFound,
+				"plugin '%s' not found in development directory",
+				filename,
+			)
 		}
 	}
 
 	if pluginType == PluginTypeUser && !deleted {
-		return fmt.Errorf("plugin '%s' not found in user-plugins or development directory", filename)
+		return newDeleteError(
+			ErrNotFound,
+			"plugin '%s' not found in user-plugins or development directory",
+			filename,
+		)
 	}
 
 	if !deleted {
-		return fmt.Errorf("plugin '%s' not found or cannot be deleted (shipped plugins cannot be deleted)", filename)
+		return newDeleteError(
+			ErrNotFound,
+			"plugin '%s' not found or cannot be deleted (shipped plugins cannot be deleted)",
+			filename,
+		)
 	}
 
 	return nil
