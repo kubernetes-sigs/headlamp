@@ -222,9 +222,9 @@ describe('MultiServerMCPClient', () => {
     expect(entry.transport).toBe('stdio');
     expect(entry.command).toBe('cmd');
     expect(entry.args).toEqual(['arg1']);
-    // env should include process.env and server.env overrides
+    // env should include only approved explicit server.env values
     expect(entry.env.MCP_VAR).toBe('mcp');
-    expect(entry.env.TEST_ORIG_ENV).toBe('orig');
+    expect(entry.env.TEST_ORIG_ENV).toBeUndefined();
     // restart settings
     expect(entry.restart).toBeDefined();
     expect(entry.restart.enabled).toBe(true);
@@ -313,6 +313,7 @@ describe('mcpPermissionsCenter', () => {
         command: 'node',
         args: ['server.js', 'HEADLAMP_CURRENT_CLUSTER'],
         envKeys: ['PATH', 'TOKEN'],
+        approvedAt: expect.any(String),
         clusterDependent: true,
         restart: {
           enabled: true,

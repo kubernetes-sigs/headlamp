@@ -128,11 +128,15 @@ function sortedEnvKeys(env?: Record<string, string>): string[] {
   return Object.keys(env || {}).sort();
 }
 
+function buildMcpServerEnv(server: MCPServer): Record<string, string> {
+  return { ...(server.env || {}) };
+}
+
 export function getMCPServerPermissions(server: MCPServer): MCPServerPermissions {
   return {
     command: server.command,
     args: [...(server.args || [])],
-    envKeys: sortedEnvKeys(server.env),
+    envKeys: sortedEnvKeys(buildMcpServerEnv(server)),
     clusterDependent: usesCurrentCluster(server.args),
     restart: { ...DEFAULT_RESTART_POLICY },
   };
@@ -274,13 +278,11 @@ export function makeMcpServersFromSettings(
       console.log(`Expanded args for ${server.name}:`, expandedArgs);
     }
 
-    const serverEnv = server.env ? { ...process.env, ...server.env } : process.env;
-
     mcpServers[server.name] = {
       transport: 'stdio',
       command: server.command,
       args: expandedArgs,
-      env: serverEnv as Record<string, string>,
+      env: buildMcpServerEnv(server),
       restart: { ...DEFAULT_RESTART_POLICY },
     };
   }
@@ -400,6 +402,7 @@ export function mcpPermissionsCenter(
       enabled: server.enabled,
       approved: hasApprovedMCPServerPermissions(server),
       ...permissions,
+      approvedAt: server.permissions?.approvedAt,
       recentToolUsage: Object.entries(toolUsage)
         .filter(([, state]) => state.lastUsed || state.usageCount)
         .map(([toolName, state]) => ({
