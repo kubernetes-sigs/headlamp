@@ -166,9 +166,28 @@ func TestReturnAuthErrorResponseReflectsActualScope(t *testing.T) {
 				muxVars:           map[string]string{"api": "openapi/v2/namespaces/not-a-real-namespace"},
 				expectedGroup:     "",
 				expectedNamespace: "",
+				expectedPath:      true,
 			},
 		})
 	})
+}
+
+func TestReturnAuthErrorResponseUsesRequestPathForNonResourceEndpoints(t *testing.T) {
+	rr := httptest.NewRecorder()
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
+	req = mux.SetURLVars(req, map[string]string{"api": "openapi/v2/namespaces/not-a-real-namespace"})
+
+	err := k8cache.ReturnAuthErrorResponse(rr, req, "test-context")
+	assert.NoError(t, err)
+
+	var resp k8cache.AuthErrResponse
+
+	err = json.Unmarshal(rr.Body.Bytes(), &resp)
+	assert.NoError(t, err)
+
+	assert.Equal(t, "openapi/v2/namespaces/not-a-real-namespace", resp.Details.Kind)
+	assert.Contains(t, resp.Message, "cannot access path")
+	assert.NotContains(t, resp.Message, "unknown resource \"\"")
 }
 
 type authErrorScopeTestCase struct {
@@ -176,6 +195,7 @@ type authErrorScopeTestCase struct {
 	muxVars           map[string]string
 	expectedGroup     string
 	expectedNamespace string
+	expectedPath      bool
 }
 
 func testReturnAuthErrorResponseScope(t *testing.T, tests []authErrorScopeTestCase) {
@@ -195,7 +215,11 @@ func testReturnAuthErrorResponseScope(t *testing.T, tests []authErrorScopeTestCa
 			err = json.Unmarshal(rr.Body.Bytes(), &resp)
 			assert.NoError(t, err)
 
-			assert.Contains(t, resp.Message, fmt.Sprintf("API group %q", tc.expectedGroup))
+			if tc.expectedPath {
+				assert.Contains(t, resp.Message, "cannot access path")
+			} else {
+				assert.Contains(t, resp.Message, fmt.Sprintf("API group %q", tc.expectedGroup))
+			}
 
 			if tc.expectedNamespace != "" {
 				assert.Contains(t, resp.Message, fmt.Sprintf("in the namespace %q", tc.expectedNamespace))
