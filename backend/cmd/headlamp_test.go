@@ -912,6 +912,91 @@ func TestDrainAndCordonNode(t *testing.T) { //nolint:funlen
 	}
 }
 
+func daemonSetPod(name, namespace, nodeName string) *corev1.Pod {
+	controller := true
+
+	return &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: namespace,
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "apps/v1",
+					Kind:       "DaemonSet",
+					Name:       "kube-proxy",
+					Controller: &controller,
+				},
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName: nodeName,
+		},
+	}
+}
+
+func TestIsDaemonSetPod(t *testing.T) {
+	t.Parallel()
+
+	controllerFalse := false
+
+	tests := []struct {
+		name string
+		pod  corev1.Pod
+		want bool
+	}{
+		{
+			name: "DaemonSet controller owner reference",
+			pod:  *daemonSetPod("kube-proxy-abc", "kube-system", "node-1"),
+			want: true,
+		},
+		{
+			name: "DaemonSet owner reference without controller",
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "apps/v1",
+							Kind:       "DaemonSet",
+							Name:       "kube-proxy",
+							Controller: &controllerFalse,
+						},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "deprecated label only",
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"kubernetes.io/created-by": "daemonset-controller"},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "regular pod",
+			pod: corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{
+						{Kind: "ReplicaSet", Name: "nginx-rs"},
+					},
+				},
+			},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			assert.Equal(t, tt.want, isDaemonSetPod(tt.pod))
+		})
+	}
+}
+
 func TestDrainNodePodDeletionFailure(t *testing.T) { //nolint:funlen
 	podOk := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
@@ -922,16 +1007,7 @@ func TestDrainNodePodDeletionFailure(t *testing.T) { //nolint:funlen
 			NodeName: "test-node",
 		},
 	}
-	podDaemonset := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "pod-daemonset",
-			Namespace: "default",
-			Labels:    map[string]string{"kubernetes.io/created-by": "daemonset-controller"},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "test-node",
-		},
-	}
+	podDaemonset := daemonSetPod("pod-daemonset", "default", "test-node")
 	podFail := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "pod-fail",
@@ -1004,16 +1080,7 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 			NodeName: "test-node",
 		},
 	}
-	podDaemonset := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "pod-daemonset",
-			Namespace: "default",
-			Labels:    map[string]string{"kubernetes.io/created-by": "daemonset-controller"},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "test-node",
-		},
-	}
+	podDaemonset := daemonSetPod("pod-daemonset", "default", "test-node")
 
 	node := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{

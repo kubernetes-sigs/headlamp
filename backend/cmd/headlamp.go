@@ -2917,6 +2917,13 @@ func (c *HeadlampConfig) drainNode(
 	}()
 }
 
+// isDaemonSetPod reports whether pod is controlled by a DaemonSet.
+// The deprecated kubernetes.io/created-by label was removed in Kubernetes 1.16.
+func isDaemonSetPod(pod corev1.Pod) bool {
+	controller := v1.GetControllerOf(&pod)
+	return controller != nil && controller.Kind == "DaemonSet"
+}
+
 func (c *HeadlampConfig) drainNodePods(
 	ctx context.Context,
 	clientset kubernetes.Interface,
@@ -2934,7 +2941,7 @@ func (c *HeadlampConfig) drainNodePods(
 		}
 
 		// ignore daemonsets
-		if pod.Labels["kubernetes.io/created-by"] == "daemonset-controller" {
+		if isDaemonSetPod(pod) {
 			continue
 		}
 
