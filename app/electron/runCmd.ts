@@ -285,8 +285,13 @@ export async function handleRunCommand(
       ? [getPluginsScriptPath(commandData.args[0]), ...commandData.args.slice(1)]
       : commandData.args;
 
-  const { getShellEnvironment } = await import('./main');
-  const shellEnvironment = await getShellEnvironment();
+  let shellEnvironment = process.env;
+  try {
+    const { getShellEnvironment } = await import('./main');
+    shellEnvironment = await getShellEnvironment();
+  } catch (error) {
+    console.warn('Failed to get shell environment, using process.env:', error);
+  }
 
   // If the command is 'scriptjs', we pass the HEADLAMP_RUN_SCRIPT=true
   // env var so that the Headlamp or Electron process runs the script.

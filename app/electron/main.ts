@@ -712,18 +712,22 @@ async function getShellEnv(): Promise<NodeJS.ProcessEnv> {
 
 let shellEnvironmentPromise: Promise<NodeJS.ProcessEnv> | null = null;
 
-/**
- * Returns the user's login-shell environment, cached after the first request.
- * Falls back to Electron's process environment when shell discovery fails.
- */
+/** Returns the cached login-shell changes merged with the current process environment. */
 export async function getShellEnvironment(): Promise<NodeJS.ProcessEnv> {
   if (!shellEnvironmentPromise) {
-    shellEnvironmentPromise = getShellEnv().catch(error => {
-      console.warn('Failed to get shell environment, using process.env:', error);
-      return process.env;
-    });
+    const initialEnvironment = { ...process.env };
+    shellEnvironmentPromise = getShellEnv()
+      .then(environment =>
+        Object.fromEntries(
+          Object.entries(environment).filter(([key, value]) => initialEnvironment[key] !== value)
+        )
+      )
+      .catch(error => {
+        console.warn('Failed to get shell environment, using process.env:', error);
+        return {};
+      });
   }
-  return shellEnvironmentPromise;
+  return { ...process.env, ...(await shellEnvironmentPromise) };
 }
 
 /**
