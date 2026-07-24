@@ -30,6 +30,10 @@ function renderActionButton(props: Partial<ComponentProps<typeof ActionButton>> 
 }
 
 describe('ActionButton', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   it('wraps disabled icon buttons so the tooltip can still open', async () => {
     const user = userEvent.setup();
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
@@ -58,7 +62,5 @@ describe('ActionButton', () => {
     );
 
     expect(tooltipWarnings).toHaveLength(0);
-
-    consoleErrorSpy.mockRestore();
   });
 });
