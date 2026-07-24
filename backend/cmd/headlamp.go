@@ -18,7 +18,6 @@ package main
 
 import (
 	"bytes"
-	"compress/gzip"
 	"context"
 	"crypto/rand"
 	"crypto/tls"
@@ -43,7 +42,6 @@ import (
 	"time"
 
 	oidc "github.com/coreos/go-oidc/v3/oidc"
-	"github.com/gobwas/glob"
 	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
@@ -51,6 +49,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/externalproxy"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -79,49 +78,38 @@ import (
 type HeadlampConfig struct {
 	*headlampconfig.HeadlampConfig
 	proxyURLMu        sync.Mutex
-	compiledProxyURLs []glob.Glob
+	compiledProxyURLs []externalproxy.AllowlistEntry
 	oidcStateReader   io.Reader
 }
 
-func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
-	compiledProxyURLs := make([]glob.Glob, 0, len(patterns))
-
-	for _, pattern := range patterns {
-		g, err := glob.Compile(pattern)
-		if err != nil {
-			return nil, fmt.Errorf("compiling proxy URL pattern %q: %w", pattern, err)
-		}
-
-		compiledProxyURLs = append(compiledProxyURLs, g)
-	}
-
-	return compiledProxyURLs, nil
+func compileProxyURLPatterns(patterns []string) ([]externalproxy.AllowlistEntry, error) {
+	return externalproxy.CompileAllowlist(patterns)
 }
 
-func (c *HeadlampConfig) proxyURLAllowed(proxyURL string) (bool, error) {
+func (c *HeadlampConfig) proxyURLAllowlist() ([]externalproxy.AllowlistEntry, error) {
 	c.proxyURLMu.Lock()
+	defer c.proxyURLMu.Unlock()
 
 	if c.compiledProxyURLs == nil && len(c.ProxyURLs) > 0 {
 		compiledProxyURLs, err := compileProxyURLPatterns(c.ProxyURLs)
 		if err != nil {
-			c.proxyURLMu.Unlock()
-
-			return false, err
+			return nil, err
 		}
 
 		c.compiledProxyURLs = compiledProxyURLs
 	}
 
-	compiledProxyURLs := c.compiledProxyURLs
-	c.proxyURLMu.Unlock()
+	// Return a copy so callers cannot mutate the cached allowlist.
+	return append([]externalproxy.AllowlistEntry(nil), c.compiledProxyURLs...), nil
+}
 
-	for _, g := range compiledProxyURLs {
-		if g.Match(proxyURL) {
-			return true, nil
-		}
+func (c *HeadlampConfig) proxyURLAllowed(proxyURL string) (bool, error) {
+	allowlist, err := c.proxyURLAllowlist()
+	if err != nil {
+		return false, err
 	}
 
-	return false, nil
+	return externalproxy.MatchesAllowlist(proxyURL, allowlist), nil
 }
 
 const DrainNodeCacheTTL = 20 // seconds
@@ -146,16 +134,6 @@ const (
 	// serverIdleTimeout is the maximum time to wait for the next request on a keep-alive connection.
 	serverIdleTimeout = 120 * time.Second
 )
-
-// maxProxyResponseSize is the maximum size (in bytes) for proxied responses.
-//
-//nolint:gochecknoglobals // allow test override
-var maxProxyResponseSize int64 = 100 * 1024 * 1024
-
-// externalProxyTimeout is the maximum time to wait for a proxy response.
-//
-//nolint:gochecknoglobals // allow test override
-var externalProxyTimeout = 30 * time.Second
 
 const kubeConfigSource = "kubeconfig" // source for kubeconfig contexts
 
@@ -714,134 +692,10 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	config.handleClusterRequests(r)
 
-	r.HandleFunc("/externalproxy", func(w http.ResponseWriter, r *http.Request) {
-		proxyURL := r.Header.Get("proxy-to")
-		if proxyURL == "" && r.Header.Get("Forward-to") != "" {
-			proxyURL = r.Header.Get("Forward-to")
-		}
-
-		if proxyURL == "" {
-			logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL},
-				errors.New("proxy URL is empty"), "proxy URL is empty")
-			http.Error(w, "proxy URL is empty", http.StatusBadRequest)
-
-			return
-		}
-
-		url, err := url.Parse(proxyURL)
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL},
-				err, "The provided proxy URL is invalid")
-			http.Error(w, fmt.Sprintf("The provided proxy URL is invalid: %v", err), http.StatusBadRequest)
-
-			return
-		}
-
-		isURLContainedInProxyURLs, err := config.proxyURLAllowed(url.String())
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"proxyURL": proxyURL}, err, "compiling proxy URL patterns")
-			http.Error(w, "failed to compile proxy URL patterns", http.StatusInternalServerError)
-
-			return
-		}
-
-		if !isURLContainedInProxyURLs {
-			logger.Log(logger.LevelError, nil, err, "no allowed proxy url match, request denied")
-			http.Error(w, "no allowed proxy url match, request denied ", http.StatusBadRequest)
-
-			return
-		}
-
-		proxyCtx, cancel := context.WithTimeout(r.Context(), externalProxyTimeout)
-		defer cancel()
-
-		proxyReq, err := http.NewRequestWithContext(proxyCtx, r.Method, proxyURL, r.Body) //nolint:gosec
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "creating request")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		// We may want to filter some headers, otherwise we could just use a shallow copy
-		proxyReq.Header = make(http.Header)
-		for h, val := range r.Header {
-			proxyReq.Header[h] = val
-		}
-
-		// Disable caching
-		w.Header().Set("Cache-Control", "no-cache, private, max-age=0")
-		w.Header().Set("Expires", time.Unix(0, 0).Format(http.TimeFormat))
-		w.Header().Set("Pragma", "no-cache")
-		w.Header().Set("X-Accel-Expires", "0")
-
-		client := http.Client{}
-
-		resp, err := client.Do(proxyReq) //nolint:gosec
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "making request")
-			http.Error(w, err.Error(), http.StatusBadGateway)
-
-			return
-		}
-
-		defer func() { _ = resp.Body.Close() }()
-
-		// Check that the server actually sent compressed data
-		var reader io.ReadCloser
-
-		switch resp.Header.Get("Content-Encoding") {
-		case "gzip":
-			reader, err = gzip.NewReader(resp.Body)
-			if err != nil {
-				logger.Log(logger.LevelError, nil, err, "reading gzip response")
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-
-				return
-			}
-
-			defer func() { _ = reader.Close() }()
-		default:
-			reader = resp.Body
-		}
-
-		// Read the first chunk before committing the response so early upstream
-		// failures can still return a 502 instead of an empty success response.
-		firstChunk := make([]byte, 32*1024)
-
-		n, readErr := reader.Read(firstChunk)
-		if readErr != nil && !errors.Is(readErr, io.EOF) && n == 0 {
-			logger.Log(logger.LevelError, nil, readErr, "reading response")
-			http.Error(w, readErr.Error(), http.StatusBadGateway)
-
-			return
-		}
-
-		if contentType := resp.Header.Get("Content-Type"); contentType != "" {
-			w.Header().Set("Content-Type", contentType)
-		}
-
-		// Reject early if Content-Length exceeds the maximum allowed size.
-		if resp.ContentLength > maxProxyResponseSize {
-			logger.Log(logger.LevelError, nil, nil, "proxy response exceeded maximum allowed size (Content-Length)")
-			http.Error(w, "response too large", http.StatusBadGateway)
-
-			return
-		}
-
-		w.WriteHeader(resp.StatusCode)
-
-		// Stream the body, putting the already-read first chunk back in front of
-		// the reader so a single size limit covers the whole response. The limit
-		// prevents memory exhaustion and decompression bombs; if the length is
-		// unknown and the limit is reached, the response is truncated.
-		body := io.MultiReader(bytes.NewReader(firstChunk[:n]), reader)
-		if _, err := io.Copy(w, io.LimitReader(body, maxProxyResponseSize)); err != nil {
-			logger.Log(logger.LevelError, nil, err, "streaming response")
-
-			return
-		}
+	externalProxyHandler := externalproxy.NewHandler(func() ([]externalproxy.AllowlistEntry, error) {
+		return config.proxyURLAllowlist()
 	})
+	r.Handle("/externalproxy", externalProxyHandler)
 
 	// Configuration
 	r.HandleFunc("/config", config.getConfig).Methods("GET")
