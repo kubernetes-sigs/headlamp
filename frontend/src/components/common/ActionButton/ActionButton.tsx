@@ -75,17 +75,35 @@ export default function ActionButton({
       </MenuItem>
     );
   }
+
+  const isDisabled = !!iconButtonProps?.disabled;
+  const button = (
+    <IconButton
+      aria-label={description}
+      onClick={onClick}
+      edge={edge}
+      size="medium"
+      {...iconButtonProps}
+    >
+      <Icon icon={icon} color={color} width={width} {...iconProps} />
+    </IconButton>
+  );
+
   return (
     <Tooltip title={longDescription || description}>
-      <IconButton
-        aria-label={description}
-        onClick={onClick}
-        edge={edge}
-        size="medium"
-        {...iconButtonProps}
-      >
-        <Icon icon={icon} color={color} width={width} {...iconProps} />
-      </IconButton>
+      {isDisabled ? (
+        <span
+          role="button"
+          aria-label={description}
+          aria-disabled="true"
+          tabIndex={0}
+          style={{ display: 'inline-flex' }}
+        >
+          {React.cloneElement(button, { 'aria-hidden': true, tabIndex: -1 })}
+        </span>
+      ) : (
+        button
+      )}
     </Tooltip>
   );
 }
