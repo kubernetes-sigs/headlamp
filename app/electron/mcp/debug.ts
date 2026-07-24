@@ -58,7 +58,11 @@ function writeMCPDebugLog(method: 'info' | 'log', message: string, ...details: u
     return;
   }
 
-  console[method](message, ...details.map(detail => redactMCPLogValue(detail)));
+  try {
+    console[method](message, ...details.map(detail => redactMCPLogValue(detail)));
+  } catch {
+    console[method](message, REDACTED);
+  }
 }
 
 export function mcpDebugInfo(message: string, ...details: unknown[]): void {

@@ -14,8 +14,13 @@
  * limitations under the License.
  */
 
-import { describe, expect, it } from 'vitest';
-import { redactMCPLogValue } from './debug';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { mcpDebugLog, redactMCPLogValue } from './debug';
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  delete process.env.HEADLAMP_MCP_DEBUG;
+});
 
 describe('redactMCPLogValue', () => {
   it('redacts both name and message for Error values', () => {
@@ -26,5 +31,15 @@ describe('redactMCPLogValue', () => {
       name: '[REDACTED]',
       message: '[REDACTED]',
     });
+  });
+
+  it('does not throw when debug redaction fails', () => {
+    process.env.HEADLAMP_MCP_DEBUG = 'true';
+    const consoleLogSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const cyclic: Record<string, unknown> = {};
+    cyclic.self = cyclic;
+
+    expect(() => mcpDebugLog('debug message', cyclic)).not.toThrow();
+    expect(consoleLogSpy).toHaveBeenCalledWith('debug message', '[REDACTED]');
   });
 });
