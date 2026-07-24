@@ -278,6 +278,11 @@ func (h *Handler) proxyRequest(
 
 	resp, err := h.client().Do(proxyReq) //nolint:gosec
 	if err != nil {
+		// CheckRedirect can return both a non-nil response and an error; close the body to avoid leaks.
+		if resp != nil {
+			_ = resp.Body.Close()
+		}
+
 		logger.Log(logger.LevelError, nil, err, "making request")
 		http.Error(w, "external proxy request failed", http.StatusBadGateway)
 
