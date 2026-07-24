@@ -42,6 +42,7 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import i18n from './i18next.config';
 import MCPClient from './mcp/MCPClient';
+import { filterUserOwnedPids } from './ownedProcesses';
 import {
   addToPath,
   ArtifactHubHeadlampPkg,
@@ -1282,11 +1283,15 @@ function menusToTemplate(mainWindow: BrowserWindow | null, menusFromPlugins: App
 
 async function getRunningHeadlampPIDs() {
   const processes = await find_process('name', 'headlamp-server.*');
-  if (processes.length === 0) {
+  // Only consider processes owned by the current user: on shared machines
+  // (e.g. Windows remote desktop servers) other users run their own
+  // headlamp-server and we must never touch those.
+  const ownPids = await filterUserOwnedPids(processes.map(pInfo => pInfo.pid));
+  if (ownPids.length === 0) {
     return null;
   }
 
-  return processes.map(pInfo => pInfo.pid);
+  return ownPids;
 }
 
 /**
@@ -1326,7 +1331,15 @@ async function getHeadlampPIDsOnPort(port: number): Promise<number[] | null> {
       return null;
     }
 
-    return headlampOnPort.map(p => p.pid);
+    // Scope to the current user's processes, like getRunningHeadlampPIDs():
+    // another user's server on the port is just a generic occupied port
+    // (isPortAvailable still detects it), not ours to report or touch.
+    const ownPids = await filterUserOwnedPids(headlampOnPort.map(p => p.pid));
+    if (ownPids.length === 0) {
+      return null;
+    }
+
+    return ownPids;
   } catch (error) {
     console.error(`Error checking if port ${port} is used by Headlamp:`, error);
     return null;
