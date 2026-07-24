@@ -138,7 +138,7 @@ async function shell(item: Node, onExec: StreamResultsCb) {
     'channel.k8s.io',
   ];
   return {
-    stream: stream(url, onExec, { additionalProtocols, isJson: false }),
+    stream: stream(url, onExec, { additionalProtocols, isJson: false, reconnectOnFailure: false }),
   };
 }
 

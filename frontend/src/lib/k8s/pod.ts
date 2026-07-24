@@ -175,7 +175,7 @@ class Pod extends KubeObject<KubePod> {
       });
     }
 
-    let isReconnecting = true; // Flag to track reconnection attempts
+    const self = this;
     const [container, onLogs, logsOptions] = args as Parameters<newGetLogs>;
     const {
       tailLines = 100,
@@ -187,15 +187,17 @@ class Pod extends KubeObject<KubePod> {
       onReconnectStop,
     } = logsOptions;
 
-    let logs: string[] = [];
+    const logs: string[] = [];
     let hasJsonLogs = false;
-    let url = `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/log?container=${container}&previous=${showPrevious}&timestamps=${showTimestamps}&follow=${follow}`;
-
-    // Negative tailLines parameter fetches all logs. If it's non negative it fetches
-    // the tailLines number of logs.
-    if (tailLines !== -1) {
-      url += `&tailLines=${tailLines}`;
-    }
+    let lastTimestamp = '';
+    let isCancelled = false;
+    let activeCancel: (() => void) | null = null;
+    let reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+    let partialLineBuffer = '';
+    let reconnectAttempts = 0;
+    const maxReconnectAttempts = 5;
+    let lastProcessedLine = '';
+    let isFirstResultOfStream = true;
 
     function unescapeStringLiterals(str: string): string {
       return str
@@ -227,54 +229,155 @@ class Pod extends KubeObject<KubePod> {
 
         if (showTimestamps) {
           const timestamp = logLine.slice(0, jsonMatch.index).trim();
-          return timestamp ? `${timestamp}\n${terminalReadyJson}\n` : `${terminalReadyJson}\n`;
+          return timestamp ? `${timestamp}\n${terminalReadyJson}` : `${terminalReadyJson}`;
         } else {
-          return `${terminalReadyJson}\n`;
+          return `${terminalReadyJson}`;
         }
       } catch {
         return logLine; // Return original log line if parsing fails
       }
     }
 
+    function processLogLines(lines: string[]): string[] {
+      return lines.map(line => {
+        let processed = line;
+        const match = line.match(
+          /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))\s+(.*)$/
+        );
+        if (match) {
+          lastTimestamp = match[1];
+          if (!showTimestamps) {
+            processed = match[2];
+          }
+        }
+
+        // Check if this line contains JSON
+        const trimmed = processed.trim();
+        const jsonMatch = trimmed.match(/(\{.*\})/);
+        if (jsonMatch) {
+          hasJsonLogs = true;
+          if (prettifyLogs) {
+            processed = prettifyLogLine(processed);
+          }
+        }
+        return processed + '\n';
+      });
+    }
+
     function onResults(item: string) {
       if (!item) return;
 
       const decodedLog = Base64.decode(item);
-      if (!decodedLog || decodedLog.trim() === '') return;
-      const trimmedLog = decodedLog.trim();
-      const jsonMatch = trimmedLog.match(/(\{.*\})/);
-      if (jsonMatch) hasJsonLogs = true;
-      const processedLog = hasJsonLogs && prettifyLogs ? prettifyLogLine(decodedLog) : decodedLog;
-      logs.push(processedLog);
+      if (!decodedLog) return;
+
+      reconnectAttempts = 0; // Reset attempts on successful data receive
+
+      const fullContent = partialLineBuffer + decodedLog;
+      const linesList = fullContent.split('\n');
+
+      // The last element is either empty (if it ended with \n) or the partial line
+      partialLineBuffer = linesList.pop() || '';
+
+      if (linesList.length === 0) return;
+
+      if (isFirstResultOfStream) {
+        isFirstResultOfStream = false;
+        if (lastTimestamp && lastProcessedLine) {
+          const duplicateIdx = linesList.lastIndexOf(lastProcessedLine);
+          if (duplicateIdx >= 0) {
+            // Drop everything up to and including the last line we already rendered.
+            linesList.splice(0, duplicateIdx + 1);
+          }
+        }
+      }
+
+      if (linesList.length === 0) return;
+
+      lastProcessedLine = linesList[linesList.length - 1];
+
+      const processedLines = processLogLines(linesList);
+
+      logs.push(...processedLines);
       onLogs({ logs, hasJsonLogs });
     }
 
-    const { cancel } = stream(url, onResults, {
-      cluster: this.cluster,
-      isJson: false,
-      connectCb: () => {
-        logs = [];
-        hasJsonLogs = false;
-      },
-      /**
-       * This callback is called when the connection is closed. It then check
-       * if the connection was closed due to an error or not. If it was closed
-       * due to an error, it stops further reconnection attempts.
-       */
-      failCb: () => {
-        // If it's a reconnection attempt, stop further reconnection attempts
-        if (follow && isReconnecting) {
-          isReconnecting = false;
+    function connect() {
+      if (isCancelled) return;
 
-          // If the onReconnectStop callback is provided, call it
-          if (onReconnectStop) {
-            onReconnectStop();
+      // Always request timestamps when following so we can extract the last timestamp for reconnection.
+      // For one-shot (non-follow) log fetches, respect showTimestamps to avoid extra payload/processing.
+      const timestampsParam = follow ? 'true' : String(showTimestamps);
+      let currentUrl = `/api/v1/namespaces/${self.getNamespace()}/pods/${self.getName()}/log?container=${container}&previous=${showPrevious}&timestamps=${timestampsParam}&follow=${follow}`;
+      if (lastTimestamp) {
+        currentUrl += `&sinceTime=${encodeURIComponent(lastTimestamp)}`;
+      } else if (tailLines !== -1) {
+        currentUrl += `&tailLines=${tailLines}`;
+      }
+
+      isFirstResultOfStream = true;
+      const isReconnectAttempt = Boolean(lastTimestamp);
+      let reconnectBannerShown = false;
+
+      const { cancel } = stream(
+        currentUrl,
+        (item: string) => {
+          if (!reconnectBannerShown && isReconnectAttempt) {
+            reconnectBannerShown = true;
+            logs.push('\n\x1b[32m[Reconnected!]\x1b[0m\n');
+            onLogs({ logs, hasJsonLogs });
           }
-        }
-      },
-    });
+          onResults(item);
+        },
+        {
+          cluster: self.cluster,
+          isJson: false,
+          reconnectOnFailure: false, // Handle reconnection ourselves
+          failCb: () => {
+            if (isCancelled) return;
+            // When not following, the server closing the socket after sending the requested logs is expected.
+            if (!follow) {
+              return;
+            }
+            // Drop any partial line fragment so we don't corrupt the first line after reconnect.
+            partialLineBuffer = '';
 
-    return cancel;
+            if (reconnectAttempts < maxReconnectAttempts) {
+              reconnectAttempts++;
+              logs.push(
+                `\n\x1b[33m[Connection lost. Reconnecting... (attempt ${reconnectAttempts}/${maxReconnectAttempts})]\x1b[0m\n`
+              );
+              onLogs({ logs, hasJsonLogs });
+              if (reconnectTimeout) {
+                clearTimeout(reconnectTimeout);
+              }
+              reconnectTimeout = setTimeout(connect, 3000);
+            } else {
+              logs.push(
+                '\n\x1b[31m[Connection lost. Reconnection limit reached. Reconnect stopped.]\x1b[0m\n'
+              );
+              onLogs({ logs, hasJsonLogs });
+              if (onReconnectStop) {
+                onReconnectStop();
+              }
+            }
+          },
+        }
+      );
+
+      activeCancel = cancel;
+    }
+
+    connect();
+
+    return () => {
+      isCancelled = true;
+      if (reconnectTimeout) {
+        clearTimeout(reconnectTimeout);
+      }
+      if (activeCancel) {
+        activeCancel();
+      }
+    };
   }
 
   attach(container: string, onAttach: StreamResultsCb, options: StreamArgs = {}) {
@@ -290,6 +393,7 @@ class Pod extends KubeObject<KubePod> {
       cluster: this.cluster,
       additionalProtocols,
       isJson: false,
+      reconnectOnFailure: false,
       ...options,
     });
   }
