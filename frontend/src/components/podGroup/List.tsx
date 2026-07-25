@@ -72,7 +72,17 @@ export default function PodGroupList() {
           id: 'status',
           label: t('translation|Status'),
           gridTemplate: 'min-content',
-          getValue: item => item.schedulingCondition?.reason ?? '',
+          getValue: item => {
+            const condition = item.schedulingCondition;
+            if (!condition) {
+              return t('translation|Unknown');
+            }
+            const scheduled = condition.status === 'True';
+            return (
+              condition.reason ||
+              (scheduled ? t('translation|Scheduled') : t('translation|Pending'))
+            );
+          },
           render: item => <SchedulingStatus podGroup={item} />,
         },
         'age',
