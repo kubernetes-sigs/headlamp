@@ -101,11 +101,21 @@ describe('PodGroupList', () => {
     expect(screen.getByText('Scheduled')).toBeInTheDocument();
   });
 
+  it('falls back to a localized status when the condition has no reason', () => {
+    const props = renderList();
+    const status = column(props, 'status');
+    const scheduled = { schedulingCondition: { type: 'PodGroupScheduled', status: 'True' } };
+    const pending = { schedulingCondition: { type: 'PodGroupScheduled', status: 'False' } };
+
+    expect(status.getValue(scheduled)).toBe('translation|Scheduled');
+    expect(status.getValue(pending)).toBe('translation|Pending');
+  });
+
   it('shows an unknown status while the group has no conditions yet', () => {
     const props = renderList();
     const status = column(props, 'status');
 
-    expect(status.getValue({})).toBe('');
+    expect(status.getValue({})).toBe('translation|Unknown');
 
     render(<TestContext>{status.render({})}</TestContext>);
     expect(screen.getByText('translation|Unknown')).toBeInTheDocument();
