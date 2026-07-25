@@ -116,6 +116,74 @@ describe('matchesLabelSelector', () => {
       ).toBe(false);
     });
 
+    it('Equals and DoubleEquals behave like In on a single value', () => {
+      for (const operator of ['Equals', 'DoubleEquals']) {
+        expect(
+          matchesLabelSelector(podLabels, {
+            matchExpressions: [{ key: 'tier', operator, values: ['frontend'] }],
+          })
+        ).toBe(true);
+        expect(
+          matchesLabelSelector(podLabels, {
+            matchExpressions: [{ key: 'tier', operator, values: ['backend'] }],
+          })
+        ).toBe(false);
+        expect(
+          matchesLabelSelector(podLabels, {
+            matchExpressions: [{ key: 'missing', operator, values: ['x'] }],
+          })
+        ).toBe(false);
+      }
+    });
+
+    it('NotEquals behaves like NotIn, including a missing key', () => {
+      expect(
+        matchesLabelSelector(podLabels, {
+          matchExpressions: [{ key: 'tier', operator: 'NotEquals', values: ['backend'] }],
+        })
+      ).toBe(true);
+      expect(
+        matchesLabelSelector(podLabels, {
+          matchExpressions: [{ key: 'missing', operator: 'NotEquals', values: ['x'] }],
+        })
+      ).toBe(true);
+      expect(
+        matchesLabelSelector(podLabels, {
+          matchExpressions: [{ key: 'tier', operator: 'NotEquals', values: ['frontend'] }],
+        })
+      ).toBe(false);
+    });
+
+    it('GreaterThan and LessThan compare integer label values', () => {
+      const numeric = { replicas: '3' };
+      expect(
+        matchesLabelSelector(numeric, {
+          matchExpressions: [{ key: 'replicas', operator: 'GreaterThan', values: ['2'] }],
+        })
+      ).toBe(true);
+      expect(
+        matchesLabelSelector(numeric, {
+          matchExpressions: [{ key: 'replicas', operator: 'LessThan', values: ['5'] }],
+        })
+      ).toBe(true);
+      expect(
+        matchesLabelSelector(numeric, {
+          matchExpressions: [{ key: 'replicas', operator: 'GreaterThan', values: ['3'] }],
+        })
+      ).toBe(false);
+      // A missing key or a non-numeric label value does not match.
+      expect(
+        matchesLabelSelector(numeric, {
+          matchExpressions: [{ key: 'missing', operator: 'GreaterThan', values: ['1'] }],
+        })
+      ).toBe(false);
+      expect(
+        matchesLabelSelector(podLabels, {
+          matchExpressions: [{ key: 'tier', operator: 'LessThan', values: ['5'] }],
+        })
+      ).toBe(false);
+    });
+
     it('fails closed on an unknown operator', () => {
       expect(
         matchesLabelSelector(podLabels, {

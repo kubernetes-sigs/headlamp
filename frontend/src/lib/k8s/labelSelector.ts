@@ -22,16 +22,36 @@ function matchesExpression(labels: Record<string, string>, req: MatchExpression)
   const present = Object.prototype.hasOwnProperty.call(labels, req.key);
   const values = req.values ?? [];
 
+  // Mirrors the API server's Requirement.Matches, which groups the equality
+  // operators with their set-based counterparts:
+  // https://github.com/kubernetes/apimachinery/blob/master/pkg/labels/selector.go
   switch (req.operator) {
     case 'In':
+    case 'Equals':
+    case 'DoubleEquals':
       return present && values.includes(labels[req.key]);
     case 'NotIn':
-      // A missing key satisfies NotIn, matching the API server's set-based semantics.
+    case 'NotEquals':
+      // A missing key satisfies NotIn/NotEquals, matching the set-based semantics.
       return !present || !values.includes(labels[req.key]);
     case 'Exists':
       return present;
     case 'DoesNotExist':
       return !present;
+    case 'GreaterThan':
+    case 'LessThan': {
+      // The label value and the single requirement value must both parse as
+      // integers; a missing or non-numeric value does not match.
+      if (!present || values.length !== 1) {
+        return false;
+      }
+      const labelValue = Number.parseInt(labels[req.key], 10);
+      const bound = Number.parseInt(values[0], 10);
+      if (Number.isNaN(labelValue) || Number.isNaN(bound)) {
+        return false;
+      }
+      return req.operator === 'GreaterThan' ? labelValue > bound : labelValue < bound;
+    }
     default:
       // Unknown operator: fail closed rather than silently matching.
       return false;
