@@ -26,6 +26,9 @@ else
         DOCKER_PLATFORM ?= local
     endif
 endif
+# The plugins container follows the host platform by default, like the main
+# image. Override to cross-build, e.g. DOCKER_PLUGINS_PLATFORM=linux/amd64.
+DOCKER_PLUGINS_PLATFORM ?= $(DOCKER_PLATFORM)
 DOCKER_PUSH ?= false
 EMBED_BINARY_NAME := headlamp_app
 # Get version and app name from app/package.json
@@ -399,7 +402,7 @@ image-verify-digests:
 build-plugins-container:
 	$(DOCKER_CMD) $(DOCKER_BUILDX_CMD) build \
 	--pull \
-	--platform=linux/amd64 \
+	--platform=$(DOCKER_PLUGINS_PLATFORM) \
 	--push=$(DOCKER_PUSH) \
 	-t $(DOCKER_REPO)/$(DOCKER_PLUGINS_IMAGE_NAME):$(DOCKER_IMAGE_VERSION) -f \
 	Dockerfile.plugins \
