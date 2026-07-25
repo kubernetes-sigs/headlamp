@@ -71,6 +71,7 @@ func listCharts(filter string, settings *cli.EnvSettings) ([]chartInfo, error) {
 			)
 
 			continue
+		}
 
 		index.AddRepo(name, indexFile, true)
 

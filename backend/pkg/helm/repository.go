@@ -174,6 +174,8 @@ func addRepository(request AddUpdateRepoRequest, settings *cli.EnvSettings) erro
 	applyRequestFields(newRepo, request)
 
 	r, err := repo.NewChartRepository(newRepo, getter.All(settings))
+	r.CachePath = settings.RepositoryCache
+
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "creating chart repository")
 		return err
