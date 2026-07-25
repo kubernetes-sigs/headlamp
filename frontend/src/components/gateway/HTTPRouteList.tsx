@@ -43,6 +43,7 @@ export default function HTTPRouteList() {
           label: t('translation|rules'),
           getValue: (httpRoute: HTTPRoute) => httpRoute.spec.rules?.length,
         },
+        'labels',
         'age',
       ]}
     />

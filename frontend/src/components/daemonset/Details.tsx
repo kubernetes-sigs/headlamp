@@ -20,6 +20,7 @@ import DaemonSet from '../../lib/k8s/daemonSet';
 import {
   ContainersSection,
   DetailsGrid,
+  LogsButton,
   MetadataDictGrid,
   OwnedPodsSection,
   RevisionHistorySection,
@@ -103,6 +104,10 @@ export default function DaemonSetDetails(props: {
       actions={item => {
         if (!item) return [];
         return [
+          {
+            id: 'headlamp.daemonset-logs',
+            action: <LogsButton key="logs" item={item} />,
+          },
           {
             id: 'headlamp.daemonset-rollback',
             action: <RollbackButton key="rollback" item={item} />,

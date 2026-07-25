@@ -1,0 +1,10 @@
+service:
+  type: NodePort
+  extraServicePorts:
+    - name: metrics
+      port: 9090
+      targetPort: metrics
+    - name: grpc
+      port: 9091
+      protocol: TCP
+      nodePort: 31091

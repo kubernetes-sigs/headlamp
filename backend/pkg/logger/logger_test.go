@@ -23,6 +23,7 @@ import (
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/rs/zerolog"
+	"github.com/stretchr/testify/require"
 )
 
 var capturedLogs []string
@@ -160,7 +161,7 @@ func TestEmptyOrMissingEnvDefaultsToInfo(t *testing.T) {
 	})
 
 	t.Run("missing", func(t *testing.T) {
-		os.Unsetenv("HEADLAMP_CONFIG_LOG_LEVEL")
+		require.NoError(t, os.Unsetenv("HEADLAMP_CONFIG_LOG_LEVEL"))
 		logger.Init(os.Getenv("HEADLAMP_CONFIG_LOG_LEVEL"))
 
 		if zerolog.GlobalLevel() != zerolog.InfoLevel {

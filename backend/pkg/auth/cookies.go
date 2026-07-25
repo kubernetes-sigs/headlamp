@@ -94,7 +94,9 @@ func SetTokenCookie(w http.ResponseWriter, r *http.Request, cluster, token, base
 	// if token is larger than maxCookieSize, split it into multiple cookies
 	chunks := splitToken(token, chunkSize)
 	for i, chunk := range chunks {
-		cookie := &http.Cookie{
+		// G124: Secure is set from IsSecureContext so localhost development still works;
+		// HttpOnly and SameSite are set unconditionally.
+		cookie := &http.Cookie{ //nolint:gosec
 			Name:     fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, i),
 			Value:    chunk,
 			HttpOnly: true,
@@ -153,7 +155,9 @@ func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL s
 			break
 		}
 
-		cookie := &http.Cookie{
+		// G124: Secure is set from IsSecureContext so localhost development still works;
+		// HttpOnly and SameSite are set unconditionally.
+		cookie := &http.Cookie{ //nolint:gosec
 			Name:     cookieName,
 			Value:    "",
 			HttpOnly: true,

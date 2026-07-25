@@ -26,6 +26,7 @@ import { HeaderStyle } from '../../../common/SectionHeader';
 import { NameValueTableRow } from '../../../common/SimpleTable';
 import Empty from '../../EmptyContent';
 import SectionBox from '../../SectionBox';
+import A8RInfo from '../A8RInfo';
 import { MetadataDisplay } from '../MetadataDisplay';
 import { MainInfoHeader } from './MainInfoSectionHeader';
 
@@ -75,35 +76,45 @@ export function MainInfoSection<T extends KubeObject>(props: MainInfoSectionProp
     }
   }
 
+  const annotations = resource?.metadata?.annotations ?? {};
+  const hasA8r = Object.keys(annotations).some(key => key.startsWith('a8r.io/'));
+
   return (
-    <SectionBox
-      aria-busy={resource === null}
-      aria-live="polite"
-      title={
-        <MainInfoHeader
-          title={title}
-          resource={resource}
-          headerStyle={headerStyle}
-          noDefaultActions={noDefaultActions}
-          actions={actions}
-        />
-      }
-      backLink={getBackLink()}
-    >
-      {resource === null ? (
-        !!error ? (
-          <Paper variant="outlined">
-            <Empty color="error">{error.toString()}</Empty>
-          </Paper>
+    <>
+      <SectionBox
+        aria-busy={resource === null}
+        aria-live="polite"
+        title={
+          <MainInfoHeader
+            title={title}
+            resource={resource}
+            headerStyle={headerStyle}
+            noDefaultActions={noDefaultActions}
+            actions={actions}
+          />
+        }
+        backLink={getBackLink()}
+      >
+        {resource === null ? (
+          !!error ? (
+            <Paper variant="outlined">
+              <Empty color="error">{error.toString()}</Empty>
+            </Paper>
+          ) : (
+            <Loader title={t('translation|Loading resource data')} />
+          )
         ) : (
-          <Loader title={t('translation|Loading resource data')} />
-        )
-      ) : (
-        <React.Fragment>
-          {header}
-          <MetadataDisplay resource={resource} extraRows={extraInfo} />
-        </React.Fragment>
+          <React.Fragment>
+            {header}
+            <MetadataDisplay resource={resource} extraRows={extraInfo} />
+          </React.Fragment>
+        )}
+      </SectionBox>
+      {resource && hasA8r && (
+        <SectionBox title={t('a8r.io Metadata')}>
+          <A8RInfo annotations={annotations} />
+        </SectionBox>
       )}
-    </SectionBox>
+    </>
   );
 }

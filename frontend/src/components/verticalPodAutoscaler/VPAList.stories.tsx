@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import VpaList from './List';
 
 const items = [
@@ -143,10 +143,10 @@ List.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/apis/autoscaling.k8s.io/v1', () =>
+        http.get(`${API_BASE}/apis/autoscaling.k8s.io/v1`, () =>
           HttpResponse.json({ resources: [{ name: 'verticalpodautoscalers' }] })
         ),
-        http.get('http://localhost:4466/apis/autoscaling.k8s.io/v1/verticalpodautoscalers', () =>
+        http.get(`${API_BASE}/apis/autoscaling.k8s.io/v1/verticalpodautoscalers`, () =>
           HttpResponse.json({
             kind: 'VPAList',
             metadata: {},

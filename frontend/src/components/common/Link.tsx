@@ -116,9 +116,12 @@ function PureLink(
     ...otherProps
   } = props as LinkObjectProps;
 
-  if (activeCluster) {
-    params.cluster = formatClusterPathParam(getSelectedClusters(), activeCluster);
-  }
+  const finalParams = activeCluster
+    ? {
+        ...params,
+        cluster: formatClusterPathParam(getSelectedClusters(), activeCluster),
+      }
+    : params;
 
   const searchString = typeof search === 'object' ? new URLSearchParams(search).toString() : search;
 
@@ -126,7 +129,7 @@ function PureLink(
     <MuiLink
       component={RouterLink}
       to={{
-        pathname: createRouteURL(routeName, params),
+        pathname: createRouteURL(routeName, finalParams),
         search: searchString,
         state,
       }}

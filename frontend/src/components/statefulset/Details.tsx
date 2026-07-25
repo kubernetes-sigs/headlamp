@@ -21,11 +21,13 @@ import StatefulSet from '../../lib/k8s/statefulSet';
 import {
   ContainersSection,
   DetailsGrid,
+  LogsButton,
   MetadataDictGrid,
   OwnedPodsSection,
   RevisionHistorySection,
   RollbackButton,
 } from '../common/Resource';
+import { statefulSetExtraInfo } from '../workload/extraInfo';
 
 export default function StatefulSetDetails(props: {
   name?: string;
@@ -47,6 +49,10 @@ export default function StatefulSetDetails(props: {
         if (!item) return [];
         return [
           {
+            id: 'headlamp.statefulset-logs',
+            action: <LogsButton key="logs" item={item} />,
+          },
+          {
             id: 'headlamp.statefulset-rollback',
             action: <RollbackButton key="rollback" item={item} />,
           },
@@ -54,6 +60,7 @@ export default function StatefulSetDetails(props: {
       }}
       extraInfo={item =>
         item && [
+          ...statefulSetExtraInfo(item, t),
           {
             name: t('Update Strategy'),
             value: item.spec.updateStrategy.type,

@@ -181,4 +181,180 @@ else
 fi
 
 echo ""
+echo "=== Verifying Server Cleanup After App Close ==="
+
+# Function to test server cleanup
+test_server_cleanup() {
+  local APP_BUNDLE="$1"
+
+  if [ ! -d "$APP_BUNDLE" ]; then
+    echo "✗ Cannot test server cleanup: app bundle not found at $APP_BUNDLE"
+    return 1
+  fi
+
+  # Record existing PIDs to exclude them
+  local EXISTING_SERVER_PIDS
+  local EXISTING_APP_PIDS
+  local ELECTRON_PID
+  local SERVER_PID
+  local ALL_SERVER_PIDS
+  local ALL_APP_PIDS
+  local REMAINING_SERVER_PIDS
+
+  EXISTING_SERVER_PIDS=$(pgrep -f headlamp-server 2>/dev/null || true)
+  EXISTING_APP_PIDS=$(pgrep -x Headlamp 2>/dev/null || true)
+
+  # Launch the app using macOS 'open' command so it properly registers with
+  # WindowServer and Electron's 'ready' event fires (direct binary execution
+  # skips this registration on CI runners).
+  # --disable-gpu avoids GPU initialization failures on headless macOS CI runners.
+  echo "Launching app for server cleanup test (via open, GPU disabled for CI)..."
+  open "$APP_BUNDLE" --args --disable-gpu
+
+  # Wait for the Headlamp process to appear (up to 15 seconds)
+  ELECTRON_PID=""
+  for i in $(seq 1 15); do
+    ALL_APP_PIDS=$(pgrep -x Headlamp 2>/dev/null || true)
+    for pid in $ALL_APP_PIDS; do
+      if [ -z "$EXISTING_APP_PIDS" ] || ! echo "$EXISTING_APP_PIDS" | grep -qw "$pid"; then
+        ELECTRON_PID="$pid"
+        break
+      fi
+    done
+    if [ -n "$ELECTRON_PID" ]; then
+      break
+    fi
+    sleep 1
+  done
+
+  if [ -z "$ELECTRON_PID" ]; then
+    echo "⚠ Headlamp process did not appear within 15 seconds, skipping cleanup test"
+    return 0
+  fi
+  echo "Electron app started with PID: $ELECTRON_PID"
+
+  # Wait for headlamp-server to appear (up to 30 seconds)
+  echo "Waiting for headlamp-server to start..."
+  SERVER_PID=""
+  for i in $(seq 1 30); do
+    ALL_SERVER_PIDS=$(pgrep -f headlamp-server 2>/dev/null || true)
+    for pid in $ALL_SERVER_PIDS; do
+      if [ -z "$EXISTING_SERVER_PIDS" ] || ! echo "$EXISTING_SERVER_PIDS" | grep -qw "$pid"; then
+        SERVER_PID="$pid"
+        break
+      fi
+    done
+    if [ -n "$SERVER_PID" ]; then
+      echo "headlamp-server started with PID: $SERVER_PID"
+      break
+    fi
+    sleep 1
+  done
+
+  if [ -z "$SERVER_PID" ]; then
+    echo "⚠ headlamp-server did not start within 30 seconds, skipping cleanup test"
+    kill -TERM "$ELECTRON_PID" 2>/dev/null || true
+    # Bounded wait for process to exit (up to 10 seconds)
+    for i in $(seq 1 10); do
+      if kill -0 "$ELECTRON_PID" 2>/dev/null; then sleep 1; else break; fi
+    done
+    kill -9 "$ELECTRON_PID" 2>/dev/null || true
+    return 0
+  fi
+
+  # Gracefully close the Electron app (SIGTERM triggers the quit handler)
+  echo "Sending SIGTERM to Electron app (PID: $ELECTRON_PID)..."
+  kill -TERM "$ELECTRON_PID" 2>/dev/null || true
+
+  # Bounded wait for the Electron app to exit (up to 15 seconds)
+  for i in $(seq 1 15); do
+    if kill -0 "$ELECTRON_PID" 2>/dev/null; then
+      sleep 1
+    else
+      break
+    fi
+  done
+  if kill -0 "$ELECTRON_PID" 2>/dev/null; then
+    echo "⚠ Electron app did not exit gracefully, force killing..."
+    kill -9 "$ELECTRON_PID" 2>/dev/null || true
+  fi
+
+  # Wait for all new server processes to exit (up to 10 seconds)
+  echo "Waiting for headlamp-server to exit..."
+  for i in $(seq 1 10); do
+    REMAINING_SERVER_PIDS=""
+    ALL_SERVER_PIDS=$(pgrep -f headlamp-server 2>/dev/null || true)
+    for pid in $ALL_SERVER_PIDS; do
+      if [ -z "$EXISTING_SERVER_PIDS" ] || ! echo "$EXISTING_SERVER_PIDS" | grep -qw "$pid"; then
+        REMAINING_SERVER_PIDS="$REMAINING_SERVER_PIDS $pid"
+      fi
+    done
+    if [ -z "$REMAINING_SERVER_PIDS" ]; then
+      break
+    fi
+    sleep 1
+  done
+
+  # Final check: are any new headlamp-server processes still running?
+  REMAINING_SERVER_PIDS=""
+  ALL_SERVER_PIDS=$(pgrep -f headlamp-server 2>/dev/null || true)
+  for pid in $ALL_SERVER_PIDS; do
+    if [ -z "$EXISTING_SERVER_PIDS" ] || ! echo "$EXISTING_SERVER_PIDS" | grep -qw "$pid"; then
+      REMAINING_SERVER_PIDS="$REMAINING_SERVER_PIDS $pid"
+    fi
+  done
+
+  if [ -n "$REMAINING_SERVER_PIDS" ]; then
+    echo "✗ headlamp-server process(es) still running after app close: $REMAINING_SERVER_PIDS"
+    for pid in $REMAINING_SERVER_PIDS; do
+      kill -9 "$pid" 2>/dev/null || true
+    done
+    return 1
+  else
+    echo "✓ headlamp-server properly terminated after app close"
+    return 0
+  fi
+}
+
+# Test server cleanup using the app bundle found earlier.
+# Prefer native architecture build: on arm64 runners, dist/mac contains the x64
+# build (via Rosetta) and dist/mac-arm64 contains the native arm64 build.
+ARCH=$(uname -m)
+MAC_DIR=""
+if [ "$ARCH" = "arm64" ] && [ -d "$DIST_DIR/mac-arm64" ]; then
+  MAC_DIR="$DIST_DIR/mac-arm64"
+elif [ -d "$DIST_DIR/mac" ]; then
+  MAC_DIR="$DIST_DIR/mac"
+fi
+
+if [ -n "$MAC_DIR" ]; then
+  APP_BUNDLE=$(find "$MAC_DIR" -name "*.app" -type d | head -n 1)
+  if [ -n "$APP_BUNDLE" ]; then
+    test_server_cleanup "$APP_BUNDLE" || exit 1
+  fi
+else
+  # DMG was already unmounted; re-mount to test server cleanup
+  DMG_FILE=$(ls "$DIST_DIR"/*.dmg | head -n 1)
+  if [ ! -z "$DMG_FILE" ]; then
+    MOUNT_POINT=$(mktemp -d -t headlamp-dmg-cleanup)
+    if hdiutil attach "$DMG_FILE" -mountpoint "$MOUNT_POINT" > /dev/null 2>&1; then
+      APP_BUNDLE=$(find "$MOUNT_POINT" -name "*.app" -type d | head -n 1)
+      if [ -n "$APP_BUNDLE" ]; then
+        if ! test_server_cleanup "$APP_BUNDLE"; then
+          hdiutil detach "$MOUNT_POINT" > /dev/null 2>&1
+          rm -rf "$MOUNT_POINT" || true
+          exit 1
+        fi
+      else
+        echo "⚠ App bundle not found in re-mounted DMG, skipping server cleanup test"
+      fi
+      hdiutil detach "$MOUNT_POINT" > /dev/null 2>&1
+    else
+      echo "⚠ Failed to re-mount DMG for server cleanup test, skipping"
+    fi
+    rm -rf "$MOUNT_POINT" || true
+  fi
+fi
+
+echo ""
 echo "✓ All Mac verification checks passed"

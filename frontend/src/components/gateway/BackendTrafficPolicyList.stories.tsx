@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import BackendTrafficPolicyList from './BackendTrafficPolicyList';
 import { DEFAULT_BACKEND_TRAFFIC_POLICY } from './storyHelper';
 
@@ -36,7 +36,7 @@ export default {
         storyBase: [],
         story: [
           http.get(
-            'http://localhost:4466/apis/gateway.networking.x-k8s.io/v1alpha1/xbackendtrafficpolicies',
+            `${API_BASE}/apis/gateway.networking.x-k8s.io/v1alpha1/xbackendtrafficpolicies`,
             () =>
               HttpResponse.json({
                 kind: 'XBackendTrafficPolicyList',

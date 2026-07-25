@@ -21,6 +21,7 @@ import { KubeObject } from '../../../lib/k8s/KubeObject';
 import DeleteMultipleButton from './DeleteMultipleButton';
 import { isRestartableResource } from './RestartButton';
 import RestartMultipleButton from './RestartMultipleButton';
+import ScaleMultipleButton, { isScalableResource } from './ScaleMultipleButton';
 
 export interface ResourceTableMultiActionsProps<RowItem extends Record<string, any>> {
   table: MRT_TableInstance<RowItem>;
@@ -33,6 +34,7 @@ export default function ResourceTableMultiActions<RowItem extends Record<string,
 
   const items = table.getSelectedRowModel().rows.map(t => t.original as unknown as KubeObject);
   const restartableItems = items.filter(isRestartableResource);
+  const scalableItems = items.filter(isScalableResource);
 
   const afterConfirm = useCallback(() => {
     table.resetRowSelection();
@@ -40,6 +42,11 @@ export default function ResourceTableMultiActions<RowItem extends Record<string,
 
   return (
     <Grid container spacing={2}>
+      {scalableItems.length > 0 && (
+        <Grid item>
+          <ScaleMultipleButton items={scalableItems} afterConfirm={afterConfirm} />
+        </Grid>
+      )}
       {restartableItems.length > 0 && (
         <Grid item>
           <RestartMultipleButton items={restartableItems} afterConfirm={afterConfirm} />

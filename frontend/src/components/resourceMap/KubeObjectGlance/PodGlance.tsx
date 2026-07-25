@@ -24,7 +24,7 @@ export function PodGlance({ pod }: { pod: Pod }) {
   const { t } = useTranslation();
   return (
     <Box display="flex" gap={1} alignItems="center" mt={2} flexWrap="wrap" key="pod">
-      <Box>{makePodStatusLabel(pod)}</Box>
+      <Box>{makePodStatusLabel(pod, true, t)}</Box>
       {pod.spec.containers.map(it => (
         <StatusLabel status="" key={it.name}>
           {t('glossary|Container')}: {it.name}

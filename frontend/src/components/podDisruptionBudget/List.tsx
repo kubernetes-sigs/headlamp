@@ -47,6 +47,7 @@ export default function PDBList() {
           gridTemplate: 'min-content',
           getValue: (item: PDB) => item.status.disruptionsAllowed || t('translation|N/A'),
         },
+        'labels',
         'age',
       ]}
     />

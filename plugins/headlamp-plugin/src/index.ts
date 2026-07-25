@@ -22,6 +22,7 @@ declare module '@mui/private-theming' {
 
 import { Activity } from './components/activity/Activity';
 import * as CommonComponents from './components/common';
+import type { AppTheme } from './lib/AppTheme';
 import * as K8s from './lib/k8s';
 import * as ApiProxy from './lib/k8s/apiProxy';
 import * as Notification from './lib/notification';
@@ -59,11 +60,13 @@ import Registry, {
   registerDetailsViewSectionsProcessor,
   registerGetTokenFunction,
   registerHeadlampEventCallback,
+  registerHomeSidebarEntryFilter,
   registerKindIcon,
   registerKubeObjectGlance,
   registerMapSource,
   registerOverviewChartsProcessor,
   registerPluginSettings,
+  registerProjectApiResource,
   registerProjectDeleteButton,
   registerProjectDetailsTab,
   registerProjectHeaderAction,
@@ -76,6 +79,7 @@ import Registry, {
   registerUIPanel,
   runCommand,
 } from './plugin/registry';
+export type { ApiResource } from './plugin/registry';
 
 // We export k8s (lowercase) since someone may use it as we do in the Headlamp source code.
 export {
@@ -104,6 +108,7 @@ export {
   registerRouteFilter,
   registerSidebarEntry,
   registerSidebarEntryFilter,
+  registerHomeSidebarEntryFilter,
   registerDetailsViewHeaderActionsProcessor,
   registerGetTokenFunction,
   registerResourceTableColumnsProcessor,
@@ -130,12 +135,14 @@ export {
   registerProjectOverviewSection,
   registerProjectHeaderAction,
   registerClusterStatus,
+  registerProjectApiResource,
   registerProjectDeleteButton,
   Activity,
 };
 
 export type {
   AppLogoProps,
+  AppTheme,
   PluginSettingsDetailsProps,
   CallbackActionOptions,
   ClusterChooserProps,

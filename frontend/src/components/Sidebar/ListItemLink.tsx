@@ -206,6 +206,12 @@ export default function ListItemLink(props: ListItemLinkProps) {
           '.MuiListItemText-root': {
             margin: 0,
           },
+          '.MuiListItemText-primary': {
+            whiteSpace: 'nowrap',
+            textOverflow: 'ellipsis',
+            overflow: 'hidden',
+            display: 'block',
+          },
 
           '& *': {
             fontSize: '.875rem',

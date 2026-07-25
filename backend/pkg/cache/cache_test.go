@@ -108,3 +108,13 @@ func TestCacheGetAll(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(values))
 }
+
+func TestCacheClose(t *testing.T) {
+	ch := cache.New[interface{}]()
+	err := ch.Close()
+	assert.NoError(t, err)
+
+	// verify that double closing does not panic
+	err = ch.Close()
+	assert.NoError(t, err)
+}

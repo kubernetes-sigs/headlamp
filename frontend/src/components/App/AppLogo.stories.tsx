@@ -20,7 +20,7 @@ import React from 'react';
 import { TestContext } from '../../test';
 import { AppLogo, AppLogoProps } from './AppLogo';
 
-const getMockState = (themeName: 'light' | 'dark' = 'light', loaded = true, logo: any = null) => ({
+const getMockState = (themeName: 'Light' | 'Dark' = 'Light', loaded = true, logo: any = null) => ({
   plugins: { loaded },
   theme: {
     logo,
@@ -49,7 +49,7 @@ export default {
 } as Meta<typeof AppLogo>;
 
 const Template: StoryFn<AppLogoProps> = args => {
-  const themeName = args.themeName === 'dark' ? 'dark' : 'light';
+  const themeName = args.themeName === 'dark' ? 'Dark' : 'Light';
   const store = configureStore({
     reducer: (state = getMockState(themeName)) => state,
     preloadedState: getMockState(themeName),

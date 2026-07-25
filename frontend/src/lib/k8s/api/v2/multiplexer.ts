@@ -37,6 +37,9 @@ export const WebSocketManager = {
   /** Map of message handlers for each subscription path */
   listeners: new Map<string, Set<(data: any) => void>>(),
 
+  /** Map of error handlers for each subscription path */
+  errorListeners: new Map<string, Set<(err: Error) => void>>(),
+
   /** Set of paths that have received a COMPLETE message */
   completedPaths: new Set<string>(),
 
@@ -65,8 +68,10 @@ export const WebSocketManager = {
    *
    * Known limitations:
    * 1. Polls every 100ms which may not be optimal for performance
-   * 2. No timeout - could theoretically run forever if connection never opens
-   * 3. May miss state changes that happen between polls
+   * 2. May miss state changes that happen between polls
+   * 3. Has no timeout while waiting on an in-progress connection attempt; callers
+   *    will reject if that attempt fails and clears `this.connecting`, but can wait
+   *    indefinitely if it never reaches open, error, or close
    *
    * A more robust solution would use event listeners and Promise caching,
    * but that adds complexity and potential race conditions to handle.
@@ -82,11 +87,14 @@ export const WebSocketManager = {
 
     // Wait for existing connection attempt if in progress
     if (this.connecting) {
-      return new Promise(resolve => {
+      return new Promise((resolve, reject) => {
         const checkConnection = setInterval(() => {
           if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
             clearInterval(checkConnection);
-            resolve(this.socketMultiplexer);
+            resolve(this.socketMultiplexer!);
+          } else if (!this.connecting) {
+            clearInterval(checkConnection);
+            reject(new Error('WebSocket connection failed'));
           }
         }, 100);
       });
@@ -96,7 +104,14 @@ export const WebSocketManager = {
     const wsUrl = `${getBaseWsUrl()}${MULTIPLEXER_ENDPOINT}`;
 
     return new Promise((resolve, reject) => {
-      const socket = new WebSocket(wsUrl);
+      let socket: WebSocket;
+      try {
+        socket = new WebSocket(wsUrl);
+      } catch (e) {
+        this.connecting = false;
+        reject(e instanceof Error ? e : new Error(String(e)));
+        return;
+      }
 
       socket.onopen = () => {
         this.socketMultiplexer = socket;
@@ -149,13 +164,15 @@ export const WebSocketManager = {
    * @param path - API resource path
    * @param query - Query parameters
    * @param onMessage - Callback for handling incoming messages
+   * @param onError - Callback for handling errors
    * @returns Promise resolving to cleanup function
    */
   async subscribe(
     clusterId: string,
     path: string,
     query: string,
-    onMessage: (data: any) => void
+    onMessage: (data: any) => void,
+    onError?: (err: Error) => void
   ): Promise<() => void> {
     const key = this.createKey(clusterId, path, query);
 
@@ -166,6 +183,13 @@ export const WebSocketManager = {
     const listeners = this.listeners.get(key) || new Set();
     listeners.add(onMessage);
     this.listeners.set(key, listeners);
+
+    // Add error listener if provided
+    if (onError) {
+      const errListeners = this.errorListeners.get(key) || new Set();
+      errListeners.add(onError);
+      this.errorListeners.set(key, errListeners);
+    }
 
     // Establish connection and send REQUEST
     const socket = await this.connect();
@@ -180,7 +204,7 @@ export const WebSocketManager = {
     socket.send(JSON.stringify(requestMsg));
 
     // Return cleanup function
-    return () => this.unsubscribe(key, clusterId, path, query, onMessage);
+    return () => this.unsubscribe(key, clusterId, path, query, onMessage, onError);
   },
 
   /**
@@ -203,13 +227,15 @@ export const WebSocketManager = {
    * @param path - API resource path being watched
    * @param query - Query parameters for filtering
    * @param onMessage - Message handler to remove from subscription
+   * @param onError - Error handler to remove from subscription
    */
   unsubscribe(
     key: string,
     clusterId: string,
     path: string,
     query: string,
-    onMessage: (data: any) => void
+    onMessage: (data: any) => void,
+    onError?: (err: Error) => void
   ): void {
     // Clear any pending unsubscribe for this key
     const pendingTimeout = this.pendingUnsubscribes.get(key);
@@ -252,6 +278,17 @@ export const WebSocketManager = {
         this.pendingUnsubscribes.set(key, timeout);
       }
     }
+
+    // Remove the error listener
+    if (onError) {
+      const errListeners = this.errorListeners.get(key);
+      if (errListeners) {
+        errListeners.delete(onError);
+        if (errListeners.size === 0) {
+          this.errorListeners.delete(key);
+        }
+      }
+    }
   },
 
   /**
@@ -284,6 +321,55 @@ export const WebSocketManager = {
       // Handle COMPLETE messages
       if (data.type === 'COMPLETE') {
         this.completedPaths.add(key);
+        return;
+      }
+
+      // Handle ERROR messages from backend
+      if (data.type === 'ERROR') {
+        let errorMessage = 'Unknown error';
+        try {
+          const parsedData = data.data ? JSON.parse(data.data) : {};
+          errorMessage = parsedData.error || errorMessage;
+        } catch (e) {
+          errorMessage = data.data || errorMessage;
+        }
+
+        const errListeners = this.errorListeners.get(key);
+        if (errListeners && errListeners.size > 0) {
+          const errorObj = new Error(errorMessage);
+          for (const errListener of errListeners) {
+            try {
+              errListener(errorObj);
+            } catch (err) {
+              console.error('Failed to process WebSocket error message:', err);
+            }
+          }
+        } else {
+          // Fallback to data listeners as a safety net for legacy/direct callers
+          const update = {
+            type: 'ERROR',
+            object: {
+              kind: 'Status',
+              status: 'Failure',
+              message: errorMessage,
+              metadata: {
+                uid: `${key}:ERROR:${errorMessage}`,
+                resourceVersion: '0',
+              },
+            },
+          };
+
+          const listeners = this.listeners.get(key);
+          if (listeners) {
+            for (const listener of listeners) {
+              try {
+                listener(update);
+              } catch (err) {
+                console.error('Failed to process WebSocket error message:', err);
+              }
+            }
+          }
+        }
         return;
       }
 
@@ -372,17 +458,47 @@ export function useWebSocket<T>({
     }
 
     let cleanup: (() => void) | undefined;
+    let isCancelled = false;
+    let subscriptionPath: string | undefined;
+    let subscriptionQuery = '';
 
     const connectWebSocket = async () => {
+      let stableOnError: ((err: Error) => void) | undefined;
       try {
         const parsedUrl = new URL(url, getBaseWsUrl());
-        cleanup = await WebSocketManager.subscribe(
+        subscriptionPath = parsedUrl.pathname;
+        subscriptionQuery = parsedUrl.search.slice(1);
+        stableOnError = (err: Error) => {
+          console.error('WebSocket error for', subscriptionPath, err);
+          onError?.(err);
+        };
+        const unsubscribe = await WebSocketManager.subscribe(
           cluster,
-          parsedUrl.pathname,
-          parsedUrl.search.slice(1),
-          stableOnMessage
+          subscriptionPath,
+          subscriptionQuery,
+          stableOnMessage,
+          stableOnError
         );
+        if (isCancelled) {
+          unsubscribe();
+        } else {
+          cleanup = unsubscribe;
+        }
       } catch (err) {
+        if (subscriptionPath) {
+          const key = WebSocketManager.createKey(cluster, subscriptionPath, subscriptionQuery);
+          WebSocketManager.unsubscribe(
+            key,
+            cluster,
+            subscriptionPath,
+            subscriptionQuery,
+            stableOnMessage,
+            stableOnError
+          );
+        }
+        if (isCancelled) {
+          return;
+        }
         console.error('WebSocket connection failed:', err);
         onError?.(err as Error);
       }
@@ -391,6 +507,7 @@ export function useWebSocket<T>({
     connectWebSocket();
 
     return () => {
+      isCancelled = true;
       if (cleanup) {
         cleanup();
       }

@@ -118,7 +118,7 @@ func testAddsUserAgentHeader(t *testing.T) {
 		UserAgent: userAgent,
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.com/api", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com/api", nil)
 	originalReq := req.Clone(context.Background())
 
 	resp, err := rt.RoundTrip(req)
@@ -126,7 +126,7 @@ func testAddsUserAgentHeader(t *testing.T) {
 	require.NotNil(t, resp)
 
 	if resp.Body != nil {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 	}
 
 	require.NotNil(t, mockRT.capturedRequest)
@@ -148,7 +148,7 @@ func testOverwritesExistingUserAgent(t *testing.T) {
 		UserAgent: userAgent,
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.com/api", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com/api", nil)
 	req.Header.Set("User-Agent", "OldUserAgent/1.0")
 
 	resp, err := rt.RoundTrip(req)
@@ -156,7 +156,7 @@ func testOverwritesExistingUserAgent(t *testing.T) {
 	require.NotNil(t, resp)
 
 	if resp.Body != nil {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 	}
 
 	// Check that User-Agent header was replaced
@@ -174,7 +174,7 @@ func testPreservesOtherHeaders(t *testing.T) {
 	}
 
 	// Create a request with multiple headers
-	req := httptest.NewRequest(http.MethodPost, "http://example.com/api", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "http://example.com/api", nil)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer token123")
 	req.Header.Set("X-Custom-Header", "custom-value")
@@ -184,7 +184,7 @@ func testPreservesOtherHeaders(t *testing.T) {
 	require.NotNil(t, resp)
 
 	if resp.Body != nil {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 	}
 
 	// Check all headers are preserved
@@ -204,7 +204,7 @@ func testDoesNotModifyOriginalRequest(t *testing.T) {
 		UserAgent: userAgent,
 	}
 
-	req := httptest.NewRequest(http.MethodGet, "http://example.com/api", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com/api", nil)
 	req.Header.Set("X-Test-Header", "test-value")
 
 	// Store original header count
@@ -214,7 +214,7 @@ func testDoesNotModifyOriginalRequest(t *testing.T) {
 	require.NoError(t, err)
 
 	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 	}
 
 	// Original request should not have User-Agent header added
@@ -237,7 +237,7 @@ func testPropagatesErrors(t *testing.T) {
 	}
 
 	// Create a test request
-	req := httptest.NewRequest(http.MethodGet, "http://example.com/api", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "http://example.com/api", nil)
 
 	resp, err := rt.RoundTrip(req)
 
@@ -247,7 +247,7 @@ func testPropagatesErrors(t *testing.T) {
 	assert.NotNil(t, resp) // Our mock still returns a response
 
 	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 	}
 }
 
@@ -289,7 +289,7 @@ func TestUserAgentIntegration(t *testing.T) {
 		resp, err := client.Do(req)
 		require.NoError(t, err)
 
-		defer resp.Body.Close()
+		defer func() { _ = resp.Body.Close() }()
 
 		// Verify
 		assert.Equal(t, http.StatusOK, resp.StatusCode)

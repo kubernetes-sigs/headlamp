@@ -17,17 +17,60 @@
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 
+export interface KubeClaimRef {
+  apiVersion?: string;
+  kind?: string;
+  name?: string;
+  namespace?: string;
+  uid?: string;
+}
+
+/**
+ * Volume source keys recognized on a PersistentVolume spec, in the order they should be reported.
+ *
+ * @see {@link https://kubernetes.io/docs/concepts/storage/persistent-volumes/#types-of-persistent-volumes}
+ */
+export const PV_SOURCE_TYPES = [
+  'csi',
+  'hostPath',
+  'nfs',
+  'local',
+  'iscsi',
+  'cephfs',
+  'rbd',
+  'glusterfs',
+  'awsElasticBlockStore',
+  'gcePersistentDisk',
+  'azureDisk',
+  'azureFile',
+  'fc',
+  'flexVolume',
+  'flocker',
+  'photonPersistentDisk',
+  'portworxVolume',
+  'scaleIO',
+  'storageos',
+  'vsphereVolume',
+] as const;
+
+export type KubePersistentVolumeSourceKey = (typeof PV_SOURCE_TYPES)[number];
+
 export interface KubePersistentVolume extends KubeObjectInterface {
   spec: {
     capacity: {
       storage: string;
     };
+    accessModes?: string[];
+    volumeMode?: string;
+    persistentVolumeReclaimPolicy?: string;
+    storageClassName?: string;
+    claimRef?: KubeClaimRef;
     [other: string]: any;
   };
   status: {
-    message: string;
-    phase: string;
-    reason: string;
+    message?: string;
+    phase?: string;
+    reason?: string;
   };
 }
 
@@ -62,6 +105,11 @@ class PersistentVolume extends KubeObject<KubePersistentVolume> {
 
   get status() {
     return this.jsonData.status;
+  }
+
+  /** First volume-source key set on this PV's spec, e.g. 'csi', 'hostPath'. */
+  getSourceType(): KubePersistentVolumeSourceKey | undefined {
+    return PV_SOURCE_TYPES.find(key => (this.spec as Record<string, unknown>)?.[key]);
   }
 }
 

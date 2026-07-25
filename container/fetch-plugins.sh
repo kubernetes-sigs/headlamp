@@ -23,7 +23,7 @@ for plugin in $plugins; do
 
   archivedir=$TMPDIR/$plugin
   mkdir -p $archivedir
-  tar -xzf $TMPDIR/$plugin.tgz -C $archivedir --wildcards '*/main.js' '*/package.json'
+  tar -xzf $TMPDIR/$plugin.tgz -C $archivedir --wildcards '*/main.js' '*/package.json' '*/locales/*/translation.json'
 
   ls -lr $archivedir
 
@@ -32,6 +32,9 @@ for plugin in $plugins; do
   dir=$DESTDIR/$plugin
   mkdir -p $dir
   cp $extracted_dir/main.js $extracted_dir/package.json $dir
+  if [ -d "$extracted_dir/locales" ]; then
+    cp -r $extracted_dir/locales $dir
+  fi
 
   echo " done"
 done

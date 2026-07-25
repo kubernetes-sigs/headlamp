@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
+import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
+import ListItemIcon from '@mui/material/ListItemIcon';
+import ListItemText from '@mui/material/ListItemText';
 import MenuItem from '@mui/material/MenuItem';
 import { useTheme } from '@mui/material/styles';
 import { TableCellProps } from '@mui/material/TableCell';
@@ -26,7 +29,7 @@ import {
   MRT_TableInstance,
   MRT_VisibilityState,
 } from 'material-react-table';
-import {
+import React, {
   ComponentProps,
   ReactNode,
   useCallback,
@@ -52,8 +55,11 @@ import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import { DateLabel } from '../Label';
 import Link from '../Link';
 import Table, { TableColumn } from '../Table';
+import { getA8RMetadata } from './A8RInfo';
 import DeleteButton from './DeleteButton';
+import DownloadButton from './DownloadButton';
 import EditButton from './EditButton';
+import { getResourceRowId } from './getResourceRowId';
 import ResourceTableMultiActions from './ResourceTableMultiActions';
 import { RestartButton } from './RestartButton';
 import ScaleButton from './ScaleButton';
@@ -112,7 +118,7 @@ export type ResourceTableColumn<RowItem> = {
     }
 );
 
-export type ColumnType = 'age' | 'name' | 'namespace' | 'type' | 'kind' | 'cluster';
+export type ColumnType = 'age' | 'name' | 'namespace' | 'type' | 'kind' | 'cluster' | 'labels';
 
 /**
  * Default column ID to use for sorting when no explicit default is provided.
@@ -191,14 +197,19 @@ function TableFromResourceClass<KubeClass extends KubeObjectClass>(
   // throttle the update of the table to once per second
   const throttledItems = useThrottle(items, 1000);
   const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.LIST_VIEW);
+  const dispatchHeadlampEventRef = useRef(dispatchHeadlampEvent);
 
   useEffect(() => {
-    dispatchHeadlampEvent({
-      resources: items!,
+    dispatchHeadlampEventRef.current = dispatchHeadlampEvent;
+  }, [dispatchHeadlampEvent]);
+
+  useEffect(() => {
+    dispatchHeadlampEventRef.current({
+      resources: items ?? [],
       resourceKind: resourceClass.className,
       error: errors?.[0] || undefined,
     });
-  }, [items, errors]);
+  }, [errors, items, resourceClass.className]);
 
   return (
     <ResourceTableContent
@@ -220,6 +231,10 @@ function initColumnVisibilityState(columns: ResourceTableProps<any>['columns'], 
 
   // Apply default visibility we got from the props
   columns.forEach((col, index) => {
+    // Labels column is hidden by default
+    if (col === 'labels') {
+      visibility[col] = false;
+    }
     if (typeof col === 'string') return;
 
     if ('show' in col) {
@@ -252,7 +267,7 @@ function sortingFn(sortFn?: (a: any, b: any) => number): MRT_SortingFn<any> | un
  */
 export function useThrottle(value: any, interval = 1000): any {
   const [throttledValue, setThrottledValue] = useState(value);
-  const lastEffected = useRef(Date.now() + interval);
+  const lastEffected = useRef<number | null>(null);
 
   // Ensure we don't throttle holding the loading null or undefined value before
   // real data comes in. Otherwise we could wait up to interval milliseconds
@@ -265,15 +280,22 @@ export function useThrottle(value: any, interval = 1000): any {
   useEffect(() => {
     const now = Date.now();
 
-    if (now >= lastEffected.current + interval || numEffected.current < 2) {
+    if (lastEffected.current === null) {
+      lastEffected.current = now;
+    }
+
+    const remainingTime = lastEffected.current + interval - now;
+
+    if (remainingTime <= 0 || numEffected.current < 2) {
       numEffected.current = numEffected.current + 1;
       lastEffected.current = now;
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setThrottledValue(value);
     } else {
       const id = window.setTimeout(() => {
-        lastEffected.current = now;
+        lastEffected.current = Date.now();
         setThrottledValue(value);
-      }, interval);
+      }, remainingTime);
 
       return () => window.clearTimeout(id);
     }
@@ -337,12 +359,40 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
       : []
   );
 
-  const [tableSettings] = useState<{ id: string; show: boolean }[]>(
-    !!id ? loadTableSettings(id) : []
+  // Determine if any item in the current dataset carries a8r.io/owner
+  const hasA8rOwner = useMemo(
+    () => (data ?? []).some(item => !!item?.metadata?.annotations?.['a8r.io/owner']),
+    [data]
   );
 
+  const columnsWithA8rOwner = useMemo<ResourceTableProps<RowItem>['columns']>(() => {
+    if (!hasA8rOwner) return columns;
+    const alreadyDefined = columns.some(
+      c => typeof c !== 'string' && (c as ResourceTableColumn<RowItem>).id === 'a8r-owner'
+    );
+    if (alreadyDefined) return columns;
+
+    const standardOrder = ['cluster', 'namespace', 'name'] as const;
+    let insertAt = 1;
+    for (const sc of standardOrder) {
+      const idx = columns.findIndex(c => c === sc);
+      if (idx !== -1) {
+        insertAt = idx + 1;
+        break;
+      }
+    }
+
+    const ownerCol: ResourceTableColumn<RowItem> = {
+      id: 'a8r-owner',
+      label: t('Owner'),
+      gridTemplate: 'auto',
+      getValue: item => item?.metadata?.annotations?.['a8r.io/owner'] ?? '-',
+    };
+    return [...columns.slice(0, insertAt), ownerCol, ...columns.slice(insertAt)];
+  }, [columns, hasA8rOwner, t]);
+
   const [allColumns] = useMemo(() => {
-    let processedColumns = columns;
+    let processedColumns = columnsWithA8rOwner;
 
     if (!noProcessing) {
       tableProcessors.forEach(processorInfo => {
@@ -428,6 +478,19 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
                   />
                 ),
             };
+
+          case 'labels':
+            return {
+              id: 'labels',
+              header: t('translation|Labels'),
+              gridTemplate: 'min-content',
+              accessorFn: (item: RowItem) =>
+                item.metadata.labels
+                  ? Object.entries(item.metadata.labels)
+                      .map(([key, value]) => key + '=' + value)
+                      .join(', ')
+                  : '',
+            };
           case 'namespace':
             return {
               id: 'namespace',
@@ -478,49 +541,76 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     >;
 
     return [allColumns];
-  }, [
-    columns,
-    hideColumns,
-    id,
-    noProcessing,
-    defaultSortingColumn,
-    tableProcessors,
-    tableSettings,
-    sorting,
-  ]);
+  }, [columnsWithA8rOwner, clusters, hideColumns, id, noProcessing, tableProcessors, t, theme]);
 
-  const defaultActions: RowAction[] = [
-    {
-      id: DefaultHeaderAction.RESTART,
-      action: ({ item }) => <RestartButton item={item} buttonStyle="menu" key="restart" />,
-    },
-    {
-      id: DefaultHeaderAction.SCALE,
-      action: ({ item }) => <ScaleButton item={item} buttonStyle="menu" key="scale" />,
-    },
-    {
-      id: DefaultHeaderAction.EDIT,
-      action: ({ item, closeMenu }) => (
-        <EditButton item={item} buttonStyle="menu" afterConfirm={closeMenu} key="edit" />
-      ),
-    },
-    {
-      id: DefaultHeaderAction.VIEW,
-      action: ({ item }) => <ViewButton item={item} buttonStyle="menu" key="view" />,
-    },
-    {
-      id: DefaultHeaderAction.DELETE,
-      action: ({ item, closeMenu }) => (
-        <DeleteButton item={item} buttonStyle="menu" afterConfirm={closeMenu} key="delete" />
-      ),
-    },
-  ];
-  let hAccs: RowAction[] = [];
-  if (actions !== undefined && actions !== null) {
-    hAccs = actions;
-  }
+  const defaultActions = useMemo<RowAction[]>(
+    () => [
+      {
+        id: DefaultHeaderAction.RESTART,
+        action: ({ item }) => <RestartButton item={item} buttonStyle="menu" key="restart" />,
+      },
+      {
+        id: DefaultHeaderAction.SCALE,
+        action: ({ item }) => <ScaleButton item={item} buttonStyle="menu" key="scale" />,
+      },
+      {
+        id: DefaultHeaderAction.EDIT,
+        action: ({ item, closeMenu }) => (
+          <EditButton item={item} buttonStyle="menu" afterConfirm={closeMenu} key="edit" />
+        ),
+      },
+      {
+        id: DefaultHeaderAction.DOWNLOAD,
+        action: ({ item }) => <DownloadButton item={item} buttonStyle="menu" key="download" />,
+      },
+      {
+        id: DefaultHeaderAction.VIEW,
+        action: ({ item }) => <ViewButton item={item} buttonStyle="menu" key="view" />,
+      },
+      {
+        id: DefaultHeaderAction.DELETE,
+        action: ({ item, closeMenu }) => (
+          <DeleteButton item={item} buttonStyle="menu" afterConfirm={closeMenu} key="delete" />
+        ),
+      },
+    ],
+    []
+  );
 
-  const actionsProcessed: RowAction[] = [...hAccs, ...defaultActions];
+  const a8rAction = useMemo<RowAction>(
+    () => ({
+      id: 'a8r-actions',
+      action: ({ item, closeMenu }: { item: RowItem; closeMenu: () => void }) => {
+        const annotations = item?.metadata?.annotations ?? {};
+        const metadata = getA8RMetadata(annotations).filter(m => m.isLink);
+        if (metadata.length === 0) return null;
+        return (
+          <React.Fragment key="a8r-actions">
+            {metadata.map(meta => (
+              <MenuItem
+                key={meta.key}
+                onClick={() => {
+                  window.open(meta.value, '_blank', 'noopener,noreferrer');
+                  closeMenu();
+                }}
+              >
+                <ListItemIcon>
+                  <Icon icon={meta.icon} width="20" />
+                </ListItemIcon>
+                <ListItemText>{t(meta.labelKey)}</ListItemText>
+              </MenuItem>
+            ))}
+          </React.Fragment>
+        );
+      },
+    }),
+    [t]
+  );
+
+  const actionsProcessed = useMemo<RowAction[]>(
+    () => [...(actions ?? []), a8rAction, ...defaultActions],
+    [actions, a8rAction, defaultActions]
+  );
 
   const renderRowActionMenuItems = useMemo(() => {
     if (actionsProcessed.length === 0) {
@@ -623,7 +713,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
         }}
         globalFilterFn="kubeObjectSearch"
         filterFunction={filterFunc}
-        getRowId={item => item?.metadata?.uid}
+        getRowId={getResourceRowId}
       />
     </>
   );

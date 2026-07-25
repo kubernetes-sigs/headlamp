@@ -1,6 +1,8 @@
 package serviceproxy //nolint
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,7 +10,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -23,9 +25,11 @@ func TestHandleServiceProxy(t *testing.T) {
 		proxyService   *proxyService
 		requestURI     string
 		mockResponse   string
+		mockHeader     string
 		mockStatusCode int
 		expectedCode   int
 		expectedBody   string
+		expectedHeader string
 		useMockServer  bool
 	}{
 		// Success cases
@@ -34,9 +38,11 @@ func TestHandleServiceProxy(t *testing.T) {
 			proxyService:   &proxyService{URIPrefix: "http://example.com"},
 			requestURI:     "/test",
 			mockResponse:   "Hello, World!",
+			mockHeader:     "text/plain",
 			mockStatusCode: http.StatusOK,
 			expectedCode:   http.StatusOK,
 			expectedBody:   "Hello, World!",
+			expectedHeader: "text/plain",
 			useMockServer:  true,
 		},
 		{
@@ -44,9 +50,11 @@ func TestHandleServiceProxy(t *testing.T) {
 			proxyService:   &proxyService{URIPrefix: "http://api.example.com"},
 			requestURI:     "/api/v1/data",
 			mockResponse:   `{"status": "success", "data": "test"}`,
+			mockHeader:     "application/json",
 			mockStatusCode: http.StatusOK,
 			expectedCode:   http.StatusOK,
 			expectedBody:   `{"status": "success", "data": "test"}`,
+			expectedHeader: "application/json",
 			useMockServer:  true,
 		},
 		{
@@ -54,9 +62,11 @@ func TestHandleServiceProxy(t *testing.T) {
 			proxyService:   &proxyService{URIPrefix: "https://service.example.com"},
 			requestURI:     "/api?param=value&test=123",
 			mockResponse:   "Query processed",
+			mockHeader:     "text/plain",
 			mockStatusCode: http.StatusOK,
 			expectedCode:   http.StatusOK,
 			expectedBody:   "Query processed",
+			expectedHeader: "text/plain",
 			useMockServer:  true,
 		},
 		{
@@ -64,9 +74,11 @@ func TestHandleServiceProxy(t *testing.T) {
 			proxyService:   &proxyService{URIPrefix: "http://empty.example.com"},
 			requestURI:     "/empty",
 			mockResponse:   "",
+			mockHeader:     "text/plain",
 			mockStatusCode: http.StatusOK,
 			expectedCode:   http.StatusOK,
 			expectedBody:   "",
+			expectedHeader: "text/plain",
 			useMockServer:  true,
 		},
 		// Error cases
@@ -75,9 +87,11 @@ func TestHandleServiceProxy(t *testing.T) {
 			proxyService:   &proxyService{URIPrefix: "http://example.com"},
 			requestURI:     "/notfound",
 			mockResponse:   "error response",
+			mockHeader:     "text/plain",
 			mockStatusCode: http.StatusNotFound,
-			expectedCode:   http.StatusInternalServerError,
-			expectedBody:   "failed HTTP GET, status code 404\n",
+			expectedCode:   http.StatusNotFound,
+			expectedBody:   "error response",
+			expectedHeader: "text/plain",
 			useMockServer:  true,
 		},
 		{
@@ -85,9 +99,11 @@ func TestHandleServiceProxy(t *testing.T) {
 			proxyService:   &proxyService{URIPrefix: "http://example.com"},
 			requestURI:     "/error",
 			mockResponse:   "error response",
+			mockHeader:     "text/plain",
 			mockStatusCode: http.StatusInternalServerError,
 			expectedCode:   http.StatusInternalServerError,
-			expectedBody:   "failed HTTP GET, status code 500\n",
+			expectedBody:   "error response",
+			expectedHeader: "text/plain",
 			useMockServer:  true,
 		},
 		{
@@ -117,6 +133,7 @@ func TestHandleServiceProxy(t *testing.T) {
 			// Create a mock HTTP server for cases that need it
 			if tt.useMockServer {
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", tt.mockHeader)
 					w.WriteHeader(tt.mockStatusCode)
 
 					if _, err := w.Write([]byte(tt.mockResponse)); err != nil {
@@ -132,12 +149,73 @@ func TestHandleServiceProxy(t *testing.T) {
 			// Create connection and test
 			conn := NewConnection(tt.proxyService)
 			w := httptest.NewRecorder()
-			handleServiceProxy(conn, tt.requestURI, w)
+			handleServiceProxy(context.Background(), conn, tt.requestURI, w)
 
 			assert.Equal(t, tt.expectedCode, w.Code)
 			assert.Equal(t, tt.expectedBody, w.Body.String())
+
+			if tt.expectedHeader != "" {
+				assert.Equal(t, tt.expectedHeader, w.Header().Get("Content-Type"))
+			}
 		})
 	}
+}
+
+type mockServiceConnection struct {
+	get func(ctx context.Context, requestURI string, w http.ResponseWriter) error
+}
+
+func (m mockServiceConnection) Get(ctx context.Context, requestURI string, w http.ResponseWriter) error {
+	return m.get(ctx, requestURI, w)
+}
+
+func TestHandleServiceProxyDoesNotWriteErrorAfterPartialStream(t *testing.T) {
+	w := httptest.NewRecorder()
+	conn := mockServiceConnection{
+		get: func(ctx context.Context, requestURI string, out http.ResponseWriter) error {
+			if _, err := out.Write([]byte("partial")); err != nil {
+				return err
+			}
+
+			return errors.New("stream aborted")
+		},
+	}
+
+	handleServiceProxy(context.Background(), conn, "/test", w)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+	assert.Equal(t, "partial", w.Body.String())
+}
+
+func TestHandleServiceProxyWritesErrorBeforeStreamStarts(t *testing.T) {
+	w := httptest.NewRecorder()
+	conn := mockServiceConnection{
+		get: func(ctx context.Context, requestURI string, out http.ResponseWriter) error {
+			return errors.New("stream aborted")
+		},
+	}
+
+	handleServiceProxy(context.Background(), conn, "/test", w)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Equal(t, "stream aborted\n", w.Body.String())
+}
+
+func TestHandleServiceProxyWritesErrorWhenUpstreamBodyFailsBeforeStreamStarts(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.Header().Set("Content-Length", "5")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	conn := NewConnection(&proxyService{URIPrefix: server.URL})
+	w := httptest.NewRecorder()
+
+	handleServiceProxy(context.Background(), conn, "/", w)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "streaming response")
 }
 
 func TestDisableResponseCaching(t *testing.T) {
@@ -181,11 +259,15 @@ func TestGetAuthToken(t *testing.T) {
 			name:        "token from cookie",
 			clusterName: "my-cluster",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.AddCookie(&http.Cookie{
-					Name:  "headlamp-auth-my-cluster.0",
-					Value: "cookie-token-xyz",
+					Name:     "headlamp-auth-my-cluster.0",
+					Value:    "cookie-token-xyz",
+					HttpOnly: true,
+					Secure:   true,
+					SameSite: http.SameSiteStrictMode,
 				})
+
 				return req
 			},
 			expectedToken: "cookie-token-xyz",
@@ -195,8 +277,9 @@ func TestGetAuthToken(t *testing.T) {
 			name:        "token from Authorization header when no cookie exists",
 			clusterName: "test-cluster",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.Header.Set("Authorization", "Bearer header-token-123")
+
 				return req
 			},
 			expectedToken: "header-token-123",
@@ -206,12 +289,16 @@ func TestGetAuthToken(t *testing.T) {
 			name:        "cookie takes precedence over Authorization header",
 			clusterName: "test-cluster",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.AddCookie(&http.Cookie{
-					Name:  "headlamp-auth-test-cluster.0",
-					Value: "cookie-token-wins",
+					Name:     "headlamp-auth-test-cluster.0",
+					Value:    "cookie-token-wins",
+					HttpOnly: true,
+					Secure:   true,
+					SameSite: http.SameSiteStrictMode,
 				})
 				req.Header.Set("Authorization", "Bearer header-token-loses")
+
 				return req
 			},
 			expectedToken: "cookie-token-wins",
@@ -221,7 +308,7 @@ func TestGetAuthToken(t *testing.T) {
 			name:        "no Authorization header and no cookie returns error",
 			clusterName: "test-cluster",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				return req
 			},
 			expectError: true,
@@ -231,8 +318,9 @@ func TestGetAuthToken(t *testing.T) {
 			name:        "Authorization header with only Bearer keyword",
 			clusterName: "test-cluster",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.Header.Set("Authorization", "Bearer")
+
 				return req
 			},
 			expectedToken: "Bearer",
@@ -242,19 +330,45 @@ func TestGetAuthToken(t *testing.T) {
 			name:        "Authorization header with Bearer and space only - error",
 			clusterName: "test-cluster",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.Header.Set("Authorization", "Bearer ")
+
 				return req
 			},
 			expectError: true,
 			errorMsg:    "unauthorized",
 		},
 		{
+			name:        "Authorization header with lowercase bearer prefix",
+			clusterName: "test-cluster",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
+				req.Header.Set("Authorization", "bearer lowercase-token")
+
+				return req
+			},
+			expectedToken: "lowercase-token",
+			expectError:   false,
+		},
+		{
+			name:        "Authorization header with extra whitespace",
+			clusterName: "test-cluster",
+			setupRequest: func() *http.Request {
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
+				req.Header.Set("Authorization", "  Bearer   spaced-token  ")
+
+				return req
+			},
+			expectedToken: "spaced-token",
+			expectError:   false,
+		},
+		{ //nolint:gosec
 			name:        "valid token with Bearer prefix",
 			clusterName: "test-cluster",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.Header.Set("Authorization", "Bearer valid-token-value")
+
 				return req
 			},
 			expectedToken: "valid-token-value",
@@ -264,8 +378,9 @@ func TestGetAuthToken(t *testing.T) {
 			name:        "Authorization header without Bearer prefix",
 			clusterName: "test-cluster",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/test", nil)
 				req.Header.Set("Authorization", "just-a-token")
+
 				return req
 			},
 			expectedToken: "just-a-token",
@@ -335,7 +450,7 @@ func TestGetServiceFromCluster(t *testing.T) {
 			namespace:      "default",
 			serviceName:    "restricted-service",
 			setupService:   false,
-			mockError:      errors.NewUnauthorized("user does not have permission"),
+			mockError:      k8serrors.NewUnauthorized("user does not have permission"),
 			expectedStatus: http.StatusUnauthorized,
 			expectError:    true,
 		},
@@ -344,7 +459,7 @@ func TestGetServiceFromCluster(t *testing.T) {
 			namespace:    "default",
 			serviceName:  "forbidden-service",
 			setupService: false,
-			mockError: errors.NewForbidden(
+			mockError: k8serrors.NewForbidden(
 				schema.GroupResource{Resource: "services"},
 				"forbidden-service",
 				nil,
@@ -361,20 +476,20 @@ func TestGetServiceFromCluster(t *testing.T) {
 			switch {
 			case tt.mockError != nil:
 				// Create a fake clientset with a reactor to simulate errors
-				cs = fake.NewSimpleClientset()
+				cs = fake.NewClientset()
 				cs.PrependReactor("get", "services", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 					return true, nil, tt.mockError
 				})
 			case tt.setupService:
 				// Setup a mock service
 				service := createMockService(tt.namespace, tt.serviceName)
-				cs = fake.NewSimpleClientset(service)
+				cs = fake.NewClientset(service)
 			default:
 				// Empty clientset (service not found)
-				cs = fake.NewSimpleClientset()
+				cs = fake.NewClientset()
 			}
 
-			ps, status, err := getServiceFromCluster(cs, tt.namespace, tt.serviceName)
+			ps, status, err := getServiceFromCluster(context.Background(), cs, tt.namespace, tt.serviceName)
 
 			assert.Equal(t, tt.expectedStatus, status)
 
@@ -404,7 +519,7 @@ func TestParseInfoFromRequest(t *testing.T) {
 		{
 			name: "standard case with all parameters",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET",
+				req := httptest.NewRequestWithContext(context.Background(), "GET",
 					"/clusters/test-cluster/namespaces/test-namespace/services/test-service/proxy?request=/api/v1/data",
 					nil)
 				req = mux.SetURLVars(req, map[string]string{
@@ -412,6 +527,7 @@ func TestParseInfoFromRequest(t *testing.T) {
 					"namespace":   "test-namespace",
 					"name":        "test-service",
 				})
+
 				return req
 			},
 			expectedClusterName: "test-cluster",
@@ -422,7 +538,7 @@ func TestParseInfoFromRequest(t *testing.T) {
 		{
 			name: "cluster name with hyphens and numbers",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET",
+				req := httptest.NewRequestWithContext(context.Background(), "GET",
 					"/clusters/prod-cluster-123/namespaces/kube-system/services/metrics-server/proxy?request=/metrics",
 					nil)
 				req = mux.SetURLVars(req, map[string]string{
@@ -430,6 +546,7 @@ func TestParseInfoFromRequest(t *testing.T) {
 					"namespace":   "kube-system",
 					"name":        "metrics-server",
 				})
+
 				return req
 			},
 			expectedClusterName: "prod-cluster-123",
@@ -441,12 +558,14 @@ func TestParseInfoFromRequest(t *testing.T) {
 			name: "request URI with query parameters",
 			setupRequest: func() *http.Request {
 				// The & in the request parameter needs to be URL encoded as %26
-				req := httptest.NewRequest("GET", "/proxy?request=/api/endpoint?param1=value1%26param2=value2", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET",
+					"/proxy?request=/api/endpoint?param1=value1%26param2=value2", nil)
 				req = mux.SetURLVars(req, map[string]string{
 					"clusterName": "my-cluster",
 					"namespace":   "default",
 					"name":        "my-service",
 				})
+
 				return req
 			},
 			expectedClusterName: "my-cluster",
@@ -457,12 +576,13 @@ func TestParseInfoFromRequest(t *testing.T) {
 		{
 			name: "empty request URI parameter",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/proxy", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/proxy", nil)
 				req = mux.SetURLVars(req, map[string]string{
 					"clusterName": "cluster1",
 					"namespace":   "ns1",
 					"name":        "svc1",
 				})
+
 				return req
 			},
 			expectedClusterName: "cluster1",
@@ -473,12 +593,14 @@ func TestParseInfoFromRequest(t *testing.T) {
 		{
 			name: "request URI with special characters encoded",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/proxy?request=/api/v1/users%2F123%2Fprofile", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET",
+					"/proxy?request=/api/v1/users%2F123%2Fprofile", nil)
 				req = mux.SetURLVars(req, map[string]string{
 					"clusterName": "test",
 					"namespace":   "app",
 					"name":        "backend",
 				})
+
 				return req
 			},
 			expectedClusterName: "test",
@@ -489,7 +611,7 @@ func TestParseInfoFromRequest(t *testing.T) {
 		{
 			name: "missing mux variables returns empty strings",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/proxy?request=/test", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/proxy?request=/test", nil)
 				// Not setting any mux vars
 				return req
 			},
@@ -501,12 +623,13 @@ func TestParseInfoFromRequest(t *testing.T) {
 		{
 			name: "service name with dots (for headless services)",
 			setupRequest: func() *http.Request {
-				req := httptest.NewRequest("GET", "/proxy?request=/health", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET", "/proxy?request=/health", nil)
 				req = mux.SetURLVars(req, map[string]string{
 					"clusterName": "cluster",
 					"namespace":   "default",
 					"name":        "my-service.default.svc.cluster.local",
 				})
+
 				return req
 			},
 			expectedClusterName: "cluster",
@@ -518,12 +641,14 @@ func TestParseInfoFromRequest(t *testing.T) {
 			name: "complex request URI with path and multiple query params",
 			setupRequest: func() *http.Request {
 				// The & in the request parameter needs to be URL encoded as %26
-				req := httptest.NewRequest("GET", "/proxy?request=/api/v2/search?q=test%26limit=10%26offset=0", nil)
+				req := httptest.NewRequestWithContext(context.Background(), "GET",
+					"/proxy?request=/api/v2/search?q=test%26limit=10%26offset=0", nil)
 				req = mux.SetURLVars(req, map[string]string{
 					"clusterName": "production",
 					"namespace":   "api-namespace",
 					"name":        "search-service",
 				})
+
 				return req
 			},
 			expectedClusterName: "production",

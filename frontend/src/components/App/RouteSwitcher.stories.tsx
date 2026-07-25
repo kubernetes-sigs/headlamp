@@ -35,7 +35,7 @@ const Template: StoryFn<{ route: Route }> = args => {
 
   React.useEffect(() => {
     store.dispatch(setRoute(route));
-  }, []);
+  }, [route]);
 
   return (
     <TestContext store={store} urlPrefix={route.path}>

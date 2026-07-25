@@ -15,7 +15,10 @@
  */
 
 import { Icon } from '@iconify/react';
+import { useQuery } from '@tanstack/react-query';
 import React, { useMemo } from 'react';
+import { useCluster, useSelectedClusters } from '../../../../lib/k8s';
+import { apiDiscovery } from '../../../../lib/k8s/api/v2/apiDiscovery';
 import BackendTLSPolicy from '../../../../lib/k8s/backendTLSPolicy';
 import BackendTrafficPolicy from '../../../../lib/k8s/backendTrafficPolicy';
 import ConfigMap from '../../../../lib/k8s/configMap';
@@ -33,25 +36,50 @@ import HTTPRoute from '../../../../lib/k8s/httpRoute';
 import Ingress from '../../../../lib/k8s/ingress';
 import IngressClass from '../../../../lib/k8s/ingressClass';
 import Job from '../../../../lib/k8s/job';
+import JobSet from '../../../../lib/k8s/jobSet';
 import { KubeObjectClass } from '../../../../lib/k8s/KubeObject';
+import { Lease } from '../../../../lib/k8s/lease';
+import { LimitRange } from '../../../../lib/k8s/limitRange';
 import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookConfiguration';
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
+import Node from '../../../../lib/k8s/node';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../../lib/k8s/pod';
+import PDB from '../../../../lib/k8s/podDisruptionBudget';
+import PriorityClass from '../../../../lib/k8s/priorityClass';
 import ReferenceGrant from '../../../../lib/k8s/referenceGrant';
 import ReplicaSet from '../../../../lib/k8s/replicaSet';
+import ResourceQuota from '../../../../lib/k8s/resourceQuota';
 import Role from '../../../../lib/k8s/role';
 import RoleBinding from '../../../../lib/k8s/roleBinding';
+import { RuntimeClass } from '../../../../lib/k8s/runtime';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
 import ServiceAccount from '../../../../lib/k8s/serviceAccount';
 import StatefulSet from '../../../../lib/k8s/statefulSet';
 import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhookConfiguration';
+import VPA from '../../../../lib/k8s/vpa';
 import { useNamespaces } from '../../../../redux/filterSlice';
 import { GraphSource } from '../../graph/graphModel';
 import { getKindGroupColor, KubeIcon } from '../../kubeIcon/KubeIcon';
 import { makeKubeObjectNode } from '../GraphSources';
 import { makeKubeSourceId } from './graphDefinitionUtils';
+
+/**
+ * List of kinds that are already handled by built-in sources, to avoid duplicates
+ * in the Custom Resources section.
+ */
+const BUILTIN_CRD_KINDS = [
+  'VerticalPodAutoscaler',
+  'Gateway',
+  'GatewayClass',
+  'HTTPRoute',
+  'GRPCRoute',
+  'ReferenceGrant',
+  'BackendTLSPolicy',
+  'BackendTrafficPolicy',
+  'XBackendTrafficPolicy',
+];
 
 /**
  * Create a GraphSource from KubeObject class definition
@@ -67,10 +95,15 @@ const makeKubeSource = (cl: KubeObjectClass): GraphSource => ({
   },
 });
 
-const generateCRSources = (crds: CRD[]): GraphSource[] => {
+const generateCRSources = (crds: CRD[], vpaEnabled: boolean): GraphSource[] => {
   const groupedSources = new Map<string, GraphSource[]>();
 
   for (const crd of crds) {
+    const kind = crd.spec.names.kind;
+    if (BUILTIN_CRD_KINDS.includes(kind) && (kind !== 'VerticalPodAutoscaler' || vpaEnabled)) {
+      continue;
+    }
+
     const [group] = crd.getMainAPIGroup();
     const source = makeKubeSource(crd.makeCRClass());
     // Add crd prefix to avoid id clashes with resources already defined in other places
@@ -97,135 +130,184 @@ const generateCRSources = (crds: CRD[]): GraphSource[] => {
 };
 
 export function useGetAllSources(): GraphSource[] {
-  const { items: CustomResourceDefinition } = CRD.useList({ namespace: useNamespaces() });
+  const namespaces = useNamespaces();
+  const { items: CustomResourceDefinition } = CRD.useList({ namespace: namespaces });
+  const cluster = useCluster();
+  const selectedClusters = useSelectedClusters();
+  const [vpaEnabled, setVpaEnabled] = React.useState(false);
 
-  const sources = [
-    {
-      id: 'workloads',
-      label: 'Workloads',
-      icon: (
-        <Icon
-          icon="mdi:circle-slice-2"
-          width="100%"
-          height="100%"
-          color={getKindGroupColor('workloads')}
-        />
-      ),
-      sources: [
-        makeKubeSource(Pod),
-        makeKubeSource(Deployment),
-        makeKubeSource(StatefulSet),
-        makeKubeSource(DaemonSet),
-        makeKubeSource(ReplicaSet),
-        makeKubeSource(Job),
-        makeKubeSource(CronJob),
-      ],
-    },
-    {
-      id: 'storage',
-      label: 'Storage',
-      icon: (
-        <Icon icon="mdi:database" width="100%" height="100%" color={getKindGroupColor('storage')} />
-      ),
-      sources: [makeKubeSource(PersistentVolumeClaim)],
-    },
-    {
-      id: 'network',
-      label: 'Network',
-      icon: (
-        <Icon
-          icon="mdi:folder-network-outline"
-          width="100%"
-          height="100%"
-          color={getKindGroupColor('network')}
-        />
-      ),
-      sources: [
-        makeKubeSource(Service),
-        makeKubeSource(Endpoints),
-        makeKubeSource(EndpointSlice),
-        makeKubeSource(Ingress),
-        makeKubeSource(IngressClass),
-        makeKubeSource(NetworkPolicy),
-      ],
-    },
-    {
-      id: 'security',
-      label: 'Security',
-      isEnabledByDefault: false,
-      icon: (
-        <Icon icon="mdi:lock" width="100%" height="100%" color={getKindGroupColor('security')} />
-      ),
-      sources: [makeKubeSource(ServiceAccount), makeKubeSource(Role), makeKubeSource(RoleBinding)],
-    },
-    {
-      id: 'configuration',
-      label: 'Configuration',
-      icon: (
-        <Icon
-          icon="mdi:format-list-checks"
-          width="100%"
-          height="100%"
-          color={getKindGroupColor('configuration')}
-        />
-      ),
-      isEnabledByDefault: false,
-      sources: [
-        makeKubeSource(ConfigMap),
-        makeKubeSource(Secret),
-        makeKubeSource(MutatingWebhookConfiguration),
-        makeKubeSource(ValidatingWebhookConfiguration),
-        makeKubeSource(HPA),
-        // TODO: Implement the rest of resources
-        // vpa
-        // pdb
-        // rq
-        // lr
-        // priorityClass
-        // runtimeClass
-        // leases
-      ],
-    },
-    {
-      id: 'gateway-beta',
-      label: 'Gateway (beta)',
-      icon: (
-        <Icon
-          icon="mdi:lan-connect"
-          width="100%"
-          height="100%"
-          color={getKindGroupColor('network')}
-        />
-      ),
-      isEnabledByDefault: false,
-      sources: [
-        makeKubeSource(GatewayClass),
-        makeKubeSource(Gateway),
-        makeKubeSource(HTTPRoute),
-        makeKubeSource(GRPCRoute),
-        makeKubeSource(ReferenceGrant),
-        makeKubeSource(BackendTLSPolicy),
-        makeKubeSource(BackendTrafficPolicy),
-      ],
-    },
-  ];
+  // Show the Gateway (beta) group only when the Gateway API group is served.
+  const { data: discoveredResources } = useQuery({
+    queryFn: () => apiDiscovery([...selectedClusters]),
+    queryKey: ['api-discovery', ...selectedClusters],
+  });
+  const gatewayEnabled =
+    discoveredResources?.some(r => r.groupName === 'gateway.networking.k8s.io') ?? false;
 
-  if (CustomResourceDefinition !== null) {
-    sources.push({
-      id: 'customresource',
-      label: 'Custom Resources',
-      icon: (
-        <Icon
-          icon="mdi:select-group"
-          width="100%"
-          height="100%"
-          color={getKindGroupColor('configuration')}
-        />
-      ),
-      isEnabledByDefault: false,
-      sources: generateCRSources(CustomResourceDefinition),
+  React.useEffect(() => {
+    let cancelled = false;
+    setVpaEnabled(false);
+    VPA.isEnabled().then(enabled => {
+      if (!cancelled) {
+        setVpaEnabled(enabled);
+      }
     });
-  }
+    return () => {
+      cancelled = true;
+    };
+  }, [cluster]);
 
-  return sources;
+  return useMemo(() => {
+    const sources = [
+      {
+        id: 'workloads',
+        label: 'Workloads',
+        icon: (
+          <Icon
+            icon="mdi:circle-slice-2"
+            width="100%"
+            height="100%"
+            color={getKindGroupColor('workloads')}
+          />
+        ),
+        sources: [
+          makeKubeSource(Pod),
+          makeKubeSource(Deployment),
+          makeKubeSource(StatefulSet),
+          makeKubeSource(DaemonSet),
+          makeKubeSource(ReplicaSet),
+          makeKubeSource(Job),
+          makeKubeSource(CronJob),
+          makeKubeSource(JobSet),
+        ],
+      },
+      {
+        id: 'storage',
+        label: 'Storage',
+        icon: (
+          <Icon
+            icon="mdi:database"
+            width="100%"
+            height="100%"
+            color={getKindGroupColor('storage')}
+          />
+        ),
+        sources: [makeKubeSource(PersistentVolumeClaim)],
+      },
+      {
+        id: 'cluster',
+        label: 'Cluster',
+        icon: (
+          <Icon icon="mdi:server" width="100%" height="100%" color={getKindGroupColor('other')} />
+        ),
+        isEnabledByDefault: false,
+        sources: [makeKubeSource(Node)],
+      },
+      {
+        id: 'network',
+        label: 'Network',
+        icon: (
+          <Icon
+            icon="mdi:folder-network-outline"
+            width="100%"
+            height="100%"
+            color={getKindGroupColor('network')}
+          />
+        ),
+        sources: [
+          makeKubeSource(Service),
+          makeKubeSource(Endpoints),
+          makeKubeSource(EndpointSlice),
+          makeKubeSource(Ingress),
+          makeKubeSource(IngressClass),
+          makeKubeSource(NetworkPolicy),
+        ],
+      },
+      {
+        id: 'security',
+        label: 'Security',
+        isEnabledByDefault: false,
+        icon: (
+          <Icon icon="mdi:lock" width="100%" height="100%" color={getKindGroupColor('security')} />
+        ),
+        sources: [
+          makeKubeSource(ServiceAccount),
+          makeKubeSource(Role),
+          makeKubeSource(RoleBinding),
+        ],
+      },
+      {
+        id: 'configuration',
+        label: 'Configuration',
+        icon: (
+          <Icon
+            icon="mdi:format-list-checks"
+            width="100%"
+            height="100%"
+            color={getKindGroupColor('configuration')}
+          />
+        ),
+        isEnabledByDefault: false,
+        sources: [
+          makeKubeSource(ConfigMap),
+          makeKubeSource(Secret),
+          makeKubeSource(MutatingWebhookConfiguration),
+          makeKubeSource(ValidatingWebhookConfiguration),
+          makeKubeSource(HPA),
+          ...(vpaEnabled ? [makeKubeSource(VPA)] : []),
+          makeKubeSource(PDB),
+          makeKubeSource(ResourceQuota),
+          makeKubeSource(LimitRange),
+          makeKubeSource(PriorityClass),
+          makeKubeSource(RuntimeClass),
+          makeKubeSource(Lease),
+        ],
+      },
+      ...(gatewayEnabled
+        ? [
+            {
+              id: 'gateway-beta',
+              label: 'Gateway (beta)',
+              icon: (
+                <Icon
+                  icon="mdi:lan-connect"
+                  width="100%"
+                  height="100%"
+                  color={getKindGroupColor('network')}
+                />
+              ),
+              isEnabledByDefault: false,
+              sources: [
+                makeKubeSource(GatewayClass),
+                makeKubeSource(Gateway),
+                makeKubeSource(HTTPRoute),
+                makeKubeSource(GRPCRoute),
+                makeKubeSource(ReferenceGrant),
+                makeKubeSource(BackendTLSPolicy),
+                makeKubeSource(BackendTrafficPolicy),
+              ],
+            },
+          ]
+        : []),
+    ];
+
+    if (CustomResourceDefinition !== null) {
+      sources.push({
+        id: 'customresource',
+        label: 'Custom Resources',
+        icon: (
+          <Icon
+            icon="mdi:select-group"
+            width="100%"
+            height="100%"
+            color={getKindGroupColor('configuration')}
+          />
+        ),
+        isEnabledByDefault: false,
+        sources: generateCRSources(CustomResourceDefinition, vpaEnabled),
+      });
+    }
+
+    return sources;
+  }, [CustomResourceDefinition, vpaEnabled, gatewayEnabled]);
 }

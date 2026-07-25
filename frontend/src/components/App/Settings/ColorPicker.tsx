@@ -55,7 +55,6 @@ interface ColorPickerProps {
   currentColor: string;
   onClose: () => void;
   onSelectColor: (color: string) => void;
-  onError: (error: string) => void;
 }
 
 export default function ColorPicker({
@@ -63,7 +62,6 @@ export default function ColorPicker({
   currentColor,
   onClose,
   onSelectColor,
-  onError,
 }: ColorPickerProps) {
   const { t } = useTranslation(['translation']);
   const theme = useTheme();
@@ -76,19 +74,13 @@ export default function ColorPicker({
   const handlePresetColorClick = (color: string) => {
     setUseCustomColor(false);
     onSelectColor(color);
-    onError('');
     onClose();
   };
 
   const handleApplyCustomColor = () => {
     if (isValidAccentColor(customColorInput)) {
       onSelectColor(customColorInput);
-      onError('');
       onClose();
-    } else {
-      onError(
-        t('translation|Accent color format is invalid. Use hex (#ff0000), rgb(), or rgba().')
-      );
     }
   };
 
@@ -146,6 +138,8 @@ export default function ColorPicker({
               value={customColorInput}
               onChange={e => setCustomColorInput(e.target.value)}
               fullWidth
+              variant="outlined"
+              size="small"
               helperText={t('translation|Hex, rgb(), or rgba()')}
               error={!!customColorInput && !isValidAccentColor(customColorInput)}
               sx={{ mt: 1 }}
@@ -154,9 +148,12 @@ export default function ColorPicker({
         </Box>
       </DialogContent>
       <DialogActions>
-        <Button onClick={onClose}>{t('translation|Cancel')}</Button>
+        <Button variant="contained" color="secondary" onClick={onClose}>
+          {t('translation|Cancel')}
+        </Button>
         {useCustomColor && (
           <Button
+            variant="contained"
             onClick={handleApplyCustomColor}
             disabled={!customColorInput || !isValidAccentColor(customColorInput)}
           >

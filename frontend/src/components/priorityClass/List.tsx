@@ -40,6 +40,7 @@ export default function PriorityClassList() {
           gridTemplate: 'min-content',
           getValue: item => String(item.globalDefault || 'False'),
         },
+        'labels',
         'age',
       ]}
     />

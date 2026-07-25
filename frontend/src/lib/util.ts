@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import humanizeDuration from 'humanize-duration';
 import merge from 'lodash/merge';
 import React from 'react';
 import { useHistory } from 'react-router';
@@ -33,18 +32,6 @@ import { parseCpu, parseRam, unparseCpu, unparseRam } from './units';
 // Exported to keep compatibility for plugins that may have used them.
 export { filterGeneric, filterResource, getClusterPrefixedPath, getCluster, getClusterGroup };
 
-const humanize = humanizeDuration.humanizer();
-humanize.languages['en-mini'] = {
-  y: () => 'y',
-  mo: () => 'mo',
-  w: () => 'w',
-  d: () => 'd',
-  h: () => 'h',
-  m: () => 'm',
-  s: () => 's',
-  ms: () => 'ms',
-};
-
 export const CLUSTER_ACTION_GRACE_PERIOD = 5000; // ms
 
 export type DateParam = string | number | Date;
@@ -56,17 +43,137 @@ export interface TimeAgoOptions {
 }
 
 /**
- * Show the time passed since the given date, in the desired format.
+ * Format a duration in milliseconds into a compact, single-unit string.
  *
- * @param date - The date since which to calculate the duration.
- * @param options - `format` takes "brief" or "mini". "brief" rounds the date and uses the largest suitable unit (e.g. "4 weeks"). "mini" uses something like "4w" (for 4 weeks).
- * @returns The formatted date.
+ * Uses the largest applicable unit:
+ * - seconds (< 60s)
+ * - minutes (< 60m)
+ * - hours (< 24h)
+ * - days (< 1y)
+ * - years (>= 1y)
+ *
+ * Examples: "45s", "10m", "3h", "12d", "2y"
+ *
+ * @param durationMs - The duration in milliseconds.
+ * @returns A short, human-readable duration string.
+ */
+function shortHumanDuration(durationMs: number): string {
+  const seconds = Math.trunc(durationMs / 1000);
+  if (seconds < -1) {
+    return '<invalid>';
+  }
+  if (seconds < 0) {
+    return '0s';
+  }
+  if (seconds < 60) {
+    return `${seconds}s`;
+  }
+
+  const minutes = Math.trunc(durationMs / (60 * 1000));
+  if (minutes < 60) {
+    return `${minutes}m`;
+  }
+
+  const hours = Math.trunc(durationMs / (60 * 60 * 1000));
+  if (hours < 24) {
+    return `${hours}h`;
+  }
+
+  if (hours < 24 * 365) {
+    return `${Math.trunc(hours / 24)}d`;
+  }
+
+  return `${Math.trunc(hours / 24 / 365)}y`;
+}
+
+/**
+ * Format a duration in milliseconds into a more detailed human-readable string.
+ *
+ * Uses mixed units depending on range:
+ * - seconds (< 2m)
+ * - minutes + seconds (< 10m)
+ * - minutes (< 3h)
+ * - hours + minutes (< 8h)
+ * - hours (< 48h)
+ * - days + hours (< 8d)
+ * - days (< ~2y)
+ * - years + days (< ~8y)
+ * - years (>= ~8y)
+ *
+ * Examples: "2m30s", "1h15m", "3d4h", "2y2d"
+ *
+ * @param durationMs - The duration in milliseconds.
+ * @returns The formatted duration.
+ */
+function humanDuration(durationMs: number): string {
+  const seconds = Math.trunc(durationMs / 1000);
+  if (seconds < -1) {
+    return '<invalid>';
+  }
+  if (seconds < 0) {
+    return '0s';
+  }
+  if (seconds < 60 * 2) {
+    return `${seconds}s`;
+  }
+
+  const minutes = Math.trunc(durationMs / (60 * 1000));
+  if (minutes < 10) {
+    const totalSeconds = Math.trunc(durationMs / 1000);
+    const s = totalSeconds % 60;
+    if (s === 0) {
+      return `${minutes}m`;
+    }
+    return `${minutes}m${s}s`;
+  } else if (minutes < 60 * 3) {
+    return `${minutes}m`;
+  }
+
+  const hours = Math.trunc(durationMs / (60 * 60 * 1000));
+  if (hours < 8) {
+    const totalMinutes = Math.trunc(durationMs / (60 * 1000));
+    const m = totalMinutes % 60;
+    if (m === 0) {
+      return `${hours}h`;
+    }
+    return `${hours}h${m}m`;
+  } else if (hours < 48) {
+    return `${hours}h`;
+  } else if (hours < 24 * 8) {
+    const h = hours % 24;
+    if (h === 0) {
+      return `${Math.trunc(hours / 24)}d`;
+    }
+    return `${Math.trunc(hours / 24)}d${h}h`;
+  } else if (hours < 24 * 365 * 2) {
+    return `${Math.trunc(hours / 24)}d`;
+  } else if (hours < 24 * 365 * 8) {
+    const dy = Math.trunc(hours / 24) % 365;
+    const years = Math.trunc(hours / 24 / 365);
+    if (dy === 0) {
+      return `${years}y`;
+    }
+    return `${years}y${dy}d`;
+  }
+
+  return `${Math.trunc(hours / 24 / 365)}y`;
+}
+
+/**
+ * Returns the time elapsed since the given date.
+ *
+ * @param date - The date from which to calculate elapsed time.
+ * @param options - Formatting options:
+ *   - 'brief': single-unit format (e.g. "5m", "2h")
+ *   - 'mini': multi-unit format (e.g. "2m30s", "1h15m")
+ *
+ * @returns The formatted elapsed duration.
  */
 export function timeAgo(date: DateParam, options: TimeAgoOptions = {}) {
   const fromDate = new Date(date);
   let now = new Date();
 
-  if (import.meta.env.UNDER_TEST === 'true') {
+  if (import.meta.env.UNDER_TEST) {
     // For testing, we consider the current moment to be 3 months from the dates we are testing.
     const days = 24 * 3600 * 1000; // in ms
     now = new Date(fromDate.getTime() + 90 * days);
@@ -75,30 +182,54 @@ export function timeAgo(date: DateParam, options: TimeAgoOptions = {}) {
   return formatDuration(now.getTime() - fromDate.getTime(), options);
 }
 
-/** Format a duration in milliseconds to a human-readable string.
+/**
+ * Format a duration in milliseconds using either compact or detailed style.
  *
- * @param duration - The duration in milliseconds.
- * @param options - `format` takes "brief" or "mini". "brief" rounds the date and uses the largest suitable unit (e.g. "4 weeks"). "mini" uses something like "4w" (for 4 weeks).
- * @returns The formatted duration.
- * */
+ * @param duration - Duration in milliseconds.
+ * @param options - Options object:
+ *   - format: 'brief' | 'mini' (default: 'brief')
+ *     - 'brief': single-unit output (e.g. "5s", "12m", "3h", "2d", "2y")
+ *     - 'mini': multi-unit output (e.g. "2m30s", "1h15m", "2y2d")
+ *
+ * @returns Formatted duration string.
+ */
 export function formatDuration(duration: number, options: TimeAgoOptions = {}) {
   const { format = 'brief' } = options;
 
   if (format === 'brief') {
-    return humanize(duration, {
-      fallbacks: ['en'],
-      round: true,
-      largest: 1,
-    });
+    return shortHumanDuration(duration);
   }
 
-  return humanize(duration, {
-    language: 'en-mini',
-    spacer: '',
-    fallbacks: ['en'],
-    round: true,
-    largest: 1,
-  });
+  return humanDuration(duration);
+}
+
+const tzCache = new Map<string, boolean>();
+
+/**
+ * Returns true when tz is a valid IANA timezone string accepted by the
+ * Intl API. Some Linux systems expose TZ=:/etc/localtime which Chrome
+ * resolves to "Etc/Unknown" — an identifier that Node accepts but browsers
+ * reject with a RangeError.
+ */
+export function isValidTimezone(tz: string): boolean {
+  if (!import.meta.env.UNDER_TEST) {
+    const cached = tzCache.get(tz);
+    if (cached !== undefined) {
+      return cached;
+    }
+  }
+  try {
+    Intl.DateTimeFormat(undefined, { timeZone: tz });
+    if (!import.meta.env.UNDER_TEST) {
+      tzCache.set(tz, true);
+    }
+    return true;
+  } catch {
+    if (!import.meta.env.UNDER_TEST) {
+      tzCache.set(tz, false);
+    }
+    return false;
+  }
 }
 
 export function localeDate(date: DateParam) {
@@ -106,13 +237,16 @@ export function localeDate(date: DateParam) {
   let locale: string | undefined = undefined;
 
   // Force the same conditions under test, so snapshots are the same.
-  if (import.meta.env.UNDER_TEST === 'true') {
+  if (import.meta.env.UNDER_TEST) {
     options.timeZone = 'UTC';
     options.hour12 = true;
     locale = 'en-US';
     return new Date(date).toISOString();
   } else {
-    options.timeZone = store.getState().config.settings.timezone;
+    const tz = store.getState().config.settings.timezone;
+    if (tz && isValidTimezone(tz)) {
+      options.timeZone = tz;
+    }
   }
 
   return new Date(date).toLocaleString(locale, options);
@@ -123,8 +257,12 @@ export function getPercentStr(value: number, total: number) {
     return null;
   }
   const percentage = (value / total) * 100;
-  const decimals = percentage % 10 > 0 ? 1 : 0;
-  return `${percentage.toFixed(decimals)} %`;
+  // Round to a single decimal, then strip a trailing ".0" so whole-number
+  // percentages render without it. Rounding first avoids floating-point dust
+  // (e.g. 29/100 -> 28.999999999999996) being treated as a fractional value.
+  // Operate on the fixed-point string directly to keep formatting stable.
+  const formatted = percentage.toFixed(1);
+  return `${formatted.endsWith('.0') ? formatted.slice(0, -2) : formatted} %`;
 }
 
 export function getReadyReplicas(item: Workload) {
@@ -309,6 +447,7 @@ export function useURLState<T extends string | number | undefined = string>(
       return defaultValue;
     }
     return newValue;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [value, setValue] = React.useState<T>(initialValue as T);
 
@@ -357,19 +496,22 @@ export function useURLState<T extends string | number | undefined = string>(
     if (shouldUpdateURL) {
       history.replace({ search: urlParams.toString() });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [value]);
 
   return [value, setValue] as [T, React.Dispatch<React.SetStateAction<T>>];
 }
 
-// compareUnits compares two units and returns true if they are equal
+// compareUnits compares the parsed numeric portion of two quantities (ignoring unit suffixes) and returns true if they are equal.
 export function compareUnits(quantity1: string, quantity2: string) {
   // strip whitespace and convert to lowercase
   const qty1 = quantity1.replace(/\s/g, '').toLowerCase();
   const qty2 = quantity2.replace(/\s/g, '').toLowerCase();
 
-  // compare numbers
-  return parseInt(qty1) === parseInt(qty2);
+  // Compare the parsed numeric portion only (unit suffix is ignored).
+  const n1 = Number.parseFloat(qty1);
+  const n2 = Number.parseFloat(qty2);
+  return !Number.isNaN(n1) && !Number.isNaN(n2) && n1 === n2;
 }
 
 export function normalizeUnit(resourceType: string, quantity: string) {
@@ -399,33 +541,40 @@ export function normalizeUnit(resourceType: string, quantity: string) {
        * Binary: Ki | Mi | Gi | Ti | Pi | Ei
        * Refer https://github.com/kubernetes-client/csharp/blob/840a90e24ef922adee0729e43859cf6b43567594/src/KubernetesClient.Models/ResourceQuantity.cs#L211
        */
-      bytes = parseInt(quantity);
+      bytes = parseFloat(quantity);
+      if (isNaN(bytes)) {
+        return quantity;
+      }
       if (quantity.endsWith('Ki')) {
         bytes *= 1024;
       } else if (quantity.endsWith('Mi')) {
-        bytes *= 1024 * 1024;
+        bytes *= 1024 ** 2;
       } else if (quantity.endsWith('Gi')) {
-        bytes *= 1024 * 1024 * 1024;
+        bytes *= 1024 ** 3;
       } else if (quantity.endsWith('Ti')) {
-        bytes *= 1024 * 1024 * 1024 * 1024;
+        bytes *= 1024 ** 4;
+      } else if (quantity.endsWith('Pi')) {
+        bytes *= 1024 ** 5;
       } else if (quantity.endsWith('Ei')) {
-        bytes *= 1024 * 1024 * 1024 * 1024 * 1024;
+        bytes *= 1024 ** 6;
       } else if (quantity.endsWith('m')) {
         bytes /= 1000;
       } else if (quantity.endsWith('u')) {
-        bytes /= 1000 * 1000;
+        bytes /= 1000 ** 2;
       } else if (quantity.endsWith('n')) {
-        bytes /= 1000 * 1000 * 1000;
+        bytes /= 1000 ** 3;
       } else if (quantity.endsWith('k')) {
         bytes *= 1000;
       } else if (quantity.endsWith('M')) {
-        bytes *= 1000 * 1000;
+        bytes *= 1000 ** 2;
       } else if (quantity.endsWith('G')) {
-        bytes *= 1000 * 1000 * 1000;
+        bytes *= 1000 ** 3;
       } else if (quantity.endsWith('T')) {
-        bytes *= 1000 * 1000 * 1000 * 1000;
+        bytes *= 1000 ** 4;
+      } else if (quantity.endsWith('P')) {
+        bytes *= 1000 ** 5;
       } else if (quantity.endsWith('E')) {
-        bytes *= 1000 * 1000 * 1000 * 1000 * 1000;
+        bytes *= 1000 ** 6;
       }
 
       if (bytes === 0) {
@@ -450,13 +599,11 @@ export function normalizeUnit(resourceType: string, quantity: string) {
  * If UNDER_TEST is set to true, it will return the same ID every time, so snapshots do not get invalidated.
  */
 export function useId(prefix = '') {
-  const [id] = React.useState<string | undefined>(
-    import.meta.env.UNDER_TEST === 'true'
-      ? prefix + 'id'
-      : prefix + Math.random().toString(16).slice(2)
-  );
-
-  return id;
+  const reactId = React.useId();
+  if (import.meta.env.UNDER_TEST) {
+    return prefix + 'id';
+  }
+  return prefix + reactId.replace(/:/g, '');
 }
 
 // Make units available from here

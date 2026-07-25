@@ -99,5 +99,14 @@ export function createRouteURL(routeName?: string, params: RouteURLProps = {}) {
   }
 
   const url = getRoutePath(route);
-  return generatePath(url, fullParams);
+  try {
+    // generatePath throws when required params are missing (e.g. plugin :namespace routes during init).
+    return generatePath(url, fullParams);
+  } catch (err) {
+    console.warn(
+      `[createRouteURL] Failed to generate URL for route "${routeName}" with path "${url}":`,
+      err
+    );
+    return '';
+  }
 }

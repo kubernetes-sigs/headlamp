@@ -17,6 +17,7 @@
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { resetDocsPromise } from '../../../lib/docs';
+import { API_BASE } from '../../../test';
 import DocsViewer, { DocsViewerProps } from './DocsViewer';
 
 export default {
@@ -27,7 +28,7 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get('http://localhost:4466/openapi/v2', () =>
+          http.get(`${API_BASE}/openapi/v2`, () =>
             HttpResponse.json({
               swagger: '2.0',
               info: { title: 'Test API', version: '1.0.0' },
@@ -125,14 +126,14 @@ NoMatchingDocumentation.args = {
 
 export const ErrorDocumentation = Template.bind({});
 ErrorDocumentation.args = {
-  docSpecs: [{}],
+  docSpecs: [{ apiVersion: '', kind: '' }],
 };
 ErrorDocumentation.parameters = {
   msw: {
     handlers: {
       story: [
         http.get(
-          'http://localhost:4466/openapi/v2',
+          `${API_BASE}/openapi/v2`,
           () =>
             new HttpResponse(null, {
               status: 500,

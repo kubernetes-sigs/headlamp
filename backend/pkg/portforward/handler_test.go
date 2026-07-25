@@ -133,10 +133,11 @@ func TestStartPortForward(t *testing.T) {
 	req.Body = io.NopCloser(bytes.NewReader(jsonReq))
 	req.Header.Set("Content-Type", "application/json")
 
-	portforward.StartPortForward(kubeConfigStore, ch, resp, req)
+	portforward.StartPortForward(kubeConfigStore, ch, false, resp, req)
 
 	res := resp.Result()
-	defer res.Body.Close()
+
+	defer func() { _ = res.Body.Close() }()
 
 	require.Equal(t, http.StatusOK, res.StatusCode, "StartPortForward API call failed")
 
@@ -146,6 +147,7 @@ func TestStartPortForward(t *testing.T) {
 	require.Contains(t, string(data), targetPort)
 
 	var pfRespPayload map[string]interface{}
+
 	err = json.Unmarshal(data, &pfRespPayload)
 	require.NoError(t, err)
 
@@ -171,7 +173,7 @@ func TestStartPortForward(t *testing.T) {
 	pfResp, err := httpClient.Do(pfReq)
 	require.NoError(t, err, "failed to connect through port-forward to %s. Port-forward might not be active.", targetURL)
 
-	defer pfResp.Body.Close() // Line 181: This defer is now un-cuddled
+	defer func() { _ = pfResp.Body.Close() }() // Line 181: This defer is now un-cuddled
 
 	if pfResp.StatusCode != http.StatusOK {
 		t.Logf("Warning: Received status %d from forwarded port. "+
@@ -205,7 +207,8 @@ func TestStartPortForward(t *testing.T) {
 	portforward.StopOrDeletePortForward(ch, stopResp, stopReq)
 
 	stopRes := stopResp.Result()
-	defer stopRes.Body.Close()
+
+	defer func() { _ = stopRes.Body.Close() }()
 
 	stopRespBody, err := io.ReadAll(stopRes.Body)
 	require.NoError(t, err)
@@ -230,7 +233,9 @@ func TestStartPortForward(t *testing.T) {
 	portforward.GetPortForwards(ch, listResp, listReq)
 
 	listRes := listResp.Result()
-	defer listRes.Body.Close()
+
+	defer func() { _ = listRes.Body.Close() }()
+
 	require.Equal(t, http.StatusOK, listRes.StatusCode)
 
 	listData, err := io.ReadAll(listRes.Body)
@@ -238,6 +243,7 @@ func TestStartPortForward(t *testing.T) {
 	require.NotEmpty(t, listData)
 
 	var pfListRespPayload []map[string]interface{}
+
 	err = json.Unmarshal(listData, &pfListRespPayload)
 	require.NoError(t, err)
 	assert.NotEmpty(t, pfListRespPayload)
@@ -277,13 +283,16 @@ func TestStartPortForward(t *testing.T) {
 	portforward.GetPortForwardByID(ch, getResp, getReq)
 
 	getRes := getResp.Result()
-	defer getRes.Body.Close()
+
+	defer func() { _ = getRes.Body.Close() }()
+
 	require.Equal(t, http.StatusOK, getRes.StatusCode)
 
 	getData, err := io.ReadAll(getRes.Body)
 	require.NoError(t, err)
 
 	var pfRespPayloadByID map[string]interface{}
+
 	err = json.Unmarshal(getData, &pfRespPayloadByID)
 	require.NoError(t, err)
 	assert.NotEmpty(t, pfRespPayloadByID)
@@ -309,13 +318,67 @@ func TestStartPortForward(t *testing.T) {
 	portforward.StopOrDeletePortForward(ch, deleteResp, deleteReq)
 
 	deleteRes := deleteResp.Result()
-	defer deleteRes.Body.Close()
+
+	defer func() { _ = deleteRes.Body.Close() }()
 
 	deleteRespBody, err := io.ReadAll(deleteRes.Body)
 	require.NoError(t, err)
 	require.Contains(t, string(deleteRespBody), "stopped")
 
-	chState, err = ch.Get(context.Background(), cacheKey)
-	require.Error(t, err, "port-forward with key %s should be deleted from cache, but Get returned no error", cacheKey)
-	require.Nil(t, chState)
+	require.Eventually(t, func() bool {
+		_, err := ch.Get(context.Background(), cacheKey)
+		return err != nil
+	}, 3*time.Second, 50*time.Millisecond,
+		"port-forward with key %s should be deleted from cache", cacheKey)
+}
+
+// TestGetPortForwardsClusterNameNotExposingUserID verifies that when a dynamic
+// cluster request carries an X-HEADLAMP-USER-ID header, the port forwards
+// returned by GetPortForwards contain the original cluster name and not the
+// internal cache key (clusterName + userID).
+func TestGetPortForwardsClusterNameNotExposingUserID(t *testing.T) {
+	t.Parallel()
+
+	const clusterName = "k8s-prod"
+
+	const userID = "f04bd0db261b76f3"
+
+	ch := cache.New[interface{}]()
+
+	// Simulate what startPortForward does internally: store a portForward
+	// with Cluster set to the original name and cacheKey set to the
+	// userID-suffixed internal key.
+	err := portforward.StorePortForwardForTest(ch, clusterName, userID)
+	require.NoError(t, err)
+
+	listReq := &http.Request{
+		Header: make(http.Header),
+	}
+	listResp := httptest.NewRecorder()
+	listReq.URL = &url.URL{}
+	listReq.Header.Set("X-HEADLAMP-USER-ID", userID)
+	listReq = mux.SetURLVars(listReq, map[string]string{"clusterName": clusterName})
+
+	portforward.GetPortForwards(ch, listResp, listReq)
+
+	listRes := listResp.Result()
+	defer func() { _ = listRes.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, listRes.StatusCode)
+
+	listData, err := io.ReadAll(listRes.Body)
+	require.NoError(t, err)
+
+	var pfList []map[string]interface{}
+
+	err = json.Unmarshal(listData, &pfList)
+	require.NoError(t, err)
+	require.Len(t, pfList, 1, "expected exactly one port forward in list")
+
+	clusterVal, ok := pfList[0]["cluster"]
+	require.True(t, ok, "'cluster' field missing from port forward response")
+	assert.Equal(t, clusterName, clusterVal,
+		"cluster field must be the original cluster name, not the internal cache key")
+	assert.NotContains(t, clusterVal, userID,
+		"cluster field must not contain the X-HEADLAMP-USER-ID suffix")
 }

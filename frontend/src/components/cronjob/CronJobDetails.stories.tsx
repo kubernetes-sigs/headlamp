@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import CronJobDetails from './Details';
 import { cronJobList } from './storyHelper';
 
@@ -28,25 +28,25 @@ export default {
     msw: {
       handlers: {
         storyBase: [
-          http.get('http://localhost:4466/apis/batch/v1/namespaces/default/cronjobs', () =>
+          http.get(`${API_BASE}/apis/batch/v1/namespaces/default/cronjobs`, () =>
             HttpResponse.error()
           ),
-          http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+          http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
             HttpResponse.json({
               kind: 'EventList',
               items: [],
               metadata: {},
             })
           ),
-          http.get('http://localhost:4466/apis/batch/v1/namespaces/default/jobs', () =>
+          http.get(`${API_BASE}/apis/batch/v1/namespaces/default/jobs`, () =>
             HttpResponse.json({
               kind: 'JobsList',
               metadata: {},
               items: [],
             })
           ),
-          http.get('http://localhost:4466/apis/batch/v1beta1/cronjobs', () => HttpResponse.error()),
-          http.get('http://localhost:4466/apis/batch/v1/jobs', () => HttpResponse.error()),
+          http.get(`${API_BASE}/apis/batch/v1beta1/cronjobs`, () => HttpResponse.error()),
+          http.get(`${API_BASE}/apis/batch/v1/jobs`, () => HttpResponse.error()),
         ],
       },
     },
@@ -75,9 +75,8 @@ EveryMinute.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get(
-          'http://localhost:4466/apis/batch/v1/namespaces/default/cronjobs/every-minute',
-          () => HttpResponse.json(cronJobList.find(it => it.metadata.name === 'every-minute'))
+        http.get(`${API_BASE}/apis/batch/v1/namespaces/default/cronjobs/every-minute`, () =>
+          HttpResponse.json(cronJobList.find(it => it.metadata.name === 'every-minute'))
         ),
       ],
     },
@@ -93,7 +92,7 @@ EveryAst.parameters = {
     handlers: {
       story: [
         http.get(
-          'http://localhost:4466/apis/batch/v1/namespaces/default/cronjobs/every-minute-one-char',
+          `${API_BASE}/apis/batch/v1/namespaces/default/cronjobs/every-minute-one-char`,
           () =>
             HttpResponse.json(cronJobList.find(it => it.metadata.name === 'every-minute-one-char'))
         ),

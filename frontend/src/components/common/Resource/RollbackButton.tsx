@@ -21,7 +21,7 @@ import { useLocation } from 'react-router';
 import DaemonSet from '../../../lib/k8s/daemonSet';
 import Deployment from '../../../lib/k8s/deployment';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
-import type { RevisionInfo, RollbackResult } from '../../../lib/k8s/rollback';
+import type { RevisionInfo, RollbackOptions, RollbackResult } from '../../../lib/k8s/rollback';
 import StatefulSet from '../../../lib/k8s/statefulSet';
 import { clusterAction } from '../../../redux/clusterActionSlice';
 import {
@@ -38,7 +38,7 @@ import RollbackDialog from './RollbackDialog';
  * Interface for resources that support rollback.
  */
 export interface RollbackableResource extends KubeObject {
-  rollback: (toRevision?: number) => Promise<RollbackResult>;
+  rollback: (options?: RollbackOptions) => Promise<RollbackResult>;
   getRevisionHistory: () => Promise<RevisionInfo[]>;
 }
 
@@ -74,21 +74,26 @@ export function RollbackButton(props: RollbackButtonProps) {
   const dispatch: AppDispatch = useDispatch();
   const { item, buttonStyle, afterConfirm } = props;
 
-  if (!item || !isRollbackableResource(item)) {
-    return null;
-  }
-
   const [openDialog, setOpenDialog] = useState(false);
   const location = useLocation();
   const { t } = useTranslation(['translation']);
   const dispatchRollbackEvent = useEventCallback(HeadlampEventType.ROLLBACK_RESOURCE);
 
-  const resource = item;
-  const resourceKind = resource.kind;
-  const getRevisionHistory = useCallback(() => resource.getRevisionHistory(), [resource]);
+  const resource = item && isRollbackableResource(item) ? item : null;
+
+  const getRevisionHistory = useCallback((): Promise<RevisionInfo[]> => {
+    return resource ? resource.getRevisionHistory() : Promise.resolve([]);
+  }, [resource]);
+
+  if (!resource) {
+    return null;
+  }
+
+  const rollbackResource = resource;
+  const resourceKind = rollbackResource.kind;
 
   async function performRollback(toRevision?: number) {
-    const result = await resource.rollback(toRevision);
+    const result = await rollbackResource.rollback({ toRevision });
     if (!result.success) {
       throw new Error(result.message);
     }
@@ -96,7 +101,7 @@ export function RollbackButton(props: RollbackButtonProps) {
   }
 
   function handleConfirm(toRevision?: number) {
-    const itemName = resource.metadata.name;
+    const itemName = rollbackResource.metadata.name;
 
     dispatch(
       clusterAction(() => performRollback(toRevision), {
@@ -105,8 +110,8 @@ export function RollbackButton(props: RollbackButtonProps) {
         successMessage: t('Rolled back {{ itemName }} to previous version.', { itemName }),
         errorMessage: t('Failed to rollback {{ itemName }}.', { itemName }),
         cancelUrl: location.pathname,
-        startUrl: resource.getDetailsLink(),
-        errorUrl: resource.getDetailsLink(),
+        startUrl: rollbackResource.getDetailsLink(),
+        errorUrl: rollbackResource.getDetailsLink(),
       })
     );
 
@@ -114,7 +119,7 @@ export function RollbackButton(props: RollbackButtonProps) {
 
     // Dispatch event for plugins/tracking
     dispatchRollbackEvent({
-      resource: resource,
+      resource: rollbackResource,
       status: EventStatus.CONFIRMED,
     });
 
@@ -143,6 +148,7 @@ export function RollbackButton(props: RollbackButtonProps) {
         open={openDialog}
         resourceKind={resourceKind}
         resourceName={resource.metadata.name}
+        resource={resource}
         getRevisionHistory={getRevisionHistory}
         onClose={() => setOpenDialog(false)}
         onConfirm={handleConfirm}

@@ -14,11 +14,12 @@
  * limitations under the License.
  */
 
+import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import StorageClass from '../../lib/k8s/storageClass';
-import { DetailsGrid } from '../common/Resource';
+import { DetailsGrid, MetadataDictGrid } from '../common/Resource';
 
 export default function StorageClassDetails(props: { name?: string; cluster?: string }) {
   const params = useParams<{ name: string }>();
@@ -34,6 +35,10 @@ export default function StorageClassDetails(props: { name?: string; cluster?: st
       extraInfo={item =>
         item && [
           {
+            name: t('Provisioner'),
+            value: item.provisioner,
+          },
+          {
             name: t('Reclaim Policy'),
             value: item.reclaimPolicy,
           },
@@ -42,8 +47,23 @@ export default function StorageClassDetails(props: { name?: string; cluster?: st
             value: item.volumeBindingMode,
           },
           {
-            name: t('Provisioner'),
-            value: item.provisioner,
+            name: t('Default'),
+            value: item.isDefault ? t('translation|Yes') : t('translation|No'),
+          },
+          {
+            name: t('Allow Volume Expansion'),
+            value: item.allowVolumeExpansion ? t('translation|Yes') : t('translation|No'),
+            hide: item.allowVolumeExpansion === undefined,
+          },
+          {
+            name: t('Parameters'),
+            value: <MetadataDictGrid dict={item.parameters ?? {}} />,
+            hide: _.isEmpty(item.parameters),
+          },
+          {
+            name: t('Mount Options'),
+            value: item.mountOptions?.join(', '),
+            hide: !item.mountOptions?.length,
           },
         ]
       }

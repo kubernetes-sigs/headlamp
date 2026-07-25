@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import MutatingWebhookConfigDetails from './MutatingWebhookConfigDetails';
 import { createMWC } from './storyHelper';
 
@@ -34,7 +34,7 @@ export default {
       handlers: {
         storyBase: [
           http.get(
-            'http://localhost:4466/apis/admissionregistration.k8s.io/v1/mutatingwebhookconfigurations',
+            `${API_BASE}/apis/admissionregistration.k8s.io/v1/mutatingwebhookconfigurations`,
             () => HttpResponse.error()
           ),
         ],
@@ -58,7 +58,7 @@ WithService.parameters = {
     handlers: {
       story: [
         http.get(
-          'http://localhost:4466/apis/admissionregistration.k8s.io/v1/mutatingwebhookconfigurations/my-mwc',
+          `${API_BASE}/apis/admissionregistration.k8s.io/v1/mutatingwebhookconfigurations/my-mwc`,
           () => HttpResponse.json(createMWC(true))
         ),
       ],
@@ -73,7 +73,7 @@ WithURL.parameters = {
     handlers: {
       story: [
         http.get(
-          'http://localhost:4466/apis/admissionregistration.k8s.io/v1/mutatingwebhookconfigurations/my-mwc',
+          `${API_BASE}/apis/admissionregistration.k8s.io/v1/mutatingwebhookconfigurations/my-mwc`,
           () => HttpResponse.json(createMWC(false))
         ),
       ],

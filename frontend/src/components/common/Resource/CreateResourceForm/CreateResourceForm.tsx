@@ -1,0 +1,709 @@
+/*
+ * Copyright 2025 The Kubernetes Authors
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+import { Icon } from '@iconify/react';
+import Autocomplete from '@mui/material/Autocomplete';
+import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
+import Checkbox from '@mui/material/Checkbox';
+import FormControlLabel from '@mui/material/FormControlLabel';
+import IconButton from '@mui/material/IconButton';
+import MenuItem from '@mui/material/MenuItem';
+import TextField, { TextFieldProps } from '@mui/material/TextField';
+import Tooltip from '@mui/material/Tooltip';
+import Typography from '@mui/material/Typography';
+import * as yaml from 'js-yaml';
+import _ from 'lodash';
+import React from 'react';
+import { useTranslation } from 'react-i18next';
+import Namespace from '../../../../lib/k8s/namespace';
+import { useId } from '../../../../lib/util';
+import { ContainerTextField } from './workloadFields';
+
+/** An option for a select field. */
+export interface SelectOption {
+  /** The value stored in the resource object. */
+  value: string;
+  /** Display label shown in the dropdown. */
+  label: string;
+}
+
+/** A single field within a form section. */
+export interface FormField {
+  /** Unique key for this field. */
+  key: string;
+  /** Dot-notation path in the resource object, e.g. "metadata.name". */
+  path: string;
+  /** Display label for the field. */
+  label: string;
+  /** Input type – defaults to 'text'. */
+  type?: 'text' | 'number' | 'boolean' | 'labels' | 'select' | 'containers' | 'namespace';
+  /** Whether the field is required. */
+  required?: boolean;
+  /** For 'number' fields: minimum allowed value. */
+  min?: number;
+  /** For 'number' fields: render the label inline to the left of a compact input. */
+  inline?: boolean;
+  /** Helper text displayed below the field. */
+  helperText?: string;
+  /** Options for 'select' type fields. */
+  options?: SelectOption[];
+  /** For 'containers' fields: show a `Command` column editing
+   *  `container.command` (string[]). Off by default. */
+  showCommand?: boolean;
+  /** Extra top margin (theme spacing units) to visually separate from the field above. */
+  spacingTop?: number;
+  /** Optional custom renderer. When provided, this replaces the built-in input
+   *  for the field's `type` and is given the current value at `path`, a setter
+   *  that updates the resource at `path`, and the full resource object for
+   *  cross-field validation. The wrapping section still renders the FieldLabel
+   *  (label + helper-text tooltip) above the custom UI. */
+  render?: (args: {
+    value: any;
+    onChange: (value: any) => void;
+    resource: Record<string, any>;
+  }) => React.ReactNode;
+}
+
+/** A labelled group of fields. */
+export interface FormSection {
+  /** Section heading displayed above the fields. */
+  title: string;
+  /** Fields rendered inside this section. */
+  fields: FormField[];
+}
+
+/** Props for {@link CreateResourceForm}. */
+export interface CreateResourceFormProps {
+  /** Sections containing the form field descriptors. */
+  sections: FormSection[];
+  /** The resource as a plain JS object (defaults to {} if undefined). */
+  resource?: Record<string, any>;
+  /** Called with the updated resource object when any field changes. */
+  onChange: (resource: Record<string, any>) => void;
+  /** Called when the validity of required fields changes. */
+  onValidChange?: (valid: boolean) => void;
+}
+
+/** Data-driven resource creation form. Renders labelled sections of typed
+ *  fields (text, number, boolean, labels, containers, namespace, select)
+ *  from a declarative descriptor and keeps a plain JS resource object in
+ *  sync via `onChange`. */
+/** Standard metadata section (name, namespace, labels) for resource forms.
+ *  Import and prepend to your `sections` array. */
+export function metadataSection(t: (key: string) => string): FormSection {
+  return {
+    title: t('translation|Metadata'),
+    fields: [
+      { key: 'name', path: 'metadata.name', label: t('translation|Name'), required: true },
+      {
+        key: 'namespace',
+        path: 'metadata.namespace',
+        label: t('glossary|Namespace'),
+        type: 'namespace' as const,
+      },
+      {
+        key: 'labels',
+        path: 'metadata.labels',
+        label: t('translation|Labels'),
+        type: 'labels' as const,
+      },
+    ],
+  };
+}
+
+/** Check whether a required field's current value is valid for its type. */
+function isFieldValid(field: FormField, value: any): boolean {
+  switch (field.type) {
+    case 'containers':
+      return (
+        Array.isArray(value) &&
+        value.length > 0 &&
+        value.every(
+          (c: any) =>
+            c?.name &&
+            typeof c.name === 'string' &&
+            c.name.trim().length > 0 &&
+            c?.image &&
+            typeof c.image === 'string' &&
+            c.image.trim().length > 0
+        )
+      );
+    case 'boolean':
+      return true;
+    default:
+      return value !== undefined && value !== null && value !== '';
+  }
+}
+
+export default function CreateResourceForm(props: CreateResourceFormProps) {
+  const { sections, resource = {}, onChange, onValidChange } = props;
+  const { t } = useTranslation(['translation', 'glossary']);
+
+  // Compute validity from current resource.
+  const isValid = React.useMemo(() => {
+    return sections
+      .flatMap(s => s.fields)
+      .filter(f => f.required)
+      .every(f => isFieldValid(f, _.get(resource, f.path)));
+  }, [sections, resource]);
+
+  // Report validity to parent whenever it changes.
+  React.useEffect(() => {
+    if (onValidChange) {
+      onValidChange(isValid);
+    }
+  }, [isValid, onValidChange]);
+
+  function handleFieldChange(path: string, value: any) {
+    const updated = _.cloneDeep(resource);
+    if (value === undefined || value === '') {
+      _.unset(updated, path);
+    } else {
+      _.set(updated, path, value);
+    }
+    onChange(updated);
+  }
+
+  /** Handle a number input change. Empty clears the value. Only whole
+   *  numbers within `field.min` are saved. `0` is allowed. */
+  function handleNumberChange(field: FormField, raw: string) {
+    if (raw === '') {
+      handleFieldChange(field.path, undefined);
+      return;
+    }
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || !Number.isInteger(parsed)) {
+      return;
+    }
+    if (field.min !== undefined && parsed < field.min) {
+      return;
+    }
+    handleFieldChange(field.path, parsed);
+  }
+
+  function renderField(field: FormField) {
+    const value = _.get(resource, field.path);
+
+    if (field.render) {
+      return (
+        <FieldWrapper field={field}>
+          {field.render({
+            value,
+            onChange: v => handleFieldChange(field.path, v),
+            resource,
+          })}
+        </FieldWrapper>
+      );
+    }
+
+    switch (field.type) {
+      case 'labels':
+        return (
+          <FieldWrapper field={field}>
+            <LabelTextField
+              value={value ?? {}}
+              onChange={labels => handleFieldChange(field.path, labels)}
+            />
+          </FieldWrapper>
+        );
+      case 'containers':
+        return (
+          <FieldWrapper field={field}>
+            <ContainerTextField
+              value={value ?? []}
+              onChange={containers => handleFieldChange(field.path, containers)}
+              showCommand={field.showCommand}
+            />
+          </FieldWrapper>
+        );
+      case 'namespace':
+        return (
+          <FieldWrapper field={field}>
+            <NamespaceTextField
+              value={value ?? ''}
+              onChange={ns => handleFieldChange(field.path, ns)}
+              required={field.required}
+            />
+          </FieldWrapper>
+        );
+      case 'number':
+        if (field.inline) {
+          return (
+            <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+              <FieldLabel
+                label={field.label}
+                required={field.required}
+                helperText={field.helperText}
+                sx={{ minWidth: 120, mb: 0 }}
+              />
+              <Box sx={{ width: 120 }}>
+                <FormTextField
+                  value={value ?? ''}
+                  onChange={e => handleNumberChange(field, e.target.value)}
+                  required={field.required}
+                  type="number"
+                  inputProps={{
+                    'aria-label': field.label,
+                    step: 1,
+                    ...(field.min !== undefined ? { min: field.min } : {}),
+                  }}
+                />
+              </Box>
+            </Box>
+          );
+        }
+        return (
+          <FieldWrapper field={field}>
+            <FormTextField
+              value={value ?? ''}
+              onChange={e => handleNumberChange(field, e.target.value)}
+              required={field.required}
+              type="number"
+              inputProps={{
+                'aria-label': field.label,
+                step: 1,
+                ...(field.min !== undefined ? { min: field.min } : {}),
+              }}
+            />
+          </FieldWrapper>
+        );
+      case 'select':
+        return (
+          <FieldWrapper field={field}>
+            <FormTextField
+              value={value ?? ''}
+              onChange={e => handleFieldChange(field.path, e.target.value)}
+              required={field.required}
+              select
+              inputProps={{ 'aria-label': field.label }}
+            >
+              {(field.options ?? []).map(opt => (
+                <MenuItem key={opt.value} value={opt.value}>
+                  {opt.label}
+                </MenuItem>
+              ))}
+            </FormTextField>
+          </FieldWrapper>
+        );
+      case 'boolean':
+        return (
+          <FieldWrapper field={{ ...field, helperText: undefined }} hideLabel>
+            <Box sx={{ display: 'flex', alignItems: 'center' }}>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={!!value}
+                    onChange={e => handleFieldChange(field.path, e.target.checked)}
+                    inputProps={{ 'aria-label': field.label }}
+                  />
+                }
+                label={field.label}
+              />
+              {field.helperText && <FieldLabel helperText={field.helperText} />}
+            </Box>
+          </FieldWrapper>
+        );
+      default:
+        return (
+          <FieldWrapper field={field}>
+            <FormTextField
+              value={value ?? ''}
+              onChange={e => handleFieldChange(field.path, e.target.value)}
+              required={field.required}
+              inputProps={{ 'aria-label': field.label }}
+            />
+          </FieldWrapper>
+        );
+    }
+  }
+
+  return (
+    <Box
+      sx={{
+        height: '100%',
+        overflowY: 'auto',
+        width: '100%',
+      }}
+    >
+      <Box
+        aria-label={t('translation|Resource form')}
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          alignSelf: 'center',
+          gap: 3,
+          pt: 2,
+          marginLeft: 5,
+          maxWidth: '80%',
+        }}
+      >
+        {sections.map(section => (
+          <Box component="fieldset" key={section.title} sx={{ border: 'none', m: 0, p: 0 }}>
+            <Typography component="legend" variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
+              {section.title}
+            </Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pl: 1 }}>
+              {section.fields.map(field => (
+                <Box key={field.key} sx={field.spacingTop ? { mt: field.spacingTop } : undefined}>
+                  {renderField(field)}
+                </Box>
+              ))}
+            </Box>
+          </Box>
+        ))}
+      </Box>
+    </Box>
+  );
+}
+
+/** Pre-styled outlined TextField matching the app's search input style. */
+export function FormTextField(props: TextFieldProps) {
+  return (
+    <TextField
+      variant="outlined"
+      size="small"
+      fullWidth
+      InputProps={{
+        sx: theme => ({ background: theme.palette.background.default }),
+      }}
+      {...props}
+    />
+  );
+}
+
+export interface FieldLabelProps {
+  /** Visible label text. */
+  label?: string;
+  /** Adds an asterisk after the label when true. */
+  required?: boolean;
+  /** When set, an info icon button is rendered next to the label and the text
+   *  is shown in a tooltip on hover/focus. */
+  helperText?: string;
+  /** Optional `for` attribute, when the label labels a single input by id. */
+  htmlFor?: string;
+  /** Optional id, useful with `aria-labelledby`. */
+  id?: string;
+  /** Override sx for the wrapper Box. */
+  sx?: React.ComponentProps<typeof Box>['sx'];
+}
+
+/** Field label with an optional info-icon tooltip for `helperText`. */
+export function FieldLabel(props: FieldLabelProps) {
+  const { label, required, helperText, htmlFor, id, sx } = props;
+  if (!label && !helperText) return null;
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5, ...sx }}>
+      {label && (
+        <Typography
+          id={id}
+          component={htmlFor ? 'label' : 'span'}
+          // htmlFor is only valid on label elements.
+          {...(htmlFor ? ({ htmlFor } as any) : {})}
+          variant="body2"
+          sx={{ lineHeight: 1 }}
+        >
+          {label}
+          {required ? ' *' : ''}
+        </Typography>
+      )}
+      {helperText && (
+        <Tooltip title={helperText} arrow>
+          <IconButton
+            size="small"
+            aria-label={helperText}
+            sx={{ p: 0, display: 'inline-flex', lineHeight: 0 }}
+          >
+            <Icon
+              icon="mdi:information-outline"
+              width={16}
+              height={16}
+              style={{ display: 'block' }}
+            />
+          </IconButton>
+        </Tooltip>
+      )}
+    </Box>
+  );
+}
+
+/** Wraps a field input with an optional label + helperText tooltip above it.
+ *  Use `hideLabel` when the input already contains its own label (e.g. checkbox). */
+export function FieldWrapper(props: {
+  field: FormField;
+  hideLabel?: boolean;
+  children: React.ReactNode;
+}) {
+  const { field, hideLabel, children } = props;
+  return (
+    <Box>
+      {!hideLabel && (
+        <FieldLabel label={field.label} required={field.required} helperText={field.helperText} />
+      )}
+      {children}
+      {hideLabel && field.helperText && (
+        <FieldLabel helperText={field.helperText} sx={{ mt: 0.5 }} />
+      )}
+    </Box>
+  );
+}
+
+export interface NamespaceTextFieldProps {
+  value: string;
+  onChange: (namespace: string) => void;
+  label?: string;
+  required?: boolean;
+  helperText?: string;
+}
+
+/** Autocomplete namespace selector that fetches existing namespaces from the cluster. */
+export function NamespaceTextField(props: NamespaceTextFieldProps) {
+  const { value, onChange, required } = props;
+  const [namespaces] = Namespace.useList();
+  const options = React.useMemo(
+    () => (namespaces ?? []).map(ns => ns.metadata.name).sort(),
+    [namespaces]
+  );
+
+  return (
+    <Autocomplete
+      freeSolo
+      options={options}
+      value={value}
+      onChange={(_event, newValue) => {
+        onChange(newValue ?? '');
+      }}
+      onInputChange={(_event, newInputValue, reason) => {
+        if (reason === 'input') {
+          onChange(newInputValue);
+        }
+      }}
+      renderInput={params => (
+        <TextField
+          {...params}
+          variant="outlined"
+          size="small"
+          fullWidth
+          required={required}
+          InputProps={{
+            ...params.InputProps,
+            sx: theme => ({ background: theme.palette.background.default }),
+          }}
+        />
+      )}
+    />
+  );
+}
+
+export interface LabelTextFieldProps {
+  /** Current label map. */
+  value: Record<string, string>;
+  /** Called with the updated label map when labels change. */
+  onChange: (labels: Record<string, string>) => void;
+  /** Input label text. */
+  label?: string;
+  /** Marks the group as required (renders an asterisk after the label). */
+  required?: boolean;
+  /** Optional helper text shown via an info-icon tooltip next to the label. */
+  helperText?: string;
+}
+
+export function LabelTextField(props: LabelTextFieldProps) {
+  const { value, onChange, label, required, helperText } = props;
+  const { t } = useTranslation(['translation']);
+  const groupLabelId = useId('label-group-');
+
+  const [rows, setRows] = React.useState<LabelRow[]>(() => buildLabelRows(value));
+  // Tracks the map we most recently sent to the parent so we can distinguish
+  // an external value change (e.g. YAML editor) from the echo of our own
+  // onChange and avoid blowing away in-progress edits.
+  const lastEmittedRef = React.useRef<Record<string, string>>(labelRowsToMap(rows));
+
+  React.useEffect(() => {
+    const incoming = value ?? {};
+    if (!labelMapsEqual(incoming, lastEmittedRef.current)) {
+      setRows(buildLabelRows(incoming));
+      lastEmittedRef.current = incoming;
+    }
+  }, [value]);
+
+  function commit(next: LabelRow[]) {
+    setRows(next);
+    const map = labelRowsToMap(next);
+    lastEmittedRef.current = map;
+    onChange(map);
+  }
+
+  function addLabel() {
+    const used = new Set(rows.map(r => r.key));
+    let nextKey = 'new-label';
+    let idx = 1;
+    while (used.has(nextKey)) {
+      idx += 1;
+      nextKey = `new-label-${idx}`;
+    }
+    commit([...rows, { id: nextLabelRowId(), key: nextKey, value: '' }]);
+  }
+
+  function handleDelete(id: string) {
+    commit(rows.filter(r => r.id !== id));
+  }
+
+  function handleKeyEdit(id: string, newKeyVal: string) {
+    // Allow transient collisions with another row's key — blocking them
+    // here would trap the user mid-edit (e.g. backspacing 'new-label-2'
+    // down to 'new-label' when row 1 is already 'new-label'). The map
+    // serializer dedupes first-wins, so the resource stays valid until the
+    // keys diverge again.
+    commit(rows.map(r => (r.id === id ? { ...r, key: newKeyVal } : r)));
+  }
+
+  function handleValueEdit(id: string, newValue: string) {
+    commit(rows.map(r => (r.id === id ? { ...r, value: newValue } : r)));
+  }
+
+  return (
+    <Box role="group" aria-labelledby={groupLabelId}>
+      {(label || helperText) && (
+        <FieldLabel id={groupLabelId} label={label} required={required} helperText={helperText} />
+      )}
+      {rows.map(r => (
+        <Box key={r.id} sx={{ display: 'flex', gap: 1, alignItems: 'center', mt: 2, mb: 2 }}>
+          <FormTextField
+            label={t('translation|Key')}
+            value={r.key}
+            onChange={e => handleKeyEdit(r.id, e.target.value)}
+            inputProps={{ 'aria-label': t('translation|Label key') }}
+          />
+          <FormTextField
+            label={t('translation|Value')}
+            value={r.value}
+            onChange={e => handleValueEdit(r.id, e.target.value)}
+            inputProps={{ 'aria-label': t('translation|Label value') }}
+          />
+          <IconButton
+            onClick={() => handleDelete(r.id)}
+            color="default"
+            size="small"
+            aria-label={t('translation|Remove label {{ label }}', {
+              label: `${r.key}=${r.value}`,
+            })}
+          >
+            <Icon icon="mdi:close-circle" width={24} height={24} />
+          </IconButton>
+        </Box>
+      ))}
+      <Box sx={{ mt: 2 }}>
+        <Button
+          onClick={addLabel}
+          color="primary"
+          size="small"
+          aria-label={t('translation|Add label')}
+        >
+          <Icon icon="mdi:plus-circle" width={24} height={24} />
+          <Typography variant="body2" sx={{ ml: 0.5 }}>
+            {t('translation|New Label')}
+          </Typography>
+        </Button>
+      </Box>
+    </Box>
+  );
+}
+
+let labelRowIdCounter = 0;
+export const nextLabelRowId = () => `label-${++labelRowIdCounter}`;
+
+/** A single row in a labels editor. */
+export interface LabelRow {
+  id: string;
+  key: string;
+  value: string;
+}
+
+/** Build the editor's internal rows from a Kubernetes labels map. Insertion
+ *  order is preserved so the YAML and the form stay visually aligned. */
+export function buildLabelRows(map: Record<string, string> | undefined): LabelRow[] {
+  return Object.entries(map ?? {}).map(([k, v]) => ({
+    id: nextLabelRowId(),
+    key: k,
+    value: v,
+  }));
+}
+
+/** Turn editor rows back into a labels map. Empty keys are skipped, and on
+ *  duplicate keys the first row wins. */
+export function labelRowsToMap(rows: LabelRow[]): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const r of rows) {
+    if (r.key && !Object.prototype.hasOwnProperty.call(out, r.key)) {
+      out[r.key] = r.value;
+    }
+  }
+  return out;
+}
+
+/** Shallow equality on labels maps (same keys, same string values). */
+export function labelMapsEqual(a: Record<string, string>, b: Record<string, string>): boolean {
+  const ak = Object.keys(a);
+  const bk = Object.keys(b);
+  if (ak.length !== bk.length) return false;
+  for (const k of ak) {
+    if (a[k] !== b[k]) return false;
+  }
+  return true;
+}
+
+/** Safely parse a YAML string into an object, returning {} on failure. */
+export function parseYaml(input: string | undefined): Record<string, any> {
+  if (!input) return {};
+  try {
+    const parsed = yaml.load(input);
+    return parsed && typeof parsed === 'object' ? (parsed as Record<string, any>) : {};
+  } catch {
+    return {};
+  }
+}
+
+/** Convert a labels map to a display string, e.g. `{a: "1", b: "2"}` → `"a=1, b=2"`. */
+export function labelsToString(labels: Record<string, string> | undefined): string {
+  if (!labels || typeof labels !== 'object') return '';
+  return Object.entries(labels)
+    .map(([k, v]) => `${k}=${v}`)
+    .join(', ');
+}
+
+/** Parse a comma-separated `key=value` string into a labels map. */
+export function parseLabelsString(input: string): Record<string, string> {
+  const result: Record<string, string> = {};
+  if (!input.trim()) return result;
+  input.split(',').forEach(pair => {
+    const [key, ...rest] = pair.split('=');
+    const k = key.trim();
+    const v = rest.join('=').trim();
+    if (k) {
+      result[k] = v;
+    }
+  });
+  return result;
+}
+
+/** Serialize a JS value to a YAML string using js-yaml. */
+export function toYamlString(obj: unknown): string {
+  if (obj === null || obj === undefined) {
+    return 'null';
+  }
+  return yaml.dump(obj, { indent: 2, lineWidth: -1, noRefs: true });
+}

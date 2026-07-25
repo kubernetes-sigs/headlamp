@@ -25,7 +25,7 @@ export default function SettingsClusters() {
   const { t } = useTranslation(['translation']);
 
   return (
-    <SectionBox title="Cluster Settings">
+    <SectionBox title={t('translation|Cluster Settings')}>
       <SimpleTable
         columns={[
           {

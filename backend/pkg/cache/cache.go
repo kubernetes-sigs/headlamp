@@ -21,6 +21,8 @@ import (
 	"errors"
 	"sync"
 	"time"
+
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 )
 
 // Cache is an interface for a cache
@@ -32,6 +34,8 @@ type Cache[T any] interface {
 	Get(ctx context.Context, key string) (T, error)
 	GetAll(ctx context.Context, selectFunc Matcher) (map[string]T, error)
 	UpdateTTL(ctx context.Context, key string, ttl time.Duration) error
+	SetOnEvicted(f func(key string, value T))
+	Close() error
 }
 
 // Matcher is a function that returns true if the key matches.
@@ -50,6 +54,8 @@ type cache[T any] struct {
 	store           map[string]cacheValue[T]
 	lock            sync.RWMutex
 	cleanUpInterval time.Duration
+	onEvicted       func(key string, value T)
+	stop            chan struct{}
 }
 
 // New creates a new cache.
@@ -57,6 +63,7 @@ func New[T any]() Cache[T] {
 	cache := &cache[T]{
 		store:           make(map[string]cacheValue[T]),
 		cleanUpInterval: cleanUpInterval,
+		stop:            make(chan struct{}),
 	}
 
 	go cache.cleanUp()
@@ -140,16 +147,54 @@ func (c *cache[T]) cleanUp() {
 	defer ticker.Stop()
 
 	for {
-		<-ticker.C
+		select {
+		case <-ticker.C:
+			var (
+				evictedKeys   []string
+				evictedValues []T
+			)
 
-		c.lock.Lock()
-		for key, value := range c.store {
-			if !value.expiresAt.IsZero() && value.expiresAt.Before(time.Now()) {
-				delete(c.store, key)
+			now := time.Now()
+
+			c.lock.Lock()
+			for key, value := range c.store {
+				if !value.expiresAt.IsZero() && value.expiresAt.Before(now) {
+					evictedKeys = append(evictedKeys, key)
+					evictedValues = append(evictedValues, value.value)
+
+					delete(c.store, key)
+				}
 			}
+
+			// Copy the callback under lock to avoid data race
+			callback := c.onEvicted
+			c.lock.Unlock()
+
+			if callback != nil {
+				for i, key := range evictedKeys {
+					func() {
+						defer func() {
+							if r := recover(); r != nil {
+								logger.Log(logger.LevelError, nil, r, "cache: onEvicted callback panicked")
+							}
+						}()
+
+						callback(key, evictedValues[i])
+					}()
+				}
+			}
+		case <-c.stop:
+			return
 		}
-		c.lock.Unlock()
 	}
+}
+
+// SetOnEvicted sets a callback function to be called when an item is evicted.
+func (c *cache[T]) SetOnEvicted(f func(key string, value T)) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.onEvicted = f
 }
 
 // UpdateTTL updates the TTL of a value in the cache.
@@ -165,6 +210,21 @@ func (c *cache[T]) UpdateTTL(ctx context.Context, key string, ttl time.Duration)
 	if value.expiresAt.IsZero() || value.expiresAt.After(time.Now()) {
 		value.expiresAt = time.Now().Add(ttl)
 		c.store[key] = value
+	}
+
+	return nil
+}
+
+// Close closes the cache and terminates the cleanup goroutine.
+func (c *cache[T]) Close() error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	select {
+	case <-c.stop:
+		// already closed
+	default:
+		close(c.stop)
 	}
 
 	return nil

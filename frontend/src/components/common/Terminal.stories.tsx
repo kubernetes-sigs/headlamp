@@ -134,6 +134,7 @@ function ClearRafOnUnmount({ children }: { children: React.ReactNode }) {
 
     return () => {
       pending.current.forEach(t => clearTimeout(t));
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       pending.current.length = 0;
       if (originalRaf.current !== null) window.requestAnimationFrame = originalRaf.current;
       if (originalCaf.current !== null) window.cancelAnimationFrame = originalCaf.current;
@@ -405,6 +406,7 @@ export const TerminalAttachEmptyFirstOutput: StoryFn<
 
 /** Shell not found: tries next shell (linux has 4 shells, not last so tryNextShell runs) */
 export const TerminalShellNotFoundTryNext: StoryFn<React.ComponentProps<typeof Terminal>> = () => {
+  const callCountRef = useRef(0);
   const pod = useMemo(() => {
     const p = createBaseMockPod();
     const timeouts: ReturnType<typeof setTimeout>[] = [];
@@ -412,7 +414,6 @@ export const TerminalShellNotFoundTryNext: StoryFn<React.ComponentProps<typeof T
       cancel: () => timeouts.forEach(t => clearTimeout(t)),
       getSocket: () => ({ readyState: 1, send: () => {} } as unknown as WebSocket),
     };
-    let callCount = 0;
     (p as any).exec = async (
       _container: string,
       onData: (data: ArrayBuffer) => void,
@@ -420,8 +421,8 @@ export const TerminalShellNotFoundTryNext: StoryFn<React.ComponentProps<typeof T
     ) => {
       void opts;
       await Promise.resolve();
-      if (callCount === 0) {
-        callCount += 1;
+      if (callCountRef.current === 0) {
+        callCountRef.current += 1;
         timeouts.push(
           setTimeout(
             () =>

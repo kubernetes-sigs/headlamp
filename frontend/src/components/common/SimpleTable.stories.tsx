@@ -55,7 +55,7 @@ const Template: StoryFn<SimpleTableProps> = args => (
 );
 
 const fixtureData = {
-  rowsPerPage: [15, 25, 50],
+  rowsPerPage: [15, 25, 50, 100],
   errorMessage: null,
   columns: [
     {
@@ -116,6 +116,7 @@ Getter.args = {
       label: 'Name',
       // datum: "",
       getter: (row: any) => row.name,
+      sort: true,
     },
     {
       label: 'Status',
@@ -282,7 +283,7 @@ const TemplateWithFilter: StoryFn<{
 };
 
 const podData = {
-  rowsPerPage: [15, 25, 50],
+  rowsPerPage: [15, 25, 50, 100],
   errorMessage: null,
   columns: [
     {

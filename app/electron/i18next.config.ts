@@ -15,7 +15,7 @@
  */
 
 import i18next from 'i18next';
-import i18nextBackend from 'i18next-fs-backend';
+import i18nextBackend from 'i18next-fs-backend/cjs';
 import * as path from 'path';
 import { CURRENT_LOCALES, LOCALES_DIR } from './i18n-helper';
 

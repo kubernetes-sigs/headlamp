@@ -18,7 +18,7 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import React from 'react';
 import { ApiResource } from '../../lib/k8s/api/v2/ApiResource';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import { ResourceSearch } from './ResourceSearch';
 
 export default {
@@ -29,7 +29,7 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get('http://localhost:4466/clusters/kind-kind/api/v1/pods', () =>
+          http.get(`${API_BASE}/clusters/kind-kind/api/v1/pods`, () =>
             HttpResponse.json({
               kind: 'PodList',
               apiVersion: 'v1',
@@ -62,7 +62,7 @@ export default {
               ],
             })
           ),
-          http.get('http://localhost:4466/clusters/kind-kind/apis/apps/v1/deployments', () =>
+          http.get(`${API_BASE}/clusters/kind-kind/apis/apps/v1/deployments`, () =>
             HttpResponse.json({
               kind: 'DeploymentList',
               apiVersion: 'apps/v1',

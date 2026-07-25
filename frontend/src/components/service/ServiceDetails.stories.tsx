@@ -17,7 +17,7 @@
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import React from 'react';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import Details from './Details';
 
 const serviceMock = {
@@ -76,6 +76,97 @@ const serviceMockWithA8RAnnotations = {
       'a8r.io/dependencies': 'redis-master, auth-api, postgres-db',
     },
   },
+};
+
+/** Service mock for a NodePort with full spec fields */
+const serviceMockNodePort = {
+  ...serviceMock,
+  metadata: {
+    ...serviceMock.metadata,
+    name: 'nodeport-service',
+  },
+  spec: {
+    type: 'NodePort',
+    clusterIP: '10.96.0.200',
+    clusterIPs: ['10.96.0.200'],
+    externalIPs: [],
+    ipFamilies: ['IPv4'],
+    ipFamilyPolicy: 'SingleStack',
+    sessionAffinity: 'ClientIP',
+    sessionAffinityConfig: {
+      clientIP: { timeoutSeconds: 10800 },
+    },
+    externalTrafficPolicy: 'Cluster',
+    internalTrafficPolicy: 'Cluster',
+    ports: [
+      {
+        name: 'http',
+        protocol: 'TCP',
+        port: 80,
+        targetPort: 8080,
+        nodePort: 31080,
+        appProtocol: 'http',
+      },
+    ],
+    selector: { app: 'example' },
+  },
+  status: {},
+};
+
+/** Service mock for a LoadBalancer with health-check and source ranges */
+const serviceMockLoadBalancer = {
+  ...serviceMock,
+  metadata: {
+    ...serviceMock.metadata,
+    name: 'lb-service',
+  },
+  spec: {
+    type: 'LoadBalancer',
+    clusterIP: '10.96.0.300',
+    clusterIPs: ['10.96.0.300', 'fd00::1'],
+    externalIPs: [],
+    ipFamilies: ['IPv4', 'IPv6'],
+    ipFamilyPolicy: 'PreferDualStack',
+    externalTrafficPolicy: 'Local',
+    healthCheckNodePort: 32123,
+    loadBalancerClass: 'example.com/lb',
+    loadBalancerSourceRanges: ['10.0.0.0/8', '192.168.0.0/16'],
+    trafficDistribution: 'PreferClose',
+    sessionAffinity: 'None',
+    ports: [
+      {
+        name: 'https',
+        protocol: 'TCP',
+        port: 443,
+        targetPort: 8443,
+        nodePort: 31443,
+      },
+    ],
+    selector: { app: 'example' },
+  },
+  status: {
+    loadBalancer: {
+      ingress: [{ ip: '203.0.113.10' }],
+    },
+  },
+};
+
+/** Service mock for an ExternalName service */
+const serviceMockExternalName = {
+  ...serviceMock,
+  metadata: {
+    ...serviceMock.metadata,
+    name: 'externalname-service',
+  },
+  spec: {
+    type: 'ExternalName',
+    clusterIP: '',
+    externalIPs: [],
+    externalName: 'api.example.com',
+    selector: {},
+    ports: [],
+  },
+  status: {},
 };
 
 /** Service mock with only a8r.io/owner annotation */
@@ -182,35 +273,43 @@ const TemplateA8ROwnerOnly: StoryFn<typeof Details> = () => {
   return <Details name="owner-only-service" namespace="default" />;
 };
 
+const TemplateNodePort: StoryFn<typeof Details> = () => {
+  return <Details name="nodeport-service" namespace="default" />;
+};
+
+const TemplateLoadBalancer: StoryFn<typeof Details> = () => {
+  return <Details name="lb-service" namespace="default" />;
+};
+
+const TemplateExternalName: StoryFn<typeof Details> = () => {
+  return <Details name="externalname-service" namespace="default" />;
+};
+
 export const Default = Template.bind({});
 Default.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
         ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/services', () =>
-          HttpResponse.error()
-        ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/services/example-service', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/services`, () => HttpResponse.error()),
+        http.get(`${API_BASE}/api/v1/namespaces/default/services/example-service`, () =>
           HttpResponse.json(serviceMock)
         ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/endpoints', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/endpoints`, () =>
           HttpResponse.json({
             kind: 'List',
             items: endpoints,
             metadata: {},
           })
         ),
-        http.get(
-          'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/default/endpointslices',
-          () =>
-            HttpResponse.json({
-              kind: 'List',
-              items: endpointslices,
-              metadata: {},
-            })
+        http.get(`${API_BASE}/apis/discovery.k8s.io/v1/namespaces/default/endpointslices`, () =>
+          HttpResponse.json({
+            kind: 'List',
+            items: endpointslices,
+            metadata: {},
+          })
         ),
       ],
     },
@@ -222,21 +321,16 @@ ErrorWithEndpoints.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
         ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/services', () =>
-          HttpResponse.error()
-        ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/services/example-service', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/services`, () => HttpResponse.error()),
+        http.get(`${API_BASE}/api/v1/namespaces/default/services/example-service`, () =>
           HttpResponse.json(serviceMock)
         ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/endpoints', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/endpoints`, () => HttpResponse.error()),
+        http.get(`${API_BASE}/apis/discovery.k8s.io/v1/namespaces/default/endpointslices`, () =>
           HttpResponse.error()
-        ),
-        http.get(
-          'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/default/endpointslices',
-          () => HttpResponse.error()
         ),
       ],
     },
@@ -248,31 +342,26 @@ WithA8RAnnotations.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
         ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/services', () =>
-          HttpResponse.error()
+        http.get(`${API_BASE}/api/v1/namespaces/default/services`, () => HttpResponse.error()),
+        http.get(`${API_BASE}/api/v1/namespaces/default/services/a8r-annotated-service`, () =>
+          HttpResponse.json(serviceMockWithA8RAnnotations)
         ),
-        http.get(
-          'http://localhost:4466/api/v1/namespaces/default/services/a8r-annotated-service',
-          () => HttpResponse.json(serviceMockWithA8RAnnotations)
-        ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/endpoints', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/endpoints`, () =>
           HttpResponse.json({
             kind: 'List',
             items: endpoints,
             metadata: {},
           })
         ),
-        http.get(
-          'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/default/endpointslices',
-          () =>
-            HttpResponse.json({
-              kind: 'List',
-              items: endpointslices,
-              metadata: {},
-            })
+        http.get(`${API_BASE}/apis/discovery.k8s.io/v1/namespaces/default/endpointslices`, () =>
+          HttpResponse.json({
+            kind: 'List',
+            items: endpointslices,
+            metadata: {},
+          })
         ),
       ],
     },
@@ -285,33 +374,63 @@ WithA8ROwnerOnly.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/namespaces/default/events', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
         ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/services', () =>
-          HttpResponse.error()
+        http.get(`${API_BASE}/api/v1/namespaces/default/services`, () => HttpResponse.error()),
+        http.get(`${API_BASE}/api/v1/namespaces/default/services/owner-only-service`, () =>
+          HttpResponse.json(serviceMockWithA8ROwnerOnly)
         ),
-        http.get(
-          'http://localhost:4466/api/v1/namespaces/default/services/owner-only-service',
-          () => HttpResponse.json(serviceMockWithA8ROwnerOnly)
-        ),
-        http.get('http://localhost:4466/api/v1/namespaces/default/endpoints', () =>
+        http.get(`${API_BASE}/api/v1/namespaces/default/endpoints`, () =>
           HttpResponse.json({
             kind: 'List',
             items: endpoints,
             metadata: {},
           })
         ),
-        http.get(
-          'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/default/endpointslices',
-          () =>
-            HttpResponse.json({
-              kind: 'List',
-              items: endpointslices,
-              metadata: {},
-            })
+        http.get(`${API_BASE}/apis/discovery.k8s.io/v1/namespaces/default/endpointslices`, () =>
+          HttpResponse.json({
+            kind: 'List',
+            items: endpointslices,
+            metadata: {},
+          })
         ),
       ],
     },
+  },
+};
+
+function makeServiceHandlers(name: string, mock: object) {
+  return [
+    http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
+      HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
+    ),
+    http.get(`${API_BASE}/api/v1/namespaces/default/services`, () => HttpResponse.error()),
+    http.get(`${API_BASE}/api/v1/namespaces/default/services/${name}`, () =>
+      HttpResponse.json(mock)
+    ),
+    http.get(`${API_BASE}/api/v1/namespaces/default/endpoints`, () =>
+      HttpResponse.json({ kind: 'List', items: [], metadata: {} })
+    ),
+    http.get(`${API_BASE}/apis/discovery.k8s.io/v1/namespaces/default/endpointslices`, () =>
+      HttpResponse.json({ kind: 'List', items: [], metadata: {} })
+    ),
+  ];
+}
+
+export const NodePort = TemplateNodePort.bind({});
+NodePort.parameters = {
+  msw: { handlers: { story: makeServiceHandlers('nodeport-service', serviceMockNodePort) } },
+};
+
+export const LoadBalancer = TemplateLoadBalancer.bind({});
+LoadBalancer.parameters = {
+  msw: { handlers: { story: makeServiceHandlers('lb-service', serviceMockLoadBalancer) } },
+};
+
+export const ExternalName = TemplateExternalName.bind({});
+ExternalName.parameters = {
+  msw: {
+    handlers: { story: makeServiceHandlers('externalname-service', serviceMockExternalName) },
   },
 };

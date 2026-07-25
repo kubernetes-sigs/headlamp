@@ -14,6 +14,7 @@
 package k8cache_test
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -23,17 +24,77 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestIsAuthBypassUR(t *testing.T) {
+func TestIsAuthBypassURL(t *testing.T) {
 	tests := []struct {
 		name     string
 		urlPath  string
 		expected bool
 	}{
 		{"No restricted paths", "/api/v1/resource", true},
-		{"Contains /version", "/version", false},
-		{"Contains /healthz", "/healthz", false},
-		{"Contains /selfsubjectrulesreviews", "/apis/selfsubjectrulesreviews", false},
-		{"Contains /selfsubjectaccessreviews", "/apis/selfsubjectaccessreviews", false},
+		{"Direct version endpoint", "/version", false},
+		{"Direct healthz endpoint", "/healthz", false},
+		{"Proxied version endpoint", "/clusters/kind/version", false},
+		{"Proxied healthz endpoint", "/clusters/kind/healthz", false},
+		{"Resource named version", "/clusters/kind/api/v1/namespaces/ns/configmaps/version", true},
+		{"Resource named healthz", "/clusters/kind/api/v1/namespaces/ns/configmaps/healthz", true},
+		{"Direct selfsubjectrulesreviews v1 endpoint", "/apis/authorization.k8s.io/v1/selfsubjectrulesreviews", false},
+		{"Direct selfsubjectaccessreviews v1 endpoint", "/apis/authorization.k8s.io/v1/selfsubjectaccessreviews", false},
+		{
+			name:     "Proxied selfsubjectrulesreviews endpoint",
+			urlPath:  "/clusters/kind/apis/authorization.k8s.io/v1/selfsubjectrulesreviews",
+			expected: false,
+		},
+		{
+			name:     "Proxied selfsubjectaccessreviews endpoint",
+			urlPath:  "/clusters/kind/apis/authorization.k8s.io/v1/selfsubjectaccessreviews",
+			expected: false,
+		},
+		{
+			name:     "Resource named selfsubjectrulesreviews",
+			urlPath:  "/clusters/kind/api/v1/namespaces/ns/configmaps/selfsubjectrulesreviews",
+			expected: true,
+		},
+		{
+			name:     "Resource named selfsubjectaccessreviews",
+			urlPath:  "/clusters/kind/api/v1/namespaces/ns/configmaps/selfsubjectaccessreviews",
+			expected: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := k8cache.IsAuthBypassURL(tt.urlPath)
+			assert.Equal(t, tt.expected, result)
+		})
+	}
+}
+
+func TestIsAuthBypassURLSelfSubjectReviewVersions(t *testing.T) {
+	tests := []struct {
+		name     string
+		urlPath  string
+		expected bool
+	}{
+		{
+			name:     "v1beta1 access review",
+			urlPath:  "/apis/authorization.k8s.io/v1beta1/selfsubjectaccessreviews",
+			expected: false,
+		},
+		{
+			name:     "future access review version",
+			urlPath:  "/apis/authorization.k8s.io/v2/selfsubjectaccessreviews",
+			expected: false,
+		},
+		{
+			name:     "proxied future rules review version",
+			urlPath:  "/clusters/kind/apis/authorization.k8s.io/v2/selfsubjectrulesreviews",
+			expected: false,
+		},
+		{
+			name:     "different API group",
+			urlPath:  "/apis/apps/v1/selfsubjectaccessreviews",
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {
@@ -47,7 +108,7 @@ func TestIsAuthBypassUR(t *testing.T) {
 func TestReturnAuthErrorResponse(t *testing.T) {
 	rr := httptest.NewRecorder()
 
-	req := httptest.NewRequest("GET", "/apis/v1/resource", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/apis/v1/resource", nil)
 
 	err := k8cache.ReturnAuthErrorResponse(rr, req, "test-context")
 	assert.NoError(t, err)
@@ -55,6 +116,7 @@ func TestReturnAuthErrorResponse(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, rr.Code)
 
 	var resp k8cache.AuthErrResponse
+
 	err = json.Unmarshal(rr.Body.Bytes(), &resp)
 	assert.NoError(t, err)
 

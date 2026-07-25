@@ -23,7 +23,7 @@ import { KubeHTTPRoute } from '../../lib/k8s/httpRoute';
 import { KubeReferenceGrant } from '../../lib/k8s/referenceGrant';
 
 export const DEFAULT_GATEWAY: KubeGateway = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'Gateway',
   metadata: {
     creationTimestamp: '2023-07-19T09:48:42Z',
@@ -50,8 +50,27 @@ export const DEFAULT_GATEWAY: KubeGateway = {
   },
 };
 
+// Regression fixture: the API can return a Gateway with no `spec`,
+// which previously crashed the list view. `spec` is optional on KubeGateway, so this
+// reproduces that case without a cast. apiVersion is v1 to match the endpoint that
+// serves this fixture in the BrokenSpec story.
+export const BROKEN_GATEWAY: KubeGateway = {
+  apiVersion: 'gateway.networking.k8s.io/v1',
+  kind: 'Gateway',
+  metadata: {
+    creationTimestamp: '2023-07-19T09:48:42Z',
+    generation: 1,
+    name: 'broken-gateway',
+    namespace: 'default',
+    resourceVersion: '12346',
+    uid: 'abc999',
+  },
+  // no `spec` at all — the list view must handle this gracefully
+  status: {},
+};
+
 export const DEFAULT_GATEWAY_CLASS: KubeGatewayClass = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'GatewayClass',
   metadata: {
     creationTimestamp: '2023-07-19T09:48:42Z',
@@ -68,7 +87,7 @@ export const DEFAULT_GATEWAY_CLASS: KubeGatewayClass = {
 };
 
 export const DEFAULT_HTTP_ROUTE: KubeHTTPRoute = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'HTTPRoute',
   metadata: {
     creationTimestamp: '2023-07-19T09:48:42Z',
@@ -128,7 +147,7 @@ export const DEFAULT_HTTP_ROUTE: KubeHTTPRoute = {
 };
 
 export const EMPTY_HTTP_ROUTE: KubeHTTPRoute = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'HTTPRoute',
   metadata: {
     creationTimestamp: '2023-07-19T09:48:42Z',
@@ -146,17 +165,18 @@ export const EMPTY_HTTP_ROUTE: KubeHTTPRoute = {
 };
 
 export const DEFAULT_GRPC_ROUTE: KubeGRPCRoute = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'GRPCRoute',
   metadata: {
     creationTimestamp: '2023-07-19T09:48:42Z',
     generation: 1,
-    name: 'default-httproute',
+    name: 'default-grpcroute',
     namespace: 'default',
     resourceVersion: '1234',
     uid: 'abc1234',
   },
   spec: {
+    hostnames: ['grpc.example.com', 'api.example.com'],
     parentRefs: [
       {
         group: 'gateway.networking.k8s.io',
@@ -172,11 +192,58 @@ export const DEFAULT_GRPC_ROUTE: KubeGRPCRoute = {
         name: 'envoy-gateway-system-test',
       },
     ],
+    rules: [
+      {
+        name: 'grpc-service-match',
+        matches: [
+          {
+            method: {
+              type: 'Exact',
+              service: 'com.example.UserService',
+              method: 'GetUser',
+            },
+            headers: [
+              {
+                type: 'Exact',
+                name: 'x-environment',
+                value: 'production',
+              },
+            ],
+          },
+        ],
+        backendRefs: [
+          {
+            group: '',
+            kind: 'Service',
+            name: 'user-service',
+            port: 9090,
+            weight: 1,
+          },
+        ],
+        filters: [
+          {
+            type: 'RequestHeaderModifier',
+          },
+        ],
+      },
+      {
+        backendRefs: [
+          {
+            group: '',
+            kind: 'Service',
+            name: 'fallback-service',
+            namespace: 'backend',
+            port: 9090,
+            weight: 1,
+          },
+        ],
+      },
+    ],
   },
 };
 
 export const DEFAULT_REFERENCE_GRANT: KubeReferenceGrant = {
-  apiVersion: 'gateway.networking.k8s.io/v1beta1',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'ReferenceGrant',
   metadata: {
     uid: 'abc1234',
@@ -203,7 +270,7 @@ export const DEFAULT_REFERENCE_GRANT: KubeReferenceGrant = {
 };
 
 export const DEFAULT_BACKEND_TLS_POLICY: KubeBackendTLSPolicy = {
-  apiVersion: 'gateway.networking.k8s.io/v1alpha3',
+  apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'BackendTLSPolicy',
   metadata: {
     uid: 'abc1234',

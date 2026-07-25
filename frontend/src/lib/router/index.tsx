@@ -65,7 +65,9 @@ import IngressClassDetails from '../../components/ingress/ClassDetails';
 import IngressClassList from '../../components/ingress/ClassList';
 import IngressDetails from '../../components/ingress/Details';
 import IngressList from '../../components/ingress/List';
+import JobDetails from '../../components/job/Details';
 import JobsList from '../../components/job/List';
+import JobSetList from '../../components/jobset/List';
 import { LeaseDetails } from '../../components/lease/Details';
 import { LeaseList } from '../../components/lease/List';
 import { LimitRangeDetails } from '../../components/limitRange/Details';
@@ -105,6 +107,8 @@ import PersistentVolumeClaimDetails from '../../components/storage/ClaimDetails'
 import PersistentVolumeClaimList from '../../components/storage/ClaimList';
 import StorageClassDetails from '../../components/storage/ClassDetails';
 import StorageClassList from '../../components/storage/ClassList';
+import VolumeAttributesClassDetails from '../../components/storage/VolumeAttributesClassDetails';
+import VolumeAttributesClassList from '../../components/storage/VolumeAttributesClassList';
 import PersistentVolumeDetails from '../../components/storage/VolumeDetails';
 import PersistentVolumeList from '../../components/storage/VolumeList';
 import VpaDetails from '../../components/verticalPodAutoscaler/Details';
@@ -120,7 +124,7 @@ import LocaleSelect from '../../i18n/LocaleSelect/LocaleSelect';
 import { useCluster } from '..//k8s';
 import DaemonSet from '../k8s/daemonSet';
 import Deployment from '../k8s/deployment';
-import Job from '../k8s/job';
+import JobSet from '../k8s/jobSet';
 import ReplicaSet from '../k8s/replicaSet';
 import StatefulSet from '../k8s/statefulSet';
 import type { RouteURLProps } from './createRouteURL';
@@ -137,6 +141,18 @@ export { getDefaultRoutes, getRouteUseClusterURL, getRoutePath, getRoute, create
 const LazyGraphView = React.lazy(() =>
   import('../../components/resourceMap/GraphView').then(it => ({ default: it.GraphView }))
 );
+
+function SettingsClusterRedirect() {
+  const cluster = useCluster();
+  const history = useHistory();
+
+  React.useEffect(() => {
+    history.replace(`/settings/cluster?c=${cluster}`);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return <></>;
+}
 
 /** @private */
 const defaultRoutes: { [routeName: string]: Route } = {
@@ -233,6 +249,19 @@ const defaultRoutes: { [routeName: string]: Route } = {
     sidebar: 'storageClasses',
     component: () => <StorageClassDetails />,
   },
+  volumeAttributesClasses: {
+    path: '/storage/volumeattributesclasses',
+    exact: true,
+    sidebar: 'volumeAttributesClasses',
+    name: 'Volume Attributes Classes',
+    component: () => <VolumeAttributesClassList />,
+  },
+  volumeAttributesClass: {
+    path: '/storage/volumeattributesclasses/:name',
+    name: 'Volume Attributes Classes',
+    sidebar: 'volumeAttributesClasses',
+    component: () => <VolumeAttributesClassDetails />,
+  },
   persistentVolumes: {
     path: '/storage/persistentvolumes',
     exact: true,
@@ -289,7 +318,7 @@ const defaultRoutes: { [routeName: string]: Route } = {
     path: '/jobs/:namespace/:name',
     exact: true,
     sidebar: 'Jobs',
-    component: () => <WorkloadDetails workloadKind={Job} />,
+    component: () => <JobDetails />,
   },
   CronJob: {
     path: '/cronjobs/:namespace/:name',
@@ -506,6 +535,19 @@ const defaultRoutes: { [routeName: string]: Route } = {
     sidebar: 'CronJobs',
     name: 'CronJobs',
     component: () => <CronJobList />,
+  },
+  JobSets: {
+    path: '/jobsets',
+    exact: true,
+    sidebar: 'JobSets',
+    name: 'JobSets',
+    component: () => <JobSetList />,
+  },
+  JobSet: {
+    path: '/jobsets/:namespace/:name',
+    exact: true,
+    sidebar: 'JobSets',
+    component: () => <WorkloadDetails workloadKind={JobSet} />,
   },
   Deployments: {
     path: '/deployments',
@@ -882,16 +924,7 @@ const defaultRoutes: { [routeName: string]: Route } = {
     },
     useClusterURL: true,
     noAuthRequired: true,
-    component: () => {
-      const cluster = useCluster();
-      const history = useHistory();
-
-      React.useEffect(() => {
-        history.replace(`/settings/cluster?c=${cluster}`);
-      }, []);
-
-      return <></>;
-    },
+    component: SettingsClusterRedirect,
   },
   settingsClusterHomeContext: {
     path: '/settings/cluster',

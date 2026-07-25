@@ -26,16 +26,24 @@ const avoidCheck = [
   'ActionsNotifier',
   'AlertNotification',
   'ErrorBoundary',
+  'fetchLatestKubeObject',
+  'logSeverityFilter',
+  // Internal helper exported only so `ResourceTable` and its co-located
+  // tests can import it; deliberately kept out of the barrel.
+  'getResourceRowId',
 ];
 
 const checkExports = [
+  'A8RInfo',
   'CircularChart',
   'CreateButton',
+  'CreateResourceForm',
   'CopyButton',
   'DeleteButton',
   'DeleteMultipleButton',
   'DetailsDrawer',
   'DocsViewer',
+  'DryRunPreviewDialog',
   'EditButton',
   'EditorDialog',
   'EnvVarGrid',
@@ -52,9 +60,11 @@ const checkExports = [
   'RestartButton',
   'RestartMultipleButton',
   'RevisionHistorySection',
+  'DownloadButton',
   'RollbackButton',
   'RollbackDialog',
   'ScaleButton',
+  'ScaleMultipleButton',
   'SimpleEditor',
   'UploadDialog',
   'ViewButton',

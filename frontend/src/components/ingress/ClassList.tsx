@@ -55,6 +55,7 @@ export default function IngressClassList() {
             return apiGroup ? `${kind}.${apiGroup}/${name}` : name;
           },
         },
+        'labels',
         'age',
       ]}
     />

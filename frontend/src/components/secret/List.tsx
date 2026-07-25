@@ -88,6 +88,7 @@ export default function SecretList() {
           gridTemplate: 'min-content',
           getValue: (secret: Secret) => Object.keys(secret.data || {}).length || 0,
         },
+        'labels',
         'age',
       ]}
     />

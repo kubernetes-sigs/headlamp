@@ -31,7 +31,7 @@ func TestNewRequestHandler(t *testing.T) {
 }
 
 func testSpan() (context.Context, trace.Span) {
-	req := httptest.NewRequest(http.MethodPost, "http://example.com/test/path", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "http://example.com/test/path", nil)
 	ctx := req.Context()
 
 	tracer := otel.GetTracerProvider().Tracer("test-tracer")
@@ -43,6 +43,7 @@ func testSpan() (context.Context, trace.Span) {
 func setupTest(t *testing.T) (*tel.RequestHandler, *tracetest.SpanRecorder) {
 	sr, tp := setupTracingProvider(t)
 	originalTP := otel.GetTracerProvider()
+
 	otel.SetTracerProvider(tp)
 	t.Cleanup(func() {
 		otel.SetTracerProvider(originalTP)
@@ -286,7 +287,7 @@ func TestRecordRequestCount(t *testing.T) {
 	t.Run("records request count with default attributes", func(t *testing.T) {
 		metrics := setupMetrics(t)
 		handler := tel.NewRequestHandler(nil, metrics)
-		req := httptest.NewRequest(http.MethodGet, "/test/path", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test/path", nil)
 		ctx := req.Context()
 
 		assert.NotPanics(t, func() {
@@ -297,7 +298,7 @@ func TestRecordRequestCount(t *testing.T) {
 	t.Run("records request count with additional attributes", func(t *testing.T) {
 		metrics := setupMetrics(t)
 		handler := tel.NewRequestHandler(nil, metrics)
-		req := httptest.NewRequest(http.MethodPost, "/api/v1/resource", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/api/v1/resource", nil)
 		ctx := req.Context()
 
 		attrs := []attribute.KeyValue{
@@ -312,7 +313,7 @@ func TestRecordRequestCount(t *testing.T) {
 
 	t.Run("handles nil metrics", func(t *testing.T) {
 		handler := tel.NewRequestHandler(nil, nil)
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 		ctx := req.Context()
 
 		assert.NotPanics(t, func() {
@@ -333,7 +334,7 @@ func TestRecordRequestCount(t *testing.T) {
 	t.Run("handles multiple requests", func(t *testing.T) {
 		metrics := setupMetrics(t)
 		handler := tel.NewRequestHandler(nil, metrics)
-		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/test", nil)
 		ctx := req.Context()
 
 		assert.NotPanics(t, func() {

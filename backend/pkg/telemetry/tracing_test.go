@@ -36,6 +36,7 @@ func setupTracingProvider(t *testing.T) (*tracetest.SpanRecorder, *sdktrace.Trac
 func TestTracingMiddleware(t *testing.T) {
 	sr, tp := setupTracingProvider(t)
 	originalTP := otel.GetTracerProvider()
+
 	otel.SetTracerProvider(tp)
 
 	defer otel.SetTracerProvider(originalTP)
@@ -49,7 +50,7 @@ func TestTracingMiddleware(t *testing.T) {
 
 	handler := middleware(testHandler)
 
-	req := httptest.NewRequest("GET", "/test-path", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/test-path", nil)
 	w := httptest.NewRecorder()
 
 	handler.ServeHTTP(w, req)
@@ -80,14 +81,15 @@ func TestTracingMiddleware(t *testing.T) {
 		return false
 	}
 
-	assert.True(t, containsAttribute("http.method", "GET"))
-	assert.True(t, containsAttribute("http.target", "/test-path"))
-	assert.True(t, containsAttribute("http.status_code", 200))
+	assert.True(t, containsAttribute("http.request.method", "GET"))
+	assert.True(t, containsAttribute("url.path", "/test-path"))
+	assert.True(t, containsAttribute("http.response.status_code", 200))
 }
 
 func TestTracingMiddlewareWithPropagation(t *testing.T) {
 	sr, tp := setupTracingProvider(t)
 	originalTP := otel.GetTracerProvider()
+
 	otel.SetTracerProvider(tp)
 
 	defer otel.SetTracerProvider(originalTP)
@@ -103,7 +105,7 @@ func TestTracingMiddlewareWithPropagation(t *testing.T) {
 
 	handler := middleware(testHandler)
 
-	req := httptest.NewRequest("GET", "/test-path", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/test-path", nil)
 
 	ctx, parentSpan := otel.Tracer("test").Start(context.Background(), "parent-span")
 	defer parentSpan.End()
@@ -262,9 +264,10 @@ func TestEndSpan(t *testing.T) {
 func TestCreateSpan(t *testing.T) {
 	sr, tp := setupTracingProvider(t)
 	originalTP := otel.GetTracerProvider()
+
 	otel.SetTracerProvider(tp)
 
-	req := httptest.NewRequest(http.MethodPost, "/test/path", nil)
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/test/path", nil)
 
 	defer otel.SetTracerProvider(originalTP)
 

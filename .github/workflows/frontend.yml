@@ -30,7 +30,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [20.x]
+        node-version: [22.x]
         os: [ubuntu-22.04] # [windows-latest, ubuntu-latest, macos-latest]
 
     steps:
@@ -49,7 +49,7 @@ jobs:
 
       - name: Run linter
         run: |
-          make frontend-lint
+          cd frontend && npm run ci-lint
 
   test:
     name: test
@@ -57,7 +57,7 @@ jobs:
 
     strategy:
       matrix:
-        node-version: [20.x]
+        node-version: [22.x]
         os: [ubuntu-22.04] # [windows-latest, ubuntu-latest, macos-latest]
 
     steps:
@@ -87,7 +87,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        node-version: [20.x]
+        node-version: [22.x]
         os: [ubuntu-22.04] # [windows-latest, ubuntu-latest, macos-latest]
 
     steps:
@@ -108,12 +108,17 @@ jobs:
         run: |
           make frontend-build
 
+      # This is to check the rsbuild setup is still working, so "npm run star" still works.
+      - name: Build Frontend (rsbuild)
+        run: |
+          make frontend-build-rsbuild
+
   testplugins:
     name: test plugins
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        node-version: [20.x]
+        node-version: [22.x]
         os: [ubuntu-22.04] # [windows-latest, ubuntu-latest, macos-latest]
 
     steps:
@@ -135,7 +140,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        node-version: [20.x]
+        node-version: [22.x]
         os: [ubuntu-22.04] # [windows-latest, ubuntu-latest, macos-latest]
 
     steps:
@@ -157,7 +162,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        node-version: [20.x]
+        node-version: [22.x]
         os: [ubuntu-22.04] # [windows-latest, ubuntu-latest, macos-latest]
 
     steps:

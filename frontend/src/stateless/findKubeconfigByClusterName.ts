@@ -15,6 +15,7 @@
  */
 
 import * as jsyaml from 'js-yaml';
+import { decodeBase64 } from '../helpers/base64';
 import { KubeconfigObject } from '../lib/k8s/kubeconfig';
 import {
   CursorSuccessEvent,
@@ -65,7 +66,7 @@ export function findKubeconfigByClusterName(
             const kubeconfigObject = cursor.value;
             const kubeconfig = kubeconfigObject.kubeconfig;
 
-            const parsedKubeconfig = jsyaml.load(atob(kubeconfig)) as KubeconfigObject;
+            const parsedKubeconfig = jsyaml.load(decodeBase64(kubeconfig)) as KubeconfigObject;
             // Check for "headlamp_info" in extensions
             const { matchingKubeconfig, matchingContext } = findMatchingContexts(
               clusterName,

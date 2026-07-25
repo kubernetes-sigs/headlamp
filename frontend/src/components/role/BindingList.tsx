@@ -178,6 +178,7 @@ export default function RoleBindingList() {
           ),
           sort: sortBindings('Service Accounts'),
         },
+        'labels',
         'age',
       ]}
       data={allRoles}

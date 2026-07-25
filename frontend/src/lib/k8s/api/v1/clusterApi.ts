@@ -72,6 +72,23 @@ export async function getClusterUserInfo(cluster = ''): Promise<ClusterUserInfo>
   }
 
   try {
+    const res = await clusterRequest('/me', {
+      timeout: 5 * 1000,
+      cluster: clusterName,
+    });
+    if (res && res.username) {
+      return {
+        username: res.username,
+        groups: res.groups,
+      };
+    }
+  } catch (error) {
+    if (isDebugVerbose('k8s/api/v1/clusterApi@getClusterUserInfo')) {
+      console.debug('Failed to get user info from /me for cluster', clusterName, error);
+    }
+  }
+
+  try {
     // Try SelfSubjectReview API (available in K8s 1.28+)
     const response = await post(
       '/apis/authentication.k8s.io/v1/selfsubjectreviews',
@@ -123,14 +140,14 @@ export async function setCluster(clusterReq: ClusterRequest) {
 
   if (kubeconfig) {
     await storeStatelessClusterKubeconfig(kubeconfig);
-    // We just send parsed kubeconfig from the backend to the frontend.
     return request(
       '/parseKubeConfig',
       {
         method: 'POST',
-        body: JSON.stringify(clusterReq),
+        body: JSON.stringify({ kubeconfigs: [kubeconfig] }),
         headers: {
           ...headers,
+          ...getHeadlampAPIHeaders(),
         },
       },
       false,
@@ -289,8 +306,8 @@ export async function renameCluster(
 }
 
 /**
- * parseKubeConfig sends call to backend to parse kubeconfig and send back
- * the parsed clusters and contexts.
+ * parseKubeConfig sends a kubeconfig to the backend to parse and returns
+ * the resulting clusters.
  * @param clusterReq - The cluster request object.
  */
 export async function parseKubeConfig(clusterReq: ClusterRequest) {
@@ -302,7 +319,7 @@ export async function parseKubeConfig(clusterReq: ClusterRequest) {
       '/parseKubeConfig',
       {
         method: 'POST',
-        body: JSON.stringify(clusterReq),
+        body: JSON.stringify({ kubeconfigs: [kubeconfig] }),
         headers: {
           ...headers,
           ...getHeadlampAPIHeaders(),

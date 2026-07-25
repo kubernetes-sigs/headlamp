@@ -69,8 +69,10 @@ export default function RouteSwitcher(props: { requiresToken: () => boolean }) {
               exact={!!route.exact}
               clusters={clusters}
               requiresToken={props.requiresToken}
-              children={<RouteComponent route={route} key={getCluster()} />}
-              key={`${getCluster()}`}
+              children={
+                <RouteComponent route={route} key={`${getRoutePath(route)}-${getCluster()}`} />
+              }
+              key={`${getRoutePath(route)}-${getCluster()}`}
             />
           )
         )}
@@ -96,11 +98,11 @@ function RouteComponent({ route }: { route: RouteType }) {
   const dispatch = useDispatch();
   React.useEffect(() => {
     dispatch(uiSlice.actions.setHideAppBar(route.hideAppBar));
-  }, [route.hideAppBar]);
+  }, [route.hideAppBar, dispatch]);
 
   React.useEffect(() => {
     dispatch(uiSlice.actions.setIsFullWidth(route.isFullWidth));
-  }, [route.isFullWidth]);
+  }, [route.isFullWidth, dispatch]);
 
   return (
     <PageTitle
@@ -232,14 +234,15 @@ export function PreviousRouteProvider({ children }: React.PropsWithChildren<{}>)
   const [locationInfo, setLocationInfo] = React.useState<number>(0);
 
   React.useEffect(() => {
-    history.listen((location, action) => {
+    const unlisten = history.listen((location, action) => {
       if (action === 'PUSH') {
         setLocationInfo(levels => levels + 1);
       } else if (action === 'POP') {
         setLocationInfo(levels => levels - 1);
       }
     });
-  }, []);
+    return unlisten;
+  }, [history]);
 
   return (
     <PreviousRouteContext.Provider value={locationInfo}>{children}</PreviousRouteContext.Provider>

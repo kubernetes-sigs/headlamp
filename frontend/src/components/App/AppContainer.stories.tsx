@@ -23,13 +23,14 @@ import i18n from '../../i18n/config';
 import store from '../../redux/stores/store';
 import AppContainer from './AppContainer';
 
-const withEnv = (Story: React.ComponentType) => {
+const WithEnv = (Story: React.ComponentType) => {
   const prev = (window as any).desktopApi;
   (window as any).desktopApi = {
     send: () => {},
     receive: () => {},
   };
 
+  // eslint-disable-next-line react-hooks/rules-of-hooks
   React.useEffect(() => {
     return () => {
       if (prev === undefined) {
@@ -38,6 +39,7 @@ const withEnv = (Story: React.ComponentType) => {
         (window as any).desktopApi = prev;
       }
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (
@@ -52,7 +54,7 @@ const withEnv = (Story: React.ComponentType) => {
 export default {
   title: 'App/AppContainer',
   component: AppContainer,
-  decorators: [withEnv],
+  decorators: [WithEnv],
   parameters: {
     layout: 'fullscreen',
     storyshots: { disable: true },

@@ -16,10 +16,11 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { renderHook } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, type MockedFunction, vi } from 'vitest';
+import { clusterFetch } from './fetch';
 import {
   kubeObjectListQuery,
-  ListResponse,
+  type ListResponse,
   makeListRequests,
   useKubeObjectList,
   useWatchKubeObjectLists,
@@ -35,11 +36,24 @@ vi.mock('./webSocket', () => ({
   BASE_WS_URL: 'http://localhost:3000',
 }));
 
+vi.mock('./fetch', () => ({
+  clusterFetch: vi.fn(),
+}));
+
 vi.mock('./multiplexer', () => ({
   WebSocketManager: {
     subscribe: (...args: any[]) => mockSubscribe(...args),
   },
 }));
+
+const mockClusterFetch = clusterFetch as MockedFunction<typeof clusterFetch>;
+
+const mockJsonResponse = (data: unknown) =>
+  ({
+    ok: true,
+    status: 200,
+    json: () => Promise.resolve(data),
+  } as Response);
 
 describe('makeListRequests', () => {
   describe('for non namespaced resource', () => {
@@ -119,6 +133,23 @@ const mockClass = class {
       {
         group: '',
         resource: 'pods',
+        version: 'v1',
+      },
+    ],
+  };
+
+  constructor(public jsonData: any) {}
+} as any;
+
+const mockNodeClass = class {
+  static apiVersion = 'v1';
+  static apiName = 'nodes';
+
+  static apiEndpoint = {
+    apiInfo: [
+      {
+        group: '',
+        resource: 'nodes',
         version: 'v1',
       },
     ],
@@ -268,12 +299,53 @@ describe('useWatchKubeObjectLists', () => {
       (queryClient.getQueryData(keyForNamespaceB) as ListResponse<any>).list.items[0].jsonData
     ).toBe(objectB);
   });
+
+  it('should not call WebSocketManager.subscribe when multiplexer is disabled', () => {
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          lists: [{ cluster: 'default', resourceVersion: '1' }],
+          endpoint: { version: 'v1', resource: 'pods' },
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+    expect(mockSubscribe).not.toHaveBeenCalled();
+  });
 });
 
 describe('useKubeObjectList', () => {
   beforeEach(() => {
     vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
     vi.clearAllMocks();
+  });
+
+  it('should preserve List in the resource kind when parsing a list response', async () => {
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        kind: 'EventListenerList',
+        apiVersion: 'example.com/v1',
+        metadata: { resourceVersion: '1' },
+        items: [{ metadata: { name: 'example' } }],
+      })
+    );
+
+    const query = kubeObjectListQuery(
+      mockClass,
+      { group: 'example.com', version: 'v1', resource: 'bucketlistitems' },
+      undefined,
+      'default',
+      {}
+    );
+    const queryFn = query.queryFn as () => Promise<ListResponse<any>>;
+
+    const response = await queryFn();
+
+    expect(response.list.items[0].jsonData.kind).toBe('EventListener');
   });
 
   it('should call useKubeObjectList with 1 namespace after reducing amount of namespaces', async () => {
@@ -312,6 +384,43 @@ describe('useKubeObjectList', () => {
     expect(spy.mock.calls[2][0].connections.length).toBe(2); // rerender with new props
     expect(spy.mock.calls[3][0].connections.length).toBe(1); // updated connections after we removed namespace 'b'
   });
+
+  it('should clean up cluster-scoped resources when cluster is removed', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+
+    queryClient.setQueryData(['kubeObject', 'list', 'v1', 'nodes', 'cluster-1', '', {}], {
+      list: { items: [], metadata: { resourceVersion: '0' } },
+      cluster: 'cluster-1',
+    });
+    queryClient.setQueryData(['kubeObject', 'list', 'v1', 'nodes', 'cluster-2', '', {}], {
+      list: { items: [], metadata: { resourceVersion: '0' } },
+      cluster: 'cluster-2',
+    });
+
+    const result = renderHook(
+      (props: { requests: Array<{ cluster: string; namespaces?: string[] }> }) =>
+        useKubeObjectList({
+          kubeObjectClass: mockNodeClass,
+          requests: props.requests,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+        initialProps: {
+          requests: [{ cluster: 'cluster-1' }, { cluster: 'cluster-2' }],
+        },
+      }
+    );
+
+    expect(spy.mock.calls[1][0].connections.length).toBe(2);
+
+    result.rerender({ requests: [{ cluster: 'cluster-1' }] });
+
+    expect(spy.mock.calls[3][0].connections.length).toBe(1);
+    expect(spy.mock.calls[3][0].connections[0].cluster).toBe('cluster-1');
+  });
 });
 
 describe('useWatchKubeObjectLists (Multiplexer)', () => {
@@ -341,6 +450,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       'cluster-a',
       expect.stringContaining('/api/v1/namespaces/namespace-a/pods'),
       'watch=1&resourceVersion=1',
+      expect.any(Function),
       expect.any(Function)
     );
   });
@@ -371,6 +481,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       'cluster-a',
       expect.stringContaining('/api/v1/namespaces/namespace-a/pods'),
       'watch=1&resourceVersion=1',
+      expect.any(Function),
       expect.any(Function)
     );
     expect(mockSubscribe).toHaveBeenNthCalledWith(
@@ -378,6 +489,7 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       'cluster-b',
       expect.stringContaining('/api/v1/namespaces/namespace-b/pods'),
       'watch=1&resourceVersion=2',
+      expect.any(Function),
       expect.any(Function)
     );
   });
@@ -403,7 +515,28 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       'cluster-a',
       expect.stringContaining('/api/v1/pods'),
       'watch=1&resourceVersion=1',
+      expect.any(Function),
       expect.any(Function)
     );
+  });
+
+  it('should not call legacy useWebSockets with connections when multiplexer is enabled', () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          lists: [{ cluster: 'cluster-a', namespace: 'namespace-a', resourceVersion: '1' }],
+          endpoint: { version: 'v1', resource: 'pods' },
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    expect(spy).toHaveBeenCalledWith({ enabled: false, connections: [] });
   });
 });

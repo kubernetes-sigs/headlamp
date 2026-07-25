@@ -23,7 +23,7 @@ import { initialState as THEME_INITIAL_STATE } from '../../components/App/themeS
 import { initialState as CONFIG_INITIAL_STATE } from '../../redux/configSlice';
 import { initialState as FILTER_INITIAL_STATE } from '../../redux/filterSlice';
 import { uiSlice } from '../../redux/uiSlice';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import Sidebar, { DefaultSidebars, PureSidebar } from './Sidebar';
 import { initialState as SIDEBAR_INITIAL_STATE, SidebarState } from './sidebarSlice';
 
@@ -34,23 +34,19 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions',
-            () =>
-              HttpResponse.json({
-                kind: 'List',
-                items: [],
-                metadata: {},
-              })
+          http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1/customresourcedefinitions`, () =>
+            HttpResponse.json({
+              kind: 'List',
+              items: [],
+              metadata: {},
+            })
           ),
-          http.get(
-            'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
-            () =>
-              HttpResponse.json({
-                kind: 'List',
-                items: [],
-                metadata: {},
-              })
+          http.get(`${API_BASE}/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions`, () =>
+            HttpResponse.json({
+              kind: 'List',
+              items: [],
+              metadata: {},
+            })
           ),
         ],
       },

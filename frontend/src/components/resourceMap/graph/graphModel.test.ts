@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { getNodeWeight, GraphNode } from './graphModel';
+import { deduplicateGraphElements, getNodeWeight, GraphNode } from './graphModel';
 
 describe('getNodeWeight', () => {
   it('correctly assigns default weights to different Kubernetes resource types', () => {
@@ -56,5 +56,94 @@ describe('getNodeWeight', () => {
   it('uses default weight for nodes without kubeObject', () => {
     const node: GraphNode = { id: 'plain-node' };
     expect(getNodeWeight(node)).toBe(500);
+  });
+});
+
+describe('deduplicateGraphElements', () => {
+  it('keeps one node for each ID', () => {
+    const { nodes } = deduplicateGraphElements(
+      [
+        { id: 'pod-1', label: 'Pod 1' },
+        { id: 'pod-1', label: 'Duplicate Pod 1' },
+        { id: 'pod-2', label: 'Pod 2' },
+      ],
+      []
+    );
+
+    expect(nodes).toHaveLength(2);
+    expect(nodes.map(node => node.id)).toEqual(['pod-1', 'pod-2']);
+  });
+
+  it('keeps the first node when duplicate node IDs exist', () => {
+    const Details = () => null;
+    const kubeObject = { kind: 'Pod' } as any;
+    const data = { queue: 'default' };
+
+    const { nodes } = deduplicateGraphElements(
+      [
+        {
+          id: 'pod-1',
+          label: 'Pod 1',
+          subtitle: 'Pod',
+          icon: 'first icon',
+          kubeObject,
+          detailsComponent: Details,
+          customResourceDefinition: 'pods.example.com',
+          data,
+          weight: 900,
+        },
+        {
+          id: 'pod-1',
+          label: 'Volcano Pod 1',
+          subtitle: 'Volcano Pod',
+          icon: 'second icon',
+          kubeObject: { kind: 'Pod', metadata: { name: 'second' } } as any,
+          data: { queue: 'other' },
+          weight: 1000,
+        },
+      ],
+      []
+    );
+
+    expect(nodes.length).toEqual(1);
+    expect(nodes[0]).toMatchObject({
+      id: 'pod-1',
+      label: 'Pod 1',
+      subtitle: 'Pod',
+      icon: 'first icon',
+      kubeObject,
+      detailsComponent: Details,
+      customResourceDefinition: 'pods.example.com',
+      data,
+      weight: 900,
+    });
+  });
+
+  it('keeps one edge for each ID', () => {
+    const { edges } = deduplicateGraphElements(
+      [],
+      [
+        { id: 'pod-1-owner-1', source: 'pod-1', target: 'owner-1', label: 'first' },
+        { id: 'pod-1-owner-1', source: 'pod-1', target: 'owner-1', label: 'second' },
+        { id: 'pod-2-owner-1', source: 'pod-2', target: 'owner-1' },
+      ]
+    );
+
+    expect(edges).toEqual([
+      { id: 'pod-1-owner-1', source: 'pod-1', target: 'owner-1', label: 'first' },
+      { id: 'pod-2-owner-1', source: 'pod-2', target: 'owner-1' },
+    ]);
+  });
+
+  it('keeps distinct edges with the same source and target', () => {
+    const { edges } = deduplicateGraphElements(
+      [],
+      [
+        { id: 'owner-1-pod-1-owns', source: 'owner-1', target: 'pod-1' },
+        { id: 'owner-1-pod-1-schedules', source: 'owner-1', target: 'pod-1' },
+      ]
+    );
+
+    expect(edges).toHaveLength(2);
   });
 });

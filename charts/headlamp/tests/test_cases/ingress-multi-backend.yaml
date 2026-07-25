@@ -1,0 +1,32 @@
+service:
+  extraServicePorts:
+    - name: extra
+      port: 9090
+
+ingress:
+  enabled: true
+  ingressClassName: nginx
+  hosts:
+    - host: chart-example.local
+      paths:
+        - path: /
+          type: Prefix
+        - path: /extra-by-name
+          type: Prefix
+          backend:
+            service:
+              port:
+                name: extra
+        - path: /extra-by-number
+          type: Prefix
+          backend:
+            service:
+              port:
+                number: 9090
+        - path: /custom-svc
+          type: Prefix
+          backend:
+            service:
+              name: "{{ .Release.Name }}-other"
+              port:
+                number: 8080

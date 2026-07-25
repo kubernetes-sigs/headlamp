@@ -18,7 +18,7 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { useEffect } from 'react';
 import Pod from '../../lib/k8s/pod';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import { PodDebugTerminal } from './PodDebugTerminal';
 
 // Mock Pod object for demonstration (all required fields)
@@ -114,12 +114,12 @@ export default {
       handlers: [
         // Mock authorization checks
         http.post(
-          'http://localhost:4466/clusters/default/apis/authorization.k8s.io/v1/selfsubjectaccessreviews',
+          `${API_BASE}/clusters/default/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`,
           () => HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
         ),
         // Mock the PATCH request to create ephemeral container
         http.patch(
-          'http://localhost:4466/clusters/default/api/v1/namespaces/default/pods/mock-pod/ephemeralcontainers',
+          `${API_BASE}/clusters/default/api/v1/namespaces/default/pods/mock-pod/ephemeralcontainers`,
           async () => {
             // We won't really create an ephemeral container, so always return empty arrays
             return HttpResponse.json({
@@ -136,12 +136,9 @@ export default {
           }
         ),
         // Mock the GET request to poll pod status
-        http.get(
-          'http://localhost:4466/clusters/default/api/v1/namespaces/default/pods/mock-pod',
-          () => {
-            return HttpResponse.json(mockPod.jsonData);
-          }
-        ),
+        http.get(`${API_BASE}/clusters/default/api/v1/namespaces/default/pods/mock-pod`, () => {
+          return HttpResponse.json(mockPod.jsonData);
+        }),
       ],
     },
   },

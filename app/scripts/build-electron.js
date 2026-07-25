@@ -14,6 +14,10 @@ const commonOptions = {
   format: 'cjs',
   sourcemap: isDev,
   minify: !isDev,
+  mainFields: ['main', 'module'],
+  logOverride: {
+    'empty-import-meta': 'silent',
+  },
 };
 
 const entryPoints = [

@@ -17,7 +17,7 @@
 import Container from '@mui/material/Container';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import Overview from './Overview';
 
 export default {
@@ -37,7 +37,7 @@ export default {
     msw: {
       handlers: {
         story: [
-          http.get('http://localhost:4466/api/v1/events', () =>
+          http.get(`${API_BASE}/api/v1/events`, () =>
             HttpResponse.json({
               kind: 'EventsList',
               items: [
@@ -169,7 +169,7 @@ export default {
               metadata: {},
             })
           ),
-          http.get('http://localhost:4466/api/v1/pods', () =>
+          http.get(`${API_BASE}/api/v1/pods`, () =>
             HttpResponse.json({
               kind: 'PodList',
               apiVersion: 'v1',
@@ -198,14 +198,14 @@ EmptyState.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/events', () =>
+        http.get(`${API_BASE}/api/v1/events`, () =>
           HttpResponse.json({
             kind: 'EventsList',
             items: [],
             metadata: {},
           })
         ),
-        http.get('http://localhost:4466/api/v1/pods', () =>
+        http.get(`${API_BASE}/api/v1/pods`, () =>
           HttpResponse.json({
             kind: 'PodList',
             apiVersion: 'v1',
@@ -224,8 +224,8 @@ LoadingState.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/events', () => new Promise(() => {})),
-        http.get('http://localhost:4466/api/v1/pods', () => new Promise(() => {})),
+        http.get(`${API_BASE}/api/v1/events`, () => new Promise(() => {})),
+        http.get(`${API_BASE}/api/v1/pods`, () => new Promise(() => {})),
       ],
     },
   },
@@ -236,8 +236,8 @@ ErrorState.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get('http://localhost:4466/api/v1/events', () => HttpResponse.error()),
-        http.get('http://localhost:4466/api/v1/pods', () => HttpResponse.error()),
+        http.get(`${API_BASE}/api/v1/events`, () => HttpResponse.error()),
+        http.get(`${API_BASE}/api/v1/pods`, () => HttpResponse.error()),
       ],
     },
   },

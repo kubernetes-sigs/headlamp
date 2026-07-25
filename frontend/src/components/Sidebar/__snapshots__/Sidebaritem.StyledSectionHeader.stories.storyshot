@@ -1,0 +1,18 @@
+<body>
+  <div>
+    <div
+      class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+      style="background-color: rgba(0, 0, 0, 0.87);"
+    >
+      <ul
+        class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
+      >
+        <li
+          class="MuiListSubheader-root MuiListSubheader-gutters css-pz1muy-MuiListSubheader-root"
+        >
+          Plugin Section
+        </li>
+      </ul>
+    </div>
+  </div>
+</body>

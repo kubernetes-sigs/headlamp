@@ -95,6 +95,7 @@ export default function RevisionHistorySection(props: RevisionHistorySectionProp
     return () => {
       isActive = false;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resource?.metadata?.uid, resource?.metadata?.resourceVersion]);
 
   if (!getHistory) {

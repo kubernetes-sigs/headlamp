@@ -26,6 +26,8 @@ export interface KubeServiceAccount extends KubeObjectInterface {
     namespace: string;
     uid: string;
   }[];
+  imagePullSecrets?: { name: string }[];
+  automountServiceAccountToken?: boolean;
 }
 
 class ServiceAccount extends KubeObject<KubeServiceAccount> {
@@ -46,6 +48,14 @@ class ServiceAccount extends KubeObject<KubeServiceAccount> {
 
   get secrets(): KubeServiceAccount['secrets'] {
     return this.jsonData.secrets;
+  }
+
+  get imagePullSecrets(): KubeServiceAccount['imagePullSecrets'] {
+    return this.jsonData.imagePullSecrets;
+  }
+
+  get automountServiceAccountToken(): KubeServiceAccount['automountServiceAccountToken'] {
+    return this.jsonData.automountServiceAccountToken;
   }
 }
 

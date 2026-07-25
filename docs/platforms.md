@@ -29,6 +29,9 @@ The "works" column refers to the overall Kubernetes-related functionality when r
 | [vSphere Kubernetes Service (VKS)](https://techdocs.broadcom.com/us/en/vmware-cis/vcf/vsphere-supervisor-services-and-standalone-components/latest/release-notes/vmware-tanzu-kubernetes-grid-service-release-notes.html)                                       |  ✔️   | - Simple to install / expose with the regular [in-cluster instructions](https://headlamp.dev/docs/latest/installation/in-cluster/).                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 | [Talos Linux](https://www.talos.dev/) |  ✔️   | - Simple to install / expose with the regular [in-cluster instructions](https://headlamp.dev/docs/latest/installation/in-cluster/).  
 | [Oracle Kubernetes Engine (OKE)](https://www.oracle.com/in/cloud/cloud-native/kubernetes-engine/)    |  ✔️   | - As reported [here](https://github.com/kubernetes-sigs/headlamp/pull/4666).
+| [Linode Kubernetes Engine (LKE)](https://techdocs.akamai.com/cloud-computing/docs/linode-kubernetes-engine)    |  ✔️   | - Simple to install / expose with the regular [in-cluster instructions](https://headlamp.dev/docs/latest/installation/in-cluster/).                                                                                                                              
+| [Nutanix Kubernetes Platform (NKP)](https://www.nutanix.com/products/kubernetes-management-platform)    |  ✔️   | - Simple to install / expose with the regular [in-cluster instructions](https://headlamp.dev/docs/latest/installation/in-cluster/).    
+
 ## Tested Browsers
 
 We mostly test with 'modern browsers' defined as the latest version and two older versions. But we try to make Headlamp work with web standards, so it's quite likely other standards-conforming browsers will also work.
@@ -56,7 +59,7 @@ We test on MacOS, various flavours of Linux, and Windows. Headlamp runs in the b
 
 ## CNCF and Kubernetes Integrations
 
-See these two links up to date lists of plugins which integrate with out cloud native projects:
+See these two links for up-to-date lists of plugins which integrate with our cloud native projects:
 - [Artifact Hub plugin list](https://artifacthub.io/packages/search?kind=21&sort=relevance)
 - [Headlamp plugins repo](https://github.com/headlamp-k8s/plugins/)
 

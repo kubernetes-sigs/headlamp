@@ -28,6 +28,7 @@ import { useFilterFunc } from '../../lib/util';
 import { useNamespaces } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { OverviewChart } from '../../redux/overviewChartsSlice';
+import EventsLifetimeInfo from '../common/EventsLifetimeInfo';
 import { DateLabel } from '../common/Label';
 import { StatusLabel } from '../common/Label';
 import Link from '../common/Link';
@@ -44,10 +45,14 @@ import {
 } from './Charts';
 import { ClusterGroupErrorMessage } from './ClusterGroupErrorMessage';
 
+const OVERVIEW_REFETCH_INTERVAL_MS = 60_000;
+
 export default function Overview() {
   const { t } = useTranslation(['translation']);
-  const [pods] = Pod.useList();
-  const [nodes] = Node.useList();
+  // The overview only needs periodic snapshots for aggregate charts. Avoid long-lived
+  // watches here because large clusters can stream enough events to exhaust the tab.
+  const [pods] = Pod.useList({ refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS });
+  const [nodes] = Node.useList({ refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS });
   const [nodeMetrics, metricsError] = Node.useMetrics();
   const chartProcessors = useTypedSelector(state => state.overviewCharts.processors);
 
@@ -122,6 +127,7 @@ function EventsSection() {
   const { items: events, errors: eventsErrors } = Event.useList({
     limit: Event.maxLimit,
     namespace,
+    refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS,
   });
 
   const warningActionFilterFunc = (event: Event, search?: string) => {
@@ -173,6 +179,7 @@ function EventsSection() {
       headerProps={{
         noNamespaceFilter: false,
         titleSideActions: [
+          <EventsLifetimeInfo key="event-lifetime-info" />,
           <FormControlLabel
             checked={isWarningEventSwitchChecked}
             label={t('Only warnings ({{ numWarnings }})', { numWarnings })}
@@ -190,12 +197,14 @@ function EventsSection() {
       errors={eventsErrors}
       columns={[
         {
+          id: 'type',
           label: t('Type'),
           gridTemplate: 'min-content',
           filterVariant: 'multi-select',
           getValue: event => event.involvedObject.kind,
         },
         {
+          id: 'name',
           label: t('Name'),
           getValue: event => event.involvedObjectInstance?.getName() ?? event.involvedObject.name,
           render: event => makeObjectLink(event),
@@ -204,6 +213,14 @@ function EventsSection() {
         'namespace',
         'cluster',
         {
+          id: 'node',
+          label: t('glossary|Node'),
+          gridTemplate: 'min-content',
+          filterVariant: 'multi-select',
+          getValue: event => event.source?.host ?? '',
+        },
+        {
+          id: 'reason',
           label: t('Reason'),
           gridTemplate: 'min-content',
           filterVariant: 'multi-select',
@@ -215,6 +232,7 @@ function EventsSection() {
           ),
         },
         {
+          id: 'message',
           label: t('Message'),
           getValue: event => event.message ?? '',
           render: event => (

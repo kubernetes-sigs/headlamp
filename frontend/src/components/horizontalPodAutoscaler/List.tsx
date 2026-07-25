@@ -104,6 +104,7 @@ export default function HpaList() {
           gridTemplate: 'min-content',
           getValue: item => item.status.currentReplicas,
         },
+        'labels',
         'age',
       ]}
     />

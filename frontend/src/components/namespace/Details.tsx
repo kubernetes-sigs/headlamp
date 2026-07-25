@@ -19,7 +19,7 @@ import { useParams } from 'react-router-dom';
 import { LimitRange } from '../../lib/k8s/limitRange';
 import Namespace from '../../lib/k8s/namespace';
 import ResourceQuota from '../../lib/k8s/resourceQuota';
-import { StatusLabel } from '../common/Label';
+import { PhaseLabel } from '../common/PhaseLabel';
 import { ConditionsSection, DetailsGrid, OwnedPodsSection } from '../common/Resource';
 import DetailsViewSection from '../DetailsViewSection';
 import { LimitRangeRenderer } from '../limitRange/List';
@@ -29,11 +29,6 @@ export default function NamespaceDetails(props: { name?: string; cluster?: strin
   const params = useParams<{ name: string }>();
   const { name = params.name, cluster } = props;
   const { t } = useTranslation(['glossary', 'translation']);
-
-  function makeStatusLabel(namespace: Namespace | null) {
-    const status = namespace?.status.phase;
-    return <StatusLabel status={status === 'Active' ? 'success' : 'error'}>{status}</StatusLabel>;
-  }
 
   return (
     <DetailsGrid
@@ -45,7 +40,7 @@ export default function NamespaceDetails(props: { name?: string; cluster?: strin
         item && [
           {
             name: t('translation|Status'),
-            value: makeStatusLabel(item),
+            value: <PhaseLabel phase={item?.status?.phase} />,
           },
         ]
       }

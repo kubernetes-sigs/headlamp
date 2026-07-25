@@ -16,6 +16,9 @@
 
 import { ComponentType, ReactNode } from 'react';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
+
+export type GraphNodeStatus = 'error' | 'success' | 'warning';
+
 export type GraphNode = {
   /**
    * Unique ID for this node.
@@ -27,6 +30,8 @@ export type GraphNode = {
   label?: string;
   /** Subtitle for this node */
   subtitle?: string;
+  /** Optional health status used for map badges and status filtering */
+  status?: GraphNodeStatus;
   /** Custom icon for this node */
   icon?: ReactNode;
   /**
@@ -77,6 +82,58 @@ export interface GraphEdge {
   label?: ReactNode;
   /** Custom data for this node */
   data?: any;
+}
+
+/**
+ * Deduplicates graph nodes and edges by ID.
+ *
+ * When duplicate nodes or edges are found, the first graph element is preserved.
+ *
+ * @param nodes - list of graph Nodes
+ * @param edges - list of graph Edges
+ * @returns graph elements with unique node and edge IDs
+ */
+export function deduplicateGraphElements(nodes: GraphNode[], edges: GraphEdge[]) {
+  return {
+    nodes: deduplicateGraphNodes(nodes),
+    edges: deduplicateGraphEdges(edges),
+  };
+}
+
+/**
+ * Deduplicates graph nodes by ID, preserving the first node for each ID.
+ *
+ * @param nodes - list of graph Nodes
+ * @returns graph Nodes with unique IDs
+ */
+function deduplicateGraphNodes(nodes: GraphNode[]): GraphNode[] {
+  const nodesById = new Map<string, GraphNode>();
+
+  nodes.forEach(node => {
+    if (!nodesById.has(node.id)) {
+      nodesById.set(node.id, node);
+    }
+  });
+
+  return Array.from(nodesById.values());
+}
+
+/**
+ * Deduplicates graph edges by ID, preserving the first edge for each ID.
+ *
+ * @param edges - list of graph Edges
+ * @returns graph Edges with unique IDs
+ */
+export function deduplicateGraphEdges(edges: GraphEdge[]): GraphEdge[] {
+  const edgesById = new Map<string, GraphEdge>();
+
+  edges.forEach(edge => {
+    if (!edgesById.has(edge.id)) {
+      edgesById.set(edge.id, edge);
+    }
+  });
+
+  return Array.from(edgesById.values());
 }
 
 /**
@@ -139,6 +196,7 @@ const DEFAULT_NODE_WEIGHTS = {
 
   // Tier 3: Job-based Workloads
   CronJob: 960,
+  JobSet: 960,
   Job: 920,
 
   // Tier 4: Intermediate Controllers

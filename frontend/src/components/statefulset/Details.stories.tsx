@@ -17,7 +17,7 @@
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { MemoryRouter } from 'react-router-dom';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import StatefulSetDetails from './Details';
 
 const mockStatefulSet = {
@@ -100,41 +100,36 @@ export default {
     msw: {
       handlers: {
         storyBase: [
-          http.get('http://localhost:4466/apis/apps/v1/namespaces/default/statefulsets', () => {
+          http.get(`${API_BASE}/apis/apps/v1/namespaces/default/statefulsets`, () => {
             return HttpResponse.json({
               kind: 'StatefulSetList',
               items: [],
             });
           }),
-          http.get('http://localhost:4466/api/v1/namespaces/default/pods', () => {
+          http.get(`${API_BASE}/api/v1/namespaces/default/pods`, () => {
             return HttpResponse.json({
               kind: 'PodList',
               items: [],
             });
           }),
-          http.get(
-            'http://localhost:4466/apis/metrics.k8s.io/v1beta1/namespaces/default/pods',
-            () =>
-              HttpResponse.json({
-                kind: 'List',
-                items: [],
-              })
+          http.get(`${API_BASE}/apis/metrics.k8s.io/v1beta1/namespaces/default/pods`, () =>
+            HttpResponse.json({
+              kind: 'List',
+              items: [],
+            })
           ),
-          http.get('http://localhost:4466/api/v1/namespaces/default/events', () => {
+          http.get(`${API_BASE}/api/v1/namespaces/default/events`, () => {
             return HttpResponse.json({
               kind: 'EventList',
               items: [],
             });
           }),
-          http.get(
-            'http://localhost:4466/apis/apps/v1/namespaces/default/controllerrevisions',
-            () => {
-              return HttpResponse.json({
-                kind: 'ControllerRevisionList',
-                items: [],
-              });
-            }
-          ),
+          http.get(`${API_BASE}/apis/apps/v1/namespaces/default/controllerrevisions`, () => {
+            return HttpResponse.json({
+              kind: 'ControllerRevisionList',
+              items: [],
+            });
+          }),
         ],
       },
     },
@@ -152,9 +147,8 @@ Default.parameters = {
   msw: {
     handlers: {
       story: [
-        http.get(
-          'http://localhost:4466/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset',
-          () => HttpResponse.json(mockStatefulSet)
+        http.get(`${API_BASE}/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset`, () =>
+          HttpResponse.json(mockStatefulSet)
         ),
       ],
     },
@@ -171,7 +165,7 @@ WithOnDeleteStrategy.parameters = {
     handlers: {
       story: [
         http.get(
-          'http://localhost:4466/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset',
+          `${API_BASE}/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset`,
           () => {
             return HttpResponse.json({
               ...mockStatefulSet,
@@ -199,7 +193,7 @@ WithComplexSelector.parameters = {
     handlers: {
       story: [
         http.get(
-          'http://localhost:4466/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset',
+          `${API_BASE}/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset`,
           () => {
             return HttpResponse.json({
               ...mockStatefulSet,
@@ -231,7 +225,7 @@ WithMultipleContainers.parameters = {
     handlers: {
       story: [
         http.get(
-          'http://localhost:4466/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset',
+          `${API_BASE}/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset`,
           () => {
             return HttpResponse.json({
               ...mockStatefulSet,

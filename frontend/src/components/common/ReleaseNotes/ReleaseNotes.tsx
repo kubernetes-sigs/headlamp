@@ -169,10 +169,12 @@ export default function ReleaseNotes() {
         }
       );
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fetchingRelease, skipFetch]);
 
   React.useEffect(() => {
     desktopApi?.send('appConfig');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return (

@@ -54,7 +54,7 @@ export interface KubeconfigObject {
      * @see {@link https://kubernetes.io/docs/reference/config-api/kubeconfig.v1/#Cluster | more info}
      */
     cluster: {
-      /** Server is the address of the kubernetes cluster (https://hostname:port). */
+      /** Server is the address of the kubernetes cluster (`https://hostname:port`). */
       server: string;
       /** TLSServerName is used to check server certificate. If TLSServerName is empty, the hostname used to contact the server is used. */
       tlsServerName?: string;

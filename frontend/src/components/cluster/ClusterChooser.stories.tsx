@@ -53,6 +53,18 @@ Normal.args = {
   cluster: 'my-cluster',
 };
 
+export const MultipleSelectedClustersInline = Template.bind({});
+MultipleSelectedClustersInline.args = {
+  cluster: 'cluster-a',
+  selectedClusters: ['cluster-a', 'cluster-b'],
+};
+
+export const MultipleSelectedClustersCount = Template.bind({});
+MultipleSelectedClustersCount.args = {
+  cluster: 'cluster-a',
+  selectedClusters: ['cluster-a', 'cluster-b', 'cluster-c'],
+};
+
 export const LongClusterName = Template.bind({});
 LongClusterName.args = {
   cluster: 'very-long-kubernetes-cluster-name-that-should-be-truncated',

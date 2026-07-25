@@ -18,20 +18,10 @@ import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import React from 'react';
 import { Provider } from 'react-redux';
+import { ClusterSettings } from '../../../helpers/clusterSettings';
 import NodeShellSettings from './NodeShellSettings';
 
 const mockClusterName = 'mock-cluster';
-
-localStorage.setItem(
-  `clusterSettings-${mockClusterName}`,
-  JSON.stringify({
-    nodeShellTerminal: {
-      isEnabled: true,
-      namespace: 'kube-system',
-      linuxImage: 'busybox:1.28',
-    },
-  })
-);
 
 const getMockState = () => ({
   plugins: { loaded: true },
@@ -57,9 +47,17 @@ const Template: StoryFn<typeof NodeShellSettings> = args => {
     preloadedState: getMockState(),
   });
 
+  const [clusterSettings, setClusterSettings] = React.useState<ClusterSettings>(
+    args.clusterSettings
+  );
+
   return (
     <Provider store={store}>
-      <NodeShellSettings {...args} />
+      <NodeShellSettings
+        {...args}
+        clusterSettings={clusterSettings}
+        setClusterSettings={setClusterSettings}
+      />
     </Provider>
   );
 };
@@ -67,4 +65,11 @@ const Template: StoryFn<typeof NodeShellSettings> = args => {
 export const Default = Template.bind({});
 Default.args = {
   cluster: mockClusterName,
+  clusterSettings: {
+    nodeShellTerminal: {
+      isEnabled: true,
+      namespace: 'kube-system',
+      linuxImage: 'busybox:1.28',
+    },
+  },
 };

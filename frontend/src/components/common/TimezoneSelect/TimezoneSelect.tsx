@@ -39,11 +39,12 @@ export default function TimezoneSelect(props: TimezoneSelectorProps) {
         offset: timezone.current.offset,
       };
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [i18n.language]);
 
   return (
     <Autocomplete
-      id="cluster-selector-autocomplete"
+      id="timezone-selector-autocomplete"
       options={timezoneOptions}
       getOptionLabel={option =>
         `(UTC${option.offset >= 0 ? '+' : ''}${option.offset}) ${option.name}`

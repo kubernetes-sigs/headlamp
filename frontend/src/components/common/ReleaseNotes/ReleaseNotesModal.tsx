@@ -23,6 +23,7 @@ import Link from '@mui/material/Link';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import { DialogTitle } from '../Dialog';
 
 export interface ReleaseNotesModalProps {
@@ -51,21 +52,52 @@ export default function ReleaseNotesModal(props: ReleaseNotesModalProps) {
       <DialogContent dividers>
         <Box
           sx={{
-            img: {
-              display: 'block',
-              maxWidth: '100%',
+            '& img': { display: 'block', maxWidth: '100%', height: 'auto' },
+            '& table': {
+              borderCollapse: 'collapse',
+              width: '100%',
+              marginBottom: 2,
             },
+            '& th, & td': {
+              border: '1px solid',
+              borderColor: 'divider',
+              padding: '6px 12px',
+              textAlign: 'left',
+            },
+            '& th': { backgroundColor: 'action.hover', fontWeight: 'bold' },
+            '& tr:nth-of-type(even)': { backgroundColor: 'action.hover' },
+            '& code': {
+              fontFamily: 'monospace',
+              backgroundColor: 'action.hover',
+              padding: '2px 4px',
+              borderRadius: 1,
+              fontSize: '0.875em',
+            },
+            '& pre': {
+              backgroundColor: 'action.hover',
+              padding: 2,
+              borderRadius: 1,
+              overflow: 'auto',
+              '& code': { backgroundColor: 'transparent', padding: 0 },
+            },
+            '& blockquote': {
+              borderLeft: '4px solid',
+              borderColor: 'divider',
+              margin: 0,
+              paddingLeft: 2,
+              color: 'text.secondary',
+            },
+            '& h1, & h2, & h3, & h4, & h5, & h6': { marginTop: 2, marginBottom: 1 },
           }}
         >
           <ReactMarkdown
+            remarkPlugins={[remarkGfm]}
             components={{
-              a: ({ children, href }) => {
-                return (
-                  <Link href={href} target="_blank">
-                    {children}
-                  </Link>
-                );
-              },
+              a: ({ children, href }) => (
+                <Link href={href} target="_blank" rel="noopener noreferrer">
+                  {children}
+                </Link>
+              ),
             }}
           >
             {releaseNotes}

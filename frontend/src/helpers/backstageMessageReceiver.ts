@@ -17,6 +17,7 @@
 import jsyaml from 'js-yaml';
 import { KubeconfigObject } from '../lib/k8s/kubeconfig';
 import * as statelessFunctions from '../stateless';
+import { decodeBase64, encodeBase64 } from './base64';
 import { isBackstage } from './isBackstage';
 
 // BACKSTAGE_TOKEN_STORAGE_KEY is the key used to store the backstage token in the local storage
@@ -28,7 +29,9 @@ const BACKSTAGE_TOKEN_STORAGE_KEY = 'backstage_token';
  * @param token - the token to set
  */
 function setBackstageToken(token: string) {
-  localStorage.setItem(BACKSTAGE_TOKEN_STORAGE_KEY, token);
+  if (typeof localStorage !== 'undefined') {
+    localStorage.setItem(BACKSTAGE_TOKEN_STORAGE_KEY, token);
+  }
 }
 
 /**
@@ -37,7 +40,10 @@ function setBackstageToken(token: string) {
  * @returns the backstage token
  */
 export function getBackstageToken(): string | null {
-  return localStorage.getItem(BACKSTAGE_TOKEN_STORAGE_KEY);
+  if (typeof localStorage !== 'undefined') {
+    return localStorage.getItem(BACKSTAGE_TOKEN_STORAGE_KEY);
+  }
+  return null;
 }
 
 /**
@@ -48,7 +54,7 @@ export function getBackstageToken(): string | null {
 async function storeKubeconfigFromBackstage(kubeconfig: string) {
   try {
     // Decode base64 kubeconfig
-    const decodedKubeconfig = atob(kubeconfig);
+    const decodedKubeconfig = decodeBase64(kubeconfig);
     const parsedKubeconfig = jsyaml.load(decodedKubeconfig) as KubeconfigObject;
 
     // For each context, create a new kubeconfig
@@ -80,11 +86,10 @@ async function storeKubeconfigFromBackstage(kubeconfig: string) {
 
         // Convert back to YAML and base64 encode
         const newKubeconfigYaml = jsyaml.dump(newKubeconfig, { lineWidth: -1 });
-        const newKubeconfigBase64 = btoa(newKubeconfigYaml);
+        const newKubeconfigBase64 = encodeBase64(newKubeconfigYaml);
         await statelessFunctions.findAndReplaceKubeconfig(context.name, newKubeconfigBase64, true);
       }
     );
-    console.log('Promises', promises);
     // Wait for all kubeconfig operations to complete
     await Promise.all(promises);
   } catch (error) {
@@ -106,15 +111,14 @@ interface BackstageMessage {
 const BACKSTAGE_ACK_TIMEOUT_MS = 1000;
 
 /**
- * setupBackstageMessageReceiver sets up a listener for messages from the backstage app
- * and sets the backend token if it is received
+ * Sets up a listener for messages from the Backstage app.
+ * Handles Backstage auth token messages by storing the Backstage token,
+ * and kubeconfig messages by storing the kubeconfig for stateless use.
  *
- * @returns void
+ * @returns A cleanup function that removes the registered message event listener.
  */
-export function setupBackstageMessageReceiver() {
+export function setupBackstageMessageReceiver(): () => void {
   if (isBackstage()) {
-    console.log('Running in backstage, so setting up token receiver');
-
     const handleMessage = async (event: MessageEvent) => {
       try {
         const { type, payload } = event.data as BackstageMessage;
@@ -144,5 +148,10 @@ export function setupBackstageMessageReceiver() {
     };
 
     window.addEventListener('message', handleMessage);
+    return () => {
+      window.removeEventListener('message', handleMessage);
+    };
   }
+
+  return () => {};
 }

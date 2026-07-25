@@ -101,6 +101,7 @@ export default function VolumeClaimList() {
           render: volume => makePVCStatusLabel(volume),
           gridTemplate: 0.3,
         },
+        'labels',
         'age',
       ]}
     />

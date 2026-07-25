@@ -29,6 +29,55 @@ helm install my-headlamp headlamp/headlamp --namespace kube-system -f values.yam
 helm install my-headlamp headlamp/headlamp --namespace kube-system --set replicaCount=2
 ```
 
+### Cluster Inventory
+
+Headlamp can discover clusters from Cluster Inventory API `ClusterProfile`
+resources when Cluster Inventory is enabled. The Helm chart configures the
+backend flags from `config.clusterInventory` and mounts an access provider
+config file.
+
+Create `cluster-inventory-values.yaml`:
+
+```yaml
+config:
+  clusterInventory:
+    enabled: true
+    accessProvidersConfig:
+      providers:
+        - name: secretreader
+          execConfig:
+            apiVersion: client.authentication.k8s.io/v1
+            command: /access-plugins/secretreader/bin/secretreader-plugin
+            interactiveMode: Never
+            provideClusterInfo: true
+        - name: kubeconfig-secretreader
+          execConfig:
+            apiVersion: client.authentication.k8s.io/v1
+            command: /access-plugins/kubeconfig-secretreader/bin/kubeconfig-secretreader-plugin
+            interactiveMode: Never
+            provideClusterInfo: true
+    plugins:
+      - name: secretreader
+        image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.3@sha256:ec3090dc166aa2b42fb35d714d161c417d8b27bbc463404c8f615f5f4c610a1d
+        mountPath: /access-plugins/secretreader
+      - name: kubeconfig-secretreader
+        image: registry.k8s.io/cluster-inventory-api/kubeconfig-secretreader:v0.1.3@sha256:b92966cc6e4ac78002a63862921022a71d54956826f6e4febcb7247495eb98c0
+        mountPath: /access-plugins/kubeconfig-secretreader
+```
+
+Then install Headlamp with the values file:
+
+```bash
+helm install my-headlamp headlamp/headlamp --namespace kube-system --values cluster-inventory-values.yaml
+```
+
+The `accessProvidersConfig` object is the provider config consumed by the
+Cluster Inventory access provider. The `plugins` entries are Kubernetes `image`
+volumes that mount provider binaries into the Headlamp container, not Headlamp
+UI plugins. By default, Headlamp watches `ClusterProfile` resources that do not
+have the `headlamp.dev/ignore` label because the chart sets
+`config.clusterInventory.labelSelector` to `!headlamp.dev/ignore`.
+
 ## Using simple yaml
 
 We also maintain a simple/vanilla [file](https://github.com/kubernetes-sigs/headlamp/blob/main/kubernetes-headlamp.yaml)
@@ -51,7 +100,7 @@ Headlamp supports optional TLS termination at the backend server. The default is
 
 By default, Headlamp uses the default service account from the namespace it is deployed to, and generates a kubeconfig from it named `main`.
 
-If you wish to use another specific non-default kubeconfig file, then you can do it by mounting it to the default location at `/home/headlamp/.config/Headlamp/kubeconfigs/config`, or 
+If you wish to use another specific non-default kubeconfig file, then you can do it by mounting it to the default location at `/home/headlamp/.config/Headlamp/kubeconfigs/config`, or
 providing a custom path Headlamp with the ` -kubeconfig` argument or the KUBECONFIG env (through helm values.env)
 
 ### Use several kubeconfig files

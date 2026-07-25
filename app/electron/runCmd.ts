@@ -15,13 +15,14 @@
  */
 
 import { ChildProcessWithoutNullStreams, spawn } from 'child_process';
-import { app, BrowserWindow, dialog } from 'electron';
+import { BrowserWindow, dialog } from 'electron';
 import { IpcMainEvent } from 'electron/main';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'path';
 import i18n from './i18next.config';
 import { defaultPluginsDir, defaultUserPluginsDir } from './plugin-management';
+import { loadSettings, saveSettings, SETTINGS_PATH } from './settings';
 
 /**
  * Data sent from the renderer process when a 'run-command' event is emitted.
@@ -65,30 +66,6 @@ function confirmCommandDialog(command: string, mainWindow: BrowserWindow): boole
   return resp === 0;
 }
 
-const SETTINGS_PATH = path.join(app?.getPath('userData') || 'testing', 'settings.json');
-
-/**
- * Loads the user settings.
- * If the settings file does not exist, an empty object is returned.
- * @returns The settings object.
- */
-function loadSettings(): Record<string, any> {
-  try {
-    const data = fs.readFileSync(SETTINGS_PATH, 'utf-8');
-    return JSON.parse(data);
-  } catch (error) {
-    return {};
-  }
-}
-
-/**
- * Saves the user settings.
- * @param settings - The settings object to save.
- */
-function saveSettings(settings: Record<string, any>) {
-  fs.writeFileSync(SETTINGS_PATH, JSON.stringify(settings), 'utf-8');
-}
-
 /**
  * Checks if the user has already consented to running the command.
  *
@@ -99,7 +76,7 @@ function saveSettings(settings: Record<string, any>) {
  * @returns true if the user has consented to running the command, false otherwise.
  */
 function checkCommandConsent(command: string, args: string[], mainWindow: BrowserWindow): boolean {
-  const settings = loadSettings();
+  const settings = loadSettings(SETTINGS_PATH);
   const confirmedCommands = settings?.confirmedCommands;
 
   // Build the consent key: command + (first arg if present)
@@ -121,7 +98,7 @@ function checkCommandConsent(command: string, args: string[], mainWindow: Browse
       settings.confirmedCommands = {};
     }
     settings.confirmedCommands[consentKey] = commandChoice;
-    saveSettings(settings);
+    saveSettings(SETTINGS_PATH, settings);
   }
   return true;
 }
@@ -140,6 +117,7 @@ const COMMANDS_WITH_CONSENT = {
     'scriptjs headlamp_minikube/manage-minikube.js',
     'scriptjs minikube/manage-minikube.js',
   ],
+  headlamp_ai_assistant: ['gh auth', 'az account', 'az cognitiveservices'],
 };
 
 /**
@@ -151,7 +129,7 @@ const COMMANDS_WITH_CONSENT = {
  * @param pluginInfo artifacthub plugin info
  */
 export function addRunCmdConsent(pluginInfo: { name: string }): void {
-  const settings = loadSettings();
+  const settings = loadSettings(SETTINGS_PATH);
   if (!settings.confirmedCommands) {
     settings.confirmedCommands = {};
   }
@@ -164,13 +142,22 @@ export function addRunCmdConsent(pluginInfo: { name: string }): void {
   if (pluginIsMinikube) {
     commands = COMMANDS_WITH_CONSENT.headlamp_minikube;
   }
+
+  const pluginIsAiAssistant =
+    pluginInfo.name === 'headlamp_ai-assistant' ||
+    pluginInfo.name === 'headlamp_ai-assistantprerelease' ||
+    (process.env.NODE_ENV === 'development' && pluginInfo.name === 'ai-assistant');
+  if (pluginIsAiAssistant) {
+    commands = COMMANDS_WITH_CONSENT.headlamp_ai_assistant;
+  }
+
   for (const command of commands) {
     if (!settings.confirmedCommands[command]) {
       settings.confirmedCommands[command] = true;
     }
   }
 
-  saveSettings(settings);
+  saveSettings(SETTINGS_PATH, settings);
 }
 
 /**
@@ -179,7 +166,7 @@ export function addRunCmdConsent(pluginInfo: { name: string }): void {
  * @param pluginName The package.json name of the plugin.
  */
 export function removeRunCmdConsent(pluginName: string): void {
-  const settings = loadSettings();
+  const settings = loadSettings(SETTINGS_PATH);
   if (!settings.confirmedCommands) {
     return;
   }
@@ -190,11 +177,17 @@ export function removeRunCmdConsent(pluginName: string): void {
   ) {
     commands = COMMANDS_WITH_CONSENT.headlamp_minikube;
   }
+  if (
+    pluginName === '@headlamp-k8s/ai-assistant' ||
+    pluginName === '@headlamp-k8s/ai-assistantprerelease'
+  ) {
+    commands = COMMANDS_WITH_CONSENT.headlamp_ai_assistant;
+  }
   for (const command of commands) {
     delete settings.confirmedCommands[command];
   }
 
-  saveSettings(settings);
+  saveSettings(SETTINGS_PATH, settings);
 }
 
 /**
@@ -311,6 +304,11 @@ export function handleRunCommand(
     event.sender.send('command-stderr', commandData.id, data.toString());
   });
 
+  child.on('error', (err: Error) => {
+    event.sender.send('command-stderr', commandData.id, err.message);
+    event.sender.send('command-exit', commandData.id, -1);
+  });
+
   child.on('exit', (code: number | null) => {
     event.sender.send('command-exit', commandData.id, code);
   });
@@ -374,6 +372,8 @@ export function setupRunCmdHandlers(mainWindow: BrowserWindow | null, ipcMain: E
     'runCmd-scriptjs-minikube/manage-minikube.js': cryptoRandom(),
     'runCmd-scriptjs-headlamp_minikube/manage-minikube.js': cryptoRandom(),
     'runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js': cryptoRandom(),
+    'runCmd-gh': cryptoRandom(),
+    'runCmd-az': cryptoRandom(),
   };
 
   ipcMain.on('request-plugin-permission-secrets', function giveSecrets() {
@@ -428,7 +428,7 @@ export function validateCommandData(eventData: CommandDataPartial): [boolean, st
     }
   }
 
-  const validCommands = ['minikube', 'az', 'scriptjs'];
+  const validCommands = ['minikube', 'az', 'scriptjs', 'gh'];
 
   if (!validCommands.includes(eventData.command)) {
     return [

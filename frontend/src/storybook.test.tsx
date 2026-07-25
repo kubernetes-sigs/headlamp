@@ -14,12 +14,24 @@
  * limitations under the License.
  */
 
-import 'vitest-canvas-mock';
 import { composeStories, type Meta, setProjectAnnotations, type StoryFn } from '@storybook/react';
 import { act, render as testingLibraryRender, waitFor } from '@testing-library/react';
 import { getWorker } from 'msw-storybook-addon';
 import path from 'path';
 import * as previewAnnotations from '../.storybook/preview';
+
+vi.mock('./lib/k8s/api/v1/clusterRequests', async () => {
+  const actual = await vi.importActual('./lib/k8s/api/v1/clusterRequests');
+  return {
+    ...(actual as any),
+    clusterRequest: vi.fn((url, ...args) => {
+      if (url === '/version') {
+        return Promise.resolve({ gitVersion: 'v1.2.3' });
+      }
+      return (actual as any).clusterRequest(url, ...args);
+    }),
+  };
+});
 
 const annotations = setProjectAnnotations([previewAnnotations, { testingLibraryRender }]);
 beforeAll(annotations.beforeAll!);
@@ -70,6 +82,7 @@ vi.mock('@iconify/react', () => ({
 
 vi.mock('@monaco-editor/react', () => ({
   Editor: () => <div className="mock-monaco-editor" />,
+  DiffEditor: () => <div className="mock-monaco-diff-editor" />,
   useMonaco: () => null,
   loader: { config: () => null },
   default: () => <div className="mock-monaco-editor" />,
@@ -89,7 +102,15 @@ window.matchMedia = () => ({
  * Recursively walks the tree and replaces any usage of useId
  */
 function replaceUseId(node: any) {
-  const attributesToReplace = ['id', 'for', 'aria-describedby', 'aria-labelledby', 'aria-controls'];
+  const attributesToReplace = [
+    'id',
+    'for',
+    'aria-describedby',
+    'aria-labelledby',
+    'aria-controls',
+    'aria-activedescendant',
+    'aria-owns',
+  ];
   if (node.nodeType === Node.ELEMENT_NODE) {
     for (const attr of node.attributes) {
       if (attributesToReplace.includes(attr.name)) {

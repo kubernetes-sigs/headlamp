@@ -20,12 +20,11 @@ import React from 'react';
 import { PluginInfo, PluginSettingsDetailsProps } from '../../../plugin/pluginsSlice';
 import { PluginSettingsDetailsPure, PluginSettingsDetailsPureProps } from './PluginSettingsDetails';
 
-const testAutoSaveComponent: React.FC<PluginSettingsDetailsProps> = () => {
+const TestAutoSaveComponent: React.FC<PluginSettingsDetailsProps> = () => {
   const [data, setData] = React.useState<{ [key: string]: any }>({});
   const onChange = (value: string) => {
     setData({ works: value });
   };
-
   return (
     <TextField
       value={data?.works || ''}
@@ -37,15 +36,13 @@ const testAutoSaveComponent: React.FC<PluginSettingsDetailsProps> = () => {
   );
 };
 
-const testNormalComponent: React.FC<PluginSettingsDetailsProps> = props => {
+const TestNormalComponent: React.FC<PluginSettingsDetailsProps> = props => {
   const { data, onDataChange } = props;
-
   function onChange(value: string) {
     if (onDataChange) {
       onDataChange({ works: value });
     }
   }
-
   return (
     <TextField
       value={data?.works || ''}
@@ -63,7 +60,7 @@ const mockPluginInfoAutoSave: PluginInfo = {
   description: 'This is an example plugin with auto-save enabled.',
   version: '0.0.1',
   homepage: 'https://example.com/plugin-auto-save',
-  settingsComponent: testAutoSaveComponent,
+  settingsComponent: TestAutoSaveComponent,
   displaySettingsComponentWithSaveButton: false,
 };
 
@@ -72,7 +69,7 @@ const mockPluginInfoNormal: PluginInfo = {
   description: 'This is an example plugin with normal save.',
   version: '0.0.1',
   homepage: 'https://example.com/plugin-normal',
-  settingsComponent: testNormalComponent,
+  settingsComponent: TestNormalComponent,
   displaySettingsComponentWithSaveButton: true,
 };
 

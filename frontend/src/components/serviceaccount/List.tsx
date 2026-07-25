@@ -35,6 +35,7 @@ export default function ServiceAccountList() {
           getValue: (serviceaccount: ServiceAccount) => serviceaccount?.secrets?.length || 0,
           gridTemplate: 'min-content',
         },
+        'labels',
         'age',
       ]}
     />

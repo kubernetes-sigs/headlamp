@@ -35,6 +35,12 @@
       class="MuiBox-root css-13v3rg8"
     >
       <div
+        aria-atomic="true"
+        aria-live="polite"
+        class="MuiBox-root css-ty8jgw"
+        role="status"
+      />
+      <div
         class="MuiBox-root css-1ipmh7v"
       >
         <div
@@ -548,7 +554,7 @@
                 class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
                 data-mui-internal-clone-element="true"
               >
-                3mo
+                90d
               </p>
             </td>
             <td

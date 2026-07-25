@@ -52,6 +52,18 @@ describe('filterGraph', () => {
     },
   ];
 
+  it('doesnt drop edges when filtering', () => {
+    const nodes: GraphNode[] = [{ id: 'node1', status: 'error' }, { id: 'node2' }, { id: 'node3' }];
+    const edges: GraphEdge[] = [
+      { id: 'edge1', source: 'node1', target: 'node2' },
+      { id: 'edge2', source: 'node2', target: 'node3' },
+      { id: 'edge3', source: 'node1', target: 'node3' },
+    ];
+    const result = filterGraph(nodes, edges, [{ type: 'hasErrors' }]);
+
+    expect(result.edges.length).toBe(3);
+  });
+
   const edges: GraphEdge[] = [
     { id: 'e1', source: '1', target: '2' },
     { id: 'e2', source: '3', target: '4' },
@@ -70,6 +82,60 @@ describe('filterGraph', () => {
     const { nodes: filteredNodes } = filterGraph(nodes, edges, filters);
 
     // Finds node 2 that has an error, and node 1 that is related to it
-    expect(filteredNodes.map(it => it.id)).toEqual(['2', '1']);
+    expect(filteredNodes.map(it => it.id)).toEqual(['1', '2']);
+  });
+
+  it('filters nodes by explicit status', () => {
+    const customNodes: GraphNode[] = [
+      { id: 'warning-node', status: 'warning' },
+      { id: 'error-node', status: 'error' },
+      { id: 'success-node', status: 'success' },
+    ];
+
+    const { nodes: filteredNodes } = filterGraph(customNodes, [], [{ type: 'hasErrors' }]);
+
+    expect(filteredNodes.map(it => it.id)).toEqual(['warning-node', 'error-node']);
+  });
+
+  it('includes nodes related to explicit status matches', () => {
+    const customNodes: GraphNode[] = [
+      { id: 'warning-node', status: 'warning' },
+      { id: 'related-node' },
+      { id: 'success-node', status: 'success' },
+    ];
+    const customEdges: GraphEdge[] = [
+      { id: 'warning-node-related-node', source: 'warning-node', target: 'related-node' },
+    ];
+
+    const { nodes: filteredNodes } = filterGraph(customNodes, customEdges, [{ type: 'hasErrors' }]);
+
+    expect(filteredNodes.map(it => it.id)).toEqual(['warning-node', 'related-node']);
+  });
+
+  it('uses explicit status before kube object status', () => {
+    const pods: GraphNode[] = [
+      {
+        id: 'pod-with-explicit-success',
+        status: 'success',
+        kubeObject: new Pod({
+          kind: 'Pod',
+          metadata: { namespace: 'ns1', name: 'pod-with-explicit-success' },
+          status: { phase: 'Failed' },
+        } as any),
+      },
+      {
+        id: 'pod-with-explicit-error',
+        status: 'error',
+        kubeObject: new Pod({
+          kind: 'Pod',
+          metadata: { namespace: 'ns1', name: 'pod-with-explicit-error' },
+          status: { phase: 'Running', conditions: [{ type: 'Ready', status: 'True' }] },
+        } as any),
+      },
+    ];
+
+    const { nodes: filteredNodes } = filterGraph(pods, [], [{ type: 'hasErrors' }]);
+
+    expect(filteredNodes.map(it => it.id)).toEqual(['pod-with-explicit-error']);
   });
 });

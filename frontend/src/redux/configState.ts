@@ -52,6 +52,7 @@ export interface ConfigState {
      * timezone is the timezone to use for displaying dates and times.
      */
     timezone: string;
+    sidebarSortAlphabetically: boolean;
     useEvict: boolean;
     [key: string]: any;
   };

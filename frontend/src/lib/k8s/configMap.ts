@@ -18,7 +18,8 @@ import type { StringDict } from './cluster';
 import { KubeObject, type KubeObjectInterface } from './KubeObject';
 
 export interface KubeConfigMap extends KubeObjectInterface {
-  data: StringDict;
+  binaryData?: StringDict;
+  data?: StringDict;
 }
 
 class ConfigMap extends KubeObject<KubeConfigMap> {
@@ -27,14 +28,12 @@ class ConfigMap extends KubeObject<KubeConfigMap> {
   static apiVersion = 'v1';
   static isNamespaced = true;
 
-  get data() {
-    return this.jsonData.data;
+  get binaryData() {
+    return this.jsonData.binaryData;
   }
 
-  static getBaseObject(): KubeConfigMap {
-    const baseObject = super.getBaseObject() as KubeConfigMap;
-    baseObject.data = {};
-    return baseObject;
+  get data() {
+    return this.jsonData.data;
   }
 }
 

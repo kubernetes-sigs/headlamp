@@ -19,6 +19,7 @@ import { DEFAULT_NODE_SHELL_NAMESPACE, loadClusterSettings } from '../../helpers
 import { getCluster } from '../../lib/cluster';
 import Node from '../../lib/k8s/node';
 import Pod from '../../lib/k8s/pod';
+import store from '../../redux/stores/store';
 import { Activity } from '../activity/Activity';
 import ActionButton from '../common/ActionButton';
 import { AuthVisible } from '../common/Resource';
@@ -41,7 +42,10 @@ function nodeTerminalNamespace(cluster: string | null) {
     return DEFAULT_NODE_SHELL_NAMESPACE;
   }
   const clusterSettings = loadClusterSettings(cluster);
-  return clusterSettings.nodeShellTerminal?.namespace ?? DEFAULT_NODE_SHELL_NAMESPACE;
+  const defaultNamespace = store.getState().config.defaultNodeShellNamespace;
+  return (
+    clusterSettings.nodeShellTerminal?.namespace || defaultNamespace || DEFAULT_NODE_SHELL_NAMESPACE
+  );
 }
 
 export function NodeShellAction(props: NodeShellTerminalProps) {
@@ -54,7 +58,7 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
   function isLinux(item: Node | null): boolean {
     return item?.status?.nodeInfo?.operatingSystem === 'linux';
   }
-  const namepsace = nodeTerminalNamespace(cluster);
+  const namespace = nodeTerminalNamespace(cluster);
   const activityId = 'node-shell-' + item.metadata.uid;
 
   if (!isNodeTerminalEnabled(cluster)) {
@@ -62,8 +66,8 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
   }
   return (
     <>
-      <AuthVisible authVerb="create" item={Pod} namespace={namepsace}>
-        <AuthVisible item={Pod} namespace={namepsace} authVerb="get" subresource="exec">
+      <AuthVisible authVerb="create" item={Pod} namespace={namespace}>
+        <AuthVisible item={Pod} namespace={namespace} authVerb="get" subresource="exec">
           <ActionButton
             description={
               isLinux(item)
@@ -94,15 +98,6 @@ export function NodeShellAction(props: NodeShellTerminalProps) {
           />
         </AuthVisible>
       </AuthVisible>
-      {/* <NodeShellTerminal
-        key="terminal"
-        open={showShell}
-        title={t('Shell: {{ itemName }}', { itemName: item.metadata.name })}
-        item={item}
-        onClose={() => {
-          setShowShell(false);
-        }}
-      /> */}
     </>
   );
 }

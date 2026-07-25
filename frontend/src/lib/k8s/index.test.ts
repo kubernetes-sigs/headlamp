@@ -234,6 +234,7 @@ const notNamespacedClasses = [
   'PriorityClass',
   'RuntimeClass',
   'StorageClass',
+  'VolumeAttributesClass',
 ];
 
 const namespacedClasses = [
@@ -251,6 +252,7 @@ const namespacedClasses = [
   'HTTPRoute',
   'Ingress',
   'Job',
+  'JobSet',
   'Lease',
   'LimitRange',
   'NetworkPolicy',

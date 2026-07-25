@@ -26,7 +26,14 @@ import {
   useState,
 } from 'react';
 import { KubeObject } from '../../../lib/k8s/cluster';
-import { GraphEdge, GraphNode, GraphSource, Relation } from '../graph/graphModel';
+import {
+  deduplicateGraphEdges,
+  deduplicateGraphElements,
+  GraphEdge,
+  GraphNode,
+  GraphSource,
+  Relation,
+} from '../graph/graphModel';
 
 /**
  * Map of nodes and edges where the key is source id
@@ -140,6 +147,7 @@ const SourceLoader = memo(
 
     useEffect(() => {
       onData(id, data);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, data]);
 
     return null;
@@ -147,12 +155,14 @@ const SourceLoader = memo(
 );
 
 export default function useThrottledMemo<T>(factory: () => T, deps: any[], throttleMs: number): T {
-  const [state, setState] = useState(factory());
+  const [state, setState] = useState(factory);
 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   const debouncedSetState = useCallback(throttle(setState, throttleMs), []);
 
   useEffect(() => {
     debouncedSetState(factory());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, deps);
 
   return state;
@@ -254,6 +264,7 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
           },
         };
       });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sources, selectedSources]);
 
   const contextValue = useThrottledMemo(
@@ -269,17 +280,27 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
       });
 
       const nodesPerSource = new Map<string, GraphNode[]>();
+      const selectedSourceIds = getFlatSources(sources)
+        .filter(source => selectedSources.has(source.id))
+        .map(source => source.id);
 
-      selectedSources.forEach(id => {
+      selectedSourceIds.forEach(id => {
         const data = sourceData.get(id);
+
+        const sourceGraph = deduplicateGraphElements(data?.nodes ?? [], data?.edges ?? []);
+
         if (data?.nodes) {
-          nodes = nodes.concat(data.nodes);
-          nodesPerSource.set(id, data.nodes);
+          nodes = nodes.concat(sourceGraph.nodes);
+          nodesPerSource.set(id, sourceGraph.nodes);
         }
         if (data?.edges) {
-          edges = edges.concat(data.edges);
+          edges = edges.concat(sourceGraph.edges);
         }
       });
+
+      const sourceGraph = deduplicateGraphElements(nodes, edges);
+      nodes = sourceGraph.nodes;
+      edges = sourceGraph.edges;
 
       // Create edges based on Relations
       enabledRelations.forEach(relation => {
@@ -305,7 +326,7 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
 
       return {
         nodes,
-        edges,
+        edges: deduplicateGraphEdges(edges),
         toggleSelection,
         setSelectedSources,
         selectedSources,
@@ -314,7 +335,7 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
       };
     },
     [sources, selectedSources, sourceData, setSelectedSources, relations],
-    500
+    1000
   );
 
   return (

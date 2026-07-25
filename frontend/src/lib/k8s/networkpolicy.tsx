@@ -46,10 +46,12 @@ export interface NetworkPolicyIngressRule {
 }
 
 export interface KubeNetworkPolicy extends KubeObjectInterface {
-  egress: NetworkPolicyEgressRule[];
-  ingress: NetworkPolicyIngressRule[];
-  podSelector: LabelSelector;
-  policyTypes: string[];
+  spec: {
+    egress?: NetworkPolicyEgressRule[];
+    ingress?: NetworkPolicyIngressRule[];
+    podSelector: LabelSelector;
+    policyTypes?: string[];
+  };
 }
 
 class NetworkPolicy extends KubeObject<KubeNetworkPolicy> {
@@ -58,46 +60,56 @@ class NetworkPolicy extends KubeObject<KubeNetworkPolicy> {
   static apiVersion = 'networking.k8s.io/v1';
   static isNamespaced = true;
 
+  get spec(): KubeNetworkPolicy['spec'] {
+    return this.jsonData.spec;
+  }
+
+  get policyTypes(): string[] {
+    return this.spec?.policyTypes ?? [];
+  }
+
   static getBaseObject(): KubeNetworkPolicy {
     const baseObject = super.getBaseObject() as KubeNetworkPolicy;
-    baseObject.egress = [
-      {
-        ports: [
-          {
-            port: 80,
-            protocol: 'TCP',
-          },
-        ],
-        to: [
-          {
-            podSelector: {
-              matchLabels: { app: 'headlamp' },
+    baseObject.spec = {
+      egress: [
+        {
+          ports: [
+            {
+              port: 80,
+              protocol: 'TCP',
             },
-          },
-        ],
-      },
-    ];
-    baseObject.ingress = [
-      {
-        ports: [
-          {
-            port: 80,
-            protocol: 'TCP',
-          },
-        ],
-        from: [
-          {
-            podSelector: {
-              matchLabels: { app: 'headlamp' },
+          ],
+          to: [
+            {
+              podSelector: {
+                matchLabels: { app: 'headlamp' },
+              },
             },
-          },
-        ],
+          ],
+        },
+      ],
+      ingress: [
+        {
+          ports: [
+            {
+              port: 80,
+              protocol: 'TCP',
+            },
+          ],
+          from: [
+            {
+              podSelector: {
+                matchLabels: { app: 'headlamp' },
+              },
+            },
+          ],
+        },
+      ],
+      podSelector: {
+        matchLabels: { app: 'headlamp' },
       },
-    ];
-    baseObject.podSelector = {
-      matchLabels: { app: 'headlamp' },
+      policyTypes: ['Ingress', 'Egress'],
     };
-    baseObject.policyTypes = ['Ingress', 'Egress'];
     return baseObject;
   }
 

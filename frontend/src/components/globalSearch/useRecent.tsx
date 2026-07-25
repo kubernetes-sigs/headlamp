@@ -55,6 +55,7 @@ export function useRecent(
 
       return newRecent;
     });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   return [recent, bump] as const;

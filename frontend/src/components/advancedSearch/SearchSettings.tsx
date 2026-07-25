@@ -26,7 +26,7 @@ import {
   TextField,
 } from '@mui/material';
 import { useRef, useState } from 'react';
-import { Trans } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 
 export function SearchSettings({
   maxItemsPerResource,
@@ -39,6 +39,7 @@ export function SearchSettings({
   refetchIntervalMs: number;
   setRefetchIntervalMs: (n: number) => void;
 }) {
+  const { t } = useTranslation();
   const [anchorEl, setAnchorEl] = useState<HTMLElement | null>(null);
   const maxItemsInputRef = useRef<HTMLInputElement>(null);
   const refetchInputRef = useRef<HTMLSelectElement>(null);
@@ -86,7 +87,7 @@ export function SearchSettings({
             <Select
               labelId="refetch-label"
               id="refetch-select"
-              label="Refetch Interval"
+              label={t('translation|Refetch Interval')}
               defaultValue={refetchIntervalMs}
               inputRef={refetchInputRef}
             >

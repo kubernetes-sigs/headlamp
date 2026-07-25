@@ -17,11 +17,25 @@
 import {
   ApiProxy,
   registerCustomCreateProject,
+  registerProjectApiResource,
   registerProjectDeleteButton,
   registerProjectDetailsTab,
   registerProjectHeaderAction,
   registerProjectOverviewSection,
 } from '@kinvolk/headlamp-plugin/lib';
+
+// Register a custom CRD resource so it appears in project resource counts,
+// health status, and the Resources tab. This example registers Argo CD
+// Applications — replace with your own CRD as needed.
+registerProjectApiResource({
+  apiVersion: 'argoproj.io/v1alpha1',
+  version: 'v1alpha1',
+  groupName: 'argoproj.io',
+  pluralName: 'applications',
+  singularName: 'application',
+  kind: 'Application',
+  isNamespaced: true,
+});
 
 function DeployApp({ onBack }) {
   const handleClick = async () => {
@@ -185,5 +199,5 @@ registerProjectHeaderAction({
     </button>
   ),
   // Only show this action if the project has multiple clusters
-  isEnabled: ({ project }) => project.clusters.length > 0,
+  isEnabled: async ({ project }) => project.clusters.length > 0,
 });

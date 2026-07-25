@@ -17,6 +17,7 @@
 import { KubeObject, Workload } from '../../../lib/k8s/cluster';
 import Pod from '../../../lib/k8s/pod';
 import { getReadyReplicas, getTotalReplicas } from '../../../lib/util';
+import type { GraphNode } from '../graph/graphModel';
 
 export type KubeObjectStatus = 'error' | 'success' | 'warning';
 
@@ -56,4 +57,14 @@ export function getStatus(w: KubeObject): KubeObjectStatus {
   }
 
   return 'success';
+}
+
+/**
+ * Returns status for a graph node.
+ * Explicit node status takes precedence over kube object status.
+ */
+export function getGraphNodeStatus(
+  node: Pick<GraphNode, 'kubeObject' | 'status'>
+): KubeObjectStatus {
+  return node.status ?? (node.kubeObject ? getStatus(node.kubeObject) : 'success');
 }

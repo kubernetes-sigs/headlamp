@@ -73,11 +73,9 @@ export default function DeploymentsList() {
       .map((condition: any) => {
         const { type, message } = condition;
         return (
-          <Box display="inline-block">
-            <StatusLabel status={renderStatus(condition)}>
-              <span title={message} key={type}>
-                {type}
-              </span>
+          <Box display="inline-block" key={type}>
+            <StatusLabel status={renderStatus(condition)} title={message}>
+              {type}
             </StatusLabel>
           </Box>
         );
@@ -176,6 +174,7 @@ export default function DeploymentsList() {
           },
           show: false,
         },
+        'labels',
         'age',
       ]}
     />

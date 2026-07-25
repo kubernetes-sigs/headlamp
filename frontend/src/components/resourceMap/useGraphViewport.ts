@@ -96,6 +96,7 @@ export const useGraphViewport = () => {
 
       console.error('Unknown zoom mode', mode);
     },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     [flow, zoomMode, reactFlowWidth, reactFlowHeight]
   );
 

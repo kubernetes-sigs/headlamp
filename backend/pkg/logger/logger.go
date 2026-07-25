@@ -78,13 +78,15 @@ func Init(loglevel string) {
 // Log logs the message, source file, and line number at the specified level.
 func Log(level uint, str map[string]string, err interface{}, msg string) {
 	logFuncMutex.RLock()
+
 	fn := logFunc
+
 	logFuncMutex.RUnlock()
 
 	fn(level, str, err, msg)
 }
 
-// Log is a wrapper function for logging. It uses zlog package and logs to stdout.
+// log is a wrapper function for logging. It uses zlog package and logs to stdout.
 // It logs the message, source file and line number.
 // It logs the message at the level specified.
 func log(level uint, str map[string]string, err interface{}, msg string) {

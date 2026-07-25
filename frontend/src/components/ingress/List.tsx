@@ -39,7 +39,7 @@ function RulesDisplay(props: { ingress: Ingress }) {
           } else if (!!backend.resource) {
             target = `${backend.resource.kind}:${backend.resource.name}`;
           }
-          return `${path} 🞂 ${target}`;
+          return `${path} › ${target}`;
         }) ?? '';
       labels = labels.concat(text);
     });
@@ -95,6 +95,7 @@ export default function IngressList() {
           getValue: () => '',
           render: (ingress: Ingress) => <RulesDisplay ingress={ingress} />,
         },
+        'labels',
         'age',
       ]}
     />

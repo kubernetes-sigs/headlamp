@@ -52,6 +52,7 @@ export default function BackendTrafficPolicyList() {
             return <LabelListItem labels={[label]} />;
           },
         },
+        'labels',
         'age',
       ]}
     />

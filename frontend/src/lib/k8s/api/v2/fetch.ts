@@ -54,7 +54,12 @@ export async function backendFetch(url: string | URL, init: RequestInit = {}) {
     try {
       const body = await response.json();
       maybeErrorMessage = typeof body === 'string' ? body : body.message;
-    } catch (e) {}
+    } catch (e) {
+      console.debug(
+        `Failed to parse error response body for ${url} (status ${response.status}):`,
+        e
+      );
+    }
 
     throw new ApiError(maybeErrorMessage ?? 'Unreachable', { status: response.status });
   }

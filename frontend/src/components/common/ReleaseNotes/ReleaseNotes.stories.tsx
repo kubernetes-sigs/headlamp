@@ -44,7 +44,7 @@ export default {
         ),
         http.get('https://api.github.com/repos/kinvolk/headlamp/releases/tags/v1.9.9', () =>
           HttpResponse.json({
-            body: '### Hello\n\nworld',
+            body: '## Hello\n\n### Sub-heading\n\nworld',
           })
         ),
       ],

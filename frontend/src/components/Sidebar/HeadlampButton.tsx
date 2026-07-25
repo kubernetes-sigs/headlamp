@@ -20,7 +20,6 @@ import Button from '@mui/material/Button';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { styled } from '@mui/system';
 import { useTranslation } from 'react-i18next';
-import { getThemeName } from '../../lib/themes';
 import { AppLogo } from '../App/AppLogo';
 
 export interface HeadlampButtonProps {
@@ -65,7 +64,6 @@ export default function HeadlampButton({
         <StyledIcon icon={open ? 'mdi:backburger' : 'mdi:menu'} width="1.5rem" />
         <AppLogo
           logoType={'large'}
-          themeName={getThemeName()}
           sx={{
             height: '32px',
             width: 'auto',

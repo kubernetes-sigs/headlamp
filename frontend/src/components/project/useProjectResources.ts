@@ -15,13 +15,14 @@
  */
 
 import { uniqBy } from 'lodash';
-import { useMemo } from 'react';
+import { useState } from 'react';
 import { apiResourceId } from '../../lib/k8s/api/v2/ApiResource';
+import { useTypedSelector } from '../../redux/hooks';
 import { ProjectDefinition } from '../../redux/projectsSlice';
 import { useKubeLists } from '../advancedSearch/utils/useKubeLists';
 import { defaultApiResources } from './projectUtils';
 
-const MAX_RESOURCES_TO_WATCH = 20;
+const MAX_RESOURCES_TO_WATCH = 30;
 const MAX_ITEMS = 1000;
 const REFETCH_INTERVAL_MS = 60_000;
 
@@ -29,11 +30,14 @@ export function useProjectItems(
   project: ProjectDefinition,
   { disableWatch }: { disableWatch?: boolean } = { disableWatch: false }
 ) {
-  const resources = useMemo(() => {
-    const allResources = defaultApiResources;
+  const pluginApiResources = useTypedSelector(state => state.projects.apiResources);
 
-    return uniqBy(allResources, r => apiResourceId(r));
-  }, []);
+  // Capture plugin resources once on mount so the resource list length stays
+  // stable across renders. useKubeLists calls hooks per resource, so changing
+  // the array length mid-lifecycle would violate the Rules of Hooks.
+  const [resources] = useState(() =>
+    uniqBy([...defaultApiResources, ...pluginApiResources], r => apiResourceId(r))
+  );
 
   const { items, errors, isLoading } = useKubeLists(
     resources,

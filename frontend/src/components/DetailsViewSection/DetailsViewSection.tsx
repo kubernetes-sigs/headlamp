@@ -41,6 +41,7 @@ export default function DetailsViewSection(props: DetailsViewSectionProps) {
 
   React.useEffect(() => {
     dispatchHeadlampEvent({ resource });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resource]);
 
   const memoizedComponents = useMemo(

@@ -56,9 +56,9 @@ Install these tools before proceeding:
 | Tool | Version | Installation |
 |------|---------|--------------|
 | **Git** | Latest | [git-scm.com](https://git-scm.com/downloads) |
-| **Node.js** | ≥20.11.1 LTS | [nodejs.org](https://nodejs.org/en/download) or use [nvm](https://github.com/nvm-sh/nvm) |
-| **npm** | ≥10.0.0 | Included with Node.js |
-| **Go** | ≥1.24 | [go.dev/doc/install](https://go.dev/doc/install) |
+| **Node.js** | ≥22.0.0 LTS  | [nodejs.org](https://nodejs.org/en/download) or use [nvm](https://github.com/nvm-sh/nvm) |
+| **npm**     | ≥11.0.0      | Included with Node.js |
+| **Go**      | ≥1.25.9      | [go.dev/doc/install](https://go.dev/doc/install) |
 
 ### Optional (for testing with a cluster)
 
@@ -71,9 +71,9 @@ Install these tools before proceeding:
 
 ```bash
 # Check versions
-node --version    # Should be v20.11.1 or higher
-npm --version     # Should be 10.0.0 or higher
-go version        # Should be go1.24 or higher
+node --version    # Should be v22.0.0 or higher
+npm --version     # Should be 11.0.0 or higher
+go version        # Should be go1.25.9 or higher
 git --version     # Any recent version
 ```
 
@@ -310,8 +310,9 @@ npm run backend:build
 
 ```bash
 # Check versions match requirements
-node --version  # Need ≥20.11.1
-go version      # Need ≥1.24
+node --version  # Need ≥22.0.0
+npm --version   # Need ≥11.0.0
+go version      # Need ≥1.25.9
 ```
 
 ### kubeconfig Not Found

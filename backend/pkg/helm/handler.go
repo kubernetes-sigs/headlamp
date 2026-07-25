@@ -190,7 +190,7 @@ func (h *Handler) setReleaseStatus(actionName, releaseName, status string, err e
 func (h *Handler) setReleaseStatusSilent(actionName, releaseName, status string, err error) {
 	cacheErr := h.setReleaseStatus(actionName, releaseName, status, err)
 	if cacheErr != nil {
-		logger.Log(logger.LevelError, map[string]string{"releaseName": releaseName, "status": status},
+		logger.Log(logger.LevelError, map[string]string{logFieldReleaseName: releaseName, "status": status},
 			cacheErr, "unable to set status")
 	}
 }

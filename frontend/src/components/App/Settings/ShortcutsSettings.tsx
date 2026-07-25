@@ -65,10 +65,14 @@ function ShortcutEditor({
 
   useEffect(() => {
     if (isEditing) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRecordedKey('');
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsRecording(true);
     } else {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setIsRecording(false);
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setRecordedKey('');
     }
   }, [isEditing]);
@@ -120,7 +124,6 @@ function ShortcutEditor({
     return (
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5, width: 150 }}>
-          {/* eslint-disable-next-line jsx-a11y/no-autofocus */}
           <TextField
             size="small"
             autoFocus // eslint-disable-line jsx-a11y/no-autofocus

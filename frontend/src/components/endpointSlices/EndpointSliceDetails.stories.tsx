@@ -16,7 +16,7 @@
 
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
-import { TestContext } from '../../test';
+import { API_BASE, TestContext } from '../../test';
 import EndpointSliceDetails from './Details';
 
 export default {
@@ -28,15 +28,13 @@ export default {
       handlers: {
         storyBase: [
           http.get(
-            'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/my-namespace/endpointslices',
+            `${API_BASE}/apis/discovery.k8s.io/v1/namespaces/my-namespace/endpointslices`,
             () => HttpResponse.error()
           ),
-          http.get('http://localhost:4466/apis/discovery.k8s.io/v1/endpointslices', () =>
+          http.get(`${API_BASE}/apis/discovery.k8s.io/v1/endpointslices`, () =>
             HttpResponse.error()
           ),
-          http.get('http://localhost:4466/api/v1/namespaces/my-namespace/events', () =>
-            HttpResponse.error()
-          ),
+          http.get(`${API_BASE}/api/v1/namespaces/my-namespace/events`, () => HttpResponse.error()),
         ],
       },
     },
@@ -57,7 +55,7 @@ Default.parameters = {
     handlers: {
       story: [
         http.get(
-          'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/my-namespace/endpointslices/my-endpoint',
+          `${API_BASE}/apis/discovery.k8s.io/v1/namespaces/my-namespace/endpointslices/my-endpoint`,
           () =>
             HttpResponse.json({
               kind: 'EndpointSlice',
@@ -116,7 +114,7 @@ Error.parameters = {
     handlers: {
       story: [
         http.get(
-          'http://localhost:4466/apis/discovery.k8s.io/v1/namespaces/my-namespace/endpointslices/my-endpoint',
+          `${API_BASE}/apis/discovery.k8s.io/v1/namespaces/my-namespace/endpointslices/my-endpoint`,
           () => HttpResponse.error()
         ),
       ],

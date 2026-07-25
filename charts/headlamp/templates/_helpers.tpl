@@ -74,3 +74,46 @@ Create the name of the service account to use
 {{- default "default" .Values.serviceAccount.name }}
 {{- end }}
 {{- end }}
+
+
+{{/*
+Check if readOnlyRootFilesystem is enabled, returns string "true" if enabled, otherwise returns "false".
+*/}}
+{{- define "headlamp.readOnlyRootFilesystem" -}}
+{{- $securityContextReadOnly := and .securityContext (hasKey .securityContext "readOnlyRootFilesystem") .securityContext.readOnlyRootFilesystem -}}
+{{- if $securityContextReadOnly -}}true{{- else -}}false{{- end -}}
+{{- end }}
+
+{{/*
+Compute whether to auto-add a writable /tmp emptyDir for a container with
+readOnlyRootFilesystem: true.
+
+- addMount is false when the user already has a volumeMount at /tmp
+  (avoids duplicate mountPath).
+- addVolume is false when the user already has a /tmp mount (avoids an
+  orphaned volume) OR when a volume with mountName already exists (allows
+  users to supply their own headlamp-tmp with custom emptyDir settings
+  such as sizeLimit, while the chart still wires up the /tmp mount).
+
+Input (dict):
+  volumeMounts - list of existing volumeMounts for this container
+  volumes      - list of existing pod-level volumes
+  readOnly     - bool: is readOnlyRootFilesystem active for this container
+  mountName    - string: name for the auto-created volume (e.g. "headlamp-tmp")
+
+Output (YAML dict, intended for use with fromYaml):
+  addMount: bool
+  addVolume: bool
+*/}}
+{{- define "headlamp.tmpVolumeContext" -}}
+{{- $hasTmpMount := false -}}
+{{- range .volumeMounts -}}
+  {{- if eq .mountPath "/tmp" -}}{{- $hasTmpMount = true -}}{{- end -}}
+{{- end -}}
+{{- $hasTmpVolume := false -}}
+{{- range .volumes -}}
+  {{- if eq .name $.mountName -}}{{- $hasTmpVolume = true -}}{{- end -}}
+{{- end -}}
+addMount: {{ and .readOnly (not $hasTmpMount) }}
+addVolume: {{ and .readOnly (not $hasTmpMount) (not $hasTmpVolume) }}
+{{- end }}

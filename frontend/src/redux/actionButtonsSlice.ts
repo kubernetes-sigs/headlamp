@@ -47,6 +47,7 @@ export enum DefaultHeaderAction {
   EDIT = 'EDIT',
   VIEW = 'VIEW',
   SCALE = 'SCALE',
+  DOWNLOAD = 'DOWNLOAD',
   POD_LOGS = 'POD_LOGS',
   POD_TERMINAL = 'POD_TERMINAL',
   POD_DEBUG = 'POD_DEBUG',

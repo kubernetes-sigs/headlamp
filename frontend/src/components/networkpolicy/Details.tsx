@@ -65,8 +65,8 @@ export function NetworkPolicyDetails(props: {
   function PodSelector(props: { networkPolicy: NetworkPolicy }) {
     const { networkPolicy } = props;
     return prepareMatchLabelsAndExpressions(
-      networkPolicy.jsonData.spec?.podSelector?.matchLabels,
-      networkPolicy.jsonData.spec?.podSelector?.matchExpressions
+      networkPolicy.spec?.podSelector?.matchLabels,
+      networkPolicy.spec?.podSelector?.matchExpressions
     );
   }
 
@@ -243,17 +243,22 @@ export function NetworkPolicyDetails(props: {
             name: t('Pod Selector'),
             value: <PodSelector networkPolicy={item} />,
           },
+          {
+            name: t('Policy Types'),
+            value: item.policyTypes.join(', '),
+            hide: !item.policyTypes.length,
+          },
         ]
       }
       extraSections={item =>
         item && [
           {
             id: 'networkpolicy-ingress',
-            section: <Ingress ingress={item.jsonData.spec.ingress} />,
+            section: <Ingress ingress={item.spec?.ingress ?? []} />,
           },
           {
             id: 'networkpolicy-egress',
-            section: <Egress egress={item.jsonData.spec.egress} />,
+            section: <Egress egress={item.spec?.egress ?? []} />,
           },
         ]
       }

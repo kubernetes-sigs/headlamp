@@ -79,7 +79,7 @@ export default function PortForwardStartDialog(props: PortForwardStartDialogProp
     onConfirm(trimmedValue || undefined);
   }
 
-  function handleKeyPress(event: React.KeyboardEvent) {
+  function handleKeyDown(event: React.KeyboardEvent) {
     if (event.key === 'Enter') {
       handleConfirm();
     }
@@ -103,7 +103,7 @@ export default function PortForwardStartDialog(props: PortForwardStartDialogProp
           fullWidth
           value={portValue}
           onChange={e => setPortValue(e.target.value)}
-          onKeyPress={handleKeyPress}
+          onKeyDown={handleKeyDown}
           error={!!errorText}
           helperText={errorText || helper}
           inputProps={{ inputMode: 'numeric', pattern: '[0-9]*' }}

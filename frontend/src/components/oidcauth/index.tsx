@@ -15,25 +15,24 @@
  */
 
 import Typography from '@mui/material/Typography';
-import { FunctionComponent, useEffect } from 'react';
+import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
+import { AUTH_STATUS_KEY } from './constants';
 
-//@todo: needs cleanup.
-
-const OIDCAuth: FunctionComponent<{}> = () => {
-  const location = useLocation();
-  const urlSearchParams = new URLSearchParams(location.search);
-  const cluster = urlSearchParams.get('cluster');
+/** Signals OIDC authentication completion via localStorage for the popup handler. */
+function OIDCAuth() {
+  const { search } = useLocation();
+  const cluster = new URLSearchParams(search).get('cluster');
   const { t } = useTranslation();
 
   useEffect(() => {
     if (cluster) {
-      localStorage.setItem('auth_status', 'success');
+      localStorage.setItem(AUTH_STATUS_KEY, 'success');
     }
   }, [cluster]);
 
   return <Typography color="textPrimary">{t('Redirecting to main page…')}</Typography>;
-};
+}
 
 export default OIDCAuth;

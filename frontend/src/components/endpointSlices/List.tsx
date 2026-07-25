@@ -77,6 +77,7 @@ export default function EndpointSliceList() {
           filterVariant: 'multi-select',
           getValue: endpoint => endpoint?.spec?.addressType ?? '',
         },
+        'labels',
         'age',
       ]}
     />

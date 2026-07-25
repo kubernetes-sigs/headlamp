@@ -74,8 +74,10 @@ class PDB extends KubeObject<KubePDB> {
 
   get selectors(): string[] {
     const selectors: string[] = [];
-    Object.keys(this.spec.selector.matchLabels).forEach(key => {
-      selectors.push(`${key}: ${this.spec.selector.matchLabels[key]}`);
+    const matchLabels = this.spec?.selector?.matchLabels;
+    if (!matchLabels) return selectors;
+    Object.keys(matchLabels).forEach(key => {
+      selectors.push(`${key}: ${matchLabels[key]}`);
     });
     return selectors;
   }

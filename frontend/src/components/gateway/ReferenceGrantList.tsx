@@ -50,6 +50,7 @@ export default function ReferenceGrantList() {
             />
           ),
         },
+        'labels',
         'age',
       ]}
     />

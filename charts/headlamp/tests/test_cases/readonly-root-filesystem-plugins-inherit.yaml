@@ -1,0 +1,5 @@
+securityContext:
+  readOnlyRootFilesystem: true
+
+pluginsManager:
+  enabled: true

@@ -21,6 +21,7 @@ import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Tooltip from '@mui/material/Tooltip';
+import { useSnackbar } from 'notistack';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
@@ -54,6 +55,7 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
   const menuItems = useTypedSelector(state => state.clusterProvider.menuItems);
   const isDynamicClusterEnabled = useTypedSelector(state => state.config.isDynamicClusterEnabled);
   const allowKubeconfigChanges = useTypedSelector(state => state.config.allowKubeconfigChanges);
+  const { enqueueSnackbar } = useSnackbar();
 
   const kubeconfigOrigin = cluster.meta_data?.origin?.kubeconfig;
   const deleteFromKubeconfig = cluster.meta_data?.source === 'kubeconfig';
@@ -68,9 +70,13 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
         dispatch(setConfig(config));
       })
       .catch((err: Error) => {
-        if (err.message === 'Not Found') {
-          // TODO: create notification with error message
-        }
+        enqueueSnackbar(
+          t('translation|Failed to delete cluster: {{ error }}', { error: err.message }),
+          {
+            variant: 'error',
+            preventDuplicate: true,
+          }
+        );
       })
       .finally(() => {
         history.push('/');

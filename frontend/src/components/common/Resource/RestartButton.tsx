@@ -46,13 +46,20 @@ interface RestartButtonProps {
 }
 
 export function RestartButton(props: RestartButtonProps) {
-  const dispatch: AppDispatch = useDispatch();
   const { item, buttonStyle, afterConfirm } = props;
 
   if (!item || !isRestartableResource(item)) {
     return null;
   }
 
+  return <RestartButtonInner item={item} buttonStyle={buttonStyle} afterConfirm={afterConfirm} />;
+}
+
+function RestartButtonInner(
+  props: { item: RestartableResource } & Omit<RestartButtonProps, 'item'>
+) {
+  const dispatch: AppDispatch = useDispatch();
+  const { item, buttonStyle, afterConfirm } = props;
   const [openDialog, setOpenDialog] = useState(false);
   const location = useLocation();
   const { t } = useTranslation(['translation']);
@@ -90,21 +97,26 @@ export function RestartButton(props: RestartButtonProps) {
   }
 
   return (
-    <AuthVisible
-      item={item}
-      authVerb="update"
-      onError={(err: Error) => {
-        console.error(`Error while getting authorization for restart button in ${item}:`, err);
-      }}
-    >
-      <ActionButton
-        description={t('translation|Restart')}
-        buttonStyle={buttonStyle}
-        onClick={() => {
-          setOpenDialog(true);
+    <>
+      <AuthVisible
+        item={item}
+        authVerb="patch"
+        onError={(err: Error) => {
+          console.error(
+            `Error while getting authorization for restart button in ${item.kind} ${item.metadata.namespace}/${item.metadata.name}:`,
+            err
+          );
         }}
-        icon="mdi:restart"
-      />
+      >
+        <ActionButton
+          description={t('translation|Restart')}
+          buttonStyle={buttonStyle}
+          onClick={() => {
+            setOpenDialog(true);
+          }}
+          icon="mdi:restart"
+        />
+      </AuthVisible>
       <ConfirmDialog
         open={openDialog}
         title={t('translation|Restart')}
@@ -125,6 +137,6 @@ export function RestartButton(props: RestartButtonProps) {
         cancelLabel={t('Cancel')}
         confirmLabel={t('Restart')}
       />
-    </AuthVisible>
+    </>
   );
 }

@@ -25,6 +25,7 @@ export const useSettings = function (settingName?: string) {
 
   useEffect(() => {
     setSettingEntries(settingEntries);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [storeSettingEntries]);
 
   return settingEntries;
