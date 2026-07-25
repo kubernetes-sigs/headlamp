@@ -43,6 +43,16 @@ interface CommandData {
   permissionSecrets: Record<string, number>;
 }
 
+/** Returns only values changed by shell initialization. */
+export function environmentOverrides(
+  environment: NodeJS.ProcessEnv,
+  currentEnvironment: NodeJS.ProcessEnv = process.env
+): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    Object.entries(environment).filter(([key, value]) => currentEnvironment[key] !== value)
+  );
+}
+
 /**
  * Ask the user with an electron dialog if they want to allow the command
  * to be executed.

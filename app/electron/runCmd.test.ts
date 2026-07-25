@@ -50,7 +50,21 @@ vi.mock('./main', () => ({
   getShellEnvironment: getShellEnvironmentMock,
 }));
 
-import { checkPermissionSecret, handleRunCommand, validateCommandData } from './runCmd';
+import {
+  checkPermissionSecret,
+  environmentOverrides,
+  handleRunCommand,
+  validateCommandData,
+} from './runCmd';
+
+it('does not cache process environment changes as shell overrides', () => {
+  expect(
+    environmentOverrides(
+      { PATH: '/opt/homebrew/bin:/usr/bin', HEADLAMP_CONFIG_ENABLE_HELM: 'true' },
+      { PATH: '/usr/bin', HEADLAMP_CONFIG_ENABLE_HELM: 'true' }
+    )
+  ).toEqual({ PATH: '/opt/homebrew/bin:/usr/bin' });
+});
 
 describe('checkPermissionSecret', () => {
   const baseCommandData = {
