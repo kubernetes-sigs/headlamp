@@ -59,54 +59,81 @@ const getConnectedComponents = (nodes: GraphNode[], edges: GraphEdge[]): GraphNo
   const visitedEdges = new Set<string>();
 
   /**
-   * Recursively finds all nodes in the connected component of a given node
-   * This function performs a depth-first search (DFS) to traverse and collect all nodes
+   * Iteratively finds all nodes in the connected component of a given node
+   * This function performs a breadth-first search (BFS) to traverse and collect all nodes
    * that are part of the same connected component as the provided node
    *
-   * @param node - The starting node for the connected component search
+   * PERFORMANCE: Uses an index-based queue instead of Array.shift() to achieve
+   * O(1) amortized dequeue and avoid the O(n²) behavior that shift()-based
+   * queues can exhibit on large components. The resulting BFS traversal runs
+   * in O(n) time with respect to the number of nodes in the component.
+   *
+   * PERFORMANCE: Uses iterative BFS instead of recursive DFS to avoid recursion
+   * depth limits and potential stack overflows on deep or dense graphs. The
+   * iterative approach removes dependence on call stack depth and is suitable
+   * for handling large graphs safely.
+   *
+   * @param startNode - The starting node for the connected component search
    * @param componentNodes - An array to store the nodes that are part of the connected component
    */
   const findConnectedComponent = (
-    node: GraphNode,
+    startNode: GraphNode,
     componentNodes: GraphNode[],
     componentEdges: GraphEdge[]
   ) => {
-    visitedNodes.add(node.id);
-    componentNodes.push(node);
+    const queue: GraphNode[] = [startNode];
+    // PERFORMANCE: Index-based queue for O(1) dequeue instead of O(n) shift()
+    let queueIndex = 0;
+    visitedNodes.add(startNode.id);
+    componentNodes.push(startNode);
 
-    // Outgoing edges
-    graphLookup.getOutgoingEdges(node.id)?.forEach(edge => {
-      // Always collect the edge if we haven't yet
-      if (!visitedEdges.has(edge.id)) {
-        visitedEdges.add(edge.id);
-        componentEdges.push(edge);
-      }
+    while (queueIndex < queue.length) {
+      const node = queue[queueIndex++]; // O(1) operation vs shift() which is O(n)
 
-      // Only recurse further if we haven't visited the target node
-      if (!visitedNodes.has(edge.target)) {
-        const targetNode = graphLookup.getNode(edge.target);
-        if (targetNode) {
-          findConnectedComponent(targetNode, componentNodes, componentEdges);
+      // Outgoing edges
+      const outgoing = graphLookup.getOutgoingEdges(node.id);
+      if (outgoing) {
+        for (const edge of outgoing) {
+          // Always collect the edge if we haven't yet
+          if (!visitedEdges.has(edge.id)) {
+            visitedEdges.add(edge.id);
+            componentEdges.push(edge);
+          }
+
+          // Only add to queue if we haven't visited the target node
+          if (!visitedNodes.has(edge.target)) {
+            const targetNode = graphLookup.getNode(edge.target);
+            if (targetNode) {
+              visitedNodes.add(edge.target);
+              componentNodes.push(targetNode);
+              queue.push(targetNode);
+            }
+          }
         }
       }
-    });
 
-    // Incoming edges
-    graphLookup.getIncomingEdges(node.id)?.forEach(edge => {
-      // Always collect the edge if we haven't yet
-      if (!visitedEdges.has(edge.id)) {
-        visitedEdges.add(edge.id);
-        componentEdges.push(edge);
-      }
+      // Incoming edges
+      const incoming = graphLookup.getIncomingEdges(node.id);
+      if (incoming) {
+        for (const edge of incoming) {
+          // Always collect the edge if we haven't yet
+          if (!visitedEdges.has(edge.id)) {
+            visitedEdges.add(edge.id);
+            componentEdges.push(edge);
+          }
 
-      // Only recurse further if we haven't visited the source node
-      if (!visitedNodes.has(edge.source)) {
-        const sourceNode = graphLookup.getNode(edge.source);
-        if (sourceNode) {
-          findConnectedComponent(sourceNode, componentNodes, componentEdges);
+          // Only add to queue if we haven't visited the source node
+          if (!visitedNodes.has(edge.source)) {
+            const sourceNode = graphLookup.getNode(edge.source);
+            if (sourceNode) {
+              visitedNodes.add(edge.source);
+              componentNodes.push(sourceNode);
+              queue.push(sourceNode);
+            }
+          }
         }
       }
-    });
+    }
   };
 
   // Iterate over each node and find connected components
@@ -126,8 +153,8 @@ const getConnectedComponents = (nodes: GraphNode[], edges: GraphEdge[]): GraphNo
       });
     }
   });
-
   const componentTime = performance.now() - componentStart;
+
   const totalTime = performance.now() - perfStart;
 
   // Only log to console if debug flag is set
@@ -366,8 +393,8 @@ export function groupGraph(
       node.nodes.sort((a, b) => getNodeSortedWeight(b) - getNodeSortedWeight(a));
     }
   });
-
   const sortTime = performance.now() - sortStart;
+
   const totalTime = performance.now() - perfStart;
 
   // Only log to console if debug flag is set
