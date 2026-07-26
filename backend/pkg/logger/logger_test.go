@@ -21,6 +21,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -182,16 +183,15 @@ func captureLog(t *testing.T, level uint, str map[string]string, err interface{}
 	t.Helper()
 
 	origLevel := zerolog.GlobalLevel()
-
-	zerolog.SetGlobalLevel(zerolog.TraceLevel)
-
 	origLogger := zlog.Logger
 
-	t.Cleanup(func() {
+	defer func() {
 		zlog.Logger = origLogger
 
 		zerolog.SetGlobalLevel(origLevel)
-	})
+	}()
+
+	zerolog.SetGlobalLevel(zerolog.TraceLevel)
 
 	var buf bytes.Buffer
 
@@ -299,6 +299,11 @@ func TestSetLogFuncNilRestoresDefault(t *testing.T) {
 	returned := logger.SetLogFunc(nil)
 	if returned == nil {
 		t.Fatal("expected previous log function to be returned")
+	}
+
+	// SetLogFunc must return the *previous* function, i.e. exactly MockLog.
+	if reflect.ValueOf(returned).Pointer() != reflect.ValueOf(logger.LogFunc(MockLog)).Pointer() {
+		t.Fatal("expected SetLogFunc to return MockLog as the previous log function")
 	}
 
 	// The default function is active again: output goes to zerolog, not MockLog.
