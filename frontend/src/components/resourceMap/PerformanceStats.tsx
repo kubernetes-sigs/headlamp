@@ -52,11 +52,7 @@ const MAX_METRICS = 100;
 /**
  * Global performance metrics store
  *
- * PERFORMANCE: Global array for lightweight metrics collection
- * - Array vs Map: Faster for append-only access pattern
- * - MAX_METRICS limit (100): Prevents unbounded memory growth (~5KB total)
- * - shift() on overflow: Only happens once per 100 metrics, negligible cost
- * - Trade-off: None - essential for monitoring and debugging
+ * Uses a fixed-size array (MAX_METRICS) to prevent unbounded memory growth.
  */
 const performanceMetrics: PerformanceMetric[] = [];
 const performanceMetricListeners = new Set<() => void>();
@@ -67,12 +63,6 @@ function notifyPerformanceMetricListeners() {
 
 /**
  * Add a performance metric to the global store
- *
- * PERFORMANCE: Designed for minimal overhead during performance-critical operations
- * - Simple array push: ~0.001ms per metric (negligible)
- * - Listener notification: Runs only while the stats panel is mounted
- * - No DOM event dispatch when metrics are collected in the background
- * - Total overhead: <0.5% of measured operations
  */
 export function addPerformanceMetric(metric: PerformanceMetric) {
   performanceMetrics.push(metric);
@@ -185,13 +175,16 @@ export function PerformanceStats({ visible = false, onToggle }: PerformanceStats
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
           <Icon icon="mdi:speedometer" width="24" />
           <Typography variant="h6">{t('Performance Stats')}</Typography>
-          <Chip label={`${metrics.length} ${t('operations')}`} size="small" />
+          <Chip label={t('{{count}} operations', { count: metrics.length })} size="small" />
         </Box>
         <Box sx={{ display: 'flex', gap: 1 }}>
           <IconButton
             size="small"
             aria-label={expanded ? t('Collapse') : t('Expand')}
-            onClick={() => setExpanded(!expanded)}
+            onClick={e => {
+              e.stopPropagation();
+              setExpanded(!expanded);
+            }}
           >
             <Icon icon={expanded ? 'mdi:chevron-down' : 'mdi:chevron-up'} width="24" />
           </IconButton>
