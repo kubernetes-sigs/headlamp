@@ -60,8 +60,9 @@ export function updateStatelessClusterKubeconfig(
 
         // variable to track if we found and updated the context
         let updated = false;
+        const cursorRequest = store.openCursor();
 
-        store.openCursor().onsuccess = function onCursor(event: Event) {
+        cursorRequest.onsuccess = function onCursor(event: Event) {
           const e = event as CursorSuccessEvent;
           const cursor = e.target?.result;
 
@@ -115,7 +116,7 @@ export function updateStatelessClusterKubeconfig(
             reject(`Failed to update kubeconfig: ${err.target.error}`);
           };
 
-          store.openCursor().onerror = function onCursorError(event: Event) {
+          cursorRequest.onerror = function onCursorError(event: Event) {
             const de = event as DatabaseErrorEvent;
             reject(de.target ? de.target.error : 'Error during the cursor operation');
           };
