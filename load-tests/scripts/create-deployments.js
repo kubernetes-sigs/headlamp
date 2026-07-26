@@ -1,83 +1,70 @@
-#!/usr/bin/env deployments
-const setTimeout = require('timers/promises').setTimeout;
-const { execSync } = require('child_process');
-const yargs = require('yargs');
-const { assertContextKwok } = require('./helpers');
+#!/usr/bin/env node
+const yargs = require("yargs");
+const { assertContextKwok, batchApply } = require("./helpers");
 
-/**
- * Creates Kubernetes deployments on "KWOK" using kubectl.
- *
- * @param {number} numDeployments - The number of deployments to create.
- * @param {number} sleepInterval - The sleep interval in seconds.
- */
-async function createDeployments(numDeployments, sleepInterval) {
-  const now = new Date();
-
-  for (let x = 0; x < numDeployments; x++) {
-    const inputString = `
-apiVersion: apps/v1
+function deploymentYaml(index) {
+  return `apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: nginx-deployment-${x}
+  name: nginx-deployment-${index}
   labels:
-    app: nginx-${x}
+    app: nginx-${index}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: nginx-${x}
+      app: nginx-${index}
   template:
     metadata:
       labels:
-        app: nginx-${x}
+        app: nginx-${index}
     spec:
       containers:
-      - name: nginx-${x}
+      - name: nginx-${index}
         image: nginx:1.14.2
         ports:
-        - containerPort: ${x + 80}
-`;
+        - containerPort: ${index + 80}`;
+}
 
-    // create the deployments
-    try {
-      const result = execSync('kubectl apply -f -', {
-        input: inputString,
-        stdio: ['pipe', 'pipe', 'pipe'],
-      });
-      const stdoutData = result.toString();
-      process.stdout.write(stdoutData);
-    } catch (error) {
-      console.error('Error:', error.stderr.toString());
-      if (error.status !== null) {
-        console.log('Exit code:', error.status);
-      }
-    }
+/**
+ * Creates Kubernetes deployments on "KWOK" using batch kubectl apply.
+ *
+ * @param {number} numDeployments - The number of deployments to create.
+ */
+function createDeployments(numDeployments) {
+  console.log(`Creating ${numDeployments} deployments...`);
+  const start = Date.now();
 
-    if (sleepInterval > 0) {
-      await setTimeout(sleepInterval * 1000);
-    }
+  const yamls = [];
+  for (let x = 0; x < numDeployments; x++) {
+    yamls.push(deploymentYaml(x));
   }
+  batchApply(yamls);
+
+  const elapsed = ((Date.now() - start) / 1000).toFixed(1);
+  console.log(`Created ${numDeployments} deployments in ${elapsed}s`);
 }
 
 yargs
-  .scriptName('create-deployments')
-  .usage('$0 <cmd> [args]')
+  .scriptName("create-deployments")
+  .usage("$0 <cmd> [args]")
   .command(
-    '$0 <numDeployments> <sleepInterval>',
-    'Create Kubernetes deployments',
+    "$0 <numDeployments> [sleepInterval]",
+    "Create Kubernetes deployments",
     (yargs) => {
-      yargs.positional('numDeployments', {
-        describe: 'Number of deployments to create',
-        type: 'number',
+      yargs.positional("numDeployments", {
+        describe: "Number of deployments to create",
+        type: "number",
       });
-      yargs.positional('sleepInterval', {
-        describe: 'Sleep interval in seconds between deployments',
-        type: 'number',
+      yargs.positional("sleepInterval", {
+        describe: "Deprecated, ignored. Kept for backward compatibility.",
+        type: "number",
+        default: 0,
       });
     },
-    async (argv) => {
+    (argv) => {
       assertContextKwok();
-      await createDeployments(argv.numDeployments, argv.sleepInterval);
-    }
+      createDeployments(argv.numDeployments);
+    },
   )
   .help().argv;
