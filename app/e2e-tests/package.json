@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "main": "index.js",
   "scripts": {
+    "pretest-app": "npm --prefix .. run compile-electron -- --dev",
     "test-app": "PLAYWRIGHT_TEST_MODE=app playwright test",
     "test-web": "PLAYWRIGHT_TEST_MODE=web playwright test"
   },
