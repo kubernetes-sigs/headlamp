@@ -84,7 +84,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
           {!hideCancelButton && (
             <Button
               onClick={handleClose}
-              aria-label="cancel-button"
+              data-testid="cancel-button"
               color="secondary"
               variant="contained"
             >
@@ -93,7 +93,7 @@ export function ConfirmDialog(props: ConfirmDialogProps) {
           )}
           <Button
             onClick={onConfirmationClicked}
-            aria-label="confirm-button"
+            data-testid="confirm-button"
             color="primary"
             variant="contained"
           >
