@@ -34,7 +34,7 @@
  */
 
 import { expect, test } from '@playwright/test';
-import { execSync } from 'child_process';
+import { execFileSync, execSync } from 'child_process';
 import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
@@ -56,7 +56,17 @@ function shell(cmd: string): string {
   return execSync(cmd, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'] }).trim();
 }
 
+// `minikube delete` clears current-context in the user's kubeconfig, which
+// leaves kubectl unusable afterwards. Remember it so teardown can put it back.
+let previousContext = '';
+
 function setupExecCluster(): void {
+  try {
+    previousContext = shell('kubectl config current-context');
+  } catch {
+    /* no current context set; nothing to restore */
+  }
+
   // Start (or reconnect to) the dedicated minikube profile.
   // minikube automatically adds the context to the kubeconfig in ORIGINAL_KUBECONFIG.
   shell(`minikube start --profile ${CLUSTER_NAME}`);
@@ -72,7 +82,7 @@ function setupExecCluster(): void {
   // Use the kubeconfig that minikube already wrote (cert-based auth, proven to work).
   // Export it to a standalone file so the test doesn't inherit unrelated contexts.
   const exported = shell(`kubectl --context ${CLUSTER_NAME} config view --minify --raw --flatten`);
-  fs.writeFileSync(MERGED_KUBECONFIG, exported);
+  fs.writeFileSync(MERGED_KUBECONFIG, exported, { mode: 0o600 });
 }
 function teardownExecCluster(): void {
   // Stop and delete the minikube profile (also removes its kubeconfig entries).
@@ -84,6 +94,17 @@ function teardownExecCluster(): void {
   for (const f of [EXEC_KUBECONFIG, MERGED_KUBECONFIG]) {
     try {
       fs.unlinkSync(f);
+    } catch {
+      /* ignore */
+    }
+  }
+
+  // Restore the context `minikube delete` cleared.
+  if (previousContext) {
+    try {
+      execFileSync('kubectl', ['config', 'use-context', previousContext], {
+        stdio: ['pipe', 'pipe', 'inherit'],
+      });
     } catch {
       /* ignore */
     }

@@ -21,8 +21,8 @@ export class NamespacesPage {
 
   async navigateToNamespaces() {
     await this.page.waitForLoadState('load');
-    await this.page.waitForSelector('span:has-text("Cluster")');
-    await this.page.getByText('Cluster', { exact: true }).click();
+    // Namespaces is a top-level sidebar entry. It used to be nested under a
+    // "Cluster" group, which no longer exists.
     await this.page.waitForSelector('span:has-text("Namespaces")');
     await this.page.click('span:has-text("Namespaces")');
     await this.page.waitForLoadState('load');
@@ -68,8 +68,9 @@ export class NamespacesPage {
     await expect(page.getByRole('textbox', { name: 'yaml Code' })).toBeVisible();
     await page.fill('textarea[aria-label="yaml Code"]', yaml);
 
-    await expect(page.getByRole('button', { name: 'Apply' })).toBeVisible();
-    await page.getByRole('button', { name: 'Apply' }).click();
+    // exact: true, otherwise this also matches the "Create / Apply" button.
+    await expect(page.getByRole('button', { name: 'Apply', exact: true })).toBeVisible();
+    await page.getByRole('button', { name: 'Apply', exact: true }).click();
 
     await page.waitForSelector(`a:has-text("${name}")`);
     await expect(page.locator(`a:has-text("${name}")`)).toBeVisible();
@@ -88,11 +89,13 @@ export class NamespacesPage {
 
     await page.waitForLoadState('load');
 
-    await page.waitForSelector('button:has-text("Yes")');
+    // This is a ConfirmDialog. Its confirm button reads "Delete" here and "Yes"
+    // in other places, so key off the stable aria-label instead of the text.
+    await page.waitForSelector('button[aria-label="confirm-button"]');
 
     await page.waitForLoadState('load');
 
-    await page.click('button:has-text("Yes")');
+    await page.click('button[aria-label="confirm-button"]');
 
     await page.waitForSelector('h1:has-text("Namespaces")');
     await page.waitForSelector('td:has-text("Terminating")');
