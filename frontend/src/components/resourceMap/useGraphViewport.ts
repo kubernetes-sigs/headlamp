@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { getNodesBounds, getViewportForBounds, Node, useReactFlow, useStore } from '@xyflow/react';
+import { getViewportForBounds, Node, useReactFlow, useStore } from '@xyflow/react';
 import { useCallback, useMemo } from 'react';
 import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { maxZoom, minZoom, viewportPaddingPx } from './graphConstants';
@@ -53,7 +53,7 @@ export const useGraphViewport = () => {
         setZoomMode(() => mode);
       }
 
-      const bounds = getNodesBounds(nodes);
+      const bounds = flow.getNodesBounds(nodes);
 
       if (mode === 'fit') {
         const viewport = getViewportForBounds(
