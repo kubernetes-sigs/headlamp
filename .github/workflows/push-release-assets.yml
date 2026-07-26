@@ -166,15 +166,13 @@ jobs:
       - name: Sign checksums.txt with cosign (keyless)
         run: |
           cosign sign-blob --yes \
-            --output-signature ./temp-checksums/checksums.txt.sig \
-            --output-certificate ./temp-checksums/checksums.txt.pem \
+            --bundle ./temp-checksums/checksums.txt.sigstore.json \
             ./temp-checksums/checksums.txt
 
           gh release upload ${{ inputs.release_name }} \
-            ./temp-checksums/checksums.txt.sig \
-            ./temp-checksums/checksums.txt.pem \
+            ./temp-checksums/checksums.txt.sigstore.json \
             --clobber
 
-          echo "Cosign signature and certificate uploaded successfully"
+          echo "Cosign bundle uploaded successfully"
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_UPDATE_TOKEN }}
