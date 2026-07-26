@@ -226,7 +226,7 @@ export default function ScaleMultipleButton(props: ScaleMultipleButtonProps) {
           </DialogContent>
           <DialogActions>
             <Button
-              aria-label="cancel-button"
+              data-testid="cancel-button"
               onClick={() => setOpenDialog(false)}
               color="secondary"
               variant="contained"
@@ -234,7 +234,7 @@ export default function ScaleMultipleButton(props: ScaleMultipleButtonProps) {
               {t('translation|Cancel')}
             </Button>
             <Button
-              aria-label="confirm-button"
+              data-testid="confirm-button"
               onClick={() => {
                 setOpenDialog(false);
                 handleSave();

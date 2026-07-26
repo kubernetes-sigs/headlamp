@@ -285,7 +285,7 @@ export default function RollbackDialog(props: RollbackDialogProps) {
         <DialogActions>
           <Button
             onClick={onClose}
-            aria-label="cancel-button"
+            data-testid="cancel-button"
             color="secondary"
             variant="contained"
           >
@@ -293,7 +293,7 @@ export default function RollbackDialog(props: RollbackDialogProps) {
           </Button>
           <Button
             onClick={handlePreview}
-            aria-label="preview-button"
+            data-testid="preview-button"
             variant="outlined"
             disabled={
               !hasPreviousRevisions || selectedRevision === undefined || loading || previewLoading
@@ -304,7 +304,7 @@ export default function RollbackDialog(props: RollbackDialogProps) {
           </Button>
           <Button
             onClick={handleConfirm}
-            aria-label="confirm-button"
+            data-testid="confirm-button"
             variant="contained"
             color="primary"
             disabled={
