@@ -148,6 +148,19 @@
             
 
             <h2>
+              Screenshot
+            </h2>
+            
+
+            <p>
+              <img
+                alt="Example release screenshot"
+                src="https://github.com/user-attachments/assets/674137f5-99db-4d7f-ab50-d91b19202704"
+              />
+            </p>
+            
+
+            <h2>
               Code Example
             </h2>
             
