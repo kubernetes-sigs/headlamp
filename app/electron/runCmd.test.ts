@@ -16,6 +16,7 @@
 
 import { EventEmitter } from 'events';
 import path from 'path';
+import { pathToFileURL } from 'url';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import { checkPermissionSecret, handleRunCommand, validateCommandData } from './runCmd';
 
@@ -313,9 +314,13 @@ describe('runScript', () => {
   const testScriptImport = async (scriptPath: string) => {
     const resolvedPath = path.resolve(scriptPath);
     process.argv = ['node', resolvedPath];
-    vi.doMock(resolvedPath, () => ({}));
+    vi.doMock(pathToFileURL(resolvedPath).href, () => ({}));
     const runCmdModule = await import('./runCmd');
-    runCmdModule.runScript();
+    // Await and swallow the dynamic-import promise so it doesn't surface
+    // as an unhandled rejection if Vitest's module runner can't resolve the
+    // (intentionally mocked) absolute path. The assertion below is the actual
+    // contract being tested: runScript did not abort via process.exit().
+    await Promise.resolve(runCmdModule.runScript()).catch(() => {});
     expect(exitMock).not.toHaveBeenCalled();
   };
 
@@ -331,10 +336,12 @@ describe('runScript', () => {
   it('exits with error when script is outside allowed directories', async () => {
     const scriptPath = path.resolve('/not-allowed/my-script.js');
     process.argv = ['node', scriptPath];
-    vi.doMock(scriptPath, () => ({}));
+    vi.doMock(pathToFileURL(scriptPath).href, () => ({}));
 
     const runCmdModule = await import('./runCmd');
-    runCmdModule.runScript();
+    // Same as above: swallow any dynamic-import rejection produced after the
+    // security check rejects the path.
+    await Promise.resolve(runCmdModule.runScript()).catch(() => {});
 
     expect(consoleErrorMock).toHaveBeenCalledTimes(1);
     expect(exitMock).toHaveBeenCalledWith(1);

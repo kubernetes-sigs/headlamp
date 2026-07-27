@@ -15,7 +15,7 @@
  */
 
 import { fireEvent, render, screen } from '@testing-library/react';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import IconPicker, { PRESET_ICONS } from './IconPicker';
 
 // Mock i18n
@@ -26,12 +26,12 @@ vi.mock('react-i18next', () => ({
 }));
 
 describe('IconPicker Component', () => {
-  let onClose: ReturnType<typeof vi.fn>;
-  let onSelectIcon: ReturnType<typeof vi.fn>;
+  let onClose: Mock<() => void>;
+  let onSelectIcon: Mock<(icon: string) => void>;
 
   beforeEach(() => {
-    onClose = vi.fn();
-    onSelectIcon = vi.fn();
+    onClose = vi.fn<() => void>();
+    onSelectIcon = vi.fn<(icon: string) => void>();
   });
 
   const renderComponent = (props = {}) =>

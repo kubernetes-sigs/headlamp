@@ -234,7 +234,7 @@
     "@storybook/react-vite": "^9.1.19",
     "@testing-library/jest-dom": "^6.4.8",
     "@testing-library/user-event": "^14.5.2",
-    "@vitest/coverage-istanbul": "^3.0.5",
+    "@vitest/coverage-istanbul": "^4.1.8",
     "eslint-plugin-license-header": "^0.8.0",
     "fast-check": "^4.5.3",
     "husky": "^4.3.8",
@@ -250,7 +250,7 @@
     "typedoc": "^0.28.0",
     "typedoc-plugin-markdown": "^4.5.0",
     "typedoc-plugin-rename-defaults": "^0.7.3",
-    "vitest": "^3.0.5",
+    "vitest": "^4.1.8",
     "vitest-canvas-mock": "^0.3.3",
     "vitest-websocket-mock": "^0.4.0"
   },
