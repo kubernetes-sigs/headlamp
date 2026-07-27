@@ -49,7 +49,7 @@ require (
 	golang.org/x/term v0.44.0
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/klog/v2 v2.140.0
-	sigs.k8s.io/cluster-inventory-api v0.1.2
+	sigs.k8s.io/cluster-inventory-api v0.1.3
 )
 
 require (
