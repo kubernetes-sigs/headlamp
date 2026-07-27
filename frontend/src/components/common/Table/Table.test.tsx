@@ -472,20 +472,68 @@ describe('Table states and options', () => {
     clientWidth.mockRestore();
   });
 
-  it('hides and restores the actions column with data-column visibility', () => {
-    tableMocks.columnVisibility = { '0': false };
-    const hiddenResult = renderTable({
+  it('hides and restores the actions column when all data columns are hidden', () => {
+    const result = renderTable({
       columns: [{ accessorKey: 'selected', header: 'Selection' }],
+      enableRowActions: true,
+      state: { columnVisibility: { '0': false } },
     });
 
-    expect(tableMocks.setColumnVisibility).toHaveBeenCalledOnce();
-    hiddenResult.unmount();
-
-    tableMocks.setColumnVisibility.mockClear();
-    tableMocks.columnVisibility = { '0': true, actions: false };
-    renderTable({ columns: [{ accessorKey: 'selected', header: 'Selection' }] });
+    const tableElem = result.container.querySelector('table')!;
 
     expect(tableMocks.setColumnVisibility).toHaveBeenCalledOnce();
+    const hideUpdater = tableMocks.setColumnVisibility.mock.calls[0][0];
+    expect(hideUpdater({})).toEqual({
+      'mrt-row-actions': false,
+    });
+
+    // Apply the hide updater through options.onColumnVisibilityChange into component state
+    act(() => {
+      tableMocks.options.onColumnVisibilityChange(hideUpdater);
+    });
+
+    // Effective actions column is hidden in state and actions grid track is dropped
+    expect(tableMocks.options.state.columnVisibility['mrt-row-actions']).toBe(false);
+    expect(window.getComputedStyle(tableElem).gridTemplateColumns).not.toContain('0.05fr');
+
+    // Restore the data column
+    result.rerender(
+      <ThemeProvider theme={theme}>
+        <Table
+          columns={[{ accessorKey: 'selected', header: 'Selection' }]}
+          data={[{ selected: false }]}
+          enableRowActions
+          state={{ columnVisibility: { '0': true } }}
+        />
+      </ThemeProvider>
+    );
+
+    expect(tableMocks.setColumnVisibility).toHaveBeenCalledTimes(2);
+    const restoreUpdater = tableMocks.setColumnVisibility.mock.calls[1][0];
+
+    // The restore drops the effect's own override instead of forcing `true`,
+    // so any caller visibility state wins again.
+    expect(restoreUpdater({ 'mrt-row-actions': false, '0': false })).toEqual({ '0': false });
+
+    // Apply the restore updater through options.onColumnVisibilityChange into component state
+    act(() => {
+      tableMocks.options.onColumnVisibilityChange(restoreUpdater);
+    });
+
+    // Effective actions column is restored and 0.05fr actions grid track is restored
+    expect(tableMocks.options.state.columnVisibility['mrt-row-actions']).not.toBe(false);
+    expect(window.getComputedStyle(tableElem).gridTemplateColumns).toBe('1fr 0.05fr');
+  });
+
+  it('keeps a caller-hidden actions column hidden while data columns are visible', () => {
+    renderTable({
+      columns: [{ accessorKey: 'selected', header: 'Selection' }],
+      enableRowActions: true,
+      state: { columnVisibility: { 'mrt-row-actions': false } },
+    });
+
+    expect(tableMocks.setColumnVisibility).not.toHaveBeenCalled();
+    expect(tableMocks.options.state.columnVisibility).toEqual({ 'mrt-row-actions': false });
   });
 });
 
