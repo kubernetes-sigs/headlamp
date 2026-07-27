@@ -305,14 +305,22 @@ export async function handleRunCommand(
 
   // If the command is 'scriptjs', we pass the HEADLAMP_RUN_SCRIPT=true
   // env var so that the Headlamp or Electron process runs the script.
-  const child: ChildProcessWithoutNullStreams = spawn(command, args, {
-    ...commandData.options,
-    shell: false,
-    env: {
-      ...shellEnvironment,
-      ...(commandData.command === 'scriptjs' ? { HEADLAMP_RUN_SCRIPT: 'true' } : {}),
-    },
-  });
+  let child: ChildProcessWithoutNullStreams;
+  try {
+    child = spawn(command, args, {
+      ...commandData.options,
+      shell: false,
+      env: {
+        ...shellEnvironment,
+        ...(commandData.command === 'scriptjs' ? { HEADLAMP_RUN_SCRIPT: 'true' } : {}),
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    event.sender.send('command-stderr', commandData.id, message);
+    event.sender.send('command-exit', commandData.id, -1);
+    return;
+  }
 
   child.stdout.on('data', (data: string | Buffer) => {
     event.sender.send('command-stdout', commandData.id, data.toString());
