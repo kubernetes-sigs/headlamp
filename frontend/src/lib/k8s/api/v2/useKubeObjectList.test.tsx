@@ -673,6 +673,77 @@ describe('useKubeObjectList', () => {
     );
   });
 
+  it('should normalize pending list request rejections to ApiError', async () => {
+    mockClusterFetch
+      .mockResolvedValueOnce({
+        json: () => Promise.resolve(makeListResponse({ items: [makePod('pod-a', '1')] })),
+      } as Response)
+      .mockRejectedValueOnce(new SyntaxError('invalid list response'));
+
+    const result = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['a', 'b'] }],
+          queryParams: { limit: 1 },
+        }),
+      {
+        wrapper: queryClientWrapper(new QueryClient()),
+      }
+    );
+
+    await waitFor(() => expect(result.result.current.loadMore).toEqual(expect.any(Function)));
+
+    await act(async () => {
+      await result.result.current.loadMore?.();
+    });
+
+    expect(result.result.current.error).toBeInstanceOf(ApiError);
+    expect(result.result.current.error).toMatchObject({
+      message: 'invalid list response',
+      cluster: 'default',
+      namespace: 'b',
+    });
+  });
+
+  it('should normalize unexpected page processing errors to ApiError', async () => {
+    mockClusterFetch
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve(
+            makeListResponse({
+              items: [makePod('pod-1', '1')],
+              continueToken: 'token-1',
+            })
+          ),
+      } as Response)
+      .mockResolvedValueOnce({ json: () => Promise.resolve({}) } as Response);
+
+    const result = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default', namespaces: ['a'] }],
+          queryParams: { limit: DEFAULT_LIST_LIMIT },
+        }),
+      {
+        wrapper: queryClientWrapper(new QueryClient()),
+      }
+    );
+
+    await waitFor(() => expect(result.result.current.loadMore).toEqual(expect.any(Function)));
+
+    await act(async () => {
+      await result.result.current.loadMore?.();
+    });
+
+    expect(result.result.current.error).toBeInstanceOf(ApiError);
+    expect(result.result.current.error).toMatchObject({
+      cluster: 'default',
+      namespace: 'a',
+    });
+  });
+
   it('should clear loadMore errors when request inputs change', async () => {
     const queryClient = new QueryClient();
     const loadMoreError = new ApiError('expired continue token', { status: 410 });
