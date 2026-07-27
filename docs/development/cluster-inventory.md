@@ -14,7 +14,7 @@ Headlamp integration uses the `v0.1.x` API, so fields and behavior may change.
 
 Headlamp can discover additional clusters from Cluster Inventory API
 `ClusterProfile` resources when started with Cluster Inventory enabled. The
-backend uses `sigs.k8s.io/cluster-inventory-api v0.1.0`, the `pkg/access`
+backend uses `sigs.k8s.io/cluster-inventory-api v0.1.3`, the `pkg/access`
 provider configuration package, and `ClusterProfile.status.accessProviders`.
 
 The provider configuration file is not a `ClusterProfile` status object. It uses
@@ -63,16 +63,16 @@ In another terminal:
 npm run frontend:start
 ```
 
-Install the `v0.1.0` CRD on clusters that publish inventory:
+Install the `v0.1.3` CRD on clusters that publish inventory:
 
 ```bash
 kubectl --context kind-ci-hub apply -f \
-  https://raw.githubusercontent.com/kubernetes-sigs/cluster-inventory-api/v0.1.0/config/crd/bases/multicluster.x-k8s.io_clusterprofiles.yaml
+  https://raw.githubusercontent.com/kubernetes-sigs/cluster-inventory-api/v0.1.3/config/crd/bases/multicluster.x-k8s.io_clusterprofiles.yaml
 ```
 
 Patch sample status with `status.accessProviders` and health conditions:
 
-`ClusterProfile.spec.clusterManager.name` is required by the v0.1.0 CRD, even
+`ClusterProfile.spec.clusterManager.name` is required by the v0.1.3 CRD, even
 when the access details are patched later through the status subresource. The
 CRD also requires `reason` on each condition, so include it even when adapting
 examples that omit the field.
