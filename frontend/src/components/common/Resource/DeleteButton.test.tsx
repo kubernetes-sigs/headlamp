@@ -138,7 +138,7 @@ describe('DeleteButton', () => {
     renderButton(makeNamespace({ name: 'kube-system' }));
     const dialog = await openDialog();
 
-    const confirmButton = within(dialog).getByLabelText('confirm-button');
+    const confirmButton = within(dialog).getByTestId('confirm-button');
     const input = within(dialog).getByLabelText('translation|Namespace name');
 
     expect(confirmButton).toBeDisabled();
@@ -162,7 +162,7 @@ describe('DeleteButton', () => {
     );
     const dialog = await openDialog();
 
-    const confirmButton = within(dialog).getByLabelText('confirm-button');
+    const confirmButton = within(dialog).getByTestId('confirm-button');
     const input = within(dialog).getByLabelText('translation|Namespace name');
 
     // The object's metadata.name should NOT unlock deletion.
@@ -186,7 +186,7 @@ describe('DeleteButton', () => {
     expect(within(dialog).queryByLabelText('translation|Namespace name')).not.toBeInTheDocument();
 
     // Confirm is enabled right away — no type-to-confirm step.
-    expect(within(dialog).getByLabelText('confirm-button')).toBeEnabled();
+    expect(within(dialog).getByTestId('confirm-button')).toBeEnabled();
   });
 
   it('stays in sync with the production protected namespace list', async () => {
