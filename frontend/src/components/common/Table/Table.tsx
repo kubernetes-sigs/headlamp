@@ -518,19 +518,22 @@ export default function Table<RowItem extends Record<string, any>>({
 
   // Hide actions column when others are hidden
   useEffect(() => {
-    const visibility = table.getState().columnVisibility || {};
+    if (!tableProps.enableRowActions) {
+      return;
+    }
+    const visibility = mergedColumnVisibility;
 
     const shouldHideActions = tableColumns
-      .filter(col => (col.id ?? '') !== 'actions')
+      .filter(col => (col.id ?? '') !== 'mrt-row-actions')
       .every(col => visibility[col.id ?? ''] === false);
 
-    if (shouldHideActions && visibility['actions'] !== false) {
-      table.setColumnVisibility(prev => ({ ...prev, actions: false }));
-    } else if (!shouldHideActions && visibility['actions'] === false) {
-      table.setColumnVisibility(prev => ({ ...prev, actions: true }));
+    if (shouldHideActions && visibility['mrt-row-actions'] !== false) {
+      table.setColumnVisibility(prev => ({ ...prev, 'mrt-row-actions': false }));
+    } else if (!shouldHideActions && visibility['mrt-row-actions'] === false) {
+      table.setColumnVisibility(prev => ({ ...prev, 'mrt-row-actions': true }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table.getState().columnVisibility, tableColumns, table]);
+  }, [mergedColumnVisibility, tableColumns, tableProps.enableRowActions]);
 
   const gridTemplateColumns = useMemo(() => {
     let preGridTemplateColumns = tableProps.columns
@@ -546,7 +549,9 @@ export default function Table<RowItem extends Record<string, any>>({
         return it.gridTemplate ?? '1fr';
       })
       .join(' ');
-    if (tableProps.enableRowActions) {
+    const actionsHidden =
+      tableProps.enableRowActions && mergedColumnVisibility?.['mrt-row-actions'] === false;
+    if (tableProps.enableRowActions && !actionsHidden) {
       preGridTemplateColumns = `${preGridTemplateColumns} 0.05fr`;
     }
     if (tableProps.enableRowSelection) {
