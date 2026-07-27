@@ -123,7 +123,7 @@
     "storybook": "storybook dev -p 6006",
     "build-typedoc": "typedoc",
     "build-storybook": "storybook build -o ../docs/development/storybook",
-    "i18n": "i18next 'src/**/*.{ts,tsx}' -c ./src/i18n/i18next-parser.config.js",
+    "i18n": "i18next 'src/**/*.{ts,tsx}' '!src/**/*.test.{ts,tsx}' -c ./src/i18n/i18next-parser.config.js",
     "tsc": "tsgo",
     "make-version": "node ./make-env.js",
     "star": "cross-env REACT_APP_HEADLAMP_BACKEND_TOKEN=headlamp rsbuild dev",
