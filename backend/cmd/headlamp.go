@@ -83,6 +83,8 @@ type HeadlampConfig struct {
 	oidcStateReader   io.Reader
 }
 
+var errAmbiguousDNSFriendlyContextName = errors.New("ambiguous DNS-friendly cluster name")
+
 func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
 	compiledProxyURLs := make([]glob.Glob, 0, len(patterns))
 
@@ -2539,13 +2541,14 @@ func (c *HeadlampConfig) updateCustomContextToCache(config *api.Config, clusterN
 		return errs
 	}
 
-	for _, context := range contexts {
-		// Remove the old context from the store
-		if err := c.KubeConfigStore.RemoveContext(clusterName); err != nil {
-			logger.Log(logger.LevelError, nil, err, "Removing context from the store")
-			errs = append(errs, err)
-		}
+	// Remove the renamed context once before repopulating the store from the
+	// updated kubeconfig.
+	if err := c.KubeConfigStore.RemoveContext(clusterName); err != nil {
+		logger.Log(logger.LevelError, nil, err, "Removing context from the store")
+		errs = append(errs, err)
+	}
 
+	for _, context := range contexts {
 		// Add the new context to the store
 		if err := c.KubeConfigStore.AddContext(&context); err != nil {
 			logger.Log(logger.LevelError, nil, err, "Adding context to the store")
@@ -2646,7 +2649,19 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 		return renameErr
 	}
 
-	contextName := findMatchingContextName(config, clusterName)
+	contextName, err := findMatchingContextName(config, clusterName)
+	if err != nil {
+		c.handleError(w, ctx, span, err, "failed to resolve cluster context", http.StatusBadRequest)
+
+		return err
+	}
+
+	if _, ok := config.Contexts[contextName]; !ok {
+		err = fmt.Errorf("context %q not found", contextName)
+		c.handleError(w, ctx, span, err, "Cluster not found", http.StatusNotFound)
+
+		return err
+	}
 
 	if err := customNameToExtensions(config, contextName, reqBody.NewClusterName, path); err != nil {
 		c.handleError(w, ctx, span, err, "failed to write custom extension", http.StatusInternalServerError)
@@ -2674,9 +2689,8 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 // Resolution order:
 //  1. Custom name match (headlamp_info extension) — highest priority, returns immediately.
 //  2. Exact key match — avoids DNS-friendly ambiguity when the name already exists verbatim.
-//  3. DNS-friendly match — collects all candidates; warns and picks the
-//     lexicographically first one when multiple keys map to the same form.
-func findMatchingContextName(config *api.Config, clusterName string) string {
+//  3. DNS-friendly match — collects all candidates and rejects ambiguous collisions.
+func findMatchingContextName(config *api.Config, clusterName string) (string, error) {
 	// 1. Custom name takes priority: return the real context key immediately.
 	for k, v := range config.Contexts {
 		info := v.Extensions["headlamp_info"]
@@ -2693,17 +2707,17 @@ func findMatchingContextName(config *api.Config, clusterName string) string {
 		}
 
 		if customObj.CustomName != "" && customObj.CustomName == clusterName {
-			return k
+			return k, nil
 		}
 	}
 
 	// 2. Exact key match: clusterName is already a verbatim context key.
 	if _, ok := config.Contexts[clusterName]; ok {
-		return clusterName
+		return clusterName, nil
 	}
 
 	// 3. DNS-friendly match: collect all keys whose DNS-friendly form matches.
-	// Sorting makes the selection deterministic when multiple keys collide.
+	// Sorting keeps warning logs stable when multiple keys collide.
 	var matches []string
 
 	for k := range config.Contexts {
@@ -2714,19 +2728,20 @@ func findMatchingContextName(config *api.Config, clusterName string) string {
 
 	switch len(matches) {
 	case 1:
-		return matches[0]
+		return matches[0], nil
 	case 0:
-		return clusterName
+		return clusterName, nil
 	default:
 		sort.Strings(matches)
+
+		err := fmt.Errorf("%w %q", errAmbiguousDNSFriendlyContextName, clusterName)
 		logger.Log(logger.LevelWarn,
-			map[string]string{"clusterName": clusterName},
-			nil,
-			fmt.Sprintf("ambiguous DNS-friendly cluster name %q matches multiple context keys %v; using %q",
-				clusterName, matches, matches[0]),
+			map[string]string{logFieldCluster: clusterName},
+			fmt.Errorf("%w %q matches multiple context keys %v", errAmbiguousDNSFriendlyContextName, clusterName, matches),
+			"ambiguous DNS-friendly cluster name",
 		)
 
-		return matches[0]
+		return "", err
 	}
 }
 
