@@ -72,7 +72,6 @@ export default class MCPClient {
   private clusters: string[] = [];
 
   private currentClusters: string[] | null = null;
-  private oldClusters: string[] | null = null;
 
   constructor(configPath: string, settingsPath: string) {
     this.configPath = configPath;
@@ -214,6 +213,14 @@ export default class MCPClient {
     this.mainWindow = win;
   }
 
+  private normalizeClusters(clusters: string[] | null): string[] | null {
+    if (clusters === null) {
+      return null;
+    }
+
+    return [...new Set(clusters)].sort();
+  }
+
   /**
    * Handle clusters change notification.
    *
@@ -228,13 +235,17 @@ export default class MCPClient {
       throw new Error('MCPClient: not initialized');
     }
 
-    // If cluster hasn't actually changed, do nothing.
-    if (JSON.stringify(this.currentClusters) === JSON.stringify(newClusters)) {
+    const normalizedClusters = this.normalizeClusters(newClusters);
+
+    // Treat cluster lists as sets so order-only permutations do not trigger a restart.
+    if (JSON.stringify(this.currentClusters) === JSON.stringify(normalizedClusters)) {
       return;
     }
 
     const oldClusters = this.currentClusters;
-    this.currentClusters = newClusters;
+    const oldConfiguredClusters = this.clusters;
+    this.currentClusters = normalizedClusters;
+    this.clusters = normalizedClusters ?? [];
 
     // Check if we have any cluster-dependent servers
     if (!hasClusterDependentServers(this.settingsPath)) {
@@ -254,11 +265,12 @@ export default class MCPClient {
       this.initializationPromise = null;
       // Re-initialize with new cluster context
       await this.initializeClient();
-      console.log('MCP client restarted successfully for new cluster:', newClusters);
+      console.log('MCP client restarted successfully for new cluster:', normalizedClusters);
     } catch (error) {
       console.error('Error restarting MCP client for cluster change:', error);
       // Restore previous cluster on error
       this.currentClusters = oldClusters;
+      this.clusters = oldConfiguredClusters;
       throw error;
     }
   }
