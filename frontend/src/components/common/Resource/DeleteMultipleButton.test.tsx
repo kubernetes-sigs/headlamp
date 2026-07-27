@@ -136,7 +136,7 @@ describe('DeleteMultipleButton', () => {
     ]);
     const dialog = await openDialog();
 
-    const confirmButton = within(dialog).getByLabelText('confirm-button');
+    const confirmButton = within(dialog).getByTestId('confirm-button');
     const input = within(dialog).getByLabelText('translation|Namespace name(s)');
 
     expect(confirmButton).toBeDisabled();
@@ -164,7 +164,7 @@ describe('DeleteMultipleButton', () => {
     ).not.toBeInTheDocument();
 
     // Confirm is enabled right away — no type-to-confirm step.
-    expect(within(dialog).getByLabelText('confirm-button')).toBeEnabled();
+    expect(within(dialog).getByTestId('confirm-button')).toBeEnabled();
   });
 
   it('stays in sync with the production protected namespace list', async () => {
