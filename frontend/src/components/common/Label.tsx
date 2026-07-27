@@ -213,16 +213,17 @@ export interface HoverInfoLabelProps {
 
 export function HoverInfoLabel(props: HoverInfoLabelProps) {
   const { label, hoverInfo, icon = null, iconProps = {}, labelProps, iconPosition = 'end' } = props;
+  const { sx: labelSx, ...restLabelProps } = labelProps || {};
   const labelFirst = iconPosition === 'end';
 
   return (
     <LightTooltip title={hoverInfo || ''}>
       <Typography
-        sx={{
-          display: 'inline-flex',
-          whiteSpace: 'nowrap',
-        }}
-        {...labelProps}
+        sx={[
+          { display: 'inline-flex', whiteSpace: 'nowrap' },
+          ...(Array.isArray(labelSx) ? labelSx : labelSx ? [labelSx] : []),
+        ]}
+        {...restLabelProps}
       >
         {labelFirst && label}
         {hoverInfo && (
