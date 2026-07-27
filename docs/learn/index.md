@@ -9,6 +9,7 @@ Here you'll find resources for learning how to use Headlamp.
 
 ## User Guides
 
+- [Filtering Resources](./filtering-resources.md), Learn how to filter Kubernetes resources by labels to quickly find specific workloads across your clusters.
 - [Projects](./projects.md), Projects group related Kubernetes resources into an application-focused view; this guide explains what Projects are, how to create them, and how to use their tabs and features.
 - [Local Cluster](./local-cluster/index.md), Local Cluster enables creating and managing a full Kubernetes cluster locally via Headlamp Desktop App; this guide explains how to add, operate, and delete the cluster and deploy sample applications.
 

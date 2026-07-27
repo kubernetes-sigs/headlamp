@@ -287,6 +287,8 @@
   "Open Issue on GitHub": "Открыть задачу на GitHub",
   "Kubernetes events have a lifetime of 1 hour by default. This duration may vary depending on your cluster's configuration.": "",
   "Events lifetime information": "",
+  "Label Selector": "",
+  "e.g. app=nginx": "",
   "Find": "Найти",
   "Download": "Скачать",
   "Reconnect": "Переподключиться",

@@ -48,6 +48,7 @@ const checkExports = [
   'InnerTable',
   'Label',
   'LabelListItem',
+  'LabelSelectorInput',
   'Link',
   'Loader',
   'LogViewer',
