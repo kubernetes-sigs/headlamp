@@ -26,7 +26,7 @@ import nock from 'nock';
 import os from 'os';
 import path from 'path';
 import * as tar from 'tar';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { PluginManager } from './plugin-management';
 import { getExtraFiles } from './plugin-management';
 
@@ -210,6 +210,274 @@ describe('PluginManager', () => {
       fs.rmSync(testDataDir, { recursive: true });
     }
   }, 30000);
+
+  it('should successfully update a plugin and remove the backup directory', async () => {
+    const testDataDir = getUniqueTestDir(TEST_DATA_BASE_DIR, 'update-success-data');
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'update-success-plugins');
+
+    // 1. Create a minimal plugin tarball representing the new version (0.1.0)
+    await createMinimalPluginTarball(testDataDir);
+
+    // 2. Install the "old" plugin (0.0.1) manually
+    const pluginDir = path.join(pluginDestDir, 'headlamp_minikube');
+    fs.mkdirSync(pluginDir, { recursive: true });
+    fs.writeFileSync(path.join(pluginDir, 'main.js'), 'console.log("old version");');
+    fs.writeFileSync(
+      path.join(pluginDir, 'package.json'),
+      JSON.stringify(
+        {
+          name: 'headlamp_minikube',
+          version: '0.0.1',
+          description: 'A UI for managing Minikube',
+          main: 'main.js',
+          isManagedByHeadlampPlugin: true,
+          artifacthub: {
+            name: 'headlamp_minikube',
+            title: 'Minikube',
+            url: 'https://artifacthub.io/packages/headlamp/test-repo/headlamp_minikube',
+            version: '0.0.1',
+            repoName: 'test-repo',
+            author: 'tester',
+          },
+        },
+        null,
+        2
+      )
+    );
+
+    // 3. Mock the ArtifactHub API for the new version
+    mockArtifactHubAPIWithoutPlatformSpecific(testDataDir);
+
+    const progress: any[] = [];
+    const progressCallback = (update: any) => {
+      progress.push(update);
+    };
+
+    // 4. Run update
+    await PluginManager.update(
+      'headlamp_minikube',
+      pluginDestDir,
+      HEADLAMP_VERSION,
+      progressCallback,
+      null
+    );
+
+    // 5. Verify the update succeeded
+    expect(fs.existsSync(pluginDir)).toBe(true);
+    expect(fs.existsSync(`${pluginDir}.backup`)).toBe(false);
+
+    // Verify main.js exists and version in package.json is updated to 0.1.0
+    const packageJson = JSON.parse(fs.readFileSync(path.join(pluginDir, 'package.json'), 'utf8'));
+    expect(packageJson.artifacthub.version).toBe('0.1.0');
+
+    // Clean up
+    if (fs.existsSync(pluginDestDir)) {
+      fs.rmSync(pluginDestDir, { recursive: true });
+    }
+    if (fs.existsSync(testDataDir)) {
+      fs.rmSync(testDataDir, { recursive: true });
+    }
+  }, 30000);
+
+  it('should restore the original plugin if a failure occurs during move', async () => {
+    const testDataDir = getUniqueTestDir(TEST_DATA_BASE_DIR, 'update-move-fail-data');
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'update-move-fail-plugins');
+
+    // 1. Create a minimal plugin tarball representing the new version
+    await createMinimalPluginTarball(testDataDir);
+
+    // 2. Install the "old" plugin (0.0.1) manually
+    const pluginDir = path.join(pluginDestDir, 'headlamp_minikube');
+    fs.mkdirSync(pluginDir, { recursive: true });
+    fs.writeFileSync(path.join(pluginDir, 'main.js'), 'console.log("old version");');
+    fs.writeFileSync(
+      path.join(pluginDir, 'package.json'),
+      JSON.stringify(
+        {
+          name: 'headlamp_minikube',
+          version: '0.0.1',
+          description: 'A UI for managing Minikube',
+          main: 'main.js',
+          isManagedByHeadlampPlugin: true,
+          artifacthub: {
+            name: 'headlamp_minikube',
+            title: 'Minikube',
+            url: 'https://artifacthub.io/packages/headlamp/test-repo/headlamp_minikube',
+            version: '0.0.1',
+            repoName: 'test-repo',
+            author: 'tester',
+          },
+        },
+        null,
+        2
+      )
+    );
+
+    // 3. Mock the ArtifactHub API for the new version
+    mockArtifactHubAPIWithoutPlatformSpecific(testDataDir);
+
+    // 4. Force cpSync to fail during move
+    const cpSyncSpy = vi.spyOn(fs, 'cpSync').mockImplementation(() => {
+      throw new Error('Simulated filesystem error during moveDirs');
+    });
+
+    try {
+      // 5. Run update and expect it to fail (passing null progressCallback so error throws)
+      await expect(
+        PluginManager.update('headlamp_minikube', pluginDestDir, HEADLAMP_VERSION, null, null)
+      ).rejects.toThrow('Simulated filesystem error during moveDirs');
+
+      // 6. Verify that the original plugin is restored
+      expect(fs.existsSync(pluginDir)).toBe(true);
+      expect(fs.existsSync(`${pluginDir}.backup`)).toBe(false);
+
+      const packageJson = JSON.parse(fs.readFileSync(path.join(pluginDir, 'package.json'), 'utf8'));
+      expect(packageJson.artifacthub.version).toBe('0.0.1');
+    } finally {
+      // Restore fs.cpSync
+      cpSyncSpy.mockRestore();
+      // Clean up
+      if (fs.existsSync(pluginDestDir)) {
+        fs.rmSync(pluginDestDir, { recursive: true });
+      }
+      if (fs.existsSync(testDataDir)) {
+        fs.rmSync(testDataDir, { recursive: true });
+      }
+    }
+  }, 30000);
+
+  it('should leave the existing plugin untouched if a failure occurs before backup creation', async () => {
+    const testDataDir = getUniqueTestDir(TEST_DATA_BASE_DIR, 'update-pre-backup-fail-data');
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'update-pre-backup-fail-plugins');
+
+    // 1. Create a minimal plugin tarball representing the new version
+    await createMinimalPluginTarball(testDataDir);
+
+    // 2. Install the "old" plugin (0.0.1) manually
+    const pluginDir = path.join(pluginDestDir, 'headlamp_minikube');
+    fs.mkdirSync(pluginDir, { recursive: true });
+    fs.writeFileSync(path.join(pluginDir, 'main.js'), 'console.log("old version");');
+    fs.writeFileSync(
+      path.join(pluginDir, 'package.json'),
+      JSON.stringify(
+        {
+          name: 'headlamp_minikube',
+          version: '0.0.1',
+          description: 'A UI for managing Minikube',
+          main: 'main.js',
+          isManagedByHeadlampPlugin: true,
+          artifacthub: {
+            name: 'headlamp_minikube',
+            title: 'Minikube',
+            url: 'https://artifacthub.io/packages/headlamp/test-repo/headlamp_minikube',
+            version: '0.0.1',
+            repoName: 'test-repo',
+            author: 'tester',
+          },
+        },
+        null,
+        2
+      )
+    );
+
+    // 3. Mock the ArtifactHub API with invalid data or network failure to cause failure before backup creation
+    nock.cleanAll();
+    nock('https://artifacthub.io')
+      .get('/api/v1/packages/headlamp/test-repo/headlamp_minikube')
+      .reply(500, 'Internal Server Error');
+
+    // 4. Run update and expect it to fail (passing null progressCallback so error throws)
+    await expect(
+      PluginManager.update('headlamp_minikube', pluginDestDir, HEADLAMP_VERSION, null, null)
+    ).rejects.toThrow();
+
+    // 5. Verify the existing plugin is completely untouched
+    expect(fs.existsSync(pluginDir)).toBe(true);
+    expect(fs.existsSync(`${pluginDir}.backup`)).toBe(false);
+
+    const packageJson = JSON.parse(fs.readFileSync(path.join(pluginDir, 'package.json'), 'utf8'));
+    expect(packageJson.artifacthub.version).toBe('0.0.1');
+
+    // Clean up
+    if (fs.existsSync(pluginDestDir)) {
+      fs.rmSync(pluginDestDir, { recursive: true });
+    }
+    if (fs.existsSync(testDataDir)) {
+      fs.rmSync(testDataDir, { recursive: true });
+    }
+  }, 30000);
+
+  it('should ignore backup directories during listing', () => {
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'list-backup-plugins');
+
+    const pluginDir = path.join(pluginDestDir, 'headlamp_minikube');
+    const backupDir = `${pluginDir}.backup`;
+    const pluginPackageJson = JSON.stringify({
+      name: 'headlamp_minikube',
+      version: '1.0.0',
+      isManagedByHeadlampPlugin: true,
+      artifacthub: { title: 'Minikube' },
+    });
+
+    // Create the original plugin folder (sibling present → backup is NOT orphaned)
+    fs.mkdirSync(pluginDir, { recursive: true });
+    fs.writeFileSync(path.join(pluginDir, 'main.js'), 'console.log("plugin");');
+    fs.writeFileSync(path.join(pluginDir, 'package.json'), pluginPackageJson);
+
+    // Create the backup directory alongside the original
+    fs.mkdirSync(backupDir, { recursive: true });
+    fs.writeFileSync(path.join(backupDir, 'main.js'), 'console.log("ghost");');
+    fs.writeFileSync(path.join(backupDir, 'package.json'), pluginPackageJson);
+
+    const plugins = PluginManager.list(pluginDestDir);
+    expect(plugins).toBeDefined();
+    // Only the original is listed; the .backup sibling must not appear as a plugin entry
+    expect(plugins!.length).toBe(1);
+    expect(plugins!.some(p => p.folderName === 'headlamp_minikube.backup')).toBe(false);
+    expect(plugins![0].folderName).toBe('headlamp_minikube');
+
+    // Clean up
+    if (fs.existsSync(pluginDestDir)) {
+      fs.rmSync(pluginDestDir, { recursive: true });
+    }
+  });
+
+  it('should recover an orphaned backup directory when the sibling plugin folder is missing', () => {
+    // Simulate an interrupted update: only <name>.backup exists, <name> does not
+    const pluginDestDir = getUniqueTestDir(PLUGIN_DEST_BASE_DIR, 'list-orphan-backup-plugins');
+    const backupDir = `${path.join(pluginDestDir, 'headlamp_minikube')}.backup`;
+    const originalDir = path.join(pluginDestDir, 'headlamp_minikube');
+
+    fs.mkdirSync(backupDir, { recursive: true });
+    fs.writeFileSync(path.join(backupDir, 'main.js'), 'console.log("orphan");');
+    fs.writeFileSync(
+      path.join(backupDir, 'package.json'),
+      JSON.stringify({
+        name: 'headlamp_minikube',
+        version: '1.0.0',
+        isManagedByHeadlampPlugin: true,
+        artifacthub: {
+          title: 'Minikube',
+        },
+      })
+    );
+
+    const plugins = PluginManager.list(pluginDestDir);
+    expect(plugins).toBeDefined();
+
+    // The restored plugin should appear in the list
+    const recovered = plugins!.find(p => p.pluginName === 'headlamp_minikube');
+    expect(recovered).toBeDefined();
+
+    // The .backup folder should be gone; the restored folder should exist
+    expect(fs.existsSync(backupDir)).toBe(false);
+    expect(fs.existsSync(originalDir)).toBe(true);
+
+    // Clean up
+    if (fs.existsSync(pluginDestDir)) {
+      fs.rmSync(pluginDestDir, { recursive: true });
+    }
+  });
 });
 
 /**

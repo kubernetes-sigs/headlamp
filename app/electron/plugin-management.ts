@@ -129,11 +129,17 @@ export interface ArtifactHubHeadlampPkg {
 function moveDirs(currentPath: string, newPath: string) {
   try {
     fs.cpSync(currentPath, newPath, { recursive: true, force: true });
-    fs.rmSync(currentPath, { recursive: true });
-    console.log(`Moved directory from ${currentPath} to ${newPath}`);
   } catch (err) {
-    console.error(`Error moving directory from ${currentPath} to ${newPath}:`, err);
+    console.error(`Error copying directory from ${currentPath} to ${newPath}:`, err);
     throw err;
+  }
+  console.log(`Copied directory from ${currentPath} to ${newPath}`);
+  try {
+    fs.rmSync(currentPath, { recursive: true });
+  } catch (err) {
+    // Source cleanup is non-fatal: the copy succeeded, so the destination is complete.
+    // Log and continue so rollback is not triggered unnecessarily (e.g. temp dir locked on Windows).
+    console.warn(`Warning: could not remove source directory ${currentPath}:`, err);
   }
 }
 
@@ -191,13 +197,15 @@ export class PluginManager {
     progressCallback: null | ProgressCallback = null,
     signal: AbortSignal | null = null
   ) {
+    let tempFolder = '';
     try {
-      const [name, tempFolder] = await downloadExtractArchive(
+      const [name, downloadedTempFolder] = await downloadExtractArchive(
         pluginData,
         headlampVersion,
         progressCallback,
         signal
       );
+      tempFolder = downloadedTempFolder;
 
       // sleep(2000);  // comment out for testing
 
@@ -207,6 +215,20 @@ export class PluginManager {
       }
       // move the plugin to the destination folder
       moveDirs(tempFolder, path.join(destinationFolder, path.basename(name)));
+
+      // Clean up the parent temp directory created by mkdtempSync (moveDirs only removes tempFolder)
+      try {
+        const tempParent = path.dirname(tempFolder);
+        if (
+          fs.existsSync(tempParent) &&
+          path.basename(tempParent).startsWith('headlamp-plugin-temp-')
+        ) {
+          fs.rmSync(tempParent, { recursive: true, force: true });
+        }
+      } catch (cleanupErr) {
+        console.error('Failed to clean up temporary parent directory:', cleanupErr);
+      }
+
       if (progressCallback) {
         progressCallback({ type: 'success', message: 'Plugin Installed' });
       }
@@ -217,6 +239,22 @@ export class PluginManager {
         addToPath([binPath], 'installed plugin');
       }
     } catch (e) {
+      if (tempFolder) {
+        try {
+          if (fs.existsSync(tempFolder)) {
+            fs.rmSync(tempFolder, { recursive: true, force: true });
+          }
+          const tempParent = path.dirname(tempFolder);
+          if (
+            fs.existsSync(tempParent) &&
+            path.basename(tempParent).startsWith('headlamp-plugin-temp-')
+          ) {
+            fs.rmSync(tempParent, { recursive: true, force: true });
+          }
+        } catch (cleanupErr) {
+          console.error('Failed to clean up temporary directory:', cleanupErr);
+        }
+      }
       if (progressCallback) {
         progressCallback({ type: 'error', message: e instanceof Error ? e.message : String(e) });
       } else {
@@ -278,21 +316,92 @@ export class PluginManager {
 
       // sleep(2000);  // comment out for testing
 
-      // create the destination folder if it doesn't exist
-      if (!fs.existsSync(destinationFolder)) {
-        fs.mkdirSync(destinationFolder, { recursive: true });
-      }
+      const backupDir = `${pluginDir}.backup`;
+      let backupCreated = false;
 
-      // remove the existing plugin folder
-      fs.rmSync(pluginDir, { recursive: true, force: true });
+      try {
+        // create the destination folder if it doesn't exist
+        if (!fs.existsSync(destinationFolder)) {
+          fs.mkdirSync(destinationFolder, { recursive: true });
+        }
 
-      // create the plugin folder
-      fs.mkdirSync(pluginDir, { recursive: true });
+        if (fs.existsSync(pluginDir)) {
+          if (fs.existsSync(backupDir)) {
+            // Only discard a leftover backup if the current plugin dir looks valid.
+            // Otherwise, restore first to avoid losing the last known-good copy.
+            if (!checkValidPluginFolder(pluginDir)) {
+              fs.rmSync(pluginDir, { recursive: true, force: true });
+              fs.renameSync(backupDir, pluginDir);
+            } else {
+              fs.rmSync(backupDir, { recursive: true, force: true });
+            }
+          }
+          fs.renameSync(pluginDir, backupDir);
+          backupCreated = true;
+        }
 
-      // move the plugin to the destination folder
-      moveDirs(tempFolder, pluginDir);
-      if (progressCallback) {
-        progressCallback({ type: 'success', message: 'Plugin Updated' });
+        // move the plugin to the destination folder
+        moveDirs(tempFolder, pluginDir);
+
+        // Clean up the parent temp directory created by mkdtempSync (moveDirs only removes tempFolder)
+        try {
+          const tempParent = path.dirname(tempFolder);
+          if (
+            fs.existsSync(tempParent) &&
+            path.basename(tempParent).startsWith('headlamp-plugin-temp-')
+          ) {
+            fs.rmSync(tempParent, { recursive: true, force: true });
+          }
+        } catch (cleanupErr) {
+          console.error('Failed to clean up temporary parent directory:', cleanupErr);
+        }
+
+        if (backupCreated && fs.existsSync(backupDir)) {
+          try {
+            fs.rmSync(backupDir, { recursive: true, force: true });
+          } catch (cleanupErr) {
+            console.error('Failed to remove backup directory after successful update:', cleanupErr);
+          }
+        }
+
+        if (progressCallback) {
+          try {
+            progressCallback({ type: 'success', message: 'Plugin Updated' });
+          } catch (callbackErr) {
+            console.error('Progress callback failed:', callbackErr);
+          }
+        }
+      } catch (err) {
+        let finalErr = err as Error;
+        if (backupCreated && fs.existsSync(backupDir)) {
+          try {
+            if (fs.existsSync(pluginDir)) {
+              fs.rmSync(pluginDir, { recursive: true, force: true });
+            }
+            fs.renameSync(backupDir, pluginDir);
+          } catch (rollbackErr) {
+            console.error('Failed to restore backup directory during rollback:', rollbackErr);
+            finalErr = new AggregateError(
+              [err as Error, rollbackErr as Error],
+              'Plugin update failed and rollback failed'
+            );
+          }
+        }
+        try {
+          if (fs.existsSync(tempFolder)) {
+            fs.rmSync(tempFolder, { recursive: true, force: true });
+          }
+          const tempParent = path.dirname(tempFolder);
+          if (
+            fs.existsSync(tempParent) &&
+            path.basename(tempParent).startsWith('headlamp-plugin-temp-')
+          ) {
+            fs.rmSync(tempParent, { recursive: true, force: true });
+          }
+        } catch (cleanupErr) {
+          console.error('Failed to clean up temporary directory:', cleanupErr);
+        }
+        throw finalErr;
       }
     } catch (e) {
       if (progressCallback) {
@@ -364,8 +473,36 @@ export class PluginManager {
       // Filter out directories (plugins)
       const pluginFolders = entries.filter(entry => entry.isDirectory());
 
-      // Iterate through each plugin folder
+      // Recover orphaned .backup directories: if a <name>.backup exists but <name> does not,
+      // an interrupted update left only the backup. Restore it so the plugin is discoverable.
       for (const pluginFolder of pluginFolders) {
+        if (!pluginFolder.name.endsWith('.backup')) {
+          continue;
+        }
+        const backupDir = path.join(folder, pluginFolder.name);
+        const originalDir = backupDir.slice(0, -'.backup'.length);
+        if (!fs.existsSync(originalDir)) {
+          console.warn(
+            `Detected orphaned backup directory "${backupDir}" with no corresponding plugin folder. ` +
+              `Restoring it to "${originalDir}" to recover from an interrupted update.`
+          );
+          try {
+            fs.renameSync(backupDir, originalDir);
+          } catch (restoreErr) {
+            console.error(
+              `Failed to restore orphaned backup "${backupDir}" to "${originalDir}":`,
+              restoreErr
+            );
+          }
+        }
+      }
+
+      // Re-read entries after potential recovery so restored plugins are included
+      const entriesAfterRecovery = fs.readdirSync(folder, { withFileTypes: true });
+      const pluginFoldersAfterRecovery = entriesAfterRecovery.filter(entry => entry.isDirectory());
+
+      // Iterate through each plugin folder
+      for (const pluginFolder of pluginFoldersAfterRecovery) {
         const pluginDir = path.join(folder, pluginFolder.name);
 
         if (checkValidPluginFolder(pluginDir)) {
@@ -501,40 +638,50 @@ async function downloadExtractArchive(
   }
 
   // Create temporary folder for extraction
-  const tempDir = await fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugin-temp-'));
-  // Defaulting to '' should never happen if recursive is true. So this is for the type
-  // checker only.
-  const tempFolder = fs.mkdirSync(path.join(tempDir, pluginName), { recursive: true }) ?? '';
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugin-temp-'));
+  const tempFolder = path.join(tempDir, pluginName);
+  fs.mkdirSync(tempFolder, { recursive: true });
 
-  // First, download and extract the main archive
-  if (progressCallback) {
-    progressCallback({ type: 'info', message: 'Downloading main plugin archive' });
+  try {
+    // First, download and extract the main archive
+    if (progressCallback) {
+      progressCallback({ type: 'info', message: 'Downloading main plugin archive' });
+    }
+
+    await downloadAndExtractSingleArchive(
+      pluginInfo.archiveURL,
+      pluginInfo.archiveChecksum,
+      tempFolder,
+      progressCallback,
+      signal
+    );
+
+    await downloadExtraFiles(pluginInfo.extraFiles, tempFolder, progressCallback, signal);
+
+    // Add artifacthub metadata to the plugin
+    const packageJSON = JSON.parse(fs.readFileSync(`${tempFolder}/package.json`, 'utf8'));
+    packageJSON.artifacthub = {
+      name: pluginName,
+      title: pluginInfo.display_name,
+      url: `https://artifacthub.io/packages/headlamp/${pluginInfo.repository.name}/${pluginName}`,
+      version: pluginInfo.version,
+      repoName: pluginInfo.repository.name,
+      author: pluginInfo.repository.user_alias,
+    };
+    packageJSON.isManagedByHeadlampPlugin = true;
+    fs.writeFileSync(`${tempFolder}/package.json`, JSON.stringify(packageJSON, null, 2));
+
+    return [pluginName, tempFolder];
+  } catch (err) {
+    try {
+      if (fs.existsSync(tempDir)) {
+        fs.rmSync(tempDir, { recursive: true, force: true });
+      }
+    } catch (cleanupErr) {
+      console.error('Failed to clean up temporary directory on failure:', cleanupErr);
+    }
+    throw err;
   }
-
-  await downloadAndExtractSingleArchive(
-    pluginInfo.archiveURL,
-    pluginInfo.archiveChecksum,
-    tempFolder,
-    progressCallback,
-    signal
-  );
-
-  await downloadExtraFiles(pluginInfo.extraFiles, tempFolder, progressCallback, signal);
-
-  // Add artifacthub metadata to the plugin
-  const packageJSON = JSON.parse(fs.readFileSync(`${tempFolder}/package.json`, 'utf8'));
-  packageJSON.artifacthub = {
-    name: pluginName,
-    title: pluginInfo.display_name,
-    url: `https://artifacthub.io/packages/headlamp/${pluginInfo.repository.name}/${pluginName}`,
-    version: pluginInfo.version,
-    repoName: pluginInfo.repository.name,
-    author: pluginInfo.repository.user_alias,
-  };
-  packageJSON.isManagedByHeadlampPlugin = true;
-  fs.writeFileSync(`${tempFolder}/package.json`, JSON.stringify(packageJSON, null, 2));
-
-  return [pluginName, tempFolder];
 }
 
 /**
@@ -974,10 +1121,6 @@ async function fetchPluginInfo(
 
     return pkg;
   } catch (e) {
-    if (progressCallback) {
-      progressCallback({ type: 'error', message: e instanceof Error ? e.message : String(e) });
-    }
-
     throw e;
   }
 }
@@ -991,6 +1134,9 @@ async function fetchPluginInfo(
  * @returns True if the folder is a valid Headlamp plugin folder, false otherwise.
  */
 function checkValidPluginFolder(folder: string): boolean {
+  if (folder.endsWith('.backup')) {
+    return false;
+  }
   if (!fs.existsSync(folder)) {
     return false;
   }

@@ -17,10 +17,10 @@
 const pluginManagement = require('./plugin-management.js');
 const tmp = require('tmp');
 const fs = require('fs');
+const path = require('path');
 
 const PluginManager = pluginManagement.PluginManager;
 const validateArchiveURL = pluginManagement.validateArchiveURL;
-
 
 // Mocking progressCallback function for testing
 // eslint-disable-next-line
@@ -93,6 +93,51 @@ describe('PluginManager Test Cases', () => {
     });
   });
 
+  test('Update Plugin Rollback on Move Failure', async () => {
+    const pluginDir = path.join(tempDir, 'headlamp_flux');
+    const backupDir = `${pluginDir}.backup`;
+    // Ensure the plugin exists for this test so it can run in isolation.
+    if (!fs.existsSync(pluginDir)) {
+      await PluginManager.install(
+        'https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_flux',
+        tempDir,
+        '',
+        mockProgressCallback
+      );
+      jest.clearAllMocks();
+    }
+    // Set a lower version first in the installed plugin
+    const packageJSONPath = path.join(pluginDir, 'package.json');
+    const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath, 'utf8'));
+    packageJSON.artifacthub.version = '0.0.1'; // Lower version to trigger update
+    fs.writeFileSync(packageJSONPath, JSON.stringify(packageJSON, null, 2));
+
+    // Mock fs.cpSync to throw an error during moveDirs
+    const cpSyncSpy = jest.spyOn(fs, 'cpSync').mockImplementation(() => {
+      throw new Error('Mocked copy failure');
+    });
+
+    try {
+      await PluginManager.update('@headlamp-k8s/flux', tempDir, '', mockProgressCallback);
+
+      expect(mockProgressCallback).toHaveBeenCalledWith({
+        type: 'error',
+        message: 'Mocked copy failure',
+      });
+
+      // Verify the original plugin folder exists and is restored
+      expect(fs.existsSync(pluginDir)).toBe(true);
+      const restoredPackageJSON = JSON.parse(fs.readFileSync(packageJSONPath, 'utf8'));
+      expect(restoredPackageJSON.artifacthub.version).toBe('0.0.1');
+
+      // Verify that the backup folder was cleaned up
+      expect(fs.existsSync(backupDir)).toBe(false);
+    } finally {
+      // Restore the spy
+      cpSyncSpy.mockRestore();
+    }
+  });
+
   test('Uninstall Plugin', async () => {
     const tempDir = tmp.dirSync({ unsafeCleanup: true }).name;
 
@@ -115,19 +160,111 @@ describe('PluginManager Test Cases', () => {
 
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
+
+  test('Error propagation when progressCallback is provided', async () => {
+    const errorCallback = jest.fn();
+
+    // install should resolve to undefined when progressCallback is provided, as it catches the error and reports it via callback
+    await expect(
+      PluginManager.install(
+        'https://artifacthub.io/packages/headlamp/headlamp-plugins/non-existent-plugin',
+        tempDir,
+        '',
+        errorCallback
+      )
+    ).resolves.toBeUndefined();
+
+    expect(errorCallback).toHaveBeenCalledWith(
+      expect.objectContaining({
+        type: 'error',
+        message: expect.stringContaining('HTTP error! status: 404'),
+      })
+    );
+  });
+
+  test('List ignores backup directories', () => {
+    // Create a backup directory with valid plugin files
+    const backupDir = path.join(tempDir, 'ghost-plugin.backup');
+    fs.mkdirSync(backupDir, { recursive: true });
+    fs.writeFileSync(path.join(backupDir, 'main.js'), 'console.log("ghost");');
+    fs.writeFileSync(
+      path.join(backupDir, 'package.json'),
+      JSON.stringify({
+        name: 'ghost-plugin',
+        version: '1.0.0',
+        isManagedByHeadlampPlugin: true,
+        artifacthub: {
+          title: 'Ghost Plugin',
+        },
+      })
+    );
+
+    const listCallback = jest.fn();
+    PluginManager.list(tempDir, listCallback);
+
+    // The list should not contain the ghost-plugin
+    const listedPlugins = listCallback.mock.calls.find(call => call[0].type === 'success')[0].data;
+
+    const ghostFound = listedPlugins.some(p => p.folderName === 'ghost-plugin.backup');
+    expect(ghostFound).toBe(false);
+
+    // Clean up
+    fs.rmSync(backupDir, { recursive: true, force: true });
+  });
+
+  test('List recovers orphaned backup directory when sibling is missing', () => {
+    // Simulate an interrupted update: only <name>.backup exists, <name> does not
+    const orphanBackupDir = path.join(tempDir, 'orphan-plugin.backup');
+    fs.mkdirSync(orphanBackupDir, { recursive: true });
+    fs.writeFileSync(path.join(orphanBackupDir, 'main.js'), 'console.log("orphan");');
+    fs.writeFileSync(
+      path.join(orphanBackupDir, 'package.json'),
+      JSON.stringify({
+        name: 'orphan-plugin',
+        version: '1.0.0',
+        isManagedByHeadlampPlugin: true,
+        artifacthub: {
+          title: 'Orphan Plugin',
+        },
+      })
+    );
+
+    const listCallback = jest.fn();
+    PluginManager.list(tempDir, listCallback);
+
+    const listedPlugins = listCallback.mock.calls.find(call => call[0].type === 'success')[0].data;
+
+    // The restored plugin should appear in the list (recovered from .backup)
+    const recovered = listedPlugins.find(p => p.pluginName === 'orphan-plugin');
+    expect(recovered).toBeDefined();
+    // The .backup folder should no longer exist; the restored folder should
+    expect(fs.existsSync(orphanBackupDir)).toBe(false);
+    expect(fs.existsSync(path.join(tempDir, 'orphan-plugin'))).toBe(true);
+
+    // Clean up
+    fs.rmSync(path.join(tempDir, 'orphan-plugin'), { recursive: true, force: true });
+  });
 });
 
 describe('validateArchiveURL', () => {
   test('valid GitHub release URL', () => {
-    expect(validateArchiveURL('https://github.com/kubernetes-sigs/headlamp/releases/download/v0.24.1/Headlamp-0.24.1-win-x64.exe')).toBe(true);
+    expect(
+      validateArchiveURL(
+        'https://github.com/kubernetes-sigs/headlamp/releases/download/v0.24.1/Headlamp-0.24.1-win-x64.exe'
+      )
+    ).toBe(true);
   });
 
   test('valid GitHub archive URL', () => {
-    expect(validateArchiveURL('https://github.com/owner/repo/archive/refs/tags/v1.0.0.zip')).toBe(true);
+    expect(validateArchiveURL('https://github.com/owner/repo/archive/refs/tags/v1.0.0.zip')).toBe(
+      true
+    );
   });
 
   test('valid Bitbucket download URL', () => {
-    expect(validateArchiveURL('https://bitbucket.org/owner/repo/downloads/package-1.0.0.zip')).toBe(true);
+    expect(validateArchiveURL('https://bitbucket.org/owner/repo/downloads/package-1.0.0.zip')).toBe(
+      true
+    );
   });
 
   test('valid Bitbucket get archive URL', () => {
@@ -135,7 +272,11 @@ describe('validateArchiveURL', () => {
   });
 
   test('valid GitLab release URL', () => {
-    expect(validateArchiveURL('https://gitlab.com/gitlab-org/gitlab/-/archive/v17.2.0-ee/gitlab-v17.2.0-ee.tar.gz')).toBe(true);
+    expect(
+      validateArchiveURL(
+        'https://gitlab.com/gitlab-org/gitlab/-/archive/v17.2.0-ee/gitlab-v17.2.0-ee.tar.gz'
+      )
+    ).toBe(true);
   });
 
   test('invalid URL', () => {
