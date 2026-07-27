@@ -92,6 +92,41 @@ func writeTestTokenFile(t *testing.T) string {
 	return tokenFile
 }
 
+func TestValidateServiceAccountNamespace(t *testing.T) {
+	tests := []struct {
+		name        string
+		contents    string
+		want        string
+		wantErrText string
+	}{
+		{name: "valid namespace is trimmed", contents: " team-a\n", want: "team-a"},
+		{
+			name:        "empty namespace is rejected",
+			contents:    " \n",
+			wantErrText: "invalid service account namespace",
+		},
+		{
+			name:        "invalid namespace is rejected",
+			contents:    "Team_A",
+			wantErrText: "invalid service account namespace",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := validateServiceAccountNamespace([]byte(tt.contents))
+			if tt.wantErrText != "" {
+				require.ErrorContains(t, err, tt.wantErrText)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestCreateHeadlampHandlerSkipsInClusterContextWhenConfigUnavailable(t *testing.T) {
 	t.Setenv("KUBERNETES_SERVICE_HOST", "")
 	t.Setenv("KUBERNETES_SERVICE_PORT", "")

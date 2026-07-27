@@ -46,9 +46,16 @@ HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true \
   --enable-cluster-inventory \
   --cluster-inventory-provider-file "$WORK/provider-config.json" \
   --cluster-inventory-label-selector='!headlamp.dev/ignore' \
+  --cluster-inventory-namespaces=inventory-e2e \
   --cluster-inventory-root-reconcile-interval=10s \
   --cluster-inventory-no-crd-cache-ttl=30s
 ```
+
+Without `--cluster-inventory-namespaces`, each root is watched in its own
+default namespace: the pod namespace when running in-cluster, and the
+kubecontext namespace (or `default`) for roots seeded from the kubeconfig.
+Pass a comma-separated list to watch more than one namespace. Use `*` on its
+own to watch all namespaces.
 
 In another terminal:
 

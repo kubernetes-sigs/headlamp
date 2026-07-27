@@ -68,6 +68,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -145,6 +146,8 @@ const (
 	serverReadHeaderTimeout = 10 * time.Second
 	// serverIdleTimeout is the maximum time to wait for the next request on a keep-alive connection.
 	serverIdleTimeout = 120 * time.Second
+	// serviceAccountNamespacePath contains the namespace of an in-cluster pod.
+	serviceAccountNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 )
 
 // maxProxyResponseSize is the maximum size (in bytes) for proxied responses.
@@ -501,29 +504,57 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 	}).Methods("GET")
 }
 
+func readServiceAccountNamespace() (string, error) {
+	data, err := os.ReadFile(serviceAccountNamespacePath)
+	if err != nil {
+		return "", fmt.Errorf("read service account namespace: %w", err)
+	}
+
+	return validateServiceAccountNamespace(data)
+}
+
+func validateServiceAccountNamespace(data []byte) (string, error) {
+	namespace := strings.TrimSpace(string(data))
+	if errs := validation.IsDNS1123Label(namespace); len(errs) > 0 {
+		return "", fmt.Errorf("invalid service account namespace %q: %s", namespace, strings.Join(errs, "; "))
+	}
+
+	return namespace, nil
+}
+
 func startClusterInventory(ctx context.Context, config *HeadlampConfig) error {
 	if !config.EnableClusterInventory {
 		return nil
 	}
 
-	var hubConfig *rest.Config
+	var (
+		hubConfig    *rest.Config
+		hubNamespace string
+	)
 
 	if config.UseInCluster {
-		inClusterConfig, err := rest.InClusterConfig()
+		var err error
+
+		hubConfig, err = rest.InClusterConfig()
 		if err != nil {
 			return fmt.Errorf("get in-cluster config for cluster inventory: %w", err)
 		}
 
-		hubConfig = inClusterConfig
+		hubNamespace, err = readServiceAccountNamespace()
+		if err != nil {
+			return fmt.Errorf("get pod namespace for cluster inventory: %w", err)
+		}
 	}
 
 	runner, err := clusterinventory.NewRunner(clusterinventory.Options{
 		Store:                 config.KubeConfigStore,
 		ProviderFile:          config.ClusterInventoryProviderFile,
 		LabelSelector:         config.ClusterInventoryLabelSelector,
+		Namespaces:            config.ClusterInventoryNamespaces,
 		RootReconcileInterval: config.ClusterInventoryRootReconcileInterval,
 		NoCRDCacheTTL:         config.ClusterInventoryNoCRDCacheTTL,
 		HubConfig:             hubConfig,
+		HubNamespace:          hubNamespace,
 		DiscoverFromStore:     !config.UseInCluster,
 	})
 	if err != nil {
