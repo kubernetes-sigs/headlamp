@@ -101,33 +101,60 @@ absolute, because the test resolves them relative to its own working directory:
 
 ```bash
 mkdir -p ~/headlamp-e2e-certs
-kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 --decode > ~/headlamp-e2e-certs/ca.crt
+kubectl config view --raw --minify --context=test -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 --decode > ~/headlamp-e2e-certs/ca.crt
 kubectl config set-cluster kind-test --certificate-authority="$HOME/headlamp-e2e-certs/ca.crt" --embed-certs=false
 kubectl config unset clusters.kind-test.certificate-authority-data
 ```
 
 Do the same for the `client-certificate-data` and `client-key-data` fields on
-the user entry.
+the user entry. To update the second cluster, use `--context=test2` and the
+`kind-test2` cluster entry.
 
-### Optional suites
+### Additional suites
 
-Two spec files skip unless their variable is set, so a normal run does not
-exercise them:
+`tests/incluster-api.spec.ts` tests a separate Headlamp deployment running in
+in-cluster mode. CI runs it in a dedicated step after deploying
+`kubernetes-headlamp-incluster-ci.yaml` to the `test2` cluster. To reproduce
+that setup locally:
 
 ```bash
-# tests/incluster-api.spec.ts
-export HEADLAMP_SA_TOKEN=$(kubectl create token headlamp --duration=1h -n kube-system)
+kubectl config use-context test2
+kubectl create serviceaccount headlamp --namespace kube-system
+kubectl create clusterrolebinding headlamp \
+  --serviceaccount=kube-system:headlamp --clusterrole=cluster-admin
+kubectl apply -f e2e-tests/kubernetes-headlamp-incluster-ci.yaml
+kubectl wait deployment -n kube-system headlamp \
+  --for condition=Available=True --timeout=120s
 
-# tests/clusterInventory.spec.ts
-export HEADLAMP_CLUSTER_INVENTORY_E2E=true
-
-# Optional, only read by clusterInventory.spec.ts. Defaults to "headlamp".
-export HEADLAMP_TEST_BACKEND_TOKEN=...
+kubectl port-forward -n kube-system service/headlamp 8080:80
 ```
 
-Neither is set in CI, so both suites are skipped there as well.
+Leave the port-forward running, then use a second terminal to set the URL and
+service account token before running the spec:
 
-IMPORTANT: Make sure that the following npx commands are ran in the same terminal session as the environment variables were set.
+```bash
+export HEADLAMP_TEST_URL=http://localhost:8080
+export HEADLAMP_SA_TOKEN=$(kubectl create token headlamp --duration=1h -n kube-system)
+
+cd e2e-tests
+npx playwright test tests/incluster-api.spec.ts
+```
+
+`tests/clusterInventory.spec.ts` requires Headlamp to be configured with a
+working cluster inventory source. It is skipped unless explicitly enabled and
+is not run in CI:
+
+```bash
+export HEADLAMP_CLUSTER_INVENTORY_E2E=true
+
+# Optional. This defaults to "headlamp".
+export HEADLAMP_TEST_BACKEND_TOKEN=...
+
+cd e2e-tests
+npx playwright test tests/clusterInventory.spec.ts
+```
+
+IMPORTANT: Make sure that the following npx commands are run in the same terminal session as the environment variables were set.
 
 ## Run all tests
 
