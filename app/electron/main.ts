@@ -516,7 +516,7 @@ class PluginManagerEventListeners {
       const allPlugins: any[] = [];
 
       // List from shipped plugins (.plugins)
-      const shippedDir = path.join(__dirname, '.plugins');
+      const shippedDir = path.join(process.resourcesPath, '.plugins');
       try {
         const shippedPlugins = PluginManager.list(shippedDir);
         if (shippedPlugins) {
