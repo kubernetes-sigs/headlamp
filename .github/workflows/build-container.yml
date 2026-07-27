@@ -302,6 +302,38 @@ jobs:
           echo "❌ In-cluster API tests failed with exit code $EXIT_CODE"
           exit $EXIT_CODE
         fi
+    - name: Set up Helm
+      uses: azure/setup-helm@1a275c3b69536ee54be43f2070a358922e12c8d4 # v4.3.1
+      with:
+        version: v3.18.4
+    - name: Deploy Headlamp via Helm and run plugin manager tests
+      run: |
+        kubectl config use-context test
+        kubectl create namespace headlamp-helm
+        echo 'image:' > helm-values.yaml
+        echo '  registry: ghcr.io' >> helm-values.yaml
+        echo '  repository: headlamp-k8s/headlamp' >> helm-values.yaml
+        echo '  tag: latest' >> helm-values.yaml
+        echo '  pullPolicy: Never' >> helm-values.yaml
+        echo 'config:' >> helm-values.yaml
+        echo '  baseURL: "/headlamp-helm"' >> helm-values.yaml
+        echo 'service:' >> helm-values.yaml
+        echo '  type: NodePort' >> helm-values.yaml
+        echo 'pluginsManager:' >> helm-values.yaml
+        echo '  enabled: true' >> helm-values.yaml
+        echo '  configContent: |' >> helm-values.yaml
+        echo '    plugins:' >> helm-values.yaml
+        echo '      - name: flux' >> helm-values.yaml
+        echo '        source: https://artifacthub.io/packages/headlamp/headlamp-k8s/flux' >> helm-values.yaml
+        helm install headlamp ./charts/headlamp --namespace headlamp-helm -f helm-values.yaml
+        echo "Waiting for headlamp helm deployment to be available..."
+        kubectl wait deployment -n headlamp-helm headlamp --for condition=Available=True --timeout=120s
+        IP_ADDRESS=$(kubectl get nodes --context test -o=jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
+        SERVICE_PORT=$(kubectl get services headlamp -n headlamp-helm -o=jsonpath='{.spec.ports[0].nodePort}')
+        export SERVICE_URL="http://${IP_ADDRESS}:${SERVICE_PORT}/headlamp-helm"
+        echo "Helm Headlamp URL: $SERVICE_URL"
+        cd e2e-tests
+        HEADLAMP_TEST_URL=$SERVICE_URL npx playwright test tests/helmPlugins.spec.ts
     # Clear disk space by removing unnecessary files, apt files and uninstall some playwright dependencies
     - name: Clear Disk Space
       if: steps.cache-image-restore2.outputs.cache-hit != 'true'
