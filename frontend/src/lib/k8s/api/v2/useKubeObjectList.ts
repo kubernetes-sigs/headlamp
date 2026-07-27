@@ -42,6 +42,16 @@ export function getWebsocketMultiplexerEnabled(): boolean {
 /** Default page size for list consumers that opt in to pagination. */
 export const DEFAULT_LIST_LIMIT = 1000;
 
+function toPaginationApiError(error: unknown, cluster: string, namespace?: string): ApiError {
+  const apiError =
+    error instanceof ApiError
+      ? error
+      : new ApiError(error instanceof Error ? error.message : 'Failed to load more resources');
+  apiError.cluster ??= cluster;
+  apiError.namespace ??= namespace;
+  return apiError;
+}
+
 /**
  * Object representing a List of Kube object
  * with information about which cluster and namespace it came from
@@ -713,28 +723,33 @@ export function useKubeObjectList<K extends KubeObject>({
           listRequests.length,
           activeListRequestCount + (limit ?? listRequests.length)
         );
-        const nextQueries = listRequests
-          .slice(activeListRequestCount, nextListRequestCount)
-          .map(({ cluster, namespace }) =>
-            kubeObjectListQuery<K>(
-              kubeObjectClass,
-              endpoint,
-              namespace,
-              cluster,
-              perRequestQueryParams,
-              refetchInterval
-            )
-          );
+        const nextListRequests = listRequests.slice(activeListRequestCount, nextListRequestCount);
+        const nextQueries = nextListRequests.map(({ cluster, namespace }) =>
+          kubeObjectListQuery<K>(
+            kubeObjectClass,
+            endpoint,
+            namespace,
+            cluster,
+            perRequestQueryParams,
+            refetchInterval
+          )
+        );
 
         const results = await Promise.allSettled(
           nextQueries.map(q => queryClient.fetchQuery(q as any))
         );
 
-        const rejectedResult = results.find(
-          (result): result is PromiseRejectedResult => result.status === 'rejected'
-        );
-        if (rejectedResult) {
-          setPaginationError(rejectedResult.reason);
+        const rejectedResultIndex = results.findIndex(result => result.status === 'rejected');
+        const rejectedResult = results[rejectedResultIndex];
+        if (rejectedResult?.status === 'rejected') {
+          const rejectedRequest = nextListRequests[rejectedResultIndex];
+          setPaginationError(
+            toPaginationApiError(
+              rejectedResult.reason,
+              rejectedRequest.cluster,
+              rejectedRequest.namespace
+            )
+          );
           return;
         }
 
@@ -742,9 +757,12 @@ export function useKubeObjectList<K extends KubeObject>({
         return;
       }
 
+      const pageRequests = queries.map(q => ({
+        query: q,
+        cached: queryClient.getQueryData<ListResponse<K>>(q.queryKey!),
+      }));
       const results = await Promise.allSettled(
-        queries.map(async q => {
-          const cached = queryClient.getQueryData<ListResponse<K>>(q.queryKey!);
+        pageRequests.map(async ({ query: q, cached }) => {
           const continueToken = cached?.list?.metadata?.continue;
           if (!continueToken || !cached) return;
 
@@ -780,7 +798,7 @@ export function useKubeObjectList<K extends KubeObject>({
             item.kind = kind;
             item.apiVersion = apiVersion;
             const obj = new kubeObjectClass(item) as K;
-            (obj as any).cluster = cached.cluster;
+            obj.cluster = cached.cluster;
             return obj;
           });
 
@@ -802,11 +820,13 @@ export function useKubeObjectList<K extends KubeObject>({
         })
       );
 
-      const rejectedResult = results.find(
-        (result): result is PromiseRejectedResult => result.status === 'rejected'
-      );
-      if (rejectedResult) {
-        setPaginationError(rejectedResult.reason);
+      const rejectedResultIndex = results.findIndex(result => result.status === 'rejected');
+      const rejectedResult = results[rejectedResultIndex];
+      if (rejectedResult?.status === 'rejected') {
+        const cached = pageRequests[rejectedResultIndex].cached!;
+        setPaginationError(
+          toPaginationApiError(rejectedResult.reason, cached.cluster, cached.namespace)
+        );
       }
     })();
 
