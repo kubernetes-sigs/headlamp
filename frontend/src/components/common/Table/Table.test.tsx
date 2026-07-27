@@ -429,19 +429,45 @@ describe('Table states and options', () => {
     clientWidth.mockRestore();
   });
 
-  it('hides and restores the actions column with data-column visibility', () => {
-    tableMocks.columnVisibility = { '0': false };
-    const hiddenResult = renderTable({
+  it('hides and restores the actions column when all data columns are hidden', () => {
+    const result = renderTable({
       columns: [{ accessorKey: 'selected', header: 'Selection' }],
+      enableRowActions: true,
+      state: { columnVisibility: { '0': false } },
     });
 
     expect(tableMocks.setColumnVisibility).toHaveBeenCalledOnce();
-    hiddenResult.unmount();
+    expect(tableMocks.setColumnVisibility.mock.calls[0][0]({})).toEqual({
+      'mrt-row-actions': false,
+    });
 
-    tableMocks.setColumnVisibility.mockClear();
-    tableMocks.columnVisibility = { '0': true, actions: false };
-    renderTable({ columns: [{ accessorKey: 'selected', header: 'Selection' }] });
+    result.rerender(
+      <ThemeProvider theme={theme}>
+        <Table
+          columns={[{ accessorKey: 'selected', header: 'Selection' }]}
+          data={[{ selected: false }]}
+          enableRowActions
+          state={{ columnVisibility: { '0': true } }}
+        />
+      </ThemeProvider>
+    );
 
-    expect(tableMocks.setColumnVisibility).toHaveBeenCalledOnce();
+    expect(tableMocks.setColumnVisibility).toHaveBeenCalledTimes(2);
+    // The restore drops the effect's own override instead of forcing `true`,
+    // so any caller visibility state wins again.
+    expect(
+      tableMocks.setColumnVisibility.mock.calls[1][0]({ 'mrt-row-actions': false, '0': false })
+    ).toEqual({ '0': false });
+  });
+
+  it('keeps a caller-hidden actions column hidden while data columns are visible', () => {
+    renderTable({
+      columns: [{ accessorKey: 'selected', header: 'Selection' }],
+      enableRowActions: true,
+      state: { columnVisibility: { 'mrt-row-actions': false } },
+    });
+
+    expect(tableMocks.setColumnVisibility).not.toHaveBeenCalled();
+    expect(tableMocks.options.state.columnVisibility).toEqual({ 'mrt-row-actions': false });
   });
 });
