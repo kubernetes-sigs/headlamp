@@ -68,7 +68,7 @@
       ]
     },
     "linux": {
-      "icon": "build/icons/icon.icns",
+      "icon": "build/icons/android-chrome-512x512.png",
       "target": [
         {
           "target": "AppImage",
