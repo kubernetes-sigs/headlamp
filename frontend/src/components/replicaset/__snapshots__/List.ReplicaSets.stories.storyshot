@@ -937,27 +937,37 @@
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-13vbnfx-MuiTableCell-root"
                 >
                   <div
-                    class="MuiBox-root css-0"
+                    class="MuiBox-root css-19zg5n1"
+                    data-mui-internal-clone-element="true"
                   >
                     <div
-                      class="MuiBox-root css-yi3mkw"
+                      class="MuiBox-root css-1baulvz"
                     >
-                      <p
-                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                      <div
+                        class="MuiBox-root css-0"
                       >
-                        app.kubernetes.io/instance: headlamp-release
-                      </p>
-                      <p
-                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                      >
-                        app.kubernetes.io/name: headlamp
-                      </p>
-                      <p
-                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                      >
-                        pod-template-hash: b123456
-                      </p>
+                        <div
+                          class="MuiBox-root css-ving18"
+                        >
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            app.kubern…
+                          </p>
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            app.kubern…
+                          </p>
+                        </div>
+                      </div>
                     </div>
+                    <span
+                      class="MuiTypography-root MuiTypography-body2 css-dc8bps-MuiTypography-root"
+                      tabindex="0"
+                    >
+                      +1 more...
+                    </span>
                   </div>
                 </td>
                 <td
@@ -1082,21 +1092,30 @@
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-13vbnfx-MuiTableCell-root"
                 >
                   <div
-                    class="MuiBox-root css-0"
+                    class="MuiBox-root css-19zg5n1"
+                    data-mui-internal-clone-element="true"
                   >
                     <div
-                      class="MuiBox-root css-yi3mkw"
+                      class="MuiBox-root css-1baulvz"
                     >
-                      <p
-                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                      <div
+                        class="MuiBox-root css-0"
                       >
-                        k8s-app: headlamp
-                      </p>
-                      <p
-                        class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                      >
-                        pod-template-hash: a123456
-                      </p>
+                        <div
+                          class="MuiBox-root css-ving18"
+                        >
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            k8s-app: h…
+                          </p>
+                          <p
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            pod-templa…
+                          </p>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </td>
