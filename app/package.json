@@ -68,6 +68,7 @@
       ]
     },
     "linux": {
+      "icon": "build/icons/icon.icns",
       "target": [
         {
           "target": "AppImage",
@@ -103,6 +104,7 @@
     },
     "mac": {
       "appId": "com.microsoft.Headlamp",
+      "icon": "build/icons/icon.icns",
       "target": [
         {
           "target": "dmg",
@@ -123,6 +125,7 @@
       ]
     },
     "win": {
+      "icon": "build/icons/icon.ico",
       "target": [
         "nsis"
       ],
