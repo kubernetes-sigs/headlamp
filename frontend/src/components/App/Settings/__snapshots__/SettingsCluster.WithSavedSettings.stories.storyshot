@@ -117,7 +117,7 @@
           class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
         >
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1kp6qaa-MuiGrid-root"
           >
             <div
               class="MuiBox-root css-0"
@@ -229,7 +229,7 @@
           class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
         >
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-umd499-MuiGrid-root"
             id="default-namespace-label"
           >
             Default namespace
@@ -277,7 +277,7 @@
             </div>
           </dd>
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1kp6qaa-MuiGrid-root"
           >
             <p
               class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
@@ -440,7 +440,7 @@
           class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
         >
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-umd499-MuiGrid-root"
           >
             <p
               class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
@@ -477,7 +477,7 @@
             </span>
           </dd>
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-umd499-MuiGrid-root"
           >
             Linux Image
           </dt>
@@ -524,7 +524,7 @@
             </div>
           </dd>
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1kp6qaa-MuiGrid-root"
           >
             Namespace
           </dt>
@@ -603,7 +603,7 @@
           class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
         >
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-umd499-MuiGrid-root"
           >
             <p
               aria-label="Ephemeral debug containers cannot be removed via Kubernetes API. They will remain in the pod specification even after the terminal closes. To remove them, the pod must be recreated."
@@ -645,7 +645,7 @@
             </span>
           </dd>
           <dt
-            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1kp6qaa-MuiGrid-root"
           >
             Debug Image
           </dt>
