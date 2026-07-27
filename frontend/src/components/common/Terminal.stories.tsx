@@ -235,6 +235,10 @@ export const TerminalConnectionLoading: StoryFn<React.ComponentProps<typeof Term
 
   return <Template item={pod} open onClose={() => {}} />;
 };
+// Snapshot testing is disabled for this story because it uses a never-resolving
+// promise to simulate the loading state, which would cause the storybook test
+// to hang until the 5000ms timeout.
+TerminalConnectionLoading.parameters = { storyshots: { disable: true } };
 
 /** Terminal connection failed: shows "Failed to connect..." and reconnect hint */
 export const TerminalConnectionFailed: StoryFn<React.ComponentProps<typeof Terminal>> = () => {
