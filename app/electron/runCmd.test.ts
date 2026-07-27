@@ -322,6 +322,26 @@ describe('handleRunCommand', () => {
     expect(sentMessages).toContainEqual(['command-exit', 'test-id', -1]);
   });
 
+  it('reports synchronous spawn errors without rejecting', async () => {
+    spawnMock.mockImplementation(() => {
+      throw new Error('spawn failed');
+    });
+    const eventData = {
+      id: 'test-id',
+      command: 'gh',
+      args: ['auth', 'token'],
+      options: {},
+      permissionSecrets: { 'runCmd-gh': 99 },
+    };
+
+    await expect(
+      handleRunCommand(fakeEvent, eventData, { id: 1 } as any, { 'runCmd-gh': 99 })
+    ).resolves.toBeUndefined();
+
+    expect(sentMessages).toContainEqual(['command-stderr', 'test-id', 'spawn failed']);
+    expect(sentMessages).toContainEqual(['command-exit', 'test-id', -1]);
+  });
+
   it('falls back to process.env when shell environment resolution fails', async () => {
     getShellEnvironmentMock.mockRejectedValue(new Error('shell unavailable'));
     vi.stubEnv('HEADLAMP_TEST_ENV', 'current');
