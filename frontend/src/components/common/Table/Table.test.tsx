@@ -439,7 +439,9 @@ describe('Table states and options', () => {
     hiddenResult.unmount();
 
     tableMocks.setColumnVisibility.mockClear();
-    tableMocks.columnVisibility = { '0': true, actions: false };
+    // The MRT actions column is registered under the `mrt-row-actions` id, so the
+    // restore effect toggles that key rather than a plain `actions` one.
+    tableMocks.columnVisibility = { '0': true, 'mrt-row-actions': false };
     renderTable({ columns: [{ accessorKey: 'selected', header: 'Selection' }] });
 
     expect(tableMocks.setColumnVisibility).toHaveBeenCalledOnce();
