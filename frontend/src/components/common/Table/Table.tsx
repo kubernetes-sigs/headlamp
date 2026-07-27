@@ -520,13 +520,13 @@ export default function Table<RowItem extends Record<string, any>>({
     const visibility = table.getState().columnVisibility || {};
 
     const shouldHideActions = tableColumns
-      .filter(col => (col.id ?? '') !== 'actions')
+      .filter(col => (col.id ?? '') !== 'mrt-row-actions')
       .every(col => visibility[col.id ?? ''] === false);
 
-    if (shouldHideActions && visibility['actions'] !== false) {
-      table.setColumnVisibility(prev => ({ ...prev, actions: false }));
-    } else if (!shouldHideActions && visibility['actions'] === false) {
-      table.setColumnVisibility(prev => ({ ...prev, actions: true }));
+    if (shouldHideActions && visibility['mrt-row-actions'] !== false) {
+      table.setColumnVisibility(prev => ({ ...prev, 'mrt-row-actions': false }));
+    } else if (!shouldHideActions && visibility['mrt-row-actions'] === false) {
+      table.setColumnVisibility(prev => ({ ...prev, 'mrt-row-actions': true }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table.getState().columnVisibility, tableColumns, table]);
