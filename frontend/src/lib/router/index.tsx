@@ -72,6 +72,10 @@ import { LeaseDetails } from '../../components/lease/Details';
 import { LeaseList } from '../../components/lease/List';
 import { LimitRangeDetails } from '../../components/limitRange/Details';
 import { LimitRangeList } from '../../components/limitRange/List';
+import MutatingAdmissionPolicyDetails from '../../components/mutatingAdmissionPolicy/Details';
+import MutatingAdmissionPolicyList from '../../components/mutatingAdmissionPolicy/List';
+import MutatingAdmissionPolicyBindingDetails from '../../components/mutatingAdmissionPolicyBinding/Details';
+import MutatingAdmissionPolicyBindingList from '../../components/mutatingAdmissionPolicyBinding/List';
 import NamespaceDetails from '../../components/namespace/Details';
 import NamespacesList from '../../components/namespace/List';
 import { NetworkPolicyDetails } from '../../components/networkpolicy/Details';
@@ -778,6 +782,34 @@ const defaultRoutes: { [routeName: string]: Route } = {
     name: 'Mutating Webhook Configuration',
     sidebar: 'mutatingWebhookConfigurations',
     component: () => <MutatingWebhookConfigurationDetails />,
+  },
+  mutatingAdmissionPolicies: {
+    path: '/mutatingadmissionpolicies',
+    exact: true,
+    name: 'Mutating Admission Policies',
+    sidebar: 'mutatingAdmissionPolicies',
+    component: () => <MutatingAdmissionPolicyList />,
+  },
+  mutatingAdmissionPolicy: {
+    path: '/mutatingadmissionpolicies/:name',
+    exact: true,
+    name: 'Mutating Admission Policy',
+    sidebar: 'mutatingAdmissionPolicies',
+    component: () => <MutatingAdmissionPolicyDetails />,
+  },
+  mutatingAdmissionPolicyBindings: {
+    path: '/mutatingadmissionpolicybindings',
+    exact: true,
+    name: 'Mutating Admission Policy Bindings',
+    sidebar: 'mutatingAdmissionPolicyBindings',
+    component: () => <MutatingAdmissionPolicyBindingList />,
+  },
+  mutatingAdmissionPolicyBinding: {
+    path: '/mutatingadmissionpolicybindings/:name',
+    exact: true,
+    name: 'Mutating Admission Policy Binding',
+    sidebar: 'mutatingAdmissionPolicyBindings',
+    component: () => <MutatingAdmissionPolicyBindingDetails />,
   },
   validatingWebhookConfigurations: {
     path: '/validatingwebhookconfigurations',

@@ -228,6 +228,8 @@ const notNamespacedClasses = [
   'CustomResourceDefinition',
   'GatewayClass',
   'IngressClass',
+  'MutatingAdmissionPolicy',
+  'MutatingAdmissionPolicyBinding',
   'Namespace',
   'Node',
   'PersistentVolume',

@@ -84,6 +84,57 @@ const mockStatefulSet = {
   },
 };
 
+const statefulSetBaseHandlers = [
+  http.get(`${API_BASE}/apis/apps/v1/namespaces/default/statefulsets`, () => {
+    return HttpResponse.json({
+      kind: 'StatefulSetList',
+      metadata: {
+        resourceVersion: '1',
+      },
+      items: [],
+    });
+  }),
+  http.get(/\/api\/v1\/namespaces\/default\/pods(?:\?.*)?$/, () => {
+    return HttpResponse.json({
+      kind: 'PodList',
+      metadata: {
+        resourceVersion: '1',
+      },
+      items: [],
+    });
+  }),
+  http.get(/\/apis\/metrics\.k8s\.io\/v1beta1\/namespaces\/default\/pods(?:\?.*)?$/, () =>
+    HttpResponse.json({
+      kind: 'List',
+      metadata: {
+        resourceVersion: '1',
+      },
+      items: [],
+    })
+  ),
+  http.get(/\/api\/v1\/namespaces\/default\/events(?:\?.*)?$/, () => {
+    return HttpResponse.json({
+      kind: 'EventList',
+      metadata: {
+        resourceVersion: '1',
+      },
+      items: [],
+    });
+  }),
+  http.post(`${API_BASE}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, () =>
+    HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
+  ),
+  http.get(/\/apis\/apps\/v1\/namespaces\/default\/controllerrevisions(?:\?.*)?$/, () => {
+    return HttpResponse.json({
+      kind: 'ControllerRevisionList',
+      metadata: {
+        resourceVersion: '1',
+      },
+      items: [],
+    });
+  }),
+];
+
 export default {
   title: 'StatefulSet/Details',
   component: StatefulSetDetails,
@@ -99,38 +150,7 @@ export default {
   parameters: {
     msw: {
       handlers: {
-        storyBase: [
-          http.get(`${API_BASE}/apis/apps/v1/namespaces/default/statefulsets`, () => {
-            return HttpResponse.json({
-              kind: 'StatefulSetList',
-              items: [],
-            });
-          }),
-          http.get(`${API_BASE}/api/v1/namespaces/default/pods`, () => {
-            return HttpResponse.json({
-              kind: 'PodList',
-              items: [],
-            });
-          }),
-          http.get(`${API_BASE}/apis/metrics.k8s.io/v1beta1/namespaces/default/pods`, () =>
-            HttpResponse.json({
-              kind: 'List',
-              items: [],
-            })
-          ),
-          http.get(`${API_BASE}/api/v1/namespaces/default/events`, () => {
-            return HttpResponse.json({
-              kind: 'EventList',
-              items: [],
-            });
-          }),
-          http.get(`${API_BASE}/apis/apps/v1/namespaces/default/controllerrevisions`, () => {
-            return HttpResponse.json({
-              kind: 'ControllerRevisionList',
-              items: [],
-            });
-          }),
-        ],
+        storyBase: statefulSetBaseHandlers,
       },
     },
   },
@@ -147,6 +167,7 @@ Default.parameters = {
   msw: {
     handlers: {
       story: [
+        ...statefulSetBaseHandlers,
         http.get(`${API_BASE}/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset`, () =>
           HttpResponse.json(mockStatefulSet)
         ),
@@ -164,6 +185,7 @@ WithOnDeleteStrategy.parameters = {
   msw: {
     handlers: {
       story: [
+        ...statefulSetBaseHandlers,
         http.get(
           `${API_BASE}/apis/apps/v1/namespaces/default/statefulsets/mock-statefulset`,
           () => {

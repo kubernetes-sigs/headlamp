@@ -444,6 +444,8 @@
       "JobSet": [Function],
       "Lease": [Function],
       "LimitRange": [Function],
+      "MutatingAdmissionPolicy": [Function],
+      "MutatingAdmissionPolicyBinding": [Function],
       "Namespace": [Function],
       "NetworkPolicy": [Function],
       "Node": [Function],
