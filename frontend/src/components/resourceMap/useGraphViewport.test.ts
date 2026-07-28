@@ -21,17 +21,19 @@ import { useGraphViewport } from './useGraphViewport';
 
 const mocks = vi.hoisted(() => ({
   getNodes: vi.fn(),
-  getNodesBounds: vi.fn(),
+  getLayoutNodesBounds: vi.fn(),
+  getFlowNodesBounds: vi.fn(),
   getViewportForBounds: vi.fn(),
   setViewport: vi.fn(),
   setZoomMode: vi.fn(),
 }));
 
 vi.mock('@xyflow/react', () => ({
+  getNodesBounds: mocks.getLayoutNodesBounds,
   getViewportForBounds: mocks.getViewportForBounds,
   useReactFlow: () => ({
     getNodes: mocks.getNodes,
-    getNodesBounds: mocks.getNodesBounds,
+    getNodesBounds: mocks.getFlowNodesBounds,
     setViewport: mocks.setViewport,
   }),
   useStore: (selector: (state: { width: number; height: number }) => unknown) =>
@@ -50,20 +52,21 @@ describe('useGraphViewport', () => {
   it('uses current nodes and the stored 100% mode by default', () => {
     const nodes = [{ id: 'current-node' }] as Node[];
     mocks.getNodes.mockReturnValue(nodes);
-    mocks.getNodesBounds.mockReturnValue({ x: 10, y: 20, width: 300, height: 100 });
+    mocks.getFlowNodesBounds.mockReturnValue({ x: 10, y: 20, width: 300, height: 100 });
 
     const { result } = renderHook(() => useGraphViewport());
 
     act(() => result.current.updateViewport({}));
 
     expect(result.current.aspectRatio).toBe(2);
-    expect(mocks.getNodesBounds).toHaveBeenCalledWith(nodes);
+    expect(mocks.getFlowNodesBounds).toHaveBeenCalledWith(nodes);
+    expect(mocks.getLayoutNodesBounds).not.toHaveBeenCalled();
     expect(mocks.setZoomMode).not.toHaveBeenCalled();
     expect(mocks.setViewport).toHaveBeenCalledWith({ x: 250, y: 150, zoom: 1 });
   });
 
   it('uses top-left padding independently for dimensions that do not fit at 100%', () => {
-    mocks.getNodesBounds.mockReturnValue({ x: 0, y: 0, width: 750, height: 200 });
+    mocks.getLayoutNodesBounds.mockReturnValue({ x: 0, y: 0, width: 750, height: 200 });
     const { result } = renderHook(() => useGraphViewport());
 
     act(() => result.current.updateViewport({ nodes: [], mode: '100%' }));
@@ -74,7 +77,7 @@ describe('useGraphViewport', () => {
       zoom: 1,
     });
 
-    mocks.getNodesBounds.mockReturnValue({ x: 0, y: 0, width: 200, height: 350 });
+    mocks.getLayoutNodesBounds.mockReturnValue({ x: 0, y: 0, width: 200, height: 350 });
     act(() => result.current.updateViewport({ nodes: [], mode: '100%' }));
 
     expect(mocks.setViewport).toHaveBeenLastCalledWith({
@@ -87,7 +90,7 @@ describe('useGraphViewport', () => {
   it('fits padded bounds and persists a changed fit mode', () => {
     const bounds = { x: 25, y: 40, width: 500, height: 250 };
     const fittedViewport = { x: 12, y: 18, zoom: 0.75 };
-    mocks.getNodesBounds.mockReturnValue(bounds);
+    mocks.getLayoutNodesBounds.mockReturnValue(bounds);
     mocks.getViewportForBounds.mockReturnValue(fittedViewport);
     const { result } = renderHook(() => useGraphViewport());
 
@@ -113,7 +116,7 @@ describe('useGraphViewport', () => {
 
   it('reports an unknown mode without changing the viewport', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
-    mocks.getNodesBounds.mockReturnValue({ x: 0, y: 0, width: 1, height: 1 });
+    mocks.getLayoutNodesBounds.mockReturnValue({ x: 0, y: 0, width: 1, height: 1 });
     const { result } = renderHook(() => useGraphViewport());
 
     act(() => result.current.updateViewport({ nodes: [], mode: 'unsupported' as 'fit' | '100%' }));
@@ -121,5 +124,27 @@ describe('useGraphViewport', () => {
     expect(consoleError).toHaveBeenCalledWith('Unknown zoom mode', 'unsupported');
     expect(mocks.setViewport).not.toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+
+  it('builds absolute lookup positions for nested layout nodes', () => {
+    const nodes = [
+      { id: 'group', position: { x: 100, y: 50 }, width: 400, height: 300, data: {} },
+      {
+        id: 'child',
+        parentId: 'group',
+        position: { x: 20, y: 30 },
+        width: 220,
+        height: 70,
+        data: {},
+      },
+    ] as Node[];
+    mocks.getLayoutNodesBounds.mockReturnValue({ x: 100, y: 50, width: 400, height: 300 });
+
+    const { result } = renderHook(() => useGraphViewport());
+    act(() => result.current.updateViewport({ nodes }));
+
+    const nodeLookup = mocks.getLayoutNodesBounds.mock.calls[0][1].nodeLookup;
+    expect(nodeLookup.get('group').internals.positionAbsolute).toEqual({ x: 100, y: 50 });
+    expect(nodeLookup.get('child').internals.positionAbsolute).toEqual({ x: 120, y: 80 });
   });
 });

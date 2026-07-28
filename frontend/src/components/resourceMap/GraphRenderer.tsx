@@ -26,7 +26,7 @@ import {
   EdgeMouseHandler,
   Node,
   NodeMouseHandler,
-  OnMoveStart,
+  OnMove,
   ReactFlow,
 } from '@xyflow/react';
 import React from 'react';
@@ -54,8 +54,8 @@ export interface GraphRendererProps {
   onNodeClick?: NodeMouseHandler<Node>;
   /** Callback when an edge is clicked */
   onEdgeClick?: EdgeMouseHandler<Edge>;
-  /** Callback when the graph is started to be moved */
-  onMoveStart?: OnMoveStart;
+  /** Callback while the graph viewport is moving */
+  onMove?: OnMove;
   /** Callback when the background is clicked */
   onBackgroundClick?: () => void;
   /** Additional components to render */
@@ -72,7 +72,7 @@ export function GraphRenderer({
   edges,
   onNodeClick,
   onEdgeClick,
-  onMoveStart,
+  onMove,
   onBackgroundClick,
   children,
   controlActions,
@@ -125,7 +125,7 @@ export function GraphRenderer({
       elementsSelectable
       onNodeClick={onNodeClick}
       onEdgeClick={onEdgeClick}
-      onMove={onMoveStart}
+      onMove={onMove}
       onClick={e => {
         if ((e.target as HTMLElement)?.className?.includes?.('react-flow__pane')) {
           onBackgroundClick?.();
