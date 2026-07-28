@@ -328,6 +328,8 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 	if err := k8cache.StoreK8sResponseInCache(k8sResponseCache, r.URL, rcw, key); err != nil {
 		// Response was already written to client via rcw; just log the cache storage error
 		logger.Log(logger.LevelError, nil, err, "failed to store response in cache")
+	} else {
+		c.TelemetryHandler.RecordCacheStore(r.Context())
 	}
 }
 
@@ -371,8 +373,12 @@ func handleCacheAuthorization(
 
 	if served {
 		c.TelemetryHandler.RecordEvent(span, "Served from cache")
+		c.TelemetryHandler.RecordCacheHit(r.Context())
+
 		return true
 	}
+
+	c.TelemetryHandler.RecordCacheMiss(r.Context())
 
 	return false
 }

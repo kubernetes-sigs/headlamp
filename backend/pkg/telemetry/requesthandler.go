@@ -101,3 +101,48 @@ func (h *RequestHandler) RecordRequestCount(ctx context.Context, r *http.Request
 		)...))
 	}
 }
+
+// RecordCacheHit increments the cache hit counter.
+func (h *RequestHandler) RecordCacheHit(ctx context.Context) {
+	if h == nil || h.metrics == nil {
+		return
+	}
+
+	h.metrics.CacheHitCount.Add(ctx, 1)
+}
+
+// RecordCacheMiss increments the cache miss counter.
+func (h *RequestHandler) RecordCacheMiss(ctx context.Context) {
+	if h == nil || h.metrics == nil {
+		return
+	}
+
+	h.metrics.CacheMissCount.Add(ctx, 1)
+}
+
+// RecordCacheStore increments the cache store counter.
+func (h *RequestHandler) RecordCacheStore(ctx context.Context) {
+	if h == nil || h.metrics == nil {
+		return
+	}
+
+	h.metrics.CacheStoreCount.Add(ctx, 1)
+}
+
+// RecordCacheEviction increments the cache eviction counter.
+func (h *RequestHandler) RecordCacheEviction(ctx context.Context) {
+	if h == nil || h.metrics == nil {
+		return
+	}
+
+	h.metrics.CacheEvictionCount.Add(ctx, 1)
+}
+
+// RecordCacheInvalidation increments the cache invalidation counter.
+func (h *RequestHandler) RecordCacheInvalidation(ctx context.Context) {
+	if h == nil || h.metrics == nil {
+		return
+	}
+
+	h.metrics.CacheInvalidationCount.Add(ctx, 1)
+}

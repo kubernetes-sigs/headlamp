@@ -53,6 +53,7 @@ import (
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/plugins"
@@ -1394,6 +1395,17 @@ func StartHeadlampServer(config *HeadlampConfig) {
 			logger.Log(logger.LevelError, nil, err, "Failed to properly shutdown telemetry")
 		}
 	}()
+
+	// Wire cache observability metrics hooks.
+	if config.TelemetryHandler != nil {
+		k8cache.OnCacheInvalidation = func() {
+			config.TelemetryHandler.RecordCacheInvalidation(context.Background())
+		}
+
+		k8sResponseCache.SetOnEvicted(func(_ string, _ string) {
+			config.TelemetryHandler.RecordCacheEviction(context.Background())
+		})
+	}
 
 	router := mux.NewRouter()
 
