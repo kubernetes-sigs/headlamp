@@ -246,11 +246,11 @@ func (c *Config) validateClusterInventory() error {
 //  2. websocketMode Helm value (injected as the env var above by the chart)
 //  3. Default: "websockets"
 func (c *Config) validateWebsocketMode() error {
+	c.WebsocketMode = strings.ToLower(strings.TrimSpace(c.WebsocketMode))
+
 	if c.WebsocketMode == "" {
 		c.WebsocketMode = "websockets"
 	}
-
-	c.WebsocketMode = strings.ToLower(strings.TrimSpace(c.WebsocketMode))
 
 	switch c.WebsocketMode {
 	case "websockets", "multiplexer", "off":
