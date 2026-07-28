@@ -467,6 +467,98 @@ func TestCleanupConnections(t *testing.T) {
 	assert.Equal(t, StateClosed, conn.Status.State)
 }
 
+func TestCleanupConnectionKeepsReconnectedConnection(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	// oldConn is torn down after a reconnect; newConn is the live connection
+	// that now lives under the same key.
+	oldConn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+	newConn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+	m.connections[connKey] = newConn
+
+	m.cleanupConnection(oldConn)
+
+	stored, ok := m.connections[connKey]
+	assert.True(t, ok, "reconnected connection should still be in the map")
+	assert.Same(t, newConn, stored, "map should still hold the live reconnected connection")
+}
+
+func TestCleanupConnectionRemovesOwnEntry(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "", clientConn)
+
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+	m.connections[connKey] = conn
+
+	m.cleanupConnection(conn)
+
+	_, ok := m.connections[connKey]
+	assert.False(t, ok, "connection should be removed from the map")
+	assert.True(t, conn.closed, "connection should be closed")
+}
+
+func TestReconnectStartsReader(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			Server:                mockServer.URL,
+			InsecureSkipTLSVerify: true,
+		},
+	})
+	require.NoError(t, err)
+
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	conn := m.createConnection("test-cluster", "test-user", "/api/v1/pods", "watch=true", clientConn, nil)
+	wsConn, wsServer := createTestWebSocketConnection()
+
+	defer wsServer.Close()
+
+	conn.WSConn = wsConn.conn
+	conn.Status.State = StateError
+
+	newConn, err := m.reconnect(conn)
+	require.NoError(t, err)
+	require.NotNil(t, newConn)
+
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+
+	m.mutex.RLock()
+	_, ok := m.connections[connKey]
+	m.mutex.RUnlock()
+	require.True(t, ok, "reconnected connection should be in the map")
+
+	// reconnect must start a reader for the new connection. Closing the upstream
+	// socket makes that reader exit and clean up the map entry. Without a reader
+	// the entry would linger.
+	_ = newConn.WSConn.Close()
+
+	assert.Eventually(t, func() bool {
+		m.mutex.RLock()
+		defer m.mutex.RUnlock()
+
+		_, present := m.connections[connKey]
+
+		return !present
+	}, 2*time.Second, 10*time.Millisecond, "reader started by reconnect should clean up after the upstream closes")
+}
+
 func TestCloseConnection(t *testing.T) {
 	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
 	clientConn, clientServer := createTestWebSocketConnection()
@@ -1473,23 +1565,24 @@ func TestReconnect_WithToken(t *testing.T) {
 	assert.NotNil(t, newConn)
 	assert.Equal(t, &originalToken, newConn.Token, "Token should be preserved during reconnection")
 
-	// Now update the token and verify it's used in reconnection
+	// Now verify an updated token is used on a subsequent reconnection. Use a
+	// fresh connection: reconnect attaches a reader to newConn, so closing its
+	// socket and reconnecting the same object would race that reader.
 	newToken := "new-refreshed-token"
-	newConn.Token = &newToken // Update the token on the new connection
+	conn2 := m.createConnection("test-cluster", "test-user", "/api/v1/services", "watch=true", clientConn, &newToken)
+	wsConn2, wsServer2 := createTestWebSocketConnection()
 
-	// Close the connection to force another reconnection
-	if newConn.WSConn != nil {
-		_ = newConn.WSConn.Close()
-	}
+	defer wsServer2.Close()
 
-	newConn.Status.State = StateError
+	conn2.WSConn = wsConn2.conn
+	conn2.Status.State = StateError
 
-	// Update the connection in the multiplexer's map
-	connKey = m.createConnectionKey(newConn.ClusterID, newConn.Path, newConn.UserID)
-	m.connections[connKey] = newConn
+	m.mutex.Lock()
+	m.connections[m.createConnectionKey(conn2.ClusterID, conn2.Path, conn2.UserID)] = conn2
+	m.mutex.Unlock()
 
 	// Reconnect with the new token
-	reconnConn, err := m.reconnect(newConn)
+	reconnConn, err := m.reconnect(conn2)
 	assert.NoError(t, err)
 	assert.NotNil(t, reconnConn)
 	assert.Equal(t, &newToken, reconnConn.Token, "Updated token should be used during reconnection")
