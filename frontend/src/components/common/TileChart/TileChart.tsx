@@ -82,7 +82,14 @@ export function TileChart(props: TileChartProps) {
         </Box>
         <Box>
           {!!data && (
-            <PercentageCircle data={data} total={total} size={140} thickness={11} {...others} />
+            <PercentageCircle
+              data={data}
+              total={total}
+              size={140}
+              thickness={11}
+              loaderTitle={typeof title === 'string' ? title : undefined}
+              {...others}
+            />
           )}
         </Box>
       </Box>

@@ -299,6 +299,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
             pods={nodePods}
             metrics={nodeMetrics}
             noMetrics={noMetrics}
+            metricsError={metricsError}
             summaryStats={nodeSummaryStats}
             summaryError={nodeSummaryError}
           />
@@ -428,10 +429,11 @@ interface ChartsSectionProps {
   summaryStats: KubeNodeSummaryStats | null;
   summaryError: ApiError | null;
   noMetrics?: boolean;
+  metricsError?: ApiError | null;
 }
 
 function ChartsSection(props: ChartsSectionProps) {
-  const { node, pods, metrics, summaryStats, summaryError, noMetrics } = props;
+  const { node, pods, metrics, summaryStats, summaryError, noMetrics, metricsError } = props;
   const { t } = useTranslation('glossary');
 
   function getUptime() {
@@ -472,13 +474,19 @@ function ChartsSection(props: ChartsSectionProps) {
           </Paper>
         </Box>
         <Box>
-          <CpuCircularChart items={node && [node]} itemsMetrics={metrics} noMetrics={noMetrics} />
+          <CpuCircularChart
+            items={node && [node]}
+            itemsMetrics={metrics}
+            noMetrics={noMetrics}
+            metricsError={metricsError}
+          />
         </Box>
         <Box>
           <MemoryCircularChart
             items={node && [node]}
             itemsMetrics={metrics}
             noMetrics={noMetrics}
+            metricsError={metricsError}
           />
         </Box>
         <Box>

@@ -17,6 +17,7 @@
 import '../../../i18n/config';
 import _, { List } from 'lodash';
 import { useTranslation } from 'react-i18next';
+import type { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { KubeMetrics } from '../../../lib/k8s/cluster';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import Node from '../../../lib/k8s/node';
@@ -31,6 +32,8 @@ export interface CircularChartProps extends Omit<PercentageCircleProps, 'data'> 
   itemsMetrics: KubeMetrics[] | null;
   /** Whether no metrics are available. If true, then instead of a chart, a message will be displayed */
   noMetrics?: boolean;
+  /** Error from fetching the metrics, if any. Used to tell a failed load apart from one still in progress. */
+  metricsError?: ApiError | null;
   /** Function to get the "used" value for the metrics in question */
   resourceUsedGetter?: (node: KubeMetrics) => number;
   /** Function to get the "available" value for the metrics in question */
@@ -46,6 +49,7 @@ export function CircularChart(props: CircularChartProps) {
     items,
     itemsMetrics,
     noMetrics = false,
+    metricsError = null,
     resourceUsedGetter,
     resourceAvailableGetter,
     title,
@@ -72,6 +76,11 @@ export function CircularChart(props: CircularChartProps) {
 
   function getResourceUsage() {
     if (!items) return [-1, -1];
+
+    // Metrics haven't arrived yet (no data and no error). Report this as a
+    // loading state (-1) instead of computing a usage of 0, so the tile shows
+    // '…' rather than a misleading 0% until the real values load.
+    if (!noMetrics && !metricsError && itemsMetrics === null) return [-1, -1];
 
     const nodeMetrics = filterMetrics(items, itemsMetrics);
     const usedValue = _.sumBy(nodeMetrics, resourceUsedGetter);
