@@ -63,7 +63,7 @@ export type WebSocketConnectionRequest<T> = {
 /**
  * Keeps track of open WebSocket connections and active listeners
  */
-const sockets = new Map<string, WebSocket | 'pending'>();
+const sockets = new Map<string, WebSocket | symbol>();
 const listeners = new Map<string, Array<(update: any) => void>>();
 
 /**
@@ -124,7 +124,13 @@ export async function openWebSocket<T>(
   socket.addEventListener('message', (body: MessageEvent) => {
     const data = type === 'json' ? JSON.parse(body.data) : body.data;
     const callbacks = listeners.get(connectionKey) ?? [onMessage];
-    callbacks.forEach(callback => callback(data));
+    callbacks.forEach(callback => {
+      try {
+        callback(data);
+      } catch (error) {
+        console.error('WebSocket listener error:', error);
+      }
+    });
   });
   socket.addEventListener('error', error => {
     console.error('WebSocket error:', error);
@@ -161,8 +167,6 @@ export function useWebSockets<T>({
   useEffect(() => {
     if (!enabled) return;
 
-    let isCurrent = true;
-
     /** Open a connection to websocket */
     function connect({ cluster, url, onMessage }: WebSocketConnectionRequest<T>) {
       const connectionKey = cluster + url;
@@ -172,24 +176,30 @@ export function useWebSockets<T>({
 
       if (!sockets.has(connectionKey)) {
         // Mark socket as pending, so we don't open more than one
-        sockets.set(connectionKey, 'pending');
+        const pendingSocket = Symbol('pendingWebSocket');
+        sockets.set(connectionKey, pendingSocket);
 
-        let ws: WebSocket | undefined;
         openWebSocket(url, { protocols, type, cluster, onMessage })
           .then(socket => {
-            ws = socket;
+            // A newer connection replaced this pending one while it was opening.
+            if (sockets.get(connectionKey) !== pendingSocket) {
+              socket.close();
+              return;
+            }
 
-            // Hook was unmounted while it was connecting to WebSocket
-            // so we close the socket and clean up
-            if (!isCurrent) {
-              ws.close();
+            // All listeners unsubscribed while the socket was opening.
+            if ((listeners.get(connectionKey)?.length ?? 0) === 0) {
+              socket.close();
               sockets.delete(connectionKey);
               return;
             }
 
-            sockets.set(connectionKey, ws);
+            sockets.set(connectionKey, socket);
           })
           .catch(err => {
+            if (sockets.get(connectionKey) === pendingSocket) {
+              sockets.delete(connectionKey);
+            }
             console.error(err);
           });
       }
@@ -206,7 +216,7 @@ export function useWebSockets<T>({
         if (newListeners.length === 0) {
           const maybeExisting = sockets.get(connectionKey);
           if (maybeExisting) {
-            if (maybeExisting !== 'pending') {
+            if (typeof maybeExisting !== 'symbol') {
               maybeExisting.close();
             }
             sockets.delete(connectionKey);
@@ -218,7 +228,6 @@ export function useWebSockets<T>({
     const disconnectCallbacks = connections.map(endpoint => connect(endpoint));
 
     return () => {
-      isCurrent = false;
       disconnectCallbacks.forEach(fn => fn());
     };
   }, [enabled, type, connections, protocols]);
