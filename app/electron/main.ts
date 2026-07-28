@@ -32,7 +32,6 @@ import { IpcMainEvent, MenuItemConstructorOptions } from 'electron/main';
 import find_process from 'find-process';
 import * as fsPromises from 'fs/promises';
 import * as net from 'net';
-import fs from 'node:fs';
 import { userInfo } from 'node:os';
 import { promisify } from 'node:util';
 import { platform } from 'os';
@@ -60,6 +59,13 @@ import {
   setTrayIconEnabled,
 } from './tray';
 import windowSize from './windowSize';
+import {
+  createZoomController,
+  DEFAULT_ZOOM_FACTOR,
+  loadZoomFactor,
+  saveZoomFactor,
+  ZOOM_STEP,
+} from './zoom';
 
 if (process.env.APPIMAGE) {
   app.commandLine.appendSwitch('disable-setuid-sandbox');
@@ -1046,19 +1052,19 @@ function getDefaultAppMenu(): AppMenu[] {
           label: i18n.t('Reset Zoom'),
           id: 'original-reset-zoom',
           accelerator: 'CmdOrCtrl+0',
-          click: () => setZoom(1.0),
+          click: () => setZoom(DEFAULT_ZOOM_FACTOR),
         },
         {
           label: i18n.t('Zoom In'),
           id: 'original-zoom-in',
           accelerator: 'CmdOrCtrl+=',
-          click: () => adjustZoom(0.1),
+          click: () => adjustZoom(ZOOM_STEP),
         },
         {
           label: i18n.t('Zoom Out'),
           id: 'original-zoom-out',
           accelerator: 'CmdOrCtrl+-',
-          click: () => adjustZoom(-0.1),
+          click: () => adjustZoom(-ZOOM_STEP),
         },
         sep,
         {
@@ -1343,40 +1349,20 @@ function killProcess(pid: number) {
 }
 
 const ZOOM_FILE_PATH = path.join(app.getPath('userData'), 'headlamp-config.json');
-let cachedZoom: number = 1.0;
 
-function saveZoomFactor(factor: number) {
-  try {
-    fs.writeFileSync(ZOOM_FILE_PATH, JSON.stringify({ zoomFactor: factor }), 'utf-8');
-  } catch (err) {
-    console.error('Failed to save zoom factor:', err);
-  }
-}
-
-async function loadZoomFactor(): Promise<number> {
-  try {
-    const content = await fsPromises.readFile(ZOOM_FILE_PATH, 'utf-8');
-    const { zoomFactor = 1.0 } = JSON.parse(content);
-    return typeof zoomFactor === 'number' ? zoomFactor : 1.0;
-  } catch (err) {
-    console.error('Failed to load zoom factor, defaulting to 1.0:', err);
-    return 1.0;
-  }
-}
-
-// The zoom factor should respect the fixed limits set by Electron.
-function clampZoom(factor: number) {
-  return Math.min(5.0, Math.max(0.25, factor));
-}
+const zoomController = createZoomController({
+  getWebContents: () => mainWindow?.webContents ?? null,
+  // Persist on every change rather than only on quit, so a crash or a force quit
+  // doesn't lose the zoom level the user just picked.
+  onChange: factor => saveZoomFactor(ZOOM_FILE_PATH, factor),
+});
 
 function setZoom(factor: number) {
-  cachedZoom = factor;
-  mainWindow?.webContents.setZoomFactor(cachedZoom);
+  zoomController.set(factor);
 }
 
 function adjustZoom(delta: number) {
-  const newZoom = clampZoom(cachedZoom + delta);
-  setZoom(newZoom);
+  zoomController.adjust(delta);
 }
 
 function startElectron() {
@@ -1583,13 +1569,22 @@ function startElectron() {
     });
 
     mainWindow.webContents.on('did-finish-load', async () => {
-      const startZoom = await loadZoomFactor();
-      if (startZoom !== 1.0) {
+      const startZoom = await loadZoomFactor(ZOOM_FILE_PATH);
+      if (startZoom !== DEFAULT_ZOOM_FACTOR) {
         setZoom(startZoom);
       }
 
       // Inject the backend port into the window object
       mainWindow?.webContents.executeJavaScript(`window.headlampBackendPort = ${actualPort};`);
+    });
+
+    // Zoom can change without going through our menu: a trackpad pinch, Ctrl+wheel,
+    // or Chromium restoring a stored per-origin zoom. Adopt those changes, otherwise
+    // the cached factor goes stale and the next Zoom In steps from the wrong value.
+    mainWindow.webContents.on('zoom-changed', () => {
+      // The event signals the intent to zoom, so the new factor may not be applied
+      // yet; read it on the next tick to capture the value that actually landed.
+      setImmediate(() => zoomController.syncFromWebContents());
     });
 
     mainWindow.webContents.on('dom-ready', () => {
@@ -1864,7 +1859,8 @@ function startElectron() {
     isQuitting = true;
     cleanupHeadlampTray();
     hasTray = false;
-    saveZoomFactor(cachedZoom);
+    // The zoom factor is already persisted on every change, so there is nothing to
+    // save here.
     i18n.off('languageChanged');
     if (mainWindow) {
       mainWindow.removeAllListeners('close');
