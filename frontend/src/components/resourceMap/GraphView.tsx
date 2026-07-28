@@ -43,6 +43,7 @@ import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { NamespacesAutocomplete } from '../common/NamespacesAutocomplete';
 import { filterGraph, filterGraphIncremental, GraphFilter } from './graph/graphFiltering';
+import { getGraphForNamespaceSelection } from './graph/graphForNamespaceSelection';
 import {
   collapseGraph,
   findGroupContaining,
@@ -348,10 +349,20 @@ function GraphViewContent({
 
   const activeNamespaces = groupBy === 'namespace' ? allNamespaces : undefined;
   const activeNodes = groupBy === 'node' ? allNodes : undefined;
+  const graphForGrouping = useMemo(
+    () =>
+      getGraphForNamespaceSelection(
+        filteredGraph,
+        simplifiedGraph,
+        activeNamespaces ?? [],
+        selectedNodeId
+      ),
+    [filteredGraph, simplifiedGraph, activeNamespaces, selectedNodeId]
+  );
 
   const { visibleGraph, fullGraph } = useMemo(() => {
     const perfStart = performance.now();
-    const graph = groupGraph(simplifiedGraph.nodes, simplifiedGraph.edges, {
+    const graph = groupGraph(graphForGrouping.nodes, graphForGrouping.edges, {
       groupBy,
       namespaces: activeNamespaces ?? [],
       k8sNodes: activeNodes ?? [],
@@ -373,7 +384,7 @@ function GraphViewContent({
     }
 
     return { visibleGraph, fullGraph: graph };
-  }, [simplifiedGraph, groupBy, selectedNodeId, expandAll, activeNamespaces, activeNodes]);
+  }, [graphForGrouping, groupBy, selectedNodeId, expandAll, activeNamespaces, activeNodes]);
 
   const viewport = useGraphViewport();
 
@@ -576,7 +587,7 @@ function GraphViewContent({
                   nodes={layoutedGraph.nodes}
                   edges={layoutedGraph.edges}
                   isLoading={isLoading}
-                  onMoveStart={e => {
+                  onMove={e => {
                     if (e === null) return;
                     viewportMovedRef.current = true;
                   }}
