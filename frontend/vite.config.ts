@@ -42,6 +42,7 @@ export default defineConfig({
       '/clusters': {
         target: backendTarget,
         changeOrigin: true,
+        ws: true,
       },
       '/plugins': {
         target: backendTarget,

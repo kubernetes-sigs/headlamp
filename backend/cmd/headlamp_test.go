@@ -91,6 +91,44 @@ func writeTestTokenFile(t *testing.T) string {
 	return tokenFile
 }
 
+type recordingMultiplexer struct {
+	called bool
+}
+
+func (m *recordingMultiplexer) HandleClientWebSocket(w http.ResponseWriter, _ *http.Request) {
+	m.called = true
+	w.WriteHeader(http.StatusNoContent)
+}
+
+func TestClusterMultiplexerRoutePrecedesClusterAPIProxy(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("APPDATA", t.TempDir())
+
+	multiplexer := &recordingMultiplexer{}
+	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigPath:  filepath.Join(t.TempDir(), "missing-kubeconfig"),
+				KubeConfigStore: kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			Multiplexer:      multiplexer,
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	})
+
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(
+		recorder,
+		httptest.NewRequest(http.MethodGet, "/clusters/test/wsMultiplexer", nil),
+	)
+
+	assert.True(t, multiplexer.called)
+	assert.Equal(t, http.StatusNoContent, recorder.Code)
+}
+
 func TestCreateHeadlampHandlerSkipsInClusterContextWhenConfigUnavailable(t *testing.T) {
 	t.Setenv("KUBERNETES_SERVICE_HOST", "")
 	t.Setenv("KUBERNETES_SERVICE_PORT", "")

@@ -25,14 +25,14 @@ import { getBaseWsUrl } from './webSocket';
  * to optimize network usage.
  */
 export const WebSocketManager = {
-  /** Current WebSocket connection instance */
-  socketMultiplexer: null as WebSocket | null,
+  /** Current WebSocket connection instances, keyed by cluster ID. */
+  socketMultiplexers: new Map<string, WebSocket>(),
 
-  /** Flag to track if a connection attempt is in progress */
-  connecting: false,
+  /** In-progress connection attempts, keyed by cluster ID. */
+  connectionPromises: new Map<string, Promise<WebSocket>>(),
 
-  /** Flag to track if we're reconnecting after a disconnect */
-  isReconnecting: false,
+  /** Clusters whose active subscriptions need to be restored after reconnecting. */
+  reconnectingClusters: new Set<string>(),
 
   /** Map of message handlers for each subscription path */
   listeners: new Map<string, Set<(data: any) => void>>(),
@@ -63,65 +63,49 @@ export const WebSocketManager = {
   /**
    * Establishes or returns an existing WebSocket connection.
    *
-   * This implementation uses a polling approach to handle concurrent connection attempts.
-   * While not ideal, it's a simple solution that works for most cases.
+    * Concurrent callers for the same cluster share one connection promise. Different
+    * clusters use separate sockets so each request carries the matching cluster-scoped
+    * authentication cookie.
    *
-   * Known limitations:
-   * 1. Polls every 100ms which may not be optimal for performance
-   * 2. May miss state changes that happen between polls
-   * 3. Has no timeout while waiting on an in-progress connection attempt; callers
-   *    will reject if that attempt fails and clears `this.connecting`, but can wait
-   *    indefinitely if it never reaches open, error, or close
-   *
-   * A more robust solution would use event listeners and Promise caching,
-   * but that adds complexity and potential race conditions to handle.
-   * The current polling approach, while not perfect, is simple and mostly reliable.
-   *
+    * @param clusterId - Cluster whose authenticated multiplexer route should be used.
    * @returns Promise resolving to WebSocket connection
    */
-  async connect(): Promise<WebSocket> {
+  async connect(clusterId: string): Promise<WebSocket> {
     // Return existing connection if available
-    if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
-      return this.socketMultiplexer;
+    const existingSocket = this.socketMultiplexers.get(clusterId);
+    if (existingSocket?.readyState === WebSocket.OPEN) {
+      return existingSocket;
     }
 
     // Wait for existing connection attempt if in progress
-    if (this.connecting) {
-      return new Promise((resolve, reject) => {
-        const checkConnection = setInterval(() => {
-          if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
-            clearInterval(checkConnection);
-            resolve(this.socketMultiplexer!);
-          } else if (!this.connecting) {
-            clearInterval(checkConnection);
-            reject(new Error('WebSocket connection failed'));
-          }
-        }, 100);
-      });
+    const connectionPromise = this.connectionPromises.get(clusterId);
+    if (connectionPromise) {
+      return connectionPromise;
     }
 
-    this.connecting = true;
-    const wsUrl = `${getBaseWsUrl()}${MULTIPLEXER_ENDPOINT}`;
+    const wsUrl = `${getBaseWsUrl()}clusters/${encodeURIComponent(
+      clusterId
+    )}/${MULTIPLEXER_ENDPOINT}`;
 
-    return new Promise((resolve, reject) => {
+    const nextConnection = new Promise<WebSocket>((resolve, reject) => {
       let socket: WebSocket;
       try {
         socket = new WebSocket(wsUrl);
       } catch (e) {
-        this.connecting = false;
+        this.connectionPromises.delete(clusterId);
         reject(e instanceof Error ? e : new Error(String(e)));
         return;
       }
 
       socket.onopen = () => {
-        this.socketMultiplexer = socket;
-        this.connecting = false;
+        this.socketMultiplexers.set(clusterId, socket);
+        this.connectionPromises.delete(clusterId);
 
         // Only resubscribe if we're reconnecting after a disconnect
-        if (this.isReconnecting) {
-          this.resubscribeAll(socket);
+        if (this.reconnectingClusters.has(clusterId)) {
+          this.resubscribeAll(clusterId, socket);
         }
-        this.isReconnecting = false;
+        this.reconnectingClusters.delete(clusterId);
 
         resolve(socket);
       };
@@ -129,23 +113,29 @@ export const WebSocketManager = {
       socket.onmessage = this.handleWebSocketMessage.bind(this);
 
       socket.onerror = event => {
-        this.connecting = false;
+        this.connectionPromises.delete(clusterId);
         console.error('WebSocket error:', event);
         reject(new Error('WebSocket connection failed'));
       };
 
       socket.onclose = () => {
-        this.handleWebSocketClose();
+        this.handleWebSocketClose(clusterId, socket);
       };
     });
+
+    this.connectionPromises.set(clusterId, nextConnection);
+    return nextConnection;
   },
 
   /**
    * Resubscribes all active subscriptions to a new socket
    * @param socket - WebSocket connection to subscribe to
    */
-  resubscribeAll(socket: WebSocket): void {
+  resubscribeAll(targetClusterId: string, socket: WebSocket): void {
     this.activeSubscriptions.forEach(({ clusterId, path, query }) => {
+      if (clusterId !== targetClusterId) {
+        return;
+      }
       const userId = getUserIdFromLocalStorage();
       const requestMsg: WebSocketMessage = {
         clusterId,
@@ -192,7 +182,7 @@ export const WebSocketManager = {
     }
 
     // Establish connection and send REQUEST
-    const socket = await this.connect();
+    const socket = await this.connect(clusterId);
     const userId = getUserIdFromLocalStorage();
     const requestMsg: WebSocketMessage = {
       clusterId,
@@ -260,7 +250,8 @@ export const WebSocketManager = {
             this.activeSubscriptions.delete(key);
             this.completedPaths.delete(key);
 
-            if (this.socketMultiplexer?.readyState === WebSocket.OPEN) {
+            const socket = this.socketMultiplexers.get(clusterId);
+            if (socket?.readyState === WebSocket.OPEN) {
               const userId = getUserIdFromLocalStorage();
               const closeMsg: WebSocketMessage = {
                 clusterId,
@@ -269,7 +260,7 @@ export const WebSocketManager = {
                 userId: userId || '',
                 type: 'CLOSE',
               };
-              this.socketMultiplexer.send(JSON.stringify(closeMsg));
+              socket.send(JSON.stringify(closeMsg));
             }
           }
           this.pendingUnsubscribes.delete(key);
@@ -295,13 +286,21 @@ export const WebSocketManager = {
    * Handles WebSocket connection close event
    * Sets up state for potential reconnection
    */
-  handleWebSocketClose(): void {
-    this.socketMultiplexer = null;
-    this.connecting = false;
-    this.completedPaths.clear();
+  handleWebSocketClose(clusterId: string, socket: WebSocket): void {
+    if (this.socketMultiplexers.get(clusterId) === socket) {
+      this.socketMultiplexers.delete(clusterId);
+    }
+    this.connectionPromises.delete(clusterId);
+    for (const key of this.completedPaths) {
+      if (key.startsWith(`${clusterId}:`)) {
+        this.completedPaths.delete(key);
+      }
+    }
 
     // Only log reconnecting if we have active subscriptions
-    this.isReconnecting = this.activeSubscriptions.size > 0;
+    if ([...this.activeSubscriptions.values()].some(item => item.clusterId === clusterId)) {
+      this.reconnectingClusters.add(clusterId);
+    }
   },
 
   /**

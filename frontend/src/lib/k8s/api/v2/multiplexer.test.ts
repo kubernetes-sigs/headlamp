@@ -53,6 +53,7 @@ vi.mock('./makeUrl', () => ({
 
 const clusterName = 'test-cluster';
 const userId = 'test-user';
+const multiplexerUrl = `${BASE_WS_URL}clusters/${clusterName}/${MULTIPLEXER_ENDPOINT}`;
 
 describe('WebSocket Multiplexer', () => {
   let mockServer: WS;
@@ -73,7 +74,7 @@ describe('WebSocket Multiplexer', () => {
     originalConsoleError = console.error;
     console.error = vi.fn();
 
-    mockServer = new WS(`${BASE_WS_URL}${MULTIPLEXER_ENDPOINT}`);
+    mockServer = new WS(multiplexerUrl);
   });
 
   afterEach(async () => {
@@ -83,9 +84,9 @@ describe('WebSocket Multiplexer', () => {
     WS.clean();
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
-    WebSocketManager.socketMultiplexer = null;
-    WebSocketManager.connecting = false;
-    WebSocketManager.isReconnecting = false;
+    WebSocketManager.socketMultiplexers.clear();
+    WebSocketManager.connectionPromises.clear();
+    WebSocketManager.reconnectingClusters.clear();
     WebSocketManager.listeners.clear();
     WebSocketManager.completedPaths.clear();
     WebSocketManager.activeSubscriptions.clear();
@@ -242,8 +243,8 @@ describe('WebSocket Multiplexer', () => {
       ).rejects.toThrow('WebSocket connection failed');
 
       // Verify error was handled
-      expect(WebSocketManager.socketMultiplexer).toBeNull();
-      expect(WebSocketManager.connecting).toBe(false);
+      expect(WebSocketManager.socketMultiplexers.has(clusterName)).toBe(false);
+      expect(WebSocketManager.connectionPromises.has(clusterName)).toBe(false);
     });
 
     it('should handle duplicate subscriptions', async () => {
@@ -324,7 +325,7 @@ describe('WebSocket Multiplexer', () => {
         })
       );
 
-      expect(WebSocketManager.socketMultiplexer).toBeNull();
+      expect(WebSocketManager.socketMultiplexers.has(clusterName)).toBe(false);
     });
 
     it('should handle successful connection and messages', async () => {
@@ -485,54 +486,34 @@ describe('WebSocket Multiplexer', () => {
   });
 
   describe('WebSocket error handling', () => {
-    it('should reject concurrent callers when in-progress connection fails', async () => {
-      vi.useFakeTimers();
+    it('should share an in-progress connection between callers for the same cluster', async () => {
+      const firstConnection = WebSocketManager.connect(clusterName);
+      const concurrentConnection = WebSocketManager.connect(clusterName);
 
-      try {
-        // Manually set connecting = true to simulate an in-progress attempt
-        WebSocketManager.connecting = true;
-
-        // Start a concurrent caller — it enters the polling branch
-        const concurrentPromise = WebSocketManager.connect();
-
-        // Simulate the primary connection failing by resetting connecting to false
-        WebSocketManager.connecting = false;
-
-        // Advance timers so the setInterval tick fires and detects the failure
-        await vi.advanceTimersByTimeAsync(200);
-
-        await expect(concurrentPromise).rejects.toThrow('WebSocket connection failed');
-      } finally {
-        vi.useRealTimers();
-      }
+      const [firstSocket, concurrentSocket] = await Promise.all([
+        firstConnection,
+        concurrentConnection,
+      ]);
+      expect(concurrentSocket).toBe(firstSocket);
+      expect(WebSocketManager.socketMultiplexers.get(clusterName)).toBe(firstSocket);
     });
 
-    it('should handle polling timeout', async () => {
-      const OriginalWebSocket = window.WebSocket;
-
-      // Mock WebSocket that triggers an error immediately after construction
-      vi.stubGlobal('WebSocket', function (this: any) {
-        const ws = {
-          readyState: WebSocket.CONNECTING,
-          onopen: null as any,
-          onclose: null as any,
-          onerror: null as any,
-          onmessage: null as any,
-          send: vi.fn(),
-          close: vi.fn(),
-        };
-        setTimeout(() => ws.onerror?.(new Event('error')), 0);
-        return ws;
-      });
-
-      const path = '/api/v1/pods';
-      const query = 'watch=true';
-
-      await expect(WebSocketManager.subscribe(clusterName, path, query, onMessage)).rejects.toThrow(
-        `Cannot read properties of null (reading 'send')`
+    it('should use separate authenticated sockets for different clusters', async () => {
+      const secondCluster = 'second-cluster';
+      const secondServer = new WS(
+        `${BASE_WS_URL}clusters/${secondCluster}/${MULTIPLEXER_ENDPOINT}`
       );
 
-      vi.stubGlobal('WebSocket', OriginalWebSocket);
+      const [firstSocket, secondSocket] = await Promise.all([
+        WebSocketManager.connect(clusterName),
+        WebSocketManager.connect(secondCluster),
+      ]);
+
+      expect(secondSocket).not.toBe(firstSocket);
+      expect(WebSocketManager.socketMultiplexers.get(clusterName)).toBe(firstSocket);
+      expect(WebSocketManager.socketMultiplexers.get(secondCluster)).toBe(secondSocket);
+
+      secondServer.close();
     });
 
     it('should handle reconnection and resubscribe', async () => {
@@ -548,13 +529,13 @@ describe('WebSocket Multiplexer', () => {
       mockServer.close();
 
       // Verify WebSocketManager state after close
-      expect(WebSocketManager.socketMultiplexer).toBeNull();
-      expect(WebSocketManager.isReconnecting).toBe(true);
-      expect(WebSocketManager.connecting).toBe(false);
+      expect(WebSocketManager.socketMultiplexers.has(clusterName)).toBe(false);
+      expect(WebSocketManager.reconnectingClusters.has(clusterName)).toBe(true);
+      expect(WebSocketManager.connectionPromises.has(clusterName)).toBe(false);
 
       // Try to use connection again to trigger reconnect
-      const newServer = new WS(`${BASE_WS_URL}${MULTIPLEXER_ENDPOINT}`);
-      await WebSocketManager.connect();
+      const newServer = new WS(multiplexerUrl);
+      await WebSocketManager.connect(clusterName);
       await newServer.connected;
 
       // Should get resubscription message
@@ -568,7 +549,7 @@ describe('WebSocket Multiplexer', () => {
       });
 
       // Verify reconnection state is reset
-      expect(WebSocketManager.isReconnecting).toBe(false);
+      expect(WebSocketManager.reconnectingClusters.has(clusterName)).toBe(false);
 
       newServer.close();
     });
@@ -584,10 +565,10 @@ describe('WebSocket Multiplexer', () => {
       mockServer.close();
 
       // Verify WebSocket state after close
-      expect(WebSocketManager.socketMultiplexer).toBeNull();
-      expect(WebSocketManager.connecting).toBe(false);
+      expect(WebSocketManager.socketMultiplexers.has(clusterName)).toBe(false);
+      expect(WebSocketManager.connectionPromises.has(clusterName)).toBe(false);
       expect(WebSocketManager.completedPaths.size).toBe(0);
-      expect(WebSocketManager.isReconnecting).toBe(true); // Should be true since we have active subscriptions
+      expect(WebSocketManager.reconnectingClusters.has(clusterName)).toBe(true);
     });
 
     it('should handle error in message callback', async () => {

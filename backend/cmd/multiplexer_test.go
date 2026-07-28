@@ -29,6 +29,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -1198,6 +1199,81 @@ func TestHandleClientWebSocket_InvalidMessages(t *testing.T) {
 	assert.Contains(t, string(message), "ERROR")
 
 	_ = ws.Close()
+}
+
+func TestProcessClientMessageRejectsMismatchedRouteCluster(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	clientConn, clientServer := createTestWebSocketConnection()
+	defer clientServer.Close()
+
+	req := httptest.NewRequest(http.MethodGet, "/clusters/route-cluster/wsMultiplexer", nil)
+	req = mux.SetURLVars(req, map[string]string{"clusterName": "route-cluster"})
+	m.processClientMessage(req, clientConn, Message{
+		Type:      "REQUEST",
+		ClusterID: "payload-cluster",
+		Path:      "/api/v1/pods",
+		UserID:    "test-user",
+	})
+
+	var response Message
+	require.NoError(t, clientConn.ReadJSON(&response))
+	assert.Equal(t, "ERROR", response.Type)
+	assert.Contains(t, response.Data, "does not match WebSocket route cluster")
+}
+
+func TestClusterScopedMultiplexerUsesAuthCookie(t *testing.T) {
+	const clusterName = "test-cluster"
+	const token = "cookie-token"
+
+	receivedAuth := make(chan string, 1)
+	clusterServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth <- r.Header.Get("Authorization")
+		upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
+		conn, err := upgrader.Upgrade(w, r, nil)
+		require.NoError(t, err)
+		defer func() { _ = conn.Close() }()
+		_, _, _ = conn.ReadMessage()
+	}))
+	defer clusterServer.Close()
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, store.AddContext(&kubeconfig.Context{
+		Name: clusterName,
+		Cluster: &api.Cluster{
+			Server: clusterServer.URL,
+		},
+	}))
+	m := NewMultiplexer(store, false)
+
+	router := mux.NewRouter()
+	router.HandleFunc("/clusters/{clusterName}/wsMultiplexer", m.HandleClientWebSocket)
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	header := http.Header{}
+	header.Add("Cookie", (&http.Cookie{Name: "headlamp-auth-test-cluster.0", Value: token}).String())
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/clusters/test-cluster/wsMultiplexer"
+	client, response, err := websocket.DefaultDialer.Dial(wsURL, header)
+	require.NoError(t, err)
+	if response != nil && response.Body != nil {
+		defer func() { _ = response.Body.Close() }()
+	}
+	defer func() { _ = client.Close() }()
+
+	require.NoError(t, client.WriteJSON(Message{
+		Type:      "REQUEST",
+		ClusterID: clusterName,
+		Path:      "/api/v1/pods",
+		Query:     "watch=1",
+		UserID:    "test-user",
+	}))
+
+	select {
+	case authHeader := <-receivedAuth:
+		assert.Equal(t, "Bearer "+token, authHeader)
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for Kubernetes WebSocket connection")
+	}
 }
 
 func TestSendIfNewResourceVersion_VersionComparison(t *testing.T) {

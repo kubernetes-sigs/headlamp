@@ -713,6 +713,11 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}),
 	).Methods("GET")
 
+	// Register before the generic cluster API proxy so it is not forwarded to Kubernetes.
+	if config.Multiplexer != nil {
+		r.HandleFunc("/clusters/{clusterName}/wsMultiplexer", config.Multiplexer.HandleClientWebSocket)
+	}
+
 	config.handleClusterRequests(r)
 
 	r.HandleFunc("/externalproxy", func(w http.ResponseWriter, r *http.Request) {
