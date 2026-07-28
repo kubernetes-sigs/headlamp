@@ -273,26 +273,24 @@ export function PodListRenderer(props: PodListProps) {
       title={t('Pods')}
       headerProps={{
         noNamespaceFilter,
-        titleSideActions: [
-          ...(hideCreateButton
-            ? []
-            : [<CreateResourceButton resourceClass={Pod} key="create-pod-button" />]),
-          ...(hasMore
-            ? [
-                <Box key="load-more" display="flex" alignItems="center" gap={1}>
-                  <span style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{loadMoreLabel}</span>
-                  <Button
-                    size="small"
-                    variant="outlined"
-                    disabled={loadingMore}
-                    onClick={handleLoadMore}
-                  >
-                    {loadingMore ? t('translation|Loading...') : t('glossary|Load more')}
-                  </Button>
-                </Box>,
-              ]
-            : []),
-        ],
+        titleSideActions: hideCreateButton
+          ? []
+          : [<CreateResourceButton resourceClass={Pod} key="create-pod-button" />],
+        actions: hasMore
+          ? [
+              <Box key="load-more" display="flex" alignItems="center" gap={1}>
+                <span style={{ fontSize: '0.85rem', whiteSpace: 'nowrap' }}>{loadMoreLabel}</span>
+                <Button
+                  size="small"
+                  variant="outlined"
+                  disabled={loadingMore}
+                  onClick={handleLoadMore}
+                >
+                  {loadingMore ? t('translation|Loading...') : t('glossary|Load more')}
+                </Button>
+              </Box>,
+            ]
+          : [],
       }}
       hideColumns={hideColumns}
       errors={errors}
