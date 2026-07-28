@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { getViewportForBounds, Node, useReactFlow, useStore } from '@xyflow/react';
+import { getNodesBounds, getViewportForBounds, Node, useReactFlow, useStore } from '@xyflow/react';
 import { useCallback, useMemo } from 'react';
 import { useLocalStorageState } from '../globalSearch/useLocalStorageState';
 import { maxZoom, minZoom, viewportPaddingPx } from './graphConstants';
@@ -31,6 +31,57 @@ import { maxZoom, minZoom, viewportPaddingPx } from './graphConstants';
  */
 type zoomMode = '100%' | 'fit';
 
+/**
+ * Calculate bounds for a newly generated layout before React Flow has added it
+ * to its internal node lookup.
+ *
+ * Layout node positions are relative to their parents. Build the lookup that
+ * `getNodesBounds` needs so nested nodes use absolute positions without falling
+ * back to stale nodes from the currently rendered graph.
+ *
+ * @param nodes Newly generated layout nodes, including parent relationships.
+ * @returns Bounds containing all layout nodes in absolute graph coordinates.
+ */
+export function getLayoutNodesBounds(nodes: Node[]) {
+  const nodesById = new Map(nodes.map(node => [node.id, node]));
+  const absolutePositions = new Map<string, { x: number; y: number }>();
+
+  const getAbsolutePosition = (node: Node): { x: number; y: number } => {
+    const cachedPosition = absolutePositions.get(node.id);
+    if (cachedPosition) return cachedPosition;
+
+    const parent = node.parentId ? nodesById.get(node.parentId) : undefined;
+    const parentPosition = parent ? getAbsolutePosition(parent) : { x: 0, y: 0 };
+    const position = {
+      x: parentPosition.x + node.position.x,
+      y: parentPosition.y + node.position.y,
+    };
+    absolutePositions.set(node.id, position);
+    return position;
+  };
+
+  const nodeLookup = new Map(
+    nodes.map(node => [
+      node.id,
+      {
+        ...node,
+        measured: {
+          width: node.measured?.width ?? node.width,
+          height: node.measured?.height ?? node.height,
+        },
+        internals: {
+          positionAbsolute: getAbsolutePosition(node),
+          // Bounds only use geometry; z is required by InternalNode but does not affect the box.
+          z: 0,
+          userNode: node,
+        },
+      },
+    ])
+  );
+
+  return getNodesBounds(nodes, { nodeLookup });
+}
+
 /** Helper hook to deal with viewport zooming */
 export const useGraphViewport = () => {
   const [zoomMode, setZoomMode] = useLocalStorageState<zoomMode>('map-zoom-mode', '100%');
@@ -41,7 +92,7 @@ export const useGraphViewport = () => {
 
   const updateViewport = useCallback(
     ({
-      nodes = flow.getNodes(),
+      nodes,
       mode = zoomMode,
     }: {
       /** List of nodes, if not provided will use current nodes in the graph */
@@ -53,7 +104,8 @@ export const useGraphViewport = () => {
         setZoomMode(() => mode);
       }
 
-      const bounds = flow.getNodesBounds(nodes);
+      const bounds =
+        nodes === undefined ? flow.getNodesBounds(flow.getNodes()) : getLayoutNodesBounds(nodes);
 
       if (mode === 'fit') {
         const viewport = getViewportForBounds(
