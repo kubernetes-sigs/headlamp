@@ -114,6 +114,9 @@ interface GraphViewContentProps {
   defaultFilters?: GraphFilter[];
 }
 
+export const MAP_PERFORMANCE_FEATURES_ENABLED =
+  import.meta.env.REACT_APP_HEADLAMP_ENABLE_MAP_PERFORMANCE_FEATURES === 'true';
+
 const defaultFiltersValue: GraphFilter[] = [];
 
 interface GraphViewInternalProps extends Omit<GraphViewContentProps, 'defaultSources'> {
@@ -543,11 +546,13 @@ function GraphViewContent({
                   />
                 )}
 
-                <ChipToggleButton
-                  label={t('Incremental Updates')}
-                  isActive={useIncrementalUpdates}
-                  onClick={() => setUseIncrementalUpdates(!useIncrementalUpdates)}
-                />
+                {MAP_PERFORMANCE_FEATURES_ENABLED && (
+                  <ChipToggleButton
+                    label={t('Incremental Updates')}
+                    isActive={useIncrementalUpdates}
+                    onClick={() => setUseIncrementalUpdates(!useIncrementalUpdates)}
+                  />
+                )}
 
                 {graphSize < 50 && (
                   <ChipToggleButton
@@ -557,11 +562,13 @@ function GraphViewContent({
                   />
                 )}
 
-                <ChipToggleButton
-                  label={t('Performance Stats')}
-                  isActive={showPerformanceStats}
-                  onClick={() => setShowPerformanceStats(!showPerformanceStats)}
-                />
+                {MAP_PERFORMANCE_FEATURES_ENABLED && (
+                  <ChipToggleButton
+                    label={t('Performance Stats')}
+                    isActive={showPerformanceStats}
+                    onClick={() => setShowPerformanceStats(!showPerformanceStats)}
+                  />
+                )}
               </Box>
 
               <div style={{ flexGrow: 1 }}>
@@ -604,7 +611,7 @@ function GraphViewContent({
             </Box>
           </CustomThemeProvider>
 
-          {showPerformanceStats && (
+          {MAP_PERFORMANCE_FEATURES_ENABLED && showPerformanceStats && (
             <PerformanceStats
               visible={showPerformanceStats}
               onToggle={() => setShowPerformanceStats(false)}
