@@ -171,6 +171,7 @@ export function TabPanel(props: TabPanelProps) {
       hidden={activeTab !== index}
       id={id}
       aria-labelledby={labeledBy}
+      tabIndex={activeTab === index ? 0 : -1}
       sx={[
         { flexGrow: 1, overflow: 'hidden' },
         ...(Array.isArray(otherProps.sx) ? otherProps.sx : [otherProps.sx]),
