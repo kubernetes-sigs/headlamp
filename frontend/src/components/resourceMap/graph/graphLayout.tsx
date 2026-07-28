@@ -67,7 +67,7 @@ function hashFramedString(str: string, seed: number): number {
  * Generate a cache key for the graph
  *
  * Uses a running hash over ALL nodes/edges in a single O(n) pass.
- * - Hashes every node ID and every edge (source→target) during forEachNode traversal
+ * - Hashes every node ID, collapsed state, and edge (source→target) during traversal
  * - O(n) time proportional to total string length, O(1) extra memory
  * - No arrays, no sorting, no sampling — processes the full graph
  */
@@ -81,6 +81,7 @@ export function getGraphCacheKey(graph: GraphNode, aspectRatio: number): string 
   forEachNode(graph, node => {
     nodeCount++;
     nodeHash = hashFramedString(node.id, nodeHash);
+    nodeHash = hashFramedString(node.collapsed ? 'collapsed' : 'expanded', nodeHash);
 
     if (node.edges && node.edges.length > 0) {
       edgeCount += node.edges.length;

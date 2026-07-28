@@ -231,6 +231,42 @@ describe('applyGraphLayout', () => {
     expect(result.edges).toEqual([]);
   });
 
+  it('does not reuse a collapsed group layout after the group expands', async () => {
+    type MockElkNode = Record<string, unknown> & { children?: MockElkNode[] };
+    const child = { id: 'pod' };
+    const collapsedGraph: GraphNode = {
+      id: 'root',
+      nodes: [{ id: 'namespace', collapsed: true, nodes: [child] }],
+    };
+    const expandedGraph: GraphNode = {
+      id: 'root',
+      nodes: [{ id: 'namespace', collapsed: false, nodes: [child] }],
+    };
+    mocks.layout.mockImplementation(async elkGraph => ({
+      ...elkGraph,
+      children: elkGraph.children.map((node: MockElkNode) => ({
+        ...node,
+        x: 0,
+        y: 0,
+        children: node.children?.map((childNode: MockElkNode) => ({
+          ...childNode,
+          x: 10,
+          y: 10,
+        })),
+      })),
+    }));
+    const { applyGraphLayout } = await import('./graphLayout');
+
+    const collapsedLayout = await applyGraphLayout(collapsedGraph, 1);
+    const expandedLayout = await applyGraphLayout(expandedGraph, 1);
+    const cachedExpandedLayout = await applyGraphLayout(expandedGraph, 1);
+
+    expect(collapsedLayout.nodes.map(node => node.id)).toEqual(['namespace']);
+    expect(expandedLayout.nodes.map(node => node.id)).toEqual(['namespace', 'pod']);
+    expect(cachedExpandedLayout.nodes.map(node => node.id)).toEqual(['namespace', 'pod']);
+    expect(mocks.layout).toHaveBeenCalledTimes(2);
+  });
+
   it('returns an empty graph when ELK construction fails', async () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const constructorError = new Error('worker unavailable');
@@ -310,6 +346,20 @@ describe('getGraphCacheKey', () => {
     const graph1 = makeGraph([{ id: 'a' }, { id: 'b' }]);
     const graph2 = makeGraph([{ id: 'a' }, { id: 'c' }]);
     expect(getGraphCacheKey(graph1, 1.5)).not.toBe(getGraphCacheKey(graph2, 1.5));
+  });
+
+  it('should produce different keys for collapsed and expanded groups', () => {
+    const child = { id: 'pod' };
+    const collapsedGraph: GraphNode = {
+      id: 'root',
+      nodes: [{ id: 'namespace', collapsed: true, nodes: [child] }],
+    };
+    const expandedGraph: GraphNode = {
+      id: 'root',
+      nodes: [{ id: 'namespace', collapsed: false, nodes: [child] }],
+    };
+
+    expect(getGraphCacheKey(collapsedGraph, 1.5)).not.toBe(getGraphCacheKey(expandedGraph, 1.5));
   });
 
   it('should frame node IDs to distinguish different ID sequences', () => {
