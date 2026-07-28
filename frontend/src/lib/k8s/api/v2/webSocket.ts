@@ -100,6 +100,7 @@ export async function openWebSocket<T>(
     onMessage: (data: T) => void;
   }
 ) {
+  const connectionKey = cluster + url;
   const path = [url];
   const protocols = ['base64.binary.k8s.io', ...(moreProtocols ?? [])];
 
@@ -122,7 +123,8 @@ export async function openWebSocket<T>(
   socket.binaryType = 'arraybuffer';
   socket.addEventListener('message', (body: MessageEvent) => {
     const data = type === 'json' ? JSON.parse(body.data) : body.data;
-    onMessage(data);
+    const callbacks = listeners.get(connectionKey) ?? [onMessage];
+    callbacks.forEach(callback => callback(data));
   });
   socket.addEventListener('error', error => {
     console.error('WebSocket error:', error);
@@ -165,10 +167,10 @@ export function useWebSockets<T>({
     function connect({ cluster, url, onMessage }: WebSocketConnectionRequest<T>) {
       const connectionKey = cluster + url;
 
-      if (!sockets.has(connectionKey)) {
-        // Add new listener for this URL
-        listeners.set(connectionKey, [...(listeners.get(connectionKey) ?? []), onMessage]);
+      // Always register the current listener, even when reusing an existing socket.
+      listeners.set(connectionKey, [...(listeners.get(connectionKey) ?? []), onMessage]);
 
+      if (!sockets.has(connectionKey)) {
         // Mark socket as pending, so we don't open more than one
         sockets.set(connectionKey, 'pending');
 
