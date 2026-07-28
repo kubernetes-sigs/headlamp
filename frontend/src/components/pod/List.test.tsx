@@ -48,7 +48,12 @@ vi.mock('../common', () => ({
 }));
 
 vi.mock('../common/Resource/ResourceListView', () => ({
-  default: (props: any) => <>{props.headerProps?.titleSideActions}</>,
+  default: (props: any) => (
+    <>
+      <div data-testid="title-side-actions">{props.headerProps?.titleSideActions}</div>
+      <div data-testid="header-actions">{props.headerProps?.actions}</div>
+    </>
+  ),
 }));
 
 vi.mock('../common/Resource/ResourceTable', () => ({
@@ -71,8 +76,13 @@ describe('PodListRenderer', () => {
       />
     );
 
+    expect(screen.getByTestId('title-side-actions')).toBeEmptyDOMElement();
     expect(screen.getByText('1 of ~5')).toBeVisible();
+    const headerActions = screen.getByTestId('header-actions');
+    expect(headerActions).toContainElement(screen.getByText('1 of ~5'));
+
     const button = screen.getByRole('button', { name: 'Load more' });
+    expect(headerActions).toContainElement(button);
     expect(mockTranslation).toHaveBeenCalledWith('glossary|Load more');
 
     fireEvent.click(button);
