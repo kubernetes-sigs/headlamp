@@ -20,6 +20,7 @@ import { GraphEdge, GraphNode } from './graphModel';
 import {
   EXTREME_SIMPLIFICATION_THRESHOLD,
   EXTREME_SIMPLIFIED_NODE_LIMIT,
+  getGraphForSelectedNamespace,
   selectTopN,
   SIMPLIFIED_NODE_LIMIT,
   simplifyGraph,
@@ -30,6 +31,57 @@ import {
 const _dont_delete_me = App;
 
 describe('graphSimplification', () => {
+  const makeNamespacePods = (count: number, namespace: string): GraphNode[] =>
+    Array.from({ length: count }, (_, i) => ({
+      id: `${namespace}-pod-${i}`,
+      kubeObject: new Pod({
+        kind: 'Pod',
+        metadata: {
+          name: `pod-${i}`,
+          namespace,
+          uid: `${namespace}-pod-${i}`,
+        },
+        status: { phase: 'Running', conditions: [{ type: 'Ready', status: 'True' }] },
+      } as any),
+    }));
+
+  describe('getGraphForSelectedNamespace', () => {
+    it('shows every resource in a small selected namespace', () => {
+      const namespaceNodes = makeNamespacePods(15, 'small');
+      const otherNodes = makeNamespacePods(1000, 'other');
+      const filteredGraph = { nodes: [...namespaceNodes, ...otherNodes], edges: [] };
+      const simplifiedGraph = simplifyGraph(filteredGraph.nodes, [], {
+        enabled: true,
+        maxNodes: SIMPLIFIED_NODE_LIMIT,
+      });
+
+      const result = getGraphForSelectedNamespace(filteredGraph, simplifiedGraph, 'small');
+
+      expect(result.simplified).toBe(false);
+      expect(result.nodes).toHaveLength(15);
+      expect(result.nodes.every(node => node.kubeObject?.metadata.namespace === 'small')).toBe(
+        true
+      );
+    });
+
+    it('simplifies a selected namespace with 10,000 resources', () => {
+      const namespaceNodes = makeNamespacePods(10000, 'large');
+      const filteredGraph = { nodes: namespaceNodes, edges: [] };
+      const simplifiedGraph = simplifyGraph(namespaceNodes, [], {
+        enabled: true,
+        maxNodes: SIMPLIFIED_NODE_LIMIT,
+      });
+
+      const result = getGraphForSelectedNamespace(filteredGraph, simplifiedGraph, 'large');
+
+      expect(result.simplified).toBe(true);
+      expect(result.nodes).toHaveLength(SIMPLIFIED_NODE_LIMIT);
+      expect(result.nodes.every(node => node.kubeObject?.metadata.namespace === 'large')).toBe(
+        true
+      );
+    });
+  });
+
   describe('simplifyGraph', () => {
     it('should not simplify when disabled', () => {
       const nodes: GraphNode[] = Array.from({ length: 2000 }, (_, i) => ({

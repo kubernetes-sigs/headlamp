@@ -93,6 +93,42 @@ export const EXTREME_SIMPLIFICATION_THRESHOLD = 10000;
 export const EXTREME_SIMPLIFIED_NODE_LIMIT = 300;
 
 /**
+ * Build the graph shown after selecting a namespace from a simplified overview.
+ * The namespace is scoped from the unsimplified graph, then simplified using its
+ * own resource count so small namespaces remain complete and large ones stay
+ * safe to render.
+ *
+ * @param filteredGraph Unsimplified graph after applying active filters.
+ * @param simplifiedGraph Graph used for the overview.
+ * @param namespaceName Selected namespace name, if the selection is a namespace.
+ * @returns The selected namespace graph, or the overview graph when not applicable.
+ */
+export function getGraphForSelectedNamespace(
+  filteredGraph: { nodes: GraphNode[]; edges: GraphEdge[] },
+  simplifiedGraph: { nodes: GraphNode[]; edges: GraphEdge[]; simplified: boolean },
+  namespaceName?: string
+) {
+  if (!simplifiedGraph.simplified || !namespaceName) return simplifiedGraph;
+
+  const namespaceNodes = filteredGraph.nodes.filter(
+    node => node.kubeObject?.metadata?.namespace === namespaceName
+  );
+  const namespaceNodeIds = new Set(namespaceNodes.map(node => node.id));
+  const namespaceEdges = filteredGraph.edges.filter(
+    edge => namespaceNodeIds.has(edge.source) && namespaceNodeIds.has(edge.target)
+  );
+  const maxNodes =
+    namespaceNodes.length > EXTREME_SIMPLIFICATION_THRESHOLD
+      ? EXTREME_SIMPLIFIED_NODE_LIMIT
+      : SIMPLIFIED_NODE_LIMIT;
+
+  return simplifyGraph(namespaceNodes, namespaceEdges, {
+    enabled: namespaceNodes.length > SIMPLIFICATION_THRESHOLD,
+    maxNodes,
+  });
+}
+
+/**
  * Simplifies a large graph by keeping only the most important nodes.
  *
  * For graphs larger than the threshold, reduces the node count to keep
