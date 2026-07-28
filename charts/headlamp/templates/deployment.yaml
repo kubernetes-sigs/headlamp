@@ -22,6 +22,14 @@
 {{- $clusterInventoryProviderFile := "/etc/cluster-inventory/config.json" }}
 {{- $clusterInventoryProviderMountDir := "/etc/cluster-inventory" }}
 {{- $clusterInventoryProviderConfigPath := "config.json" }}
+{{- $kubeconfigSecret := .Values.kubeconfigSecret | default dict }}
+{{- $kubeconfigSecretCreate := $kubeconfigSecret.create | default false }}
+{{- $kubeconfigSecretRawName := (($kubeconfigSecret.name | default "") | toString) }}
+{{- $kubeconfigSecretName := ternary "headlamp-kubeconfig" $kubeconfigSecretRawName (and $kubeconfigSecretCreate (eq $kubeconfigSecretRawName "")) }}
+{{- $kubeconfigSecretEnabled := ne $kubeconfigSecretName "" }}
+{{- $kubeconfigMountDir := "/headlamp-kubeconfig" }}
+{{- $kubeconfigFileName := "multi-cluster-kubeconfig.yaml" }}
+{{- $kubeconfigMountedFilePath := printf "%s/%s" $kubeconfigMountDir $kubeconfigFileName }}
 {{- $readOnlyRootFs := eq (include "headlamp.readOnlyRootFilesystem" .Values) "true" }}
 {{- $pluginManagerSecurityContext := dict }}
 {{- if .Values.pluginsManager.securityContext }}
@@ -120,13 +128,13 @@ spec:
             {{- end }}
           image: "{{ .Values.image.registry}}/{{ .Values.image.repository }}:{{ .Values.image.tag | default (printf "v%s" .Chart.AppVersion) }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          {{ if or $oidc .Values.env $staticPluginsDisabled }}
+          {{ if or $oidc .Values.env $staticPluginsDisabled $kubeconfigSecretEnabled }}
           {{- if $oidc.externalSecret.enabled }}
           # Check if externalSecret is enabled
           envFrom:
           - secretRef:
               name: {{ $oidc.externalSecret.name }}
-          {{- if or .Values.env $staticPluginsDisabled }}
+          {{- if or .Values.env $staticPluginsDisabled $kubeconfigSecretEnabled }}
           env:
             {{- with .Values.env }}
             {{- toYaml . | nindent 12 }}
@@ -134,6 +142,12 @@ spec:
             {{- if $staticPluginsDisabled }}
             - name: HEADLAMP_STATIC_PLUGINS_DIR
               value: ""
+            {{- end }}
+            {{- if $kubeconfigSecretEnabled }}
+            - name: HEADLAMP_CONFIG_KUBECONFIG
+              value: {{ $kubeconfigMountedFilePath | quote }}
+            - name: KUBECONFIG
+              value: {{ $kubeconfigMountedFilePath | quote }}
             {{- end }}
           {{- end }}
           {{- else }}
@@ -257,6 +271,12 @@ spec:
             {{- if $staticPluginsDisabled }}
             - name: HEADLAMP_STATIC_PLUGINS_DIR
               value: ""
+            {{- end }}
+            {{- if $kubeconfigSecretEnabled }}
+            - name: HEADLAMP_CONFIG_KUBECONFIG
+              value: {{ $kubeconfigMountedFilePath | quote }}
+            - name: KUBECONFIG
+              value: {{ $kubeconfigMountedFilePath | quote }}
             {{- end }}
           {{- end }}
           {{- end }}
@@ -418,11 +438,16 @@ spec:
             failureThreshold: {{ .Values.probes.readinessProbe.failureThreshold | default 3 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if or .Values.pluginsManager.enabled $clusterInventoryEnabled .Values.volumeMounts $tmpCtx.addMount }}
+          {{- if or .Values.pluginsManager.enabled $clusterInventoryEnabled $kubeconfigSecretEnabled .Values.volumeMounts $tmpCtx.addMount }}
           volumeMounts:
             {{- if .Values.pluginsManager.enabled }}
             - name: plugins-dir
               mountPath: {{ .Values.config.pluginsDir }}
+            {{- end }}
+            {{- if $kubeconfigSecretEnabled }}
+            - name: kubeconfig-secret
+              mountPath: {{ $kubeconfigMountDir }}
+              readOnly: true
             {{- end }}
             {{- if $clusterInventoryEnabled }}
             - name: cluster-inventory-config
@@ -523,7 +548,7 @@ spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . | quote }}
       {{- end }}
-      {{- if or .Values.pluginsManager.enabled $clusterInventoryEnabled .Values.volumes $tmpCtx.addVolume $pluginsTmpCtx.addVolume }}
+      {{- if or .Values.pluginsManager.enabled $clusterInventoryEnabled $kubeconfigSecretEnabled .Values.volumes $tmpCtx.addVolume $pluginsTmpCtx.addVolume }}
       volumes:
         {{- if .Values.pluginsManager.enabled }}
         - name: plugins-dir
@@ -548,6 +573,14 @@ spec:
           image:
             reference: {{ $plugin.image | quote }}
         {{- end }}
+        {{- end }}
+        {{- if $kubeconfigSecretEnabled }}
+        - name: kubeconfig-secret
+          secret:
+            secretName: {{ $kubeconfigSecretName }}
+            items:
+              - key: {{ $kubeconfigFileName }}
+                path: {{ $kubeconfigFileName }}
         {{- end }}
         {{- if $tmpCtx.addVolume }}
         - name: headlamp-tmp

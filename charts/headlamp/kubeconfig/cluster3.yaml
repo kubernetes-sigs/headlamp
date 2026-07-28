@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Config
+clusters:
+  - name: cluster3
+    cluster:
+      server: https://cluster3.example.invalid
+contexts:
+  - name: cluster3
+    context:
+      cluster: cluster3
+      user: cluster3-user
+users:
+  - name: cluster3-user
+    user:
+      token: ""
+current-context: cluster3

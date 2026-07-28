@@ -48,6 +48,33 @@
       "type": "string",
       "description": "Override the name of the chart"
     },
+    "kubeconfigSecret": {
+      "type": "object",
+      "description": "Kubeconfig Secret settings for loading multiple external clusters",
+      "properties": {
+        "create": {
+          "type": "boolean",
+          "default": false,
+          "description": "Generate a kubeconfig Secret from files in the chart kubeconfig/ directory. Defaults to false (opt-in)"
+        },
+        "skipIfExists": {
+          "type": "boolean",
+          "default": true,
+          "description": "Skip creating Secret when one with the same name already exists"
+        },
+        "name": {
+          "type": "string",
+          "description": "Name of the kubeconfig Secret to mount in the Headlamp pod. When empty and create=true, defaults to headlamp-kubeconfig. When create=false, set this to an existing Secret name"
+        },
+        "selectedKubeconfigs": {
+          "type": "array",
+          "description": "Optional list of kubeconfig files from the chart kubeconfig/ directory to merge",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "fullnameOverride": {
       "type": "string",
       "description": "Override the full name of the chart"

@@ -177,6 +177,28 @@ config:
   # Extra arguments that can be given to the container. See charts/headlamp/README.md for more information.
   extraArgs: []
 
+# -- Kubeconfig Secret settings for loading multiple external clusters.
+kubeconfigSecret:
+  # -- Generate a kubeconfig Secret from files in the chart's kubeconfig/ directory.
+  create: false
+  # -- Skip creating Secret when one with the same name already exists.
+  skipIfExists: true
+  # -- Name of the kubeconfig Secret to mount in the Headlamp pod.
+  # When empty and create=true, defaults to "headlamp-kubeconfig".
+  # Optional: set when referencing an existing Secret with create=false.
+  name: ""
+  # -- Optional list of kubeconfig files (from the chart's kubeconfig/ folder)
+  # to merge into a single Secret payload. Entries can be file names with or
+  # without the .yaml extension.
+  # If you have multiple kubeconfig files in the chart's kubeconfig/ folder and want to
+  # headlamp to load them while the pod starts, you can list them here.
+  selectedKubeconfigs: []
+    # - cluster1.yaml
+    # - cluster2.yaml
+    # - cluster3.yaml
+    # - cluster4.yaml
+    # - cluster5.yaml
+
 # -- An optional list of environment variables
 # env:
 #   - name: KUBERNETES_SERVICE_HOST
