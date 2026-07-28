@@ -38,6 +38,7 @@ describe('useWebSockets', () => {
   });
 
   afterEach(() => {
+    vi.restoreAllMocks();
     WS.clean();
   });
 
@@ -65,8 +66,37 @@ describe('useWebSockets', () => {
     });
   });
 
-  it('keeps a shared websocket alive until the last listener unsubscribes', async () => {
+  it('delivers messages to remaining listeners when one listener throws', async () => {
     const url = 'api/v1/pods?watch=1&resourceVersion=2';
+    const server = new WS(`${BASE_WS_URL}${url}`);
+    const listenerError = new Error('listener failed');
+    const onMessageA = vi.fn(() => {
+      throw listenerError;
+    });
+    const onMessageB = vi.fn();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    renderHook(() =>
+      useWebSockets({
+        connections: [
+          { cluster: '', url, onMessage: onMessageA },
+          { cluster: '', url, onMessage: onMessageB },
+        ],
+      })
+    );
+
+    await server.connected;
+    await server.send(JSON.stringify({ type: 'DELETED', object: { metadata: { uid: 'pod-b' } } }));
+
+    await waitFor(() => {
+      expect(onMessageA).toHaveBeenCalledTimes(1);
+      expect(onMessageB).toHaveBeenCalledTimes(1);
+      expect(consoleError).toHaveBeenCalledWith('WebSocket listener error:', listenerError);
+    });
+  });
+
+  it('keeps a shared websocket alive until the last listener unsubscribes', async () => {
+    const url = 'api/v1/pods?watch=1&resourceVersion=3';
     const server = new WS(`${BASE_WS_URL}${url}`);
     const onMessageA = vi.fn();
     const onMessageB = vi.fn();
@@ -88,6 +118,34 @@ describe('useWebSockets', () => {
     hookA.unmount();
 
     await server.send(JSON.stringify({ type: 'DELETED', object: { metadata: { uid: 'pod-b' } } }));
+
+    await waitFor(() => {
+      expect(onMessageA).not.toHaveBeenCalled();
+      expect(onMessageB).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  it('keeps a pending shared websocket alive when its first listener unsubscribes', async () => {
+    const url = 'api/v1/pods?watch=1&resourceVersion=4';
+    const server = new WS(`${BASE_WS_URL}${url}`);
+    const onMessageA = vi.fn();
+    const onMessageB = vi.fn();
+
+    const hookA = renderHook(() =>
+      useWebSockets({
+        connections: [{ cluster: '', url, onMessage: onMessageA }],
+      })
+    );
+
+    renderHook(() =>
+      useWebSockets({
+        connections: [{ cluster: '', url, onMessage: onMessageB }],
+      })
+    );
+    hookA.unmount();
+
+    await server.connected;
+    await server.send(JSON.stringify({ type: 'DELETED', object: { metadata: { uid: 'pod-d' } } }));
 
     await waitFor(() => {
       expect(onMessageA).not.toHaveBeenCalled();
