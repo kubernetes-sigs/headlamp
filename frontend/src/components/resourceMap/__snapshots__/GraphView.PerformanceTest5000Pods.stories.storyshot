@@ -334,34 +334,6 @@
                   Showing 500 of 8850 nodes
                 </span>
               </div>
-              <div
-                class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorPrimary MuiChip-clickable MuiChip-clickableColorPrimary MuiChip-filledPrimary css-661vdt-MuiButtonBase-root-MuiChip-root"
-                role="button"
-                tabindex="0"
-              >
-                <span
-                  class="MuiChip-label MuiChip-labelMedium css-6od3lo-MuiChip-label"
-                >
-                  Incremental Updates
-                </span>
-                <span
-                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                />
-              </div>
-              <div
-                class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-1b73nf-MuiButtonBase-root-MuiChip-root"
-                role="button"
-                tabindex="0"
-              >
-                <span
-                  class="MuiChip-label MuiChip-labelMedium css-1jzq0dw-MuiChip-label"
-                >
-                  Performance Stats
-                </span>
-                <span
-                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                />
-              </div>
             </div>
             <div
               style="flex-grow: 1;"
