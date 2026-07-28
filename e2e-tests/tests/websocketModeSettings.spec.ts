@@ -101,3 +101,113 @@ test('WebSocket mode can be reset to default', async ({ page }) => {
   expect(text).toContain('Default');
   expect(await getStoredMode(page)).toBe('auto');
 });
+
+test('Off mode disables standard and multiplexed watch connections', async ({ page }) => {
+  const watchSocketUrls: string[] = [];
+  const isWatchSocket = (url: string) => {
+    const socketUrl = new URL(url);
+    return (
+      socketUrl.pathname.endsWith('/wsMultiplexer') ||
+      (socketUrl.pathname.endsWith('/api/v1/pods') && socketUrl.searchParams.has('watch'))
+    );
+  };
+
+  page.on('websocket', socket => {
+    if (isWatchSocket(socket.url())) {
+      watchSocketUrls.push(socket.url());
+    }
+  });
+
+  await page.route('**/clusters/test/api/v1/pods?*', async route => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        apiVersion: 'v1',
+        kind: 'PodList',
+        metadata: { resourceVersion: '1' },
+        items: [
+          {
+            apiVersion: 'v1',
+            kind: 'Pod',
+            metadata: {
+              name: 'websocket-mode-test-pod',
+              namespace: 'default',
+              uid: 'websocket-mode-test-pod-uid',
+              resourceVersion: '1',
+              creationTimestamp: '2026-01-01T00:00:00Z',
+            },
+            spec: { containers: [{ name: 'main', image: 'busybox' }] },
+            status: { phase: 'Running' },
+          },
+        ],
+      }),
+    });
+  });
+
+  await headlampPage.navigateTopage('/settings/general', /Settings/);
+  await selectWebsocketMode(page, 'Off (disable real-time updates)');
+
+  await headlampPage.navigateTopage('/c/test/pods', /Pods/);
+  await expect(page.getByRole('link', { name: 'websocket-mode-test-pod' })).toBeVisible();
+  await expect(
+    page.waitForEvent('websocket', {
+      predicate: socket => isWatchSocket(socket.url()),
+      timeout: 1000,
+    })
+  ).rejects.toThrow();
+  expect(watchSocketUrls).toEqual([]);
+
+  await headlampPage.navigateTopage('/settings/general', /Settings/);
+  await selectWebsocketMode(page, 'Websockets (standard)');
+  watchSocketUrls.length = 0;
+
+  await headlampPage.navigateTopage('/c/test/pods', /Pods/);
+  await expect(page.getByRole('link', { name: 'websocket-mode-test-pod' })).toBeVisible();
+  await expect.poll(() => watchSocketUrls.length).toBeGreaterThan(0);
+  expect(watchSocketUrls.every(url => !new URL(url).pathname.endsWith('/wsMultiplexer'))).toBe(true);
+});
+
+test('Multiplexer mode receives backend watch updates', async ({ page }) => {
+  test.setTimeout(60000);
+
+  await headlampPage.navigateTopage('/settings/general', /Settings/);
+  await selectWebsocketMode(page, 'Multiplexer (experimental, improved performance)');
+
+  const multiplexerSocket = page.waitForEvent('websocket', {
+    predicate: socket =>
+      new URL(socket.url()).pathname.endsWith('/clusters/test/wsMultiplexer'),
+  });
+
+  await headlampPage.navigateTopage('/c/test/pods', /Pods/);
+  const socket = await multiplexerSocket;
+  const receivedFrames: string[] = [];
+  socket.on('framereceived', ({ payload }) => receivedFrames.push(payload.toString()));
+
+  const podName = `websocket-multiplexer-e2e-${Date.now()}`;
+  const podUrl = `/clusters/test/api/v1/namespaces/default/pods`;
+  const headers: Record<string, string> = process.env.HEADLAMP_TEST_TOKEN
+    ? { Authorization: `Bearer ${process.env.HEADLAMP_TEST_TOKEN}` }
+    : {};
+  const createResponse = await page.request.post(podUrl, {
+    headers,
+    data: {
+      apiVersion: 'v1',
+      kind: 'Pod',
+      metadata: { name: podName },
+      spec: { containers: [{ name: 'main', image: 'busybox' }] },
+    },
+  });
+  expect(createResponse.ok(), `failed to create Pod: ${await createResponse.text()}`).toBe(true);
+
+  const observedPod = page.getByRole('link', { name: podName });
+  try {
+    await expect(observedPod).toBeVisible({ timeout: 15000 });
+    await expect.poll(() => receivedFrames.some(frame => frame.includes(podName))).toBe(true);
+    receivedFrames.length = 0;
+  } finally {
+    const deleteResponse = await page.request.delete(`${podUrl}/${podName}`, { headers });
+    expect(deleteResponse.ok(), `failed to delete Pod: ${await deleteResponse.text()}`).toBe(true);
+  }
+  await expect(observedPod).toHaveCount(0, { timeout: 15000 });
+  await expect.poll(() => receivedFrames.some(frame => frame.includes(podName))).toBe(true);
+});
