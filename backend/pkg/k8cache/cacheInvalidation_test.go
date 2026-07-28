@@ -44,47 +44,82 @@ func TestDeleteKeys(t *testing.T) { //nolint:funlen
 		aftermockCache  *MockCache
 	}{
 		{
-			name: "both keys with empty namespace and non-empty are present in cache",
+			name: "namespaced and all-namespace list variants are both deleted",
 			beforemockCache: &MockCache{
 				store: map[string]string{
-					"+pods+default+test-context":            "value-1",
-					"apps+deployments+default+test-context": "value-2",
-					"+pods++test-context":                   "value-3",
+					"+pods+default+test-context++variant":            "value-1",
+					"apps+deployments+default+test-context++variant": "value-2",
+					"+pods++test-context++variant":                   "value-3",
 				},
 			},
-			key: "+pods+default+test-context",
+			key: "+pods+default+test-context++variant",
 			aftermockCache: &MockCache{
 				store: map[string]string{
-					"apps+deployments+default+test-context": "value-2",
+					"apps+deployments+default+test-context++variant": "value-2",
 				},
 			},
 		},
 		{
-			name: "only key with only empty namespace present in cache",
+			name: "only the all-namespace list variant is present",
 			beforemockCache: &MockCache{
 				store: map[string]string{
-					"apps+deployments+default+test-context": "value-2", "+pods++test-context": "value-3",
+					"apps+deployments+default+test-context++variant": "value-2",
+					"+pods++test-context++variant":                   "value-3",
 				},
 			},
-			key: "+pods+default+test-context",
+			key: "+pods+default+test-context++variant",
 			aftermockCache: &MockCache{
 				store: map[string]string{
-					"apps+deployments+default+test-context": "value-2",
+					"apps+deployments+default+test-context++variant": "value-2",
 				},
 			},
 		},
 		{
-			name: "only key with only non-empty namespace present in cache",
+			name: "every query variant of the same list is deleted",
 			beforemockCache: &MockCache{
 				store: map[string]string{
-					"apps+deployments+default+test-context": "value-2",
-					"+pods+default+test-context":            "value-3",
+					"apps+deployments+default+test-context++variant": "value-2",
+					"+pods+default+test-context++variant-a":          "value-3",
+					"+pods+default+test-context++variant-b":          "value-4",
 				},
 			},
-			key: "+pods+default+test-context",
+			key: "+pods+default+test-context++variant-a",
 			aftermockCache: &MockCache{
 				store: map[string]string{
-					"apps+deployments+default+test-context": "value-2",
+					"apps+deployments+default+test-context++variant": "value-2",
+				},
+			},
+		},
+		{
+			name: "a named key also deletes the lists it appears in, but not a sibling object",
+			beforemockCache: &MockCache{
+				store: map[string]string{
+					"+pods+default+test-context+mypod+variant":   "value-1",
+					"+pods+default+test-context++variant":        "value-2",
+					"+pods+default+test-context+otherpod+varian": "value-3",
+				},
+			},
+			key: "+pods+default+test-context+mypod+variant",
+			aftermockCache: &MockCache{
+				store: map[string]string{
+					"+pods+default+test-context+otherpod+varian": "value-3",
+				},
+			},
+		},
+		{
+			name: "a same-named object of another resource type is untouched",
+			beforemockCache: &MockCache{
+				store: map[string]string{
+					"+pods+default+test-context+nginx+variant":       "pod-data",
+					"+secrets+default+test-context+nginx+variant":    "secret-data",
+					"+configmaps+default+test-context+nginx+variant": "configmap-data",
+				},
+			},
+			key: "+pods+default+test-context+nginx+variant",
+			aftermockCache: &MockCache{
+				store: map[string]string{
+					"+secrets+default+test-context+nginx+variant":    "secret-data",
+					"+configmaps+default+test-context+nginx+variant": "configmap-data",
 				},
 			},
 		},
@@ -92,41 +127,41 @@ func TestDeleteKeys(t *testing.T) { //nolint:funlen
 			name: "empty key does not panic",
 			beforemockCache: &MockCache{ //nolint:exhaustruct
 				store: map[string]string{
-					"+pods+default+test-context": "value-1",
+					"+pods+default+test-context++variant": "value-1",
 				},
 			},
 			key: "",
 			aftermockCache: &MockCache{ //nolint:exhaustruct
 				store: map[string]string{
-					"+pods+default+test-context": "value-1",
+					"+pods+default+test-context++variant": "value-1",
 				},
 			},
 		},
 		{ //nolint:exhaustruct
-			name: "malformed key with fewer than 4 parts does not panic",
+			name: "malformed key with fewer than 5 parts does not panic",
 			beforemockCache: &MockCache{ //nolint:exhaustruct
 				store: map[string]string{
-					"+pods+default+test-context": "value-1",
+					"+pods+default+test-context++variant": "value-1",
 				},
 			},
 			key: "partial+key",
 			aftermockCache: &MockCache{ //nolint:exhaustruct
 				store: map[string]string{
-					"+pods+default+test-context": "value-1",
+					"+pods+default+test-context++variant": "value-1",
 				},
 			},
 		},
 		{ //nolint:exhaustruct
-			name: "exactly 3-part key is treated as malformed",
+			name: "a key without a name segment is treated as malformed",
 			beforemockCache: &MockCache{ //nolint:exhaustruct
 				store: map[string]string{
-					"+pods+default+test-context": "value-1",
+					"+pods+default+test-context++variant": "value-1",
 				},
 			},
-			key: "group+kind+ns",
+			key: "group+resource+ns+context",
 			aftermockCache: &MockCache{ //nolint:exhaustruct
 				store: map[string]string{
-					"+pods+default+test-context": "value-1",
+					"+pods+default+test-context++variant": "value-1",
 				},
 			},
 		},
@@ -139,6 +174,29 @@ func TestDeleteKeys(t *testing.T) { //nolint:funlen
 			assert.Equal(t, tc.aftermockCache, mockCache)
 		})
 	}
+}
+
+// TestDeleteByPrefixesRefusesEmptyPrefix guards the whole-cache purge an empty prefix
+// would otherwise cause, since strings.HasPrefix matches every key against "".
+func TestDeleteByPrefixesRefusesEmptyPrefix(t *testing.T) {
+	mockCache := &MockCache{
+		store: map[string]string{
+			"+pods+default+test-context++variant": "value-1",
+			"+secrets+default+test-context++var":  "value-2",
+		},
+	}
+
+	k8cache.ExportedDeleteByPrefixes(mockCache, "")
+	k8cache.ExportedDeleteByPrefixes(mockCache, "+pods+default+test-context++", "")
+
+	all, err := mockCache.GetAll(context.Background(), nil)
+	assert.NoError(t, err)
+	assert.Len(t, all, 2, "an empty prefix must not purge the cache")
+
+	k8cache.ExportedDeleteByPrefixes(mockCache)
+	all, err = mockCache.GetAll(context.Background(), nil)
+	assert.NoError(t, err)
+	assert.Len(t, all, 2, "no prefixes must delete nothing")
 }
 
 func TestSkipWebSocket(t *testing.T) {
@@ -229,17 +287,17 @@ func TestRunInformerToWatch(t *testing.T) { //nolint: funlen
 			mockPod:    mockPod,
 			beforeCache: &MockCache{
 				store: map[string]string{
-					"+pods+default+test-context-2":            "pod-data",
-					"apps+deployments+default+test-context-2": "deployment-data",
-					"+nodes+default+test-context-2":           "node-data",
-					"apps+replicaset+default+test-context-2":  "replicaset-data",
+					"+pods+default+test-context-2++variant":            "pod-data",
+					"apps+deployments+default+test-context-2++variant": "deployment-data",
+					"+nodes+default+test-context-2++variant":           "node-data",
+					"apps+replicaset+default+test-context-2++variant":  "replicaset-data",
 				},
 			},
 			afterCache: &MockCache{
 				store: map[string]string{
-					"apps+deployments+default+test-context-2": "deployment-data",
-					"+nodes+default+test-context-2":           "node-data",
-					"apps+replicaset+default+test-context-2":  "replicaset-data",
+					"apps+deployments+default+test-context-2++variant": "deployment-data",
+					"+nodes+default+test-context-2++variant":           "node-data",
+					"apps+replicaset+default+test-context-2++variant":  "replicaset-data",
 				},
 			},
 		},
@@ -252,17 +310,17 @@ func TestRunInformerToWatch(t *testing.T) { //nolint: funlen
 			mockPod:    mockPod,
 			beforeCache: &MockCache{
 				store: map[string]string{
-					"+pods+default+test-context-2":            "pod-data",
-					"apps+deployments+default+test-context-2": "deployment-data",
-					"+nodes+default+test-context-2":           "node-data",
-					"apps+replicaset+default+test-context-2":  "replicaset-data",
+					"+pods+default+test-context-2++variant":            "pod-data",
+					"apps+deployments+default+test-context-2++variant": "deployment-data",
+					"+nodes+default+test-context-2++variant":           "node-data",
+					"apps+replicaset+default+test-context-2++variant":  "replicaset-data",
 				},
 			},
 			afterCache: &MockCache{
 				store: map[string]string{
-					"apps+deployments+default+test-context-2": "deployment-data",
-					"+nodes+default+test-context-2":           "node-data",
-					"apps+replicaset+default+test-context-2":  "replicaset-data",
+					"apps+deployments+default+test-context-2++variant": "deployment-data",
+					"+nodes+default+test-context-2++variant":           "node-data",
+					"apps+replicaset+default+test-context-2++variant":  "replicaset-data",
 				},
 			},
 		},
@@ -275,17 +333,17 @@ func TestRunInformerToWatch(t *testing.T) { //nolint: funlen
 			mockPod:    mockPod,
 			beforeCache: &MockCache{
 				store: map[string]string{
-					"+pods+default+test-context-2":            "pod-data",
-					"apps+deployments+default+test-context-2": "deployment-data",
-					"+nodes+default+test-context-2":           "node-data",
-					"apps+replicaset+default+test-context-2":  "replicaset-data",
+					"+pods+default+test-context-2++variant":            "pod-data",
+					"apps+deployments+default+test-context-2++variant": "deployment-data",
+					"+nodes+default+test-context-2++variant":           "node-data",
+					"apps+replicaset+default+test-context-2++variant":  "replicaset-data",
 				},
 			},
 			afterCache: &MockCache{
 				store: map[string]string{
-					"apps+deployments+default+test-context-2": "deployment-data",
-					"+nodes+default+test-context-2":           "node-data",
-					"apps+replicaset+default+test-context-2":  "replicaset-data",
+					"apps+deployments+default+test-context-2++variant": "deployment-data",
+					"+nodes+default+test-context-2++variant":           "node-data",
+					"apps+replicaset+default+test-context-2++variant":  "replicaset-data",
 				},
 			},
 		},
@@ -305,7 +363,7 @@ func TestRunInformerToWatch(t *testing.T) { //nolint: funlen
 			factory.Start(stopCh)
 			factory.WaitForCacheSync(stopCh)
 
-			podKey := "+pods+default+test-context-2"
+			podKey := "+pods+default+test-context-2++variant"
 
 			switch tc.eventType {
 			case "add":
@@ -404,7 +462,7 @@ func TestRunInformerToWatch_OldResource(t *testing.T) {
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(scheme, clientMap)
 	factory := dynamicinformer.NewFilteredDynamicSharedInformerFactory(client, 0, "", nil)
 
-	mockCache := &MockCache{store: map[string]string{"+pods+default+test-context": "pod-data"}}
+	mockCache := &MockCache{store: map[string]string{"+pods+default+test-context++variant": "pod-data"}}
 
 	k8cache.RunInformerToWatch([]schema.GroupVersionResource{gvr}, factory, "test-context", mockCache)
 
@@ -420,7 +478,7 @@ func TestRunInformerToWatch_OldResource(t *testing.T) {
 
 	checkEviction := func(event string) {
 		assert.Eventually(t, func() bool {
-			_, err := mockCache.Get(context.Background(), "+pods+default+test-context")
+			_, err := mockCache.Get(context.Background(), "+pods+default+test-context++variant")
 			return err != nil
 		}, 2*time.Second, 50*time.Millisecond, "Cache should be invalidated on "+event)
 	}
@@ -431,7 +489,7 @@ func TestRunInformerToWatch_OldResource(t *testing.T) {
 	assert.NoError(t, err)
 	checkEviction("Update")
 
-	_ = mockCache.Set(context.Background(), "+pods+default+test-context", "pod-data")
+	_ = mockCache.Set(context.Background(), "+pods+default+test-context++variant", "pod-data")
 	err = client.Tracker().Delete(gvr, "default", "old-pod")
 	assert.NoError(t, err)
 	checkEviction("Delete")
@@ -439,13 +497,71 @@ func TestRunInformerToWatch_OldResource(t *testing.T) {
 	close(stopCh)
 }
 
+// TestInvalidationEvictsKeysFromGenerateKey pins invalidation to the keys GenerateKey
+// actually produces. Without it the invalidation tests pass on hand-written keys even if
+// the two sides drift apart and the cache silently stops being invalidated.
+func TestInvalidationEvictsKeysFromGenerateKey(t *testing.T) {
+	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+	contextKey := "test-context"
+
+	evicted := []string{
+		"/clusters/c/api/v1/namespaces/default/pods",
+		"/clusters/c/api/v1/namespaces/default/pods?labelSelector=app%3Dfoo",
+		"/clusters/c/api/v1/pods",
+		"/clusters/c/api/v1/namespaces/default/pods/test-pod",
+		"/clusters/c/api/v1/namespaces/default/pods/test-pod/log",
+	}
+	retained := []string{
+		"/clusters/c/api/v1/namespaces/default/pods/other-pod",
+		"/clusters/c/api/v1/namespaces/default/services/test-pod",
+		"/clusters/c/api/v1/namespaces/default/secrets/test-pod",
+		"/clusters/c/api/v1/namespaces/other/pods/test-pod",
+	}
+
+	mockCache := NewMockCache()
+
+	keyFor := func(raw string) string {
+		parsed, err := url.Parse(raw)
+		require.NoError(t, err)
+
+		key, err := k8cache.GenerateKey(parsed, contextKey)
+		require.NoError(t, err)
+		require.NoError(t, mockCache.Set(context.Background(), key, raw))
+
+		return key
+	}
+
+	evictedKeys := make([]string, 0, len(evicted))
+	for _, raw := range evicted {
+		evictedKeys = append(evictedKeys, keyFor(raw))
+	}
+
+	retainedKeys := make([]string, 0, len(retained))
+	for _, raw := range retained {
+		retainedKeys = append(retainedKeys, keyFor(raw))
+	}
+
+	k8cache.ExportedInvalidateCacheKeysForResourceEvent(gvr, "default", "test-pod", contextKey, mockCache)
+
+	for i, key := range evictedKeys {
+		_, err := mockCache.Get(context.Background(), key)
+		assert.Error(t, err, "%s should be evicted", evicted[i])
+	}
+
+	for i, key := range retainedKeys {
+		val, err := mockCache.Get(context.Background(), key)
+		assert.NoError(t, err, "%s should be retained", retained[i])
+		assert.Equal(t, retained[i], val)
+	}
+}
+
 func TestInvalidateCacheKeysForResourceEvent(t *testing.T) {
 	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 	contextKey := "test-context"
-	listKey := "+pods+default+" + contextKey
-	allNamespacesKey := "+pods++" + contextKey
-	namedKey := "+test-pod+default+" + contextKey
-	unrelatedKey := "+services+default+" + contextKey
+	listKey := "+pods+default+" + contextKey + "++variant"
+	allNamespacesKey := "+pods++" + contextKey + "++variant"
+	namedKey := "+pods+default+" + contextKey + "+test-pod+variant"
+	unrelatedKey := "+services+default+" + contextKey + "++variant"
 
 	mockCache := &MockCache{
 		store: map[string]string{
@@ -475,10 +591,10 @@ func TestInvalidateCacheKeysForResourceEvent(t *testing.T) {
 func TestRunInformerToWatch_InvalidatesListNamedAndAllNamespaceCacheKeys(t *testing.T) {
 	gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 	contextKey := "test-context"
-	listKey := "+pods+default+" + contextKey
-	allNamespacesKey := "+pods++" + contextKey
-	namedKey := "+test-pod+default+" + contextKey
-	unrelatedKey := "+services+default+" + contextKey
+	listKey := "+pods+default+" + contextKey + "++variant"
+	allNamespacesKey := "+pods++" + contextKey + "++variant"
+	namedKey := "+pods+default+" + contextKey + "+test-pod+variant"
+	unrelatedKey := "+services+default+" + contextKey + "++variant"
 
 	mockPod := &unstructured.Unstructured{
 		Object: map[string]interface{}{

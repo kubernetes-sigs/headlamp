@@ -23,6 +23,8 @@ import (
 	"bytes"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -163,6 +165,58 @@ func ExtractNamespace(rawURL string) (string, string) {
 	return namespace, kind
 }
 
+// apiRelativePath returns path starting at its /api or /apis segment, dropping any
+// /clusters/{name} prefix.
+func apiRelativePath(path string) (string, bool) {
+	path = strings.TrimRight(path, "/")
+	parts := strings.Split(path, "/")
+
+	apiIdx := kubernetesAPIPathIndex(parts)
+	if apiIdx == -1 {
+		return "", false
+	}
+
+	offset := 0
+	for i := 0; i < apiIdx; i++ {
+		offset += len(parts[i]) + 1
+	}
+
+	return path[offset:], true
+}
+
+// canonicalQuery normalizes a raw query string so that semantically equal queries
+// produce one cache entry. Queries that fail to parse are used verbatim.
+func canonicalQuery(rawQuery string) string {
+	if rawQuery == "" {
+		return ""
+	}
+
+	values, err := url.ParseQuery(rawQuery)
+	if err != nil {
+		return rawQuery
+	}
+
+	return values.Encode()
+}
+
+// requestVariant returns the cache key segment distinguishing requests that address the
+// same object: its subresource and the query parameters selecting what is returned.
+func requestVariant(subresource, rawQuery string) string {
+	h := sha256.New()
+	_, _ = io.WriteString(h, subresource)
+	_, _ = io.WriteString(h, "\n")
+	_, _ = io.WriteString(h, canonicalQuery(rawQuery))
+
+	var (
+		sum     [sha256.Size]byte
+		encoded [2 * sha256.Size]byte
+	)
+
+	hex.Encode(encoded[:], h.Sum(sum[:0]))
+
+	return string(encoded[:])
+}
+
 // escapeCacheKeySegment percent-escapes "%" and "+" so cache key segments can
 // be joined with "+" delimiters without ambiguity. "%" is escaped first so the
 // encoding is injective (see buildCacheKey).
@@ -181,43 +235,94 @@ func unescapeCacheKeySegment(s string) string {
 	return s
 }
 
-// buildCacheKey joins apiGroup, kind, namespace, and contextID into a single
-// cache key using "+" as the delimiter. Each field is percent-escaped so
-// that the only "+" characters left in the key are the delimiters
-// themselves and the encoding round-trips uniquely back to its inputs.
-// This matters most for the context field, since kubeconfig context names
-// are not restricted by Kubernetes naming rules and may legitimately
-// contain "+" (or "%").
+// cacheKeyPrefix joins apiGroup, resource, namespace, contextID, and name into the portion
+// shared by every cached variant of one object (or, when name is empty, of one resource
+// list). Each field is percent-escaped so that the only "+" characters left in the prefix
+// are the delimiters themselves and the encoding round-trips uniquely back to its inputs.
+// This matters most for the context field, since kubeconfig context names are not
+// restricted by Kubernetes naming rules and may legitimately contain "+" (or "%").
+//
+// The trailing delimiter is load-bearing: invalidation matches on this prefix, and an
+// unterminated prefix would also match longer resource, context, or name values.
+func cacheKeyPrefix(apiGroup, resource, namespace, contextID, name string) string {
+	return joinEscapedCacheKeyPrefix(
+		escapeCacheKeySegment(apiGroup),
+		escapeCacheKeySegment(resource),
+		escapeCacheKeySegment(namespace),
+		escapeCacheKeySegment(contextID),
+		escapeCacheKeySegment(name),
+	)
+}
+
+// joinEscapedCacheKeyPrefix lays out a prefix from segments that are already escaped, for
+// callers rebuilding a prefix out of an existing key.
+func joinEscapedCacheKeyPrefix(apiGroup, resource, namespace, contextID, name string) string {
+	return apiGroup + "+" + resource + "+" + namespace + "+" + contextID + "+" + name + "+"
+}
+
+// buildCacheKey appends variant to the prefix built from apiGroup, resource, namespace,
+// contextID, and name.
 //
 // This function is the single source of truth for constructing cache keys.
 // Any code that parses or otherwise manipulates the key format (e.g. the
 // namespace stripping in cache invalidation) must stay consistent with this
 // encoding to avoid the two sides silently drifting out of sync.
-func buildCacheKey(apiGroup, kind, namespace, contextID string) string {
-	return escapeCacheKeySegment(apiGroup) + "+" +
-		escapeCacheKeySegment(kind) + "+" +
-		escapeCacheKeySegment(namespace) + "+" +
-		escapeCacheKeySegment(contextID)
+func buildCacheKey(apiGroup, resource, namespace, contextID, name, variant string) string {
+	return cacheKeyPrefix(apiGroup, resource, namespace, contextID, name) + variant
+}
+
+// cacheKeyFields resolves the request into the Kubernetes resource it addresses. Discovery
+// paths such as /api or /apis/{group} carry no resource, so they fall back to the trailing
+// path segment to stay cacheable.
+func cacheKeyFields(u *url.URL) (request apiResourceRequest, ok bool) {
+	apiPath, ok := apiRelativePath(u.Path)
+	if !ok {
+		return apiResourceRequest{}, false
+	}
+
+	if request, ok := parseAPIResourceRequest(apiPath); ok {
+		return request, true
+	}
+
+	// GetAPIGroup only fails on paths apiRelativePath has already rejected.
+	apiGroup, _, _ := GetAPIGroup(u.Path)
+
+	_, kind := ExtractNamespace(u.Path)
+
+	return apiResourceRequest{group: apiGroup, resource: kind}, true
+}
+
+// ShouldBypassCache reports whether a request must neither be served from nor stored in the
+// response cache. Alongside non-API and self-subject review paths, this covers watch
+// requests, whose responses are open-ended streams, and subresources such as pod logs, which
+// change without an event on their parent object and would otherwise be served stale.
+func ShouldBypassCache(r *http.Request) bool {
+	if !IsKubernetesAPIPath(r.URL.Path) || IsSelfSubjectReviewAPIPath(r.URL.Path) {
+		return true
+	}
+
+	if IsWatchRequest(r) {
+		return true
+	}
+
+	request, ok := cacheKeyFields(r.URL)
+
+	return !ok || request.subresource != ""
 }
 
 // GenerateKey function helps to generate a unique key based on the request from the client
 // The function accepts url( which includes all the information of request ) and contextID which
 // helps to differentiate in multiple contexts.
 func GenerateKey(url *url.URL, contextID string) (string, error) {
-	namespace, kind := ExtractNamespace(url.Path)
-
-	apiGroup, _, err := GetAPIGroup(url.Path)
-	if err != nil {
-		return "", err
+	request, ok := cacheKeyFields(url)
+	if !ok {
+		return "", fmt.Errorf("invalid url format")
 	}
 
-	k := CacheKey{
-		Kind:      kind,
-		Namespace: namespace,
-		Context:   contextID,
-	}
-
-	return buildCacheKey(apiGroup, k.Kind, k.Namespace, k.Context), nil
+	return buildCacheKey(
+		request.group, request.resource, request.namespace, contextID, request.name,
+		requestVariant(request.subresource, url.RawQuery),
+	), nil
 }
 
 // SetHeader function help to serve response from cache to ensure the client
@@ -343,9 +448,10 @@ func redactContextKey(key string) string {
 	return key[:3] + "...[redacted]"
 }
 
-// redactCacheKey returns a redacted version of the cache key (which contains the context key as its last segment).
+// redactCacheKey returns a redacted version of the cache key (which contains the context key
+// in its fourth segment).
 func redactCacheKey(key string) string {
-	parts := strings.SplitN(key, "+", 4)
+	parts := strings.SplitN(key, "+", 6)
 
 	if len(parts) >= 4 {
 		parts[3] = redactContextKey(parts[3])
@@ -354,4 +460,10 @@ func redactCacheKey(key string) string {
 	}
 
 	return key
+}
+
+// redactCacheKeyPrefix redacts a key prefix, whose trailing delimiter would otherwise be
+// reported as an empty trailing segment.
+func redactCacheKeyPrefix(prefix string) string {
+	return redactCacheKey(strings.TrimSuffix(prefix, "+"))
 }

@@ -23,6 +23,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"reflect"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -93,9 +94,26 @@ func (m *MockCache) Get(ctx context.Context, key string) (string, error) {
 	return val, nil
 }
 
-// GetAll Mocks retrieving all the values inside the cache.
+// GetAll Mocks retrieving all the values inside the cache that match selectFunc.
 func (m *MockCache) GetAll(ctx context.Context, selectFunc cache.Matcher) (map[string]string, error) {
-	return nil, nil
+	if m.err != nil {
+		return nil, m.err
+	}
+
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	values := make(map[string]string)
+
+	for key, value := range m.store {
+		if selectFunc != nil && !selectFunc(key) {
+			continue
+		}
+
+		values[key] = value
+	}
+
+	return values, nil
 }
 
 // UpdateTTL Mocks updating of time-to-live with the help of its corresponding key string.
@@ -415,104 +433,104 @@ func TestIsKubernetesAPIPath(t *testing.T) {
 	}
 }
 
-// TestGenerateKey ensures the generated key is valid for both normal
-// and empty cluster name scenarios.
+// TestGenerateKey ensures the generated key carries the expected
+// apiGroup+kind+namespace+context prefix for both normal and empty cluster name scenarios.
 //
 //nolint:funlen
 func TestGenerateKey(t *testing.T) {
 	tests := []struct {
-		name        string
-		urlPath     url.URL
-		contextKey  string
-		expectedKey string
-		expectedErr error
+		name           string
+		urlPath        url.URL
+		contextKey     string
+		expectedPrefix string
+		expectedErr    error
 	}{
 		{
-			name:        "key with non-empty apiGroup, kind, namespace, contextId",
-			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/k8s.metrics.io/v1beta1/namespaces/test-kube/pods"},
-			contextKey:  "kind-kind",
-			expectedKey: "k8s.metrics.io+pods+test-kube+kind-kind",
-			expectedErr: nil,
+			name:           "key with non-empty apiGroup, kind, namespace, contextId",
+			urlPath:        url.URL{Path: "/clusters/kind-kind/apis/k8s.metrics.io/v1beta1/namespaces/test-kube/pods"},
+			contextKey:     "kind-kind",
+			expectedPrefix: "k8s.metrics.io+pods+test-kube+kind-kind+",
+			expectedErr:    nil,
 		},
 		{
-			name:        "key with empty apiGroup",
-			urlPath:     url.URL{Path: "/clusters/kind-kind/api/v1/namespaces/test-kube/pods"},
-			contextKey:  "kind-kind",
-			expectedKey: "+pods+test-kube+kind-kind",
-			expectedErr: nil,
+			name:           "key with empty apiGroup",
+			urlPath:        url.URL{Path: "/clusters/kind-kind/api/v1/namespaces/test-kube/pods"},
+			contextKey:     "kind-kind",
+			expectedPrefix: "+pods+test-kube+kind-kind+",
+			expectedErr:    nil,
 		},
 		{
-			name:        "key with direct api path",
-			urlPath:     url.URL{Path: "/api/v1/namespaces/test-kube/pods"},
-			contextKey:  "kind-kind",
-			expectedKey: "+pods+test-kube+kind-kind",
-			expectedErr: nil,
+			name:           "key with direct api path",
+			urlPath:        url.URL{Path: "/api/v1/namespaces/test-kube/pods"},
+			contextKey:     "kind-kind",
+			expectedPrefix: "+pods+test-kube+kind-kind+",
+			expectedErr:    nil,
 		},
 		{
-			name:        "key with empty apiGroup and namespace",
-			urlPath:     url.URL{Path: "/clusters/kind-kind/api/v1/pods"},
-			contextKey:  "kind-kind",
-			expectedKey: "+pods++kind-kind",
-			expectedErr: nil,
+			name:           "key with empty apiGroup and namespace",
+			urlPath:        url.URL{Path: "/clusters/kind-kind/api/v1/pods"},
+			contextKey:     "kind-kind",
+			expectedPrefix: "+pods++kind-kind+",
+			expectedErr:    nil,
 		},
 		{
-			name:        "key for core discovery path without version",
-			urlPath:     url.URL{Path: "/clusters/kind-kind/api"},
-			contextKey:  "kind-kind",
-			expectedKey: "+api++kind-kind",
-			expectedErr: nil,
+			name:           "key for core discovery path without version",
+			urlPath:        url.URL{Path: "/clusters/kind-kind/api"},
+			contextKey:     "kind-kind",
+			expectedPrefix: "+api++kind-kind+",
+			expectedErr:    nil,
 		},
 		{
-			name:        "key for core discovery path with trailing slash",
-			urlPath:     url.URL{Path: "/clusters/kind-kind/api/"},
-			contextKey:  "kind-kind",
-			expectedKey: "+api++kind-kind",
-			expectedErr: nil,
+			name:           "key for core discovery path with trailing slash",
+			urlPath:        url.URL{Path: "/clusters/kind-kind/api/"},
+			contextKey:     "kind-kind",
+			expectedPrefix: "+api++kind-kind+",
+			expectedErr:    nil,
 		},
 		{
-			name:        "key for api group discovery root",
-			urlPath:     url.URL{Path: "/clusters/kind-kind/apis"},
-			contextKey:  "kind-kind",
-			expectedKey: "+apis++kind-kind",
-			expectedErr: nil,
+			name:           "key for api group discovery root",
+			urlPath:        url.URL{Path: "/clusters/kind-kind/apis"},
+			contextKey:     "kind-kind",
+			expectedPrefix: "+apis++kind-kind+",
+			expectedErr:    nil,
 		},
 		{
-			name:        "key for api group discovery path without version",
-			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/k8s.metrics.io"},
-			contextKey:  "kind-kind",
-			expectedKey: "k8s.metrics.io+k8s.metrics.io++kind-kind",
-			expectedErr: nil,
+			name:           "key for api group discovery path without version",
+			urlPath:        url.URL{Path: "/clusters/kind-kind/apis/k8s.metrics.io"},
+			contextKey:     "kind-kind",
+			expectedPrefix: "k8s.metrics.io+k8s.metrics.io++kind-kind+",
+			expectedErr:    nil,
 		},
 		{
-			name:        "key for api group discovery path with trailing slash",
-			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/k8s.metrics.io/"},
-			contextKey:  "kind-kind",
-			expectedKey: "k8s.metrics.io+k8s.metrics.io++kind-kind",
-			expectedErr: nil,
+			name:           "key for api group discovery path with trailing slash",
+			urlPath:        url.URL{Path: "/clusters/kind-kind/apis/k8s.metrics.io/"},
+			contextKey:     "kind-kind",
+			expectedPrefix: "k8s.metrics.io+k8s.metrics.io++kind-kind+",
+			expectedErr:    nil,
 		},
 		{
-			name:        "invalid url format",
-			urlPath:     url.URL{Path: "/clusters/kind-kind"},
-			contextKey:  "kind-kind",
-			expectedKey: "",
-			expectedErr: errors.New("invalid url format"),
+			name:           "invalid url format",
+			urlPath:        url.URL{Path: "/clusters/kind-kind"},
+			contextKey:     "kind-kind",
+			expectedPrefix: "",
+			expectedErr:    errors.New("invalid url format"),
 		},
 		{
-			name:        "context key containing a literal plus is escaped, not treated as delimiter",
-			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/apps/v1/namespaces/default/deployments"},
-			contextKey:  "prod+cluster",
-			expectedKey: "apps+deployments+default+prod%2Bcluster",
-			expectedErr: nil,
+			name:           "context key containing a literal plus is escaped, not treated as delimiter",
+			urlPath:        url.URL{Path: "/clusters/kind-kind/apis/apps/v1/namespaces/default/deployments"},
+			contextKey:     "prod+cluster",
+			expectedPrefix: "apps+deployments+default+prod%2Bcluster+",
+			expectedErr:    nil,
 		},
 		{
 			// Regression: ensures the escape is injective. If "%" weren't
 			// escaped first, this input would collide with "prod+cluster"
 			// above and both would produce the same cache key.
-			name:        "context key containing a literal percent sequence does not collide with the plus-escaped form",
-			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/apps/v1/namespaces/default/deployments"},
-			contextKey:  "prod%2Bcluster",
-			expectedKey: "apps+deployments+default+prod%252Bcluster",
-			expectedErr: nil,
+			name:           "context key containing a literal percent sequence does not collide with the plus-escaped form",
+			urlPath:        url.URL{Path: "/clusters/kind-kind/apis/apps/v1/namespaces/default/deployments"},
+			contextKey:     "prod%2Bcluster",
+			expectedPrefix: "apps+deployments+default+prod%252Bcluster+",
+			expectedErr:    nil,
 		},
 	}
 	for _, tc := range tests {
@@ -522,12 +540,260 @@ func TestGenerateKey(t *testing.T) {
 			if tc.expectedErr != nil {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), tc.expectedErr.Error())
-			} else {
-				assert.NoError(t, err)
-				assert.Equal(t, tc.expectedKey, key)
+
+				return
 			}
+
+			assert.NoError(t, err)
+
+			variant, found := strings.CutPrefix(key, tc.expectedPrefix+"+")
+			assert.True(t, found, "key %q does not carry prefix %q", key, tc.expectedPrefix)
+			assert.Regexp(t, "^[0-9a-f]{64}$", variant)
 		})
 	}
+}
+
+// TestCachedResponseIsNotServedToADifferentRequest drives the store and serve paths the
+// middleware uses, so a colliding key would surface as one request being answered with
+// another's cached body.
+func TestCachedResponseIsNotServedToADifferentRequest(t *testing.T) {
+	const secretBody = `{"kind":"Secret","data":{"password":"aHVudGVyMg=="}}`
+
+	ctx := context.Background()
+	k8scache := NewMockCache()
+
+	store := func(rawURL, body string) string {
+		parsed, err := url.Parse(rawURL)
+		assert.NoError(t, err)
+
+		key, err := k8cache.GenerateKey(parsed, "prod")
+		assert.NoError(t, err)
+
+		rcw := k8cache.NewResponseCapture(httptest.NewRecorder())
+		rcw.WriteHeader(http.StatusOK)
+		_, err = rcw.Write([]byte(body))
+		assert.NoError(t, err)
+		assert.NoError(t, k8cache.StoreK8sResponseInCache(k8scache, parsed, rcw, key))
+
+		return key
+	}
+
+	// isAllowed is true throughout: the point is that authorization passes for the
+	// requesting user and the cache still must not hand back another resource.
+	load := func(rawURL string) (bool, string) {
+		req := httptest.NewRequestWithContext(ctx, http.MethodGet, rawURL, nil)
+
+		key, err := k8cache.GenerateKey(req.URL, "prod")
+		assert.NoError(t, err)
+
+		w := httptest.NewRecorder()
+		served, err := k8cache.LoadFromCache(k8scache, true, key, w, req)
+		assert.NoError(t, err)
+
+		return served, w.Body.String()
+	}
+
+	store("/clusters/c/api/v1/namespaces/default/secrets/nginx", secretBody)
+
+	served, body := load("/clusters/c/api/v1/namespaces/default/configmaps/nginx")
+	assert.False(t, served, "configmap request was served the cached Secret: %s", body)
+
+	served, body = load("/clusters/c/api/v1/namespaces/default/secrets/nginx")
+	assert.True(t, served, "repeating the same request should hit the cache")
+	assert.Equal(t, secretBody, body)
+
+	store("/clusters/c/api/v1/namespaces/default/pods?labelSelector=app%3Dfoo", `{"items":["foo-pod"]}`)
+
+	served, body = load("/clusters/c/api/v1/namespaces/default/pods")
+	assert.False(t, served, "unfiltered list was served the filtered response: %s", body)
+
+	served, body = load("/clusters/c/api/v1/namespaces/default/pods?labelSelector=app%3Dbar")
+	assert.False(t, served, "app=bar was served the app=foo response: %s", body)
+
+	served, _ = load("/clusters/c/api/v1/namespaces/default/pods?labelSelector=app%3Dfoo")
+	assert.True(t, served, "repeating the same filtered request should hit the cache")
+}
+
+// TestShouldBypassCache covers the requests that must never reach the response cache:
+// watch streams, subresources, self-subject reviews, and non-API paths.
+//
+//nolint:funlen
+func TestShouldBypassCache(t *testing.T) {
+	tests := []struct {
+		name         string
+		rawURL       string
+		expectBypass bool
+	}{
+		{
+			name:         "namespaced list is cacheable",
+			rawURL:       "/clusters/c/api/v1/namespaces/default/pods",
+			expectBypass: false,
+		},
+		{
+			name:         "filtered list is cacheable",
+			rawURL:       "/clusters/c/api/v1/namespaces/default/pods?labelSelector=app%3Dfoo",
+			expectBypass: false,
+		},
+		{
+			name:         "named GET is cacheable",
+			rawURL:       "/clusters/c/api/v1/namespaces/default/pods/mypod",
+			expectBypass: false,
+		},
+		{
+			name:         "discovery path is cacheable",
+			rawURL:       "/clusters/c/apis/metrics.k8s.io",
+			expectBypass: false,
+		},
+		{
+			name:         "watch request is bypassed",
+			rawURL:       "/clusters/c/api/v1/namespaces/default/pods?watch=true",
+			expectBypass: true,
+		},
+		{
+			name:         "watch request using 1 is bypassed",
+			rawURL:       "/clusters/c/api/v1/namespaces/default/pods?watch=1",
+			expectBypass: true,
+		},
+		{
+			name:         "pod log subresource is bypassed",
+			rawURL:       "/clusters/c/api/v1/namespaces/default/pods/mypod/log",
+			expectBypass: true,
+		},
+		{
+			name:         "scale subresource is bypassed",
+			rawURL:       "/clusters/c/apis/apps/v1/namespaces/default/deployments/web/scale",
+			expectBypass: true,
+		},
+		{
+			name:         "self subject access review is bypassed",
+			rawURL:       "/clusters/c/apis/authorization.k8s.io/v1/selfsubjectaccessreviews",
+			expectBypass: true,
+		},
+		{
+			name:         "non-API path is bypassed",
+			rawURL:       "/clusters/c/version",
+			expectBypass: true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, tc.rawURL, nil)
+			assert.Equal(t, tc.expectBypass, k8cache.ShouldBypassCache(req))
+		})
+	}
+}
+
+// TestGenerateKeyVariantSeparatesCollidingRequests checks that requests sharing every
+// apiGroup+kind+namespace+context segment still get distinct keys.
+func TestGenerateKeyVariantSeparatesCollidingRequests(t *testing.T) {
+	tests := []struct {
+		name string
+		a    string
+		b    string
+	}{
+		{
+			name: "named GET of different resource types sharing a name",
+			a:    "/clusters/c/api/v1/namespaces/default/secrets/nginx",
+			b:    "/clusters/c/api/v1/namespaces/default/configmaps/nginx",
+		},
+		{
+			name: "named GET of a service and a pod sharing a name",
+			a:    "/clusters/c/api/v1/namespaces/default/services/nginx",
+			b:    "/clusters/c/api/v1/namespaces/default/pods/nginx",
+		},
+		{
+			name: "same subresource of two different pods",
+			a:    "/clusters/c/api/v1/namespaces/default/pods/podA/log",
+			b:    "/clusters/c/api/v1/namespaces/default/pods/podB/log",
+		},
+		{
+			name: "list filtered by different label selectors",
+			a:    "/clusters/c/api/v1/namespaces/default/pods?labelSelector=app%3Dfoo",
+			b:    "/clusters/c/api/v1/namespaces/default/pods?labelSelector=app%3Dbar",
+		},
+		{
+			name: "filtered list and unfiltered list",
+			a:    "/clusters/c/api/v1/namespaces/default/pods?labelSelector=app%3Dfoo",
+			b:    "/clusters/c/api/v1/namespaces/default/pods",
+		},
+		{
+			name: "paginated list and unpaginated list",
+			a:    "/clusters/c/api/v1/namespaces/default/pods?limit=1",
+			b:    "/clusters/c/api/v1/namespaces/default/pods",
+		},
+		{
+			name: "list filtered by different field selectors",
+			a:    "/clusters/c/api/v1/namespaces/default/pods?fieldSelector=status.phase%3DRunning",
+			b:    "/clusters/c/api/v1/namespaces/default/pods?fieldSelector=status.phase%3DPending",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			keyA, err := generateKeyForRawURL(t, tc.a)
+			assert.NoError(t, err)
+
+			keyB, err := generateKeyForRawURL(t, tc.b)
+			assert.NoError(t, err)
+
+			assert.NotEqual(t, keyA, keyB, "%s and %s must not share a cache key", tc.a, tc.b)
+		})
+	}
+}
+
+// TestGenerateKeyIsStableAndRouteIndependent ensures the variant does not split the
+// cache on incidental request differences.
+func TestGenerateKeyIsStableAndRouteIndependent(t *testing.T) {
+	tests := []struct {
+		name string
+		a    string
+		b    string
+	}{
+		{
+			name: "identical requests",
+			a:    "/clusters/c/api/v1/namespaces/default/pods?labelSelector=app%3Dfoo",
+			b:    "/clusters/c/api/v1/namespaces/default/pods?labelSelector=app%3Dfoo",
+		},
+		{
+			name: "query parameters in a different order",
+			a:    "/clusters/c/api/v1/namespaces/default/pods?limit=5&labelSelector=app%3Dfoo",
+			b:    "/clusters/c/api/v1/namespaces/default/pods?labelSelector=app%3Dfoo&limit=5",
+		},
+		{
+			name: "trailing slash",
+			a:    "/clusters/c/api/v1/namespaces/default/pods",
+			b:    "/clusters/c/api/v1/namespaces/default/pods/",
+		},
+		{
+			name: "proxied and direct routing of the same request",
+			a:    "/clusters/c/api/v1/namespaces/default/pods",
+			b:    "/api/v1/namespaces/default/pods",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			keyA, err := generateKeyForRawURL(t, tc.a)
+			assert.NoError(t, err)
+
+			keyB, err := generateKeyForRawURL(t, tc.b)
+			assert.NoError(t, err)
+
+			assert.Equal(t, keyA, keyB, "%s and %s must share a cache key", tc.a, tc.b)
+		})
+	}
+}
+
+func generateKeyForRawURL(t *testing.T, rawURL string) (string, error) {
+	t.Helper()
+
+	parsed, err := url.Parse(rawURL)
+	if err != nil {
+		t.Fatalf("parsing %q: %v", rawURL, err)
+	}
+
+	return k8cache.GenerateKey(parsed, "mycluster")
 }
 
 // TestSetHeader tests whether the SetHeader is providing correct metadata for

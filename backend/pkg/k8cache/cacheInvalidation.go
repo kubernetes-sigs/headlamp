@@ -40,20 +40,61 @@ import (
 	watchCache "k8s.io/client-go/tools/cache"
 )
 
-// DeleteKeys deletes keys from the cache if data is present
-// in cache, this delete keys having namespace non-empty and
-// also empty namespace.
-func DeleteKeys(key string, k8scache cache.Cache[string]) {
-	_ = k8scache.Delete(context.Background(), key)
+// deleteByPrefixes removes every cache entry whose key starts with any of prefixes. An
+// object has one entry per requested variant, so invalidation cannot address them by exact
+// key. The cache is swept once regardless of how many prefixes are supplied, since each
+// sweep walks every entry.
+func deleteByPrefixes(k8scache cache.Cache[string], prefixes ...string) {
+	if len(prefixes) == 0 {
+		return
+	}
 
-	keyPart := strings.Split(key, "+")
-	if len(keyPart) < 4 {
+	// An empty prefix matches every key, which would purge the whole cache.
+	if slices.Contains(prefixes, "") {
+		logger.Log(logger.LevelError, nil, nil, "refusing to invalidate cache with an empty key prefix")
+
+		return
+	}
+
+	keys, err := k8scache.GetAll(context.Background(), func(key string) bool {
+		return slices.ContainsFunc(prefixes, func(prefix string) bool {
+			return strings.HasPrefix(key, prefix)
+		})
+	})
+	if err != nil {
+		logger.Log(logger.LevelWarn, nil, err, "failed to list cache keys for invalidation")
+
+		return
+	}
+
+	for key := range keys {
+		if err := k8scache.Delete(context.Background(), key); err != nil {
+			logger.Log(logger.LevelWarn, nil, err, "failed to delete cache key: "+redactCacheKey(key))
+		}
+	}
+}
+
+// DeleteKeys deletes every cached variant of the object that key identifies, along with the
+// list responses that object appears in, for both its own namespace and the all-namespace
+// list variant.
+func DeleteKeys(key string, k8scache cache.Cache[string]) {
+	keyPart := strings.SplitN(key, "+", 6)
+	if len(keyPart) < 5 {
 		return // malformed key; nothing to namespace-strip
 	}
 
-	keyPart[2] = ""
-	key = strings.Join(keyPart, "+")
-	_ = k8scache.Delete(context.Background(), key)
+	group, resource, namespace, contextKey, name := keyPart[0], keyPart[1], keyPart[2], keyPart[3], keyPart[4]
+
+	prefixes := []string{
+		joinEscapedCacheKeyPrefix(group, resource, namespace, contextKey, ""),
+		joinEscapedCacheKeyPrefix(group, resource, "", contextKey, ""),
+	}
+
+	if name != "" {
+		prefixes = append(prefixes, joinEscapedCacheKeyPrefix(group, resource, namespace, contextKey, name))
+	}
+
+	deleteByPrefixes(k8scache, prefixes...)
 }
 
 // handleNonGetInvalidation handle request which are modifying eg. POST/DELETE/PUT and delete keys if
@@ -368,28 +409,27 @@ func handleKeyGenerationAndDeletion(obj interface{}, gvr schema.GroupVersionReso
 	)
 }
 
-// invalidateCacheKeysForResourceEvent evicts cached list responses (including the
-// all-namespace list variant via DeleteKeys) and a cached named GET response.
-// GenerateKey stores list paths with gvr.Resource as the kind segment, but named
-// GET paths use the object name as the kind segment.
+// invalidateCacheKeysForResourceEvent evicts the cached list responses the changed object
+// appears in (including the all-namespace list variant) and every cached response
+// addressing the object itself.
 func invalidateCacheKeysForResourceEvent(
 	gvr schema.GroupVersionResource,
 	namespace, name, contextKey string,
 	k8scache cache.Cache[string],
 ) {
-	listKey := buildCacheKey(gvr.Group, gvr.Resource, namespace, contextKey)
+	listPrefix := cacheKeyPrefix(gvr.Group, gvr.Resource, namespace, contextKey, "")
 
 	logger.Log(logger.LevelInfo, nil, nil,
-		redactCacheKey(listKey)+" and related cache keys will be deleted from the cache")
+		"cache keys under "+redactCacheKeyPrefix(listPrefix)+" will be deleted from the cache")
 
-	DeleteKeys(listKey, k8scache)
-
-	if name == "" {
-		return
+	prefixes := []string{
+		listPrefix,
+		cacheKeyPrefix(gvr.Group, gvr.Resource, "", contextKey, ""),
 	}
 
-	namedKey := buildCacheKey(gvr.Group, name, namespace, contextKey)
-	if err := k8scache.Delete(context.Background(), namedKey); err != nil {
-		logger.Log(logger.LevelError, nil, err, "error while deleting key")
+	if name != "" {
+		prefixes = append(prefixes, cacheKeyPrefix(gvr.Group, gvr.Resource, namespace, contextKey, name))
 	}
+
+	deleteByPrefixes(k8scache, prefixes...)
 }

@@ -172,6 +172,11 @@ func ExportedReturnGVRList(apiResourceLists []*metav1.APIResourceList) []schema.
 	return returnGVRList(apiResourceLists)
 }
 
+// ExportedDeleteByPrefixes exposes deleteByPrefixes for testing.
+func ExportedDeleteByPrefixes(k8scache cache.Cache[string], prefixes ...string) {
+	deleteByPrefixes(k8scache, prefixes...)
+}
+
 // ExportedInvalidateCacheKeysForResourceEvent exposes invalidateCacheKeysForResourceEvent for testing.
 func ExportedInvalidateCacheKeysForResourceEvent(
 	gvr schema.GroupVersionResource,
