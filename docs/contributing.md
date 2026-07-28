@@ -70,7 +70,7 @@ Use **atomic commits** to keep each commit focused on a single change. Follow th
 - Both the title and the body of the commit message should not exceed
   72 characters in length.
   i.e. Please keep the title length under 72
-  characters, and the wrap the body of the message at 72 characters.
+  characters, and wrap the body of the message at 72 characters.
 
 - Commits should be atomic and self-contained. Divide logically separate changes
   to separate commits. This principle is best explained in the Linux Kernel

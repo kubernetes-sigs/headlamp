@@ -78,7 +78,7 @@ export default function CronJobList() {
         {
           id: 'lastScheduleTime',
           label: t('Last Schedule'),
-          getValue: cronJob => cronJob.status.lastScheduletime ?? '',
+          getValue: cronJob => cronJob.status.lastScheduleTime ?? '',
           render: cronJob => getLastScheduleTime(cronJob),
         },
         {

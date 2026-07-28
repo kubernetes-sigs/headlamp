@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import 'vitest-canvas-mock';
 import { composeStories, type Meta, setProjectAnnotations, type StoryFn } from '@storybook/react';
 import { act, render as testingLibraryRender, waitFor } from '@testing-library/react';
 import { getWorker } from 'msw-storybook-addon';

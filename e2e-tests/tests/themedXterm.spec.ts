@@ -24,6 +24,9 @@ type XtermRoute = 'logs' | 'exec' | 'nodeShell';
 const themes: ThemeName[] = ['light', 'dark'];
 const routes: XtermRoute[] = ['logs', 'exec', 'nodeShell'];
 
+/** The app's registered theme names, which the theme preference must match exactly. */
+const appThemeName: Record<ThemeName, string> = { light: 'Light', dark: 'Dark' };
+
 /**
  * Parse a CSS color string like `rgb(245, 245, 245)` or `rgba(51, 51, 51, 1)`
  * and return its perceptual luminance in the range [0, 1] (Rec. 709 luma).
@@ -52,22 +55,48 @@ async function seedTheme(page: Page, themeName: ThemeName) {
       // Some test contexts may not have localStorage available; the test
       // assertion below will surface the issue as a luminance mismatch.
     }
-  }, themeName);
+  }, appThemeName[themeName]);
 }
 
-/**
- * Navigate to the first pod's details page. Skips the test gracefully if the
- * cluster has no pods permission (matches the RBAC-tolerant pattern used by
- * other specs in this directory).
- */
+/** The link in the second column of a resource table's first row. */
+function firstRowLink(table: Locator): Locator {
+  return table.locator('tbody').nth(0).locator('tr').nth(0).locator('td').nth(1).locator('a');
+}
+
+/** Whether an auth-gated action button appears; it renders only after an async access review. */
+async function actionButtonAppears(button: Locator): Promise<boolean> {
+  return button
+    .waitFor({ state: 'visible', timeout: 15000 })
+    .then(() => true)
+    .catch(() => false);
+}
+
+/** Whether the test token can list the given core/v1 resource via the Headlamp API proxy. */
+async function canListResource(page: Page, resource: string): Promise<boolean> {
+  const token = process.env.HEADLAMP_TEST_TOKEN;
+  const response = await page.request.get(`/clusters/test/api/v1/${resource}?limit=1`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  return response.ok();
+}
+
+/** Skip when no token is configured; fail when a token is present but access is denied. */
+async function requireResource(page: Page, resource: string) {
+  if (!process.env.HEADLAMP_TEST_TOKEN) {
+    test.skip(true, `HEADLAMP_TEST_TOKEN is not set; cannot verify ${resource} access.`);
+  }
+  expect(
+    await canListResource(page, resource),
+    `expected to list ${resource} on cluster "test"`
+  ).toBe(true);
+}
+
+/** Navigate to the first pod's details page. */
 async function openFirstPodDetails(page: Page): Promise<{ podName: string }> {
   const headlampPage = new HeadlampPage(page);
   await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
 
-  const content = await page.content();
-  if (!content.includes('Pods') || !content.includes('href="/c/test/pods')) {
-    test.skip(true, 'No pods permission on this cluster.');
-  }
+  await requireResource(page, 'pods');
 
   await headlampPage.navigateTopage('/c/test/pods', /Pods/);
 
@@ -81,14 +110,7 @@ async function openFirstPodDetails(page: Page): Promise<{ podName: string }> {
     test.skip(true, 'No pods on this cluster to open.');
   }
 
-  const podLink = podsTable
-    .locator('tbody')
-    .nth(0)
-    .locator('tr')
-    .nth(0)
-    .locator('td')
-    .nth(1)
-    .locator('a');
+  const podLink = firstRowLink(podsTable);
   const podName = (await podLink.textContent()) ?? '';
   await podLink.click();
 
@@ -127,7 +149,7 @@ async function openExecTerminal(page: Page): Promise<Locator> {
   await openFirstPodDetails(page);
 
   const execButton = page.getByRole('button', { name: 'Terminal / Exec' });
-  if (!(await execButton.isVisible().catch(() => false))) {
+  if (!(await actionButtonAppears(execButton))) {
     test.skip(true, 'No exec permission on this cluster.');
   }
   await execButton.click();
@@ -157,10 +179,7 @@ async function openNodeShell(page: Page): Promise<Locator> {
   const headlampPage = new HeadlampPage(page);
   await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
 
-  const content = await page.content();
-  if (!content.includes('href="/c/test/nodes')) {
-    test.skip(true, 'No nodes permission on this cluster.');
-  }
+  await requireResource(page, 'nodes');
 
   await headlampPage.navigateTopage('/c/test/nodes', /Nodes/);
 
@@ -172,18 +191,11 @@ async function openNodeShell(page: Page): Promise<Locator> {
     test.skip(true, 'No nodes on this cluster to open.');
   }
 
-  const nodeLink = nodesTable
-    .locator('tbody')
-    .nth(0)
-    .locator('tr')
-    .nth(0)
-    .locator('td')
-    .nth(1)
-    .locator('a');
+  const nodeLink = firstRowLink(nodesTable);
   await nodeLink.click();
 
   const debugButton = page.getByRole('button', { name: 'Debug Node' });
-  if (!(await debugButton.isVisible().catch(() => false)) || (await debugButton.isDisabled())) {
+  if (!(await actionButtonAppears(debugButton)) || (await debugButton.isDisabled())) {
     test.skip(true, 'Node shell unavailable (non-Linux node or missing RBAC).');
   }
   await debugButton.click();

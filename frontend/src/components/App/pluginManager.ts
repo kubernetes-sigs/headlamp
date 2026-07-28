@@ -50,7 +50,16 @@ export class PluginManager {
 
     return new Promise((resolve, reject) => {
       const handleResponse = (response: string) => {
-        const parsedResponse = JSON.parse(response);
+        let parsedResponse;
+        try {
+          parsedResponse = JSON.parse(response);
+        } catch (error) {
+          clearTimeout(timeoutId);
+          window.desktopApi.removeListener('plugin-manager', handleResponse);
+          reject(error);
+          return;
+        }
+
         if (parsedResponse.identifier === identifier) {
           clearTimeout(timeoutId);
           window.desktopApi.removeListener('plugin-manager', handleResponse);

@@ -110,10 +110,11 @@ class Job extends KubeObject<KubeJob> {
       namespace: '',
       labels: { app: 'headlamp' },
     };
+    // No spec.selector: the Job controller auto-generates one with a
+    // `batch.kubernetes.io/controller-uid` label. Supplying a hand-written
+    // selector without `spec.manualSelector: true` is rejected as
+    // "selector not auto-generated".
     baseObject.spec = {
-      selector: {
-        matchLabels: { app: 'headlamp' },
-      },
       template: {
         spec: {
           containers: [

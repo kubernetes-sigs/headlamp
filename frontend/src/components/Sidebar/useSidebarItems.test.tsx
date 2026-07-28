@@ -150,6 +150,34 @@ describe('useSidebarItems', () => {
     ).toBeDefined();
   });
 
+  it('should include subheader entry fields from customSidebarEntries', () => {
+    const sx = { fontSize: '1.1rem', textTransform: 'none' };
+    const customEntries: { [name: string]: SidebarEntry } = {
+      customSection: {
+        name: 'customSection',
+        label: 'Custom Section',
+        entryType: 'subheader',
+        sx,
+      },
+    };
+
+    const store = mockStore(customEntries, []);
+    const { result } = renderHook(() => useSidebarItems(), {
+      wrapper: wrapper(store),
+    });
+
+    expect(result.current).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'customSection',
+          label: 'Custom Section',
+          entryType: 'subheader',
+          sx,
+        }),
+      ])
+    );
+  });
+
   it('should apply customSidebarFilters', () => {
     const customEntries = {
       custom1: { name: 'custom1', label: 'Custom 1', url: '/custom1' },

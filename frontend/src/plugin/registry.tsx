@@ -306,6 +306,8 @@ export function registerSidebarEntry({
   useClusterURL = true,
   icon,
   sidebar,
+  entryType,
+  sx,
 }: SidebarEntryProps) {
   store.dispatch(
     setSidebarItem({
@@ -316,6 +318,8 @@ export function registerSidebarEntry({
       useClusterURL,
       icon,
       sidebar,
+      entryType,
+      sx,
     })
   );
 }

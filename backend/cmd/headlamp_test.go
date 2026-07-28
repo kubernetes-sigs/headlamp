@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -45,6 +46,7 @@ import (
 	inventorymetadata "github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory/metadata"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
@@ -1691,16 +1693,25 @@ func TestFindMatchingContextName(t *testing.T) {
 // contexts that have never had extensions set).
 func TestCustomNameToExtensions(t *testing.T) {
 	cases := []struct {
-		label      string
-		extensions map[string]k8sruntime.Object // nil simulates a fresh context
+		label       string
+		contextName string
+		extensions  map[string]k8sruntime.Object // nil simulates a fresh context
+		wantErr     string
 	}{
 		{
-			label:      "nil Extensions map is initialized before write",
-			extensions: nil,
+			label:       "nil Extensions map is initialized before write",
+			contextName: "my-cluster",
+			extensions:  nil,
 		},
 		{
-			label:      "existing Extensions map is preserved and updated",
-			extensions: map[string]k8sruntime.Object{},
+			label:       "existing Extensions map is preserved and updated",
+			contextName: "my-cluster",
+			extensions:  map[string]k8sruntime.Object{},
+		},
+		{
+			label:       "missing context returns an error",
+			contextName: "missing-cluster",
+			wantErr:     `context "missing-cluster" not found in kubeconfig`,
 		},
 	}
 
@@ -1721,7 +1732,12 @@ func TestCustomNameToExtensions(t *testing.T) {
 			require.NoError(t, clientcmd.WriteToFile(*config, tmpFile.Name()))
 
 			// Must not panic when Extensions is nil.
-			err = customNameToExtensions(config, "my-cluster", "my-custom-name", tmpFile.Name())
+			err = customNameToExtensions(config, tc.contextName, "my-custom-name", tmpFile.Name())
+			if tc.wantErr != "" {
+				require.EqualError(t, err, tc.wantErr)
+				return
+			}
+
 			require.NoError(t, err)
 
 			// Reload from disk and verify the custom name was written.
@@ -1818,7 +1834,7 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 				Stateless:      false,
 				Source:         "kubeconfig",
 			},
-			expectedState: http.StatusCreated,
+			expectedState: http.StatusInternalServerError,
 		},
 	}
 
@@ -1827,8 +1843,8 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 	remErr := c.KubeConfigStore.RemoveContext("minikubetest")
 	require.NoError(t, remErr, "Failed to remove context: minikubetest")
 
-	remErrNonDy := c.KubeConfigStore.RemoveContext("minikubetestworkskubeconfig")
-	require.NoError(t, remErrNonDy, "Failed to remove context: minikubetestworkskubeconfig")
+	remErrNonDy := c.KubeConfigStore.RemoveContext("minikubetestnondynamic")
+	require.NoError(t, remErrNonDy, "Failed to remove context: minikubetestnondynamic")
 
 	clusters := c.getClusters()
 	clustersByName := map[string]Cluster{}
@@ -1838,13 +1854,74 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 	}
 
 	// The stateless rename removes the original from the store; the new name is frontend-only.
-	// The kubeconfig rename context was explicitly removed above.
+	// The failed kubeconfig rename left the original context intact, which was removed above.
 	assert.NotContains(t, clustersByName, "minikubetest", "expected stateless cluster to be removed from store")
 	assert.NotContains(t, clustersByName, "minikubetestworkskubeconfig",
-		"expected kubeconfig-renamed cluster to be removed from store")
+		"expected failed kubeconfig rename not to create a new cluster name in the store")
+	assert.NotContains(t, clustersByName, "minikubetestnondynamic",
+		"expected original kubeconfig context to be removed during cleanup")
 	// The clusters added via POST should still be present.
 	assert.Contains(t, clustersByName, minikubeName, "expected minikube cluster to still exist")
 	assert.Contains(t, clustersByName, "docker-desktop", "expected docker-desktop cluster to still exist")
+}
+
+// TestHandleClusterRename_NameCollision covers the name-collision branch of
+// handleClusterRename. It must return a non-nil error so the caller does not
+// record a failed rename as a success (it previously returned nil).
+func TestHandleClusterRename_NameCollision(t *testing.T) {
+	c := HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:          false,
+				KubeConfigPath:        "./headlamp_testdata/kubeconfig",
+				EnableDynamicClusters: true,
+				KubeConfigStore:       kubeconfig.NewContextStore(),
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/cluster/minikube/rename", nil)
+
+	ctx, span := otel.Tracer("test").Start(context.Background(), "TestHandleClusterRename_NameCollision")
+	defer span.End()
+
+	// Rename "minikube" to "docker-desktop", which already exists in the kubeconfig.
+	err := c.handleClusterRename(w, r, "minikube", RenameClusterRequest{
+		NewClusterName: "docker-desktop",
+		Source:         "kubeconfig",
+	}, ctx, span)
+
+	require.Error(t, err, "a name collision must return a non-nil error")
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// TestHandleError_NilError ensures handleError does not panic when a caller
+// passes a nil error. Calling err.Error() on a nil error would otherwise crash
+// the request handler; handleError falls back to the message instead.
+func TestHandleError_NilError(t *testing.T) {
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG:      &headlampconfig.HeadlampCFG{},
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	w := httptest.NewRecorder()
+	ctx, span := otel.Tracer("test").Start(context.Background(), "TestHandleError_NilError")
+
+	defer span.End()
+
+	require.NotPanics(t, func() {
+		c.handleError(w, ctx, span, nil, "something went wrong", http.StatusInternalServerError)
+	})
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "something went wrong")
 }
 
 func TestFileExists(t *testing.T) {
@@ -2157,6 +2234,127 @@ func TestOidcStateMapEviction(t *testing.T) {
 
 	assert.False(t, stalePresent, "stale OIDC state entry should have been evicted")
 	assert.True(t, freshPresent, "fresh OIDC state entry should still be present")
+}
+
+func TestGenerateOidcState(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		stateBytes := make([]byte, 32)
+		for i := range stateBytes {
+			stateBytes[i] = byte(i)
+		}
+
+		state, err := generateOidcState(bytes.NewReader(stateBytes))
+		require.NoError(t, err)
+		assert.Equal(t, "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8", state)
+	})
+
+	t.Run("failure", func(t *testing.T) {
+		state, err := generateOidcState(errReader{err: errors.New("rand failure")})
+
+		require.Error(t, err)
+		assert.Empty(t, state)
+	})
+
+	t.Run("short read", func(t *testing.T) {
+		// bytes.NewReader with fewer than 32 bytes triggers the short-read path.
+		state, err := generateOidcState(bytes.NewReader(make([]byte, 31)))
+
+		require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+		assert.Empty(t, state)
+	})
+}
+
+func TestOIDCHandlerReturnsInternalServerErrorWhenStateGenerationFails(t *testing.T) {
+	var oidcProvider *httptest.Server
+
+	oidcProvider = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/.well-known/openid-configuration":
+			err := json.NewEncoder(w).Encode(map[string]interface{}{
+				"issuer":                                oidcProvider.URL,
+				"authorization_endpoint":                oidcProvider.URL + "/auth",
+				"token_endpoint":                        oidcProvider.URL + "/token",
+				"jwks_uri":                              oidcProvider.URL + "/keys",
+				"id_token_signing_alg_values_supported": []string{"RS256"},
+			})
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusInternalServerError)
+				return
+			}
+		default:
+			http.NotFound(w, r)
+		}
+	}))
+	t.Cleanup(oidcProvider.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		OidcConf: &kubeconfig.OidcConfig{
+			ClientID:     "test-client",
+			ClientSecret: "test-secret",
+			IdpIssuerURL: oidcProvider.URL,
+		},
+	})
+	require.NoError(t, err)
+
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+		oidcStateReader: errReader{err: errors.New("rand failure")},
+	}
+
+	handler := createHeadlampHandler(context.Background(), cfg)
+	rr, err := getResponse(handler, http.MethodGet, "/oidc?cluster=test-cluster", nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "failed to generate OIDC state")
+}
+
+type errReader struct {
+	err error
+}
+
+func (r errReader) Read([]byte) (int, error) {
+	return 0, r.err
+}
+
+func TestOIDCTokenRefreshMiddleware(t *testing.T) {
+	kubeConfigStore := kubeconfig.NewContextStore()
+	config := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore},
+			Cache:            cache.New[interface{}](),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	middleware := config.OIDCTokenRefreshMiddleware(handler)
+
+	// Test case: non-cluster request
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/non-cluster", nil)
+	rec := httptest.NewRecorder()
+	middleware.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	// Test case: cluster request without token
+	req = httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/test-cluster", nil)
+	rec = httptest.NewRecorder()
+	middleware.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
 }
 
 func TestStartHeadlampServer(t *testing.T) {
@@ -2525,9 +2723,23 @@ func newFakeK8sServer(authAllowed bool) *httptest.Server {
 	}))
 }
 
+// resetCacheMiddlewareTestState clears package-global k8cache state so
+// integration tests do not share clientsets or API response cache entries.
+func resetCacheMiddlewareTestState() {
+	k8cache.ResetForTesting()
+
+	if k8sResponseCache != nil {
+		_ = k8sResponseCache.Close()
+	}
+
+	k8sResponseCache = cache.New[string]()
+}
+
 // newHeadlampConfig create mock HeadlampConfig for testing CacheMiddleware
 // mechanism without creating actual HeadlampConfig.
 func newHeadlampConfig(fakeK8s *httptest.Server, testName string) *HeadlampConfig {
+	resetCacheMiddlewareTestState()
+
 	store := kubeconfig.NewContextStore()
 
 	err := store.AddContext(&kubeconfig.Context{
@@ -2803,7 +3015,7 @@ func TestCacheMiddleware_AuthErrorResponse(t *testing.T) {
 	ctx := context.Background()
 
 	expectedResponse := `{"kind":"Status","apiVersion":"v1","metadata":{"resourceVersion":""},` +
-		`"message":"resource is forbidden: User \"system:serviceaccount:default:test\" cannot get resource ` +
+		`"message":"resource is forbidden: User \"system:serviceaccount:default:test\" cannot list resource ` +
 		`\"resource\" in API group \"\" at the cluster scope","reason":"Forbidden","details":{"kind":"resource"},` +
 		`"code":403}`
 
@@ -2892,6 +3104,8 @@ func TestCacheMiddleware_CacheInvalidation(t *testing.T) {
 //nolint:funlen
 func newRealK8sHeadlampConfig(t *testing.T) (*HeadlampConfig, string) {
 	t.Helper()
+
+	resetCacheMiddlewareTestState()
 
 	kubeConfigPath := os.Getenv("KUBECONFIG")
 	if kubeConfigPath == "" {

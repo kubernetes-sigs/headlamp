@@ -16,7 +16,7 @@
 
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { TestContext } from '../../../test';
-import PortForward, { PORT_FORWARD_STOP_STATUS } from './PortForward';
+import PortForward, { PORT_FORWARD_STOP_STATUS, PORT_FORWARDS_STORAGE_KEY } from './PortForward';
 
 const { mockListPortForward, mockStopOrDeletePortForward } = vi.hoisted(() => ({
   mockListPortForward: vi.fn(),
@@ -128,10 +128,69 @@ describe('PortForward stop handler', () => {
 
     await waitFor(() => {
       expect(screen.getByRole('alert')).toBeInTheDocument();
+      const tooltipTrigger = screen.getByText('network error');
+      expect(tooltipTrigger).toBeInTheDocument();
+      expect(screen.queryByLabelText(/Stop port forward/i)).not.toBeInTheDocument();
+      expect(screen.getByLabelText(/Start port forward/i)).toBeInTheDocument();
+    });
+  });
+
+  it('renders port forward URL as a link with rel="noopener noreferrer" when running', async () => {
+    renderPortForward();
+    await waitFor(() => {
+      const link = screen.getByRole('link', { name: /127\.0\.0\.1:8080/ });
+      expect(link).toBeInTheDocument();
+      expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+      expect(link).toHaveAttribute('target', '_blank');
     });
   });
 
   it('PORT_FORWARD_STOP_STATUS constant equals "Stopped"', () => {
     expect(PORT_FORWARD_STOP_STATUS).toBe('Stopped');
+  });
+
+  it('shows error and keeps port forward visible when delete fails', async () => {
+    mockStopOrDeletePortForward.mockResolvedValueOnce('ok');
+    mockStopOrDeletePortForward.mockRejectedValueOnce(new Error('delete failed'));
+    renderPortForward();
+
+    await waitFor(() => screen.getByLabelText(/Stop port forward/i));
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText(/Stop port forward/i));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByLabelText(/Start port forward/i)).toBeInTheDocument();
+      expect(screen.getByLabelText(/Delete port forward/i)).toBeInTheDocument();
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByLabelText(/Delete port forward/i));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByRole('alert')).toBeInTheDocument();
+      expect(screen.getByText('delete failed')).toBeInTheDocument();
+      expect(screen.getByLabelText(/Delete port forward/i)).toBeInTheDocument();
+    });
+  });
+
+  it('handles corrupted localStorage JSON safely', async () => {
+    localStorage.setItem(PORT_FORWARDS_STORAGE_KEY, 'invalid-json{');
+    mockListPortForward.mockResolvedValue([]);
+    const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    try {
+      renderPortForward();
+      await waitFor(() => {
+        // Should not crash and should render normal start button
+        expect(screen.getByLabelText(/Start port forward/i)).toBeInTheDocument();
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          'Failed to parse port forwards from storage',
+          expect.anything()
+        );
+      });
+    } finally {
+      consoleWarnSpy.mockRestore();
+    }
   });
 });

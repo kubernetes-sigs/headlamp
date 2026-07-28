@@ -261,7 +261,7 @@
                 class="MuiBox-root css-1u72um6"
               >
                 <div
-                  aria-label="Vertical button group"
+                  aria-label="Graph controls"
                   class="MuiButtonGroup-root MuiButtonGroup-contained MuiButtonGroup-vertical css-126jwi2-MuiButtonGroup-root"
                   role="group"
                 >

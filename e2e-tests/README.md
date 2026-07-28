@@ -1,37 +1,160 @@
-# end to end tests with playwright and minikube
+# end to end tests with playwright
 
-```
+These tests run against Headlamp deployed **in-cluster**, across **two**
+clusters whose kubectl contexts are named `test` and `test2`.
+
+Those names are not arbitrary. The specs hardcode them: `podsPage.spec.ts`
+navigates to `/c/test/pods`, and `multiCluster.spec.ts` asserts a home page
+listing both `test` and `test2`. `headlamp.spec.ts` also asserts on a
+`headlamp-admin` service account and on the `headlamp` Service, both of which
+come from the in-cluster deployment rather than from a dev server.
+
+The setup below mirrors what CI does in `.github/workflows/build-container.yml`,
+which is the reference if anything here drifts.
+
+## Setup
+
+Install the test dependencies:
+
+```bash
+cd e2e-tests
+npm ci
 npx playwright install
 ```
 
-The instructions below assume Headlamp is running locally in-cluster with minikube.
+Create the two clusters and rename their contexts to what the specs expect:
 
 ```bash
-# Determine if the headlamp addon is enabled
-minikube addons list
+kind create cluster --name test
+kubectl config rename-context kind-test test
 
-# If the addon is not already enabled run the following command
-minikube addons enable headlamp
-
-# Generate the URL needed for the HEADLAMP_TEST_URL environment variable
-# note: Make sure to use the URL created after the " Starting tunnel for service headlamp. " message
-minikube service headlamp -n headlamp
-
-# Open the browser to the URL generated above, it should direct you to a page waiting for a token
-
-# run in a separate terminal...
-export HEADLAMP_TEST_URL= # from the "minikube service headlamp -n headlamp" command directly above.
-
-# Create a token for the tests to use
-export HEADLAMP_TOKEN=$(kubectl create token headlamp --duration 24h -n headlamp)
-
-# To see the token to login via the web browser
-echo $HEADLAMP_TOKEN
+kind create cluster --name test2
+kubectl config rename-context kind-test2 test2
 ```
 
-Now with those two environment variables set we can run the tests.
+Give each cluster a `headlamp-admin` service account with cluster-admin:
 
-IMPORTANT: Make sure that the following npx commands are ran in the same terminal session as the environment variables were set.
+```bash
+for ctx in test test2; do
+  kubectl --context="$ctx" -n kube-system create serviceaccount headlamp-admin
+  kubectl --context="$ctx" create clusterrolebinding headlamp-admin \
+    --serviceaccount=kube-system:headlamp-admin --clusterrole=cluster-admin
+done
+```
+
+Build the images and load them into the `test` cluster. The plugins image is
+used as an init container by the manifest below:
+
+```bash
+# from the repository root
+DOCKER_IMAGE_VERSION=latest make image
+DOCKER_IMAGE_VERSION=latest DOCKER_PLUGINS_IMAGE_NAME=headlamp-plugins-test make build-plugins-container
+
+kind load docker-image ghcr.io/headlamp-k8s/headlamp:latest --name test
+kind load docker-image ghcr.io/headlamp-k8s/headlamp-plugins-test:latest --name test
+```
+
+Deploy Headlamp into the `test` cluster. The manifest is templated, so the
+cluster addresses and CA data have to be substituted in:
+
+```bash
+kubectl config use-context test
+export TEST_CA_DATA=$(kubectl config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+export TEST_SERVER="https://$(kubectl get nodes -o=jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):6443"
+
+kubectl config use-context test2
+export TEST2_CA_DATA=$(kubectl config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
+export TEST2_SERVER="https://$(kubectl get nodes -o=jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):6443"
+
+kubectl config use-context test
+envsubst < e2e-tests/kubernetes-headlamp-ci.yaml | kubectl --context=test apply -f -
+kubectl wait deployment -n kube-system headlamp --for condition=Available=True --timeout=180s
+```
+
+Finally, export the URL and the tokens the specs read:
+
+```bash
+export HEADLAMP_TEST_URL="http://<address of the headlamp Service>"
+export HEADLAMP_TEST_TOKEN=$(kubectl --context=test  create token headlamp-admin --duration 24h -n kube-system)
+export HEADLAMP_TEST2_TOKEN=$(kubectl --context=test2 create token headlamp-admin --duration 24h -n kube-system)
+```
+
+CI reaches the Service on its NodePort, at
+`http://<node InternalIP>:<nodePort>`. That address is reachable from the host
+on Linux, but not on every platform; if it is not reachable on yours, any means
+of exposing the Service will do, as long as `HEADLAMP_TEST_URL` points at it.
+
+`HEADLAMP_TEST_URL` defaults to `http://localhost:3000` if unset
+(`playwright.config.ts`), so an unset variable shows up as connection errors
+rather than as an obvious configuration problem.
+
+### Kubeconfig with certificates on disk
+
+`dynamicCluster.spec.ts` reads your kubeconfig with `kubectl config view`, which
+redacts embedded `certificate-authority-data` and the client certificate fields,
+and then reads the referenced files from disk. If those fields are embedded
+rather than file paths, six tests in that file fail with `ENOENT`.
+
+CI works around this by rewriting the kubeconfig so the certificates live in
+files. If you hit those failures, do the same, and note that the paths must be
+absolute, because the test resolves them relative to its own working directory:
+
+```bash
+mkdir -p ~/headlamp-e2e-certs
+kubectl config view --raw --minify --context=test -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 --decode > ~/headlamp-e2e-certs/ca.crt
+kubectl config set-cluster kind-test --certificate-authority="$HOME/headlamp-e2e-certs/ca.crt" --embed-certs=false
+kubectl config unset clusters.kind-test.certificate-authority-data
+```
+
+Do the same for the `client-certificate-data` and `client-key-data` fields on
+the user entry. To update the second cluster, use `--context=test2` and the
+`kind-test2` cluster entry.
+
+### Additional suites
+
+`tests/incluster-api.spec.ts` tests a separate Headlamp deployment running in
+in-cluster mode. CI runs it in a dedicated step after deploying
+`kubernetes-headlamp-incluster-ci.yaml` to the `test2` cluster. To reproduce
+that setup locally:
+
+```bash
+kubectl config use-context test2
+kubectl create serviceaccount headlamp --namespace kube-system
+kubectl create clusterrolebinding headlamp \
+  --serviceaccount=kube-system:headlamp --clusterrole=cluster-admin
+kubectl apply -f e2e-tests/kubernetes-headlamp-incluster-ci.yaml
+kubectl wait deployment -n kube-system headlamp \
+  --for condition=Available=True --timeout=120s
+
+kubectl port-forward -n kube-system service/headlamp 8080:80
+```
+
+Leave the port-forward running, then use a second terminal to set the URL and
+service account token before running the spec:
+
+```bash
+export HEADLAMP_TEST_URL=http://localhost:8080
+export HEADLAMP_SA_TOKEN=$(kubectl create token headlamp --duration=1h -n kube-system)
+
+cd e2e-tests
+npx playwright test tests/incluster-api.spec.ts
+```
+
+`tests/clusterInventory.spec.ts` requires Headlamp to be configured with a
+working cluster inventory source. It is skipped unless explicitly enabled and
+is not run in CI:
+
+```bash
+export HEADLAMP_CLUSTER_INVENTORY_E2E=true
+
+# Optional. This defaults to "headlamp".
+export HEADLAMP_TEST_BACKEND_TOKEN=...
+
+cd e2e-tests
+npx playwright test tests/clusterInventory.spec.ts
+```
+
+IMPORTANT: Make sure that the following npx commands are run in the same terminal session as the environment variables were set.
 
 ## Run all tests
 
@@ -92,6 +215,10 @@ npx playwright test -g "404 page is present" --headed
   - within the playwright.config.ts file locate the `const config: PlaywrightTestConfig` object. within the object, modify the use object to contain a field for `launchOptions: { slowMo: }` set to a number of milliseconds ex. `use: { ..., launchOptions: { slowMo: 1000 }` property to slow down the tests to take 1 second between each step.
 
 ## Running Playwright through a Virtual Machine (VM)
+
+> Note: this section predates the two-cluster kind setup described above and has
+> not been updated for it. It still refers to a single minikube cluster and to
+> `kubernetes-headlamp-ci.yml`, which is now `kubernetes-headlamp-ci.yaml`.
 
 ### Log into Azure CLI
 

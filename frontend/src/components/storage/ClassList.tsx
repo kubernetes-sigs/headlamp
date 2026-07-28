@@ -60,7 +60,11 @@ export default function ClassList() {
           id: 'allowVolumeExpansion',
           label: t('Allow Volume Expansion'),
           filterVariant: 'checkbox',
-          getValue: storageClass => String(storageClass.allowVolumeExpansion),
+          getValue: storageClass => String(storageClass.allowVolumeExpansion ?? false),
+          render: (storageClass: StorageClass) => {
+            if (storageClass.allowVolumeExpansion === undefined) return null;
+            return storageClass.allowVolumeExpansion ? t('Yes') : t('No');
+          },
         },
         'labels',
         'age',

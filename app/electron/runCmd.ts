@@ -43,6 +43,16 @@ interface CommandData {
   permissionSecrets: Record<string, number>;
 }
 
+/** Returns only values changed by shell initialization. */
+export function environmentOverrides(
+  environment: NodeJS.ProcessEnv,
+  currentEnvironment: NodeJS.ProcessEnv = process.env
+): NodeJS.ProcessEnv {
+  return Object.fromEntries(
+    Object.entries(environment).filter(([key, value]) => currentEnvironment[key] !== value)
+  );
+}
+
 /**
  * Ask the user with an electron dialog if they want to allow the command
  * to be executed.
@@ -250,12 +260,12 @@ function getPluginsScriptPath(scriptName: string) {
  * @param permissionSecrets - The permission secrets required for the command to run.
  *                            Checks against eventData.permissionSecrets.
  */
-export function handleRunCommand(
+export async function handleRunCommand(
   event: IpcMainEvent,
   eventData: CommandDataPartial,
   mainWindow: BrowserWindow | null,
   permissionSecrets: Record<string, number>
-): void {
+): Promise<void> {
   if (mainWindow === null) {
     console.error('Main window is null, cannot run command');
     return;
@@ -285,16 +295,32 @@ export function handleRunCommand(
       ? [getPluginsScriptPath(commandData.args[0]), ...commandData.args.slice(1)]
       : commandData.args;
 
+  let shellEnvironment = process.env;
+  try {
+    const { getShellEnvironment } = await import('./main');
+    shellEnvironment = await getShellEnvironment();
+  } catch (error) {
+    console.warn('Failed to get shell environment, using process.env:', error);
+  }
+
   // If the command is 'scriptjs', we pass the HEADLAMP_RUN_SCRIPT=true
   // env var so that the Headlamp or Electron process runs the script.
-  const child: ChildProcessWithoutNullStreams = spawn(command, args, {
-    ...commandData.options,
-    shell: false,
-    env: {
-      ...process.env,
-      ...(commandData.command === 'scriptjs' ? { HEADLAMP_RUN_SCRIPT: 'true' } : {}),
-    },
-  });
+  let child: ChildProcessWithoutNullStreams;
+  try {
+    child = spawn(command, args, {
+      ...commandData.options,
+      shell: false,
+      env: {
+        ...shellEnvironment,
+        ...(commandData.command === 'scriptjs' ? { HEADLAMP_RUN_SCRIPT: 'true' } : {}),
+      },
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    event.sender.send('command-stderr', commandData.id, message);
+    event.sender.send('command-exit', commandData.id, -1);
+    return;
+  }
 
   child.stdout.on('data', (data: string | Buffer) => {
     event.sender.send('command-stdout', commandData.id, data.toString());

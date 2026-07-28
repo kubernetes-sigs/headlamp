@@ -22,6 +22,7 @@ describe('shouldRetryKubeRequest', () => {
   it('does not retry unauthorized or forbidden requests', () => {
     expect(shouldRetryKubeRequest(0, new ApiError('Unauthorized', { status: 401 }))).toBe(false);
     expect(shouldRetryKubeRequest(0, new ApiError('Forbidden', { status: 403 }))).toBe(false);
+    expect(shouldRetryKubeRequest(2, new ApiError('Forbidden', { status: 403 }))).toBe(false);
   });
 
   it('keeps the default retry limit for other errors', () => {

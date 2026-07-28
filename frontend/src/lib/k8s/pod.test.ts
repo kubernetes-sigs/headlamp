@@ -96,6 +96,21 @@ describe('Pod class', () => {
     expect(() => pod.getDetailedStatus()).not.toThrow();
   });
 
+  it('returns ExitCode when a container terminated with empty reason and no signal', () => {
+    const data = JSON.parse(JSON.stringify(mockPodData));
+    data.status.containerStatuses = [
+      {
+        name: 'container-1',
+        ready: false,
+        restartCount: 0,
+        state: { terminated: { exitCode: 1, reason: '' } },
+      },
+    ];
+    const pod = new Pod(data);
+    const status = pod.getDetailedStatus();
+    expect(status.reason).toBe('ExitCode:1');
+  });
+
   describe('getHealth', () => {
     const makePod = (status: any, metadata: any = {}) =>
       new Pod({

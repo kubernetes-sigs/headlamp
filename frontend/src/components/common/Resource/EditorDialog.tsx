@@ -87,6 +87,8 @@ export interface EditorDialogProps extends DialogProps {
   /** Override the target cluster for apply operations. When set, this takes
    *  priority over `item.cluster` and the URL-derived cluster. */
   cluster?: string;
+  /** When true, the Apply button is disabled due to form validation errors. */
+  formInvalid?: boolean;
 }
 
 export default function EditorDialog(props: EditorDialogProps) {
@@ -105,6 +107,7 @@ export default function EditorDialog(props: EditorDialogProps) {
     formContent,
     treatItemChangesAsEdits,
     cluster,
+    formInvalid,
     ...other
   } = props;
   const editorOptions = {
@@ -139,6 +142,7 @@ export default function EditorDialog(props: EditorDialogProps) {
   );
   const [uploadFiles, setUploadFiles] = React.useState(false);
   const [hasOpenedDiffEditor, setHasOpenedDiffEditor] = React.useState(false);
+  const [activeTabIndex, setActiveTabIndex] = React.useState(0);
 
   const dispatchCreateEvent = useEventCallback(HeadlampEventType.CREATE_RESOURCE);
   const dispatch: AppDispatch = useDispatch();
@@ -203,8 +207,15 @@ export default function EditorDialog(props: EditorDialogProps) {
     const format = looksLikeJson(originalCodeRef.current.code) ? 'json' : 'yaml';
     const itemCode = format === 'json' ? JSON.stringify(clonedItem) : yaml.dump(clonedItem);
 
-    // Update the code if the item representation has changed
-    if (itemCode !== originalCodeRef.current.code) {
+    // Update the code if the item representation has changed.
+    // When treatItemChangesAsEdits is true, originalCodeRef is intentionally
+    // not updated, so compare against the current editor content instead —
+    // otherwise reverting a field to its original value would leave stale
+    // text in the editor.
+    const referenceCode = treatItemChangesAsEdits
+      ? codeRef.current.code
+      : originalCodeRef.current.code;
+    if (itemCode !== referenceCode) {
       if (!treatItemChangesAsEdits) {
         originalCodeRef.current = { code: itemCode, format };
       }
@@ -399,6 +410,7 @@ export default function EditorDialog(props: EditorDialogProps) {
   }
 
   function handleTabChange(tabIndex: number) {
+    setActiveTabIndex(tabIndex);
     const docsTabIndex = formContent ? 2 : 1;
     const diffTabIndex = formContent ? 3 : 2;
 
@@ -558,6 +570,25 @@ export default function EditorDialog(props: EditorDialogProps) {
               if (textarea && editorId) {
                 textarea.id = editorId;
               }
+              // Escape exits the editor so Tab can reach the action buttons.
+              // The precondition prevents stealing Escape from autocomplete, find, etc.
+              editor.addCommand(
+                monaco.KeyCode.Escape,
+                () => {
+                  // Find the first focusable button in DialogActions (the sibling
+                  // of DialogContent) so Tab doesn't loop back into the editor.
+                  const dialogContent = editor.getDomNode()?.closest('.MuiDialogContent-root');
+                  const actions =
+                    dialogContent?.parentElement?.querySelector('.MuiDialogActions-root');
+                  const firstBtn = actions?.querySelector(
+                    'button:not([disabled])'
+                  ) as HTMLElement | null;
+                  if (firstBtn) {
+                    firstBtn.focus();
+                  }
+                },
+                '!suggestWidgetVisible && !findWidgetVisible && !renameInputVisible && !parameterHintsVisible && !inSnippetMode && !editorHasMultipleSelections'
+              );
             }}
             height="100%"
           />
@@ -730,7 +761,11 @@ export default function EditorDialog(props: EditorDialogProps) {
             onClick={() => handleSave('dryRun')}
             color="secondary"
             variant="contained"
-            disabled={originalCodeRef.current.code === code.code || !!error}
+            disabled={
+              originalCodeRef.current.code === code.code ||
+              !!error ||
+              (activeTabIndex === 1 && !!formInvalid)
+            }
             aria-controls={editorId}
             sx={{ whiteSpace: 'nowrap' }}
           >
@@ -742,7 +777,11 @@ export default function EditorDialog(props: EditorDialogProps) {
             onClick={() => handleSave('apply')}
             color="primary"
             variant="contained"
-            disabled={originalCodeRef.current.code === code.code || !!error}
+            disabled={
+              originalCodeRef.current.code === code.code ||
+              !!error ||
+              (activeTabIndex === 1 && !!formInvalid)
+            }
             aria-controls={editorId}
             sx={{ whiteSpace: 'nowrap' }}
           >

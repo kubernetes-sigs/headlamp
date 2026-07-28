@@ -64,18 +64,30 @@ describe('ConfirmButton', () => {
     const onConfirm = vi.fn();
     renderComponent({ onConfirm });
     fireEvent.click(screen.getByRole('button', { name: /delete/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'confirm-button' }));
+    fireEvent.click(screen.getByTestId('confirm-button'));
     expect(onConfirm).toHaveBeenCalledTimes(1);
     await waitFor(() => {
       expect(screen.queryByText('Confirm Action')).not.toBeInTheDocument();
     });
   });
 
+  it('exposes the visible text as the accessible name of the dialog buttons', () => {
+    renderComponent();
+    fireEvent.click(screen.getByRole('button', { name: /delete/i }));
+
+    // The confirm and cancel buttons must be reachable by the text a user sees.
+    // They previously carried aria-label="confirm-button"/"cancel-button", which
+    // overrode the accessible name, so a screen reader announced "confirm button"
+    // instead of "Yes" and these queries matched nothing.
+    expect(screen.getByRole('button', { name: 'Yes' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'No' })).toBeInTheDocument();
+  });
+
   it('does not call onConfirm when cancel button is clicked', () => {
     const onConfirm = vi.fn();
     renderComponent({ onConfirm });
     fireEvent.click(screen.getByRole('button', { name: /delete/i }));
-    fireEvent.click(screen.getByRole('button', { name: 'cancel-button' }));
+    fireEvent.click(screen.getByTestId('cancel-button'));
     expect(onConfirm).not.toHaveBeenCalled();
   });
 
@@ -83,7 +95,7 @@ describe('ConfirmButton', () => {
     renderComponent();
     fireEvent.click(screen.getByRole('button', { name: /delete/i }));
     expect(screen.getByText('Confirm Action')).toBeInTheDocument();
-    fireEvent.click(screen.getByRole('button', { name: 'cancel-button' }));
+    fireEvent.click(screen.getByTestId('cancel-button'));
     await waitFor(() => {
       expect(screen.queryByText('Confirm Action')).not.toBeInTheDocument();
     });

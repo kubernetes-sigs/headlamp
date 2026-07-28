@@ -8,6 +8,8 @@ import "net/http"
 // BuildUserAgent is exported for testing.
 var BuildUserAgent = buildUserAgent
 
+var DeriveInClusterName = deriveInClusterName
+
 // UserAgentRoundTripper is exported for testing.
 type UserAgentRoundTripper struct {
 	Base      roundTripperInterface

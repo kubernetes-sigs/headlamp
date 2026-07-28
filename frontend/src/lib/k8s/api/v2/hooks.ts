@@ -15,7 +15,7 @@
  */
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { useMemo } from 'react';
+import { useCallback, useMemo } from 'react';
 import { getCluster } from '../../../cluster';
 import type { QueryParameters } from '../../api/v1/queryParameters';
 import type { KubeObject, KubeObjectInterface } from '../../KubeObject';
@@ -80,6 +80,12 @@ export interface QueryListResponse<DataType, ItemType, ErrorType>
    */
   clusterResults?: Record<string, QueryListResponse<DataType, ItemType, ErrorType>>;
   errors: ApiError[] | null;
+  /** True when at least one cluster/namespace has more items available via pagination. */
+  hasMore?: boolean;
+  /** Approximate total count of items not yet fetched across all results. */
+  remainingItemCount?: number;
+  /** Fetch and append the next page of results. Only present when hasMore is true. */
+  loadMore?: () => Promise<void>;
 }
 
 export const kubeObjectQueryKey = ({
@@ -124,15 +130,18 @@ export function useKubeObject<K extends KubeObject>({
     name
   );
 
-  const cleanedUpQueryParams = Object.fromEntries(
-    Object.entries(queryParams ?? {}).filter(([, value]) => value !== undefined && value !== '')
-  );
+  const queryParamsString = JSON.stringify(queryParams);
+  const cleanedUpQueryParams = useMemo(() => {
+    return Object.fromEntries(
+      Object.entries(queryParams ?? {}).filter(([, value]) => value !== undefined && value !== '')
+    );
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queryParamsString]);
 
   const queryKey = useMemo(
     () =>
       kubeObjectQueryKey({ cluster, name, namespace, endpoint, queryParams: cleanedUpQueryParams }),
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [endpoint, namespace, name]
+    [cluster, name, namespace, endpoint, cleanedUpQueryParams]
   );
 
   const client = useQueryClient();
@@ -156,6 +165,15 @@ export function useKubeObject<K extends KubeObject>({
 
   const data: Instance | null = query.error ? null : query.data ?? null;
 
+  const handleMessage = useCallback(
+    (update: KubeListUpdateEvent<K>) => {
+      if (update.type !== 'ADDED' && update.object) {
+        client.setQueryData(queryKey, new kubeObjectClass(update.object));
+      }
+    },
+    [client, queryKey, kubeObjectClass]
+  );
+
   const connectionsRequests = useMemo(() => {
     if (!endpoint) return [];
 
@@ -167,32 +185,26 @@ export function useKubeObject<K extends KubeObject>({
           fieldSelector: `metadata.name=${name}`,
         }),
         cluster,
-        onMessage(update: KubeListUpdateEvent<K>) {
-          if (update.type !== 'ADDED' && update.object) {
-            client.setQueryData(queryKey, new kubeObjectClass(update.object));
-          }
-        },
+        onMessage: handleMessage,
       },
     ];
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [endpoint]);
+  }, [endpoint, namespace, name, cleanedUpQueryParams, cluster, handleMessage]);
 
   const multiplexerEnabled = getWebsocketMultiplexerEnabled();
 
   useWebSocket<KubeListUpdateEvent<K>>({
-    url: () =>
-      makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], {
-        ...cleanedUpQueryParams,
-        watch: 1,
-        fieldSelector: `metadata.name=${name}`,
-      }),
+    url: useCallback(
+      () =>
+        makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], {
+          ...cleanedUpQueryParams,
+          watch: 1,
+          fieldSelector: `metadata.name=${name}`,
+        }),
+      [endpoint, namespace, cleanedUpQueryParams, name]
+    ),
     enabled: multiplexerEnabled && !!endpoint && !!data,
     cluster,
-    onMessage(update: KubeListUpdateEvent<K>) {
-      if (update.type !== 'ADDED' && update.object) {
-        client.setQueryData(queryKey, new kubeObjectClass(update.object));
-      }
-    },
+    onMessage: handleMessage,
   });
 
   useWebSockets({

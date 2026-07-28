@@ -99,3 +99,33 @@ Sublist.args = {
     },
   ],
 };
+
+export const SectionHeader = Template.bind({});
+SectionHeader.args = {
+  name: 'section-header',
+  label: 'Plugin Section',
+  entryType: 'subheader',
+  fullWidth: true,
+};
+
+export const CollapsedSectionHeader = Template.bind({});
+CollapsedSectionHeader.args = {
+  name: 'collapsed-section-header',
+  label: 'Plugin Section',
+  entryType: 'subheader',
+  fullWidth: false,
+};
+
+export const StyledSectionHeader = Template.bind({});
+StyledSectionHeader.args = {
+  name: 'styled-section-header',
+  label: 'Plugin Section',
+  entryType: 'subheader',
+  fullWidth: true,
+  sx: {
+    color: '#90caf9',
+    fontSize: '1.1rem',
+    fontWeight: 800,
+    textTransform: 'none',
+  },
+};

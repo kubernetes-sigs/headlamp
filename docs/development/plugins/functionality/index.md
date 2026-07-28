@@ -142,6 +142,10 @@ Filter items with
 [registerSidebarEntryFilter](../../api/plugin/registry/functions/registersidebarentryfilter).
 Filter items from the home (non-cluster) sidebar with
 [registerHomeSidebarEntryFilter](../../api/plugin/registry/functions/registerhomesidebarentryfilter).
+Use `entryType: 'subheader'` with `registerSidebarEntry` to add a
+non-clickable section header that groups sidebar entries. Subheaders render as
+dividers when the sidebar is collapsed. Use `sx` to override the default
+subheader styles.
 
 ![screenshot of the sidebar being changed](../images/sidebar.png)
 

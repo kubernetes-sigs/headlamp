@@ -20,9 +20,9 @@ import { KubeObject } from './KubeObject';
 /**
  * ReferenceGrantFrom defines the source resource (e.g., HTTPRoute) that is allowed to reference a target resource.
  *
- * @see {@link https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1beta1.ReferenceGrant} Gateway API reference for ReferenceGrant
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#referencegrant} Gateway API reference for ReferenceGrant
  *
- * @see {@link https://gateway-api.sigs.k8s.io/api-types/referencegrant/#structure} Gateway API definition for ReferenceGrantFrom
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-types/referencegrant/#structure} Gateway API definition for ReferenceGrantFrom
  */
 export interface ReferenceGrantFrom {
   group: string;
@@ -33,9 +33,9 @@ export interface ReferenceGrantFrom {
 /**
  * ReferenceGrantTo defines the target resource (e.g., Service or Secret) that can be referenced.
  *
- * @see {@link https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1beta1.ReferenceGrant} Gateway API reference for ReferenceGrant
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#referencegrant} Gateway API reference for ReferenceGrant
  *
- * @see {@link https://gateway-api.sigs.k8s.io/api-types/referencegrant/#structure} Gateway API definition for ReferenceGrantTo
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-types/referencegrant/#structure} Gateway API definition for ReferenceGrantTo
  */
 export interface ReferenceGrantTo {
   group: string;
@@ -46,9 +46,9 @@ export interface ReferenceGrantTo {
 /**
  * ReferenceGrant is a Gateway API type that enables cross-namespace references for resources like HTTPRoute or Gateway.
  *
- * @see {@link https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1beta1.ReferenceGrant} Gateway API reference for ReferenceGrant
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#referencegrant} Gateway API reference for ReferenceGrant
  *
- * @see {@link https://gateway-api.sigs.k8s.io/api-types/referencegrant/} Gateway API definition for ReferenceGrant
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-types/referencegrant/} Gateway API definition for ReferenceGrant
  */
 export interface KubeReferenceGrant extends KubeObjectInterface {
   spec: {
@@ -61,7 +61,7 @@ export interface KubeReferenceGrant extends KubeObjectInterface {
 class ReferenceGrant extends KubeObject<KubeReferenceGrant> {
   static kind = 'ReferenceGrant';
   static apiName = 'referencegrants';
-  static apiVersion = ['gateway.networking.k8s.io/v1beta1'];
+  static apiVersion = ['gateway.networking.k8s.io/v1', 'gateway.networking.k8s.io/v1beta1'];
   static isNamespaced = true;
 
   get spec(): KubeReferenceGrant['spec'] {

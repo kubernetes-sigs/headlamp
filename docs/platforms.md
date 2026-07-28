@@ -59,7 +59,7 @@ We test on MacOS, various flavours of Linux, and Windows. Headlamp runs in the b
 
 ## CNCF and Kubernetes Integrations
 
-See these two links up to date lists of plugins which integrate with out cloud native projects:
+See these two links for up-to-date lists of plugins which integrate with our cloud native projects:
 - [Artifact Hub plugin list](https://artifacthub.io/packages/search?kind=21&sort=relevance)
 - [Headlamp plugins repo](https://github.com/headlamp-k8s/plugins/)
 

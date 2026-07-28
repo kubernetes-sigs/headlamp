@@ -1212,7 +1212,7 @@ export const ActivityBar = React.memo(function ({
               Activity.close(it.id);
             }}
             sx={{ width: '42px', height: '100%', borderRadius: 1, flexShrink: 0 }}
-            aria-label="Close"
+            aria-label={t('Close')}
           >
             <Icon icon="mdi:close" />
           </IconButton>

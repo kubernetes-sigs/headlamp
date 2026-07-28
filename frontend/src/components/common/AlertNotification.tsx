@@ -81,6 +81,10 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
       checkerFunction()
         .then(() => {
           setError(false);
+          // Reset the backoff so polling returns to the normal cadence once the
+          // cluster recovers; otherwise the interval stays elevated for the rest
+          // of the session and the banner lingers after connectivity is restored.
+          setNetworkStatusCheckTimeFactor(0);
         })
         .catch(err => {
           const message = err instanceof Error ? err.message : String(err);

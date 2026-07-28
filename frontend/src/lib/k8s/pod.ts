@@ -396,14 +396,6 @@ class Pod extends KubeObject<KubePod> {
       return this.detailedStatusCache.details;
     }
 
-    // We cache this data to avoid going through all this logic when nothing has changed
-    if (
-      !!this.detailedStatusCache.details &&
-      this.detailedStatusCache.resourceVersion === this.jsonData.metadata.resourceVersion
-    ) {
-      return this.detailedStatusCache.details;
-    }
-
     let restarts = 0;
     let restartableInitContainerRestarts = 0;
     let readyContainers = 0;
@@ -507,7 +499,7 @@ class Pod extends KubeObject<KubePod> {
           reason = container.state.terminated.reason;
           message = container.state.terminated.message || '';
         } else if (container.state.terminated?.reason === '') {
-          if (container.state.terminated.signal !== 0) {
+          if (container.state.terminated.signal) {
             reason = `Signal:${container.state.terminated.signal}`;
           } else {
             reason = `ExitCode:${container.state.terminated.exitCode}`;

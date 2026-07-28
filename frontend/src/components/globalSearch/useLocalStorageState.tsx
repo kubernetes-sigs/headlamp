@@ -34,13 +34,39 @@ const updateListeners: Record<string, Array<(newValue: any) => void>> = {};
  */
 export function useLocalStorageState<T>(key: string, defaultValue: T) {
   const get = () => {
-    const maybeValue = localStorage.getItem(key);
-    if (maybeValue) {
-      return JSON.parse(maybeValue);
+    let maybeValue: string | null = null;
+
+    try {
+      maybeValue = localStorage.getItem(key);
+    } catch (error) {
+      console.warn(
+        `Failed to read ${key} from local storage, falling back to default value:`,
+        error
+      );
+      return defaultValue;
     }
-    return defaultValue;
+
+    if (maybeValue === null) {
+      return defaultValue;
+    }
+
+    try {
+      return JSON.parse(maybeValue);
+    } catch (error) {
+      console.warn(
+        `Failed to parse ${key} from local storage, falling back to default value:`,
+        error
+      );
+      return defaultValue;
+    }
   };
-  const put = (value: T) => localStorage.setItem(key, JSON.stringify(value));
+  const put = (value: T) => {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+      console.error(`Error occurred while setting ${key} in local storage:`, error);
+    }
+  };
 
   const [state, setState] = useState<T>(() => get());
 

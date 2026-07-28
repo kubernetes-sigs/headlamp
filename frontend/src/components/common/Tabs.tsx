@@ -106,6 +106,7 @@ export default function Tabs(props: TabsProps) {
           <MuiTab
             key={i}
             label={label}
+            tabIndex={0}
             sx={
               tabs?.length > 7
                 ? {

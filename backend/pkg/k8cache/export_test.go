@@ -68,6 +68,7 @@ func ResetClientsetCache() {
 	defer mu.Unlock()
 
 	clientsetCache = make(map[string]*CachedClientSet)
+	blockedClientsetPrefixes = make(map[string]blockedPrefixEntry)
 }
 
 // SeedClientsetCache populates the clientset cache with dummy entries for testing.
@@ -86,6 +87,14 @@ func ManualEvictExpiredClientsets() {
 	evictExpiredClientsets()
 }
 
+// SeedBlockedClientsetPrefix marks a prefix as blocked at the given time for testing.
+func SeedBlockedClientsetPrefix(prefix string, blockedAt time.Time) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	blockedClientsetPrefixes[prefix] = blockedPrefixEntry{blockedAt: blockedAt}
+}
+
 // ClientsetCacheLen returns the current number of entries in the
 // clientset cache. It is intended for use in tests.
 func ClientsetCacheLen() int {
@@ -101,6 +110,16 @@ func ResetInFlight() {
 	defer mu.Unlock()
 
 	inFlight = make(map[string]*inFlightEntry)
+}
+
+// SeedInFlightClientsetKey registers an in-flight clientset creation for testing.
+func SeedInFlightClientsetKey(cacheKey string) {
+	mu.Lock()
+	defer mu.Unlock()
+
+	inFlight[cacheKey] = &inFlightEntry{
+		waitCh: make(chan struct{}),
+	}
 }
 
 // SetClientsetCreator sets a custom clientset creator function for testing.
@@ -160,4 +179,19 @@ func ExportedInvalidateCacheKeysForResourceEvent(
 	k8scache cache.Cache[string],
 ) {
 	invalidateCacheKeysForResourceEvent(gvr, namespace, name, contextKey, k8scache)
+}
+
+// ExportedCacheKeyBelongsToContext exposes cacheKeyBelongsToContext for testing.
+func ExportedCacheKeyBelongsToContext(key, contextKey string) bool {
+	return cacheKeyBelongsToContext(key, contextKey)
+}
+
+// ExportedClientsetPrefixBlocked reports whether clientset caching is blocked for a prefix.
+func ExportedClientsetPrefixBlocked(prefix string) bool {
+	mu.Lock()
+	defer mu.Unlock()
+
+	_, blocked := blockedClientsetPrefixes[prefix]
+
+	return blocked
 }

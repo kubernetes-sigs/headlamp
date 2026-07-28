@@ -40,8 +40,10 @@ import path from 'path';
 import url from 'url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
+import { setupCustomCAs, setupSystemCAs } from './certificates';
 import i18n from './i18next.config';
 import MCPClient from './mcp/MCPClient';
+import { filterUserOwnedPids } from './ownedProcesses';
 import {
   addToPath,
   ArtifactHubHeadlampPkg,
@@ -51,7 +53,14 @@ import {
   getPluginBinDirectories,
   PluginManager,
 } from './plugin-management';
-import { addRunCmdConsent, removeRunCmdConsent, runScript, setupRunCmdHandlers } from './runCmd';
+import {
+  addRunCmdConsent,
+  environmentOverrides,
+  removeRunCmdConsent,
+  runScript,
+  setupRunCmdHandlers,
+} from './runCmd';
+import { loadSettings, SETTINGS_PATH } from './settings';
 import {
   cleanupHeadlampTray,
   createHeadlampTray,
@@ -83,6 +92,13 @@ if (process.env.HEADLAMP_RUN_SCRIPT) {
 const ENABLE_MCP = process.env.HEADLAMP_MCP_ENABLE !== 'false';
 
 dotenv.config({ path: path.join(process.resourcesPath, '.env') });
+
+const settings = loadSettings(SETTINGS_PATH);
+setupSystemCAs(settings);
+
+if (settings.customCAPath) {
+  setupCustomCAs(settings.customCAPath);
+}
 
 const isDev = !!process.env.ELECTRON_DEV;
 let frontendPath = '';
@@ -265,7 +281,15 @@ class PluginManagerEventListeners {
    */
   setupEventHandlers() {
     ipcMain.on('plugin-manager', async (event, data) => {
-      const eventData = JSON.parse(data) as Action;
+      let eventData: Action;
+
+      try {
+        eventData = JSON.parse(data) as Action;
+      } catch (error) {
+        console.error('plugin-manager: failed to parse event data as JSON:', error);
+        return;
+      }
+
       const { identifier, action } = eventData;
       const updateCache = (progress: ProgressResp) => {
         const percentage = this.convertProgressToPercentage(progress);
@@ -700,6 +724,21 @@ async function getShellEnv(): Promise<NodeJS.ProcessEnv> {
     console.error('Failed to get shell environment:', error);
     return process.env;
   }
+}
+
+let shellEnvironmentPromise: Promise<NodeJS.ProcessEnv> | null = null;
+
+/** Returns the cached login-shell changes merged with the current process environment. */
+export async function getShellEnvironment(): Promise<NodeJS.ProcessEnv> {
+  if (!shellEnvironmentPromise) {
+    shellEnvironmentPromise = getShellEnv()
+      .then(environment => environmentOverrides(environment))
+      .catch(error => {
+        console.warn('Failed to get shell environment, using process.env:', error);
+        return {};
+      });
+  }
+  return { ...process.env, ...(await shellEnvironmentPromise) };
 }
 
 /**
@@ -1274,11 +1313,15 @@ function menusToTemplate(mainWindow: BrowserWindow | null, menusFromPlugins: App
 
 async function getRunningHeadlampPIDs() {
   const processes = await find_process('name', 'headlamp-server.*');
-  if (processes.length === 0) {
+  // Only consider processes owned by the current user: on shared machines
+  // (e.g. Windows remote desktop servers) other users run their own
+  // headlamp-server and we must never touch those.
+  const ownPids = await filterUserOwnedPids(processes.map(pInfo => pInfo.pid));
+  if (ownPids.length === 0) {
     return null;
   }
 
-  return processes.map(pInfo => pInfo.pid);
+  return ownPids;
 }
 
 /**
@@ -1318,7 +1361,15 @@ async function getHeadlampPIDsOnPort(port: number): Promise<number[] | null> {
       return null;
     }
 
-    return headlampOnPort.map(p => p.pid);
+    // Scope to the current user's processes, like getRunningHeadlampPIDs():
+    // another user's server on the port is just a generic occupied port
+    // (isPortAvailable still detects it), not ours to report or touch.
+    const ownPids = await filterUserOwnedPids(headlampOnPort.map(p => p.pid));
+    if (ownPids.length === 0) {
+      return null;
+    }
+
+    return ownPids;
   } catch (error) {
     console.error(`Error checking if port ${port} is used by Headlamp:`, error);
     return null;
