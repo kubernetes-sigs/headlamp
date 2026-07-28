@@ -1051,7 +1051,7 @@ function getDefaultAppMenu(): AppMenu[] {
         {
           label: i18n.t('Zoom In'),
           id: 'original-zoom-in',
-          accelerator: 'CmdOrCtrl+=',
+          accelerator: 'CmdOrCtrl+Plus',
           click: () => adjustZoom(0.1),
         },
         {
