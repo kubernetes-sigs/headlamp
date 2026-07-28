@@ -936,6 +936,10 @@ function getAcceleratorForPlatform(navigation: 'left' | 'right') {
   }
 }
 
+function getZoomInAccelerator() {
+  return platform() === 'darwin' ? 'CmdOrCtrl+Plus' : 'CmdOrCtrl+=';
+}
+
 function getDefaultAppMenu(): AppMenu[] {
   const isMac = process.platform === 'darwin';
 
@@ -1082,7 +1086,7 @@ function getDefaultAppMenu(): AppMenu[] {
         {
           label: i18n.t('Zoom In'),
           id: 'original-zoom-in',
-          accelerator: 'CmdOrCtrl+=',
+          accelerator: getZoomInAccelerator(),
           click: () => adjustZoom(0.1),
         },
         {
