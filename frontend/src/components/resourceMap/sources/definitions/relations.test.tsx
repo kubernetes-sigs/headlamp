@@ -69,6 +69,17 @@ const service = (
   cluster = 'cluster-a'
 ) => new Service({ metadata, spec: { selector, ports: [] }, status: {} } as any, cluster);
 
+describe('KubeObject class matching', () => {
+  it('does not match a generic plugin object to a typed resource class', () => {
+    const resource = new KubeObject({
+      kind: 'PluginResource',
+      metadata: { uid: 'plugin-resource' },
+    } as any);
+
+    expect(Pod.isClassOf(resource)).toBe(false);
+  });
+});
+
 describe('matchesLabels', () => {
   it('matches every requested label and rejects missing or different labels', () => {
     const item = pod({ uid: 'pod', labels: { app: 'web', tier: 'frontend' } });
