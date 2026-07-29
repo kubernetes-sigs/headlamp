@@ -138,8 +138,9 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
    */
   static get apiGroupName(): string | undefined {
     // Get any of the versions, group will be the same
-    const apiVersion = typeof this.apiVersion === 'string' ? this.apiVersion : this.apiVersion[0];
+    const apiVersion = Array.isArray(this.apiVersion) ? this.apiVersion[0] : this.apiVersion;
 
+    if (!apiVersion) return;
     if (!apiVersion.includes('/')) return;
 
     return apiVersion.split('/')[0];
