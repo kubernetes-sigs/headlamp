@@ -254,7 +254,7 @@ jobs:
 
       - name: Install dependencies
         run: |
-          make frontend-install
+          make frontend-install-ci
 
       - name: Install Playwright browsers
         run: |

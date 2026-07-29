@@ -62,9 +62,12 @@ function axeRuleIds(message) {
 
 try {
   const axeProcess = spawn('npx', [
+    '--no-install',
     'axe-storybook',
     '--build-dir',
     '../docs/development/storybook',
+    '--timeout',
+    '10000',
     '--reporter',
     'json',
     '--reporter-options',
@@ -114,7 +117,7 @@ try {
 
   if (knownFailures.length > 0) {
     console.log(`\n✓ ${knownFailures.length} stories have known baseline violations (not blocking CI)`);
-    console.log(`  See docs/a11y-issues.md for details on known issues`);
+    console.log('  See frontend/.axe-storybook-baseline.test-a11y.json for the current baseline of known issues');
   }
 
   if (newFailures.length > 0 || hardFailures.length > 0) {
