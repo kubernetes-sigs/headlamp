@@ -23,6 +23,7 @@ import InputLabel from '@mui/material/InputLabel';
 import MenuItem from '@mui/material/MenuItem';
 import Select from '@mui/material/Select';
 import { useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import { FitAddon } from '@xterm/addon-fit';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
@@ -77,6 +78,7 @@ export default function Terminal(props: TerminalProps) {
   const { t } = useTranslation(['translation', 'glossary']);
   const muiTheme = useTheme();
   const xtermTheme = React.useMemo(() => getXtermTheme(muiTheme), [muiTheme]);
+  const isMobile = useMediaQuery(muiTheme.breakpoints.down('sm'));
 
   // @todo: Give the real exec type when we have it.
   function setupTerminal(containerRef: HTMLElement, xterm: XTerminal, fitAddon: FitAddon) {
@@ -437,6 +439,9 @@ export default function Terminal(props: TerminalProps) {
         height: '100%',
         display: 'flex',
         flexDirection: 'column',
+        ...(isMobile && {
+          padding: 0,
+        }),
         '& .xterm ': {
           height: '100vh', // So the terminal doesn't stay shrunk when shrinking vertically and maximizing again.
           '& .xterm-viewport': {
@@ -447,12 +452,12 @@ export default function Terminal(props: TerminalProps) {
           overflow: 'hidden',
           width: '100%',
           '& .terminal.xterm': {
-            padding: theme.spacing(1),
+            padding: isMobile ? 0 : theme.spacing(1),
           },
         },
       })}
     >
-      <Box>
+      <Box sx={isMobile ? { px: 1, pt: 1 } : undefined}>
         <FormControl sx={{ minWidth: '11rem' }}>
           <InputLabel shrink id="container-name-chooser-label">
             {t('glossary|Container')}

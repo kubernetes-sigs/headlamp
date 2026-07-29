@@ -87,6 +87,9 @@ function testHeadlampPlugin() {
   // test headlamp-plugin build
   run('node', [join('..', 'bin', 'headlamp-plugin.js'), 'build']);
   checkFileExists(join(PACKAGE_NAME, 'dist', 'main.js'));
+  // brotli sidecar must be present alongside main.js
+  checkFileExists(join(PACKAGE_NAME, 'dist', 'main.js.br'));
+  console.log('✓ brotli sidecar main.js.br created after build (package dir)');
 
   // test headlamp-plugin build folder
   curDir = '.';
@@ -97,6 +100,9 @@ function testHeadlampPlugin() {
   curDir = '.';
   run('node', ['bin/headlamp-plugin.js', 'build', PACKAGE_NAME]);
   checkFileExists(join(PACKAGE_NAME, 'dist', 'main.js'));
+  // brotli sidecar must also be present when building a named folder
+  checkFileExists(join(PACKAGE_NAME, 'dist', 'main.js.br'));
+  console.log('✓ brotli sidecar main.js.br created after build (folder arg)');
 
   fs.writeFileSync(join(PACKAGE_NAME, 'dist', 'extra.txt'), 'All dist/ files will be copied.');
 

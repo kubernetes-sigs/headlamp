@@ -319,4 +319,33 @@ describe('Namespace testing', () => {
       expect(Namespace.isValidNamespaceFormat('')).toBe(false);
     });
   });
+
+  describe('test isProtected', () => {
+    const makeNamespace = (name: string, labelName?: string) =>
+      new Namespace({
+        kind: 'Namespace',
+        apiVersion: 'v1',
+        metadata: {
+          name,
+          uid: `uid-${name}`,
+          creationTimestamp: '',
+          ...(labelName ? { labels: { 'kubernetes.io/metadata.name': labelName } } : {}),
+        },
+        status: { phase: 'Active' },
+      });
+
+    it.each(Namespace.PROTECTED_NAMESPACES)('should protect system namespace %s', name => {
+      expect(makeNamespace(name).isProtected()).toBe(true);
+    });
+
+    it('should not protect a regular namespace', () => {
+      expect(makeNamespace('my-app').isProtected()).toBe(false);
+    });
+
+    it('should match the kubernetes.io/metadata.name label over the object name', () => {
+      // Label says kube-system even though metadata.name differs.
+      expect(makeNamespace('renamed', 'kube-system').isProtected()).toBe(true);
+      expect(makeNamespace('kube-system', 'my-app').isProtected()).toBe(false);
+    });
+  });
 });

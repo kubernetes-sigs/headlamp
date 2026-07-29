@@ -65,7 +65,7 @@
     "app:package:mac": "npm run app:build && cd app && npm run package -- --mac",
     "app:test": "npm run app:test:unit && npm run app:test:e2e",
     "app:test:unit": "cd app && npm run test",
-    "app:test:e2e": "cd app/e2e-tests && npm run test",
+    "app:test:e2e": "cd app/e2e-tests && npm run test-app --",
     "app:tsc": "cd app && npm run tsc",
     "app:i18n-check": "cd app && npm run i18n-check",
     "app:format": "cd app && npm run format",

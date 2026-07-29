@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-import 'vitest-canvas-mock';
 import { act, render } from '@testing-library/react';
 import React from 'react';
 import { TestContext } from '../../test';

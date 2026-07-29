@@ -25,7 +25,23 @@ export default {
 export const Show = {
   args: {
     releaseNotes:
-      '# Release Notes\n\n## Hello\n\n### Sub-heading\n\nworld\n\n## Changes\n\n| Feature | Status | Notes |\n|---------|--------|-------|\n| Dark mode | ✅ Done | Available in settings |\n| Tables | ✅ Done | Now rendered properly |\n| Images | ✅ Done | Bounded to container |\n\n## Code Example\n\n```yaml\napiVersion: v1\nkind: Pod\n```\n\n> **Note:** This is a blockquote with important information.',
+      '# Release Notes\n\n## Hello\n\n### Sub-heading\n\nworld\n\n## Changes\n\n| Feature | Status | Notes |\n|---------|--------|-------|\n| Dark mode | ✅ Done | Available in settings |\n| Tables | ✅ Done | Now rendered properly |\n| Images | ✅ Done | Bounded to container |\n\n## Screenshot\n\n<img width="800" height="352" alt="Example release screenshot" src="https://github.com/user-attachments/assets/674137f5-99db-4d7f-ab50-d91b19202704" />\n\n## Code Example\n\n```yaml\napiVersion: v1\nkind: Pod\n```\n\n> **Note:** This is a blockquote with important information.',
+    appVersion: '1.9.9',
+  },
+};
+
+export const Table = {
+  args: {
+    releaseNotes:
+      '## Changes\n\n| Feature | Status | Notes |\n| ------- | ------ | ----- |\n| Tables | Done | Rendered with GFM |',
+    appVersion: '1.9.9',
+  },
+};
+
+export const HtmlImage = {
+  args: {
+    releaseNotes:
+      '## Screenshot\n\n<img width="800" height="352" alt="Example release screenshot" src="https://github.com/user-attachments/assets/674137f5-99db-4d7f-ab50-d91b19202704" />',
     appVersion: '1.9.9',
   },
 };

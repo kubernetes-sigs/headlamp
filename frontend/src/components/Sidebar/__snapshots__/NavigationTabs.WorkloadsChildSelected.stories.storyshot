@@ -29,7 +29,7 @@
                 class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
                 id="full-width-tab-0-NavigationTabs-tabs-id"
                 role="tab"
-                tabindex="-1"
+                tabindex="0"
                 type="button"
               >
                 Workloads
@@ -57,7 +57,7 @@
                 class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
                 id="full-width-tab-2-NavigationTabs-tabs-id"
                 role="tab"
-                tabindex="-1"
+                tabindex="0"
                 type="button"
               >
                 Deployments
@@ -71,7 +71,7 @@
                 class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
                 id="full-width-tab-3-NavigationTabs-tabs-id"
                 role="tab"
-                tabindex="-1"
+                tabindex="0"
                 type="button"
               >
                 Item Without URL
@@ -92,12 +92,14 @@
           hidden=""
           id="full-width-tabpanel-0-NavigationTabs-tabs-id"
           role="tabpanel"
+          tabindex="-1"
         />
         <div
           aria-labelledby="full-width-tab-1-NavigationTabs-tabs-id"
           class="MuiTypography-root MuiTypography-body1 css-fth53a-MuiTypography-root"
           id="full-width-tabpanel-1-NavigationTabs-tabs-id"
           role="tabpanel"
+          tabindex="0"
         />
         <div
           aria-labelledby="full-width-tab-2-NavigationTabs-tabs-id"
@@ -105,6 +107,7 @@
           hidden=""
           id="full-width-tabpanel-2-NavigationTabs-tabs-id"
           role="tabpanel"
+          tabindex="-1"
         />
         <div
           aria-labelledby="full-width-tab-3-NavigationTabs-tabs-id"
@@ -112,6 +115,7 @@
           hidden=""
           id="full-width-tabpanel-3-NavigationTabs-tabs-id"
           role="tabpanel"
+          tabindex="-1"
         />
         <hr
           class="MuiDivider-root MuiDivider-fullWidth css-9mgopn-MuiDivider-root"

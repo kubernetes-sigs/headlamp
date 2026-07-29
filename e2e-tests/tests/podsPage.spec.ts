@@ -14,9 +14,105 @@
  * limitations under the License.
  */
 
+import { execFile } from 'node:child_process';
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { promisify } from 'node:util';
 import { expect, test } from '@playwright/test';
 import { HeadlampPage } from './headlampPage';
 import { podsPage } from './podsPage';
+
+const execFileAsync = promisify(execFile);
+
+async function kubectl(kubeconfig: string, ...args: string[]) {
+  await execFileAsync('kubectl', ['--kubeconfig', kubeconfig, '--context=kind-test', ...args]);
+}
+
+function makePod(name: string, resourceVersion: string) {
+  return {
+    apiVersion: 'v1',
+    kind: 'Pod',
+    metadata: {
+      name,
+      namespace: 'default',
+      uid: `${name}-uid`,
+      resourceVersion,
+      creationTimestamp: '2026-01-01T00:00:00Z',
+    },
+    spec: {
+      containers: [{ name: 'main', image: 'busybox' }],
+    },
+    status: {
+      phase: 'Running',
+      conditions: [{ type: 'Ready', status: 'True' }],
+    },
+  };
+}
+
+test('loads the next page of pods', async ({ page }) => {
+  const headlampPage = new HeadlampPage(page);
+  await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+
+  await page.route('**/clusters/test/apis/metrics.k8s.io/v1beta1/pods?*', async route => {
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        apiVersion: 'metrics.k8s.io/v1beta1',
+        kind: 'PodMetricsList',
+        metadata: { resourceVersion: '1' },
+        items: [],
+      }),
+    });
+  });
+
+  const listRequests: URL[] = [];
+  await page.route('**/clusters/test/api/v1/pods?*', async route => {
+    const url = new URL(route.request().url());
+    listRequests.push(url);
+
+    const continueToken = url.searchParams.get('continue');
+    const isNextPage = continueToken === 'next-page';
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        apiVersion: 'v1',
+        kind: 'PodList',
+        metadata: {
+          resourceVersion: isNextPage ? '2' : '1',
+          continue: isNextPage ? '' : 'next-page',
+          remainingItemCount: isNextPage ? 0 : 1,
+        },
+        items: isNextPage
+          ? [makePod('pod-second-page', '2')]
+          : Array.from({ length: 501 }, (_, index) => makePod(`pod-${index}`, `${index + 1}`)),
+      }),
+    });
+  });
+
+  await headlampPage.navigateTopage('/c/test/pods', /Pods/);
+
+  await expect(page.getByRole('link', { name: 'pod-0', exact: true })).toBeVisible();
+  await expect(page.getByRole('link', { name: 'pod-second-page' })).toHaveCount(0);
+  await expect(page.getByText('501 of ~502')).toBeVisible();
+
+  expect(listRequests).toHaveLength(1);
+  expect(listRequests[0].searchParams.get('limit')).toBe('1000');
+  expect(listRequests[0].searchParams.has('continue')).toBe(false);
+
+  await page.getByRole('button', { name: 'Load more' }).click();
+
+  await expect.poll(() => listRequests.length).toBe(2);
+  await expect(page.getByRole('button', { name: 'Load more' })).toHaveCount(0);
+
+  await page.getByRole('button', { name: 'Show/Hide search' }).click();
+  await page.locator('#table-search-field').fill('pod-second-page');
+  await expect(page.getByRole('link', { name: 'pod-second-page' })).toBeVisible();
+
+  expect(listRequests).toHaveLength(2);
+  expect(listRequests[1].searchParams.get('limit')).toBe('1000');
+  expect(listRequests[1].searchParams.get('continue')).toBe('next-page');
+});
 
 test('multi tab create delete pod', async ({ browser }) => {
   // This test may be slow to create and delete a pod
@@ -50,6 +146,48 @@ test('multi tab create delete pod', async ({ browser }) => {
 
   await realtimeUpdate1.createPod(name);
   await realtimeUpdate2.confirmPodCreation(name);
+});
+
+test('removes a pod from the list when it is deleted with kubectl', async ({ page }) => {
+  test.setTimeout(90000);
+  const name = `headlamp-watch-${Date.now()}`;
+  const tempDirectory = await mkdtemp(join(tmpdir(), 'headlamp-e2e-'));
+  const kubeconfig = join(tempDirectory, 'kubeconfig');
+
+  try {
+    const { stdout } = await execFileAsync('kind', ['get', 'kubeconfig', '--name', 'test']);
+    await writeFile(kubeconfig, stdout);
+    await kubectl(
+      kubeconfig,
+      '--namespace=default',
+      'run',
+      name,
+      '--image=registry.k8s.io/pause:3.10',
+      '--restart=Never'
+    );
+
+    const headlampPage = new HeadlampPage(page);
+    await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+    await headlampPage.navigateTopage('/c/test/pods', /Pods/);
+
+    const podLink = page.getByRole('link', { name, exact: true });
+    await expect(podLink).toBeVisible({ timeout: 15000 });
+
+    await kubectl(kubeconfig, '--namespace=default', 'delete', 'pod', name, '--wait=false');
+
+    await expect(podLink).toHaveCount(0, { timeout: 45000 });
+  } finally {
+    await kubectl(
+      kubeconfig,
+      '--namespace=default',
+      'delete',
+      'pod',
+      name,
+      '--ignore-not-found=true'
+    )
+      .catch(() => undefined)
+      .finally(() => rm(tempDirectory, { recursive: true, force: true }));
+  }
 });
 
 test('react-hotkey for logs search', async ({ page }) => {
