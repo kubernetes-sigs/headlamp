@@ -100,8 +100,17 @@ export async function checkArtifactsForRelease(releaseDraft: GitHubRelease): Pro
     `Headlamp-${releaseVersion}-linux-armv7l.tar.gz`,
     `Headlamp-${releaseVersion}-linux-x64.tar.gz`,
     `Headlamp-${releaseVersion}-win-x64.exe`,
+    `Headlamp-${releaseVersion}-win-arm64.exe`,
     `headlamp_${releaseVersion}-1_amd64.deb`,
     `checksums.txt`
+  ];
+
+  // Optional assets: known/expected but not required for a release to be considered ready.
+  // Currently the MSI installer is built alongside the win-x64/arm64 .exe installers, but we
+  // don't yet require it for every release, so it's tracked here instead of requiredAssets.
+  const optionalAssets = [
+    `Headlamp-${releaseVersion}-win-x64.msi`,
+    `Headlamp-${releaseVersion}-win-arm64.msi`
   ];
 
   const assets = releaseDraft.assets || [];
@@ -109,11 +118,17 @@ export async function checkArtifactsForRelease(releaseDraft: GitHubRelease): Pro
   requiredAssets.forEach(asset => {
     foundAssets[asset] = false;
   });
+  const foundOptionalAssets: Record<string, boolean> = {};
+  optionalAssets.forEach(asset => {
+    foundOptionalAssets[asset] = false;
+  });
   const unknownAssets: string[] = [];
 
   assets.forEach((asset: ReleaseAsset) => {
     if (foundAssets.hasOwnProperty(asset.name)) {
       foundAssets[asset.name] = true;
+    } else if (foundOptionalAssets.hasOwnProperty(asset.name)) {
+      foundOptionalAssets[asset.name] = true;
     } else {
       unknownAssets.push(asset.name);
     }
@@ -126,6 +141,14 @@ export async function checkArtifactsForRelease(releaseDraft: GitHubRelease): Pro
     } else {
       console.error(chalk.red(`❌ Missing asset: ${assetName}`));
       allFound = false;
+    }
+  });
+
+  Object.entries(foundOptionalAssets).forEach(([assetName, found]) => {
+    if (found) {
+      console.log(chalk.green(`✅ Found optional asset: ${assetName}`));
+    } else {
+      console.log(chalk.gray(`ℹ️  Optional asset not present: ${assetName}`));
     }
   });
 
