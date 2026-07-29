@@ -491,6 +491,10 @@ export async function connectStreamWithParams<T>(
       console.debug('k8s/apiProxy@connectStream onMessage cb(item)', { item });
     }
 
+    if (path.includes('customresourcedefinitions')) {
+      clearEndpointCache();
+    }
+
     cb(item);
   }
 
@@ -514,4 +518,58 @@ export async function connectStreamWithParams<T>(
   function onError(err: any) {
     console.error('Error in api stream', { err, path });
   }
+}
+
+interface CacheEntry {
+  preferredIndex?: number;
+  failedIndices: Set<number>;
+}
+
+const endpointCache = new Map<string, CacheEntry>();
+
+export function getPreferredEndpointIndex(
+  cluster: string,
+  resourceKey: string
+): number | undefined {
+  return endpointCache.get(`${cluster}:${resourceKey}`)?.preferredIndex;
+}
+
+export function setPreferredEndpointIndex(
+  cluster: string,
+  resourceKey: string,
+  index: number
+): void {
+  const key = `${cluster}:${resourceKey}`;
+  let entry = endpointCache.get(key);
+  if (!entry) {
+    entry = { failedIndices: new Set() };
+    endpointCache.set(key, entry);
+  }
+  entry.preferredIndex = index;
+}
+
+export function addFailedEndpointIndex(cluster: string, resourceKey: string, index: number): void {
+  const key = `${cluster}:${resourceKey}`;
+  let entry = endpointCache.get(key);
+  if (!entry) {
+    entry = { failedIndices: new Set() };
+    endpointCache.set(key, entry);
+  }
+  entry.failedIndices.add(index);
+}
+
+export function isEndpointIndexFailed(
+  cluster: string,
+  resourceKey: string,
+  index: number
+): boolean {
+  const key = `${cluster}:${resourceKey}`;
+  return endpointCache.get(key)?.failedIndices.has(index) ?? false;
+}
+
+export function clearEndpointCache() {
+  if (isDebugVerbose('k8s/apiProxy@clearEndpointCache')) {
+    console.debug('k8s/apiProxy@clearEndpointCache - Invalidation triggered');
+  }
+  endpointCache.clear();
 }

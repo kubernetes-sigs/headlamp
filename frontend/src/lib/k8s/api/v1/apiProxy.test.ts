@@ -27,6 +27,7 @@ import * as cluster from '../../../cluster';
 import * as apiProxy from '../../apiProxy';
 
 const baseApiUrl = getAppUrl();
+const originalFetch = global.fetch;
 const wsUrl = baseApiUrl.replace('http', 'ws');
 const testPath = '/test/url';
 const mockResponse = { message: 'mock response' };
@@ -1238,6 +1239,269 @@ describe('apiProxy', () => {
 
     it('Successfully handles deletePlugin with error', async () => {
       await expect(apiProxy.deletePlugin(fakePluginName)).rejects.toThrow('Plugin not found');
+    });
+  });
+
+  describe('repeatStreamFunc caching and adaptive endpoint selection', () => {
+    let cb: Mock;
+    let errCb: Mock;
+
+    beforeEach(() => {
+      global.fetch = originalFetch;
+      cb = vi.fn();
+      errCb = vi.fn();
+    });
+
+    afterEach(() => {
+      nock.cleanAll();
+      WS.clean();
+      vi.restoreAllMocks();
+    });
+
+    it('should fallback on 404, cache failed endpoints and adaptively select the successful one', async () => {
+      const group = 'example.com';
+      const resource = 'myresources';
+
+      nock(baseApiUrl)
+        .get(`/clusters/${clusterName}/apis/${group}/v1beta1/${resource}`)
+        .reply(404, {
+          kind: 'Status',
+          status: 'Failure',
+          message: 'the server could not find the requested resource',
+          reason: 'NotFound',
+          code: 404,
+        });
+
+      nock(baseApiUrl)
+        .get(`/clusters/${clusterName}/apis/${group}/v1/${resource}`)
+        .reply(200, {
+          kind: 'MyResourceList',
+          items: [],
+          metadata: { resourceVersion: '123' },
+        });
+
+      const server1 = new WS(`${wsUrl}clusters/${clusterName}/apis/${group}/v1/${resource}`);
+
+      const client = apiProxy.apiFactory([group, 'v1beta1', resource], [group, 'v1', resource]);
+
+      const cancelFunc = await client.list(cb, errCb, {}, clusterName);
+      await server1.connected;
+
+      expect(cb).toHaveBeenCalled();
+      server1.close();
+
+      nock(baseApiUrl)
+        .get(`/clusters/${clusterName}/apis/${group}/v1/${resource}`)
+        .reply(200, {
+          kind: 'MyResourceList',
+          items: [],
+          metadata: { resourceVersion: '124' },
+        });
+
+      const server2 = new WS(`${wsUrl}clusters/${clusterName}/apis/${group}/v1/${resource}`);
+
+      const cb2 = vi.fn();
+      const cancelFunc2 = await client.list(cb2, errCb, {}, clusterName);
+
+      await server2.connected;
+      expect(cb2).toHaveBeenCalled();
+
+      cancelFunc();
+      cancelFunc2();
+      server2.close();
+    });
+
+    it('should invalidate cache when the cluster context changes', async () => {
+      const group = 'example.com';
+      const resource = 'myresources';
+
+      nock(baseApiUrl)
+        .get(`/clusters/${clusterName}/apis/${group}/v1beta1/${resource}`)
+        .reply(404, {
+          message: 'the server could not find the requested resource',
+          code: 404,
+        });
+
+      nock(baseApiUrl)
+        .get(`/clusters/${clusterName}/apis/${group}/v1/${resource}`)
+        .reply(200, {
+          kind: 'MyResourceList',
+          items: [],
+          metadata: { resourceVersion: '123' },
+        });
+
+      const server1 = new WS(`${wsUrl}clusters/${clusterName}/apis/${group}/v1/${resource}`);
+
+      const client = apiProxy.apiFactory([group, 'v1beta1', resource], [group, 'v1', resource]);
+
+      const cancel1 = await client.list(cb, errCb, {}, clusterName);
+      await server1.connected;
+      expect(cb).toHaveBeenCalled();
+
+      const newClusterName = 'new-cluster';
+
+      nock(baseApiUrl)
+        .get(`/clusters/${newClusterName}/apis/${group}/v1beta1/${resource}`)
+        .reply(200, {
+          kind: 'MyResourceList',
+          items: [],
+          metadata: { resourceVersion: '456' },
+        });
+
+      const server2 = new WS(
+        `${wsUrl}clusters/${newClusterName}/apis/${group}/v1beta1/${resource}`
+      );
+
+      const cb2 = vi.fn();
+      const cancel2 = await client.list(cb2, errCb, {}, newClusterName);
+      await server2.connected;
+      expect(cb2).toHaveBeenCalled();
+
+      cancel1();
+      cancel2();
+      server1.close();
+      server2.close();
+    });
+
+    it('should invalidate cache when writing to customresourcedefinitions', async () => {
+      const group = 'example.com';
+      const resource = 'myresources';
+
+      nock(baseApiUrl)
+        .get(`/clusters/${clusterName}/apis/${group}/v1beta1/${resource}`)
+        .reply(404, {
+          message: 'the server could not find the requested resource',
+          code: 404,
+        });
+
+      nock(baseApiUrl)
+        .get(`/clusters/${clusterName}/apis/${group}/v1/${resource}`)
+        .reply(200, {
+          kind: 'MyResourceList',
+          items: [],
+          metadata: { resourceVersion: '123' },
+        });
+
+      const server1 = new WS(`${wsUrl}clusters/${clusterName}/apis/${group}/v1/${resource}`);
+
+      const client = apiProxy.apiFactory([group, 'v1beta1', resource], [group, 'v1', resource]);
+
+      const cancel1 = await client.list(cb, errCb, {}, clusterName);
+      await server1.connected;
+      expect(cb).toHaveBeenCalled();
+
+      nock(baseApiUrl)
+        .post(`/clusters/${clusterName}/apis/apiextensions.k8s.io/v1/customresourcedefinitions`)
+        .reply(201, {
+          metadata: { name: 'myresources.example.com' },
+        });
+
+      const crdClient = apiProxy.apiFactory(
+        ['apiextensions.k8s.io', 'v1', 'customresourcedefinitions'],
+        ['apiextensions.k8s.io', 'v1beta1', 'customresourcedefinitions']
+      );
+
+      await crdClient.post({ metadata: { name: 'myresources.example.com' } }, {}, clusterName);
+
+      nock(baseApiUrl)
+        .get(`/clusters/${clusterName}/apis/${group}/v1beta1/${resource}`)
+        .reply(200, {
+          kind: 'MyResourceList',
+          items: [],
+          metadata: { resourceVersion: '789' },
+        });
+
+      const server2 = new WS(`${wsUrl}clusters/${clusterName}/apis/${group}/v1beta1/${resource}`);
+
+      const cb2 = vi.fn();
+      const cancel2 = await client.list(cb2, errCb, {}, clusterName);
+      await server2.connected;
+      expect(cb2).toHaveBeenCalled();
+
+      cancel1();
+      cancel2();
+      server1.close();
+      server2.close();
+    });
+
+    it('should invalidate cache when receiving a watch event for customresourcedefinitions', async () => {
+      const group = 'example.com';
+      const resource = 'myresources';
+
+      nock(baseApiUrl)
+        .get(`/clusters/${clusterName}/apis/${group}/v1beta1/${resource}`)
+        .reply(404, {
+          message: 'the server could not find the requested resource',
+          code: 404,
+        });
+
+      nock(baseApiUrl)
+        .get(`/clusters/${clusterName}/apis/${group}/v1/${resource}`)
+        .reply(200, {
+          kind: 'MyResourceList',
+          items: [],
+          metadata: { resourceVersion: '123' },
+        });
+
+      const server1 = new WS(`${wsUrl}clusters/${clusterName}/apis/${group}/v1/${resource}`);
+
+      const client = apiProxy.apiFactory([group, 'v1beta1', resource], [group, 'v1', resource]);
+
+      const cancel1 = await client.list(cb, errCb, {}, clusterName);
+      await server1.connected;
+      expect(cb).toHaveBeenCalled();
+
+      nock(baseApiUrl)
+        .get(`/clusters/${clusterName}/apis/apiextensions.k8s.io/v1/customresourcedefinitions`)
+        .reply(200, {
+          kind: 'CustomResourceDefinitionList',
+          items: [],
+          metadata: { resourceVersion: '100' },
+        });
+
+      const crdServer = new WS(
+        `${wsUrl}clusters/${clusterName}/apis/apiextensions.k8s.io/v1/customresourcedefinitions`
+      );
+
+      const crdClient = apiProxy.apiFactory(
+        'apiextensions.k8s.io',
+        'v1',
+        'customresourcedefinitions'
+      );
+      const cancelCrd = await crdClient.list(vi.fn(), vi.fn(), {}, clusterName);
+      await crdServer.connected;
+
+      crdServer.send(
+        JSON.stringify({
+          type: 'MODIFIED',
+          object: {
+            kind: 'CustomResourceDefinition',
+            metadata: { uid: 'crd-1', resourceVersion: '101' },
+          },
+        })
+      );
+
+      nock(baseApiUrl)
+        .get(`/clusters/${clusterName}/apis/${group}/v1beta1/${resource}`)
+        .reply(200, {
+          kind: 'MyResourceList',
+          items: [],
+          metadata: { resourceVersion: '999' },
+        });
+
+      const server2 = new WS(`${wsUrl}clusters/${clusterName}/apis/${group}/v1beta1/${resource}`);
+
+      const cb2 = vi.fn();
+      const cancel2 = await client.list(cb2, errCb, {}, clusterName);
+      await server2.connected;
+      expect(cb2).toHaveBeenCalled();
+
+      cancel1();
+      cancel2();
+      cancelCrd();
+      server1.close();
+      server2.close();
+      crdServer.close();
     });
   });
 });

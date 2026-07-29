@@ -28,7 +28,15 @@ import { asQuery, getApiRoot } from './formatUrl';
 import type { QueryParameters } from './queryParameters';
 import { apiScaleFactory, type ScaleApi } from './scaleApi';
 import type { StreamErrCb, StreamResultsCb } from './streamingApi';
-import { streamResult, streamResultsForCluster } from './streamingApi';
+import {
+  addFailedEndpointIndex,
+  clearEndpointCache,
+  getPreferredEndpointIndex,
+  isEndpointIndexFailed,
+  setPreferredEndpointIndex,
+  streamResult,
+  streamResultsForCluster,
+} from './streamingApi';
 
 export type CancelFunction = () => void;
 export type SingleApiFactoryArguments = [group: string, version: string, resource: string];
@@ -178,6 +186,8 @@ type FunctionKeys<T> = {
  *
  * @returns A function that cancels the streaming function call.
  */
+let lastCluster = '';
+
 async function repeatStreamFunc<
   ResourceType extends KubeObjectInterface,
   FuncName extends FunctionKeys<ApiClient<ResourceType>>
@@ -193,6 +203,28 @@ async function repeatStreamFunc<
   if (isDebugVerbose('k8s/apiProxy@repeatStreamFunc')) {
     console.debug('k8s/apiProxy@repeatStreamFunc', { apiEndpoints, funcName, args });
   }
+
+  // Extract cluster context name
+  let clusterStr = '';
+  if (funcName === 'list') {
+    clusterStr = (args.length === 3 ? args[2] : args[3]) || '';
+  } else if (funcName === 'get') {
+    clusterStr = (args.length === 4 ? args[3] : args[4]) || '';
+  }
+  if (!clusterStr) {
+    clusterStr = getCluster() || '';
+  }
+
+  // Invalidate cache if cluster context changed
+  if (lastCluster && clusterStr !== lastCluster) {
+    clearEndpointCache();
+  }
+  lastCluster = clusterStr;
+
+  // Extract resource key: group/resource
+  const firstEndpoint = apiEndpoints[0];
+  const firstInfo = firstEndpoint?.apiInfo?.[0];
+  const resourceKey = firstInfo ? `${firstInfo.group || ''}/${firstInfo.resource}` : '';
 
   function runStreamFunc(
     endpointIndex: number,
@@ -217,19 +249,96 @@ async function repeatStreamFunc<
     return func(...fullArgs);
   }
 
+  // Determine starting endpointIndex using cache
   let endpointIndex = 0;
+  const preferredIndex = resourceKey
+    ? getPreferredEndpointIndex(clusterStr, resourceKey)
+    : undefined;
+  if (preferredIndex !== undefined && preferredIndex < apiEndpoints.length) {
+    endpointIndex = preferredIndex;
+  } else if (resourceKey) {
+    // Find first endpoint that has not failed
+    while (
+      endpointIndex < apiEndpoints.length &&
+      isEndpointIndexFailed(clusterStr, resourceKey, endpointIndex)
+    ) {
+      endpointIndex++;
+    }
+    // If all endpoints failed, reset to 0
+    if (endpointIndex >= apiEndpoints.length) {
+      endpointIndex = 0;
+    }
+  }
+
+  let activeIndex = endpointIndex;
+
+  // Wrap the success callback to cache the successful endpoint index
+  let cbIndex = -1;
+  if (funcName === 'list') {
+    cbIndex = args.length === 3 ? 0 : 1;
+  } else if (funcName === 'get') {
+    cbIndex = args.length === 4 ? 1 : 2;
+  }
+
+  if (cbIndex !== -1 && typeof args[cbIndex] === 'function') {
+    const originalCb = args[cbIndex];
+    let hasCachedSuccess = false;
+    args[cbIndex] = (...cbArgs: any[]) => {
+      if (!hasCachedSuccess && resourceKey) {
+        hasCachedSuccess = true;
+        setPreferredEndpointIndex(clusterStr, resourceKey, activeIndex);
+      }
+      return originalCb(...cbArgs);
+    };
+  }
+
   const cancel: StreamErrCb = async (err, cancelStream) => {
     if (isCancelled) {
       return;
     }
-    if (err.status === 404 && endpointIndex < apiEndpoints.length) {
-      // Cancel current stream
-      if (cancelStream) {
-        cancelStream();
+
+    // If it's a get request on the preferred index and it's a standard not found (instance not found, not endpoint not found),
+    // we do not fall back.
+    const isPreferredGetNotFoundInstance =
+      funcName === 'get' &&
+      preferredIndex !== undefined &&
+      activeIndex === preferredIndex &&
+      !err.message?.includes('the server could not find the requested resource');
+
+    const isEndpointNotFound =
+      err.status === 404 &&
+      (funcName === 'list' ||
+        err.message?.includes('the server could not find the requested resource'));
+
+    if (
+      err.status === 404 &&
+      !isPreferredGetNotFoundInstance &&
+      endpointIndex < apiEndpoints.length
+    ) {
+      if (isEndpointNotFound && resourceKey) {
+        addFailedEndpointIndex(clusterStr, resourceKey, activeIndex);
       }
 
-      streamCancel = await runStreamFunc(endpointIndex++, funcName, cancel, ...args);
-    } else if (!!errCb) {
+      // Find the next index that is not marked as failed
+      while (
+        endpointIndex < apiEndpoints.length &&
+        resourceKey &&
+        isEndpointIndexFailed(clusterStr, resourceKey, endpointIndex)
+      ) {
+        endpointIndex++;
+      }
+
+      if (endpointIndex < apiEndpoints.length) {
+        if (cancelStream) {
+          cancelStream();
+        }
+        activeIndex = endpointIndex;
+        streamCancel = await runStreamFunc(endpointIndex++, funcName, cancel, ...args);
+        return;
+      }
+    }
+
+    if (!!errCb) {
       errCb(err, streamCancel);
     }
   };
@@ -271,7 +380,12 @@ function repeatFactoryMethod<
       try {
         const endpoint = apiEndpoints[i];
         const func: any = endpoint[funcName as keyof typeof endpoint];
-        return await func(...args);
+        const result = await func(...args);
+        const resource = endpoint?.apiInfo?.[0]?.resource;
+        if (resource === 'customresourcedefinitions') {
+          clearEndpointCache();
+        }
+        return result;
       } catch (err) {
         // If the error is 404 and we still have other endpoints, then try the next one
         if ((err as ApiError).status === 404 && i !== apiEndpoints.length - 1) {
