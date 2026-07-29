@@ -1243,6 +1243,80 @@ func TestDrainNodeSkipsDaemonSetPods(t *testing.T) {
 	assert.False(t, deleted.Load(), "DaemonSet pod should not be deleted during drain")
 }
 
+// TestPluginStaticCacheControl verifies that plugin bundles are served with a
+// "Cache-Control: no-cache" header whenever the server is configured to pick up
+// plugin changes: always when running locally, and in-cluster when
+// --watch-plugins-changes is enabled. Without the header the server picks up a
+// swapped bundle on disk but browsers keep serving the stale main.js they cached
+// earlier. In the default in-cluster case (no watching) the header is omitted,
+// preserving the existing caching behavior.
+//
+// Both watched static handlers are covered: the development plugins served at
+// /plugins/ and the user-installed plugins served at /user-plugins/.
+func TestPluginStaticCacheControl(t *testing.T) {
+	tests := []struct {
+		name                string
+		useInCluster        bool
+		watchPluginsChanges bool
+		wantNoCache         bool
+	}{
+		{name: "local dev serves no-cache", useInCluster: false, watchPluginsChanges: false, wantNoCache: true},
+		{name: "in-cluster without watching caches", useInCluster: true, watchPluginsChanges: false, wantNoCache: false},
+		{name: "in-cluster with watching serves no-cache", useInCluster: true, watchPluginsChanges: true, wantNoCache: true},
+	}
+
+	// writeBundle creates <root>/test-plugin/main.js and returns the root.
+	writeBundle := func(t *testing.T, root string) string {
+		t.Helper()
+
+		bundleDir := filepath.Join(root, "test-plugin")
+		require.NoError(t, os.Mkdir(bundleDir, 0o750))
+		require.NoError(t, os.WriteFile(filepath.Join(bundleDir, "main.js"), []byte("export default {};"), 0o600))
+
+		return root
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			pluginDir := writeBundle(t, t.TempDir())
+			userPluginDir := writeBundle(t, t.TempDir())
+
+			c := HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						UseInCluster:        tc.useInCluster,
+						WatchPluginsChanges: tc.watchPluginsChanges,
+						KubeConfigPath:      filepath.Join("headlamp_testdata", "kubeconfig"),
+						PluginDir:           pluginDir,
+						UserPluginDir:       userPluginDir,
+						KubeConfigStore:     kubeconfig.NewContextStore(),
+					},
+					Cache:            cache.New[interface{}](),
+					TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+					TelemetryHandler: &telemetry.RequestHandler{},
+				},
+			}
+
+			handler := createHeadlampHandler(context.Background(), &c)
+
+			for _, path := range []string{
+				"/plugins/test-plugin/main.js",
+				"/user-plugins/test-plugin/main.js",
+			} {
+				rr, err := getResponse(handler, http.MethodGet, path, nil)
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, rr.Code, path)
+
+				if tc.wantNoCache {
+					assert.Equal(t, "no-cache", rr.Header().Get("Cache-Control"), path)
+				} else {
+					assert.Empty(t, rr.Header().Get("Cache-Control"), path)
+				}
+			}
+		})
+	}
+}
+
 func TestDeletePlugin(t *testing.T) {
 	// create temp dir for plugins
 	tempDir, err := os.MkdirTemp("", "plugins")
