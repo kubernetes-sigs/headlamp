@@ -20,7 +20,10 @@ import { isEqual } from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHistory } from 'react-router-dom';
-import { setupBackstageMessageReceiver } from '../../../helpers/backstageMessageReceiver';
+import {
+  getTrustedBackstageOrigins,
+  setupBackstageMessageReceiver,
+} from '../../../helpers/backstageMessageReceiver';
 import { useAutoConnectClusters } from '../../../helpers/clusterAutoConnect';
 import { isBackstage } from '../../../helpers/isBackstage';
 import { isElectron } from '../../../helpers/isElectron';
@@ -151,7 +154,11 @@ function HomeComponent(props: HomeComponentProps) {
 
   React.useEffect(() => {
     if (isBackstage()) {
-      window.parent.postMessage({ type: 'HEADLAMP_READY' }, '*');
+      // Only announce readiness to a configured, trusted Backstage origin.
+      const [trustedOrigin] = getTrustedBackstageOrigins();
+      if (trustedOrigin) {
+        window.parent.postMessage({ type: 'HEADLAMP_READY' }, trustedOrigin);
+      }
       return setupBackstageMessageReceiver();
     }
   }, []);
