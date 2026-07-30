@@ -22,6 +22,16 @@ export interface ClusterSettings {
   defaultNamespace?: string;
   /** Only allow namespaces in this list to be selected */
   allowedNamespaces?: string[];
+  /**
+   * A Kubernetes label selector (e.g. "team=frontend,env=prod") used to dynamically
+   * resolve the list of allowed namespaces from the cluster.
+   */
+  allowedNamespacesSelector?: string;
+  /**
+   * Namespaces resolved from allowedNamespacesSelector. This is a cache that is
+   * refreshed when the app loads a cluster and when the selector changes.
+   */
+  allowedNamespacesFromSelector?: string[];
   /** This is a custom cluster name. If it is '' it is the actual cluster name. */
   currentName?: string;
   nodeShellTerminal?: {
@@ -38,6 +48,23 @@ export interface ClusterSettings {
     accentColor?: string;
     icon?: string;
   };
+}
+
+/**
+ * Returns the combined list of allowed namespaces for the given cluster settings:
+ * the manually configured ones plus the ones resolved from the namespace label
+ * selector (if any). The result is sorted and does not contain duplicates.
+ *
+ * @param settings - The cluster settings.
+ * @returns The combined list of allowed namespaces.
+ */
+export function getCombinedAllowedNamespaces(settings: ClusterSettings): string[] {
+  return [
+    ...new Set([
+      ...(settings.allowedNamespaces || []),
+      ...(settings.allowedNamespacesFromSelector || []),
+    ]),
+  ].sort();
 }
 
 export const DEFAULT_NODE_SHELL_LINUX_IMAGE = 'docker.io/library/busybox:latest';
