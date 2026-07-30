@@ -27,7 +27,7 @@ import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
-import { loadClusterSettings } from '../../helpers/clusterSettings';
+import { getCombinedAllowedNamespaces, loadClusterSettings } from '../../helpers/clusterSettings';
 import { useCluster, useClustersConf } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
 import { setNamespaceFilter } from '../../redux/filterSlice';
@@ -203,7 +203,7 @@ export function NamespacesAutocomplete() {
 
   React.useEffect(() => {
     const settings = loadClusterSettings(cluster || '');
-    const allowedNamespaces = settings?.allowedNamespaces || [];
+    const allowedNamespaces = getCombinedAllowedNamespaces(settings);
     if (allowedNamespaces.length > 0) {
       setNamespaceNames(allowedNamespaces);
     }

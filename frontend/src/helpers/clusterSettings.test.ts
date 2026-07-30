@@ -14,7 +14,12 @@
  * limitations under the License.
  */
 
-import { ClusterSettings, loadClusterSettings, storeClusterSettings } from './clusterSettings';
+import {
+  ClusterSettings,
+  getCombinedAllowedNamespaces,
+  loadClusterSettings,
+  storeClusterSettings,
+} from './clusterSettings';
 
 describe('clusterSettings', () => {
   beforeEach(() => {
@@ -125,6 +130,34 @@ describe('clusterSettings', () => {
       localStorage.setItem('cluster_settings.prod', '{not json');
 
       expect(() => loadClusterSettings('prod')).toThrow(SyntaxError);
+    });
+  });
+
+  describe('getCombinedAllowedNamespaces', () => {
+    it('returns an empty list when nothing is configured', () => {
+      expect(getCombinedAllowedNamespaces({})).toEqual([]);
+    });
+
+    it('returns the manually configured namespaces', () => {
+      expect(getCombinedAllowedNamespaces({ allowedNamespaces: ['b', 'a'] })).toEqual(['a', 'b']);
+    });
+
+    it('returns the namespaces resolved from the label selector', () => {
+      expect(
+        getCombinedAllowedNamespaces({
+          allowedNamespacesSelector: 'team=frontend',
+          allowedNamespacesFromSelector: ['b', 'a'],
+        })
+      ).toEqual(['a', 'b']);
+    });
+
+    it('merges, deduplicates and sorts both lists', () => {
+      expect(
+        getCombinedAllowedNamespaces({
+          allowedNamespaces: ['c', 'a'],
+          allowedNamespacesFromSelector: ['b', 'a'],
+        })
+      ).toEqual(['a', 'b', 'c']);
     });
   });
 });

@@ -29,6 +29,7 @@ import { useDispatch } from 'react-redux';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
 import { useCluster, useClustersConf } from '../../lib/k8s';
+import { syncAllowedNamespacesFromSelector } from '../../lib/k8s/allowedNamespaces';
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { Cluster } from '../../lib/k8s/cluster';
 import { getSavedNamespaces } from '../../lib/storage';
@@ -232,6 +233,10 @@ export default function Layout({}: LayoutProps) {
     if (cluster) {
       const saved = getSavedNamespaces(cluster);
       dispatch(setNamespaceFilter(saved));
+      // Refresh the allowed namespaces resolved from the configured label selector (if any).
+      syncAllowedNamespacesFromSelector(cluster).catch(err => {
+        console.debug('Failed to sync allowed namespaces from selector', err);
+      });
     }
   }, [cluster, dispatch]);
 
