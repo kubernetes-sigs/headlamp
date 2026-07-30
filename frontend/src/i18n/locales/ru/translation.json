@@ -741,6 +741,7 @@
   "Duration": "Продолжительность",
   "Active Deadline": "",
   "TTL After Finished": "",
+  "Group Size": "",
   "Holder Identity": "Идентификатор держателя",
   "Lease Duration Seconds": "Продолжительность аренды (секунды)",
   "Renew Time": "Время продления",

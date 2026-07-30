@@ -42,6 +42,7 @@ import Ingress from '../../lib/k8s/ingress';
 import Job from '../../lib/k8s/job';
 import JobSet from '../../lib/k8s/jobSet';
 import { KubeObject, KubeObjectClass } from '../../lib/k8s/KubeObject';
+import LeaderWorkerSet from '../../lib/k8s/leaderWorkerSet';
 import Namespace from '../../lib/k8s/namespace';
 import Node from '../../lib/k8s/node';
 import PersistentVolumeClaim from '../../lib/k8s/persistentVolumeClaim';
@@ -109,6 +110,7 @@ const classes: KubeObjectClass[] = [
   ServiceAccount,
   Node,
   JobSet,
+  LeaderWorkerSet,
 ];
 
 /**

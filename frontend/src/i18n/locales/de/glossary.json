@@ -115,6 +115,7 @@
   "Failed": "",
   "Jobs": "Jobs",
   "Job Sets": "",
+  "Leader Worker Sets": "",
   "Lease": "Lease",
   "LimitRange": "LimitRange",
   "Ingress": "Ingress",

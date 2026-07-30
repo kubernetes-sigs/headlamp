@@ -115,6 +115,7 @@
   "Failed": "Ошибка",
   "Jobs": "Jobs",
   "Job Sets": "Job Sets",
+  "Leader Worker Sets": "",
   "Lease": "Lease",
   "LimitRange": "LimitRange",
   "Ingress": "Ingress",

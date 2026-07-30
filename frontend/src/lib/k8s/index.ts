@@ -41,6 +41,7 @@ import Ingress from './ingress';
 import IngressClass from './ingressClass';
 import Job from './job';
 import JobSet from './jobSet';
+import LeaderWorkerSet from './leaderWorkerSet';
 import { Lease } from './lease';
 import { LimitRange } from './limitRange';
 import Namespace from './namespace';
@@ -85,6 +86,7 @@ export const ResourceClasses = {
   IngressClass,
   Job,
   JobSet,
+  LeaderWorkerSet,
   Namespace,
   NetworkPolicy,
   Node,
@@ -398,6 +400,7 @@ export * as ingress from './ingress';
 export * as ingressClass from './ingressClass';
 export * as job from './job';
 export * as jobSet from './jobSet';
+export * as leaderWorkerSet from './leaderWorkerSet';
 export * as namespace from './namespace';
 export * as node from './node';
 export * as persistentVolume from './persistentVolume';

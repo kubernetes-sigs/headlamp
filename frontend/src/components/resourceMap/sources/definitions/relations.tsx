@@ -32,6 +32,7 @@ import Ingress from '../../../../lib/k8s/ingress';
 import Job from '../../../../lib/k8s/job';
 import JobSet from '../../../../lib/k8s/jobSet';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
+import LeaderWorkerSet, { LEADER_WORKER_SET_NAME_LABEL } from '../../../../lib/k8s/leaderWorkerSet';
 import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookConfiguration';
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
 import PersistentVolumeClaim from '../../../../lib/k8s/persistentVolumeClaim';
@@ -322,6 +323,20 @@ const jobToJobSet = makeRelation('job-jobset', Job, JobSet, (job, jobSet) =>
   job.metadata.ownerReferences?.find(owner => owner.uid === jobSet.metadata.uid)
 );
 
+// A leader worker set has a stateful set per group, and the pods hang off those
+// stateful sets, so the chain in the map is LWS -> StatefulSet -> Pod. Only the
+// leader stateful set is owned by the leader worker set itself; each group's
+// worker stateful set is owned by that group's leader pod. Matching on owner
+// references would therefore leave every worker group detached from its leader
+// worker set, so the controller's label is used instead. makeRelation already
+// scopes the match to the same cluster and namespace.
+const statefulSetToLeaderWorkerSet = makeRelation(
+  StatefulSet,
+  LeaderWorkerSet,
+  (statefulSet, leaderWorkerSet) =>
+    statefulSet.metadata.labels?.[LEADER_WORKER_SET_NAME_LABEL] === leaderWorkerSet.metadata.name
+);
+
 const gatewayToGatewayClass = makeRelation(
   'gateway-gatewayclass',
   Gateway,
@@ -388,6 +403,7 @@ const staticRelations = [
   replicaSetToOwner,
   jobToCronJob,
   jobToJobSet,
+  statefulSetToLeaderWorkerSet,
   gatewayToGatewayClass,
   httpRouteToGateway,
   httpRouteToService,

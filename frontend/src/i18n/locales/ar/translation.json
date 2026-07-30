@@ -751,6 +751,7 @@
   "Duration": "المدة",
   "Active Deadline": "",
   "TTL After Finished": "",
+  "Group Size": "",
   "Holder Identity": "هوية المالك",
   "Lease Duration Seconds": "مدة التأجير بالثواني",
   "Renew Time": "وقت التجديد",

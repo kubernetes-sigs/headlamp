@@ -253,6 +253,7 @@ const namespacedClasses = [
   'Ingress',
   'Job',
   'JobSet',
+  'LeaderWorkerSet',
   'Lease',
   'LimitRange',
   'NetworkPolicy',

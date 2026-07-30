@@ -15,12 +15,43 @@
  */
 
 import { useTranslation } from 'react-i18next';
+import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { KubeContainer } from '../../lib/k8s/cluster';
 import StatefulSet from '../../lib/k8s/statefulSet';
+import { useNamespaces } from '../../redux/filterSlice';
+import { CreateResourceButton } from '../common';
 import ResourceListView from '../common/Resource/ResourceListView';
+import { SimpleTableProps } from '../common/SimpleTable';
 import LightTooltip from '../common/Tooltip/TooltipLight';
 
 export default function StatefulSetList() {
+  const { items: statefulSets, errors } = StatefulSet.useList({ namespace: useNamespaces() });
+
+  return <StatefulSetsListRenderer statefulSets={statefulSets} errors={errors} />;
+}
+
+export interface StatefulSetsListRendererProps {
+  statefulSets: StatefulSet[] | null;
+  errors?: ApiError[] | null;
+  hideColumns?: 'namespace'[];
+  reflectTableInURL?: SimpleTableProps['reflectInURL'];
+  noNamespaceFilter?: boolean;
+  enableRowActions?: boolean;
+  enableRowSelection?: boolean;
+  hideCreateButton?: boolean;
+}
+
+export function StatefulSetsListRenderer(props: StatefulSetsListRendererProps) {
+  const {
+    statefulSets,
+    errors,
+    hideColumns = [],
+    reflectTableInURL = 'statefulsets',
+    noNamespaceFilter,
+    enableRowActions,
+    enableRowSelection,
+    hideCreateButton,
+  } = props;
   const { t } = useTranslation('glossary');
 
   function renderPods(statefulSet: StatefulSet) {
@@ -32,7 +63,14 @@ export default function StatefulSetList() {
   return (
     <ResourceListView
       title={t('Stateful Sets')}
-      resourceClass={StatefulSet}
+      headerProps={{
+        noNamespaceFilter,
+        titleSideActions: hideCreateButton
+          ? []
+          : [<CreateResourceButton resourceClass={StatefulSet} key="create-statefulset-button" />],
+      }}
+      hideColumns={hideColumns}
+      errors={errors}
       columns={[
         'name',
         'namespace',
@@ -94,6 +132,11 @@ export default function StatefulSetList() {
         'labels',
         'age',
       ]}
+      data={statefulSets}
+      reflectInURL={reflectTableInURL}
+      id="headlamp-statefulsets"
+      enableRowActions={enableRowActions}
+      enableRowSelection={enableRowSelection}
     />
   );
 }
