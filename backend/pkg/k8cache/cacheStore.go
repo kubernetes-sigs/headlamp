@@ -308,7 +308,7 @@ func StoreK8sResponseInCache(k8scache cache.Cache[string],
 			Status string `json:"status"`
 		}
 
-		if json.Unmarshal([]byte(dcmpBody), &statusProbe) == nil &&
+		if err := json.NewDecoder(strings.NewReader(dcmpBody)).Decode(&statusProbe); err == nil &&
 			statusProbe.Kind == "Status" && statusProbe.Status == "Failure" {
 			return nil
 		}
