@@ -2967,7 +2967,7 @@ func (c *HeadlampConfig) drainNodePods(
 Since node drain is an async operation, we need to poll for the status of the drain operation
 This endpoint returns the status of the drain operation.
 */
-func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Request) {
+func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Request) { //nolint:funlen
 	start := time.Now()
 	ctx := r.Context()
 
@@ -3008,12 +3008,22 @@ func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Re
 
 		return
 	}
+	// The cache is shared and typed as interface{}, so guard the assertion
+	// instead of letting a non-string value panic the handler.
+	id, ok := cacheItem.(string)
+	if !ok {
+		c.handleError(w, ctx, span, fmt.Errorf("unexpected cache value type %T", cacheItem),
+			"invalid drain status", http.StatusInternalServerError)
+
+		return
+	}
+
 	// Prepare successful response
 	responsePayload := struct {
 		ID      string `json:"id"`
 		Cluster string `json:"cluster"`
 	}{
-		ID:      cacheItem.(string),
+		ID:      id,
 		Cluster: drainPayload.Cluster,
 	}
 
