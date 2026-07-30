@@ -42,6 +42,7 @@ export default function NodeList() {
       <ResourceListView
         title={t('Nodes')}
         resourceClass={Node}
+        reflectInURL="nodes"
         headerProps={{
           noNamespaceFilter: true,
         }}

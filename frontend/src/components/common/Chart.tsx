@@ -25,10 +25,12 @@ import ReactDOM from 'react-dom';
 import {
   Bar,
   BarChart,
+  Cell,
   Label,
   Pie,
   PieChart,
   ResponsiveContainer,
+  Sector,
   Tooltip,
   XAxis,
   YAxis,
@@ -37,8 +39,10 @@ import Loader from './Loader';
 
 export interface ChartDataPoint {
   name: string;
+  label?: string;
   value: number;
   fill?: string;
+  onClick?: (data?: any) => void;
 }
 
 export interface PercentageCircleProps {
@@ -89,18 +93,70 @@ export function PercentageCircle(props: PercentageCircleProps) {
             name: 'total',
             percentage: 100,
             value: total,
-            fill: theme.palette.chartStyles.defaultFillColor,
+            fill: theme.palette?.chartStyles?.defaultFillColor,
           }
         : {
             name: 'total',
             percentage: ((total - filledValue) / total) * 100,
             value: total,
-            fill: theme.palette.chartStyles.defaultFillColor,
+            fill: theme.palette?.chartStyles?.defaultFillColor,
             ...totalProps,
           };
 
     return formattedData.concat(totalValue);
   }
+
+  const renderCustomSector = (sectorProps: any) => {
+    const {
+      cx,
+      cy,
+      innerRadius,
+      outerRadius,
+      startAngle,
+      endAngle,
+      fill: sectorFill,
+      stroke,
+      payload,
+      index,
+    } = sectorProps;
+
+    const onClick = payload?.onClick;
+    const isInteractive = !!onClick;
+    const sliceLabel = payload?.label || payload?.name || `slice-${index}`;
+    const fill =
+      payload?.fill ||
+      sectorFill ||
+      theme.palette?.chartStyles?.fillColor ||
+      theme.palette?.common?.black;
+
+    return (
+      <Sector
+        cx={cx}
+        cy={cy}
+        innerRadius={innerRadius}
+        outerRadius={outerRadius}
+        startAngle={startAngle}
+        endAngle={endAngle}
+        fill={fill}
+        stroke={stroke}
+        style={isInteractive ? { cursor: 'pointer' } : undefined}
+        tabIndex={isInteractive ? 0 : undefined}
+        role={isInteractive ? 'button' : 'img'}
+        aria-label={sliceLabel}
+        onClick={onClick}
+        onKeyDown={
+          isInteractive
+            ? (e: React.KeyboardEvent) => {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  onClick(e);
+                }
+              }
+            : undefined
+        }
+      />
+    );
+  };
 
   return (
     <Box
@@ -124,7 +180,9 @@ export function PercentageCircle(props: PercentageCircleProps) {
         </Typography>
       )}
       {isLoading ? (
-        <Loader title={`Loading data for ${title}`} />
+        <Loader
+          title={`Loading data for ${typeof title === 'string' ? title : label || ''}`.trim()}
+        />
       ) : (
         <PieChart
           cx={size / 2}
@@ -135,6 +193,7 @@ export function PercentageCircle(props: PercentageCircleProps) {
             marginLeft: 'auto',
             marginRight: 'auto',
           }}
+          accessibilityLayer
         >
           <Pie
             aria-label={label || '0%'}
@@ -149,15 +208,29 @@ export function PercentageCircle(props: PercentageCircleProps) {
             // Start at the top
             startAngle={90}
             endAngle={-270}
-            stroke={theme.palette.chartStyles.defaultFillColor}
-            fill={theme.palette.chartStyles.fillColor || theme.palette.common.black}
+            stroke={theme.palette?.chartStyles?.defaultFillColor}
+            fill={theme.palette?.chartStyles?.fillColor || theme.palette?.common?.black}
+            activeShape={renderCustomSector}
+            inactiveShape={renderCustomSector}
           >
+            {formatData().map((entry, index) => {
+              return (
+                <Cell
+                  key={`cell-${index}`}
+                  fill={
+                    entry.fill ||
+                    theme.palette?.chartStyles?.fillColor ||
+                    theme.palette?.common?.black
+                  }
+                />
+              );
+            })}
             <Label
               value={label || ''}
               position="center"
               style={{
                 fontSize: `${chartSize * 0.15}px`,
-                fill: theme.palette.chartStyles.labelColor,
+                fill: theme.palette?.chartStyles?.labelColor,
               }}
             />
           </Pie>

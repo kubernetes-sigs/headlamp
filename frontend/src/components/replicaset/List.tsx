@@ -28,6 +28,7 @@ export default function ReplicaSetList() {
     <ResourceListView
       title={t('Replica Sets')}
       resourceClass={ReplicaSet}
+      reflectInURL
       columns={[
         'name',
         'namespace',
