@@ -115,6 +115,13 @@ contextBridge.exposeInMainWorld('desktopApi', {
       ipcRenderer.invoke('mcp-cluster-change', { cluster }),
   },
 
+  clusterProviderCapabilities: {
+    register: (registrations: Array<{ pluginName: string; providers: string[] }>) =>
+      ipcRenderer.invoke('register-plugin-cluster-provider-capabilities', registrations),
+    invoke: (capability: string, request: Record<string, unknown>) =>
+      ipcRenderer.invoke('invoke-cluster-provider', capability, request),
+  },
+
   // Notify cluster change (for MCP server restart)
   notifyClusterChange: (cluster: string | null) => {
     ipcRenderer.send('cluster-changed', cluster);

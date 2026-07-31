@@ -53,6 +53,11 @@ import * as Utils from '../lib/util';
 import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
 import store from '../redux/stores/store';
 import * as stateless from '../stateless/index';
+import {
+  ClusterProviderCapability,
+  findClusterProviderCapability,
+  getDeclaredClusterProviders,
+} from './clusterProviderCapabilities';
 import { Headlamp, Plugin } from './lib';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
@@ -572,6 +577,17 @@ export async function fetchAndExecutePlugins(
   const sourcesToExecute = indicesToExecute.map(index => sources[index]);
   const pluginPathsToExecute = indicesToExecute.map(index => pluginPaths[index]);
   const packageInfosToExecute = indicesToExecute.map(index => packageInfos[index]);
+  const clusterProviderBridge = window?.desktopApi?.clusterProviderCapabilities;
+  const invokeClusterProvider = clusterProviderBridge?.invoke;
+  const clusterProviderCapabilities: Record<string, ClusterProviderCapability[]> =
+    clusterProviderBridge
+      ? await clusterProviderBridge.register(
+          packageInfosToExecute.map(plugin => ({
+            pluginName: plugin.name,
+            providers: getDeclaredClusterProviders(plugin),
+          }))
+        )
+      : {};
 
   // Save references to the pluginRunCommand and desktopApiSend/Receive.
   // Plugins can use without worrying about modified global window.desktopApi.
@@ -634,6 +650,27 @@ export async function fetchAndExecutePlugins(
           return secretsToReturn;
         },
         getArgValues: (pluginName, pluginPath, allowedPermissions) => {
+          const declaredClusterProviders = clusterProviderCapabilities[pluginName] ?? [];
+          if (declaredClusterProviders.length > 0 && invokeClusterProvider) {
+            /** Invokes a host cluster provider authorized for this package plugin. */
+            function clusterProviderInvoke(
+              provider: string,
+              request: Record<string, unknown>
+            ): Promise<unknown> {
+              const capability = findClusterProviderCapability(declaredClusterProviders, provider);
+              if (!capability) {
+                return Promise.reject(
+                  new Error(`Cluster provider is outside the plugin's declared scope: ${provider}`)
+                );
+              }
+              return invokeClusterProvider(capability, request);
+            }
+            return [
+              ['clusterProviderInvoke', 'pluginPath'],
+              [clusterProviderInvoke, pluginPath],
+            ];
+          }
+
           // allowedPermissions is the return value of getAllowedPermissions
           const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
           if (isPackage['@headlamp-k8s/minikube']) {

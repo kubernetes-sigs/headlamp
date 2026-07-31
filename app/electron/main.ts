@@ -38,6 +38,7 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { withBackendMemoryDefaults } from './backendMemory';
 import { createCertificateSetup } from './certificates';
+import { registerClusterProvider, setupClusterProviderHandlers } from './cluster-provider';
 import { startWindowsVMDetection, waitForWindowsVMDetection } from './hardwareAcceleration';
 import i18n from './i18next.config';
 import {
@@ -84,6 +85,8 @@ import {
   loadZoomFactor,
   saveZoomFactor,
 } from './zoom';
+
+export { registerClusterProvider };
 
 if (process.env.APPIMAGE) {
   app.commandLine.appendSwitch('disable-setuid-sandbox');
@@ -1842,6 +1845,7 @@ function startElectron() {
       applyTrayIconSetting(enabled);
     });
 
+    setupClusterProviderHandlers(mainWindow, ipcMain);
     setupRunCmdHandlers(mainWindow, ipcMain);
 
     new PluginManagerEventListeners().setupEventHandlers();

@@ -46,6 +46,8 @@ export type PluginSettingsComponentType =
 export interface PluginPackageHeadlampConfig {
   /** Whether a shipped plugin is enabled when first discovered. */
   enabledByDefault?: boolean;
+  /** Stable IDs of host cluster providers the package plugin may invoke. */
+  clusterProviders?: string[];
   /** Array of supported locales for i18n. */
   i18n?: string[];
 }
