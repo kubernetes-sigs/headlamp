@@ -88,3 +88,28 @@ func TestPluginRouteCacheControl(t *testing.T) {
 		})
 	}
 }
+
+func TestLocalStaticPluginCacheControl(t *testing.T) {
+	staticPluginDir := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(staticPluginDir, "plugin.js"), []byte("plugin"), 0o600))
+
+	config := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				PluginDir:       t.TempDir(),
+				StaticPluginDir: staticPluginDir,
+			},
+		},
+	}
+	router := mux.NewRouter()
+	addPluginRoutes(config, router)
+
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(
+		recorder,
+		httptest.NewRequestWithContext(t.Context(), http.MethodGet, "/static-plugins/plugin.js", nil),
+	)
+
+	require.Equal(t, http.StatusOK, recorder.Code)
+	require.Equal(t, "no-cache", recorder.Header().Get("Cache-Control"))
+}

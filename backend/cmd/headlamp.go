@@ -374,6 +374,10 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 	if config.StaticPluginDir != "" {
 		staticPluginsHandler := http.StripPrefix(config.BaseURL+"/static-plugins/",
 			spa.BrotliSidecars(config.StaticPluginDir, http.FileServer(http.Dir(config.StaticPluginDir))))
+		if !config.UseInCluster {
+			staticPluginsHandler = serveWithNoCacheHeader(staticPluginsHandler)
+		}
+
 		r.PathPrefix("/static-plugins/").Handler(staticPluginsHandler)
 	}
 }
