@@ -16,8 +16,6 @@
 
 import { JSONPath } from 'jsonpath-plus';
 import cloneDeep from 'lodash/cloneDeep';
-import unset from 'lodash/unset';
-import React, { useMemo } from 'react';
 import { loadClusterSettings } from '../../helpers/clusterSettings';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../cluster';
 import { createRouteURL } from '../router/createRouteURL';
@@ -31,16 +29,14 @@ import type {
   RecursivePartial,
 } from './api/v1/factories';
 import { apiFactory, apiFactoryWithNamespace } from './api/v1/factories';
-import { useConnectApi, useSelectedClusters } from './api/v1/hooks';
 import type { QueryParameters } from './api/v1/queryParameters';
 import type { ApiError } from './api/v2/ApiError';
-import { useKubeObject } from './api/v2/hooks';
-import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
 import type { KubeEvent } from './event';
+import { useKubeApiGet, useKubeApiList, useKubeGet, useKubeList } from './hooks';
 import type { KubeMetadata, KubeMetadataCreate } from './KubeMetadata';
 import { computePatchOperations, computeRawPatchCount } from './patchUtils';
 
-function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
+export function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
   if (!cluster) {
     return [];
   }
@@ -307,81 +303,13 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     onList: (...arg: any[]) => any,
     onError?: (err: ApiError, cluster?: string) => void,
     opts?: ApiListOptions
-  ) {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [objs, setObjs] = React.useState<{ [key: string]: K[] }>({});
-    const listCallback = onList as (arg: any[]) => void;
-
-    function onObjs(namespace: string, objList: K[]) {
-      let newObjs: typeof objs = {};
-      // Set the objects so we have them for the next API response...
-      setObjs(previousObjs => {
-        newObjs = { ...previousObjs, [namespace || '']: objList };
-        return newObjs;
-      });
-
-      let allObjs: K[] = [];
-      Object.values(newObjs).map(currentObjs => {
-        allObjs = allObjs.concat(currentObjs);
-      });
-
-      listCallback(allObjs);
-    }
-
-    const listCalls = [];
-    const queryParams = cloneDeep(opts);
-    let namespaces: string[] = [];
-    unset(queryParams, 'namespace');
-
-    const cluster = opts?.cluster;
-
-    if (!!opts?.namespace) {
-      if (typeof opts.namespace === 'string') {
-        namespaces = [opts.namespace];
-      } else if (Array.isArray(opts.namespace)) {
-        namespaces = opts.namespace as string[];
-      } else {
-        throw Error('namespace should be a string or array of strings');
-      }
-    }
-
-    // If the request itself has no namespaces set, we check whether to apply the
-    // allowed namespaces.
-    if (namespaces.length === 0 && this.isNamespaced) {
-      namespaces = getAllowedNamespaces();
-    }
-
-    if (namespaces.length > 0) {
-      // If we have a namespace set, then we have to make an API call for each
-      // namespace and then set the objects once we have all of the responses.
-      for (const namespace of namespaces) {
-        listCalls.push(
-          this.apiList(objList => onObjs(namespace, objList as K[]), onError, {
-            namespace,
-            queryParams,
-            cluster,
-          })
-        );
-      }
-    } else {
-      // If we don't have a namespace set, then we only have one API call
-      // response to set and we return it right away.
-      listCalls.push(this.apiList(listCallback, onError, { queryParams, cluster }));
-    }
-
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(...listCalls);
+  ): void {
+    return useKubeApiList(this, onList, onError, opts);
   }
 
   static useList<K extends KubeObject>(
     this: (new (...args: any) => K) & typeof KubeObject<any>,
-    {
-      cluster,
-      clusters,
-      namespace,
-      refetchInterval,
-      ...queryParams
-    }: {
+    opts: {
       cluster?: string;
       clusters?: string[];
       namespace?: string | string[];
@@ -389,45 +317,11 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       refetchInterval?: number;
     } & QueryParameters = {}
   ) {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const fallbackClusters = useSelectedClusters();
-
-    // Create requests for each cluster and namespace
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const requests = useMemo(() => {
-      const clusterList = cluster
-        ? [cluster]
-        : clusters || (fallbackClusters.length === 0 ? [''] : fallbackClusters);
-
-      const namespacesFromParams =
-        typeof namespace === 'string'
-          ? [namespace]
-          : Array.isArray(namespace)
-          ? namespace
-          : undefined;
-
-      return makeListRequests(
-        clusterList,
-        getAllowedNamespaces,
-        this.isNamespaced,
-        namespacesFromParams
-      );
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [cluster, clusters, fallbackClusters, namespace, this.isNamespaced]);
-
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const result = useKubeObjectList<K>({
-      queryParams: queryParams,
-      kubeObjectClass: this,
-      requests,
-      refetchInterval,
-    });
-
-    return result;
+    return useKubeList<K>(this, opts);
   }
 
   static useGet<K extends KubeObject>(
-    this: new (...args: any) => K,
+    this: (new (...args: any) => K) & typeof KubeObject<any>,
     name: string,
     namespace?: string,
     opts?: {
@@ -435,14 +329,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       cluster?: string;
     }
   ) {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    return useKubeObject<K>({
-      kubeObjectClass: this as (new (...args: any) => K) & typeof KubeObject<any>,
-      name: name,
-      namespace: namespace,
-      cluster: opts?.cluster,
-      queryParams: opts?.queryParams,
-    });
+    return useKubeGet<K>(this, name, namespace, opts);
   }
 
   static create<Args extends any[], T extends KubeObject>(
@@ -488,11 +375,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       cluster?: string;
     }
   ) {
-    // We do the type conversion here because we want to be able to use hooks that may not have
-    // the exact signature as get callbacks.
-    const getCallback = onGet as (item: K) => void;
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(this.apiGet(getCallback, name, namespace, onError, opts));
+    return useKubeApiGet<K>(this, onGet, name, namespace, onError, opts);
   }
 
   _class() {
