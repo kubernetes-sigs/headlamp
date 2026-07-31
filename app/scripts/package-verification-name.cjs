@@ -18,6 +18,10 @@ function derivePackageVerificationName(packageMetadata, platform) {
   }
 
   const name = sanitizeFileName(executableName ?? getProductName(packageMetadata));
+  if (!name) {
+    return '';
+  }
+
   return platform === 'win' ? `${name}.exe` : name;
 }
 

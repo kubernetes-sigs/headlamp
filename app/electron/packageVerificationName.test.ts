@@ -19,6 +19,7 @@ import { describe, expect, it } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const { derivePackageVerificationName } = require('../scripts/package-verification-name.cjs');
+const currentPackageMetadata = require('../package.json');
 
 describe('derivePackageVerificationName', () => {
   const packageMetadata = {
@@ -70,5 +71,22 @@ describe('derivePackageVerificationName', () => {
 
   it('adds the executable suffix to the Windows product name fallback', () => {
     expect(derivePackageVerificationName({ name: 'Headlamp' }, 'win')).toBe('Headlamp.exe');
+  });
+
+  it.each(['linux', 'mac', 'win'])('rejects an empty %s executable name', platform => {
+    const metadata = {
+      name: 'Headlamp',
+      build: { [platform]: { executableName: '' } },
+    };
+
+    expect(derivePackageVerificationName(metadata, platform)).toBe('');
+  });
+
+  it.each([
+    ['linux', 'headlamp'],
+    ['mac', 'Headlamp'],
+    ['win', 'Headlamp.exe'],
+  ])('derives the current package verification name for %s', (platform, expected) => {
+    expect(derivePackageVerificationName(currentPackageMetadata, platform)).toBe(expected);
   });
 });
