@@ -33,6 +33,21 @@ describe('useLocalStorageState', () => {
       expect(result.current[0]).toBe('default');
     });
 
+    it('returns cloned defaultValue when key does not exist in localStorage', () => {
+      const defaultValue = [{ a: 1 }];
+      const { result } = renderHook(() => useLocalStorageState('test-key', defaultValue));
+
+      act(() => {
+        result.current[0].push({ a: 2 });
+      });
+
+      // Check that the passed value is not changed
+      expect(defaultValue).toEqual([{ a: 1 }]);
+      // Check that deep clone is performed
+      expect(result.current[0][0]).toEqual(defaultValue[0]);
+      expect(result.current[0][0]).not.toBe(defaultValue[0]);
+    });
+
     it('returns parsed localStorage value when key exists', () => {
       localStorage.setItem('test-key', JSON.stringify('stored-value'));
 

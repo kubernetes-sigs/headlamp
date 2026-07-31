@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 
 /** Store listeners to allow updates outside of the hook */
 const updateListeners: Record<string, Array<(newValue: any) => void>> = {};
@@ -33,7 +33,11 @@ const updateListeners: Record<string, Array<(newValue: any) => void>> = {};
  * setValue((oldValue) => 'newValue');
  */
 export function useLocalStorageState<T>(key: string, defaultValue: T) {
-  const get = () => {
+  // This ensures that defaultValue, if the value (not the reference) does not change, is stable across render.
+  // It also has the side effect of cloning the defaultValue to ensure it cannot be polluted.
+  const serializedDefaultValue = JSON.stringify(defaultValue);
+
+  const get = useCallback(() => {
     let maybeValue: string | null = null;
 
     try {
@@ -43,11 +47,11 @@ export function useLocalStorageState<T>(key: string, defaultValue: T) {
         `Failed to read ${key} from local storage, falling back to default value:`,
         error
       );
-      return defaultValue;
+      return JSON.parse(serializedDefaultValue);
     }
 
     if (maybeValue === null) {
-      return defaultValue;
+      return JSON.parse(serializedDefaultValue);
     }
 
     try {
@@ -57,24 +61,30 @@ export function useLocalStorageState<T>(key: string, defaultValue: T) {
         `Failed to parse ${key} from local storage, falling back to default value:`,
         error
       );
-      return defaultValue;
+      return JSON.parse(serializedDefaultValue);
     }
-  };
-  const put = (value: T) => {
-    try {
-      localStorage.setItem(key, JSON.stringify(value));
-    } catch (error) {
-      console.error(`Error occurred while setting ${key} in local storage:`, error);
-    }
-  };
+  }, [key, serializedDefaultValue]);
+  const put = useCallback(
+    (value: T) => {
+      try {
+        localStorage.setItem(key, JSON.stringify(value));
+      } catch (error) {
+        console.error(`Error occurred while setting ${key} in local storage:`, error);
+      }
+    },
+    [key]
+  );
 
   const [state, setState] = useState<T>(() => get());
 
-  const set = (updater: (old: T) => T) => {
-    const newValue = updater(state);
-    put(newValue);
-    setState(newValue);
-  };
+  const set = useCallback(
+    (updater: (old: T) => T) => {
+      const newValue = updater(state);
+      put(newValue);
+      setState(newValue);
+    },
+    [put, state]
+  );
 
   // Listen to any updates to local storage
   useEffect(() => {
@@ -86,8 +96,7 @@ export function useLocalStorageState<T>(key: string, defaultValue: T) {
     return () => {
       updateListeners[key] = updateListeners[key].filter(it => it !== listener);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key]);
+  }, [key, set]);
 
   return [state, set] as const;
 }
