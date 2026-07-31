@@ -14,10 +14,15 @@
  * limitations under the License.
  */
 
+import { createTheme } from '@mui/material/styles';
 import { fireEvent, render, renderHook, screen } from '@testing-library/react';
 import type React from 'react';
 import { KubeObject } from '../../lib/k8s/KubeObject';
-import { ProjectResourcesTab, useResourceCategoriesList } from './ProjectResourcesTab';
+import {
+  ProjectResourcesTab,
+  resourcePaneStyles,
+  useResourceCategoriesList,
+} from './ProjectResourcesTab';
 
 const { mockActivityLaunch } = vi.hoisted(() => ({ mockActivityLaunch: vi.fn() }));
 const categories = new Map<string, { label: string; description: string; icon: string }>();
@@ -173,6 +178,17 @@ describe('useResourceCategoriesList', () => {
 });
 
 describe('ProjectResourcesTab', () => {
+  it('keeps the resource pane from shrinking in the stacked layout', () => {
+    const theme = createTheme();
+    const styles = resourcePaneStyles(theme);
+
+    expect(styles[theme.breakpoints.down('md')]).toEqual({
+      borderLeft: 0,
+      borderTop: '1px solid',
+      flexShrink: 0,
+    });
+  });
+
   it('asks the parent to select a resource category', () => {
     const setSelectedCategoryName = vi.fn();
 

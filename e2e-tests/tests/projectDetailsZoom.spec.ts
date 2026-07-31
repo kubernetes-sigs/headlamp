@@ -93,7 +93,9 @@ test("project tabs and resources remain usable at 200% text zoom", async ({
 
     await defaultTabs.nth(1).click();
     await page.getByRole("button", { name: /Configuration/ }).click();
-    await expect(page.getByRole("cell", { name: configMapName })).toBeVisible();
+    const configMapCell = page.getByRole("cell", { name: configMapName });
+    await configMapCell.scrollIntoViewIfNeeded();
+    await expect(configMapCell).toBeInViewport();
   } finally {
     const deleteNamespace = await page.request.delete(namespaceURL, {
       headers,
