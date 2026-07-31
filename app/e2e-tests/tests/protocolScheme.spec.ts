@@ -15,20 +15,30 @@
  */
 
 import { expect, test } from '@playwright/test';
+import fs from 'node:fs';
 import path from 'node:path';
 import { _electron, ElectronApplication, Page } from 'playwright';
 
 const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'electron';
 const electronPath = path.resolve(__dirname, `../../node_modules/.bin/${electronExecutable}`);
 const appPath = path.resolve(__dirname, '../../');
+const manifestPath = path.join(appPath, 'app-build-manifest.json');
 
 let electronApp: ElectronApplication;
 let electronPage: Page;
+let originalManifest: string;
 
 test.describe('desktop protocol scheme', () => {
   test.skip(process.env.PLAYWRIGHT_TEST_MODE !== 'app', 'Requires Electron app mode');
 
   test.beforeAll(async () => {
+    originalManifest = fs.readFileSync(manifestPath, 'utf8');
+    const productManifest = JSON.parse(originalManifest);
+    fs.writeFileSync(
+      manifestPath,
+      JSON.stringify({ ...productManifest, protocolScheme: 'test-headlamp' }, null, 2) + '\n'
+    );
+
     const electronEnv: Record<string, string> = {};
     for (const [name, value] of Object.entries(process.env)) {
       if (name !== 'ELECTRON_RUN_AS_NODE' && value !== undefined) {
@@ -39,7 +49,7 @@ test.describe('desktop protocol scheme', () => {
     electronApp = await _electron.launch({
       cwd: appPath,
       executablePath: electronPath,
-      args: ['.'],
+      args: ['.', 'test-headlamp://cluster?name=startup'],
       env: {
         ...electronEnv,
         NODE_ENV: 'development',
@@ -52,13 +62,29 @@ test.describe('desktop protocol scheme', () => {
 
   test.afterAll(async () => {
     await electronApp?.close();
+    fs.writeFileSync(manifestPath, originalManifest);
   });
 
-  test('routes a headlamp protocol URL in the desktop app', async () => {
+  test('routes a product protocol URL from the startup command line', async () => {
+    await expect.poll(() => electronPage.url()).toMatch(/#\/cluster\?name=startup$/);
+  });
+
+  test('routes a product protocol URL in the desktop app', async () => {
     await electronApp.evaluate(({ app }, deepLink) => {
-      app.emit('open-url', {} as Electron.Event, deepLink);
-    }, 'headlamp://cluster?name=local');
+      app.emit('open-url', { preventDefault() {} } as Electron.Event, deepLink);
+    }, 'test-headlamp://cluster?name=local');
 
     await expect.poll(() => electronPage.url()).toMatch(/#\/cluster\?name=local$/);
+  });
+
+  test('routes a product protocol URL from a second instance', async () => {
+    await electronApp.evaluate(
+      ({ app }, commandLine) => {
+        app.emit('second-instance', {} as Electron.Event, commandLine, process.cwd(), {});
+      },
+      ['electron', '.', 'test-headlamp://cluster?name=secondary']
+    );
+
+    await expect.poll(() => electronPage.url()).toMatch(/#\/cluster\?name=secondary$/);
   });
 });
