@@ -3008,12 +3008,19 @@ func (c *HeadlampConfig) handleNodeDrainStatus(w http.ResponseWriter, r *http.Re
 
 		return
 	}
+	id, ok := cacheItem.(string)
+	if !ok {
+		c.handleError(w, ctx, span, fmt.Errorf("unexpected cache value type %T", cacheItem),
+			"invalid drain status", http.StatusInternalServerError)
+		return
+	}
+
 	// Prepare successful response
 	responsePayload := struct {
 		ID      string `json:"id"`
 		Cluster string `json:"cluster"`
 	}{
-		ID:      cacheItem.(string),
+		ID:      id,
 		Cluster: drainPayload.Cluster,
 	}
 
