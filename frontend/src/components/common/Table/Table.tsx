@@ -50,7 +50,7 @@ import { MRT_Localization_PT } from 'material-react-table/locales/pt';
 import { MRT_Localization_RU } from 'material-react-table/locales/ru';
 import { MRT_Localization_ZH_HANS } from 'material-react-table/locales/zh-Hans';
 import { MRT_Localization_ZH_HANT } from 'material-react-table/locales/zh-Hant';
-import { memo, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
+import { memo, ReactNode, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
 import { useShortcut } from '../../../lib/useShortcut';
@@ -381,32 +381,39 @@ export default function Table<RowItem extends Record<string, any>>({
     [tableProps.state?.columnVisibility, columnVisibility, responsiveHidden]
   );
 
-  const table = useMaterialReactTable({
-    ...tableProps,
-    columns: tableColumns ?? [],
-    data: tableData,
-    enablePagination: tableData.length > rowsPerPageOptions[0],
-    enableDensityToggle: tableProps.enableDensityToggle ?? false,
-    enableFullScreenToggle: tableProps.enableFullScreenToggle ?? false,
-    enableColumnActions: false,
-    localization: tableLocalizationMap[i18n.language],
-    autoResetAll: false,
-    icons: {
+  // Once the dataset is large enough for pagination, keep it enabled. Toggling
+  // enablePagination when length crosses the threshold remounts MRT toolbars
+  // and steals focus from the search field during auto-refresh (#5701/#5702).
+  const needsPagination = tableData.length > rowsPerPageOptions[0];
+  const [paginationLatched, setPaginationLatched] = useState(needsPagination);
+  useEffect(() => {
+    if (needsPagination) {
+      setPaginationLatched(true);
+    }
+  }, [needsPagination]);
+  const enablePagination = paginationLatched || needsPagination;
+
+  // Keep the search field visible once opened / while filtering so a refresh
+  // that briefly clears the controlled filter string cannot unmount it.
+  const [showGlobalFilter, setShowGlobalFilter] = useState(
+    () => !!(tableProps.initialState?.showGlobalFilter || tableProps.initialState?.globalFilter)
+  );
+  useEffect(() => {
+    if (globalFilter) {
+      setShowGlobalFilter(true);
+    }
+  }, [globalFilter]);
+
+  const tableIcons = useMemo(
+    () => ({
       ...tableProps.icons,
       MoreHorizIcon: () => <Icon icon="mdi:more-vert" />,
-    },
-    onPaginationChange: (updater: any) => {
-      if (!tableProps.data?.length) return;
-      const pagination = updater({ pageIndex: Number(page) - 1, pageSize: Number(pageSize) });
-      setPage(pagination.pageIndex + 1);
-      setPageSize(pagination.pageSize);
-      if (pagination.pageSize !== Number(pageSize)) {
-        setTablesRowsPerPage(pagination.pageSize);
-      }
-    },
-    onGlobalFilterChange: setGlobalFilter,
-    onColumnVisibilityChange: setColumnVisibility,
-    renderToolbarInternalActions: props => {
+    }),
+    [tableProps.icons]
+  );
+
+  const renderToolbarInternalActions = useCallback(
+    (props: { table: MRT_TableInstance<RowItem> }) => {
       const isSomeRowsSelected =
         tableProps.enableRowSelection && props.table.getSelectedRowModel().rows.length !== 0;
       if (isSomeRowsSelected) {
@@ -417,28 +424,72 @@ export default function Table<RowItem extends Record<string, any>>({
       }
       return null;
     },
-    initialState: useMemo(
-      () => ({
-        density: 'compact',
-        globalFilter: globalFilter || '',
-        ...(tableProps.initialState ?? {}),
-      }),
-      [tableProps.initialState, globalFilter]
-    ),
-    state: useMemo(
-      () => ({
-        ...(tableProps.state ?? {}),
-        columnOrder,
-        columnVisibility: mergedColumnVisibility,
-        pagination: {
-          pageIndex: page - 1,
-          pageSize: pageSize,
-        },
-        globalFilter,
-        ...(globalFilter ? { showGlobalFilter: true } : {}),
-      }),
-      [tableProps.state, columnOrder, mergedColumnVisibility, page, pageSize, globalFilter]
-    ),
+    [tableProps.enableRowSelection, tableProps.renderRowSelectionToolbar]
+  );
+
+  const tableInitialState = useMemo(
+    () => ({
+      density: 'compact' as const,
+      ...(tableProps.initialState ?? {}),
+    }),
+    [tableProps.initialState]
+  );
+
+  const tableState = useMemo(
+    () => ({
+      ...(tableProps.state ?? {}),
+      columnOrder,
+      columnVisibility: mergedColumnVisibility,
+      pagination: {
+        pageIndex: page - 1,
+        pageSize: pageSize,
+      },
+      globalFilter,
+      ...(showGlobalFilter ? { showGlobalFilter: true } : {}),
+    }),
+    [
+      tableProps.state,
+      columnOrder,
+      mergedColumnVisibility,
+      page,
+      pageSize,
+      globalFilter,
+      showGlobalFilter,
+    ]
+  );
+
+  const table = useMaterialReactTable({
+    ...tableProps,
+    columns: tableColumns ?? [],
+    data: tableData,
+    // Latch pagination once needed so crossing the threshold on refresh/filter
+    // does not remount the toolbar (and steal search focus). See #5701/#5702.
+    enablePagination,
+    enableDensityToggle: tableProps.enableDensityToggle ?? false,
+    enableFullScreenToggle: tableProps.enableFullScreenToggle ?? false,
+    enableColumnActions: false,
+    localization: tableLocalizationMap[i18n.language],
+    autoResetAll: false,
+    icons: tableIcons,
+    onPaginationChange: (updater: any) => {
+      if (!tableProps.data?.length) return;
+      const pagination = updater({ pageIndex: Number(page) - 1, pageSize: Number(pageSize) });
+      setPage(pagination.pageIndex + 1);
+      setPageSize(pagination.pageSize);
+      if (pagination.pageSize !== Number(pageSize)) {
+        setTablesRowsPerPage(pagination.pageSize);
+      }
+    },
+    onGlobalFilterChange: setGlobalFilter,
+    onShowGlobalFilterChange: (updater: boolean | ((old: boolean) => boolean)) => {
+      setShowGlobalFilter(prev => (typeof updater === 'function' ? updater(prev) : updater));
+    },
+    onColumnVisibilityChange: setColumnVisibility,
+    renderToolbarInternalActions,
+    // Do not put controlled globalFilter into initialState — it changes every
+    // keystroke and unstable initialState remounts the search field (#5702).
+    initialState: tableInitialState,
+    state: tableState,
     positionActionsColumn: 'last',
     layoutMode: 'grid',
     // Need to provide our own empty message
