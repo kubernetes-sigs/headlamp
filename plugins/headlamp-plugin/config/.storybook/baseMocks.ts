@@ -317,3 +317,14 @@ export const baseMocks = [
     })
   ),
 ];
+
+export const fallbackMocks = [
+  http.get('http://localhost:4466/api/v1/pods', () =>
+    HttpResponse.json({
+      kind: 'PodList',
+      apiVersion: 'v1',
+      metadata: {},
+      items: [],
+    })
+  ),
+];
