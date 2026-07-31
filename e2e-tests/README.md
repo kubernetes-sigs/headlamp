@@ -14,69 +14,59 @@ which is the reference if anything here drifts.
 
 ## Setup
 
-Install the test dependencies:
+Run these commands from the repository root on Linux with Docker running and
+Node.js `>=22.0.0`, npm `>=11.0.0`, `curl`, `envsubst`, `grep`, `kind`, `kubectl`,
+`jq`, and `make` installed.
+
+Install the Playwright dependencies:
 
 ```bash
 cd e2e-tests
 npm ci
-npx playwright install
+npx playwright install --with-deps
+cd ..
 ```
 
-Create the two clusters and rename their contexts to what the specs expect:
+Set up the two clusters, Headlamp, and the Cluster Inventory fixture:
 
 ```bash
-kind create cluster --name test
-kubectl config rename-context kind-test test
-
-kind create cluster --name test2
-kubectl config rename-context kind-test2 test2
+./e2e-tests/scripts/setup-multicluster.sh
 ```
 
-Give each cluster a `headlamp-admin` service account with cluster-admin:
+The script writes the URL and credentials needed by Playwright to
+`e2e-tests/.env`. Load them and run the multi-cluster and Cluster Inventory
+specs:
 
 ```bash
-for ctx in test test2; do
-  kubectl --context="$ctx" -n kube-system create serviceaccount headlamp-admin
-  kubectl --context="$ctx" create clusterrolebinding headlamp-admin \
-    --serviceaccount=kube-system:headlamp-admin --clusterrole=cluster-admin
-done
+set -a
+source e2e-tests/.env
+set +a
+cd e2e-tests
+npx playwright test tests/multiCluster.spec.ts tests/clusterInventory.spec.ts
+cd ..
 ```
 
-Build the images and load them into the `test` cluster. The plugins image is
-used as an init container by the manifest below:
+The setup is idempotent. It creates `test` and `test2` when neither exists,
+reuses them when both exist, and fails without deleting anything when the
+environment is only partially present. Clusters created by a successful setup
+stay running for subsequent tests. The setup log reports whether it created or
+reused the clusters.
+
+If the setup reused the clusters, leave both clusters and contexts intact and
+remove only the generated environment file:
 
 ```bash
-# from the repository root
-DOCKER_IMAGE_VERSION=latest make image
-DOCKER_IMAGE_VERSION=latest DOCKER_PLUGINS_IMAGE_NAME=headlamp-plugins-test make build-plugins-container
-
-kind load docker-image ghcr.io/headlamp-k8s/headlamp:latest --name test
-kind load docker-image ghcr.io/headlamp-k8s/headlamp-plugins-test:latest --name test
+rm -f e2e-tests/.env
 ```
 
-Deploy Headlamp into the `test` cluster. The manifest is templated, so the
-cluster addresses and CA data have to be substituted in:
+If the setup created both clusters, remove that environment when finished:
 
 ```bash
-kubectl config use-context test
-export TEST_CA_DATA=$(kubectl config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
-export TEST_SERVER="https://$(kubectl get nodes -o=jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):6443"
-
-kubectl config use-context test2
-export TEST2_CA_DATA=$(kubectl config view --raw --minify -o jsonpath='{.clusters[0].cluster.certificate-authority-data}')
-export TEST2_SERVER="https://$(kubectl get nodes -o=jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):6443"
-
-kubectl config use-context test
-envsubst < e2e-tests/kubernetes-headlamp-ci.yaml | kubectl --context=test apply -f -
-kubectl wait deployment -n kube-system headlamp --for condition=Available=True --timeout=180s
-```
-
-Finally, export the URL and the tokens the specs read:
-
-```bash
-export HEADLAMP_TEST_URL="http://<address of the headlamp Service>"
-export HEADLAMP_TEST_TOKEN=$(kubectl --context=test  create token headlamp-admin --duration 24h -n kube-system)
-export HEADLAMP_TEST2_TOKEN=$(kubectl --context=test2 create token headlamp-admin --duration 24h -n kube-system)
+kind delete cluster --name test
+kind delete cluster --name test2
+kubectl config delete-context test 2>/dev/null || true
+kubectl config delete-context test2 2>/dev/null || true
+rm -f e2e-tests/.env
 ```
 
 CI reaches the Service on its NodePort, at
@@ -140,21 +130,14 @@ cd e2e-tests
 npx playwright test tests/incluster-api.spec.ts
 ```
 
-`tests/clusterInventory.spec.ts` requires Headlamp to be configured with a
-working cluster inventory source. It is skipped unless explicitly enabled and
-is not run in CI:
+### Cluster Inventory
 
-```bash
-export HEADLAMP_CLUSTER_INVENTORY_E2E=true
-
-# Optional. This defaults to "headlamp".
-export HEADLAMP_TEST_BACKEND_TOKEN=...
-
-cd e2e-tests
-npx playwright test tests/clusterInventory.spec.ts
-```
-
-IMPORTANT: Make sure that the following npx commands are run in the same terminal session as the environment variables were set.
+The Cluster Inventory E2E uses the same `test` and `test2` clusters and the same
+Headlamp Deployment as the regular multi-cluster tests. It installs the v0.1.3
+Cluster Inventory API CRD on `test`, publishes one `ClusterProfile` for
+`test2`, and verifies both discovery and proxy access to a running pod in
+`tests/clusterInventory.spec.ts`. The generated `.env` enables this spec; it is
+otherwise skipped unless `HEADLAMP_CLUSTER_INVENTORY_E2E=true`.
 
 ## Run all tests
 
@@ -201,6 +184,15 @@ npx playwright test -g "404 page is present" --headed
 - This will open a browser window that will show the test running in real-time, this can be ran as a substitute or in pair with the VS code extension.
 
 ## Optional configuration
+
+### System Chromium
+
+Playwright downloads a supported Chromium build by default. On an unsupported
+Linux distribution, use an existing Chromium executable instead:
+
+```bash
+export PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH="$(command -v chromium)"
+```
 
 ### Headed vs Headless
 

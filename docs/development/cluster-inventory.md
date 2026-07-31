@@ -17,6 +17,18 @@ Headlamp can discover additional clusters from Cluster Inventory API
 backend uses `sigs.k8s.io/cluster-inventory-api v0.1.3`, the `pkg/access`
 provider configuration package, and `ClusterProfile.status.accessProviders`.
 
+For a local end-to-end environment, follow the setup in
+[`e2e-tests/README.md`](https://github.com/kubernetes-sigs/headlamp/blob/main/e2e-tests/README.md).
+It uses the regular E2E `test` and `test2` kind clusters and deploys Cluster
+Inventory into the same Headlamp instance as the multi-cluster tests.
+
+Explicit namespace lists, all-namespace discovery, label filtering, and
+kubeconfig context namespace changes are covered by the backend tests:
+
+```bash
+npm run backend:test
+```
+
 The provider configuration file is not a `ClusterProfile` status object. It uses
 the upstream access configuration shape with a top-level `providers` array:
 
