@@ -19,6 +19,7 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 import { _electron } from 'playwright';
+import { pathToFileURL } from 'url';
 
 const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'electron';
 const electronPath = path.resolve(__dirname, `../../node_modules/.bin/${electronExecutable}`);
@@ -77,6 +78,73 @@ test.describe('plugin command bridge', () => {
         window.desktopApi.send('request-plugin-permission-secrets');
       });
       await electronPage.reload();
+
+      await expect
+        .poll(() => electronPage.evaluate(() => (window as any).__pluginCommandResult ?? null))
+        .toEqual(expect.objectContaining({ code: 0 }));
+
+      const result = await electronPage.evaluate(() => (window as any).__pluginCommandResult);
+      expect(result.output).toContain('gh version');
+    } finally {
+      await electronApp.close();
+      fs.rmSync(userDataDir, { recursive: true, force: true });
+    }
+  });
+
+  test('runs a manifest-declared command through renderer IPC', async ({ page }) => {
+    await page.close();
+    const userDataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugin-command-e2e-'));
+    const rendererPath = path.join(userDataDir, 'renderer.html');
+    fs.writeFileSync(rendererPath, '<!doctype html><title>Plugin command test</title>');
+
+    const electronApp = await _electron.launch({
+      cwd: appPath,
+      executablePath: electronPath,
+      args: ['.', `--user-data-dir=${userDataDir}`, '--port=4567'],
+      env: {
+        ...process.env,
+        NODE_ENV: 'development',
+        ELECTRON_DEV: 'true',
+        ELECTRON_START_URL: pathToFileURL(rendererPath).href,
+      },
+    });
+
+    try {
+      await electronApp.evaluate(({ dialog }) => {
+        dialog.showMessageBoxSync = () => 0;
+      });
+
+      const electronPage = await electronApp.firstWindow();
+      await electronPage.evaluate(async () => {
+        const output: string[] = [];
+        const capabilities = await window.desktopApi.commandCapabilities.register([
+          {
+            pluginName: 'plugin-command-e2e',
+            scopes: [{ command: 'gh', args: ['--version'] }],
+          },
+        ]);
+        const capability = capabilities['plugin-command-e2e'][0].capability;
+        const commandId = 'plugin-command-e2e';
+
+        window.desktopApi.receive('command-stdout', (id: string, chunk: string) => {
+          if (id === commandId) {
+            output.push(chunk);
+          }
+        });
+        window.desktopApi.receive('command-exit', (id: string, code: number) => {
+          if (id === commandId) {
+            (window as any).__pluginCommandResult = { code, output: output.join('') };
+          }
+        });
+        window.desktopApi.send('run-command', {
+          id: commandId,
+          command: 'gh',
+          args: ['--version'],
+          options: {},
+          permissionSecrets: {},
+          capability,
+        });
+      });
 
       await expect
         .poll(() => electronPage.evaluate(() => (window as any).__pluginCommandResult ?? null))

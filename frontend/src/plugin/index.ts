@@ -53,6 +53,11 @@ import * as Utils from '../lib/util';
 import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
 import store from '../redux/stores/store';
 import * as stateless from '../stateless/index';
+import {
+  findCommandCapability,
+  getDeclaredCommandScopes,
+  PluginCommandCapability,
+} from './commandCapabilities';
 import { Headlamp, Plugin } from './lib';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
@@ -571,6 +576,15 @@ export async function fetchAndExecutePlugins(
   const sourcesToExecute = indicesToExecute.map(index => sources[index]);
   const pluginPathsToExecute = indicesToExecute.map(index => pluginPaths[index]);
   const packageInfosToExecute = indicesToExecute.map(index => packageInfos[index]);
+  const commandCapabilitiesBridge = window?.desktopApi?.commandCapabilities;
+  const commandCapabilities: Record<string, PluginCommandCapability[]> = commandCapabilitiesBridge
+    ? await commandCapabilitiesBridge.register(
+        packageInfosToExecute.map(plugin => ({
+          pluginName: plugin.name,
+          scopes: getDeclaredCommandScopes(plugin),
+        }))
+      )
+    : {};
 
   // Save references to the pluginRunCommand and desktopApiSend/Receive.
   // Plugins can use without worrying about modified global window.desktopApi.
@@ -624,6 +638,33 @@ export async function fetchAndExecutePlugins(
           return secretsToReturn;
         },
         getArgValues: (pluginName, pluginPath, allowedPermissions) => {
+          const declaredCapabilities = commandCapabilities[pluginName] ?? [];
+          if (declaredCapabilities.length > 0) {
+            function pluginRunCommand(
+              command: string,
+              args: string[],
+              options: {}
+            ): ReturnType<typeof internalRunCommand> {
+              const capability = findCommandCapability(declaredCapabilities, command, args);
+              if (!capability) {
+                throw new Error(`Command is outside the plugin's declared scope: ${command}`);
+              }
+              return internalRunCommand(
+                command,
+                args,
+                options,
+                {},
+                pluginDesktopApiSend,
+                pluginDesktopApiReceive,
+                capability
+              );
+            }
+            return [
+              ['pluginRunCommand', 'pluginPath'],
+              [pluginRunCommand, pluginPath],
+            ];
+          }
+
           // allowedPermissions is the return value of getAllowedPermissions
           const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
           if (isPackage['@headlamp-k8s/minikube']) {

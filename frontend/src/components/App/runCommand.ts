@@ -28,6 +28,7 @@
  * @param permissionSecrets - Internal use. A record of permission secrets that may be required for the command.
  * @param desktopApiSend - Internal use. The function to send data to the main process.
  * @param desktopApiReceive - Internal use. The function to receive data from the main process.
+ * @param capability - Opaque authorization for a manifest-declared command scope.
  * @returns An object with `stdout`, `stderr`, and `on` properties. You can listen for 'data' events on `stdout` and `stderr`, and 'exit' events with `on`.
  * @example
  *
@@ -48,7 +49,7 @@
  * ```
  */
 export function runCommand(
-  command: 'minikube' | 'az' | 'scriptjs' | 'gh',
+  command: string,
   args: string[],
   options: {},
   permissionSecrets?: Record<string, number>,
@@ -60,12 +61,14 @@ export function runCommand(
       args: string[];
       options: {};
       permissionSecrets: Record<string, number>;
+      capability?: string;
     }
   ) => void,
   desktopApiReceive?: (
     channel: string,
     listener: (cmdId: string, data: string | number) => void
-  ) => void
+  ) => void,
+  capability?: string
 ): {
   stdout: { on: (event: string, listener: (chunk: any) => void) => void };
   stderr: { on: (event: string, listener: (chunk: any) => void) => void };
@@ -113,7 +116,14 @@ export function runCommand(
   // We use desktopApiReceive and desktopApiSend to communicate with the main process.
   // Because other plugins may change the global window.desktopApi functions
   // to snoop on the secrets that plugins are sending.
-  desktopApiSend('run-command', { id, command, args, options, permissionSecrets });
+  desktopApiSend('run-command', {
+    id,
+    command,
+    args,
+    options,
+    permissionSecrets,
+    capability,
+  });
 
   return {
     stdout: {

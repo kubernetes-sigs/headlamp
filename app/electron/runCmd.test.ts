@@ -58,10 +58,13 @@ vi.mock('./main', () => ({
 
 import {
   addRunCmdConsent,
+  checkCommandCapability,
   checkCommandConsent,
   checkPermissionSecret,
+  createCommandCapabilities,
   environmentOverrides,
   handleRunCommand,
+  setupRunCmdHandlers,
   validateCommandData,
 } from './runCmd';
 
@@ -98,6 +101,209 @@ describe('checkCommandConsent', () => {
     vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: { gh: true } });
 
     expect(checkCommandConsent('gh', [], {} as any)).toBe(true);
+  });
+
+  it('does not run a newly denied command', () => {
+    dialogMock.mockReturnValue(1);
+
+    expect(checkCommandConsent('kubectl', ['get'], {} as any)).toBe(false);
+  });
+
+  it('does not reuse consent across plugin identities', () => {
+    dialogMock.mockReturnValue(1);
+
+    expect(checkCommandConsent('az', ['account'], {} as any, '@example/plugin')).toBe(false);
+    expect(dialogMock).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ detail: '@example/plugin: az account' })
+    );
+  });
+});
+
+describe('plugin command capabilities', () => {
+  it('binds a capability to its plugin command scope', () => {
+    const { capabilities, scopeByCapability } = createCommandCapabilities([
+      {
+        pluginName: '@example/plugin',
+        scopes: [{ command: 'kubectl', args: ['get'] }],
+      },
+    ]);
+    const capability = capabilities['@example/plugin'][0].capability;
+
+    expect(
+      checkCommandCapability(
+        {
+          id: '1',
+          command: 'kubectl',
+          args: ['get', 'pods'],
+          options: {},
+          permissionSecrets: {},
+          capability,
+        },
+        scopeByCapability
+      )
+    ).toEqual([true, '']);
+    expect(
+      checkCommandCapability(
+        {
+          id: '2',
+          command: 'kubectl',
+          args: ['delete', 'pods'],
+          options: {},
+          permissionSecrets: {},
+          capability,
+        },
+        scopeByCapability
+      )
+    ).toEqual([false, 'Command is outside its declared plugin scope']);
+  });
+
+  it('ignores malformed and duplicate scopes', () => {
+    const { capabilities } = createCommandCapabilities([
+      {
+        pluginName: 'example',
+        scopes: [
+          { command: 'kubectl', args: ['get'] },
+          { command: 'kubectl', args: ['get'] },
+          { command: '../shell', args: [] },
+          { command: 'scriptjs', args: ['plugin/script.js'] },
+        ],
+      },
+    ]);
+
+    expect(capabilities.example).toHaveLength(1);
+  });
+
+  it.each([null, {}, Array.from({ length: 257 }, () => ({ pluginName: 'example', scopes: [] }))])(
+    'rejects an invalid registration collection',
+    (registrations: unknown) => {
+      const { capabilities, scopeByCapability } = createCommandCapabilities(registrations);
+
+      expect(capabilities).toEqual({});
+      expect(scopeByCapability.size).toBe(0);
+    }
+  );
+
+  it.each([
+    null,
+    { pluginName: 1, scopes: [] },
+    { pluginName: '../example', scopes: [] },
+    { pluginName: 'a'.repeat(215), scopes: [] },
+    { pluginName: 'example', scopes: null },
+    {
+      pluginName: 'example',
+      scopes: Array.from({ length: 65 }, () => ({ command: 'gh', args: [] })),
+    },
+  ])('ignores an invalid plugin registration', (registration: unknown) => {
+    const { capabilities, scopeByCapability } = createCommandCapabilities([registration]);
+
+    expect(capabilities).toEqual({});
+    expect(scopeByCapability.size).toBe(0);
+  });
+
+  it.each([
+    null,
+    { command: 1, args: [] },
+    { command: '', args: [] },
+    { command: 'a'.repeat(129), args: [] },
+    { command: '../gh', args: [] },
+    { command: 'scriptjs', args: [] },
+    { command: 'gh', args: null },
+    { command: 'gh', args: Array.from({ length: 17 }, () => 'arg') },
+    { command: 'gh', args: [1] },
+    { command: 'gh', args: ['a'.repeat(257)] },
+    { command: 'gh', args: ['bad\0argument'] },
+  ])('ignores an invalid command scope', (scope: unknown) => {
+    const { capabilities, scopeByCapability } = createCommandCapabilities([
+      { pluginName: 'example', scopes: [scope] },
+    ]);
+
+    expect(capabilities.example).toEqual([]);
+    expect(scopeByCapability.size).toBe(0);
+  });
+
+  it('rejects missing capabilities and incomplete argument prefixes', () => {
+    const { capabilities, scopeByCapability } = createCommandCapabilities([
+      { pluginName: 'example', scopes: [{ command: 'gh', args: ['auth', 'token'] }] },
+    ]);
+    const baseCommand = {
+      id: '1',
+      command: 'gh',
+      args: ['auth'],
+      options: {},
+      permissionSecrets: {},
+    };
+
+    expect(checkCommandCapability(baseCommand, scopeByCapability)[0]).toBe(false);
+    expect(
+      checkCommandCapability(
+        { ...baseCommand, capability: capabilities.example[0].capability },
+        scopeByCapability
+      )[0]
+    ).toBe(false);
+  });
+});
+
+describe('setupRunCmdHandlers command capabilities', () => {
+  function setup() {
+    const listeners = new Map<string, (...args: any[]) => any>();
+    const handlers = new Map<string, (...args: any[]) => any>();
+    const frameListeners = new Map<string, (...args: any[]) => any>();
+    const webContents = {
+      on: vi.fn((channel: string, listener: (...args: any[]) => unknown) => {
+        frameListeners.set(channel, listener);
+      }),
+      send: vi.fn(),
+    };
+    const mainWindow = { webContents } as any;
+    const ipcMain = {
+      on: vi.fn((channel: string, listener: (...args: any[]) => unknown) => {
+        listeners.set(channel, listener);
+      }),
+      handle: vi.fn((channel: string, listener: (...args: any[]) => unknown) => {
+        handlers.set(channel, listener);
+      }),
+    } as any;
+
+    setupRunCmdHandlers(mainWindow, ipcMain);
+    return { frameListeners, handlers, listeners, mainWindow, webContents };
+  }
+
+  it('accepts one registration from the main renderer', async () => {
+    const { handlers, webContents } = setup();
+    const register = handlers.get('register-plugin-command-capabilities')!;
+    const registrations = [
+      { pluginName: 'example', scopes: [{ command: 'gh', args: ['--version'] }] },
+    ];
+
+    const capabilities = await register({ sender: webContents }, registrations);
+
+    expect(capabilities.example).toHaveLength(1);
+    expect(register({ sender: webContents }, registrations)).toEqual({});
+    expect(register({ sender: {} }, registrations)).toEqual({});
+  });
+
+  it('resets registration only after the main frame reloads', async () => {
+    const { frameListeners, handlers, webContents } = setup();
+    const register = handlers.get('register-plugin-command-capabilities')!;
+    const didFinishLoad = frameListeners.get('did-frame-finish-load')!;
+    const registrations = [{ pluginName: 'example', scopes: [] }];
+
+    await register({ sender: webContents }, registrations);
+    didFinishLoad({}, false);
+    expect(register({ sender: webContents }, registrations)).toEqual({});
+
+    didFinishLoad({}, true);
+    expect(register({ sender: webContents }, registrations)).toEqual({ example: [] });
+  });
+
+  it('does not install handlers without a main window', () => {
+    const ipcMain = { handle: vi.fn(), on: vi.fn() } as any;
+
+    setupRunCmdHandlers(null, ipcMain);
+
+    expect(ipcMain.handle).not.toHaveBeenCalled();
+    expect(ipcMain.on).not.toHaveBeenCalled();
   });
 });
 
@@ -316,6 +522,45 @@ describe('validateCommandData', () => {
       })[0]
     ).toBe(true);
   });
+
+  it('accepts a structurally valid declared command capability', () => {
+    expect(
+      validateCommandData({
+        command: 'kubectl',
+        args: ['get'],
+        options: {},
+        permissionSecrets: {},
+        capability: 'a'.repeat(64),
+      })[0]
+    ).toBe(true);
+  });
+
+  it('rejects a malformed command capability', () => {
+    expect(
+      validateCommandData({
+        command: 'kubectl',
+        args: ['get'],
+        options: {},
+        permissionSecrets: {},
+        capability: 'not-a-capability',
+      })[0]
+    ).toBe(false);
+  });
+
+  it.each([{ stdio: 'ignore' }, { cwd: '/tmp' }, [], Object.create(null)])(
+    'rejects spawn options for a declared command capability',
+    (options: object) => {
+      expect(
+        validateCommandData({
+          command: 'kubectl',
+          args: ['get'],
+          options,
+          permissionSecrets: {},
+          capability: 'a'.repeat(64),
+        })
+      ).toEqual([false, 'Command capabilities do not allow spawn options']);
+    }
+  );
 });
 
 describe('handleRunCommand', () => {
@@ -368,6 +613,63 @@ describe('handleRunCommand', () => {
 
     expect(sentMessages).toContainEqual(['command-stderr', 'test-id', 'spawn error']);
     expect(sentMessages).toContainEqual(['command-exit', 'test-id', -1]);
+  });
+
+  it('runs a command only within its manifest-declared capability', async () => {
+    const { capabilities, scopeByCapability } = createCommandCapabilities([
+      {
+        pluginName: '@example/plugin',
+        scopes: [{ command: 'kubectl', args: ['get'] }],
+      },
+    ]);
+    dialogMock.mockReturnValue(0);
+
+    await handleRunCommand(
+      fakeEvent,
+      {
+        id: 'declared-command',
+        command: 'kubectl',
+        args: ['get', 'pods'],
+        options: {},
+        permissionSecrets: {},
+        capability: capabilities['@example/plugin'][0].capability,
+      },
+      { id: 1 } as any,
+      {},
+      scopeByCapability
+    );
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      'kubectl',
+      ['get', 'pods'],
+      expect.objectContaining({ shell: false })
+    );
+  });
+
+  it('does not spawn a capability command with plugin-controlled options', async () => {
+    const { capabilities, scopeByCapability } = createCommandCapabilities([
+      {
+        pluginName: '@example/plugin',
+        scopes: [{ command: 'kubectl', args: ['get'] }],
+      },
+    ]);
+
+    await handleRunCommand(
+      fakeEvent,
+      {
+        id: 'declared-command-options',
+        command: 'kubectl',
+        args: ['get', 'pods'],
+        options: { stdio: 'ignore' },
+        permissionSecrets: {},
+        capability: capabilities['@example/plugin'][0].capability,
+      },
+      { id: 1 } as any,
+      {},
+      scopeByCapability
+    );
+
+    expect(spawnMock).not.toHaveBeenCalled();
   });
 
   it('reports synchronous spawn errors without rejecting', async () => {
@@ -428,8 +730,7 @@ describe('runScript', () => {
     process.resourcesPath = '/resources';
 
     exitMock = vi.fn() as any;
-    // @ts-expect-error overriding for test
-    process.exit = exitMock;
+    process.exit = exitMock as unknown as typeof process.exit;
     consoleErrorMock = vi.fn();
     console.error = consoleErrorMock;
   });
@@ -482,7 +783,7 @@ describe('addRunCmdConsent', () => {
     ['headlamp_ai_assistant'],
     ['headlamp_ai-assistantprerelease'],
     ['headlamp_ai_assistantprerelease'],
-  ])('pre-populates AI assistant commands for plugin name "%s"', async pluginName => {
+  ])('pre-populates AI assistant commands for plugin name "%s"', async (pluginName: string) => {
     const { loadSettings, saveSettings } = await import('./settings');
     vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: {} });
     vi.mocked(saveSettings).mockClear();
