@@ -14,7 +14,13 @@
  * limitations under the License.
  */
 
-import { getInfoForRunningPlugins, identifyPackages, runPlugin, runPluginProps } from './runPlugin';
+import {
+  adjustSourceMapOffsetForFunction,
+  getInfoForRunningPlugins,
+  identifyPackages,
+  runPlugin,
+  runPluginProps,
+} from './runPlugin';
 
 function runPluginInner(info: runPluginProps) {
   const source = info[0];
@@ -752,5 +758,60 @@ describe('identifyPackages', () => {
 
   test('should not identify the Azure AKS package when its name does not match', () => {
     expect(identifyPackages('plugins/azure-aks', 'other-plugin', false)['azure-aks']).toBe(false);
+  });
+});
+
+describe('adjustSourceMapOffsetForFunction', () => {
+  test('should prepend semicolons to source map mappings when source map is present', () => {
+    const originalMappings = 'AAAA,CAAC';
+    const sourceMap = {
+      version: 3,
+      sources: ['test.ts'],
+      mappings: originalMappings,
+    };
+    const base64SourceMap = btoa(JSON.stringify(sourceMap));
+    const marker = ['//# source', 'MappingURL='].join('');
+    const sourceUrl = '\n//# sourceURL=//plugins/test/dist/main.js';
+    const jsSource = [
+      `console.log('hello');`,
+      `${marker}data:application/json;charset=utf-8;base64,${base64SourceMap}${sourceUrl}`,
+    ].join('\n');
+
+    const result = adjustSourceMapOffsetForFunction(jsSource);
+
+    const encodedSourceMap = result.split('base64,')[1].split(/\s/)[0];
+    const resultSourceMap = JSON.parse(atob(encodedSourceMap));
+    expect(resultSourceMap.mappings).toBe(';;' + originalMappings);
+    expect(result.endsWith(sourceUrl)).toBe(true);
+  });
+
+  test('should return source unchanged when no source map is present', () => {
+    const jsSource = `console.log('hello');`;
+
+    const result = adjustSourceMapOffsetForFunction(jsSource);
+
+    expect(result).toBe(jsSource);
+  });
+
+  test.each([undefined, 42])('should return source unchanged when mappings is %s', mappings => {
+    const sourceMap = { version: 3, sources: ['test.ts'], mappings };
+    const marker = ['//# source', 'MappingURL='].join('');
+    const jsSource = `${marker}data:application/json;charset=utf-8;base64,${btoa(
+      JSON.stringify(sourceMap)
+    )}`;
+
+    expect(adjustSourceMapOffsetForFunction(jsSource)).toBe(jsSource);
+  });
+
+  test('should return source unchanged when the source map cannot be parsed', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const marker = ['//# source', 'MappingURL='].join('');
+    const jsSource = `${marker}data:application/json;charset=utf-8;base64,${btoa('{')}`;
+
+    expect(adjustSourceMapOffsetForFunction(jsSource)).toBe(jsSource);
+    expect(consoleError).toHaveBeenCalledWith(
+      'Failed to adjust source map offset',
+      expect.any(SyntaxError)
+    );
   });
 });
