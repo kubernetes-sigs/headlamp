@@ -22,10 +22,59 @@ import type { ApiResource } from '../lib/k8s/api/v2/ApiResource';
 import { apiResourceId } from '../lib/k8s/api/v2/ApiResource';
 import type { KubeObject } from '../lib/k8s/KubeObject';
 
+/** A project entry assembled from one or more Kubernetes namespaces. */
 export interface ProjectDefinition {
+  /** Project ID read from the `headlamp.dev/project-id` namespace label. */
   id: string;
+  /** Opaque grouping key used when one project ID represents multiple project entries. */
+  key?: string;
+  /** Namespaces included in the project entry. */
   namespaces: string[];
+  /** Clusters containing the project entry's namespaces. */
   clusters: string[];
+  /** Exact namespace and cluster pairs included in the project entry. */
+  namespaceRefs?: ProjectNamespaceReference[];
+}
+
+/** Identifies one Kubernetes namespace within a specific Headlamp cluster. */
+export interface ProjectNamespaceReference {
+  /** Kubernetes namespace name. */
+  name: string;
+  /** Headlamp cluster name containing the namespace. */
+  cluster: string;
+}
+
+/** Namespace data available to a custom project grouping callback. */
+export interface ProjectNamespace {
+  /** Kubernetes namespace metadata used for grouping. */
+  metadata: {
+    /** Kubernetes namespace name. */
+    name: string;
+    /** Kubernetes namespace labels, when present. */
+    labels?: Record<string, string>;
+  };
+  /** Headlamp cluster name containing the namespace. */
+  cluster: string;
+}
+
+/** Parameters passed to a custom project grouping callback. */
+export interface ProjectGroupingParams {
+  /** Namespace being assigned to a project entry. */
+  namespace: ProjectNamespace;
+  /** Project ID read from the namespace label. */
+  projectId: string;
+}
+
+/** Custom behavior for grouping project namespaces into separate entries. */
+export interface ProjectGrouping {
+  /**
+   * Return an opaque key for grouping a namespace into a project entry.
+   * The project ID is used when the returned key is empty.
+   *
+   * @param params - Namespace and labelled project ID to group.
+   * @returns An opaque grouping key.
+   */
+  getProjectKey: (params: ProjectGroupingParams) => string;
 }
 
 /** Define custom way to create new Projects */
@@ -96,6 +145,8 @@ export interface ProjectHeaderAction {
 
 export interface ProjectsState {
   customCreateProject: Record<string, CustomCreateProject>;
+  /** Plugin-provided project grouping behavior. */
+  projectGrouping?: ProjectGrouping;
   overviewSections: Record<string, ProjectOverviewSection>;
   detailsTabs: Record<string, ProjectDetailsTab>;
   projectDeleteButton?: ProjectDeleteButton;
@@ -119,6 +170,11 @@ const projectsSlice = createSlice({
     /** Register custom project create popup, for plugins */
     addCustomCreateProject(state, action: PayloadAction<CustomCreateProject>) {
       state.customCreateProject[action.payload.id] = action.payload;
+    },
+
+    /** Set custom project grouping behavior. */
+    setProjectGrouping(state, action: PayloadAction<ProjectGrouping>) {
+      state.projectGrouping = action.payload;
     },
 
     /** Register additional tab for project details page */
@@ -154,6 +210,7 @@ const projectsSlice = createSlice({
 
 export const {
   addCustomCreateProject,
+  setProjectGrouping,
   addDetailsTab,
   addOverviewSection,
   setProjectDeleteButton,

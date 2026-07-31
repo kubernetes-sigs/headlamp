@@ -287,6 +287,16 @@ for a complete relation provider registration.
 
 Customize Headlamp's Projects feature with several registration functions:
 
+Group namespaces into separate project entries with
+[registerProjectGrouping](../../api/plugin/registry/functions/registerProjectGrouping).
+By default, Headlamp combines namespaces with the same project ID across clusters,
+which is useful when they form one logical application. Use custom grouping when
+clusters represent distinct environments, tenants, or ownership boundaries and
+users need separate resource counts, health, and actions for each entry.
+The callback receives each namespace and its labelled project ID, and returns an
+opaque key. Namespaces with the same project ID and key are shown as one project
+entry. Return the project ID to preserve Headlamp's default cross-cluster grouping.
+
 Add custom tabs to the project details view with
 [registerProjectDetailsTab](../../api/plugin/registry/functions/registerProjectDetailsTab).
 Each tab needs a unique ID, a label, and a React component that receives the project as a prop.

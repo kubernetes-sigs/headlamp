@@ -44,10 +44,11 @@ import { ButtonStyle, EditButton, EditorDialog, Loader, StatusLabel } from '../c
 import Link from '../common/Link';
 import ResourceTable from '../common/Resource/ResourceTable';
 import SectionBox from '../common/SectionBox';
-import { GraphFilter } from '../resourceMap/graph/graphFiltering';
+import { GraphFilter, namespaceClusterKey } from '../resourceMap/graph/graphFiltering';
 import { GraphView } from '../resourceMap/GraphView';
 import { ResourceQuotaTable } from '../resourceQuota/Details';
 import { ProjectDeleteButton } from './ProjectDeleteButton';
+import { projectListRequests } from './projectGrouping';
 import { useProject } from './ProjectList';
 import { getEnabledProjectOverviewSections } from './projectOverviewSections';
 import { ProjectResourcesTab, useResourceCategoriesList } from './ProjectResourcesTab';
@@ -371,21 +372,26 @@ function ProjectResources({
 /** Access tab for the Project Details */
 function ProjectAccess({ project }: { project: ProjectDefinition }) {
   const { t } = useTranslation();
+  const requests = useMemo(() => projectListRequests(project), [project]);
+  const roles = Role.useList({ requests });
+  const roleBindings = RoleBinding.useList({ requests });
   return (
     <Box sx={{ my: 3 }}>
       <SelectedClustersContext.Provider value={project.clusters}>
         <Typography variant="h6">{t('Roles')}</Typography>
         <ResourceTable
-          resourceClass={Role}
+          id={`headlamp-${Role.pluralName}`}
           columns={['type', 'name', 'age']}
-          namespaces={project.namespaces}
+          data={roles.items}
+          errors={roles.errors}
           enableRowActions
         />
         <Typography variant="h6">{t('Role Bindings')}</Typography>
         <ResourceTable
-          resourceClass={RoleBinding}
+          id={`headlamp-${RoleBinding.pluralName}`}
           columns={['type', 'name', 'age']}
-          namespaces={project.namespaces}
+          data={roleBindings.items}
+          errors={roleBindings.errors}
           enableRowActions
         />
       </SelectedClustersContext.Provider>
@@ -669,11 +675,19 @@ export function ProjectDetailsContent({ project }: { project: ProjectDefinition 
 }
 
 /** Map tab for the Project Details */
-function ProjectGraph({ project: { namespaces, clusters } }: { project: ProjectDefinition }) {
+function ProjectGraph({ project }: { project: ProjectDefinition }) {
+  const { namespaces, clusters, namespaceRefs } = project;
   const filters = useMemo(
     () =>
       [
-        namespaces.length > 0
+        namespaceRefs?.length
+          ? {
+              type: 'namespaceCluster',
+              namespaceRefs: new Set(
+                namespaceRefs.map(({ cluster, name }) => namespaceClusterKey(cluster, name))
+              ),
+            }
+          : namespaces.length > 0
           ? {
               type: 'namespace',
               namespaces: new Set(namespaces),
@@ -681,7 +695,7 @@ function ProjectGraph({ project: { namespaces, clusters } }: { project: ProjectD
           : undefined,
       ].filter(Boolean) as GraphFilter[],
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [namespaces, clusters]
+    [namespaces, clusters, namespaceRefs]
   );
   return (
     <Box

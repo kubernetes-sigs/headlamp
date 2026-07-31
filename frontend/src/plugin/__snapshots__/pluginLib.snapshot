@@ -796,6 +796,7 @@
   "registerProjectApiResource": [Function],
   "registerProjectDeleteButton": [Function],
   "registerProjectDetailsTab": [Function],
+  "registerProjectGrouping": [Function],
   "registerProjectHeaderAction": [Function],
   "registerProjectOverviewSection": [Function],
   "registerResourceRelationProvider": [Function],
