@@ -42,7 +42,11 @@ export interface TabsProps {
   tabProps?: {
     [propName: string]: any;
   };
-  /** The index of the initially active tab. Defaults to 0. Set to null or false to disable initial selection. */
+  /**
+   * The index of the initially active tab. Defaults to 0.
+   * Set to null or false to disable initial selection.
+   * true is kept for backward compatibility and is treated as an invalid value.
+   */
   defaultIndex?: number | null | boolean;
   /** Callback invoked when the active tab changes.
    * @param tabIndex - The index of the newly selected tab.
@@ -55,6 +59,20 @@ export interface TabsProps {
 }
 
 /**
+ * Normalize defaultIndex to a value MUI Tabs accepts (number | false).
+ * null/false mean no selection; non-finite numbers and unsupported values fall back to 0.
+ */
+function normalizeTabIndex(defaultIndex: TabsProps['defaultIndex']): number | false {
+  if (typeof defaultIndex === 'number') {
+    return Number.isFinite(defaultIndex) ? Math.max(defaultIndex, 0) : 0;
+  }
+  if (defaultIndex === null || defaultIndex === false) {
+    return false;
+  }
+  return 0;
+}
+
+/**
  * A scrollable tab navigation component using Material UI,
  * with support for default tab selection, custom styles,
  * and dynamic content rendering.
@@ -64,8 +82,10 @@ export interface TabsProps {
  */
 export default function Tabs(props: TabsProps) {
   const { tabs, tabProps = {}, defaultIndex = 0, onTabChanged = null, ariaLabel } = props;
-  const [tabIndex, setTabIndex] = React.useState<TabsProps['defaultIndex']>(
-    defaultIndex && Math.min(defaultIndex as number, 0)
+  // Math.max keeps non-negative indices; Math.min(..., 0) clamped positive indices to 0 (#6409).
+  // Normalize null/false to false so MUI never sees value={null} on the first render.
+  const [tabIndex, setTabIndex] = React.useState<number | false>(() =>
+    normalizeTabIndex(defaultIndex)
   );
 
   /**
@@ -83,11 +103,7 @@ export default function Tabs(props: TabsProps) {
   }
 
   React.useEffect(() => {
-    if (defaultIndex === null) {
-      setTabIndex(false);
-      return;
-    }
-    setTabIndex(defaultIndex);
+    setTabIndex(normalizeTabIndex(defaultIndex));
   }, [defaultIndex]);
 
   const uniqueIdSuffix = useId('tabs-');
@@ -129,7 +145,7 @@ export default function Tabs(props: TabsProps) {
       {tabs.map(({ component }, i) => (
         <TabPanel
           key={i}
-          tabIndex={Number(tabIndex)}
+          activeTabIndex={tabIndex}
           index={i}
           id={`full-width-tabpanel-${i}-${ariaLabel.replace(' ', '')}-${uniqueIdSuffix}`}
           labeledBy={`full-width-tab-${i}-${ariaLabel.replace(' ', '')}-${uniqueIdSuffix}`}
@@ -144,9 +160,11 @@ export default function Tabs(props: TabsProps) {
 /**
  * Props for a single tab panel.
  */
-interface TabPanelProps extends TypographyProps {
-  /** The index of the currently active tab. */
-  tabIndex: number;
+interface TabPanelProps extends Omit<TypographyProps, 'tabIndex'> {
+  /** The index of the currently active tab. Preferred over tabIndex when both are provided. */
+  activeTabIndex?: number | false;
+  /** @deprecated Use activeTabIndex instead. */
+  tabIndex?: number | false;
   /** The index of this tab panel. */
   index: number;
   /** The unique ID for the tab panel, used for accessibility. */
@@ -162,16 +180,17 @@ interface TabPanelProps extends TypographyProps {
  * @returns A container showing the content if this panel is active.
  */
 export function TabPanel(props: TabPanelProps) {
-  const { children, tabIndex, index, id, labeledBy } = props;
+  const { children, activeTabIndex, tabIndex, index, id, labeledBy } = props;
+  const selectedTabIndex = activeTabIndex ?? tabIndex ?? 0;
 
   return (
     <Typography
       component="div"
       role="tabpanel"
-      hidden={tabIndex !== index}
+      hidden={selectedTabIndex !== index}
       id={id}
       aria-labelledby={labeledBy}
-      tabIndex={tabIndex === index ? 0 : -1}
+      tabIndex={selectedTabIndex === index ? 0 : -1}
       sx={{ flexGrow: 1, overflow: 'hidden' }}
     >
       {children}
