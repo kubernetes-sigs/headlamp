@@ -117,4 +117,5 @@ contextBridge.exposeInMainWorld('desktopApi', {
   notifyClusterChange: (cluster: string | null) => {
     ipcRenderer.send('cluster-changed', cluster);
   },
+  platform: process.platform,
 });
