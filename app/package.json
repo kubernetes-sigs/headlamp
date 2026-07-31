@@ -93,7 +93,6 @@
           ]
         }
       ],
-      "executableName": "headlamp",
       "maintainer": "Kinvolk <hello@kinvolk.io>",
       "category": "Network",
       "extraResources": [
