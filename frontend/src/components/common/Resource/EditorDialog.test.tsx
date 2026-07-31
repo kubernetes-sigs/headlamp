@@ -310,6 +310,13 @@ describe('EditorDialog', () => {
     expect(saveApplyButton).toHaveAttribute('aria-controls', textareaId);
   });
 
+  it('configures the dialog content to scroll with a minimum height', () => {
+    renderEditorDialog();
+
+    const dialogContent = document.querySelector('.MuiDialogContent-root');
+    expect(dialogContent).toHaveStyle({ minHeight: '400px', overflowY: 'auto' });
+  });
+
   it('correctly sets textarea ID and aria-controls attributes when using Monaco editor onMount', () => {
     localStorage.setItem('useSimpleEditor', 'false');
 
