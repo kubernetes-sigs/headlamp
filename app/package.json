@@ -216,5 +216,8 @@
     "shx": "^0.4.0",
     "tar": "^7.5.11",
     "yargs": "^17.7.2"
+  },
+  "optionalDependencies": {
+    "dmg-license": "^1.0.11"
   }
 }
