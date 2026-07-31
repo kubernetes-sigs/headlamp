@@ -59,7 +59,8 @@ import {
   PluginManager,
   setAppConfigDirName,
 } from './plugin-management';
-import { findProtocolUrl, isProtocolUrl, readProtocolScheme } from './protocol';
+import { readProtocolScheme } from './protocol';
+import { createProtocolHandler } from './protocolHandler';
 import {
   addRunCmdConsent,
   environmentOverrides,
@@ -218,6 +219,12 @@ let mainWindow: BrowserWindow | null;
 let mcpClient: MCPClient | null = null;
 let isQuitting = false;
 let hasTray = false;
+
+const protocolHandler = createProtocolHandler({
+  protocolScheme,
+  startUrl,
+  getMainWindow: () => mainWindow,
+});
 
 /**
  * `Action` is an interface for an action to be performed by the plugin manager.
@@ -1490,77 +1497,11 @@ ipcMain.on('route-changed', () => {
 function startElectron() {
   console.info('App starting...');
 
-  let isMainWindowReady = false;
-  const pendingProtocolUrls: string[] = [];
-
-  function routeProtocolUrl(protocolUrl: string) {
-    let urlObj: URL;
-    try {
-      urlObj = new URL(protocolUrl);
-    } catch {
-      dialog.showErrorBox(
-        i18n.t('Invalid URL'),
-        i18n.t('Application opened with an invalid URL: {{ url }}', { url: protocolUrl })
-      );
-      return;
-    }
-
-    if (!isProtocolUrl(protocolUrl, protocolScheme)) {
-      dialog.showErrorBox(
-        i18n.t('Invalid URL'),
-        i18n.t('Application opened with an invalid URL: {{ url }}', { url: protocolUrl })
-      );
-      return;
-    }
-
-    if (!mainWindow || !isMainWindowReady) {
-      pendingProtocolUrls.push(protocolUrl);
-      return;
-    }
-
-    if (mainWindow.isMinimized()) {
-      mainWindow.restore();
-    }
-    mainWindow.focus();
-
-    const baseUrl = startUrl.endsWith('/') ? startUrl.slice(0, -1) : startUrl;
-    mainWindow.loadURL(baseUrl + '#' + urlObj.hostname + urlObj.search);
-  }
-
-  function routeProtocolUrlFromCommandLine(commandLine: readonly string[]) {
-    const protocolUrl = findProtocolUrl(commandLine, protocolScheme);
-    if (protocolUrl) {
-      routeProtocolUrl(protocolUrl);
-    }
-  }
-
   const gotTheLock = app.requestSingleInstanceLock();
   if (!gotTheLock) {
     app.quit();
     return;
   }
-
-  app.on('open-url', (event, protocolUrl) => {
-    event.preventDefault();
-    routeProtocolUrl(protocolUrl);
-  });
-
-  app.on('second-instance', (_event, commandLine) => {
-    const protocolUrl = findProtocolUrl(commandLine, protocolScheme);
-    if (protocolUrl) {
-      routeProtocolUrl(protocolUrl);
-      return;
-    }
-
-    if (mainWindow) {
-      if (mainWindow.isMinimized()) {
-        mainWindow.restore();
-      }
-      mainWindow.focus();
-    }
-  });
-
-  routeProtocolUrlFromCommandLine(process.argv);
 
   // Increase max listeners to prevent false positive warnings
   // The app legitimately needs multiple IPC listeners (currently 11)
@@ -1724,8 +1665,6 @@ function startElectron() {
     const withMargin = await isWSL();
     const { width, height } = windowSize(screen.getPrimaryDisplay().workAreaSize, withMargin);
 
-    isMainWindowReady = false;
-
     // Flush any pending debounced zoom save before reading so reopening the
     // window immediately after a zoom change reads the latest factor.
     flushZoomFactorSave();
@@ -1734,7 +1673,6 @@ function startElectron() {
     // creation and the 'closed' handler; closing during the read would
     // otherwise leave a destroyed window that later loadURL/menu calls throw on.
     cachedZoom = await loadZoomFactor(ZOOM_FILE_PATH);
-
     mainWindow = new BrowserWindow({
       width,
       height,
@@ -1780,10 +1718,7 @@ function startElectron() {
       // Inject the backend port into the window object
       mainWindow?.webContents.executeJavaScript(`window.headlampBackendPort = ${actualPort};`);
 
-      isMainWindowReady = true;
-      for (const protocolUrl of pendingProtocolUrls.splice(0)) {
-        routeProtocolUrl(protocolUrl);
-      }
+      protocolHandler.setReady();
     });
 
     mainWindow.webContents.on('did-frame-finish-load', (_event, isMainFrame) => {
@@ -1826,7 +1761,6 @@ function startElectron() {
     });
 
     mainWindow.on('closed', () => {
-      isMainWindowReady = false;
       mainWindow = null;
     });
 
