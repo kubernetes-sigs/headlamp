@@ -32,6 +32,10 @@ import {
   MRT_TableHeadCell,
   MRT_TableInstance,
   MRT_TableOptions as MaterialTableOptions,
+  MRT_ToggleDensePaddingButton,
+  MRT_ToggleFiltersButton,
+  MRT_ToggleFullScreenButton,
+  MRT_ToggleGlobalFilterButton,
   MRT_TopToolbar,
   useMaterialReactTable,
   useMRT_Rows,
@@ -45,6 +49,7 @@ import { useSettings } from '../../App/Settings/hook';
 import { useQueryParamsState } from '../../resourceMap/useQueryParamsState';
 import Empty from '../EmptyContent';
 import Loader from '../Loader';
+import { ColumnVisibilityButton } from './ColumnVisibilityButton';
 import { getTableLocalization } from './tableLocalization';
 
 /**
@@ -377,16 +382,41 @@ export default function Table<RowItem extends Record<string, any>>({
     },
     onGlobalFilterChange: setGlobalFilter,
     onColumnVisibilityChange: setColumnVisibility,
-    renderToolbarInternalActions: props => {
+    renderToolbarInternalActions: ({ table: tbl }) => {
       const isSomeRowsSelected =
-        tableProps.enableRowSelection && props.table.getSelectedRowModel().rows.length !== 0;
-      if (isSomeRowsSelected) {
-        const renderRowSelectionToolbar = tableProps.renderRowSelectionToolbar;
-        if (renderRowSelectionToolbar !== undefined) {
-          return renderRowSelectionToolbar(props);
-        }
+        tableProps.enableRowSelection && tbl.getSelectedRowModel().rows.length !== 0;
+      if (isSomeRowsSelected && tableProps.renderRowSelectionToolbar) {
+        return tableProps.renderRowSelectionToolbar({ table: tbl });
       }
-      return null;
+
+      const {
+        enableFilters = true,
+        enableGlobalFilter = true,
+        enableColumnFilters = true,
+        enableHiding = true,
+        enableColumnOrdering,
+        enableColumnPinning,
+        enableDensityToggle,
+        enableFullScreenToggle,
+        columnFilterDisplayMode,
+        initialState: initState,
+      } = tbl.options;
+
+      return (
+        <>
+          {enableFilters && enableGlobalFilter && !initState?.showGlobalFilter && (
+            <MRT_ToggleGlobalFilterButton table={tbl} />
+          )}
+          {enableFilters && enableColumnFilters && columnFilterDisplayMode !== 'popover' && (
+            <MRT_ToggleFiltersButton table={tbl} />
+          )}
+          {(enableHiding || enableColumnOrdering || enableColumnPinning) && (
+            <ColumnVisibilityButton table={tbl} />
+          )}
+          {enableDensityToggle && <MRT_ToggleDensePaddingButton table={tbl} />}
+          {enableFullScreenToggle && <MRT_ToggleFullScreenButton table={tbl} />}
+        </>
+      );
     },
     initialState: useMemo(
       () => ({

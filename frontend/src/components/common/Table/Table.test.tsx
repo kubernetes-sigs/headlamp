@@ -52,6 +52,9 @@ vi.mock('../../App/Settings/hook', () => ({ useSettings: () => [10] }));
 vi.mock('../../resourceMap/useQueryParamsState', () => ({
   useQueryParamsState: (_key: string, initialValue: unknown) => [initialValue, vi.fn()],
 }));
+vi.mock('./ColumnVisibilityButton', () => ({
+  ColumnVisibilityButton: () => <button data-testid="column-visibility" />,
+}));
 vi.mock('./useScrollPreservation', () => ({
   useScrollPreservationOnDataChange: () => ({ ref: { current: null }, onScroll: vi.fn() }),
 }));
@@ -73,6 +76,10 @@ vi.mock('material-react-table', () => ({
     );
   },
   MRT_TableHeadCell: () => <th>Selection</th>,
+  MRT_ToggleDensePaddingButton: () => <button data-testid="density-toggle" />,
+  MRT_ToggleFiltersButton: () => <button data-testid="filters-toggle" />,
+  MRT_ToggleFullScreenButton: () => <button data-testid="fullscreen-toggle" />,
+  MRT_ToggleGlobalFilterButton: () => <button data-testid="search-toggle" />,
   MRT_TopToolbar: () => <div data-testid="top-toolbar" />,
   useMaterialReactTable: (options: any) => {
     tableMocks.options = options;
@@ -149,6 +156,13 @@ function renderTable(props: Partial<TableProps<TestRow>> = {}) {
       />
     </ThemeProvider>
   );
+}
+
+function toolbarTable(selectedRows: object[] = []) {
+  return {
+    getSelectedRowModel: () => ({ rows: selectedRows }),
+    options: tableMocks.options,
+  };
 }
 
 describe('Table toolbar and selection props', () => {
@@ -298,25 +312,44 @@ describe('Table states and options', () => {
     renderTable({ enableRowSelection: true, renderRowSelectionToolbar });
 
     const noSelection = tableMocks.options.renderToolbarInternalActions({
-      table: { getSelectedRowModel: () => ({ rows: [] }) },
+      table: toolbarTable(),
     });
     const withSelection = tableMocks.options.renderToolbarInternalActions({
-      table: { getSelectedRowModel: () => ({ rows: [{}] }) },
+      table: toolbarTable([{}]),
     });
 
-    expect(noSelection).toBeNull();
+    expect(noSelection).not.toBeNull();
     expect(withSelection).toEqual(<span>Selected actions</span>);
     expect(renderRowSelectionToolbar).toHaveBeenCalledOnce();
   });
 
-  it('returns no selection toolbar when no renderer is provided', () => {
+  it('renders internal controls when selected rows have no custom toolbar', () => {
     renderTable({ enableRowSelection: true });
 
     const toolbar = tableMocks.options.renderToolbarInternalActions({
-      table: { getSelectedRowModel: () => ({ rows: [{}] }) },
+      table: toolbarTable([{}]),
     });
 
-    expect(toolbar).toBeNull();
+    render(<ThemeProvider theme={theme}>{toolbar}</ThemeProvider>);
+
+    expect(screen.getByTestId('search-toggle')).toBeVisible();
+    expect(screen.getByTestId('filters-toggle')).toBeVisible();
+    expect(screen.getByTestId('column-visibility')).toBeVisible();
+  });
+
+  it('renders every enabled internal toolbar control', () => {
+    renderTable({ enableDensityToggle: true, enableFullScreenToggle: true });
+
+    const toolbar = tableMocks.options.renderToolbarInternalActions({
+      table: toolbarTable(),
+    });
+    render(<ThemeProvider theme={theme}>{toolbar}</ThemeProvider>);
+
+    expect(screen.getByTestId('search-toggle')).toBeVisible();
+    expect(screen.getByTestId('filters-toggle')).toBeVisible();
+    expect(screen.getByTestId('column-visibility')).toBeVisible();
+    expect(screen.getByTestId('density-toggle')).toBeVisible();
+    expect(screen.getByTestId('fullscreen-toggle')).toBeVisible();
   });
 
   it('provides an empty-results fallback to Material React Table', () => {
