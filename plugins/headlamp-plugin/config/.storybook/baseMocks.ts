@@ -183,6 +183,18 @@ export const baseMocks = [
       items: [],
     })
   ),
+  http.get('http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions', () =>
+    HttpResponse.json({
+      kind: 'CustomResourceDefinitionList',
+      apiVersion: 'apiextensions.k8s.io/v1',
+      metadata: {},
+      items: [],
+    })
+  ),
+  http.get(
+    'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions',
+    () => HttpResponse.error()
+  ),
   http.get('http://localhost:4466/apis/metrics.k8s.io/v1beta1/nodes', () =>
     HttpResponse.json({
       apiVersion: 'metrics.k8s.io/v1beta1',
