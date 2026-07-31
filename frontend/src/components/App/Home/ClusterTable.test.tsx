@@ -27,6 +27,7 @@ import ClusterContextMenu from './ClusterContextMenu';
 import ClusterTable from './ClusterTable';
 
 const theme = createMuiTheme({ name: 'light', base: 'light' });
+const { dispatchMock } = vi.hoisted(() => ({ dispatchMock: vi.fn() }));
 
 function renderWithTheme(ui: ReactNode) {
   return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
@@ -47,7 +48,7 @@ vi.mock('react-i18next', async importOriginal => {
 });
 
 vi.mock('react-redux', () => ({
-  useDispatch: () => vi.fn(),
+  useDispatch: () => dispatchMock,
 }));
 
 vi.mock('../../../lib/k8s/api/v1/clusterApi', () => ({
@@ -372,7 +373,7 @@ describe('ClusterContextMenu', () => {
     vi.clearAllMocks();
   });
 
-  it('notifies the page after deleting a cluster', async () => {
+  it('updates the config before notifying the page after deleting a cluster', async () => {
     vi.mocked(deleteCluster).mockResolvedValue({} as Awaited<ReturnType<typeof deleteCluster>>);
     const onClusterRemoved = vi.fn();
 
@@ -400,6 +401,10 @@ describe('ClusterContextMenu', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
 
     await waitFor(() => expect(onClusterRemoved).toHaveBeenCalledOnce());
+    expect(dispatchMock).toHaveBeenCalledOnce();
+    expect(dispatchMock.mock.invocationCallOrder[0]).toBeLessThan(
+      onClusterRemoved.mock.invocationCallOrder[0]
+    );
   });
 
   it('keeps the page open when deleting a cluster fails', async () => {
