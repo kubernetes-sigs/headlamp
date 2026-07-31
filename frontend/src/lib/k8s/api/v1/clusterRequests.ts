@@ -27,7 +27,7 @@ import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLo
 import { logout } from '../../../auth';
 import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface } from '../../KubeObject';
-import type { ApiError } from '../v2/ApiError';
+import { ApiError } from '../v2/ApiError';
 import { CLUSTERS_PREFIX, DEFAULT_TIMEOUT, JSON_HEADERS } from './constants';
 import { asQuery, combinePath } from './formatUrl';
 import type { QueryParameters } from './queryParameters';
@@ -35,7 +35,7 @@ import type { QueryParameters } from './queryParameters';
 /**
  * Options for the request.
  */
-export interface RequestParams extends RequestInit {
+export interface RequestOptions extends RequestInit {
   /** Number of milliseconds to wait for a response. */
   timeout?: number;
   /** Is the request expected to receive JSON data? */
@@ -62,7 +62,7 @@ export interface ClusterRequest {
 /**
  * The options for `clusterRequest`.
  */
-export interface ClusterRequestParams extends RequestParams {
+export interface ClusterRequestOptions extends RequestOptions {
   cluster?: string | null;
   autoLogoutOnAuthError?: boolean;
 }
@@ -92,13 +92,13 @@ export function getClusterAuthType(cluster: string): string {
  * @returns A Promise that resolves to the JSON response from the API server.
  * @throws An ApiError if the response status is not ok.
  */
-export async function request(
+export async function request<T = any>(
   path: string,
-  params: RequestParams = {},
+  params: RequestOptions = {},
   autoLogoutOnAuthError: boolean = true,
   useCluster: boolean = true,
   queryParams?: QueryParameters
-): Promise<any> {
+): Promise<T> {
   // @todo: This is a temporary way of getting the current cluster. We should improve it later.
   const cluster = (useCluster && getCluster()) || '';
 
@@ -106,7 +106,7 @@ export async function request(
     console.debug('k8s/apiProxy@request', { path, params, useCluster, queryParams });
   }
 
-  return clusterRequest(path, { cluster, autoLogoutOnAuthError, ...params }, queryParams);
+  return clusterRequest<T>(path, { cluster, autoLogoutOnAuthError, ...params }, queryParams);
 }
 
 /**
@@ -120,11 +120,11 @@ export async function request(
  * @returns A Promise that resolves to the JSON response from the API server.
  * @throws An ApiError if the response status is not ok.
  */
-export async function clusterRequest(
+export async function clusterRequest<T = any>(
   path: string,
-  params: ClusterRequestParams = {},
+  params: ClusterRequestOptions = {},
   queryParams?: QueryParameters
-): Promise<any> {
+): Promise<T> {
   interface RequestHeaders {
     Authorization?: string;
     cluster?: string;
@@ -224,28 +224,27 @@ export async function clusterRequest(
       );
     }
 
-    const error = new Error(message) as ApiError;
-    error.status = status;
+    const error = new ApiError(message, { status, cluster });
     return Promise.reject(error);
   }
 
   if (!isJSON) {
-    return Promise.resolve(response);
+    return Promise.resolve(response as unknown as T);
   }
 
-  return response.json();
+  return response.json() as Promise<T>;
 }
 
-export function post(
+export function post<T = any>(
   url: string,
   json: JSON | object | KubeObjectInterface,
   autoLogoutOnAuthError: boolean = true,
-  options: ClusterRequestParams = {}
-) {
+  options: ClusterRequestOptions = {}
+): Promise<T> {
   const { cluster: clusterName, ...requestOptions } = options;
   const body = JSON.stringify(json);
   const cluster = clusterName || getCluster() || '';
-  return clusterRequest(url, {
+  return clusterRequest<T>(url, {
     method: 'POST',
     body,
     headers: JSON_HEADERS,
@@ -255,12 +254,12 @@ export function post(
   });
 }
 
-export function patch(
+export function patch<T = any>(
   url: string,
   json: any,
   autoLogoutOnAuthError = true,
-  options: ClusterRequestParams = {}
-) {
+  options: ClusterRequestOptions = {}
+): Promise<T> {
   const { cluster: clusterName, ...requestOptions } = options;
   const body = JSON.stringify(json);
   const cluster = clusterName || getCluster() || '';
@@ -272,7 +271,7 @@ export function patch(
     cluster,
     ...requestOptions,
   };
-  return clusterRequest(url, opts);
+  return clusterRequest<T>(url, opts);
 }
 
 /**
@@ -286,12 +285,12 @@ export function patch(
  * @param options - Additional request options.
  * @returns A Promise that resolves to the patched resource.
  */
-export function jsonPatch(
+export function jsonPatch<T = any>(
   url: string,
   operations: OpPatch[],
   autoLogoutOnAuthError = true,
-  options: ClusterRequestParams = {}
-) {
+  options: ClusterRequestOptions = {}
+): Promise<T> {
   const { cluster: clusterName, ...requestOptions } = options;
   const body = JSON.stringify(operations);
   const cluster = clusterName || getCluster() || '';
@@ -303,15 +302,15 @@ export function jsonPatch(
     cluster,
     ...requestOptions,
   };
-  return clusterRequest(url, opts);
+  return clusterRequest<T>(url, opts);
 }
 
-export function put(
+export function put<T = any>(
   url: string,
   json: Partial<KubeObjectInterface>,
   autoLogoutOnAuthError = true,
-  requestOptions: ClusterRequestParams = {}
-) {
+  requestOptions: ClusterRequestOptions = {}
+): Promise<T> {
   const body = JSON.stringify(json);
   const { cluster: clusterName, ...restOptions } = requestOptions;
   const opts = {
@@ -322,14 +321,17 @@ export function put(
     cluster: clusterName || getCluster() || '',
     ...restOptions,
   };
-  return clusterRequest(url, opts);
+  return clusterRequest<T>(url, opts);
 }
 
-export function remove(url: string, requestOptions: ClusterRequestParams = {}) {
+export function remove<T = any>(
+  url: string,
+  requestOptions: ClusterRequestOptions = {}
+): Promise<T> {
   const { cluster: clusterName, ...restOptions } = requestOptions;
   const cluster = clusterName || getCluster() || '';
   const opts = { method: 'DELETE', headers: JSON_HEADERS, cluster, ...restOptions };
-  return clusterRequest(url, opts);
+  return clusterRequest<T>(url, opts);
 }
 
 // @todo: apiEndpoint.put has a type of any, which needs improving.
