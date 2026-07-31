@@ -20,6 +20,7 @@ import { useParams } from 'react-router-dom';
 import EndpointSlice from '../../lib/k8s/endpointSlices';
 import { SectionBox, SimpleTable, StatusLabel } from '../common';
 import { DetailsGrid } from '../common/Resource';
+import { resolveEndpointConditions } from './utils';
 
 export default function EndpointSliceDetails(props: {
   name?: string;
@@ -75,27 +76,31 @@ export default function EndpointSliceDetails(props: {
                     },
                     {
                       label: t('Conditions'),
-                      getter: endpoint => (
-                        <>
-                          <Box display="inline-block">
-                            <StatusLabel status={endpoint.conditions.ready ? 'success' : 'error'}>
-                              {t('Ready')}
-                            </StatusLabel>
-                          </Box>
-                          <Box display="inline-block">
-                            <StatusLabel status={endpoint.conditions.serving ? 'success' : 'error'}>
-                              {t('Serving')}
-                            </StatusLabel>
-                          </Box>
-                          <Box display="inline-block">
-                            <StatusLabel
-                              status={endpoint.conditions.terminating ? 'success' : 'error'}
-                            >
-                              {t('Terminating')}
-                            </StatusLabel>
-                          </Box>
-                        </>
-                      ),
+                      getter: endpoint => {
+                        const { ready, serving, terminating } = resolveEndpointConditions(
+                          endpoint.conditions
+                        );
+
+                        return (
+                          <>
+                            <Box display="inline-block">
+                              <StatusLabel status={ready ? 'success' : 'error'}>
+                                {t('Ready')}
+                              </StatusLabel>
+                            </Box>
+                            <Box display="inline-block">
+                              <StatusLabel status={serving ? 'success' : 'error'}>
+                                {t('Serving')}
+                              </StatusLabel>
+                            </Box>
+                            <Box display="inline-block">
+                              <StatusLabel status={terminating ? 'success' : 'error'}>
+                                {t('Terminating')}
+                              </StatusLabel>
+                            </Box>
+                          </>
+                        );
+                      },
                     },
                   ]}
                   defaultSortingColumn={1}
