@@ -50,13 +50,14 @@ func main() {
 		return
 	}
 
-	conf, err := config.Parse(os.Args)
+	conf, err := config.ParseWithAppNameDefault(os.Args, kubeconfig.AppName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "fetching config:%v")
 		os.Exit(1)
 	}
 
 	logger.Init(conf.LogLevel)
+	kubeconfig.AppName = conf.AppName
 
 	if conf.Version {
 		fmt.Printf("%s %s (%s/%s)\n", kubeconfig.AppName, kubeconfig.Version, runtime.GOOS, runtime.GOARCH)

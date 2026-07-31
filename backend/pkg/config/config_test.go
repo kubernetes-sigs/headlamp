@@ -145,6 +145,91 @@ func TestParseBasic(t *testing.T) {
 	}
 }
 
+func TestParseAppName(t *testing.T) {
+	tests := []struct {
+		name           string
+		args           []string
+		defaultAppName string
+		envValue       string
+		expected       string
+	}{
+		{
+			name:           "default",
+			defaultAppName: "Headlamp",
+			expected:       "Headlamp",
+		},
+		{
+			name:           "linker default",
+			defaultAppName: "Branded Headlamp",
+			expected:       "Branded Headlamp",
+		},
+		{
+			name:           "environment",
+			defaultAppName: "Branded Headlamp",
+			envValue:       "Environment Headlamp",
+			expected:       "Environment Headlamp",
+		},
+		{
+			name:           "flag overrides environment",
+			args:           []string{"headlamp-server", "--app-name=Flag Headlamp"},
+			defaultAppName: "Branded Headlamp",
+			envValue:       "Environment Headlamp",
+			expected:       "Flag Headlamp",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envValue == "" {
+				require.NoError(t, os.Unsetenv("HEADLAMP_CONFIG_APP_NAME"))
+				t.Cleanup(func() {
+					_ = os.Unsetenv("HEADLAMP_CONFIG_APP_NAME")
+				})
+			} else {
+				t.Setenv("HEADLAMP_CONFIG_APP_NAME", tt.envValue)
+			}
+
+			conf, err := config.ParseWithAppNameDefault(tt.args, tt.defaultAppName)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, conf.AppName)
+		})
+	}
+}
+
+func TestParseInvalidAppName(t *testing.T) {
+	tests := []struct {
+		name     string
+		args     []string
+		envValue string
+	}{
+		{
+			name: "carriage return from flag",
+			args: []string{"headlamp-server", "--app-name=Headlamp\rInjected"},
+		},
+		{
+			name:     "line feed from environment",
+			args:     []string{"headlamp-server"},
+			envValue: "Headlamp\nInjected",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.envValue == "" {
+				require.NoError(t, os.Unsetenv("HEADLAMP_CONFIG_APP_NAME"))
+				t.Cleanup(func() {
+					_ = os.Unsetenv("HEADLAMP_CONFIG_APP_NAME")
+				})
+			} else {
+				t.Setenv("HEADLAMP_CONFIG_APP_NAME", tt.envValue)
+			}
+
+			_, err := config.Parse(tt.args)
+			require.ErrorContains(t, err, "app-name contains invalid HTTP header characters")
+		})
+	}
+}
+
 var ParseWithEnvTests = []struct {
 	name   string
 	args   []string

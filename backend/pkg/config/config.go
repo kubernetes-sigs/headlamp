@@ -37,6 +37,7 @@ const (
 
 type Config struct {
 	Version              bool   `koanf:"version"`
+	AppName              string `koanf:"app-name"`
 	InCluster            bool   `koanf:"in-cluster"`
 	InClusterContextName string `koanf:"in-cluster-context-name"`
 	DevMode              bool   `koanf:"dev"`
@@ -123,6 +124,10 @@ func (c *Config) warnRedundantThemeDefaults() {
 }
 
 func (c *Config) Validate() error {
+	if err := c.validateAppName(); err != nil {
+		return err
+	}
+
 	if !c.InCluster && !c.OidcUseCookie && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
 		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
 		return errors.New("oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, " +
@@ -155,7 +160,6 @@ func (c *Config) Validate() error {
 	}
 
 	const oneYearInSeconds = 31536000
-
 	if c.SessionTTL > oneYearInSeconds {
 		return errors.New("session-ttl cannot be greater than 1 year")
 	}
@@ -179,6 +183,18 @@ func (c *Config) Validate() error {
 
 	if err := c.validateClusterInventory(); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// validateAppName ensures the application name is safe for use in Kubernetes User-Agent headers.
+func (c *Config) validateAppName() error {
+	for index := 0; index < len(c.AppName); index++ {
+		character := c.AppName[index]
+		if (character < ' ' && character != '\t') || character == 0x7f {
+			return errors.New("app-name contains invalid HTTP header characters")
+		}
 	}
 
 	return nil
@@ -408,9 +424,14 @@ func setMeDefaults(config *Config) {
 // the value of port will be 3456.
 
 func Parse(args []string) (*Config, error) {
+	return ParseWithAppNameDefault(args, "Headlamp")
+}
+
+// ParseWithAppNameDefault loads the config using appName as the application name default.
+func ParseWithAppNameDefault(args []string, appName string) (*Config, error) {
 	var config Config
 
-	f := flagset()
+	f := flagset(appName)
 
 	k := koanf.New(".")
 
@@ -552,10 +573,10 @@ func validateOpenBrowser(config *Config, explicitFlags map[string]bool) error {
 	return nil
 }
 
-func flagset() *flag.FlagSet {
+func flagset(appName string) *flag.FlagSet {
 	f := flag.NewFlagSet("config", flag.ContinueOnError)
 
-	addGeneralFlags(f)
+	addGeneralFlags(f, appName)
 	addOIDCFlags(f)
 	addProxyAuthFlags(f)
 	addTelemetryFlags(f)
@@ -564,8 +585,9 @@ func flagset() *flag.FlagSet {
 	return f
 }
 
-func addGeneralFlags(f *flag.FlagSet) {
+func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.Bool("version", false, "Print version information and exit")
+	f.String("app-name", appName, "Application name used in version output and Kubernetes User-Agent headers")
 	f.Bool("in-cluster", false, "Set when running from a k8s cluster")
 	f.String("in-cluster-context-name", "",
 		"Name to use for the in-cluster Kubernetes context. "+
