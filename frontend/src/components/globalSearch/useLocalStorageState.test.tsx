@@ -133,5 +133,18 @@ describe('useLocalStorageState', () => {
         expect.any(Error)
       );
     });
+
+    it('updates all hook instances using the same key', () => {
+      const first = renderHook(() => useLocalStorageState('shared-key', 'initial'));
+      const second = renderHook(() => useLocalStorageState('shared-key', 'initial'));
+
+      act(() => {
+        first.result.current[1](() => 'updated');
+      });
+
+      expect(first.result.current[0]).toBe('updated');
+      expect(second.result.current[0]).toBe('updated');
+      expect(JSON.parse(localStorage.getItem('shared-key')!)).toBe('updated');
+    });
   });
 });

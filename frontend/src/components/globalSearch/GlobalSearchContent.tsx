@@ -344,6 +344,8 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appThemes]);
 
+  const [, setAdvancedSearchQueryKey] = useLocalStorageState(ADVANCED_SEARCH_QUERY_KEY, '');
+
   // Advanced Search
   const advancedSearchSuggestion = useMemo(() => {
     if (!query.trim() || selectedClusters.length === 0) return;
@@ -354,7 +356,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
       label: `Search "${query}" with Advanced Search`,
       onClick: () => {
         // Set the search query in localStorage for the Advanced Search
-        useLocalStorageState.update(ADVANCED_SEARCH_QUERY_KEY, `metadata.name === "${query}"`);
+        setAdvancedSearchQueryKey(() => `metadata.name === "${query}"`);
 
         const params = new URLSearchParams(history.location.search);
         history.push(createRouteURL('advancedSearch') + '?' + params.toString());

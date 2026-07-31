@@ -14,10 +14,10 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useState } from 'react';
+import { SetStateAction, useCallback, useEffect, useState } from 'react';
 
 /** Store listeners to allow updates outside of the hook */
-const updateListeners: Record<string, Array<(newValue: any) => void>> = {};
+const updateListeners: Record<string, Array<SetStateAction<any>>> = {};
 
 /**
  * Custom hook to manage state synchronized with localStorage.
@@ -82,31 +82,25 @@ export function useLocalStorageState<T>(key: string, defaultValue: T) {
       const newValue = updater(state);
       put(newValue);
       setState(newValue);
+
+      if (updateListeners[key].length > 1) {
+        for (const updateListener of updateListeners[key]) {
+          updateListener(() => newValue);
+        }
+      }
     },
-    [put, state]
+    [state, put, key]
   );
 
   // Listen to any updates to local storage
   useEffect(() => {
-    const listener = (newValue: any) => set(() => newValue);
-
     updateListeners[key] ??= [];
-    updateListeners[key].push(listener);
+    updateListeners[key].push(setState);
 
     return () => {
-      updateListeners[key] = updateListeners[key].filter(it => it !== listener);
+      updateListeners[key] = updateListeners[key].filter(it => it !== setState);
     };
   }, [key, set]);
 
   return [state, set] as const;
 }
-
-/**
- * Update the value in local storage and notify all `useLocalStorageState` hooks
- *
- * @param key - local storage key
- * @param value - local storage value
- */
-useLocalStorageState.update = (key: string, value: any) => {
-  updateListeners[key]?.forEach(fn => fn(value));
-};
