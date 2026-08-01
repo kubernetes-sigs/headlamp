@@ -33,6 +33,20 @@ const (
 )
 
 func TestSanitizeClusterName(t *testing.T) {
+	longInput := "very-long-cluster-name-that-exceeds-fifty-characters-limit"
+	longInput2 := "very-long-cluster-name-that-exceeds-fifty-characters-different"
+
+	sanitizedLong1 := auth.SanitizeClusterName(longInput)
+	sanitizedLong2 := auth.SanitizeClusterName(longInput2)
+
+	if len(sanitizedLong1) != 50 {
+		t.Errorf("expected length 50 for long input, got %d (%q)", len(sanitizedLong1), sanitizedLong1)
+	}
+
+	if sanitizedLong1 == sanitizedLong2 {
+		t.Errorf("expected distinct sanitized names for different long cluster inputs, both got %q", sanitizedLong1)
+	}
+
 	tests := []struct {
 		input    string
 		expected string
@@ -42,7 +56,7 @@ func TestSanitizeClusterName(t *testing.T) {
 		{"cluster123", "cluster123"},
 		{"my-cluster@#$%", "my-cluster"},
 		{"", ""},
-		{"very-long-cluster-name-that-exceeds-fifty-characters-limit", "very-long-cluster-name-that-exceeds-fifty-characte"},
+		{longInput, sanitizedLong1},
 	}
 
 	for _, test := range tests {
