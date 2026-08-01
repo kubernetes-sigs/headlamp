@@ -14,122 +14,114 @@
  * limitations under the License.
  */
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useMemo, useSyncExternalStore } from 'react';
 
-interface StorageEntry<T> {
-  value: T;
-  listeners: Set<(value: T) => void>;
+type Listener = () => void;
+
+interface StorageEntry {
+  value: unknown;
+  listeners: Set<Listener>;
 }
 
-// This is the cache storage between getters/setters and localStorage, shared between hooks.
-const storageEntries = new Map<string, StorageEntry<any>>();
+// localStorage does not notify listeners in the same window, so hook instances
+// using the same key share an in-memory entry.
+const storageEntries = new Map<string, StorageEntry>();
 
-function getStorageEntry<T>(key: string, initialize: () => T): StorageEntry<T> {
-  let entry = storageEntries.get(key) as StorageEntry<T> | undefined;
+function readStoredValue<T>(key: string, serializedDefaultValue: string): T {
+  let serializedValue: string | null;
 
-  if (typeof entry === 'undefined') {
-    entry = {
-      value: initialize(),
-      listeners: new Set(),
-    };
-    storageEntries.set(key, entry);
+  try {
+    serializedValue = localStorage.getItem(key);
+  } catch (error) {
+    console.warn(`Failed to read ${key} from local storage, falling back to default value:`, error);
+    return JSON.parse(serializedDefaultValue);
   }
 
-  return entry;
+  if (serializedValue === null) {
+    return JSON.parse(serializedDefaultValue);
+  }
+
+  try {
+    return JSON.parse(serializedValue);
+  } catch (error) {
+    console.warn(
+      `Failed to parse ${key} from local storage, falling back to default value:`,
+      error
+    );
+    return JSON.parse(serializedDefaultValue);
+  }
+}
+
+function writeStoredValue(key: string, value: unknown) {
+  try {
+    localStorage.setItem(key, JSON.stringify(value));
+  } catch (error) {
+    console.error(`Error occurred while setting ${key} in local storage:`, error);
+  }
+}
+
+function getStorageEntry<T>(key: string, serializedDefaultValue: string): StorageEntry {
+  const entry = storageEntries.get(key);
+  if (entry) {
+    return entry;
+  }
+
+  const newEntry: StorageEntry = {
+    value: readStoredValue<T>(key, serializedDefaultValue),
+    listeners: new Set(),
+  };
+  storageEntries.set(key, newEntry);
+
+  return newEntry;
+}
+
+function subscribe(entry: StorageEntry, listener: Listener) {
+  entry.listeners.add(listener);
+  return () => void entry.listeners.delete(listener);
+}
+
+function updateEntry<T>(key: string, entry: StorageEntry, updater: (oldValue: T) => T) {
+  const newValue = updater(entry.value as T);
+  entry.value = newValue;
+
+  for (const listener of entry.listeners) {
+    listener();
+  }
+
+  writeStoredValue(key, newValue);
 }
 
 /**
- * Custom hook to manage state synchronized with localStorage and multiple instances of the same hook.
- * This hook does not yet handle changes across window.
- * Value must by serializable to JSON.
+ * Custom hook to manage state synchronized with localStorage and other hook instances
+ * in the same window. Values must be serializable to JSON.
+ *
+ * It returns a reference to the same object for calls with the same key, so care
+ * must be taken to not accidentally modify the returned object.
  *
  * @template T - The type of the state value.
- * @param {string} key - The key under which the state is stored in localStorage.
- * @param {T} defaultValue - The default value to use if no value is found in localStorage.
- * @returns Returns a tuple containing the current state and a function to update the state.
+ * @param key - The key under which the state is stored in localStorage.
+ * @param defaultValue - The default value to use if no value is found in localStorage.
+ * @returns The current state and a function that updates it.
  *
  * @example
  * const [value, setValue] = useLocalStorageState<string>('myKey', 'default');
- * setValue((oldValue) => 'newValue');
+ * setValue(() => 'newValue');
  */
 export function useLocalStorageState<T>(key: string, defaultValue: T) {
-  // This ensures that defaultValue, if the value (not the reference) does not change, is stable across render.
-  // It also has the side effect of cloning the defaultValue to ensure it cannot be polluted.
+  // Serializing also gives each new entry its own deep clone of the default value.
   const serializedDefaultValue = JSON.stringify(defaultValue);
-
-  const get = useCallback(() => {
-    let maybeValue: string | null = null;
-
-    try {
-      maybeValue = localStorage.getItem(key);
-    } catch (error) {
-      console.warn(
-        `Failed to read ${key} from local storage, falling back to default value:`,
-        error
-      );
-      return JSON.parse(serializedDefaultValue);
-    }
-
-    if (maybeValue === null) {
-      return JSON.parse(serializedDefaultValue);
-    }
-
-    try {
-      return JSON.parse(maybeValue);
-    } catch (error) {
-      console.warn(
-        `Failed to parse ${key} from local storage, falling back to default value:`,
-        error
-      );
-      return JSON.parse(serializedDefaultValue);
-    }
-  }, [key, serializedDefaultValue]);
-  const put = useCallback(
-    (value: T) => {
-      try {
-        localStorage.setItem(key, JSON.stringify(value));
-      } catch (error) {
-        console.error(`Error occurred while setting ${key} in local storage:`, error);
-      }
-    },
-    [key]
+  const entry = useMemo(
+    () => getStorageEntry<T>(key, serializedDefaultValue),
+    [key, serializedDefaultValue]
   );
 
-  const entry = useMemo(() => getStorageEntry(key, get), [get, key]);
-  const [state, setState] = useState<T>(() => entry.value);
-
-  const set = useCallback(
-    (updater: (old: T) => T) => {
-      const newValue = updater(entry.value);
-
-      entry.value = newValue;
-      setState(newValue);
-
-      for (const listener of entry.listeners) {
-        listener(newValue);
-      }
-
-      put(newValue);
-    },
-    [entry, put]
+  const subscribeToEntry = useCallback((listener: Listener) => subscribe(entry, listener), [entry]);
+  const getSnapshot = useCallback(() => entry.value as T, [entry]);
+  const state = useSyncExternalStore(subscribeToEntry, getSnapshot, getSnapshot);
+  const setState = useCallback(
+    (updater: (oldValue: T) => T) => updateEntry(key, entry, updater),
+    [entry, key]
   );
 
-  // Listen to updates from other hook instances using the same key.
-  useEffect(() => {
-    const listener = (newValue: T) => setState(newValue);
-
-    storageEntries.set(key, entry);
-    entry.listeners.add(listener);
-    setState(entry.value);
-
-    return () => {
-      entry.listeners.delete(listener);
-
-      if (entry.listeners.size === 0 && storageEntries.get(key) === entry) {
-        storageEntries.delete(key);
-      }
-    };
-  }, [entry, key]);
-
-  return [state, set] as const;
+  return [state, setState] as const;
 }
