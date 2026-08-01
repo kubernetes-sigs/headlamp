@@ -22,6 +22,10 @@ vi.mock('notistack', () => ({
 }));
 
 describe('NotFoundComponent', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
   it('shows the default not-found content', () => {
     const { container } = render(<NotFoundComponent />);
 
@@ -30,5 +34,15 @@ describe('NotFoundComponent', () => {
       'src',
       expect.stringContaining('headlamp-404.svg')
     );
+  });
+
+  it('shows product-specific not-found content', () => {
+    vi.stubEnv('REACT_APP_HEADLAMP_NOT_FOUND_PAGE_TITLE', 'Product page missing');
+    vi.stubEnv('REACT_APP_HEADLAMP_NOT_FOUND_PAGE_GRAPHIC', '/product/not-found.svg');
+
+    const { container } = render(<NotFoundComponent />);
+
+    expect(screen.getByRole('heading', { name: 'Product page missing' })).toBeVisible();
+    expect(container.querySelector('img')).toHaveAttribute('src', '/product/not-found.svg');
   });
 });

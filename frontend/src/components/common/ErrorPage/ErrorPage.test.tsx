@@ -43,6 +43,28 @@ describe('ErrorComponent', () => {
     );
   });
 
+  it('shows product-specific error content', () => {
+    vi.stubEnv('REACT_APP_HEADLAMP_ERROR_PAGE_TITLE', 'Product error');
+    vi.stubEnv('REACT_APP_HEADLAMP_ERROR_PAGE_GRAPHIC', '/product/error.svg');
+
+    const { container } = render(<ErrorComponent />);
+
+    expect(screen.getByRole('heading', { name: 'Product error' })).toBeVisible();
+    expect(container.querySelector('img')).toHaveAttribute('src', '/product/error.svg');
+  });
+
+  it('prefers explicit content over product defaults', () => {
+    vi.stubEnv('REACT_APP_HEADLAMP_ERROR_PAGE_TITLE', 'Product error');
+    vi.stubEnv('REACT_APP_HEADLAMP_ERROR_PAGE_GRAPHIC', '/product/error.svg');
+
+    const { container } = render(
+      <ErrorComponent title="Request error" graphic="/request/error.svg" />
+    );
+
+    expect(screen.getByRole('heading', { name: 'Request error' })).toBeVisible();
+    expect(container.querySelector('img')).toHaveAttribute('src', '/request/error.svg');
+  });
+
   it('renders explicit content without typography or an image', () => {
     render(
       <ErrorComponent
