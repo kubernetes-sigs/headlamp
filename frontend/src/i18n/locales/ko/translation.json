@@ -978,6 +978,7 @@
   "resource {{resourceName}} on pods": "resource {{resourceName}} on pods",
   "resource {{resourceName}} of container {{containerName}} on pods": "container {{containerName}}의 resource {{resourceName}} on pods",
   "Warning. Incompatible plugins disabled: ({{ pluginList }})": "경고. 호환되지 않는 플러그인이 비활성화되었습니다: ({{ pluginList }})",
+  "The following plugins failed to initialize: {{ pluginList }}": "",
   "Failed to load plugins. Please try reloading the app.": "",
   "Global Search": "",
   "Open the global search dialog": "",

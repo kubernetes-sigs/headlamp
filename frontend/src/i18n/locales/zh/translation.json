@@ -978,6 +978,7 @@
   "resource {{resourceName}} on pods": "资源 {{resourceName}} 在 pods",
   "resource {{resourceName}} of container {{containerName}} on pods": "容器 {{containerName}} 的资源 {{resourceName}} 在 pods",
   "Warning. Incompatible plugins disabled: ({{ pluginList }})": "警告。不兼容的插件已禁用：（{{ pluginList }}）",
+  "The following plugins failed to initialize: {{ pluginList }}": "",
   "Failed to load plugins. Please try reloading the app.": "",
   "Global Search": "",
   "Open the global search dialog": "",
