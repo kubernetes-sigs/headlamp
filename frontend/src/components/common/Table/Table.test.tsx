@@ -17,7 +17,7 @@
 import { ThemeProvider } from '@mui/material/styles';
 import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { useState } from 'react';
+import { MutableRefObject, useEffect, useState } from 'react';
 import { describe, expect, it, vi } from 'vitest';
 import { createMuiTheme } from '../../../lib/themes';
 import { TestContext } from '../../../test';
@@ -44,11 +44,23 @@ function makeRows(count: number, namePrefix = 'item') {
   }));
 }
 
-let refreshData: ((rows: ReturnType<typeof makeRows>) => void) | null = null;
+type Row = ReturnType<typeof makeRows>[number];
 
-function Harness({ initialRows }: { initialRows: ReturnType<typeof makeRows> }) {
+function Harness({
+  initialRows,
+  refreshRef,
+}: {
+  initialRows: Row[];
+  refreshRef: MutableRefObject<((rows: Row[]) => void) | null>;
+}) {
   const [data, setData] = useState(initialRows);
-  refreshData = setData;
+
+  useEffect(() => {
+    refreshRef.current = setData;
+    return () => {
+      refreshRef.current = null;
+    };
+  }, [refreshRef]);
 
   return (
     <TestContext>
@@ -73,7 +85,9 @@ function Harness({ initialRows }: { initialRows: ReturnType<typeof makeRows> }) 
 describe('Table search focus across refresh', () => {
   it('keeps the global search field mounted and focused after a data refresh', async () => {
     const user = userEvent.setup();
-    render(<Harness initialRows={makeRows(20)} />);
+    const refreshRef: MutableRefObject<((rows: Row[]) => void) | null> = { current: null };
+
+    render(<Harness initialRows={makeRows(20)} refreshRef={refreshRef} />);
 
     const search = await screen.findByRole('textbox');
     await user.clear(search);
@@ -84,7 +98,7 @@ describe('Table search focus across refresh', () => {
     // length crosses the pagination threshold (would previously remount the
     // toolbar and steal focus — #5702).
     act(() => {
-      refreshData?.(makeRows(5, 'item'));
+      refreshRef.current?.(makeRows(5, 'item'));
     });
 
     const searchAfterRefresh = screen.getByRole('textbox');

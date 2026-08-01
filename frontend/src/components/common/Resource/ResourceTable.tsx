@@ -699,7 +699,9 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
 
   const filterFns = useMemo(
     () => ({
-      kubeObjectSearch: (row: MRT_Row<RowItem>, id: string, filterValue: string) => {
+      // `filterFns` is created inside useMemo, so it doesn't get JSX contextual typing.
+      // Keep the signature explicit to match MRT's FilterFn and avoid implicit-any params.
+      kubeObjectSearch: (row: any, id: string, filterValue: string) => {
         const customFilterResult = filterFunc(row.original, filterValue);
         const fuzzyColumnsResult = MRT_FilterFns.contains(row, id, filterValue);
         return customFilterResult || fuzzyColumnsResult;

@@ -483,6 +483,7 @@ export default function Table<RowItem extends Record<string, any>>({
     onGlobalFilterChange: setGlobalFilter,
     onShowGlobalFilterChange: (updater: boolean | ((old: boolean) => boolean)) => {
       setShowGlobalFilter(prev => (typeof updater === 'function' ? updater(prev) : updater));
+      tableProps.onShowGlobalFilterChange?.(updater);
     },
     onColumnVisibilityChange: setColumnVisibility,
     renderToolbarInternalActions,
