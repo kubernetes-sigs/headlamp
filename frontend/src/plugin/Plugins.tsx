@@ -82,6 +82,17 @@ export default function Plugins() {
         }
       }
     )
+      .then(failedPlugins => {
+        if (failedPlugins && failedPlugins.length > 0) {
+          const pluginList = failedPlugins.join(', ');
+          enqueueSnackbar(
+            t('translation|The following plugins failed to initialize: {{ pluginList }}', {
+              pluginList,
+            }),
+            { variant: 'error' }
+          );
+        }
+      })
       .catch((err: unknown) => {
         console.error('Failed to load plugins:', err);
         enqueueSnackbar(t('translation|Failed to load plugins. Please try reloading the app.'), {

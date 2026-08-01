@@ -116,20 +116,19 @@ window.plugins = {};
 /**
  * Load external, then local plugins. Then initialize() them in order with a Registry.
  */
-export async function initializePlugins() {
+export async function initializePlugins(): Promise<string[]> {
   // Initialize every plugin in the order they were loaded.
-  return new Promise(resolve => {
-    for (const pluginName of Object.keys(window.plugins)) {
-      const plugin = window.plugins[pluginName];
-      try {
-        // @todo: what should happen if this fails?
-        plugin.initialize(new Registry());
-      } catch (e) {
-        console.error(`Plugin initialize() error in ${pluginName}:`, e);
-      }
+  const failedPlugins: string[] = [];
+  for (const pluginName of Object.keys(window.plugins)) {
+    const plugin = window.plugins[pluginName];
+    try {
+      plugin.initialize(new Registry());
+    } catch (e) {
+      console.error(`Plugin initialize() error in ${pluginName}:`, e);
+      failedPlugins.push(pluginName);
     }
-    resolve(undefined);
-  });
+  }
+  return failedPlugins;
 }
 
 /**
@@ -692,7 +691,7 @@ export async function fetchAndExecutePlugins(
   // Initialize plugin i18n after plugins are loaded
   await initializePluginsI18n(packageInfos, pluginPaths);
 
-  await afterPluginsRun(pluginsLoaded);
+  return await afterPluginsRun(pluginsLoaded);
 }
 
 /**
@@ -722,8 +721,8 @@ async function afterPluginsRun(
     version: string | undefined;
     isEnabled: boolean | undefined;
   }[]
-) {
-  await initializePlugins();
+): Promise<string[]> {
+  const failedPlugins = await initializePlugins();
 
   store.dispatch(
     eventAction({
@@ -750,6 +749,8 @@ async function afterPluginsRun(
       })
     );
   }
+
+  return failedPlugins;
 }
 
 /**
