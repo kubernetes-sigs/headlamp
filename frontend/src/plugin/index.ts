@@ -37,7 +37,7 @@ import * as Recharts from 'recharts';
 import semver from 'semver';
 import { Activity } from '../components/activity/Activity';
 import { runCommand } from '../components/App/runCommand';
-import { themeSlice } from '../components/App/themeSlice';
+import { applyBackendThemeConfig, ensureValidThemeName } from '../components/App/themeSlice';
 import * as CommonComponents from '../components/common';
 import { addBackstageAuthHeaders } from '../helpers/addBackstageAuthHeaders';
 import { getAppUrl } from '../helpers/getAppUrl';
@@ -51,6 +51,7 @@ import * as Router from '../lib/router';
 import * as Utils from '../lib/util';
 import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
 import store from '../redux/stores/store';
+import * as stateless from '../stateless/index';
 import { Headlamp, Plugin } from './lib';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
@@ -102,6 +103,7 @@ window.pluginLib = {
   useTranslation,
   ...registryToExport,
   Activity,
+  stateless,
 };
 
 // backwards compat.
@@ -114,19 +116,20 @@ window.plugins = {};
 /**
  * Load external, then local plugins. Then initialize() them in order with a Registry.
  */
-export async function initializePlugins() {
+export async function initializePlugins(): Promise<string[]> {
   // Initialize every plugin in the order they were loaded.
   return new Promise(resolve => {
+    const failedPlugins: string[] = [];
     for (const pluginName of Object.keys(window.plugins)) {
       const plugin = window.plugins[pluginName];
       try {
-        // @todo: what should happen if this fails?
         plugin.initialize(new Registry());
       } catch (e) {
         console.error(`Plugin initialize() error in ${pluginName}:`, e);
+        failedPlugins.push(pluginName);
       }
     }
-    resolve(undefined);
+    resolve(failedPlugins);
   });
 }
 
@@ -612,6 +615,11 @@ export async function fetchAndExecutePlugins(
               secrets['runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js'];
           }
 
+          if (isPackage['@headlamp-k8s/ai-assistant']) {
+            secretsToReturn['runCmd-gh'] = secrets['runCmd-gh'];
+            secretsToReturn['runCmd-az'] = secrets['runCmd-az'];
+          }
+
           return secretsToReturn;
         },
         getArgValues: (pluginName, pluginPath, allowedPermissions) => {
@@ -640,6 +648,28 @@ export async function fetchAndExecutePlugins(
               [pluginRunCommand, pluginPath],
             ];
           }
+
+          if (isPackage['@headlamp-k8s/ai-assistant']) {
+            function pluginRunCommand(
+              command: 'gh' | 'az',
+              args: string[],
+              options: {}
+            ): ReturnType<typeof internalRunCommand> {
+              return internalRunCommand(
+                command,
+                args,
+                options,
+                allowedPermissions,
+                pluginDesktopApiSend,
+                pluginDesktopApiReceive
+              );
+            }
+            return [
+              ['pluginRunCommand', 'pluginPath'],
+              [pluginRunCommand, pluginPath],
+            ];
+          }
+
           return [[], []];
         },
         PrivateFunction,
@@ -663,7 +693,7 @@ export async function fetchAndExecutePlugins(
   // Initialize plugin i18n after plugins are loaded
   await initializePluginsI18n(packageInfos, pluginPaths);
 
-  await afterPluginsRun(pluginsLoaded);
+  return await afterPluginsRun(pluginsLoaded);
 }
 
 /**
@@ -693,8 +723,8 @@ async function afterPluginsRun(
     version: string | undefined;
     isEnabled: boolean | undefined;
   }[]
-) {
-  await initializePlugins();
+): Promise<string[]> {
+  const failedPlugins = await initializePlugins();
 
   store.dispatch(
     eventAction({
@@ -704,7 +734,25 @@ async function afterPluginsRun(
   );
 
   // Refresh theme name if the theme that was used from a plugin was deleted
-  store.dispatch(themeSlice.actions.ensureValidThemeName());
+  store.dispatch(ensureValidThemeName());
+
+  // Reapply backend theme configuration now that plugins (which may provide themes) are loaded
+  const backendThemeConfig = store.getState().config;
+  if (
+    backendThemeConfig?.defaultLightTheme ||
+    backendThemeConfig?.defaultDarkTheme ||
+    backendThemeConfig?.forceTheme
+  ) {
+    store.dispatch(
+      applyBackendThemeConfig({
+        defaultLightTheme: backendThemeConfig.defaultLightTheme,
+        defaultDarkTheme: backendThemeConfig.defaultDarkTheme,
+        forceTheme: backendThemeConfig.forceTheme,
+      })
+    );
+  }
+
+  return failedPlugins;
 }
 
 /**
