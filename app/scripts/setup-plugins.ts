@@ -15,6 +15,7 @@ import {
 
 type PluginSource = {
   name: string;
+  packageName?: string;
   archive?: string;
   file?: string;
   sha256?: string;
@@ -29,6 +30,7 @@ const PLUGIN_FOLDER = path.join(scriptDirectory, '../../.plugins');
 const MANIFEST_FILE = resolveBuildManifestPath();
 const manifest = loadBuildManifest(MANIFEST_FILE) as BuildManifest;
 const externalManifest = !pathsReferToSameFile(MANIFEST_FILE, DEFAULT_MANIFEST_FILE);
+const VALID_PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
 
 /**
  * Checks whether two paths identify the same file after filesystem canonicalization.
@@ -79,6 +81,32 @@ export function validatePluginSource(
   }
   if (plugin.sha256 !== undefined) {
     validateDigestFormat(plugin.sha256);
+  }
+  if (
+    requireDigest &&
+    (typeof plugin.packageName !== 'string' || !VALID_PACKAGE_NAME.test(plugin.packageName))
+  ) {
+    throw new Error(`External plugin ${plugin.name} must declare a valid package name`);
+  }
+}
+
+/**
+ * Verifies that an extracted plugin matches its declared package identity.
+ *
+ * @param packageJsonPath Path to the extracted plugin package metadata.
+ * @param expectedPackageName Package name declared by the build manifest.
+ * @returns Nothing when no identity is declared or the identity matches.
+ * @throws When the extracted package name differs from the declared identity.
+ */
+export function verifyPluginIdentity(packageJsonPath: string, expectedPackageName?: string): void {
+  if (expectedPackageName === undefined) {
+    return;
+  }
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as { name?: string };
+  if (packageJson.name !== expectedPackageName) {
+    throw new Error(
+      `Plugin package name mismatch: expected ${expectedPackageName}, got ${packageJson.name}`
+    );
   }
 }
 
@@ -274,7 +302,7 @@ export async function fetchArchive(name: string, url: string, sha256?: string): 
  */
 export async function main(): Promise<void> {
   for (const plugin of manifest.plugins ?? []) {
-    const { name, archive, file, sha256 } = plugin;
+    const { name, packageName, archive, file, sha256 } = plugin;
     validatePluginSource(plugin);
 
     if (archive) {
@@ -285,6 +313,8 @@ export async function main(): Promise<void> {
       verifyArchiveDigest(absolutePath, sha256);
       await extractArchive(name, absolutePath);
     }
+
+    verifyPluginIdentity(path.join(PLUGIN_FOLDER, name, 'package.json'), packageName);
   }
 }
 
