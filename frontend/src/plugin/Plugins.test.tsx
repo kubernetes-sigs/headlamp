@@ -83,4 +83,21 @@ describe('Plugins', () => {
       expect.objectContaining({ variant: 'error' })
     );
   });
+
+  test('shows an error snackbar when some plugins fail to initialize', async () => {
+    mockFetchAndExecutePlugins.mockResolvedValue(['badPlugin1', 'badPlugin2']);
+
+    render(
+      <TestContext>
+        <Plugins />
+      </TestContext>
+    );
+
+    await waitFor(() => {
+      expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
+        expect.stringContaining('translation|The following plugins failed to initialize:'),
+        expect.objectContaining({ variant: 'error' })
+      );
+    });
+  });
 });
