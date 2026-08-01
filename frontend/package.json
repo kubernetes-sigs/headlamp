@@ -113,6 +113,7 @@
     "preview": "vite preview",
     "prebuild": "npm run make-version",
     "build": "cross-env PUBLIC_URL=./ NODE_OPTIONS=--max-old-space-size=8096 vite build && npx shx rm -f build/frontend/index.baseUrl.html",
+    "postbuild": "node --experimental-strip-types ./scripts/precompress-build.ts build",
     "pretest": "npm run make-version",
     "test": "vitest",
     "start-without-multiplexer": "cross-env REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER=false npm run start",
@@ -124,10 +125,11 @@
     "build-typedoc": "typedoc",
     "build-storybook": "storybook build -o ../docs/development/storybook",
     "i18n": "i18next 'src/**/*.{ts,tsx}' -c ./src/i18n/i18next-parser.config.js",
-    "tsc": "tsgo",
+    "tsc": "tsgo && tsgo -p scripts/tsconfig.json",
     "make-version": "node ./make-env.js",
     "star": "cross-env REACT_APP_HEADLAMP_BACKEND_TOKEN=headlamp rsbuild dev",
-    "build:rsbuild": "rsbuild build"
+    "build:rsbuild": "rsbuild build",
+    "postbuild:rsbuild": "node --experimental-strip-types ./scripts/precompress-build.ts build"
   },
   "browserslist": {
     "production": [

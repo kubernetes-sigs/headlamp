@@ -80,6 +80,12 @@ export interface QueryListResponse<DataType, ItemType, ErrorType>
    */
   clusterResults?: Record<string, QueryListResponse<DataType, ItemType, ErrorType>>;
   errors: ApiError[] | null;
+  /** True when at least one cluster/namespace has more items available via pagination. */
+  hasMore?: boolean;
+  /** Approximate total count of items not yet fetched across all results. */
+  remainingItemCount?: number;
+  /** Fetch and append the next page of results. Only present when hasMore is true. */
+  loadMore?: () => Promise<void>;
 }
 
 export const kubeObjectQueryKey = ({

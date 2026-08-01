@@ -56,8 +56,8 @@ export default function Overview() {
   const [nodeMetrics, metricsError] = Node.useMetrics();
   const chartProcessors = useTypedSelector(state => state.overviewCharts.processors);
 
-  const noMetrics = metricsError?.status === 404;
   const noPermissions = metricsError?.status === 403;
+  const noMetrics = metricsError !== null && !noPermissions;
 
   // Process the default charts through any registered processors
   const defaultCharts: OverviewChart[] = [
