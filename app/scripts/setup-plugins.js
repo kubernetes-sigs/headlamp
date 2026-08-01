@@ -16,10 +16,29 @@ const PLUGIN_FOLDER = path.join(__dirname, '../../.plugins');
 const MANIFEST_FILE = resolveBuildManifestPath();
 const manifest = loadBuildManifest(MANIFEST_FILE);
 const externalManifest = MANIFEST_FILE !== DEFAULT_MANIFEST_FILE;
+const VALID_PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/i;
 
 function validatePluginSource(plugin, requireDigest = externalManifest) {
   if (plugin.archive && requireDigest && plugin.sha256 === undefined) {
     throw new Error(`External plugin archive ${plugin.name} must declare a SHA-256 digest`);
+  }
+  if (
+    requireDigest &&
+    (typeof plugin.packageName !== 'string' || !VALID_PACKAGE_NAME.test(plugin.packageName))
+  ) {
+    throw new Error(`External plugin ${plugin.name} must declare a valid package name`);
+  }
+}
+
+function verifyPluginIdentity(packageJsonPath, expectedPackageName) {
+  if (expectedPackageName === undefined) {
+    return;
+  }
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+  if (packageJson.name !== expectedPackageName) {
+    throw new Error(
+      `Plugin package name mismatch: expected ${expectedPackageName}, got ${packageJson.name}`
+    );
   }
 }
 
@@ -194,7 +213,7 @@ async function main() {
   // Fetch the plugins from the manifest
   if (!!plugins) {
     for (const plugin of plugins) {
-      const { name, archive, file, sha256 } = plugin;
+      const { name, packageName, archive, file, sha256 } = plugin;
       validatePluginSource(plugin);
 
       console.log('Setting up plugin', name, 'from', archive || file, '...');
@@ -208,6 +227,9 @@ async function main() {
         verifyArchiveDigest(absPath, sha256);
         await extractArchive(name, absPath);
       }
+
+      const packageJsonPath = path.join(PLUGIN_FOLDER, name, 'package.json');
+      verifyPluginIdentity(packageJsonPath, packageName);
     }
   }
 
@@ -224,4 +246,5 @@ module.exports = {
   main,
   validatePluginSource,
   verifyArchiveDigest,
+  verifyPluginIdentity,
 };
