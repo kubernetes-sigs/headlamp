@@ -40,12 +40,29 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
 	oldTokenTTL   = time.Second * 10 // seconds
 	oidcKeyPrefix = "oidc-token-"
+	// refreshTimeout bounds the detached context used for the shared IdP
+	// exchange in GetNewToken, so a hung IdP can't block waiting callers
+	// indefinitely.
+	refreshTimeout = 30 * time.Second
 )
+
+// refreshGroup deduplicates concurrent OIDC refreshes for the same token.
+//
+// The OIDC refresh middleware runs independently for every incoming request, and
+// Headlamp's frontend commonly fires many concurrent requests against a cluster.
+// Without this, every request that observes the same soon-to-expire token would
+// race to exchange the same cached refresh token with the IdP: only the first
+// exchange succeeds, and the rest fail (or, on providers with refresh-token
+// rotation and reuse detection, can revoke the whole token family and force the
+// user to fully re-authenticate). Keying on the old token string is sufficient
+// since it uniquely identifies the in-flight refresh for a given session.
+var refreshGroup singleflight.Group
 
 const JWTExpirationTTL = 10 * time.Second // seconds
 
@@ -186,8 +203,43 @@ func CacheRefreshedToken(token *oauth2.Token, tokenType string, oldToken string,
 // GetNewToken uses the provided credentials and fetches the old refresh
 // token from the cache to obtain a new OAuth2 token
 // from the specified token URL endpoint.
+//
+// Concurrent calls for the same token are deduplicated via refreshGroup: only
+// one of them performs the actual cache read, IdP exchange, and cache write,
+// and all of them receive the same resulting token. This avoids racing
+// multiple exchanges of the same refresh token, which fails outright on IdPs
+// that rotate refresh tokens on use.
 func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 	tokenType string, token string, tokenURL string, ctx context.Context,
+) (*oauth2.Token, error) {
+	// Detach from the caller's context so that one request's cancellation (e.g.
+	// the client disconnecting) doesn't abort the shared refresh that other
+	// concurrent requests for the same token are waiting on. Bound it with its
+	// own timeout so a hung IdP can't block waiting callers indefinitely.
+	refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), refreshTimeout)
+	defer cancel()
+
+	result, err, _ := refreshGroup.Do(token, func() (interface{}, error) {
+		return refreshTokenFromIDP(refreshCtx, clientID, clientSecret, cache, tokenType, token, tokenURL)
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	newToken, ok := result.(*oauth2.Token)
+	if !ok {
+		return nil, fmt.Errorf("unexpected refresh result type %T", result)
+	}
+
+	return newToken, nil
+}
+
+// refreshTokenFromIDP performs the actual refresh-token exchange with the IdP
+// and updates the token cache. It is only ever invoked once per in-flight
+// token, via refreshGroup in GetNewToken, even when multiple goroutines call
+// GetNewToken concurrently for the same token.
+func refreshTokenFromIDP(ctx context.Context, clientID, clientSecret string, cache cache.Cache[interface{}],
+	tokenType, token, tokenURL string,
 ) (*oauth2.Token, error) {
 	// get refresh token
 	refreshToken, err := cache.Get(ctx, oidcKeyPrefix+token)

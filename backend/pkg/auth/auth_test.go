@@ -29,6 +29,7 @@ import (
 	"os"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -815,6 +816,113 @@ func TestGetNewToken_CacheUpdateErrors(t *testing.T) {
 			}
 		})
 	}
+}
+
+// newCallCountingTokenServer returns a fake OAuth2 token endpoint that always
+// succeeds and a counter tracking how many times it was hit.
+func newCallCountingTokenServer(t *testing.T) (srv *httptest.Server, callCount func() int) {
+	t.Helper()
+
+	var (
+		mu    sync.Mutex
+		calls int
+	)
+
+	srv = httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	}))
+	t.Cleanup(srv.Close)
+
+	callCount = func() int {
+		mu.Lock()
+		defer mu.Unlock()
+
+		return calls
+	}
+
+	return srv, callCount
+}
+
+// TestGetNewToken_ConcurrentRefresh_Deduplicates reproduces the OIDC
+// token-refresh race: many requests observing the same near-expiry token used
+// to each independently exchange the same cached refresh token with the IdP.
+// On providers with refresh-token rotation this fails for everyone but the
+// first exchange. GetNewToken must collapse concurrent callers sharing the
+// same token into a single upstream refresh.
+func TestGetNewToken_ConcurrentRefresh_Deduplicates(t *testing.T) {
+	srv, callCount := newCallCountingTokenServer(t)
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"}}
+
+	const concurrency = 20
+
+	var (
+		wg    sync.WaitGroup
+		ready sync.WaitGroup
+		start = make(chan struct{})
+	)
+
+	results := make([]*oauth2.Token, concurrency)
+	errs := make([]error, concurrency)
+
+	ready.Add(concurrency)
+
+	for i := 0; i < concurrency; i++ {
+		wg.Add(1)
+
+		go func(i int) {
+			defer wg.Done()
+
+			ready.Done()
+			<-start // release every goroutine at once to maximize overlap
+
+			results[i], errs[i] = auth.GetNewToken(
+				"cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background(),
+			)
+		}(i)
+	}
+
+	ready.Wait()
+	close(start)
+	wg.Wait()
+
+	assert.Equal(t, 1, callCount(), "expected exactly one upstream refresh call for concurrent requests")
+
+	for i, err := range errs {
+		require.NoErrorf(t, err, "goroutine %d", i)
+		require.NotNilf(t, results[i], "goroutine %d", i)
+		assert.Equal(t, refreshNew, results[i].RefreshToken, "goroutine %d", i)
+	}
+
+	require.Len(t, fc.setCalls, 1, "expected exactly one cache write for the new refresh token")
+	require.Len(t, fc.setWithTTLCalls, 1, "expected exactly one cache write for the retired old refresh token")
+}
+
+// TestGetNewToken_SequentialRefreshesAfterDeduplication ensures the dedup key
+// is forgotten once its refresh completes, so a later, independent refresh
+// cycle (e.g. the next time the token nears expiry) still hits the IdP rather
+// than being permanently memoized.
+func TestGetNewToken_SequentialRefreshesAfterDeduplication(t *testing.T) {
+	srv, callCount := newCallCountingTokenServer(t)
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"}}
+
+	_, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background())
+	require.NoError(t, err)
+
+	// Simulate the next refresh cycle: the new token is now the one nearing
+	// expiry, with its own refresh token cached under its own key.
+	fc.store["oidc-token-NEW"] = refreshNew
+
+	_, err = auth.GetNewToken("cid", "secret", fc, "id_token", "NEW", srv.URL, context.Background())
+	require.NoError(t, err)
+
+	assert.Equal(t, 2, callCount(), "expected a fresh upstream call for each independent refresh cycle")
 }
 
 func TestRefreshAndCacheNewToken_Success(t *testing.T) {
