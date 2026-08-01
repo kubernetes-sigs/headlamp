@@ -34,6 +34,7 @@ import {
   MRT_TableInstance,
   MRT_TableOptions as MaterialTableOptions,
   MRT_TopToolbar,
+  MRT_VisibilityState,
   useMaterialReactTable,
   useMRT_Rows,
 } from 'material-react-table';
@@ -198,6 +199,12 @@ const StyledBody = styled('tbody')({ display: 'contents' });
 const DEFAULT_MIN_COLUMN_WIDTH = 100;
 
 /**
+ * Ids of the action columns, which follow the other columns in and out of view rather
+ * than being toggled on their own: the caller-defined one and MRT's built-in one.
+ */
+const ACTIONS_COLUMN_IDS = ['actions', 'mrt-row-actions'];
+
+/**
  * Tracks the current width of an element using a ResizeObserver.
  * Returns 0 until the element has been measured.
  */
@@ -276,11 +283,9 @@ export default function Table<RowItem extends Record<string, any>>({
   const tableContainerRef = useRef<HTMLDivElement>(null);
   const containerWidth = useContainerWidth(tableContainerRef);
 
-  // Controlled column visibility so responsive hiding, caller-provided visibility
-  // and MRT's own visibility changes all stay in sync.
-  const [columnVisibility, setColumnVisibility] = useState<Record<string, boolean>>(
-    tableProps.initialState?.columnVisibility ?? {}
-  );
+  // Columns the user explicitly toggled. Only their choices are tracked here, so
+  // responsive hiding keeps applying to every column they haven't touched.
+  const [userColumnVisibility, setUserColumnVisibility] = useState<MRT_VisibilityState>({});
 
   // Provide defaults for the columns
   const tableColumns: TableColumn<RowItem>[] = useMemo(
@@ -320,18 +325,34 @@ export default function Table<RowItem extends Record<string, any>>({
     return ids;
   }, [tableProps.columns, tableProps.enableRowActions, tableProps.enableRowSelection]);
 
+  // Visibility the caller asked for, before responsive hiding and before the user
+  // touched anything. `initialState` is the caller's default and `state` overrides it.
+  const baseColumnVisibility = useMemo<MRT_VisibilityState>(
+    () => ({
+      ...(tableProps.initialState?.columnVisibility ?? {}),
+      ...(tableProps.state?.columnVisibility ?? {}),
+    }),
+    [tableProps.initialState?.columnVisibility, tableProps.state?.columnVisibility]
+  );
+
   // Decide which columns to hide based on the available width. Columns are hidden by
   // ascending `responsivePriority` (least important first), then right-to-left among
   // equal priority. The first column is never hidden. When everything fits, nothing
-  // is hidden and the table renders as usual.
+  // is hidden and the table renders as usual. Columns the user turned on, and the
+  // action columns, are never hidden here but still count towards the width so a less
+  // important column goes instead.
   const responsiveHidden = useMemo(() => {
-    const result: Record<string, boolean> = {};
+    const result: MRT_VisibilityState = {};
     if (!containerWidth) {
       return result;
     }
 
-    const callerVisibility = tableProps.state?.columnVisibility;
-    const dataCols = tableColumns.filter(col => callerVisibility?.[col.id ?? ''] !== false);
+    // Columns that would show without responsive hiding, so a column the user turned
+    // on is measured even when it is hidden by default.
+    const dataCols = tableColumns.filter(col => {
+      const id = col.id ?? '';
+      return userColumnVisibility[id] ?? baseColumnVisibility[id] !== false;
+    });
 
     let reserved = 0;
     if (tableProps.enableRowSelection) {
@@ -350,7 +371,12 @@ export default function Table<RowItem extends Record<string, any>>({
     // Columns we're allowed to hide, ordered by what to drop first.
     dataCols
       .map((col, index) => ({ col, index }))
-      .filter(({ index }) => index !== 0)
+      .filter(
+        ({ col, index }) =>
+          index !== 0 &&
+          userColumnVisibility[col.id ?? ''] !== true &&
+          !ACTIONS_COLUMN_IDS.includes(col.id ?? '')
+      )
       .sort((a, b) => {
         const priorityDiff = (a.col.responsivePriority ?? 0) - (b.col.responsivePriority ?? 0);
         return priorityDiff !== 0 ? priorityDiff : b.index - a.index;
@@ -367,19 +393,45 @@ export default function Table<RowItem extends Record<string, any>>({
   }, [
     containerWidth,
     tableColumns,
-    tableProps.state?.columnVisibility,
+    baseColumnVisibility,
     tableProps.enableRowSelection,
     tableProps.enableRowActions,
+    userColumnVisibility,
   ]);
 
-  const mergedColumnVisibility = useMemo(
-    () => ({
-      ...(tableProps.state?.columnVisibility ?? {}),
-      ...columnVisibility,
+  // An explicit choice outranks the responsive layout, so `userColumnVisibility`
+  // is applied last.
+  const mergedColumnVisibility = useMemo<MRT_VisibilityState>(() => {
+    const merged: MRT_VisibilityState = {
+      ...baseColumnVisibility,
       ...responsiveHidden,
-    }),
-    [tableProps.state?.columnVisibility, columnVisibility, responsiveHidden]
-  );
+      ...userColumnVisibility,
+    };
+
+    const dataColumns = tableColumns.filter(col => !ACTIONS_COLUMN_IDS.includes(col.id ?? ''));
+    if (dataColumns.length === 0) {
+      return merged;
+    }
+
+    const actionsVisible = !dataColumns.every(col => merged[col.id ?? ''] === false);
+    const presentActionIds = ACTIONS_COLUMN_IDS.filter(
+      id =>
+        tableColumns.some(col => (col.id ?? '') === id) ||
+        (id === 'mrt-row-actions' && tableProps.enableRowActions)
+    );
+
+    presentActionIds.forEach(id => {
+      merged[id] = actionsVisible;
+    });
+
+    return merged;
+  }, [
+    baseColumnVisibility,
+    responsiveHidden,
+    userColumnVisibility,
+    tableColumns,
+    tableProps.enableRowActions,
+  ]);
 
   const table = useMaterialReactTable({
     ...tableProps,
@@ -405,7 +457,29 @@ export default function Table<RowItem extends Record<string, any>>({
       }
     },
     onGlobalFilterChange: setGlobalFilter,
-    onColumnVisibilityChange: setColumnVisibility,
+    onColumnVisibilityChange: (
+      updater: MRT_VisibilityState | ((old: MRT_VisibilityState) => MRT_VisibilityState)
+    ) => {
+      const next = typeof updater === 'function' ? updater(mergedColumnVisibility) : updater;
+
+      // Action columns are derived from the other columns, never a user choice.
+      const changes: MRT_VisibilityState = {};
+      Object.entries(next).forEach(([id, visible]) => {
+        if (!ACTIONS_COLUMN_IDS.includes(id) && mergedColumnVisibility[id] !== visible) {
+          changes[id] = visible;
+        }
+      });
+
+      if (Object.keys(changes).length === 0) {
+        return;
+      }
+
+      setUserColumnVisibility(prev => ({ ...prev, ...changes }));
+      tableProps.onColumnVisibilityChange?.((old: MRT_VisibilityState) => ({
+        ...old,
+        ...changes,
+      }));
+    },
     renderToolbarInternalActions: props => {
       const isSomeRowsSelected =
         tableProps.enableRowSelection && props.table.getSelectedRowModel().rows.length !== 0;
@@ -514,22 +588,6 @@ export default function Table<RowItem extends Record<string, any>>({
     {},
     [table]
   );
-
-  // Hide actions column when others are hidden
-  useEffect(() => {
-    const visibility = table.getState().columnVisibility || {};
-
-    const shouldHideActions = tableColumns
-      .filter(col => (col.id ?? '') !== 'actions')
-      .every(col => visibility[col.id ?? ''] === false);
-
-    if (shouldHideActions && visibility['actions'] !== false) {
-      table.setColumnVisibility(prev => ({ ...prev, actions: false }));
-    } else if (!shouldHideActions && visibility['actions'] === false) {
-      table.setColumnVisibility(prev => ({ ...prev, actions: true }));
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [table.getState().columnVisibility, tableColumns, table]);
 
   const gridTemplateColumns = useMemo(() => {
     let preGridTemplateColumns = tableProps.columns
