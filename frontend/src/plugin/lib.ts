@@ -198,3 +198,5 @@ window.desktopApi?.receive('currentMenu', (currentMenus: AppMenu[]) => {
 });
 
 window.registerPlugin = Headlamp.registerPlugin;
+
+export { useLayoutBreakpoints, type LayoutBreakpoints } from './registry';

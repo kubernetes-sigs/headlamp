@@ -35,7 +35,7 @@ export default function NavigationTabs() {
   const { item, sidebar } = useTypedSelector(state => state.sidebar.selected);
   const isSidebarOpen = useTypedSelector(state => state.sidebar.isSidebarOpen);
   const theme = useTheme();
-  const isMobile = useMediaQuery(theme.breakpoints.down('xs'));
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
   const isSmallSideBar = useMediaQuery(theme.breakpoints.only('sm'));
   const { t } = useTranslation();
 
