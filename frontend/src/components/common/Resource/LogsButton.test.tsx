@@ -22,7 +22,7 @@ import Job from '../../../lib/k8s/job';
 import Pod from '../../../lib/k8s/pod';
 import StatefulSet from '../../../lib/k8s/statefulSet';
 import { TestContext } from '../../../test';
-import { launchWorkloadLogs, LogsButton } from './LogsButton';
+import { launchWorkloadLogs, LogsButton, WorkloadLogs } from './LogsButton';
 
 const {
   MockKubeObject,
@@ -774,6 +774,20 @@ describe('LogsButton', () => {
         status: 'open',
       },
     });
+  });
+
+  it('renders workload logs inline without launching an Activity', async () => {
+    mockClusterFetch.mockResolvedValue({ json: async () => ({ items: [mockPodData] }) });
+
+    render(
+      <TestContext>
+        <WorkloadLogs item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+
+    await waitFor(() => expect(mockClusterFetch).toHaveBeenCalled());
+    expect(screen.getByTestId('mock-log-viewer')).toBeInTheDocument();
+    expect(mockActivityLaunch).not.toHaveBeenCalled();
   });
 
   it('launchWorkloadLogs ignores non-loggable workloads safely (cross-bundle check)', () => {
