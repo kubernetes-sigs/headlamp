@@ -14,13 +14,33 @@
  * limitations under the License.
  */
 
-import { SetStateAction, useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 
-/** Store listeners to allow updates outside of the hook */
-const updateListeners: Record<string, Array<SetStateAction<any>>> = {};
+interface StorageEntry<T> {
+  value: T;
+  listeners: Set<(value: T) => void>;
+}
+
+// This is the cache storage between getters/setters and localStorage, shared between hooks.
+const storageEntries = new Map<string, StorageEntry<any>>();
+
+function getStorageEntry<T>(key: string, initialize: () => T): StorageEntry<T> {
+  let entry = storageEntries.get(key) as StorageEntry<T> | undefined;
+
+  if (typeof entry === 'undefined') {
+    entry = {
+      value: initialize(),
+      listeners: new Set(),
+    };
+    storageEntries.set(key, entry);
+  }
+
+  return entry;
+}
 
 /**
- * Custom hook to manage state synchronized with localStorage.
+ * Custom hook to manage state synchronized with localStorage and multiple instances of the same hook.
+ * This hook does not yet handle changes across window.
  * Value must by serializable to JSON.
  *
  * @template T - The type of the state value.
@@ -75,32 +95,41 @@ export function useLocalStorageState<T>(key: string, defaultValue: T) {
     [key]
   );
 
-  const [state, setState] = useState<T>(() => get());
+  const entry = useMemo(() => getStorageEntry(key, get), [get, key]);
+  const [state, setState] = useState<T>(() => entry.value);
 
   const set = useCallback(
     (updater: (old: T) => T) => {
-      const newValue = updater(state);
-      put(newValue);
+      const newValue = updater(entry.value);
+
+      entry.value = newValue;
       setState(newValue);
 
-      if (updateListeners[key].length > 1) {
-        for (const updateListener of updateListeners[key]) {
-          updateListener(() => newValue);
-        }
+      for (const listener of entry.listeners) {
+        listener(newValue);
       }
+
+      put(newValue);
     },
-    [state, put, key]
+    [entry, put]
   );
 
-  // Listen to any updates to local storage
+  // Listen to updates from other hook instances using the same key.
   useEffect(() => {
-    updateListeners[key] ??= [];
-    updateListeners[key].push(setState);
+    const listener = (newValue: T) => setState(newValue);
+
+    storageEntries.set(key, entry);
+    entry.listeners.add(listener);
+    setState(entry.value);
 
     return () => {
-      updateListeners[key] = updateListeners[key].filter(it => it !== setState);
+      entry.listeners.delete(listener);
+
+      if (entry.listeners.size === 0 && storageEntries.get(key) === entry) {
+        storageEntries.delete(key);
+      }
     };
-  }, [key, set]);
+  }, [entry, key]);
 
   return [state, set] as const;
 }

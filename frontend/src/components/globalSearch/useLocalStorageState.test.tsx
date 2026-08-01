@@ -15,6 +15,7 @@
  */
 
 import { act, renderHook } from '@testing-library/react';
+import { useEffect } from 'react';
 import { useLocalStorageState } from './useLocalStorageState';
 
 describe('useLocalStorageState', () => {
@@ -63,6 +64,17 @@ describe('useLocalStorageState', () => {
       const { result } = renderHook(() => useLocalStorageState('test-key', { name: '', count: 0 }));
 
       expect(result.current[0]).toEqual(stored);
+    });
+
+    it('keeps a returned complex object stable across rerenders', () => {
+      const { result, rerender } = renderHook(() =>
+        useLocalStorageState('test-key', { filters: [{ name: 'namespace', values: ['default'] }] })
+      );
+      const value = result.current[0];
+
+      rerender();
+
+      expect(result.current[0]).toBe(value);
     });
 
     it('returns defaultValue and logs warning when localStorage contains malformed JSON', () => {
@@ -114,6 +126,46 @@ describe('useLocalStorageState', () => {
       expect(JSON.parse(localStorage.getItem('test-key') || '""')).toBe('updated');
     });
 
+    it('composes consecutive updates using a retained setter', () => {
+      const { result } = renderHook(() => useLocalStorageState('test-key', 0));
+      const set = result.current[1];
+
+      act(() => {
+        set(old => old + 1);
+        set(old => old + 1);
+      });
+
+      expect(result.current[0]).toBe(2);
+      expect(JSON.parse(localStorage.getItem('test-key')!)).toBe(2);
+      expect(result.current[1]).toBe(set);
+    });
+
+    it('keeps the setter stable so effects depending on it do not loop', () => {
+      let effectRuns = 0;
+
+      const { result, rerender } = renderHook(() => {
+        const [value, setValue] = useLocalStorageState('test-key', 0);
+
+        useEffect(() => {
+          effectRuns += 1;
+          setValue(old => old + 1);
+        }, [setValue]);
+
+        return [value, setValue] as const;
+      });
+
+      const set = result.current[1];
+
+      expect(result.current[0]).toBe(1);
+      expect(effectRuns).toBe(1);
+
+      rerender();
+
+      expect(result.current[0]).toBe(1);
+      expect(result.current[1]).toBe(set);
+      expect(effectRuns).toBe(1);
+    });
+
     it('catches and logs errors when localStorage.setItem throws', () => {
       const spyError = vi.spyOn(console, 'error').mockImplementation(() => {});
       const { result } = renderHook(() => useLocalStorageState('test-key', 'initial'));
@@ -132,6 +184,24 @@ describe('useLocalStorageState', () => {
         'Error occurred while setting test-key in local storage:',
         expect.any(Error)
       );
+    });
+
+    it('composes consecutive updates when localStorage.setItem throws', () => {
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const { result } = renderHook(() => useLocalStorageState('test-key', 0));
+      const set = result.current[1];
+
+      vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+        throw new Error('Quota exceeded');
+      });
+
+      act(() => {
+        set(old => old + 1);
+        set(old => old + 1);
+      });
+
+      expect(result.current[0]).toBe(2);
+      expect(result.current[1]).toBe(set);
     });
 
     it('updates all hook instances using the same key', () => {
