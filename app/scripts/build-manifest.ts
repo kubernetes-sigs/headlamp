@@ -30,7 +30,19 @@ export type BuildManifest = {
   /** Plugin declarations consumed by the app packaging scripts. */
   plugins?: Array<Record<string, unknown>>;
 
+  /** Product identity fields consumed by Electron Builder. */
+  product?: Record<string, unknown>;
+
   [key: string]: unknown;
+};
+
+type ProductMetadata = {
+  name?: string;
+  productName?: string;
+  version?: string;
+  appId?: string;
+  artifactName?: string;
+  protocols?: Record<string, unknown>;
 };
 
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
@@ -112,6 +124,68 @@ export function validateBuildManifest(value: unknown): BuildManifest {
     throw new Error('Build manifest plugins must be an array');
   }
   return manifest;
+}
+
+/**
+ * Applies supported product metadata from a build manifest.
+ *
+ * @param config Electron Builder configuration to extend.
+ * @param manifest Parsed build manifest.
+ * @returns The original configuration when metadata is absent, or a copy with overrides applied.
+ * @throws When the manifest or product metadata is malformed.
+ */
+export function applyProductMetadata<T extends object>(config: T, manifest: unknown): T {
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    throw new Error('Build manifest must be an object');
+  }
+
+  const product = (manifest as BuildManifest).product;
+  if (product === undefined) {
+    return config;
+  }
+  if (!product || typeof product !== 'object' || Array.isArray(product)) {
+    throw new Error('Build manifest product must be an object');
+  }
+
+  const scalarFields = ['name', 'productName', 'version', 'appId', 'artifactName'] as const;
+  for (const field of scalarFields) {
+    if (product[field] !== undefined && typeof product[field] !== 'string') {
+      throw new Error(`Build manifest product.${field} must be a string`);
+    }
+  }
+  if (
+    product.protocols !== undefined &&
+    (!product.protocols ||
+      typeof product.protocols !== 'object' ||
+      Array.isArray(product.protocols))
+  ) {
+    throw new Error('Build manifest product.protocols must be an object');
+  }
+
+  const metadata = product as ProductMetadata;
+  const configRecord = config as Record<string, unknown>;
+
+  const currentExtraMetadata =
+    configRecord.extraMetadata &&
+    typeof configRecord.extraMetadata === 'object' &&
+    !Array.isArray(configRecord.extraMetadata)
+      ? configRecord.extraMetadata
+      : {};
+
+  return {
+    ...config,
+    ...(metadata.productName && { productName: metadata.productName }),
+    ...(metadata.appId && { appId: metadata.appId }),
+    ...(metadata.artifactName && { artifactName: metadata.artifactName }),
+    ...(metadata.protocols && { protocols: metadata.protocols }),
+    ...(metadata.version && { buildVersion: metadata.version }),
+    extraMetadata: {
+      ...currentExtraMetadata,
+      ...(metadata.name && { name: metadata.name }),
+      ...(metadata.productName && { productName: metadata.productName }),
+      ...(metadata.version && { version: metadata.version }),
+    },
+  } as T;
 }
 
 /**
