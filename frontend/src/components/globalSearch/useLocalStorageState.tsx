@@ -75,9 +75,14 @@ function getStorageEntry<T>(key: string, serializedDefaultValue: string): Storag
   return newEntry;
 }
 
-function subscribe(entry: StorageEntry, listener: Listener) {
+function subscribe(key: string, entry: StorageEntry, listener: Listener) {
   entry.listeners.add(listener);
-  return () => void entry.listeners.delete(listener);
+  return () => {
+    entry.listeners.delete(listener);
+    if (entry.listeners.size === 0) {
+      storageEntries.delete(key);
+    }
+  };
 }
 
 function updateEntry<T>(key: string, entry: StorageEntry, updater: (oldValue: T) => T) {
@@ -115,7 +120,10 @@ export function useLocalStorageState<T>(key: string, defaultValue: T) {
     [key, serializedDefaultValue]
   );
 
-  const subscribeToEntry = useCallback((listener: Listener) => subscribe(entry, listener), [entry]);
+  const subscribeToEntry = useCallback(
+    (listener: Listener) => subscribe(key, entry, listener),
+    [key, entry]
+  );
   const getSnapshot = useCallback(() => entry.value as T, [entry]);
   const state = useSyncExternalStore(subscribeToEntry, getSnapshot, getSnapshot);
   const setState = useCallback(
