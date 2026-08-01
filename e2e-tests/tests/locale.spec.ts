@@ -22,7 +22,7 @@ test('changes the application locale from general settings', async ({ page }) =>
   await page.goto('/settings/general');
 
   await page.getByRole('combobox', { name: 'Select locale' }).click();
-  await page.getByRole('option', { name: 'Español' }).click();
+  await page.getByRole('option', { name: 'Čeština' }).click();
 
-  await expect(page.locator('html')).toHaveAttribute('lang', 'es');
+  await expect(page.locator('html')).toHaveAttribute('lang', 'cs');
 });

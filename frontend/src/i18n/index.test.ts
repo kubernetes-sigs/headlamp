@@ -17,6 +17,7 @@
 import { error } from 'console';
 import fs from 'fs';
 import * as filesFilter from '../filesFilter/filesFilter';
+import { supportedLanguages } from './config';
 
 const path = require('node:path');
 const allowlist = require('./allowlist.json');
@@ -132,5 +133,62 @@ describe('Test for non-intentional repeating translation keys', () => {
   test('Decide which keys are needed if already in use', async () => {
     const result = await checkKeys();
     expect(result).toBe(true);
+  });
+});
+
+describe('The locales are not empty translations', () => {
+  const locales = [
+    { locale: 'en', about: 'About', delete: 'Delete', cpu: 'CPU' },
+    { locale: 'es', about: 'Acerca', delete: 'Borrar', cpu: 'CPU' },
+    { locale: 'fr', about: 'À propos', delete: 'Supprimer', cpu: 'CPU' },
+    { locale: 'ru', about: 'О программе', delete: 'Удалить', cpu: 'Процессор' },
+    { locale: 'pt-PT', about: 'Acerca', delete: 'Apagar', cpu: 'CPU' },
+    { locale: 'pt-BR', about: 'Acerca', delete: 'Apagar', cpu: 'CPU' },
+    { locale: 'de', about: 'Über', delete: 'Löschen', cpu: 'CPU' },
+    { locale: 'it', about: 'Informazioni', delete: 'Elimina', cpu: 'CPU' },
+    { locale: 'zh-TW', about: '關於', delete: '刪除', cpu: 'CPU' },
+    { locale: 'zh', about: '关于', delete: '删除', cpu: 'CPU' },
+    { locale: 'ko', about: '정보', delete: '삭제', cpu: 'CPU' },
+    { locale: 'ja', about: '概要', delete: '削除', cpu: 'CPU' },
+    { locale: 'hi', about: 'परिचय', delete: 'हटाएं', cpu: 'CPU' },
+    { locale: 'bn', about: 'সম্পর্কে', delete: 'Delete করা', cpu: 'CPU' },
+    { locale: 'ta', about: 'பற்றி', delete: 'நீக்கு', cpu: 'சிபியு' },
+    { locale: 'ar', about: 'حول', delete: 'حذف', cpu: 'المعالج' },
+    { locale: 'ur', about: 'متعلق', delete: 'حذف کریں', cpu: 'CPU' },
+    { locale: 'he', about: 'About', delete: 'Delete', cpu: 'CPU' },
+    { locale: 'cs', about: 'O produktu', delete: 'Odstranit', cpu: 'CPU' },
+    { locale: 'hu', about: 'Névjegy', delete: 'Törlés', cpu: 'CPU' },
+    { locale: 'id', about: 'Tentang', delete: 'Hapus', cpu: 'CPU' },
+    { locale: 'nl', about: 'Info', delete: 'Verwijderen', cpu: 'CPU' },
+    { locale: 'pl', about: 'Informacje', delete: 'Usuń', cpu: 'Procesor CPU' },
+    { locale: 'sv', about: 'Om', delete: 'Ta bort', cpu: 'Processor' },
+    { locale: 'tr', about: 'Hakkında', delete: 'Sil', cpu: 'CPU' },
+  ];
+
+  test('covers every supported locale', () => {
+    expect(locales.map(({ locale }) => locale)).toEqual(Object.keys(supportedLanguages));
+  });
+
+  test.each(locales)('$locale has translations in every namespace', ({ locale }) => {
+    const directory = locale.toLowerCase();
+    for (const namespace of ['app', 'glossary', 'translation']) {
+      const filename = path.resolve('src', 'i18n', 'locales', directory, `${namespace}.json`);
+      const translations = JSON.parse(fs.readFileSync(filename, 'utf8'));
+
+      expect(Object.values(translations).some(value => value !== '')).toBe(true);
+    }
+  });
+
+  test.each(locales)('$locale has representative translated words', expectations => {
+    const directory = expectations.locale.toLowerCase();
+    const localeDirectory = path.resolve('src', 'i18n', 'locales', directory);
+    const app = JSON.parse(fs.readFileSync(path.join(localeDirectory, 'app.json'), 'utf8'));
+    const glossary = JSON.parse(
+      fs.readFileSync(path.join(localeDirectory, 'glossary.json'), 'utf8')
+    );
+
+    expect(app['About']).toBe(expectations.about);
+    expect(app['Delete']).toBe(expectations.delete);
+    expect(glossary['CPU']).toBe(expectations.cpu);
   });
 });
