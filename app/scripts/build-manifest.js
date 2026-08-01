@@ -21,8 +21,9 @@ const path = require('node:path');
 
 const DEFAULT_MANIFEST_FILE = path.resolve(__dirname, '../app-build-manifest.json');
 
-function resolveBuildManifestPath() {
-  return process.env.HEADLAMP_BUILD_MANIFEST || DEFAULT_MANIFEST_FILE;
+function resolveBuildManifestPath(env = process.env, cwd = process.cwd()) {
+  const configuredPath = env.HEADLAMP_BUILD_MANIFEST;
+  return configuredPath ? path.resolve(cwd, configuredPath) : DEFAULT_MANIFEST_FILE;
 }
 
 function loadBuildManifest(manifestFile = resolveBuildManifestPath()) {
