@@ -16,6 +16,7 @@
 
 import { ThemeProvider } from '@mui/material/styles';
 import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { MRT_VisibilityState } from 'material-react-table';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { createMuiTheme } from '../../../lib/themes';
 import Table, { TableProps } from './Table';
@@ -253,6 +254,18 @@ describe('Table toolbar and selection props', () => {
     expect(tableMocks.options.state.columnVisibility.detail).toBe(false);
   });
 
+  it('treats equal keys in a complete controlled update as explicit assignments', () => {
+    const onColumnVisibilityChange = vi.fn();
+    renderTable({
+      state: { columnVisibility: { detail: false } },
+      onColumnVisibilityChange,
+    });
+
+    act(() => tableMocks.options.onColumnVisibilityChange({ detail: false }));
+
+    expect(onColumnVisibilityChange).toHaveBeenCalledWith({ detail: false });
+  });
+
   it('lets local visibility toggles override caller defaults without a change callback', () => {
     renderTable({ state: { columnVisibility: { cluster: true } } });
     expect(tableMocks.options.state.columnVisibility.cluster).toBe(true);
@@ -267,6 +280,119 @@ describe('Table toolbar and selection props', () => {
       }));
     });
     expect(tableMocks.options.state.columnVisibility.cluster).toBe(true);
+  });
+
+  it('treats keys omitted by a visibility reset as visible', () => {
+    renderTable({ state: { columnVisibility: { detail: false } } });
+
+    act(() => tableMocks.options.onColumnVisibilityChange(() => ({})));
+
+    expect(tableMocks.options.state.columnVisibility.detail).toBe(true);
+  });
+
+  it('waits for controlled caller acceptance before applying a visibility choice', () => {
+    const onColumnVisibilityChange = vi.fn();
+    const props = {
+      columns: [{ id: 'detail', accessorKey: 'selected', header: 'Detail' }],
+      data: [{ selected: false }],
+      onColumnVisibilityChange,
+      state: { columnVisibility: { detail: true } },
+    };
+    const { rerender } = renderTable(props);
+
+    act(() =>
+      tableMocks.options.onColumnVisibilityChange((previous: Record<string, boolean>) => ({
+        ...previous,
+        detail: false,
+      }))
+    );
+    expect(tableMocks.options.state.columnVisibility.detail).toBe(true);
+
+    rerender(
+      <ThemeProvider theme={theme}>
+        <Table {...props} state={{ columnVisibility: { detail: true } }} />
+      </ThemeProvider>
+    );
+
+    expect(tableMocks.options.state.columnVisibility.detail).toBe(true);
+  });
+
+  it('evaluates consecutive functional visibility updates from queued state', () => {
+    const callbacks: Array<
+      MRT_VisibilityState | ((old: MRT_VisibilityState) => MRT_VisibilityState)
+    > = [];
+    renderTable({
+      state: { columnVisibility: {} },
+      onColumnVisibilityChange: updater => callbacks.push(updater),
+    });
+
+    act(() => {
+      tableMocks.options.onColumnVisibilityChange((old: Record<string, boolean>) => ({
+        ...old,
+        selected: false,
+      }));
+      tableMocks.options.onColumnVisibilityChange((old: Record<string, boolean>) => ({
+        ...old,
+        name: false,
+      }));
+    });
+
+    const accepted = callbacks.reduce<MRT_VisibilityState>(
+      (state, updater) => (typeof updater === 'function' ? updater(state) : updater),
+      {} as MRT_VisibilityState
+    );
+    expect(accepted).toMatchObject({ selected: false, name: false });
+  });
+
+  it('toggles a column twice in one event back to where it was', () => {
+    const callbacks: Array<
+      MRT_VisibilityState | ((old: MRT_VisibilityState) => MRT_VisibilityState)
+    > = [];
+    renderTable({
+      state: { columnVisibility: { detail: true } },
+      onColumnVisibilityChange: updater => callbacks.push(updater),
+    });
+
+    act(() => {
+      const toggle = (old: MRT_VisibilityState) => ({ ...old, detail: old.detail === false });
+      tableMocks.options.onColumnVisibilityChange(toggle);
+      tableMocks.options.onColumnVisibilityChange(toggle);
+    });
+
+    const accepted = callbacks.reduce<MRT_VisibilityState>(
+      (state, updater) => (typeof updater === 'function' ? updater(state) : updater),
+      { detail: true }
+    );
+    expect(accepted.detail).toBe(true);
+  });
+
+  it('keeps the caller action columns in a complete controlled update', () => {
+    const onColumnVisibilityChange = vi.fn();
+    renderTable({
+      enableRowActions: true,
+      state: { columnVisibility: { 'mrt-row-actions': false } },
+      onColumnVisibilityChange,
+    });
+
+    act(() => tableMocks.options.onColumnVisibilityChange({ detail: false }));
+
+    expect(onColumnVisibilityChange).toHaveBeenCalledWith({
+      'mrt-row-actions': false,
+      detail: false,
+    });
+  });
+
+  it('forwards a controlled reset of all visibility keys as visible', () => {
+    const onColumnVisibilityChange = vi.fn();
+    renderTable({
+      state: { columnVisibility: { detail: false } },
+      onColumnVisibilityChange,
+    });
+
+    act(() => tableMocks.options.onColumnVisibilityChange(() => ({})));
+
+    const updater = onColumnVisibilityChange.mock.calls.at(-1)![0];
+    expect(updater({ detail: false })).toEqual({ '0': true, detail: true });
   });
 
   it('uses updated caller visibility over initial visibility with a change callback', () => {
@@ -575,19 +701,26 @@ describe('Table states and options', () => {
   });
 
   it('hides and restores the actions column with data-column visibility', () => {
-    tableMocks.columnVisibility = { '0': false };
+    const columns: TableProps<TestRow>['columns'] = [
+      { id: 'selected', accessorKey: 'selected', header: 'Selection' },
+    ];
+
     const hiddenResult = renderTable({
-      columns: [{ accessorKey: 'selected', header: 'Selection' }],
+      columns,
+      enableRowActions: true,
+      state: { columnVisibility: { selected: false } },
     });
 
-    expect(tableMocks.setColumnVisibility).toHaveBeenCalledOnce();
+    expect(tableMocks.options.state.columnVisibility['mrt-row-actions']).toBe(false);
     hiddenResult.unmount();
 
-    tableMocks.setColumnVisibility.mockClear();
-    tableMocks.columnVisibility = { '0': true, actions: false };
-    renderTable({ columns: [{ accessorKey: 'selected', header: 'Selection' }] });
+    renderTable({
+      columns,
+      enableRowActions: true,
+      state: { columnVisibility: { selected: true } },
+    });
 
-    expect(tableMocks.setColumnVisibility).toHaveBeenCalledOnce();
+    expect(tableMocks.options.state.columnVisibility['mrt-row-actions']).not.toBe(false);
   });
 });
 

@@ -273,8 +273,8 @@ function initColumnVisibilityState(columns: ResourceTableProps<any>['columns'], 
     }
     if (typeof col === 'string') return;
 
-    if ('show' in col) {
-      visibility[col.id ?? String(index)] = col.show ?? true;
+    if (col.show === false) {
+      visibility[col.id ?? String(index)] = false;
     }
   });
 
