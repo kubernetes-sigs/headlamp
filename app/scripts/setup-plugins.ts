@@ -41,6 +41,9 @@ type PluginSource = {
   /** Safe single path segment used as the plugin installation directory. */
   name: string;
 
+  /** Expected npm package name in the extracted plugin metadata. */
+  packageName?: string;
+
   /** HTTPS URL from which to download the plugin archive. */
   archive?: string;
 
@@ -83,6 +86,7 @@ const manifest = loadBuildManifest(MANIFEST_FILE) as BuildManifest;
 // The reviewed in-repo manifest predates digest metadata; externally selected manifests are
 // untrusted and must pin every plugin source.
 const externalManifest = !pathsReferToSameFile(MANIFEST_FILE, DEFAULT_MANIFEST_FILE);
+const VALID_PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
 
 /**
  * Checks whether two paths identify the same file after filesystem canonicalization.
@@ -152,6 +156,32 @@ export function validatePluginSource(
   }
   if (plugin.sha256 !== undefined) {
     validateDigestFormat(plugin.sha256);
+  }
+  if (
+    requireDigest &&
+    (typeof plugin.packageName !== 'string' || !VALID_PACKAGE_NAME.test(plugin.packageName))
+  ) {
+    throw new Error(`External plugin ${plugin.name} must declare a valid package name`);
+  }
+}
+
+/**
+ * Verifies that an extracted plugin matches its declared package identity.
+ *
+ * @param packageJsonPath Path to the extracted plugin package metadata.
+ * @param expectedPackageName Package name declared by the build manifest.
+ * @returns Nothing when no identity is declared or the identity matches.
+ * @throws When the extracted package name differs from the declared identity.
+ */
+export function verifyPluginIdentity(packageJsonPath: string, expectedPackageName?: string): void {
+  if (expectedPackageName === undefined) {
+    return;
+  }
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as { name?: string };
+  if (packageJson.name !== expectedPackageName) {
+    throw new Error(
+      `Plugin package name mismatch: expected ${expectedPackageName}, got ${packageJson.name}`
+    );
   }
 }
 
@@ -521,7 +551,7 @@ export async function main(): Promise<void> {
 
   const stagingFolder = fs.mkdtempSync(path.join(path.dirname(PLUGIN_FOLDER), '.plugins-stage-'));
   try {
-    for (const { name, archive, file, sha256 } of plugins) {
+    for (const { name, packageName, archive, file, sha256 } of plugins) {
       if (archive) {
         await fetchArchive(name, archive, sha256, stagingFolder);
       }
@@ -540,6 +570,8 @@ export async function main(): Promise<void> {
           fs.rmSync(privateArchive.directory, { recursive: true, force: true });
         }
       }
+
+      verifyPluginIdentity(path.join(stagingFolder, name, 'package.json'), packageName);
     }
     replacePluginFolder(stagingFolder);
   } finally {
