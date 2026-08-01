@@ -34,7 +34,7 @@ vi.mock('../components/resourceMap/sources/definitions/relationIds', () => ({
   BUILT_IN_RELATION_IDS: ['owner', 'owner-reversed', 'pod-configmap'],
 }));
 
-import { registerResourceRelationProvider } from './registry';
+import { registerClusterEmptyState, registerResourceRelationProvider } from './registry';
 
 describe('registerResourceRelationProvider', () => {
   let warnSpy: any;
@@ -210,5 +210,13 @@ describe('registerResourceRelationProvider', () => {
     // Try to register the same relation again (duplicate check)
     registerResourceRelationProvider(validRelation);
     expect(warnSpy).toHaveBeenCalledWith(expect.stringContaining('already exists. Skipping'));
+  });
+
+  it('registers a custom cluster empty state', () => {
+    const emptyState = vi.fn(() => null);
+
+    registerClusterEmptyState(emptyState);
+
+    expect(activeStore.getState().clusterProvider.clusterEmptyState).toBe(emptyState);
   });
 });

@@ -51,6 +51,7 @@ import Registry, {
   registerAppLogo,
   registerAppTheme,
   registerClusterChooser,
+  registerClusterEmptyState,
   registerClusterProviderDialog,
   registerClusterProviderMenuItem,
   registerClusterStatus,
@@ -81,6 +82,7 @@ import Registry, {
   registerUIPanel,
   runCommand,
 } from './plugin/registry';
+import type { ClusterEmptyStateProps } from './redux/clusterProviderSlice';
 export type { ApiResource } from './plugin/registry';
 
 // We export k8s (lowercase) since someone may use it as we do in the Headlamp source code.
@@ -104,6 +106,7 @@ export {
   registerAppLogo,
   registerAppBarAction,
   registerClusterChooser,
+  registerClusterEmptyState,
   registerDetailsViewHeaderAction,
   registerDetailsViewSection,
   registerDetailsViewSectionsProcessor,
@@ -150,6 +153,7 @@ export type {
   PluginSettingsDetailsProps,
   CallbackActionOptions,
   ClusterChooserProps,
+  ClusterEmptyStateProps,
   DetailsViewSectionProps,
   DefaultSidebars,
   HeadlampEvent,

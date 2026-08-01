@@ -322,6 +322,44 @@ registerClusterChooser(({ clickHandler, cluster }: ClusterChooserProps) => {
 
 ___
 
+### registerClusterEmptyState
+
+▸ **registerClusterEmptyState**(`component`): `void`
+
+Replace the empty state shown on the Home page when no clusters are configured.
+
+The component receives Headlamp's default content so a product can wrap it.
+Registering another component replaces the previous registration.
+
+**`example`**
+
+```tsx
+import { registerClusterEmptyState } from '@kinvolk/headlamp-plugin/lib';
+
+registerClusterEmptyState(({ defaultContent }) => (
+  <section>
+    <p>Choose how to connect your first cluster.</p>
+    {defaultContent}
+  </section>
+));
+```
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `component` | `ClusterEmptyStateComponent` | Product-owned empty state component. |
+
+#### Returns
+
+`void`
+
+#### Defined in
+
+[plugin/registry.tsx:972](https://github.com/kubernetes-sigs/headlamp/blob/558672b5a/frontend/src/plugin/registry.tsx#L972)
+
+___
+
 ### registerDetailsViewHeaderAction
 
 ▸ **registerDetailsViewHeaderAction**(`headerAction`): `void`
