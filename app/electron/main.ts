@@ -42,6 +42,11 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { setupCustomCAs, setupSystemCAs } from './certificates';
 import i18n from './i18next.config';
+import {
+  getLegalDocumentsResourcePath,
+  loadLegalDocuments,
+  readLegalDocument,
+} from './legal-documents';
 import MCPClient from './mcp/MCPClient';
 import { filterUserOwnedPids } from './ownedProcesses';
 import {
@@ -196,6 +201,9 @@ const MAX_PORT_ATTEMPTS = Math.abs(Number(process.env.HEADLAMP_MAX_PORT_ATTEMPTS
 
 const useExternalServer = process.env.EXTERNAL_SERVER || false;
 const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false';
+const legalDocumentsResourcePath = getLegalDocumentsResourcePath(isDev, process.resourcesPath);
+const appBuildManifestPath = path.join(legalDocumentsResourcePath, 'app-build-manifest.json');
+const legalDocuments = loadLegalDocuments(appBuildManifestPath);
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
@@ -815,11 +823,9 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
     serverArgs = serverArgs.concat(['--kubeconfig', args.kubeconfig]);
   }
 
-  const manifestDir = isDev ? path.resolve('./') : process.resourcesPath;
-  const manifestFile = path.join(manifestDir, 'app-build-manifest.json');
   let buildManifest: Record<string, any> = {};
   try {
-    const manifestContent = await fsPromises.readFile(manifestFile, 'utf8');
+    const manifestContent = await fsPromises.readFile(appBuildManifestPath, 'utf8');
     buildManifest = JSON.parse(manifestContent);
   } catch (err) {
     // If the manifest doesn't exist or can't be read, fall back to empty object
@@ -1752,6 +1758,13 @@ function startElectron() {
         appVersion,
       });
     });
+
+    ipcMain.handle('get-legal-documents', () =>
+      legalDocuments.map(({ id, title }) => ({ id, title }))
+    );
+    ipcMain.handle('get-legal-document', (_event, id: unknown) =>
+      readLegalDocument(legalDocumentsResourcePath, legalDocuments, id)
+    );
 
     ipcMain.on('pluginsLoaded', () => {
       loadFullMenu = true;
