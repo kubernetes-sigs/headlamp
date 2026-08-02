@@ -21,7 +21,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../../test';
 import EditButton from './EditButton';
 
-function mockItem(patchAllowed: boolean) {
+function mockItem(allowedVerbs: string[]) {
   return {
     _class: () => ({
       apiName: 'namespaces',
@@ -29,11 +29,11 @@ function mockItem(patchAllowed: boolean) {
     }),
     getName: () => 'test-ns',
     getNamespace: () => '',
-    getAuthorization: vi.fn(() =>
+    getAuthorization: vi.fn((verb: string) =>
       Promise.resolve({
         status: {
-          allowed: patchAllowed,
-          reason: 'Forbidden',
+          allowed: allowedVerbs.includes(verb),
+          reason: allowedVerbs.includes(verb) ? 'OK' : 'Forbidden',
         },
       })
     ),
@@ -66,17 +66,31 @@ function renderWithProviders(ui: React.ReactElement) {
 
 describe('EditButton', () => {
   it('shows edit button when user has patch permission', async () => {
-    renderWithProviders(<EditButton item={mockItem(true)} />);
+    const item = mockItem(['patch']);
+    renderWithProviders(<EditButton item={item} />);
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
     });
+    expect(item.getAuthorization).toHaveBeenCalledWith('patch', {});
   });
 
   it('does not show edit button when user lacks patch permission', async () => {
-    renderWithProviders(<EditButton item={mockItem(false)} />);
+    const item = mockItem([]);
+    renderWithProviders(<EditButton item={item} />);
     await waitFor(() => {
       expect(screen.getByRole('button', { name: /view yaml/i })).toBeInTheDocument();
     });
     expect(screen.queryByRole('button', { name: /edit/i })).not.toBeInTheDocument();
+    expect(item.getAuthorization).toHaveBeenCalledWith('patch', {});
+  });
+
+  it('does not show edit button when user has only update permission', async () => {
+    const item = mockItem(['update']);
+    renderWithProviders(<EditButton item={item} />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /view yaml/i })).toBeInTheDocument();
+    });
+    expect(screen.queryByRole('button', { name: /edit/i })).not.toBeInTheDocument();
+    expect(item.getAuthorization).toHaveBeenCalledWith('patch', {});
   });
 });

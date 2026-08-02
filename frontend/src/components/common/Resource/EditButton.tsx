@@ -47,7 +47,6 @@ interface EditButtonProps {
 export default function EditButton(props: EditButtonProps) {
   const dispatch: AppDispatch = useDispatch();
   const { item, options = {}, buttonStyle, afterConfirm } = props;
-  const [isReadOnly, setIsReadOnly] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState<string>('');
   const location = useLocation();
   const { t } = useTranslation(['translation', 'resource']);
@@ -125,13 +124,15 @@ export default function EditButton(props: EditButtonProps) {
   const itemClass: KubeObjectClass | null = (item as any)?._class?.() ?? item;
   const itemName = (item as any)?.getName?.();
 
+  // The save path uses patchUpdate (a JSON Patch request), so gate the edit
+  // action on the 'patch' verb rather than 'update'. See issue #4882.
   const { data: authData } = useQuery({
     enabled: !!item,
     queryKey: [
       'authEdit',
       itemName,
-      item.metadata.namespace,
-      item.cluster,
+      item?.metadata?.namespace,
+      item?.cluster,
       itemClass?.apiName,
       itemClass?.apiVersion,
     ],
@@ -146,26 +147,17 @@ export default function EditButton(props: EditButtonProps) {
     },
   });
 
-  React.useEffect(() => {
-    if (authData !== undefined) {
-      setIsReadOnly(!authData.allowed);
-    }
-  }, [authData]);
-
   if (!item) {
     return null;
   }
 
-  if (isReadOnly) {
-    return <ViewButton item={item} />;
-  }
-
+  // While the authorization request is in flight, don't render anything.
   if (!authData) {
     return null;
   }
 
   if (!authData.allowed) {
-    return null;
+    return <ViewButton item={item} />;
   }
 
   return (
