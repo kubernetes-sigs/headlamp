@@ -26,6 +26,9 @@ type Cluster struct {
 	AuthType string                 `json:"auth_type"`
 	Metadata map[string]interface{} `json:"meta_data"`
 	Error    string                 `json:"error,omitempty"`
+	// UsesServiceAccountToken reports that requests to this cluster are authenticated with
+	// the backend's own service account token, so a user-supplied token is never applied.
+	UsesServiceAccountToken bool `json:"usesServiceAccountToken,omitempty"`
 }
 
 type ClusterReq struct {

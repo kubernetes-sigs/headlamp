@@ -168,17 +168,33 @@ export async function clusterRequest(
   if (isBackstage()) {
     requestData.headers = addBackstageAuthHeaders(requestData.headers);
   }
-  let response: Response = new Response(undefined, { status: 502, statusText: 'Unreachable' });
+  let response: Response | undefined;
+  let requestError: Error | undefined;
+
   try {
     response = await fetch(url, requestData);
   } catch (err) {
-    if (err instanceof Error) {
-      if (err.name === 'AbortError') {
-        response = new Response(undefined, { status: 408, statusText: 'Request timed-out' });
-      }
-    }
+    requestError = err instanceof Error ? err : new Error(String(err));
   } finally {
     clearTimeout(id);
+  }
+
+  // The request never reached the point of producing a response, so there is no body to
+  // read an error message from. Reject with what actually went wrong instead of standing
+  // in a placeholder Response, whose empty body would only fail to parse later on. The
+  // message reaches the UI, so the url stays in the log rather than in the message.
+  if (!response) {
+    const timedOut = requestError?.name === 'AbortError';
+    const message = timedOut
+      ? `Request timed-out after ${timeout}ms`
+      : `Network error: ${requestError?.message ?? 'unreachable'}`;
+
+    console.error(message, 'at url:', url, { err: requestError });
+
+    const error = new Error(message) as ApiError;
+    error.status = timedOut ? 408 : 502;
+
+    return Promise.reject(error);
   }
 
   // The backend signals through this header that it wants a reload.

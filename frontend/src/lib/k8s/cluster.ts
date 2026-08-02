@@ -63,6 +63,11 @@ export interface Cluster {
    * Either 'oidc' or ''. '' means unknown.
    */
   auth_type: string;
+  /**
+   * Whether requests to this cluster are authenticated with the backend's own service
+   * account token, in which case a user-supplied token is never applied.
+   */
+  usesServiceAccountToken?: boolean;
   [propName: string]: any;
 }
 

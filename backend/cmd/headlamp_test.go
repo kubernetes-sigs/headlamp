@@ -492,6 +492,49 @@ func TestGetClustersClusterInventorySource(t *testing.T) {
 }
 
 // clusterInventoryConfigContext returns a minimal discovered context with Cluster Inventory metadata.
+// TestGetClustersUsesServiceAccountToken checks the signal the auth chooser relies on to
+// know that a user-supplied token would never be applied to a cluster.
+func TestGetClustersUsesServiceAccountToken(t *testing.T) {
+	inClusterContext := func() *kubeconfig.Context {
+		return &kubeconfig.Context{
+			Name:        "in-cluster",
+			KubeContext: &api.Context{Cluster: "in-cluster", AuthInfo: "in-cluster"},
+			Cluster:     &api.Cluster{Server: "https://kubernetes.default.svc"},
+			//nolint:gosec // G101: a path to the mounted service account token, not a credential.
+			AuthInfo: &api.AuthInfo{TokenFile: "/var/run/secrets/kubernetes.io/serviceaccount/token"},
+			Source:   kubeconfig.InCluster,
+		}
+	}
+
+	for _, tc := range []struct {
+		name     string
+		unsafe   bool
+		expected bool
+	}{
+		{name: "reported when the backend authenticates with its own token", unsafe: true, expected: true},
+		{name: "not reported when per-user auth is in effect", unsafe: false, expected: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			store := kubeconfig.NewContextStore()
+			require.NoError(t, store.AddContext(inClusterContext()))
+
+			c := &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						KubeConfigStore:              store,
+						UseInCluster:                 true,
+						UnsafeUseServiceAccountToken: tc.unsafe,
+					},
+				},
+			}
+
+			clusters := c.getClusters()
+			require.Len(t, clusters, 1)
+			assert.Equal(t, tc.expected, clusters[0].UsesServiceAccountToken)
+		})
+	}
+}
+
 func clusterInventoryConfigContext() *kubeconfig.Context {
 	return &kubeconfig.Context{
 		Name:        "cluster-inventory-in-cluster--default--spoke-a--dbdb0aa95e5d",

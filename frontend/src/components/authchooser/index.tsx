@@ -25,7 +25,6 @@ import { generatePath, useHistory, useLocation } from 'react-router-dom';
 import { getAppUrl } from '../../helpers/getAppUrl';
 import { getCluster, getClusterPrefixedPath } from '../../lib/cluster';
 import { useClustersConf } from '../../lib/k8s';
-import { testAuth } from '../../lib/k8s/api/v1/clusterApi';
 import { queryClient } from '../../lib/queryClient';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getRoute } from '../../lib/router/getRoute';
@@ -37,6 +36,7 @@ import Empty from '../common/EmptyContent';
 import Link from '../common/Link';
 import Loader from '../common/Loader';
 import OauthPopup from '../oidcauth/OauthPopup';
+import { testAuthWithRetry, TRANSIENT_STATUSES } from './testAuthWithRetry';
 
 function ColorButton({ children, ...rest }: ComponentProps<typeof Button>) {
   return (
@@ -106,7 +106,9 @@ function AuthChooser({ children }: AuthChooserProps) {
       // With clusterAuthType == oidc,
       //   they are presented with a choice of login or enter token.
       if (clusterAuthType !== 'oidc' && cluster.useToken === undefined) {
-        let useToken = true;
+        // When the backend authenticates with its own service account, a user token is
+        // never applied, so a failed check must not fall back to asking for one.
+        let useToken = !cluster.usesServiceAccountToken;
 
         setTestingAuth(true);
 
@@ -114,20 +116,24 @@ function AuthChooser({ children }: AuthChooserProps) {
 
         console.debug('Testing auth at authchooser');
 
-        testAuth(clusterName)
+        testAuthWithRetry(clusterName)
           .then(() => {
             console.debug('Not requiring token as testing auth succeeded');
             useToken = false;
           })
           .catch(err => {
             if (!cancelledRef.current) {
-              console.debug(`Requiring token for ${clusterName} as testing auth failed:`, err);
-
               // Ideally we'd only not assign the error if it was 401 or 403 (so we let the logic
               // proceed to request a token), but let's first check whether this is all we get
               // from clusters that require a token.
-              if ([408, 504, 502].includes(err.status)) {
+              if (TRANSIENT_STATUSES.includes(err.status)) {
+                // The request did not reach the cluster, so whether a token is needed is still
+                // unknown. Surfacing this as a connection error keeps it apart from the auth
+                // failures below, which do require one.
+                console.debug(`Could not reach ${clusterName} while testing auth:`, err);
                 errorObj = err;
+              } else {
+                console.debug(`Requiring token for ${clusterName} as testing auth failed:`, err);
               }
 
               setTestingAuth(false);
