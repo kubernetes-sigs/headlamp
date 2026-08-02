@@ -53,7 +53,20 @@ BasicLogs.parameters = {
     },
   },
 };
-
+export const WithCopyButton = Template.bind({});
+WithCopyButton.args = {
+  logs: ['first log entry\n', 'second log entry\n', 'third log entry\n', 'end of log stream'],
+  title: 'With Copy Button',
+  downloadName: 'with-copy-button-logs',
+  open: true,
+};
+WithCopyButton.parameters = {
+  docs: {
+    description: {
+      story: 'LogViewer showing the copy-to-clipboard action button alongside Download.',
+    },
+  },
+};
 export const ColoredLogs = Template.bind({});
 ColoredLogs.args = {
   logs: [
