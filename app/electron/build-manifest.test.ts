@@ -17,29 +17,25 @@
 import nock from 'nock';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
-import { createRequire } from 'node:module';
 import os from 'node:os';
 import path from 'node:path';
-import { afterEach, describe, expect, it } from 'vitest';
-
-const require = createRequire(import.meta.url);
-const {
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
   DEFAULT_MANIFEST_FILE,
   loadBuildManifest,
   resolveBuildManifestPath,
-} = require('../scripts/build-manifest');
-const {
+} from '../scripts/build-manifest.ts';
+import {
   downloadFile,
   validatePluginSource,
   verifyArchiveDigest,
-} = require('../scripts/setup-plugins');
+} from '../scripts/setup-plugins.ts';
 
 const temporaryDirectories: string[] = [];
 
 afterEach(() => {
   nock.cleanAll();
   delete process.env.HEADLAMP_BUILD_MANIFEST;
-  delete require.cache[require.resolve('../electron-builder.config')];
   temporaryDirectories
     .splice(0)
     .forEach(directory => fs.rmSync(directory, { recursive: true, force: true }));
@@ -70,11 +66,12 @@ describe('build manifest selection', () => {
     expect(loadBuildManifest(manifestFile)).toEqual({ plugins: [{ name: 'example' }] });
   });
 
-  it('packages the selected manifest under the runtime filename', () => {
+  it('packages the selected manifest under the runtime filename', async () => {
     const manifestFile = temporaryFile('{"plugins":[]}');
     process.env.HEADLAMP_BUILD_MANIFEST = manifestFile;
 
-    const config = require('../electron-builder.config');
+    vi.resetModules();
+    const { default: config } = await import('../electron-builder.config.ts');
     expect(config.extraResources).toContainEqual({
       from: manifestFile,
       to: 'app-build-manifest.json',
