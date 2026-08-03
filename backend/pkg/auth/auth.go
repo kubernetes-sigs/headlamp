@@ -220,19 +220,14 @@ func CacheRefreshedToken(token *oauth2.Token, tokenType string, oldToken string,
 // A caller can also reach this function for a token that was already refreshed
 // by an earlier, now-completed call (e.g. the middleware read the old token
 // before a concurrent request refreshed it, but only got scheduled here
-// afterwards). refreshedTokenKeyPrefix caches the outcome of each refresh
-// briefly so that case reuses the already-refreshed token instead of
+// afterwards). refreshTokenFromIDP checks for that case first, inside the
+// singleflight execution, so it reuses the already-refreshed token instead of
 // attempting a second exchange with a refresh token the IdP already rotated
-// out.
+// out. Checking outside the singleflight call would leave the same gap: the
+// check and the exchange itself must happen as one atomic unit per key.
 func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 	tokenType string, token string, tokenURL string, ctx context.Context,
 ) (*oauth2.Token, error) {
-	if cached, err := cache.Get(ctx, refreshedTokenKeyPrefix+token); err == nil {
-		if cachedToken, ok := cached.(*oauth2.Token); ok {
-			return cachedToken, nil
-		}
-	}
-
 	// Detach from the caller's context so that one request's cancellation (e.g.
 	// the client disconnecting) doesn't abort the shared refresh that other
 	// concurrent requests for the same token are waiting on. Bound it with its
@@ -259,9 +254,23 @@ func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 // and updates the token cache. It is only ever invoked once per in-flight
 // token, via refreshGroup in GetNewToken, even when multiple goroutines call
 // GetNewToken concurrently for the same token.
+//
+// The very first thing it does is check whether this old token was already
+// refreshed by an earlier, now-completed singleflight call for the same key.
+// That check has to live here, inside the singleflight execution, rather than
+// in GetNewToken before calling refreshGroup.Do: checking there would leave a
+// window between the check and the Do call where a concurrent refresh could
+// complete, so a late caller could still retry the exchange with a refresh
+// token the IdP already rotated out.
 func refreshTokenFromIDP(ctx context.Context, clientID, clientSecret string, cache cache.Cache[interface{}],
 	tokenType, token, tokenURL string,
 ) (*oauth2.Token, error) {
+	if cached, err := cache.Get(ctx, refreshedTokenKeyPrefix+token); err == nil {
+		if cachedToken, ok := cached.(*oauth2.Token); ok {
+			return cachedToken, nil
+		}
+	}
+
 	// get refresh token
 	refreshToken, err := cache.Get(ctx, oidcKeyPrefix+token)
 	if err != nil {
