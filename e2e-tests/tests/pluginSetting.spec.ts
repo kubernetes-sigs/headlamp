@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { HeadlampPage } from './headlampPage';
 
 let headlampPage: HeadlampPage;
@@ -42,6 +42,8 @@ test('pod counter plugin should have setting option', async () => {
   const pluginName = 'headlamp-pod-counter';
 
   await headlampPage.navigateTopage('/settings/plugins', /Plugin/);
+  const pluginRow = headlampPage.page.getByRole('row').filter({ hasText: pluginName });
+  await expect(pluginRow).toContainText('Enabled');
   await headlampPage.clickOnPlugin(pluginName);
   await headlampPage.hasTitleContaining(/Plugin Details/);
   await headlampPage.checkPageContent('Custom Error Message');
