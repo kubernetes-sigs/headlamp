@@ -54,6 +54,21 @@ describe('updateSettingsPackages tests', () => {
     expect(updatedSettingsPlugins[0].isEnabled).toBe(true);
   });
 
+  test('when a new backend plugin explicitly defaults to disabled', () => {
+    const backendPlugins: Array<PluginInfo & { headlamp: { enabledByDefault: boolean } }> = [
+      {
+        name: 'ourplugin1',
+        description: 'package description1',
+        homepage: 'https://example.com/1',
+        headlamp: { enabledByDefault: false },
+      },
+    ];
+
+    const updatedSettingsPlugins = updateSettingsPackages(backendPlugins, []);
+
+    expect(updatedSettingsPlugins[0].isEnabled).toBe(false);
+  });
+
   test('when there is an existing setting already turned to true by user', () => {
     const backendPlugins: PluginInfo[] = [
       {
