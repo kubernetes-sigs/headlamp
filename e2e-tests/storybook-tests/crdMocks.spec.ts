@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 The Kubernetes Authors
+ * Copyright 2025 The Kubernetes Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -27,18 +27,12 @@ test('Storybook mocks custom resource definition discovery', async ({ page }) =>
   const result = await page.evaluate(
     async ({ v1Url, v1beta1Url }) => {
       const response = await fetch(v1Url);
-      let v1beta1Failed = false;
-
-      try {
-        await fetch(v1beta1Url);
-      } catch {
-        v1beta1Failed = true;
-      }
+      const v1beta1Response = await fetch(v1beta1Url);
 
       return {
         status: response.status,
         body: await response.json(),
-        v1beta1Failed,
+        v1beta1Status: v1beta1Response.status,
       };
     },
     { v1Url: crdV1Url, v1beta1Url: crdV1beta1Url }
@@ -52,6 +46,6 @@ test('Storybook mocks custom resource definition discovery', async ({ page }) =>
       metadata: {},
       items: [],
     },
-    v1beta1Failed: true,
+    v1beta1Status: 404,
   });
 });
