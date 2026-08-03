@@ -38,11 +38,11 @@ test('plugin settings page should have a table', async () => {
   await headlampPage.a11y();
 });
 
-test('pod counter plugin should have setting option', async () => {
+test('pod counter plugin should have setting option', async ({ page }) => {
   const pluginName = 'headlamp-pod-counter';
 
   await headlampPage.navigateTopage('/settings/plugins', /Plugin/);
-  const pluginRow = headlampPage.page.getByRole('row').filter({ hasText: pluginName });
+  const pluginRow = page.getByRole('row').filter({ hasText: pluginName });
   await expect(pluginRow).toContainText('Enabled');
   await headlampPage.clickOnPlugin(pluginName);
   await headlampPage.hasTitleContaining(/Plugin Details/);
