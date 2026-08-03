@@ -492,6 +492,11 @@ func HandlePluginEvents(staticPluginDir, userPluginDir, pluginDir string,
 			continue
 		}
 
+		sep := strings.LastIndexByte(event, ':')
+		if filepath.Base(event[:sep]) != "package.json" {
+			continue
+		}
+
 		// Set the refresh signal only if we cannot send it. We prevent it here
 		// because we only want to send refresh signals that *happen after* we are
 		// allowed to send them.

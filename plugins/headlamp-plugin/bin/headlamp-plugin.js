@@ -34,7 +34,6 @@ const { table } = require('table');
 const tar = require('tar');
 
 // ES imports
-const viteCopyPluginPromise = import('vite-plugin-static-copy');
 const viteConfigPromise = import('../config/vite.config.mjs');
 const vitePromise = import('vite');
 
@@ -537,46 +536,27 @@ async function start() {
     const paths = envPaths('Headlamp', { suffix: '' });
     const configDir = fs.existsSync(paths.data) ? paths.data : paths.config;
 
-    const { viteStaticCopy } = await viteCopyPluginPromise;
-
-    viteConfig.plugins.push(
-      viteStaticCopy({
-        targets: [
-          {
-            src: './dist/*',
-            dest: path.join(configDir, 'plugins', packageName),
-          },
-          {
-            src: './package.json',
-            dest: path.join(configDir, 'plugins', packageName),
-          },
-        ],
-      })
-    );
-
     viteConfig.plugins.push({
-      name: 'headlamp-log-files-copied-to-plugin-folder',
-      buildEnd: async () => {
+      name: 'headlamp-copy-plugin-files-via-temp',
+      writeBundle: () => {
         const destDir = path.join(configDir, 'plugins', packageName);
-        if (!fs.existsSync(destDir)) {
-          console.log(`No files copied to "${destDir}" (directory does not exist).`);
-          return;
-        }
-        try {
-          const files = fs.readdirSync(destDir);
-          if (files.length === 0) {
-            console.log(`No files found in "${destDir}".`);
-            return;
+        const distDir = path.resolve('dist');
+        const packageJsonPath = path.resolve('package.json');
+        const destPackageJsonPath = path.join(destDir, 'package.json');
+
+        fs.ensureDirSync(destDir);
+        fs.cpSync(distDir, destDir, { recursive: true, force: true });
+        fs.copyFileSync(packageJsonPath, destPackageJsonPath);
+
+        const files = fs.readdirSync(destDir);
+        files.forEach(file => {
+          const destPath = path.join(destDir, file);
+          let srcPath = path.join(distDir, file);
+          if (file === 'package.json') {
+            srcPath = packageJsonPath;
           }
-          files.forEach(file => {
-            const destPath = path.join(destDir, file);
-            const srcPath =
-              file === 'package.json' ? path.resolve('package.json') : path.resolve('dist', file);
-            console.log(`Copied "${srcPath}" -> "${destPath}"`);
-          });
-        } catch (err) {
-          console.error('Error logging copied files:', err);
-        }
+          console.log(`Copied "${srcPath}" -> "${destPath}"`);
+        });
       },
     });
   }
@@ -645,7 +625,6 @@ async function start() {
     });
   }
 
-  // Then add the plugins from copyToPluginsFolder which includes ViteStaticCopy
   await copyToPluginsFolder(config);
 
   try {
