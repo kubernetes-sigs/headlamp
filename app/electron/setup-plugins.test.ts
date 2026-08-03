@@ -18,17 +18,20 @@ import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import * as tar from 'tar';
-import { afterEach, describe, expect, test } from 'vitest';
+import { afterEach, describe, expect, test, vi } from 'vitest';
 
 const require = createRequire(import.meta.url);
-const { main } = require('../scripts/setup-plugins.js') as {
+const { main, runCli } = require('../scripts/setup-plugins.js') as {
   main: (
     plugins: Array<{ name: string; file?: string; enabledByDefault?: boolean }>
   ) => Promise<void>;
+  runCli: (setup: () => Promise<void>, exit: (code: number) => void) => Promise<void>;
 };
 
 const pluginName = `setup-plugins-test-${process.pid}`;
 const pluginFolder = path.resolve(__dirname, '../../.plugins', pluginName);
+const malformedPluginFolder = `${pluginFolder}-malformed`;
+const validPluginFolder = `${pluginFolder}-valid`;
 let temporaryFolder: string | undefined;
 
 function createTemporaryFolder() {
@@ -37,6 +40,8 @@ function createTemporaryFolder() {
 
 afterEach(() => {
   fs.rmSync(pluginFolder, { force: true, recursive: true });
+  fs.rmSync(malformedPluginFolder, { force: true, recursive: true });
+  fs.rmSync(validPluginFolder, { force: true, recursive: true });
   if (temporaryFolder) {
     fs.rmSync(temporaryFolder, { force: true, recursive: true });
     temporaryFolder = undefined;
@@ -136,5 +141,45 @@ describe('setup-plugins', () => {
   test('skips a manifest default when the plugin package was not extracted', async () => {
     await expect(main([{ name: pluginName, enabledByDefault: false }])).resolves.toBeUndefined();
     expect(fs.existsSync(pluginFolder)).toBe(false);
+  });
+
+  test('continues after malformed plugin metadata', async () => {
+    fs.mkdirSync(malformedPluginFolder, { recursive: true });
+    fs.mkdirSync(validPluginFolder, { recursive: true });
+    fs.writeFileSync(path.join(malformedPluginFolder, 'package.json'), '{invalid json');
+    fs.writeFileSync(
+      path.join(validPluginFolder, 'package.json'),
+      JSON.stringify({ name: `${pluginName}-valid` })
+    );
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await main([
+      { name: `${pluginName}-malformed`, enabledByDefault: false },
+      { name: `${pluginName}-valid`, enabledByDefault: false },
+    ]);
+
+    expect(consoleError).toHaveBeenCalledWith(
+      `Failed to update enabledByDefault for plugin ${pluginName}-malformed:`,
+      expect.any(SyntaxError)
+    );
+    expect(
+      JSON.parse(fs.readFileSync(path.join(validPluginFolder, 'package.json'), 'utf8'))
+    ).toEqual({
+      name: `${pluginName}-valid`,
+      headlamp: { enabledByDefault: false },
+    });
+    consoleError.mockRestore();
+  });
+
+  test('exits with an error when CLI setup fails', async () => {
+    const error = new Error('setup failed');
+    const exit = vi.fn();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await runCli(() => Promise.reject(error), exit);
+
+    expect(consoleError).toHaveBeenCalledWith('Failed to set up plugins:', error);
+    expect(exit).toHaveBeenCalledWith(1);
+    consoleError.mockRestore();
   });
 });

@@ -155,19 +155,33 @@ async function main(plugins = manifest.plugins) {
       const packageJsonPath = path.join(pluginFolder, 'package.json');
 
       if (enabledByDefault !== undefined && fs.existsSync(packageJsonPath)) {
-        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-        packageJson.headlamp = packageJson.headlamp || {};
-        packageJson.headlamp.enabledByDefault = enabledByDefault;
+        try {
+          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+          packageJson.headlamp = packageJson.headlamp || {};
+          packageJson.headlamp.enabledByDefault = enabledByDefault;
 
-        fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
-        console.log(`Plugin ${name} enabledByDefault: ${enabledByDefault}`);
+          fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+          console.log(`Plugin ${name} enabledByDefault: ${enabledByDefault}`);
+        } catch (error) {
+          console.error(`Failed to update enabledByDefault for plugin ${name}:`, error);
+        }
       }
     }
   }
 }
 
-if (require.main === module) {
-  main().then(() => process.exit(0));
+function runCli(setup = main, exit = process.exit) {
+  return setup().then(
+    () => exit(0),
+    error => {
+      console.error('Failed to set up plugins:', error);
+      exit(1);
+    }
+  );
 }
 
-module.exports = { main };
+if (require.main === module) {
+  runCli();
+}
+
+module.exports = { main, runCli };
