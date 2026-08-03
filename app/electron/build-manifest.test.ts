@@ -89,6 +89,10 @@ describe('build manifest selection', () => {
 });
 
 describe('product metadata', () => {
+  it.each([null, [], 'manifest'])('rejects an invalid manifest value: %j', manifest => {
+    expect(() => applyProductMetadata({}, manifest)).toThrow('Build manifest must be an object');
+  });
+
   it('preserves the configuration when product metadata is absent', () => {
     const defaults = { appId: 'io.headlamp', productName: 'Headlamp' };
 
@@ -247,6 +251,22 @@ describe('plugin archive integrity', () => {
     ).toThrow('must declare a valid package name');
     expect(() => validatePluginSource({ name: 'bundled' }, false)).not.toThrow();
   });
+
+  it.each([undefined, '../plugin', 'plugins/example', 'plugins\\example'])(
+    'rejects an unsafe external plugin name: %j',
+    name => {
+      expect(() =>
+        validatePluginSource(
+          {
+            name,
+            packageName: 'example-plugin',
+            file: './plugin.tar.gz',
+          },
+          true
+        )
+      ).toThrow('must declare a safe plugin name');
+    }
+  );
 
   it('accepts matching package identities and rejects mismatches', () => {
     const packageJson = temporaryFile('{"name":"@example/plugin"}');

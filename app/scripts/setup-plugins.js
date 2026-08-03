@@ -19,6 +19,15 @@ const externalManifest = MANIFEST_FILE !== DEFAULT_MANIFEST_FILE;
 const VALID_PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/i;
 
 function validatePluginSource(plugin, requireDigest = externalManifest) {
+  if (
+    requireDigest &&
+    (typeof plugin.name !== 'string' ||
+      plugin.name !== path.basename(plugin.name) ||
+      plugin.name.includes('/') ||
+      plugin.name.includes('\\'))
+  ) {
+    throw new Error('External plugin must declare a safe plugin name');
+  }
   if (plugin.archive && requireDigest && plugin.sha256 === undefined) {
     throw new Error(`External plugin archive ${plugin.name} must declare a SHA-256 digest`);
   }

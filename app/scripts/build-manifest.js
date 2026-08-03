@@ -15,6 +15,10 @@ function loadBuildManifest(manifestFile = resolveBuildManifestPath()) {
 }
 
 function applyProductMetadata(config, manifest) {
+  if (!manifest || typeof manifest !== 'object' || Array.isArray(manifest)) {
+    throw new Error('Build manifest must be an object');
+  }
+
   const product = manifest.product;
   if (product === undefined) {
     return config;
