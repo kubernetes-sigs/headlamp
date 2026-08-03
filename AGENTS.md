@@ -3,8 +3,11 @@ version: 1
 default_agent: "@dev-agent"
 
 > **Consulted files (agent must populate before committing):**
-> - `/backend/pkg/k8cache/cacheInvalidation.go`
-> - `/backend/pkg/kubeconfig/contextStore.go`
+> - `/frontend/src/components/common/Resource/EditorDialog.tsx`
+> - `/frontend/src/components/monaco/MonacoEditorLoaderInitializer.tsx`
+> - `/frontend/src/components/monaco/schemaProvider.ts`
+> - `/frontend/src/lib/docs.ts`
+> - `/frontend/src/lib/k8s/crd.ts`
 >
 > **README.md files:**
 > - `/README.md` - Main project README
