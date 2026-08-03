@@ -86,6 +86,39 @@ describe('build manifest selection', () => {
   });
 });
 
+describe('TypeScript plugin setup entrypoints', () => {
+  const repositoryRoot = path.resolve(__dirname, '../..');
+  const expectedCommand = 'node --experimental-strip-types ./scripts/setup-plugins.ts';
+
+  it('uses Node type stripping in package scripts', () => {
+    const packageJson = JSON.parse(
+      fs.readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8')
+    );
+    const appPackageJson = JSON.parse(
+      fs.readFileSync(path.join(repositoryRoot, 'app/package.json'), 'utf8')
+    );
+
+    for (const scriptName of ['app:build', 'app:build:dir', 'app:start']) {
+      expect(packageJson.scripts[scriptName]).toContain(expectedCommand);
+    }
+    expect(packageJson.engines.node).toBe('>=22.6.0');
+    expect(appPackageJson.engines.node).toBe('>=22.6.0');
+  });
+
+  it('uses Node type stripping in Make and Windows build entrypoints', () => {
+    const makefile = fs.readFileSync(path.join(repositoryRoot, 'Makefile'), 'utf8');
+    const windowsWorkflow = fs.readFileSync(
+      path.join(repositoryRoot, '.github/workflows/app-artifacts-win.yml'),
+      'utf8'
+    );
+
+    expect(
+      makefile.match(/node --experimental-strip-types \.\/scripts\/setup-plugins\.ts/g)
+    ).toHaveLength(3);
+    expect(windowsWorkflow).toContain('node --experimental-strip-types scripts/setup-plugins.ts');
+  });
+});
+
 describe('plugin archive integrity', () => {
   it('rejects missing and malformed plugin archives', async () => {
     const extractionDirectory = fs.mkdtempSync(

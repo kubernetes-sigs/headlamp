@@ -70,13 +70,17 @@ test('setup-plugins installs a verified plugin from an external manifest', () =>
       })
     );
 
-    execFileSync(process.execPath, [path.join(scriptsDirectory, 'setup-plugins.ts')], {
-      env: {
-        ...process.env,
-        HEADLAMP_BUILD_MANIFEST: manifest,
-      },
-      stdio: 'pipe',
-    });
+    execFileSync(
+      process.execPath,
+      ['--experimental-strip-types', path.join(scriptsDirectory, 'setup-plugins.ts')],
+      {
+        env: {
+          ...process.env,
+          HEADLAMP_BUILD_MANIFEST: manifest,
+        },
+        stdio: 'pipe',
+      }
+    );
 
     const installedPlugin = path.join(temporaryRoot, '.plugins', 'example-plugin');
     expect(fs.existsSync(stalePlugin)).toBe(false);

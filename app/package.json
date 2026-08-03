@@ -7,7 +7,7 @@
   "productName": "Headlamp",
   "engines": {
     "npm": ">=11.0.0",
-    "node": ">=22.0.0"
+    "node": ">=22.6.0"
   },
   "scripts": {
     "build": "npm run copy-icons && npm run copy-plugins && npm run compile-electron && electron-builder --config electron-builder.config.ts --dir --publish never",
