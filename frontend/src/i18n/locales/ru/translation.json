@@ -914,6 +914,8 @@
   "Zoom in": "Увеличить масштаб",
   "Zoom out": "Уменьшить масштаб",
   "No data to be shown. Try to change filters or select a different namespace.": "Нет данных для отображения. Попробуйте изменить фильтры или выбрать другое пространство имён.",
+  "Resource Types": "",
+  "Labels (e.g. app=nginx)": "",
   "Group By": "Группировать по",
   "Instance": "Экземпляр",
   "Status: Error or Warning": "Статус: ошибка или предупреждение",
