@@ -497,6 +497,12 @@ func (f *fakeCache) Set(_ context.Context, key string, val interface{}) error {
 		val interface{}
 	}{key, val})
 
+	if f.store == nil {
+		f.store = map[string]interface{}{}
+	}
+
+	f.store[key] = val
+
 	return f.errOnSet
 }
 
@@ -506,6 +512,12 @@ func (f *fakeCache) SetWithTTL(_ context.Context, key string, val interface{}, t
 		val interface{}
 		ttl time.Duration
 	}{key, val, ttl})
+
+	if f.store == nil {
+		f.store = map[string]interface{}{}
+	}
+
+	f.store[key] = val
 
 	return f.errOnSetWithTTL
 }
@@ -722,9 +734,10 @@ func TestGetNewToken_Success(t *testing.T) {
 		t.Fatalf("id_token extra = %q, want %q", idt, "NEW")
 	}
 
-	// CacheRefreshedToken side-effects
-	if len(fc.setCalls) != 1 || len(fc.setWithTTLCalls) != 1 {
-		t.Fatalf("expected Set=1, SetWithTTL=1; got Set=%d, SetWithTTL=%d",
+	// CacheRefreshedToken side-effects, plus the recent-refresh-outcome write
+	// keyed by the old token (see refreshedTokenKeyPrefix).
+	if len(fc.setCalls) != 1 || len(fc.setWithTTLCalls) != 2 {
+		t.Fatalf("expected Set=1, SetWithTTL=2; got Set=%d, SetWithTTL=%d",
 			len(fc.setCalls), len(fc.setWithTTLCalls))
 	}
 
@@ -737,6 +750,16 @@ func TestGetNewToken_Success(t *testing.T) {
 	if call.key != "oidc-token-OLD" || call.val != "REFRESH_OLD" || call.ttl != 10*time.Second {
 		t.Fatalf("SetWithTTL = {%q,%v,%v}, want {%q,%q,%v}",
 			call.key, call.val, call.ttl, "oidc-token-OLD", "REFRESH_OLD", 10*time.Second)
+	}
+
+	refreshCall := fc.setWithTTLCalls[1]
+	if refreshCall.key != "oidc-refreshed-token-OLD" || refreshCall.ttl != 10*time.Second {
+		t.Fatalf("SetWithTTL = {%q,%v,%v}, want key %q, ttl %v",
+			refreshCall.key, refreshCall.val, refreshCall.ttl, "oidc-refreshed-token-OLD", 10*time.Second)
+	}
+
+	if refreshedTok, ok := refreshCall.val.(*oauth2.Token); !ok || refreshedTok != newTok {
+		t.Fatalf("SetWithTTL val = %v, want the refreshed token", refreshCall.val)
 	}
 }
 
@@ -900,7 +923,35 @@ func TestGetNewToken_ConcurrentRefresh_Deduplicates(t *testing.T) {
 	}
 
 	require.Len(t, fc.setCalls, 1, "expected exactly one cache write for the new refresh token")
-	require.Len(t, fc.setWithTTLCalls, 1, "expected exactly one cache write for the retired old refresh token")
+	require.Len(t, fc.setWithTTLCalls, 2,
+		"expected one cache write for the retired old refresh token, and one for the recent-refresh outcome")
+}
+
+// TestGetNewToken_ReusesRecentRefreshForSameOldToken reproduces the race
+// flagged in review: the middleware can observe an about-to-expire token,
+// then only reach GetNewToken after a concurrent request already refreshed
+// that same token and the singleflight group for it has resolved (and
+// forgotten the key). Without reusing the just-completed refresh, this
+// second call would retry the IdP exchange using the now-retired refresh
+// token, which fails outright on IdPs that rotate refresh tokens on use.
+func TestGetNewToken_ReusesRecentRefreshForSameOldToken(t *testing.T) {
+	srv, callCount := newCallCountingTokenServer(t)
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-OLD": "REFRESH_OLD"}}
+
+	first, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background())
+	require.NoError(t, err)
+	require.Equal(t, 1, callCount(), "expected the first call to hit the IdP")
+
+	// A second, non-overlapping call for the same old token (e.g. a request
+	// that checked the token before the refresh above, but only reached
+	// GetNewToken afterwards) must not attempt another exchange with the
+	// now-retired refresh token.
+	second, err := auth.GetNewToken("cid", "secret", fc, "id_token", "OLD", srv.URL, context.Background())
+	require.NoError(t, err)
+
+	assert.Equal(t, 1, callCount(), "expected the recent-refresh result to be reused, not a second IdP call")
+	assert.Same(t, first, second)
 }
 
 // TestGetNewToken_SequentialRefreshesAfterDeduplication ensures the dedup key
@@ -954,10 +1005,11 @@ func TestRefreshAndCacheNewToken_Success(t *testing.T) {
 	assert.Equal(t, "oidc-token-NEW", fc.setCalls[0].key)
 	assert.Equal(t, refreshNew, fc.setCalls[0].val)
 
-	require.Len(t, fc.setWithTTLCalls, 1)
+	require.Len(t, fc.setWithTTLCalls, 2)
 	assert.Equal(t, oldKey, fc.setWithTTLCalls[0].key)
 	assert.Equal(t, "REFRESH_OLD", fc.setWithTTLCalls[0].val)
 	assert.Equal(t, 10*time.Second, fc.setWithTTLCalls[0].ttl)
+	assert.Equal(t, "oidc-refreshed-token-"+oldToken, fc.setWithTTLCalls[1].key)
 }
 
 func TestRefreshAndCacheNewToken_ValidatorIssuerOverride(t *testing.T) {
