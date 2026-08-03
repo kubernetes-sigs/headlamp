@@ -86,7 +86,7 @@ When a single Headlamp instance serves several Kubernetes clusters that all trus
 
 **Precondition.** A sibling cluster receives the broadcast only when its kubeconfig context's OIDC auth-provider has BOTH a non-empty `idp-issuer-url` AND a non-empty `client-id` that match the source cluster's. Contexts using a different auth-provider (e.g. `gcp`, `azure`) or a static token are skipped silently.
 
-**Scope.** Broadcasting fires at initial OIDC login and broadcasts whichever token is in use (the `id_token`, or the `access_token` when `-oidc-use-access-token=true`). Token-refresh broadcasting is tracked as a follow-up. Because token refresh happens independently per cluster, sibling cookies diverge as soon as any one cluster refreshes its token; until refresh broadcasting lands, the affected clusters fall back to per-cluster re-login (commonly ~1h on EKS / Okta with default settings).
+**Scope.** Broadcasting fires at initial OIDC login and again whenever a cluster's token is refreshed, so sibling clusters stay in sync with the session for its whole lifetime — including past short token expiries (commonly ~1h on EKS / Okta with default settings). Whichever token is in use is broadcast (the `id_token`, or the `access_token` when `-oidc-use-access-token=true`).
 
 **Caveats to be aware of before enabling.**
 
