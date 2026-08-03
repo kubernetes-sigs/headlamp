@@ -117,6 +117,8 @@
   "Job Sets": "জব সেট",
   "Lease": "লিজ",
   "LimitRange": "সীমার পরিসর",
+  "Selected Pods": "",
+  "No pods in the {{ namespace }} namespace are selected by this policy.": "",
   "Ingress": "Ingress",
   "ipBlock": "IP ব্লক",
   "namespaceSelector": "নেমস্পেস সিলেক্টর",

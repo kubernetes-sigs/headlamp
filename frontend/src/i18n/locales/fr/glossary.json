@@ -117,6 +117,8 @@
   "Job Sets": "Ensembles de jobs",
   "Lease": "Bail",
   "LimitRange": "LimitRange",
+  "Selected Pods": "",
+  "No pods in the {{ namespace }} namespace are selected by this policy.": "",
   "Ingress": "Ingress",
   "ipBlock": "ipBlock",
   "namespaceSelector": "sélecteur d'espace de noms",
