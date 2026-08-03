@@ -23,7 +23,9 @@ import { afterEach, describe, expect, test } from 'vitest';
 
 const require = createRequire(import.meta.url);
 const { main } = require('../scripts/setup-plugins.js') as {
-  main: (plugins: Array<{ name: string; file?: string }>) => Promise<void>;
+  main: (
+    plugins: Array<{ name: string; file?: string; enabledByDefault?: boolean }>
+  ) => Promise<void>;
 };
 
 const pluginName = `setup-plugins-test-${process.pid}`;
@@ -65,5 +67,71 @@ describe('setup-plugins', () => {
     expect(JSON.parse(fs.readFileSync(path.join(pluginFolder, 'package.json'), 'utf8'))).toEqual(
       packageJson
     );
+  });
+
+  test('writes a disabled manifest default into the plugin package', async () => {
+    temporaryFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-setup-plugins-'));
+    const archiveRoot = path.join(temporaryFolder, 'archive', pluginName);
+    const archivePath = path.join(temporaryFolder, 'plugin.tar.gz');
+
+    fs.mkdirSync(archiveRoot, { recursive: true });
+    fs.writeFileSync(path.join(archiveRoot, 'main.js'), 'console.log("test plugin");');
+    fs.writeFileSync(
+      path.join(archiveRoot, 'package.json'),
+      JSON.stringify({
+        name: pluginName,
+        version: '1.0.0',
+        headlamp: { existingSetting: true },
+      })
+    );
+    await tar.c({ cwd: path.dirname(archiveRoot), file: archivePath, gzip: true }, [pluginName]);
+
+    await main([
+      {
+        name: pluginName,
+        file: path.relative(path.resolve(__dirname, '..'), archivePath),
+        enabledByDefault: false,
+      },
+    ]);
+
+    expect(
+      JSON.parse(fs.readFileSync(path.join(pluginFolder, 'package.json'), 'utf8'))
+    ).toMatchObject({
+      headlamp: {
+        enabledByDefault: false,
+        existingSetting: true,
+      },
+    });
+  });
+
+  test('creates Headlamp metadata for an enabled manifest default', async () => {
+    temporaryFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-setup-plugins-'));
+    const archiveRoot = path.join(temporaryFolder, 'archive', pluginName);
+    const archivePath = path.join(temporaryFolder, 'plugin.tar.gz');
+
+    fs.mkdirSync(archiveRoot, { recursive: true });
+    fs.writeFileSync(path.join(archiveRoot, 'main.js'), 'console.log("test plugin");');
+    fs.writeFileSync(
+      path.join(archiveRoot, 'package.json'),
+      JSON.stringify({ name: pluginName, version: '1.0.0' })
+    );
+    await tar.c({ cwd: path.dirname(archiveRoot), file: archivePath, gzip: true }, [pluginName]);
+
+    await main([
+      {
+        name: pluginName,
+        file: path.relative(path.resolve(__dirname, '..'), archivePath),
+        enabledByDefault: true,
+      },
+    ]);
+
+    expect(
+      JSON.parse(fs.readFileSync(path.join(pluginFolder, 'package.json'), 'utf8'))
+    ).toMatchObject({ headlamp: { enabledByDefault: true } });
+  });
+
+  test('skips a manifest default when the plugin package was not extracted', async () => {
+    await expect(main([{ name: pluginName, enabledByDefault: false }])).resolves.toBeUndefined();
+    expect(fs.existsSync(pluginFolder)).toBe(false);
   });
 });
