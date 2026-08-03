@@ -36,12 +36,12 @@ import {
   resolveLocalPluginArchive,
   validatePluginSource,
   verifyArchiveDigest,
+  verifyPluginIdentity,
 } from '../scripts/setup-plugins.ts';
 
 const require = createRequire(import.meta.url);
 const { getConfig } = require('app-builder-lib/out/util/config/config');
 const appPath = path.resolve(__dirname, '..');
-
 describe('platform metadata', () => {
   afterEach(() => {
     delete process.env.HEADLAMP_BUILD_MANIFEST;
@@ -285,6 +285,7 @@ describe('plugin archive integrity', () => {
       validatePluginSource(
         {
           name: 'example',
+          packageName: 'example-plugin',
           archive: 'https://plugins.example/plugin.tar.gz',
           sha256: '0'.repeat(64),
         },
@@ -295,7 +296,15 @@ describe('plugin archive integrity', () => {
       'must declare a SHA-256 digest'
     );
     expect(() =>
-      validatePluginSource({ name: 'local', file: './plugin.tar.gz', sha256: '0'.repeat(64) }, true)
+      validatePluginSource(
+        {
+          name: 'local',
+          packageName: 'local-plugin',
+          file: './plugin.tar.gz',
+          sha256: '0'.repeat(64),
+        },
+        true
+      )
     ).not.toThrow();
     expect(() =>
       validatePluginSource(
@@ -330,8 +339,10 @@ describe('plugin archive integrity', () => {
   it('accepts matching digests and manifests without digests', () => {
     const archive = temporaryFile('plugin archive');
     const digest = crypto.createHash('sha256').update('plugin archive').digest('hex');
+    const readFile = vi.spyOn(fs, 'readFileSync');
 
     expect(() => verifyArchiveDigest(archive, digest.toUpperCase())).not.toThrow();
+    expect(readFile).not.toHaveBeenCalled();
     expect(() => verifyArchiveDigest(archive, undefined)).not.toThrow();
   });
 
@@ -373,6 +384,42 @@ describe('plugin archive integrity', () => {
     expect(() => resolveLocalPluginArchive(manifestFile, './linked.tar.gz')).toThrow(
       'within the manifest directory'
     );
+  });
+
+  it('requires valid package names only for external manifests', () => {
+    const validPlugin = {
+      name: 'example',
+      packageName: '@example/plugin',
+      file: './plugin.tar.gz',
+      sha256: '0'.repeat(64),
+    };
+
+    expect(() => validatePluginSource(validPlugin, true)).not.toThrow();
+    expect(() => validatePluginSource({ ...validPlugin, packageName: undefined }, true)).toThrow(
+      'must declare a valid package name'
+    );
+    expect(() =>
+      validatePluginSource({ ...validPlugin, packageName: 'invalid package' }, true)
+    ).toThrow('must declare a valid package name');
+    expect(() =>
+      validatePluginSource({ ...validPlugin, packageName: '@Example/plugin' }, true)
+    ).toThrow('must declare a valid package name');
+    expect(() =>
+      validatePluginSource(
+        { name: 'bundled', archive: 'https://plugins.example/plugin.tar.gz' },
+        false
+      )
+    ).not.toThrow();
+  });
+
+  it('accepts matching package identities and rejects mismatches', () => {
+    const packageJson = temporaryFile('{"name":"@example/plugin"}');
+
+    expect(() => verifyPluginIdentity(packageJson, '@example/plugin')).not.toThrow();
+    expect(() => verifyPluginIdentity(packageJson, '@other/plugin')).toThrow(
+      'Plugin package name mismatch'
+    );
+    expect(() => verifyPluginIdentity(packageJson, undefined)).not.toThrow();
   });
 });
 
