@@ -143,6 +143,49 @@ interface BackstageMessage {
 
 const BACKSTAGE_ACK_TIMEOUT_MS = 1000;
 
+const BACKSTAGE_MESSAGE_TYPES: Array<BackstageMessage['type']> = [
+  'BACKSTAGE_AUTH_TOKEN',
+  'BACKSTAGE_KUBECONFIG',
+];
+
+/**
+ * isBackstageMessage is a runtime type guard for BackstageMessage.
+ *
+ * event.data comes from outside the application, so its shape cannot be
+ * relied upon to match the BackstageMessage type just because it is cast to
+ * it. This checks the shape at runtime before the message is processed,
+ * rejecting anything that doesn't match rather than letting mistyped fields
+ * (e.g. a non-string token) flow into token/kubeconfig storage.
+ *
+ * @param data - the raw `event.data` from a postMessage event
+ * @returns true if data is a well-formed BackstageMessage
+ */
+function isBackstageMessage(data: unknown): data is BackstageMessage {
+  if (typeof data !== 'object' || data === null) {
+    return false;
+  }
+
+  const { type, payload } = data as Record<string, unknown>;
+
+  if (!BACKSTAGE_MESSAGE_TYPES.includes(type as BackstageMessage['type'])) {
+    return false;
+  }
+
+  if (payload === undefined) {
+    return true;
+  }
+
+  if (typeof payload !== 'object' || payload === null) {
+    return false;
+  }
+
+  const { token, kubeconfig } = payload as Record<string, unknown>;
+  return (
+    (token === undefined || typeof token === 'string') &&
+    (kubeconfig === undefined || typeof kubeconfig === 'string')
+  );
+}
+
 /**
  * Sets up a listener for messages from the Backstage app.
  * Handles Backstage auth token messages by storing the Backstage token,
@@ -158,8 +201,12 @@ export function setupBackstageMessageReceiver(): () => void {
         return;
       }
 
+      if (!isBackstageMessage(event.data)) {
+        return;
+      }
+
       try {
-        const { type, payload } = event.data as BackstageMessage;
+        const { type, payload } = event.data;
         if (type === 'BACKSTAGE_AUTH_TOKEN') {
           const { token } = payload || {};
           if (token) {

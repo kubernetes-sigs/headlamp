@@ -165,4 +165,78 @@ describe('setupBackstageMessageReceiver', () => {
     expect(findAndReplaceKubeconfig).not.toHaveBeenCalled();
     expect(window.parent.postMessage).not.toHaveBeenCalled();
   });
+
+  it('ignores a null event.data from the trusted origin', async () => {
+    dispatchMessage(null, TRUSTED_ORIGIN);
+    await vi.runAllTimersAsync();
+
+    expect(getBackstageToken()).toBeNull();
+    expect(window.parent.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('ignores a primitive event.data from the trusted origin', async () => {
+    dispatchMessage('not-an-object', TRUSTED_ORIGIN);
+    await vi.runAllTimersAsync();
+
+    expect(getBackstageToken()).toBeNull();
+    expect(window.parent.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('ignores a message with a null payload field', async () => {
+    dispatchMessage({ type: 'BACKSTAGE_AUTH_TOKEN', payload: null }, TRUSTED_ORIGIN);
+    await vi.runAllTimersAsync();
+
+    expect(getBackstageToken()).toBeNull();
+    expect(window.parent.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('ignores a message with a primitive payload field', async () => {
+    dispatchMessage({ type: 'BACKSTAGE_AUTH_TOKEN', payload: 'trusted-token' }, TRUSTED_ORIGIN);
+    await vi.runAllTimersAsync();
+
+    expect(getBackstageToken()).toBeNull();
+    expect(window.parent.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('ignores a message with an unknown type', async () => {
+    dispatchMessage(
+      { type: 'BACKSTAGE_UNKNOWN_TYPE', payload: { token: 'trusted-token' } },
+      TRUSTED_ORIGIN
+    );
+    await vi.runAllTimersAsync();
+
+    expect(getBackstageToken()).toBeNull();
+    expect(window.parent.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('ignores a BACKSTAGE_AUTH_TOKEN message with no token', async () => {
+    dispatchMessage({ type: 'BACKSTAGE_AUTH_TOKEN', payload: {} }, TRUSTED_ORIGIN);
+    await vi.runAllTimersAsync();
+
+    expect(getBackstageToken()).toBeNull();
+    expect(window.parent.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('ignores a BACKSTAGE_AUTH_TOKEN message with a non-string token', async () => {
+    dispatchMessage({ type: 'BACKSTAGE_AUTH_TOKEN', payload: { token: 12345 } }, TRUSTED_ORIGIN);
+    await vi.runAllTimersAsync();
+
+    expect(getBackstageToken()).toBeNull();
+    expect(window.parent.postMessage).not.toHaveBeenCalled();
+  });
+
+  it('ignores a BACKSTAGE_KUBECONFIG message with a non-string kubeconfig', async () => {
+    const findAndReplaceKubeconfig = vi
+      .spyOn(statelessFunctions, 'findAndReplaceKubeconfig')
+      .mockResolvedValue(undefined as any);
+
+    dispatchMessage(
+      { type: 'BACKSTAGE_KUBECONFIG', payload: { kubeconfig: 12345 } },
+      TRUSTED_ORIGIN
+    );
+    await vi.runAllTimersAsync();
+
+    expect(findAndReplaceKubeconfig).not.toHaveBeenCalled();
+    expect(window.parent.postMessage).not.toHaveBeenCalled();
+  });
 });
