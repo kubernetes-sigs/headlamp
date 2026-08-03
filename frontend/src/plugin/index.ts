@@ -282,7 +282,7 @@ export function applyPluginPriority(plugins: PluginInfo[]): PluginInfo[] {
 /**
  * Updates settings packages based on what the backend provides.
  *
- * - For new plugins (not in settings), includes them with isEnabled=true
+ * - For new plugins (not in settings), uses headlamp.enabledByDefault and defaults to true
  * - For existing plugins (in settings), preserves their isEnabled preference
  * - Returns only plugins that exist in the backend list (automatically removing any that are gone)
  * - Treats plugins with the same name but different types as separate entries
