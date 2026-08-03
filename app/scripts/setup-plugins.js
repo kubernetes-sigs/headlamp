@@ -134,8 +134,7 @@ async function fetchArchive(name, url) {
   fs.unlinkSync(archivePath);
 }
 
-async function main() {
-  const plugins = manifest.plugins;
+async function main(plugins = manifest.plugins) {
   // Fetch the plugins from the manifest
   if (!!plugins) {
     for (const plugin of plugins) {
@@ -153,8 +152,10 @@ async function main() {
       }
     }
   }
-
-  process.exit(0);
 }
 
-main();
+if (require.main === module) {
+  main().then(() => process.exit(0));
+}
+
+module.exports = { main };
