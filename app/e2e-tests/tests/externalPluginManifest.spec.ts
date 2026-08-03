@@ -21,7 +21,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 
-test('setup-plugins installs a verified plugin from an external manifest', () => {
+test('setup-plugins verifies plugin identity from an external manifest', () => {
   const repositoryRoot = path.resolve(__dirname, '../..');
   const temporaryRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-external-manifest-'));
 
@@ -63,7 +63,14 @@ test('setup-plugins installs a verified plugin from an external manifest', () =>
     fs.writeFileSync(
       manifest,
       JSON.stringify({
-        plugins: [{ name: 'example-plugin', file: './example-plugin.tar.gz', sha256 }],
+        plugins: [
+          {
+            name: 'example-plugin',
+            packageName: 'example-plugin',
+            file: './example-plugin.tar.gz',
+            sha256,
+          },
+        ],
       })
     );
 
@@ -89,6 +96,31 @@ test('setup-plugins installs a verified plugin from an external manifest', () =>
       name: 'example-plugin',
       version: '1.0.0',
     });
+
+    fs.rmSync(installedPlugin, { recursive: true, force: true });
+    fs.writeFileSync(
+      manifest,
+      JSON.stringify({
+        plugins: [
+          {
+            name: 'example-plugin',
+            packageName: '@other/plugin',
+            file: './example-plugin.tar.gz',
+            sha256,
+          },
+        ],
+      })
+    );
+
+    expect(() =>
+      execFileSync(process.execPath, [path.join(scriptsDirectory, 'setup-plugins.ts')], {
+        env: {
+          ...process.env,
+          HEADLAMP_BUILD_MANIFEST: manifest,
+        },
+        stdio: 'pipe',
+      })
+    ).toThrow(/Plugin package name mismatch/);
   } finally {
     fs.rmSync(temporaryRoot, { recursive: true, force: true });
   }
