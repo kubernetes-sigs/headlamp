@@ -28,7 +28,39 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const PLUGIN_FOLDER = path.join(scriptDirectory, '../../.plugins');
 const MANIFEST_FILE = resolveBuildManifestPath();
 const manifest = loadBuildManifest(MANIFEST_FILE) as BuildManifest;
-const externalManifest = MANIFEST_FILE !== DEFAULT_MANIFEST_FILE;
+const externalManifest = !pathsReferToSameFile(MANIFEST_FILE, DEFAULT_MANIFEST_FILE);
+
+/**
+ * Checks whether two paths identify the same file after filesystem canonicalization.
+ *
+ * @param firstPath First path to compare.
+ * @param secondPath Second path to compare.
+ * @returns Whether both paths resolve to the same canonical file.
+ */
+export function pathsReferToSameFile(firstPath: string, secondPath: string): boolean {
+  const canonicalize = (filePath: string): string => {
+    const resolvedPath = path.resolve(filePath);
+    const canonicalPath = fs.existsSync(resolvedPath)
+      ? fs.realpathSync.native(resolvedPath)
+      : resolvedPath;
+    return process.platform === 'win32' ? canonicalPath.toLowerCase() : canonicalPath;
+  };
+
+  return canonicalize(firstPath) === canonicalize(secondPath);
+}
+
+/**
+ * Validates the syntax of a declared SHA-256 digest.
+ *
+ * @param digest Hexadecimal SHA-256 digest to validate.
+ * @returns Nothing when the digest has the expected format.
+ * @throws When the digest is not exactly 64 hexadecimal characters.
+ */
+function validateDigestFormat(digest: string): void {
+  if (!/^[a-f0-9]{64}$/i.test(digest)) {
+    throw new Error(`Invalid SHA-256 digest for plugin archive: ${digest}`);
+  }
+}
 
 /**
  * Ensures a plugin source satisfies the integrity policy for its manifest.
@@ -45,6 +77,9 @@ export function validatePluginSource(
   if (plugin.archive && requireDigest && plugin.sha256 === undefined) {
     throw new Error(`External plugin archive ${plugin.name} must declare a SHA-256 digest`);
   }
+  if (plugin.sha256 !== undefined) {
+    validateDigestFormat(plugin.sha256);
+  }
 }
 
 /**
@@ -59,14 +94,23 @@ export function verifyArchiveDigest(archivePath: string, expectedDigest?: string
   if (expectedDigest === undefined) {
     return;
   }
-  if (!/^[a-f0-9]{64}$/i.test(expectedDigest)) {
-    throw new Error(`Invalid SHA-256 digest for plugin archive: ${expectedDigest}`);
-  }
+  validateDigestFormat(expectedDigest);
 
-  const actualDigest = crypto
-    .createHash('sha256')
-    .update(fs.readFileSync(archivePath))
-    .digest('hex');
+  const hash = crypto.createHash('sha256');
+  const buffer = Buffer.allocUnsafe(64 * 1024);
+  const descriptor = fs.openSync(archivePath, 'r');
+  try {
+    let bytesRead: number;
+    do {
+      bytesRead = fs.readSync(descriptor, buffer, 0, buffer.length, null);
+      if (bytesRead > 0) {
+        hash.update(buffer.subarray(0, bytesRead));
+      }
+    } while (bytesRead > 0);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+  const actualDigest = hash.digest('hex');
   if (actualDigest.toLowerCase() !== expectedDigest.toLowerCase()) {
     throw new Error(
       `Plugin archive SHA-256 mismatch: expected ${expectedDigest}, got ${actualDigest}`
@@ -189,6 +233,21 @@ export function downloadFile(
 }
 
 /**
+ * Derives a local archive filename from a plugin URL pathname.
+ *
+ * @param url Plugin archive URL.
+ * @returns The final pathname segment without query or fragment data.
+ * @throws When the URL pathname does not contain a filename.
+ */
+export function getArchiveFileName(url: string): string {
+  const archiveName = path.posix.basename(new URL(url).pathname);
+  if (!archiveName) {
+    throw new Error(`Plugin archive URL does not contain a file name: ${url}`);
+  }
+  return archiveName;
+}
+
+/**
  * Downloads, verifies, extracts, and removes a temporary plugin archive.
  *
  * @param name Name of the plugin destination directory.
@@ -197,10 +256,7 @@ export function downloadFile(
  * @returns A promise that resolves after the plugin is installed.
  */
 export async function fetchArchive(name: string, url: string, sha256?: string): Promise<void> {
-  const archiveName = url.split('/').pop();
-  if (!archiveName) {
-    throw new Error(`Plugin archive URL does not contain a file name: ${url}`);
-  }
+  const archiveName = getArchiveFileName(url);
   fs.mkdirSync(PLUGIN_FOLDER, { recursive: true });
 
   const temporaryFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugins'));
