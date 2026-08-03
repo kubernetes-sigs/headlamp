@@ -46,7 +46,7 @@ import (
 const (
 	oldTokenTTL             = time.Second * 10 // seconds
 	oidcKeyPrefix           = "oidc-token-"
-	refreshedTokenKeyPrefix = "oidc-refreshed-token-"
+	refreshedTokenKeyPrefix = "oidc-refreshed-token-" //nolint:gosec // cache key prefix, not a credential
 	// refreshTimeout bounds the detached context used for the shared IdP
 	// exchange in GetNewToken, so a hung IdP can't block waiting callers
 	// indefinitely.
