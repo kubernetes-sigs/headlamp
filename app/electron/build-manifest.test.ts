@@ -305,12 +305,41 @@ describe('plugin archive integrity', () => {
     ).not.toThrow();
   });
 
+  it('recognizes equivalent paths to the default manifest', () => {
+    expect(
+      pathsReferToSameFile(
+        DEFAULT_MANIFEST_FILE,
+        path.join(path.dirname(DEFAULT_MANIFEST_FILE), '.', path.basename(DEFAULT_MANIFEST_FILE))
+      )
+    ).toBe(true);
+  });
+
+  it('rejects malformed digests before downloading remote archives', () => {
+    expect(() =>
+      validatePluginSource(
+        {
+          name: 'example',
+          archive: 'https://plugins.example/plugin.tar.gz',
+          sha256: 'not-a-digest',
+        },
+        true
+      )
+    ).toThrow('Invalid SHA-256');
+  });
+
   it('accepts matching digests and manifests without digests', () => {
     const archive = temporaryFile('plugin archive');
     const digest = crypto.createHash('sha256').update('plugin archive').digest('hex');
 
     expect(() => verifyArchiveDigest(archive, digest.toUpperCase())).not.toThrow();
     expect(() => verifyArchiveDigest(archive, undefined)).not.toThrow();
+  });
+
+  it('verifies files larger than the hashing buffer', () => {
+    const archive = temporaryFile('plugin archive'.repeat(10_000));
+    const digest = crypto.createHash('sha256').update(fs.readFileSync(archive)).digest('hex');
+
+    expect(() => verifyArchiveDigest(archive, digest)).not.toThrow();
   });
 
   it('rejects mismatched and malformed digests', () => {
@@ -348,6 +377,15 @@ describe('plugin archive integrity', () => {
 });
 
 describe('plugin archive download', () => {
+  it('derives safe archive names without query strings', () => {
+    expect(getArchiveFileName('https://plugins.example/plugin.tar.gz?token=secret')).toBe(
+      'plugin.tar.gz'
+    );
+    expect(() => getArchiveFileName('https://plugins.example/')).toThrow(
+      'does not contain a file name'
+    );
+  });
+
   it('downloads successful responses', async () => {
     const destination = temporaryFile('');
     nock('https://plugins.example').get('/plugin.tar.gz').reply(200, 'archive');
