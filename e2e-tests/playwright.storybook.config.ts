@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 The Kubernetes Authors
+ * Copyright 2025 The Kubernetes Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -29,7 +29,7 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm --prefix ../frontend run storybook -- --ci --host 127.0.0.1 --port 6007',
+    command: 'cd ../frontend && npm exec storybook dev -- --ci --host 127.0.0.1 --port 6007',
     url: 'http://127.0.0.1:6007',
     reuseExistingServer: !process.env.CI,
   },

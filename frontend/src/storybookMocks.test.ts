@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 The Kubernetes Authors
+ * Copyright 2025 The Kubernetes Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -14,19 +14,17 @@
  * limitations under the License.
  */
 
+import fs from 'fs';
 import { setupServer } from 'msw/node';
+import path from 'path';
 import { baseMocks as frontendMocks } from '../.storybook/baseMocks';
-import { baseMocks as pluginMocks } from '../../plugins/headlamp-plugin/config/.storybook/baseMocks';
 
 const crdV1Url = 'http://localhost:4466/apis/apiextensions.k8s.io/v1/customresourcedefinitions';
 const crdV1beta1Url =
   'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions';
 
-describe.each([
-  ['frontend', frontendMocks],
-  ['plugin template', pluginMocks],
-])('%s Storybook mocks', (_name, handlers) => {
-  const server = setupServer(...handlers);
+describe('frontend Storybook mocks', () => {
+  const server = setupServer(...frontendMocks);
 
   beforeAll(() => server.listen({ onUnhandledRequest: 'error' }));
   afterAll(() => server.close());
@@ -41,6 +39,22 @@ describe.each([
       metadata: {},
       items: [],
     });
-    await expect(fetch(crdV1beta1Url)).rejects.toThrow();
+    await expect(fetch(crdV1beta1Url)).resolves.toMatchObject({ status: 404 });
   });
+});
+
+it.each([
+  ['frontend', path.resolve(__dirname, '../.storybook/baseMocks.ts')],
+  [
+    'plugin template',
+    path.resolve(__dirname, '../../plugins/headlamp-plugin/config/.storybook/baseMocks.ts'),
+  ],
+])('keeps the %s CRD mock contract synchronized', (_name, sourcePath) => {
+  const source = fs.readFileSync(sourcePath, 'utf8');
+
+  expect(source).toContain(crdV1Url);
+  expect(source).toContain("kind: 'CustomResourceDefinitionList'");
+  expect(source).toContain("apiVersion: 'apiextensions.k8s.io/v1'");
+  expect(source).toContain(crdV1beta1Url);
+  expect(source).toContain('new HttpResponse(null, { status: 404 })');
 });
