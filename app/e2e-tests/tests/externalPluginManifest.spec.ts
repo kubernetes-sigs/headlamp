@@ -35,12 +35,16 @@ test('setup-plugins installs a verified plugin from an external manifest', () =>
     fs.mkdirSync(stalePlugin, { recursive: true });
     fs.writeFileSync(path.join(stalePlugin, 'main.js'), 'globalThis.stalePluginLoaded = true;');
     fs.copyFileSync(
-      path.join(repositoryRoot, 'scripts', 'setup-plugins.js'),
-      path.join(scriptsDirectory, 'setup-plugins.js')
+      path.join(repositoryRoot, 'scripts', 'setup-plugins.ts'),
+      path.join(scriptsDirectory, 'setup-plugins.ts')
     );
     fs.copyFileSync(
-      path.join(repositoryRoot, 'scripts', 'build-manifest.js'),
-      path.join(scriptsDirectory, 'build-manifest.js')
+      path.join(repositoryRoot, 'scripts', 'build-manifest.ts'),
+      path.join(scriptsDirectory, 'build-manifest.ts')
+    );
+    fs.symlinkSync(
+      path.join(repositoryRoot, 'node_modules'),
+      path.join(appDirectory, 'node_modules')
     );
     fs.writeFileSync(path.join(appDirectory, 'app-build-manifest.json'), '{"plugins":[]}');
     fs.writeFileSync(path.join(pluginSource, 'main.js'), 'globalThis.externalPluginLoaded = true;');
@@ -66,11 +70,10 @@ test('setup-plugins installs a verified plugin from an external manifest', () =>
       })
     );
 
-    execFileSync(process.execPath, [path.join(scriptsDirectory, 'setup-plugins.js')], {
+    execFileSync(process.execPath, [path.join(scriptsDirectory, 'setup-plugins.ts')], {
       env: {
         ...process.env,
         HEADLAMP_BUILD_MANIFEST: manifest,
-        NODE_PATH: path.join(repositoryRoot, 'node_modules'),
       },
       stdio: 'pipe',
     });
