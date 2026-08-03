@@ -136,6 +136,10 @@ describe('platform metadata', () => {
 });
 
 describe('product metadata', () => {
+  it.each([null, [], 'manifest'])('rejects an invalid manifest value: %j', manifest => {
+    expect(() => applyProductMetadata({}, manifest)).toThrow('Build manifest must be an object');
+  });
+
   it('preserves the configuration when product metadata is absent', () => {
     const defaults = { appId: 'io.headlamp', productName: 'Headlamp' };
 
