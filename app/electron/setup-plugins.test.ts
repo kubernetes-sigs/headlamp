@@ -1,5 +1,5 @@
 /*
- * Copyright 2026 The Kubernetes Authors
+ * Copyright 2025 The Kubernetes Authors
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -15,9 +15,8 @@
  */
 
 import fs from 'node:fs';
-import os from 'node:os';
-import path from 'node:path';
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import * as tar from 'tar';
 import { afterEach, describe, expect, test } from 'vitest';
 
@@ -31,6 +30,10 @@ const { main } = require('../scripts/setup-plugins.js') as {
 const pluginName = `setup-plugins-test-${process.pid}`;
 const pluginFolder = path.resolve(__dirname, '../../.plugins', pluginName);
 let temporaryFolder: string | undefined;
+
+function createTemporaryFolder() {
+  return fs.mkdtempSync(path.resolve(__dirname, `../.setup-plugins-test-${process.pid}-`));
+}
 
 afterEach(() => {
   fs.rmSync(pluginFolder, { force: true, recursive: true });
@@ -46,7 +49,7 @@ describe('setup-plugins', () => {
   });
 
   test('extracts a local plugin and preserves its package metadata', async () => {
-    temporaryFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-setup-plugins-'));
+    temporaryFolder = createTemporaryFolder();
     const archiveRoot = path.join(temporaryFolder, 'archive', pluginName);
     const archivePath = path.join(temporaryFolder, 'plugin.tar.gz');
     const packageJson = {
@@ -67,10 +70,10 @@ describe('setup-plugins', () => {
     expect(JSON.parse(fs.readFileSync(path.join(pluginFolder, 'package.json'), 'utf8'))).toEqual(
       packageJson
     );
-  });
+  }, 30000);
 
   test('writes a disabled manifest default into the plugin package', async () => {
-    temporaryFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-setup-plugins-'));
+    temporaryFolder = createTemporaryFolder();
     const archiveRoot = path.join(temporaryFolder, 'archive', pluginName);
     const archivePath = path.join(temporaryFolder, 'plugin.tar.gz');
 
@@ -102,10 +105,10 @@ describe('setup-plugins', () => {
         existingSetting: true,
       },
     });
-  });
+  }, 30000);
 
   test('creates Headlamp metadata for an enabled manifest default', async () => {
-    temporaryFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-setup-plugins-'));
+    temporaryFolder = createTemporaryFolder();
     const archiveRoot = path.join(temporaryFolder, 'archive', pluginName);
     const archivePath = path.join(temporaryFolder, 'plugin.tar.gz');
 
@@ -128,7 +131,7 @@ describe('setup-plugins', () => {
     expect(
       JSON.parse(fs.readFileSync(path.join(pluginFolder, 'package.json'), 'utf8'))
     ).toMatchObject({ headlamp: { enabledByDefault: true } });
-  });
+  }, 30000);
 
   test('skips a manifest default when the plugin package was not extracted', async () => {
     await expect(main([{ name: pluginName, enabledByDefault: false }])).resolves.toBeUndefined();

@@ -34,7 +34,7 @@ async function extractArchive(
         console.log('Extracted archive');
         const pluginFolder = path.join(PLUGIN_FOLDER, name);
         if (!fs.existsSync(pluginFolder)) {
-          fs.mkdirSync(pluginFolder);
+          fs.mkdirSync(pluginFolder, { recursive: true });
         }
 
         console.log('Copying plugin to ', pluginFolder);
@@ -147,7 +147,7 @@ async function main(plugins = manifest.plugins) {
       }
 
       if (!!file) {
-        const absPath = path.join(path.dirname(MANIFEST_FILE), file);
+        const absPath = path.resolve(path.dirname(MANIFEST_FILE), file);
         await extractArchive(name, absPath);
       }
     }
