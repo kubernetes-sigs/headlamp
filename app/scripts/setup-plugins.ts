@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import https from 'node:https';
 import os from 'node:os';
 import path from 'node:path';
+import { pipeline } from 'node:stream/promises';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import zlib from 'node:zlib';
 import { globSync } from 'glob';
@@ -43,7 +44,39 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const PLUGIN_FOLDER = path.join(scriptDirectory, '../../.plugins');
 const MANIFEST_FILE = resolveBuildManifestPath();
 const manifest = loadBuildManifest(MANIFEST_FILE) as BuildManifest;
-const externalManifest = MANIFEST_FILE !== DEFAULT_MANIFEST_FILE;
+const externalManifest = !pathsReferToSameFile(MANIFEST_FILE, DEFAULT_MANIFEST_FILE);
+
+/**
+ * Checks whether two paths identify the same file after filesystem canonicalization.
+ *
+ * @param firstPath First path to compare.
+ * @param secondPath Second path to compare.
+ * @returns Whether both paths resolve to the same canonical file.
+ */
+export function pathsReferToSameFile(firstPath: string, secondPath: string): boolean {
+  const canonicalize = (filePath: string): string => {
+    const resolvedPath = path.resolve(filePath);
+    const canonicalPath = fs.existsSync(resolvedPath)
+      ? fs.realpathSync.native(resolvedPath)
+      : resolvedPath;
+    return process.platform === 'win32' ? canonicalPath.toLowerCase() : canonicalPath;
+  };
+
+  return canonicalize(firstPath) === canonicalize(secondPath);
+}
+
+/**
+ * Validates the syntax of a declared SHA-256 digest.
+ *
+ * @param digest Hexadecimal SHA-256 digest to validate.
+ * @returns Nothing when the digest has the expected format.
+ * @throws When the digest is not exactly 64 hexadecimal characters.
+ */
+function validateDigestFormat(digest: string): void {
+  if (!/^[a-f0-9]{64}$/i.test(digest)) {
+    throw new Error(`Invalid SHA-256 digest for plugin archive: ${digest}`);
+  }
+}
 
 /**
  * Ensures a plugin source satisfies the integrity policy for its manifest.
@@ -51,14 +84,36 @@ const externalManifest = MANIFEST_FILE !== DEFAULT_MANIFEST_FILE;
  * @param plugin Plugin source declaration to validate.
  * @param requireDigest Whether remote archives must declare a SHA-256 digest.
  * @returns Nothing when the plugin source is valid.
- * @throws When a remote archive requires a digest but does not declare one.
+ * @throws When the plugin name or source is unsafe, ambiguous, or incomplete.
+ * @throws When a remote archive requires a digest but does not declare a valid one.
  */
 export function validatePluginSource(
   plugin: PluginSource,
   requireDigest: boolean = externalManifest
 ): void {
+  if (
+    typeof plugin.name !== 'string' ||
+    plugin.name.trim() === '' ||
+    plugin.name === '.' ||
+    plugin.name === '..' ||
+    /[\\/]/.test(plugin.name)
+  ) {
+    throw new Error(`Invalid plugin name: ${String(plugin.name)}`);
+  }
+
+  const declaredSources = [plugin.archive, plugin.file].filter(source => source !== undefined);
+  if (declaredSources.length !== 1) {
+    throw new Error(`Plugin ${plugin.name} must declare exactly one source: archive or file`);
+  }
+  if (typeof declaredSources[0] !== 'string' || declaredSources[0].trim() === '') {
+    throw new Error(`Plugin ${plugin.name} source must not be empty`);
+  }
+
   if (plugin.archive && requireDigest && plugin.sha256 === undefined) {
     throw new Error(`External plugin archive ${plugin.name} must declare a SHA-256 digest`);
+  }
+  if (plugin.sha256 !== undefined) {
+    validateDigestFormat(plugin.sha256);
   }
 }
 
@@ -74,14 +129,23 @@ export function verifyArchiveDigest(archivePath: string, expectedDigest?: string
   if (expectedDigest === undefined) {
     return;
   }
-  if (!/^[a-f0-9]{64}$/i.test(expectedDigest)) {
-    throw new Error(`Invalid SHA-256 digest for plugin archive: ${expectedDigest}`);
-  }
+  validateDigestFormat(expectedDigest);
 
-  const actualDigest = crypto
-    .createHash('sha256')
-    .update(fs.readFileSync(archivePath))
-    .digest('hex');
+  const hash = crypto.createHash('sha256');
+  const buffer = Buffer.allocUnsafe(64 * 1024);
+  const descriptor = fs.openSync(archivePath, 'r');
+  try {
+    let bytesRead: number;
+    do {
+      bytesRead = fs.readSync(descriptor, buffer, 0, buffer.length, null);
+      if (bytesRead > 0) {
+        hash.update(buffer.subarray(0, bytesRead));
+      }
+    } while (bytesRead > 0);
+  } finally {
+    fs.closeSync(descriptor);
+  }
+  const actualDigest = hash.digest('hex');
   if (actualDigest.toLowerCase() !== expectedDigest.toLowerCase()) {
     throw new Error(
       `Plugin archive SHA-256 mismatch: expected ${expectedDigest}, got ${actualDigest}`
@@ -103,47 +167,35 @@ export async function extractArchive(
   temporaryFolder: string = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugins'))
 ): Promise<void> {
   console.log('Extracting archive', archivePath, 'to', temporaryFolder, '...');
-  const extraction = new Promise<void>((resolve, reject) => {
-    fs.createReadStream(archivePath)
-      .pipe(zlib.createGunzip())
-      .pipe(tar.x({ C: temporaryFolder }))
-      .on('error', (error: Error) => {
-        console.error(`Error extracting archive: ${error}`);
-        reject(error);
-      })
-      .on('end', () => {
-        const pluginFolder = path.join(PLUGIN_FOLDER, name);
-        fs.mkdirSync(pluginFolder, { recursive: true });
+  await pipeline(
+    fs.createReadStream(archivePath),
+    zlib.createGunzip(),
+    tar.x({ C: temporaryFolder })
+  );
 
-        const mainLocations = globSync(
-          path.join(temporaryFolder, '*', 'main.js').replace(/\\/g, '/')
-        );
-        const mainLocation = mainLocations[0];
-        if (mainLocation && fs.existsSync(mainLocation)) {
-          fs.copyFileSync(mainLocation, path.join(pluginFolder, 'main.js'));
-          fs.copyFileSync(
-            path.join(path.dirname(mainLocation), 'package.json'),
-            path.join(pluginFolder, 'package.json')
-          );
-        } else if (fs.existsSync(path.join(temporaryFolder, 'package', 'dist'))) {
-          fs.copyFileSync(
-            path.join(temporaryFolder, 'package', 'dist', 'main.js'),
-            path.join(pluginFolder, 'main.js')
-          );
-          fs.copyFileSync(
-            path.join(temporaryFolder, 'package', 'package.json'),
-            path.join(pluginFolder, 'package.json')
-          );
-        } else {
-          reject(new Error(`Failed to find plugin content within archive: ${archivePath}`));
-          return;
-        }
+  const pluginFolder = path.join(PLUGIN_FOLDER, name);
+  fs.mkdirSync(pluginFolder, { recursive: true });
 
-        resolve();
-      });
-  });
-
-  await extraction;
+  const mainLocations = globSync(path.join(temporaryFolder, '*', 'main.js').replace(/\\/g, '/'));
+  const mainLocation = mainLocations[0];
+  if (mainLocation && fs.existsSync(mainLocation)) {
+    fs.copyFileSync(mainLocation, path.join(pluginFolder, 'main.js'));
+    fs.copyFileSync(
+      path.join(path.dirname(mainLocation), 'package.json'),
+      path.join(pluginFolder, 'package.json')
+    );
+  } else if (fs.existsSync(path.join(temporaryFolder, 'package', 'dist'))) {
+    fs.copyFileSync(
+      path.join(temporaryFolder, 'package', 'dist', 'main.js'),
+      path.join(pluginFolder, 'main.js')
+    );
+    fs.copyFileSync(
+      path.join(temporaryFolder, 'package', 'package.json'),
+      path.join(pluginFolder, 'package.json')
+    );
+  } else {
+    throw new Error(`Failed to find plugin content within archive: ${archivePath}`);
+  }
 }
 
 /**
@@ -204,6 +256,21 @@ export function downloadFile(
 }
 
 /**
+ * Derives a local archive filename from a plugin URL pathname.
+ *
+ * @param url Plugin archive URL.
+ * @returns The final pathname segment without query or fragment data.
+ * @throws When the URL pathname does not contain a filename.
+ */
+export function getArchiveFileName(url: string): string {
+  const archiveName = path.posix.basename(new URL(url).pathname);
+  if (!archiveName) {
+    throw new Error(`Plugin archive URL does not contain a file name: ${url}`);
+  }
+  return archiveName;
+}
+
+/**
  * Downloads, verifies, extracts, and removes a temporary plugin archive.
  *
  * @param name Name of the plugin destination directory.
@@ -212,10 +279,7 @@ export function downloadFile(
  * @returns A promise that resolves after the plugin is installed.
  */
 export async function fetchArchive(name: string, url: string, sha256?: string): Promise<void> {
-  const archiveName = url.split('/').pop();
-  if (!archiveName) {
-    throw new Error(`Plugin archive URL does not contain a file name: ${url}`);
-  }
+  const archiveName = getArchiveFileName(url);
   fs.mkdirSync(PLUGIN_FOLDER, { recursive: true });
 
   const temporaryFolder = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugins'));
@@ -232,10 +296,13 @@ export async function fetchArchive(name: string, url: string, sha256?: string): 
  * @returns A promise that resolves after all declared plugins are installed.
  */
 export async function main(): Promise<void> {
-  for (const plugin of manifest.plugins ?? []) {
-    const { name, archive, file, sha256 } = plugin;
-    validatePluginSource(plugin);
+  const plugins = manifest.plugins ?? [];
+  plugins.forEach(plugin => validatePluginSource(plugin));
 
+  fs.rmSync(PLUGIN_FOLDER, { recursive: true, force: true });
+  fs.mkdirSync(PLUGIN_FOLDER, { recursive: true });
+
+  for (const { name, archive, file, sha256 } of plugins) {
     if (archive) {
       await fetchArchive(name, archive, sha256);
     }
