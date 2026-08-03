@@ -38,10 +38,7 @@ function makeColumn(
   } as unknown as MRT_Column<Row>;
 }
 
-function makeTable(
-  columns: MRT_Column<Row>[],
-  options: { allVisible?: boolean; someVisible?: boolean } = {}
-) {
+function makeTable(columns: MRT_Column<Row>[]) {
   return {
     options: {
       icons: { ViewColumnIcon: () => <span /> },
@@ -52,8 +49,6 @@ function makeTable(
       },
     },
     getAllLeafColumns: () => columns,
-    getIsSomeColumnsVisible: () => options.someVisible ?? true,
-    getIsAllColumnsVisible: () => options.allVisible ?? false,
   } as unknown as MRT_TableInstance<Row>;
 }
 
@@ -101,6 +96,8 @@ test('only lists eligible columns as keyboard-accessible menu items', () => {
   );
   expect(screen.getAllByRole('menuitemcheckbox')).toHaveLength(2);
   expect(screen.queryByRole('checkbox')).not.toBeInTheDocument();
+  expect(nameItem.querySelector('input')).toHaveAttribute('tabindex', '-1');
+  expect(nameItem.querySelector('input')).toHaveAttribute('readonly');
 
   fireEvent.click(nameItem);
   expect(name.toggleVisibility).toHaveBeenCalledOnce();
@@ -108,7 +105,7 @@ test('only lists eligible columns as keyboard-accessible menu items', () => {
 
 test('hides and shows every hideable column', () => {
   const name = makeColumn('Name');
-  const age = makeColumn('Age');
+  const age = makeColumn('Age', { isVisible: false });
   const locked = makeColumn('Locked', { canHide: false });
 
   render(<ColumnVisibilityButton table={makeTable([name, age, locked])} />);
@@ -125,9 +122,26 @@ test('hides and shows every hideable column', () => {
 });
 
 test('disables bulk actions when they cannot change visibility', () => {
+  render(<ColumnVisibilityButton table={makeTable([makeColumn('Locked', { canHide: false })])} />);
+  fireEvent.click(screen.getByRole('button', { name: 'Show or hide columns' }));
+
+  expect(screen.getByRole('menuitem', { name: 'Hide all' })).toHaveAttribute(
+    'aria-disabled',
+    'true'
+  );
+  expect(screen.getByRole('menuitem', { name: 'Show all' })).toHaveAttribute(
+    'aria-disabled',
+    'true'
+  );
+});
+
+test('derives bulk action availability from hideable columns', () => {
   render(
     <ColumnVisibilityButton
-      table={makeTable([makeColumn('Name')], { allVisible: true, someVisible: false })}
+      table={makeTable([
+        makeColumn('Locked', { canHide: false, isVisible: true }),
+        makeColumn('Hidden', { isVisible: false }),
+      ])}
     />
   );
   fireEvent.click(screen.getByRole('button', { name: 'Show or hide columns' }));
@@ -136,7 +150,7 @@ test('disables bulk actions when they cannot change visibility', () => {
     'aria-disabled',
     'true'
   );
-  expect(screen.getByRole('menuitem', { name: 'Show all' })).toHaveAttribute(
+  expect(screen.getByRole('menuitem', { name: 'Show all' })).not.toHaveAttribute(
     'aria-disabled',
     'true'
   );

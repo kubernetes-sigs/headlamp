@@ -45,9 +45,12 @@ export function ColumnVisibilityButton<T extends Record<string, any>>({
         col.columnDef.visibleInShowHideMenu !== false &&
         col.columnDef.columnDefType !== 'display'
     );
+  const hideableColumns = columns.filter(col => col.getCanHide());
+  const hasVisibleHideableColumns = hideableColumns.some(col => col.getIsVisible());
+  const hasHiddenHideableColumns = hideableColumns.some(col => !col.getIsVisible());
 
   const handleToggleAll = (visible: boolean) => {
-    columns.filter(col => col.getCanHide()).forEach(col => col.toggleVisibility(visible));
+    hideableColumns.forEach(col => col.toggleVisibility(visible));
   };
 
   return (
@@ -70,13 +73,10 @@ export function ColumnVisibilityButton<T extends Record<string, any>>({
         onClose={() => setAnchorEl(null)}
         disableScrollLock
       >
-        <MenuItem
-          disabled={!table.getIsSomeColumnsVisible()}
-          onClick={() => handleToggleAll(false)}
-        >
+        <MenuItem disabled={!hasVisibleHideableColumns} onClick={() => handleToggleAll(false)}>
           {localization.hideAll}
         </MenuItem>
-        <MenuItem disabled={table.getIsAllColumnsVisible()} onClick={() => handleToggleAll(true)}>
+        <MenuItem disabled={!hasHiddenHideableColumns} onClick={() => handleToggleAll(true)}>
           {localization.showAll}
         </MenuItem>
         <Divider />
@@ -91,9 +91,9 @@ export function ColumnVisibilityButton<T extends Record<string, any>>({
             <Switch
               size="small"
               checked={column.getIsVisible()}
-              onChange={() => {}}
+              readOnly
               tabIndex={-1}
-              inputProps={{ 'aria-hidden': true }}
+              inputProps={{ 'aria-hidden': true, tabIndex: -1 }}
               edge="start"
               sx={{ mr: 1, pointerEvents: 'none' }}
             />
