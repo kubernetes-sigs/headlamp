@@ -207,17 +207,24 @@ func (conn *WSConnLock) Close() error {
 }
 
 // NewMultiplexer creates a new Multiplexer instance.
-func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAccountToken bool) *Multiplexer {
+func NewMultiplexer(
+	kubeConfigStore kubeconfig.ContextStore,
+	unsafeUseServiceAccountToken bool,
+	devMode bool,
+) *Multiplexer {
+	upgrader := websocket.Upgrader{}
+	if devMode {
+		upgrader.CheckOrigin = func(r *http.Request) bool {
+			return true
+		}
+	}
+
 	return &Multiplexer{
 		connections:                  make(map[string]*Connection),
 		kubeConfigStore:              kubeConfigStore,
 		unsafeUseServiceAccountToken: unsafeUseServiceAccountToken,
 		saTokenCache:                 make(map[string]saTokenCacheEntry),
-		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				return true
-			},
-		},
+		upgrader:                     upgrader,
 	}
 }
 

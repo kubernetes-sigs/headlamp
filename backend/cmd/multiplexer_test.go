@@ -47,7 +47,7 @@ func newTestDialer() *websocket.Dialer {
 
 func TestNewMultiplexer(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, false)
+	m := NewMultiplexer(store, false, false)
 
 	assert.NotNil(t, m)
 	assert.Equal(t, store, m.kubeConfigStore)
@@ -57,7 +57,7 @@ func TestNewMultiplexer(t *testing.T) {
 
 func TestHandleClientWebSocket(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
-	m := NewMultiplexer(contextStore, false)
+	m := NewMultiplexer(contextStore, false, false)
 
 	// Create test server
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -69,7 +69,14 @@ func TestHandleClientWebSocket(t *testing.T) {
 	dialer := newTestDialer()
 
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
-	ws, resp, err := dialer.Dial(wsURL, nil)
+
+	// Send an Origin header matching the test server to validate that
+	// legitimate same-origin browser handshakes succeed under the default
+	// secure (devMode=false) configuration.
+	headers := http.Header{}
+	headers.Set("Origin", "http"+strings.TrimPrefix(server.URL, "http"))
+
+	ws, resp, err := dialer.Dial(wsURL, headers)
 	require.NoError(t, err)
 
 	if resp != nil && resp.Body != nil {
@@ -101,9 +108,39 @@ func TestHandleClientWebSocket(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestHandleClientWebSocketCrossOrigin(t *testing.T) {
+	contextStore := kubeconfig.NewContextStore()
+	m := NewMultiplexer(contextStore, false, false)
+
+	// Create test server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		m.HandleClientWebSocket(w, r)
+	}))
+	defer server.Close()
+
+	// Connect to test server
+	dialer := newTestDialer()
+
+	headers := http.Header{}
+	headers.Add("Origin", "http://malicious.com")
+
+	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
+	ws, resp, err := dialer.Dial(wsURL, headers)
+
+	if resp != nil && resp.Body != nil {
+		defer func() { _ = resp.Body.Close() }()
+	}
+
+	// Expecting handshake to fail due to cross-origin
+	assert.Error(t, err)
+	assert.Nil(t, ws)
+	require.NotNil(t, resp)
+	assert.Equal(t, http.StatusForbidden, resp.StatusCode)
+}
+
 func TestGetClusterConfigWithFallback(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, false)
+	m := NewMultiplexer(store, false, false)
 
 	// Add a mock cluster config
 	err := store.AddContext(&kubeconfig.Context{
@@ -125,7 +162,7 @@ func TestGetClusterConfigWithFallback(t *testing.T) {
 }
 
 func TestCreateConnection(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 	clientConn, _ := createTestWebSocketConnection()
 
 	// Add RequestID to the createConnection call
@@ -138,7 +175,7 @@ func TestCreateConnection(t *testing.T) {
 }
 
 func TestDialWebSocket(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		upgrader := websocket.Upgrader{
 			CheckOrigin: func(r *http.Request) bool {
@@ -181,7 +218,7 @@ func TestDialWebSocket(t *testing.T) {
 }
 
 func TestDialWebSocket_WithToken(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 
 	var receivedAuth string
 
@@ -216,7 +253,7 @@ func TestDialWebSocket_WithToken(t *testing.T) {
 
 func TestDialWebSocket_Errors(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
-	m := NewMultiplexer(contextStore, false)
+	m := NewMultiplexer(contextStore, false, false)
 
 	// Test invalid URL
 	tlsConfig := &tls.Config{InsecureSkipVerify: true} //nolint:gosec
@@ -255,7 +292,7 @@ func TestDialWebSocket_BadHandshakeLogging(t *testing.T) {
 	defer logger.SetLogFunc(originalLogFunc)
 
 	contextStore := kubeconfig.NewContextStore()
-	m := NewMultiplexer(contextStore, false)
+	m := NewMultiplexer(contextStore, false, false)
 
 	// Convert HTTP URL to WebSocket URL
 	wsURL := "ws" + strings.TrimPrefix(server.URL, "http")
@@ -373,7 +410,7 @@ func TestCreateWebSocketURLEdgeCases(t *testing.T) {
 }
 
 func TestMonitorConnection(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -447,7 +484,7 @@ func TestUpdateStatus(t *testing.T) {
 }
 
 func TestCleanupConnections(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -468,7 +505,7 @@ func TestCleanupConnections(t *testing.T) {
 }
 
 func TestCloseConnection(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -488,7 +525,7 @@ func TestCloseConnection(t *testing.T) {
 }
 
 func TestCloseClientConnectionsClearsClientBeforeClosing(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -690,7 +727,7 @@ func createMockKubeAPIServer() *httptest.Server {
 
 func TestGetOrCreateConnection(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, false)
+	m := NewMultiplexer(store, false, false)
 
 	// Create a mock Kubernetes API server
 	mockServer := createMockKubeAPIServer()
@@ -742,7 +779,7 @@ func TestGetOrCreateConnection(t *testing.T) {
 
 func TestEstablishClusterConnection(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, false)
+	m := NewMultiplexer(store, false, false)
 
 	// Create a mock Kubernetes API server
 	mockServer := createMockKubeAPIServer()
@@ -779,7 +816,7 @@ func TestEstablishClusterConnection(t *testing.T) {
 
 func TestEstablishClusterConnectionUsesServiceAccountToken(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, true)
+	m := NewMultiplexer(store, true, false)
 	tokenFile := writeTestTokenFile(t)
 
 	var receivedAuth string
@@ -838,7 +875,7 @@ func TestEstablishClusterConnectionUsesServiceAccountToken(t *testing.T) {
 
 func TestReconnect(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, false)
+	m := NewMultiplexer(store, false, false)
 
 	// Create a mock Kubernetes API server
 	mockServer := createMockKubeAPIServer()
@@ -902,7 +939,7 @@ func TestReconnect(t *testing.T) {
 }
 
 func TestCreateWrapperMessage(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 	conn := &Connection{
 		ClusterID: "test-cluster",
 		Path:      "/api/v1/pods",
@@ -932,7 +969,7 @@ func TestCreateWrapperMessage(t *testing.T) {
 }
 
 func TestHandleConnectionError(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -986,7 +1023,7 @@ func TestHandleConnectionError(t *testing.T) {
 //nolint:funlen
 func TestReadClientMessage_InvalidMessage(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
-	m := NewMultiplexer(contextStore, false)
+	m := NewMultiplexer(contextStore, false, false)
 
 	// Create a server that will echo messages back
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1114,7 +1151,7 @@ func TestUpdateStatus_WithError(t *testing.T) {
 
 func TestMonitorConnection_ReconnectFailure(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, false)
+	m := NewMultiplexer(store, false, false)
 
 	// Add an invalid cluster config to force reconnection failure
 	err := store.AddContext(&kubeconfig.Context{
@@ -1164,7 +1201,7 @@ func TestMonitorConnection_ReconnectFailure(t *testing.T) {
 }
 
 func TestHandleClientWebSocket_InvalidMessages(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		m.HandleClientWebSocket(w, r)
@@ -1201,7 +1238,7 @@ func TestHandleClientWebSocket_InvalidMessages(t *testing.T) {
 }
 
 func TestSendIfNewResourceVersion_VersionComparison(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -1247,7 +1284,7 @@ func TestSendIfNewResourceVersion_VersionComparison(t *testing.T) {
 }
 
 func TestSendCompleteMessage_ClosedConnection(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -1321,7 +1358,7 @@ func TestSendCompleteMessage_ErrorConditions(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+			m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 			clientConn, clientServer := createTestWebSocketConnection()
 
 			defer clientServer.Close()
@@ -1347,7 +1384,7 @@ func TestSendCompleteMessage_ErrorConditions(t *testing.T) {
 
 func TestGetOrCreateConnection_TokenRefresh(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, false)
+	m := NewMultiplexer(store, false, false)
 
 	// Create a mock Kubernetes API server
 	mockServer := createMockKubeAPIServer()
@@ -1395,7 +1432,7 @@ func TestGetOrCreateConnection_TokenRefresh(t *testing.T) {
 
 func TestGetOrCreateConnectionDoesNotOverwriteServiceAccountToken(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, true)
+	m := NewMultiplexer(store, true, false)
 
 	clientConn, clientServer := createTestWebSocketConnection()
 	defer clientServer.Close()
@@ -1433,7 +1470,7 @@ func TestGetOrCreateConnectionDoesNotOverwriteServiceAccountToken(t *testing.T) 
 
 func TestReconnect_WithToken(t *testing.T) {
 	store := kubeconfig.NewContextStore()
-	m := NewMultiplexer(store, false)
+	m := NewMultiplexer(store, false, false)
 
 	// Create a mock Kubernetes API server
 	mockServer := createMockKubeAPIServer()
@@ -1497,7 +1534,7 @@ func TestReconnect_WithToken(t *testing.T) {
 
 func TestMonitorConnection_Reconnect(t *testing.T) {
 	contextStore := kubeconfig.NewContextStore()
-	m := NewMultiplexer(contextStore, false)
+	m := NewMultiplexer(contextStore, false, false)
 
 	// Create a server that will accept the connection and then close it
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -1548,7 +1585,7 @@ func TestMonitorConnection_Reconnect(t *testing.T) {
 }
 
 func TestWriteMessageToCluster(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 	clusterConn, clusterServer := createTestWebSocketConnection()
 
 	defer clusterServer.Close()
@@ -1591,7 +1628,7 @@ func TestWriteMessageToCluster(t *testing.T) {
 }
 
 func TestHandleClusterMessages(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -1638,7 +1675,7 @@ func TestHandleClusterMessages(t *testing.T) {
 }
 
 func TestSendCompleteMessage(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -1667,7 +1704,7 @@ func TestSendCompleteMessage(t *testing.T) {
 }
 
 func TestSendDataMessage(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 	clientConn, clientServer := createTestWebSocketConnection()
 
 	defer clientServer.Close()
@@ -1761,7 +1798,7 @@ func runConcurrentLockStress(
 // sequentially (writeMu → unlock → mu → unlock), eliminating the nested
 // acquisition entirely.
 func TestConcurrentUpdateStatusAndSendDataMessage(t *testing.T) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 
 	clientConn, clientServer := createTestWebSocketConnection()
 	defer clientServer.Close()
@@ -1865,7 +1902,7 @@ var benchWatchEventMsg = []byte(`{
 // extracting metadata.resourceVersion from a typical Kubernetes watch event.
 // This is the hottest path in the multiplexer.
 func BenchmarkSendIfNewResourceVersion(b *testing.B) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 	conn := &Connection{
 		ClusterID: "test-cluster",
 		Path:      "/api/v1/namespaces/default/pods",
@@ -1887,7 +1924,7 @@ func BenchmarkSendIfNewResourceVersion(b *testing.B) {
 // BenchmarkSendIfNewResourceVersion_DirectMetadata benchmarks the case where
 // resourceVersion is at the top-level metadata (non-watch event format).
 func BenchmarkSendIfNewResourceVersion_DirectMetadata(b *testing.B) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 
 	directMsg := []byte(`{
 		"apiVersion": "v1", "kind": "Pod",
@@ -1921,7 +1958,7 @@ var benchConnectionKeySink string
 // BenchmarkCreateConnectionKey measures the allocation overhead of creating
 // connection keys used for map lookups on every WebSocket message routing.
 func BenchmarkCreateConnectionKey(b *testing.B) {
-	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false, false)
 
 	clusterID := "my-production-cluster"
 	path := "/api/v1/namespaces/kube-system/pods"
