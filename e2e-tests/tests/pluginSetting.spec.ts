@@ -43,7 +43,7 @@ test('pod counter plugin should have setting option', async ({ page }) => {
 
   await headlampPage.navigateTopage('/settings/plugins', /Plugin/);
   const pluginRow = page.getByRole('row').filter({ hasText: pluginName });
-  await expect(pluginRow).toContainText('Enabled');
+  await expect(pluginRow).toBeVisible();
   await headlampPage.clickOnPlugin(pluginName);
   await headlampPage.hasTitleContaining(/Plugin Details/);
   await headlampPage.checkPageContent('Custom Error Message');

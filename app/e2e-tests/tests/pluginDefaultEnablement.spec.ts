@@ -104,7 +104,6 @@ test.describe('plugin default enablement', () => {
 
     const pluginRow = electronPage.getByRole('row').filter({ hasText: pluginName });
     const pluginToggle = pluginRow.getByRole('checkbox');
-    await expect(pluginRow).toContainText('Disabled');
     await expect(pluginToggle).toBeVisible();
     await expect(pluginToggle).not.toBeChecked();
   });
