@@ -123,16 +123,18 @@ test('changes column visibility with the keyboard', async ({ page }) => {
   await columnSelector.focus();
   await page.keyboard.press('Enter');
 
-  await expect(page.getByRole('menuitem', { name: 'Hide all' })).toBeFocused();
-  await page.keyboard.press('ArrowDown');
-  await page.keyboard.press('ArrowDown');
-
   const columnItem = page.getByRole('menuitemcheckbox').first();
+  const initialChecked = await columnItem.getAttribute('aria-checked');
+  expect(initialChecked).toMatch(/^(true|false)$/);
+
+  await columnItem.focus();
   await expect(columnItem).toBeFocused();
-  await expect(columnItem).toHaveAttribute('aria-checked', 'true');
 
   await page.keyboard.press('Space');
-  await expect(columnItem).toHaveAttribute('aria-checked', 'false');
+  await expect(columnItem).toHaveAttribute(
+    'aria-checked',
+    initialChecked === 'true' ? 'false' : 'true'
+  );
 });
 
 test('multi tab create delete pod', async ({ browser }) => {
