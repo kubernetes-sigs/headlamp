@@ -24,6 +24,7 @@ import * as tar from 'tar';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   applyPlatformMetadata,
+  applyProductMetadata,
   DEFAULT_MANIFEST_FILE,
   loadBuildManifest,
   resolveBuildManifestPath,
@@ -122,12 +123,120 @@ describe('platform metadata', () => {
       './fixtures/platform-build-manifest.json'
     );
 
+    vi.resetModules();
+    const { default: config } = await import('../electron-builder.config.ts');
+
+    expect(config.linux).toMatchObject({
+      executableName: 'example-headlamp',
+      category: 'Network',
+    });
+    expect(config.mac).toMatchObject({ appId: 'io.example.headlamp' });
+    expect(config.win).toMatchObject({ icon: 'build/icons/example.ico' });
+  });
+});
+
+describe('product metadata', () => {
+  it('preserves the configuration when product metadata is absent', () => {
+    const defaults = { appId: 'io.headlamp', productName: 'Headlamp' };
+
+    expect(applyProductMetadata(defaults, {})).toBe(defaults);
+  });
+
+  it.each([null, [], 'headlamp'])('rejects an invalid product value: %j', product => {
+    expect(() => applyProductMetadata({}, { product })).toThrow(
+      'Build manifest product must be an object'
+    );
+  });
+
+  it('applies product identity while preserving unrelated defaults', () => {
+    const defaults = {
+      appId: 'io.headlamp',
+      productName: 'Headlamp',
+      category: 'Network',
+      extraMetadata: { channel: 'stable' },
+    };
+
+    expect(
+      applyProductMetadata(defaults, {
+        product: {
+          name: 'example-desktop',
+          productName: 'Example Desktop',
+          version: '1.2.3',
+          appId: 'io.example.desktop',
+          artifactName: '${name}-${version}.${ext}',
+          protocols: { name: 'example', schemes: ['example'] },
+        },
+      })
+    ).toEqual({
+      appId: 'io.example.desktop',
+      productName: 'Example Desktop',
+      category: 'Network',
+      artifactName: '${name}-${version}.${ext}',
+      protocols: { name: 'example', schemes: ['example'] },
+      buildVersion: '1.2.3',
+      extraMetadata: {
+        channel: 'stable',
+        name: 'example-desktop',
+        productName: 'Example Desktop',
+        version: '1.2.3',
+      },
+    });
+    expect(defaults).toEqual({
+      appId: 'io.headlamp',
+      productName: 'Headlamp',
+      category: 'Network',
+      extraMetadata: { channel: 'stable' },
+    });
+  });
+
+  it.each(['name', 'productName', 'version', 'appId', 'artifactName'])(
+    'rejects a non-string product.%s',
+    field => {
+      expect(() => applyProductMetadata({}, { product: { [field]: 1 } })).toThrow(
+        `Build manifest product.${field} must be a string`
+      );
+    }
+  );
+
+  it.each([null, [], 'example'])('rejects invalid product protocols: %j', protocols => {
+    expect(() => applyProductMetadata({}, { product: { protocols } })).toThrow(
+      'Build manifest product.protocols must be an object'
+    );
+  });
+
+  it.each([null, [], 'metadata'])(
+    'replaces malformed inherited extra metadata: %j',
+    extraMetadata => {
+      expect(
+        applyProductMetadata({ extraMetadata }, { product: { name: 'example-desktop' } })
+          .extraMetadata
+      ).toEqual({ name: 'example-desktop' });
+    }
+  );
+
+  it('applies a selected product manifest to the Electron Builder configuration', async () => {
+    const manifestFile = temporaryFile(
+      JSON.stringify({
+        product: {
+          name: 'example-desktop',
+          productName: 'Example Desktop',
+          version: '1.2.3',
+          appId: 'io.example.desktop',
+        },
+      })
+    );
+    process.env.HEADLAMP_BUILD_MANIFEST = manifestFile;
+
     const config = await getConfig(appPath, 'electron-builder.config.ts', {});
 
-    expect(config.linux.executableName).toBe('example-headlamp');
-    expect(config.linux.category).toBe('Network');
-    expect(config.mac.appId).toBe('io.example.headlamp');
-    expect(config.win.icon).toBe('build/icons/example.ico');
+    expect(config.appId).toBe('io.example.desktop');
+    expect(config.productName).toBe('Example Desktop');
+    expect(config.buildVersion).toBe('1.2.3');
+    expect(config.extraMetadata).toMatchObject({
+      name: 'example-desktop',
+      productName: 'Example Desktop',
+      version: '1.2.3',
+    });
   });
 });
 
@@ -164,6 +273,10 @@ describe('build manifest selection', () => {
       )
     ).toBe(manifestFile);
     expect(loadBuildManifest(manifestFile)).toEqual({ plugins: [{ name: 'example' }] });
+  });
+
+  it('loads the default manifest when no path is supplied', () => {
+    expect(loadBuildManifest()).toEqual(expect.objectContaining({ plugins: expect.any(Array) }));
   });
 
   it('rejects unsafe proxy URL patterns', () => {
