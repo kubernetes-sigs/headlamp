@@ -198,8 +198,8 @@ func (c *Context) UsesInClusterServiceAccountToken() bool {
 type OidcConfig struct {
 	// OIDC client ID.
 	ClientID string
-	// OIDC client secret.
-	ClientSecret string
+	// OIDC client secret. It is server-side only and must never be serialized.
+	ClientSecret string `json:"-"`
 	// OIDC issuer URL.
 	IdpIssuerURL string
 	// OIDC scopes.
