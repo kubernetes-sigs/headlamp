@@ -19,7 +19,6 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
 	"k8s.io/apimachinery/pkg/labels"
-	"sigs.k8s.io/cluster-inventory-api/pkg/access"
 )
 
 const (
@@ -132,13 +131,6 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	if !c.InCluster && !c.OidcUseCookie && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
-		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
-		return errors.New("oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, " +
-			"oidc-validator-client-id, oidc-validator-idp-issuer-url, flags are only " +
-			"meant to be used in inCluster mode or with --oidc-use-cookie")
-	}
-
 	// Extracted to keep Validate's cognitive complexity within the linter limit.
 	c.warnRedundantThemeDefaults()
 
@@ -151,7 +143,7 @@ func (c *Config) Validate() error {
 		logger.Log(logger.LevelWarn, nil, nil, "oidc-skip-tls-verify is set, this is not safe for production")
 	}
 
-	if err := c.validateOIDCCAFile(); err != nil {
+	if err := c.validateOIDC(); err != nil {
 		return err
 	}
 
@@ -204,7 +196,16 @@ func (c *Config) validateAppName() error {
 	return nil
 }
 
-func (c *Config) validateOIDCCAFile() error {
+func (c *Config) validateOIDC() error {
+	if !c.InCluster && !c.OidcUseCookie && !c.EnableClusterInventory &&
+		(c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
+			c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
+		return errors.New("oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, " +
+			"oidc-validator-client-id, oidc-validator-idp-issuer-url, flags are only " +
+			"meant to be used in inCluster mode, with --oidc-use-cookie, or with " +
+			"--enable-cluster-inventory")
+	}
+
 	if c.OidcCAFile == "" {
 		return nil
 	}
@@ -223,25 +224,17 @@ func (c *Config) validateOIDCCAFile() error {
 }
 
 func (c *Config) validateClusterInventory() error {
+	if c.ClusterInventoryProviderFile != "" {
+		return errors.New("cluster-inventory-provider-file is no longer supported; Cluster Inventory requires per-user OIDC")
+	}
+
 	if !c.EnableClusterInventory {
 		return nil
 	}
 
-	if c.ClusterInventoryProviderFile == "" {
-		return errors.New("cluster-inventory-provider-file is required when cluster inventory is enabled")
-	}
-
-	info, err := os.Stat(c.ClusterInventoryProviderFile)
+	err := clusterinventory.ValidateOIDC(c.OidcClientID, c.OidcIdpIssuerURL, strings.Split(c.OidcScopes, ","))
 	if err != nil {
-		return fmt.Errorf("error reading cluster-inventory-provider-file: %w", err)
-	}
-
-	if !info.Mode().IsRegular() {
-		return errors.New("cluster-inventory-provider-file must be a regular file")
-	}
-
-	if _, err := access.NewFromFile(c.ClusterInventoryProviderFile); err != nil {
-		return fmt.Errorf("invalid cluster-inventory-provider-file: %w", err)
+		return err
 	}
 
 	labelSelector := strings.TrimSpace(c.ClusterInventoryLabelSelector)
@@ -636,7 +629,7 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.Bool("enable-cluster-inventory", false,
 		"Enable experimental/alpha automatic discovery of clusters from ClusterProfile resources")
 	f.String("cluster-inventory-provider-file", "",
-		"Path to the JSON configuration file for experimental/alpha Cluster Inventory access providers")
+		"Removed: Cluster Inventory requires per-user OIDC; provider files are no longer supported")
 	f.String("cluster-inventory-label-selector", "",
 		"Label selector used to filter ClusterProfile resources for experimental/alpha Cluster Inventory")
 	f.String("cluster-inventory-namespaces", "",

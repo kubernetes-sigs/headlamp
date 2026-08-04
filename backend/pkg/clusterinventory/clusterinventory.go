@@ -19,6 +19,7 @@ limitations under the License.
 package clusterinventory
 
 import (
+	"cmp"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -26,7 +27,6 @@ import (
 	"errors"
 	"fmt"
 	"hash"
-	"net/http"
 	"net/url"
 	"slices"
 	"sort"
@@ -50,7 +50,6 @@ import (
 	apisv1alpha1 "sigs.k8s.io/cluster-inventory-api/apis/v1alpha1"
 	ciaclient "sigs.k8s.io/cluster-inventory-api/client/clientset/versioned"
 	externalversions "sigs.k8s.io/cluster-inventory-api/client/informers/externalversions"
-	"sigs.k8s.io/cluster-inventory-api/pkg/access"
 )
 
 const (
@@ -63,8 +62,6 @@ const (
 	clusterInventoryIDPrefix      = "cluster-inventory/"
 	inClusterRootID               = "in-cluster"
 	storeRootPrefix               = "store/"
-
-	clusterExecConfigExtensionKey = "client.authentication.k8s.io/exec"
 )
 
 // Structured-log field names that recur across many log sites.
@@ -79,8 +76,8 @@ const (
 type Options struct {
 	// Store is the Headlamp context store that receives discovered contexts.
 	Store kubeconfig.ContextStore
-	// ProviderFile is the Cluster Inventory access provider configuration file.
-	ProviderFile string
+	// OIDC carries Headlamp's global OIDC settings for every discovered cluster.
+	OIDC *kubeconfig.OidcConfig
 	// LabelSelector filters ClusterProfile resources before they are synced.
 	LabelSelector string
 	// Namespaces limits ClusterProfile discovery to a comma-separated list of namespaces.
@@ -103,7 +100,7 @@ type Options struct {
 // Runner watches ClusterProfile resources and syncs them into Headlamp's context store.
 type Runner struct {
 	store                 kubeconfig.ContextStore
-	accessConfig          *access.Config
+	oidcConfig            *kubeconfig.OidcConfig
 	rootReconcileInterval time.Duration
 	noCRDCacheTTL         time.Duration
 	labelSelector         labels.Selector
@@ -150,19 +147,27 @@ type profileState struct {
 	contextName string
 }
 
-// NewRunner validates options, parses the provider file, and returns a discovery runner.
+// ValidateOIDC checks that the OIDC settings Cluster Inventory needs to authenticate users are present.
+func ValidateOIDC(clientID, issuerURL string, scopes []string) error {
+	hasScope := slices.ContainsFunc(scopes, func(scope string) bool {
+		return strings.TrimSpace(scope) != ""
+	})
+	if strings.TrimSpace(clientID) == "" || strings.TrimSpace(issuerURL) == "" || !hasScope {
+		return errors.New("cluster inventory requires oidc-client-id, oidc-idp-issuer-url and oidc-scopes")
+	}
+
+	return nil
+}
+
+// NewRunner validates discovery and OIDC settings and returns a discovery runner.
 func NewRunner(opts Options) (*Runner, error) {
 	if opts.Store == nil {
 		return nil, errors.New("context store is required")
 	}
 
-	if opts.ProviderFile == "" {
-		return nil, errors.New("cluster inventory provider file is required")
-	}
-
-	accessConfig, err := access.NewFromFile(opts.ProviderFile)
-	if err != nil {
-		return nil, fmt.Errorf("load cluster inventory provider file: %w", err)
+	oidc := cmp.Or(opts.OIDC, &kubeconfig.OidcConfig{})
+	if err := ValidateOIDC(oidc.ClientID, oidc.IdpIssuerURL, oidc.Scopes); err != nil {
+		return nil, err
 	}
 
 	labelSelector, err := normalizeLabelSelector(opts.LabelSelector)
@@ -187,7 +192,7 @@ func NewRunner(opts Options) (*Runner, error) {
 
 	return &Runner{
 		store:                 opts.Store,
-		accessConfig:          accessConfig,
+		oidcConfig:            oidc.Copy(),
 		rootReconcileInterval: rootReconcileInterval,
 		noCRDCacheTTL:         noCRDCacheTTL,
 		labelSelector:         labelSelector,
@@ -569,6 +574,8 @@ func (r *Runner) syncClusterProfile(
 
 	headlampContext, ok := r.contextFromClusterProfile(profileKey, cp)
 	if !ok {
+		r.pruneClusterProfile(state, profileKey)
+
 		return
 	}
 
@@ -598,20 +605,12 @@ func (r *Runner) contextFromClusterProfile(
 		return nil, false
 	}
 
-	restConfig, err := copyAccessConfig(r.accessConfig).BuildConfigFromCP(accessOnlyClusterProfile(cp))
-	if err != nil {
-		logger.Log(logger.LevelWarn, map[string]string{logFieldClusterProfile: profileKey}, err,
-			"cluster-inventory: failed to build rest config")
-
-		return nil, false
-	}
-
 	contextName := contextNameFromProfileKey(profileKey)
 
-	headlampContext, err := restConfigToContext(restConfig, contextName, profileKey)
+	headlampContext, err := oidcContextFromClusterProfile(cp, contextName, profileKey, r.oidcConfig)
 	if err != nil {
 		logger.Log(logger.LevelWarn, map[string]string{logFieldClusterProfile: profileKey}, err,
-			"cluster-inventory: failed to convert rest config")
+			"cluster-inventory: failed to build OIDC context")
 
 		return nil, false
 	}
@@ -1245,36 +1244,6 @@ func clusterProfileFromObject(obj interface{}) (*apisv1alpha1.ClusterProfile, bo
 	}
 }
 
-// accessOnlyClusterProfile returns a copy containing only access-provider status.
-func accessOnlyClusterProfile(cp *apisv1alpha1.ClusterProfile) *apisv1alpha1.ClusterProfile {
-	return &apisv1alpha1.ClusterProfile{
-		TypeMeta:   cp.TypeMeta,
-		ObjectMeta: *cp.ObjectMeta.DeepCopy(),
-		Spec:       cp.Spec,
-		Status: apisv1alpha1.ClusterProfileStatus{
-			AccessProviders: append([]apisv1alpha1.AccessProvider(nil), cp.Status.AccessProviders...),
-		},
-	}
-}
-
-// copyAccessConfig returns a shallow access config copy with independent exec slices.
-func copyAccessConfig(in *access.Config) *access.Config {
-	out := &access.Config{Providers: make([]access.Provider, len(in.Providers))}
-	for i, provider := range in.Providers {
-		out.Providers[i] = provider
-		if provider.ExecConfig == nil {
-			continue
-		}
-
-		execConfig := *provider.ExecConfig
-		execConfig.Args = append([]string(nil), provider.ExecConfig.Args...)
-		execConfig.Env = append([]api.ExecEnvVar(nil), provider.ExecConfig.Env...)
-		out.Providers[i].ExecConfig = &execConfig
-	}
-
-	return out
-}
-
 // isNoCRDError reports whether an error means the ClusterProfile CRD is unavailable.
 func isNoCRDError(err error) bool {
 	if err == nil {
@@ -1317,88 +1286,67 @@ func statusDetailsMatchClusterProfiles(details *metav1.StatusDetails) bool {
 	return details.Kind == apisv1alpha1.ClusterProfileKind || details.Name == "clusterprofiles"
 }
 
-// proxyURLFromRestConfig resolves the kubeconfig proxy URL for a REST config host.
-func proxyURLFromRestConfig(restConfig *rest.Config) (string, error) {
-	if restConfig.Proxy == nil {
-		return "", nil
-	}
-
-	proxyRequestURL, err := url.Parse(restConfig.Host)
-	if err != nil {
-		return "", fmt.Errorf("proxy request URL: %w", err)
-	}
-
-	if proxyRequestURL.Scheme == "" || proxyRequestURL.Host == "" {
-		return "", fmt.Errorf("proxy request URL missing scheme or host: %q", restConfig.Host)
-	}
-
-	proxyURL, err := restConfig.Proxy(&http.Request{URL: proxyRequestURL})
-	if err != nil {
-		return "", fmt.Errorf("proxy URL: %w", err)
-	}
-
-	if proxyURL == nil {
-		return "", nil
-	}
-
-	return proxyURL.String(), nil
-}
-
-// restConfigToContext builds a Headlamp kubeconfig.Context from a generated rest.Config.
-func restConfigToContext(restConfig *rest.Config, contextName, profileKey string) (*kubeconfig.Context, error) {
-	if restConfig == nil {
-		return nil, errors.New("restConfig is nil")
-	}
-
-	if contextName == "" {
-		return nil, errors.New("contextName is empty")
-	}
-
-	if profileKey == "" {
-		return nil, errors.New("profileKey is empty")
-	}
-
-	cluster := &api.Cluster{
-		Server:                   restConfig.Host,
-		CertificateAuthorityData: restConfig.CAData,
-		CertificateAuthority:     restConfig.CAFile,
-		InsecureSkipTLSVerify:    restConfig.Insecure,
-		TLSServerName:            restConfig.ServerName,
-	}
-
-	proxyURL, err := proxyURLFromRestConfig(restConfig)
+// oidcContextFromClusterProfile builds an OIDC-authenticated Headlamp context from the
+// first access-provider entry that carries a server URL. AuthInfo stays empty so the
+// proxy transport carries no credentials and only each user's own bearer token reaches
+// the cluster.
+func oidcContextFromClusterProfile(
+	cp *apisv1alpha1.ClusterProfile,
+	contextName, profileKey string,
+	oidcConf *kubeconfig.OidcConfig,
+) (*kubeconfig.Context, error) {
+	cluster, err := clusterFromAccessProviders(cp.Status.AccessProviders)
 	if err != nil {
 		return nil, err
 	}
 
-	cluster.ProxyURL = proxyURL
-
-	if restConfig.ExecProvider != nil && restConfig.ExecProvider.Config != nil {
-		cluster.Extensions = map[string]k8sruntime.Object{
-			clusterExecConfigExtensionKey: restConfig.ExecProvider.Config,
-		}
-	}
-
-	authInfo := &api.AuthInfo{}
-	// Cluster Inventory access semantics live in the SDK/provider. Headlamp stores
-	// the exec bridge for client-go instead of materializing provider credentials.
-	if restConfig.ExecProvider != nil {
-		authInfo.Exec = restConfig.ExecProvider.DeepCopy()
-		authInfo.Exec.InteractiveMode = api.NeverExecInteractiveMode
-	}
-
-	kubeContext := &api.Context{
-		Cluster:  contextName,
-		AuthInfo: contextName,
-	}
-
 	return &kubeconfig.Context{
-		Name:           contextName,
-		KubeContext:    kubeContext,
+		Name: contextName,
+		KubeContext: &api.Context{
+			Cluster:  contextName,
+			AuthInfo: contextName,
+		},
 		Cluster:        cluster,
-		AuthInfo:       authInfo,
+		AuthInfo:       &api.AuthInfo{},
 		Source:         kubeconfig.ClusterInventory,
+		OidcConf:       oidcConf.Copy(),
 		KubeConfigPath: "",
 		ClusterID:      clusterInventoryIDPrefix + profileKey,
 	}, nil
+}
+
+// clusterFromAccessProviders returns connection details from the first entry with a
+// non-empty server URL.
+func clusterFromAccessProviders(providers []apisv1alpha1.AccessProvider) (*api.Cluster, error) {
+	for i := range providers {
+		provider := &providers[i].Cluster
+		if provider.Server == "" {
+			continue
+		}
+
+		server, err := url.Parse(provider.Server)
+		if err != nil || server.Scheme != "https" || server.Hostname() == "" ||
+			server.User != nil || server.RawQuery != "" || server.Fragment != "" {
+			return nil, errors.New("cluster inventory server must be an HTTPS URL without credentials, query or fragment")
+		}
+
+		if provider.ProxyURL != "" {
+			proxy, err := url.Parse(provider.ProxyURL)
+			if err != nil || proxy.Hostname() == "" ||
+				(proxy.Scheme != "http" && proxy.Scheme != "https" && proxy.Scheme != "socks5") {
+				return nil, errors.New("cluster inventory proxy must be an HTTP, HTTPS or SOCKS5 URL")
+			}
+		}
+
+		return &api.Cluster{
+			Server:                   provider.Server,
+			TLSServerName:            provider.TLSServerName,
+			InsecureSkipTLSVerify:    provider.InsecureSkipTLSVerify,
+			CertificateAuthorityData: append([]byte(nil), provider.CertificateAuthorityData...),
+			ProxyURL:                 provider.ProxyURL,
+			DisableCompression:       provider.DisableCompression,
+		}, nil
+	}
+
+	return nil, errors.New("no access provider carries a server URL")
 }

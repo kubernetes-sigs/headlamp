@@ -60,15 +60,6 @@ func getTestDataPath() string {
 	return filepath.Join(cwd, "pkg", "config", "test_data")
 }
 
-func writeClusterInventoryProviderFile(t *testing.T) string {
-	t.Helper()
-
-	path := filepath.Join(t.TempDir(), "providers.json")
-	require.NoError(t, os.WriteFile(path, []byte(`{"providers":[]}`), 0o600))
-
-	return path
-}
-
 func setUserConfigDir(t *testing.T, dir string) {
 	t.Helper()
 
@@ -406,9 +397,10 @@ func TestParseErrors(t *testing.T) {
 		errorContains string
 	}{
 		{
-			name:          "oidc_settings_without_incluster",
-			args:          []string{"go run ./cmd", "-oidc-client-id=noClient"},
-			errorContains: "flags are only meant to be used in inCluster mode or with --oidc-use-cookie",
+			name: "oidc_settings_without_incluster",
+			args: []string{"go run ./cmd", "-oidc-client-id=noClient"},
+			errorContains: "flags are only meant to be used in inCluster mode, with --oidc-use-cookie, " +
+				"or with --enable-cluster-inventory",
 		},
 		{
 			name:          "unsafe_use_service_account_token_without_incluster",
@@ -604,12 +596,11 @@ func TestProxyAuthFlags(t *testing.T) {
 }
 
 func TestParseClusterInventoryFlags(t *testing.T) {
-	providerFile := writeClusterInventoryProviderFile(t)
-
 	conf, err := config.Parse([]string{
 		"go run ./cmd",
 		"--enable-cluster-inventory",
-		"--cluster-inventory-provider-file=" + providerFile,
+		"--oidc-client-id=headlamp",
+		"--oidc-idp-issuer-url=https://idp.example.com",
 		"--cluster-inventory-label-selector=environment=prod,!headlamp.dev/ignore",
 		"--cluster-inventory-namespaces=team-a,team-b",
 		"--cluster-inventory-root-reconcile-interval=15s",
@@ -618,7 +609,6 @@ func TestParseClusterInventoryFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, conf.EnableClusterInventory)
-	assert.Equal(t, providerFile, conf.ClusterInventoryProviderFile)
 	assert.Equal(t, "environment=prod,!headlamp.dev/ignore", conf.ClusterInventoryLabelSelector)
 	assert.Equal(t, "team-a,team-b", conf.ClusterInventoryNamespaces)
 	assert.Equal(t, 15*time.Second, conf.ClusterInventoryRootReconcileInterval)
@@ -626,9 +616,9 @@ func TestParseClusterInventoryFlags(t *testing.T) {
 }
 
 func TestParseClusterInventoryEnv(t *testing.T) {
-	providerFile := writeClusterInventoryProviderFile(t)
 	t.Setenv("HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY", "true")
-	t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_PROVIDER_FILE", providerFile)
+	t.Setenv("HEADLAMP_CONFIG_OIDC_CLIENT_ID", "headlamp")
+	t.Setenv("HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL", "https://idp.example.com")
 	t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_LABEL_SELECTOR", "!headlamp.dev/ignore")
 	t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_NAMESPACES", "*")
 
@@ -636,18 +626,16 @@ func TestParseClusterInventoryEnv(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, conf.EnableClusterInventory)
-	assert.Equal(t, providerFile, conf.ClusterInventoryProviderFile)
 	assert.Equal(t, "!headlamp.dev/ignore", conf.ClusterInventoryLabelSelector)
 	assert.Equal(t, "*", conf.ClusterInventoryNamespaces)
 }
 
 func TestParseClusterInventoryDefaultIntervals(t *testing.T) {
-	providerFile := writeClusterInventoryProviderFile(t)
-
 	conf, err := config.Parse([]string{
 		"go run ./cmd",
 		"--enable-cluster-inventory",
-		"--cluster-inventory-provider-file=" + providerFile,
+		"--oidc-client-id=headlamp",
+		"--oidc-idp-issuer-url=https://idp.example.com",
 	})
 	require.NoError(t, err)
 
@@ -658,54 +646,43 @@ func TestParseClusterInventoryDefaultIntervals(t *testing.T) {
 }
 
 func TestClusterInventoryValidation(t *testing.T) {
-	t.Run("disabled allows empty provider file", func(t *testing.T) {
-		conf, err := config.Parse([]string{"go run ./cmd"})
-		require.NoError(t, err)
-		require.NotNil(t, conf)
-		assert.False(t, conf.EnableClusterInventory)
-	})
+	for _, tc := range []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{name: "disabled"},
+		{name: "requires OIDC", args: []string{"--enable-cluster-inventory"}, wantErr: "cluster inventory requires"},
+		{
+			name: "requires issuer",
+			args: []string{"--enable-cluster-inventory", "--oidc-client-id=headlamp"}, wantErr: "cluster inventory requires",
+		},
+		{
+			name:    "rejects provider files",
+			args:    []string{"--enable-cluster-inventory", "--cluster-inventory-provider-file=/old/config.json"},
+			wantErr: "no longer supported",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conf, err := config.Parse(append([]string{"headlamp"}, tc.args...))
+			if tc.wantErr != "" {
+				require.ErrorContains(t, err, tc.wantErr)
+				require.Nil(t, conf)
 
-	t.Run("enabled requires provider file", func(t *testing.T) {
-		conf, err := config.Parse([]string{"go run ./cmd", "--enable-cluster-inventory"})
-		require.Error(t, err)
-		require.Nil(t, conf)
-		assert.Contains(t, err.Error(), "cluster-inventory-provider-file is required")
-	})
+				return
+			}
 
-	t.Run("enabled rejects missing provider file", func(t *testing.T) {
-		conf, err := config.Parse([]string{
-			"go run ./cmd",
-			"--enable-cluster-inventory",
-			"--cluster-inventory-provider-file=/does/not/exist",
+			require.NoError(t, err)
+			assert.False(t, conf.EnableClusterInventory)
 		})
-		require.Error(t, err)
-		require.Nil(t, conf)
-		assert.Contains(t, err.Error(), "error reading cluster-inventory-provider-file")
-	})
+	}
 
-	t.Run("enabled rejects directory provider file", func(t *testing.T) {
-		conf, err := config.Parse([]string{
-			"go run ./cmd",
-			"--enable-cluster-inventory",
-			"--cluster-inventory-provider-file=" + t.TempDir(),
-		})
-		require.Error(t, err)
-		require.Nil(t, conf)
-		assert.Contains(t, err.Error(), "cluster-inventory-provider-file must be a regular file")
-	})
+	t.Run("rejects legacy provider environment", func(t *testing.T) {
+		t.Setenv("HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY", "true")
+		t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_PROVIDER_FILE", "/old/config.json")
 
-	t.Run("enabled rejects invalid provider file", func(t *testing.T) {
-		providerFile := filepath.Join(t.TempDir(), "providers.json")
-		require.NoError(t, os.WriteFile(providerFile, []byte(`{`), 0o600))
-
-		conf, err := config.Parse([]string{
-			"go run ./cmd",
-			"--enable-cluster-inventory",
-			"--cluster-inventory-provider-file=" + providerFile,
-		})
-		require.Error(t, err)
-		require.Nil(t, conf)
-		assert.Contains(t, err.Error(), "invalid cluster-inventory-provider-file")
+		_, err := config.Parse([]string{"headlamp"})
+		require.ErrorContains(t, err, "no longer supported")
 	})
 }
 
@@ -721,11 +698,11 @@ func TestClusterInventoryRejectsInvalidNamespaces(t *testing.T) {
 
 	for _, tt := range invalidNamespaces {
 		t.Run("enabled rejects "+tt.name, func(t *testing.T) {
-			providerFile := writeClusterInventoryProviderFile(t)
 			conf, err := config.Parse([]string{
 				"go run ./cmd",
 				"--enable-cluster-inventory",
-				"--cluster-inventory-provider-file=" + providerFile,
+				"--oidc-client-id=headlamp",
+				"--oidc-idp-issuer-url=https://idp.example.com",
 				"--cluster-inventory-namespaces=" + tt.namespaces,
 			})
 			require.Error(t, err)
@@ -736,17 +713,53 @@ func TestClusterInventoryRejectsInvalidNamespaces(t *testing.T) {
 }
 
 func TestClusterInventoryRejectsInvalidLabelSelector(t *testing.T) {
-	providerFile := writeClusterInventoryProviderFile(t)
-
 	conf, err := config.Parse([]string{
 		"go run ./cmd",
 		"--enable-cluster-inventory",
-		"--cluster-inventory-provider-file=" + providerFile,
+		"--oidc-client-id=headlamp",
+		"--oidc-idp-issuer-url=https://idp.example.com",
 		"--cluster-inventory-label-selector=headlamp.dev/ignore in (",
 	})
 	require.Error(t, err)
 	require.Nil(t, conf)
 	assert.Contains(t, err.Error(), "invalid cluster-inventory-label-selector")
+}
+
+func TestClusterInventoryOIDCAuthValidation(t *testing.T) {
+	t.Run("oidc auth allows global oidc flags without in-cluster", func(t *testing.T) {
+		conf, err := config.Parse([]string{
+			"go run ./cmd",
+			"--enable-cluster-inventory",
+			"--oidc-client-id=headlamp",
+			"--oidc-idp-issuer-url=https://idp.example.com",
+		})
+		require.NoError(t, err)
+		assert.Empty(t, conf.ClusterInventoryProviderFile)
+	})
+
+	t.Run("oidc auth requires oidc identity flags", func(t *testing.T) {
+		conf, err := config.Parse([]string{
+			"go run ./cmd",
+			"--enable-cluster-inventory",
+			"--oidc-idp-issuer-url=https://idp.example.com",
+		})
+		require.Error(t, err)
+		require.Nil(t, conf)
+		assert.Contains(t, err.Error(), "cluster inventory requires")
+	})
+
+	t.Run("oidc auth rejects blank scopes", func(t *testing.T) {
+		conf, err := config.Parse([]string{
+			"go run ./cmd",
+			"--enable-cluster-inventory",
+			"--oidc-client-id=headlamp",
+			"--oidc-idp-issuer-url=https://idp.example.com",
+			"--oidc-scopes=, ,\t",
+		})
+		require.Error(t, err)
+		require.Nil(t, conf)
+		assert.Contains(t, err.Error(), "cluster inventory requires")
+	})
 }
 
 func TestOIDCTLSValidation(t *testing.T) {

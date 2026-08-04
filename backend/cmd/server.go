@@ -110,7 +110,6 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 
 			return strings.Split(conf.ProxyURLs, ",")
 		}(),
-		ClusterInventoryProviderFile:          conf.ClusterInventoryProviderFile,
 		ClusterInventoryLabelSelector:         conf.ClusterInventoryLabelSelector,
 		ClusterInventoryNamespaces:            conf.ClusterInventoryNamespaces,
 		ClusterInventoryRootReconcileInterval: conf.ClusterInventoryRootReconcileInterval,
