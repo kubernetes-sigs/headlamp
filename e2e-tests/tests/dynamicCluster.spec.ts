@@ -178,6 +178,59 @@ test('adding another stateless cluster keeps previously added clusters available
   );
 });
 
+test('deleting a backend-managed cluster reloads the home page', async ({ page }, testInfo) => {
+  const clusterName = `delete-reload-${testInfo.workerIndex}-${Date.now()}`;
+  let clusterDeleted = false;
+
+  await page.route('**/config', async route => {
+    const response = await route.fetch();
+    const config = await response.json();
+    const clusters = clusterDeleted
+      ? config.clusters
+      : [
+          ...config.clusters,
+          {
+            name: clusterName,
+            auth_type: '',
+            meta_data: { source: 'dynamic_cluster' },
+          },
+        ];
+    await route.fulfill({ response, json: { ...config, clusters } });
+  });
+
+  await page.route(`**/cluster/${clusterName}`, async route => {
+    if (route.request().method() !== 'DELETE') {
+      await route.fallback();
+      return;
+    }
+
+    clusterDeleted = true;
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ clusters: [] }),
+    });
+  });
+
+  await page.goto('/');
+  const clusterRow = page.locator('table tbody tr', { hasText: clusterName });
+  await expect(clusterRow).toBeVisible();
+
+  await page.evaluate(() => {
+    (window as any).__clusterDeletionPageMarker = true;
+  });
+
+  await clusterRow.getByRole('button', { name: 'Actions' }).click();
+  await page.getByRole('menuitem', { name: 'Delete' }).click();
+  await Promise.all([
+    page.waitForNavigation({ waitUntil: 'load' }),
+    page.getByRole('button', { name: 'Delete' }).click(),
+  ]);
+
+  expect(await page.evaluate(() => (window as any).__clusterDeletionPageMarker)).toBeUndefined();
+  await expect(page.locator('table tbody tr', { hasText: clusterName })).toHaveCount(0);
+});
+
 test('valid kubeconfig is still parsed when an invalid one is also sent', async ({ page }) => {
   const validKubeconfig = await getBase64EncodedKubeconfig();
   // A clearly invalid kubeconfig that cannot be decoded
