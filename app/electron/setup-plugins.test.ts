@@ -182,4 +182,14 @@ describe('setup-plugins', () => {
     expect(exit).toHaveBeenCalledWith(1);
     consoleError.mockRestore();
   });
+
+  test('exits successfully when CLI setup completes', async () => {
+    const setup = vi.fn().mockResolvedValue(undefined);
+    const exit = vi.fn();
+
+    await runCli(setup, exit);
+
+    expect(setup).toHaveBeenCalledOnce();
+    expect(exit).toHaveBeenCalledWith(0);
+  });
 });
