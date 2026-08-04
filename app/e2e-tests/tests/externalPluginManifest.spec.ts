@@ -113,13 +113,17 @@ test('setup-plugins verifies plugin identity from an external manifest', () => {
     );
 
     expect(() =>
-      execFileSync(process.execPath, [path.join(scriptsDirectory, 'setup-plugins.ts')], {
-        env: {
-          ...process.env,
-          HEADLAMP_BUILD_MANIFEST: manifest,
-        },
-        stdio: 'pipe',
-      })
+      execFileSync(
+        process.execPath,
+        ['--experimental-strip-types', path.join(scriptsDirectory, 'setup-plugins.ts')],
+        {
+          env: {
+            ...process.env,
+            HEADLAMP_BUILD_MANIFEST: manifest,
+          },
+          stdio: 'pipe',
+        }
+      )
     ).toThrow(/Plugin package name mismatch/);
   } finally {
     fs.rmSync(temporaryRoot, { recursive: true, force: true });
