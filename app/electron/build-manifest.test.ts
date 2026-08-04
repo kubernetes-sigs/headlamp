@@ -186,6 +186,24 @@ describe('plugin archive integrity', () => {
     expect(() => validatePluginSource({ name: 'bundled' }, false)).not.toThrow();
   });
 
+  it.each([undefined, '', '.', '..', '../plugin', 'plugins/example', 'plugins\\example'])(
+    'rejects an unsafe external plugin name: %j',
+    name => {
+      expect(() =>
+        validatePluginSource(
+          { name: name as string, packageName: 'example-plugin', file: './plugin.tar.gz' },
+          true
+        )
+      ).toThrow('must declare a safe plugin name');
+    }
+  );
+
+  it('requires an external plugin archive or file', () => {
+    expect(() =>
+      validatePluginSource({ name: 'example', packageName: 'example-plugin' }, true)
+    ).toThrow('must declare an archive or file');
+  });
+
   it('accepts matching package identities and rejects mismatches', () => {
     const packageJson = temporaryFile('{"name":"@example/plugin"}');
 

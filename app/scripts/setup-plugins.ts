@@ -76,6 +76,21 @@ export function validatePluginSource(
   plugin: PluginSource,
   requireDigest: boolean = externalManifest
 ): void {
+  if (
+    requireDigest &&
+    (typeof plugin.name !== 'string' ||
+      plugin.name === '' ||
+      plugin.name === '.' ||
+      plugin.name === '..' ||
+      plugin.name !== path.basename(plugin.name) ||
+      plugin.name.includes('/') ||
+      plugin.name.includes('\\'))
+  ) {
+    throw new Error('External plugin must declare a safe plugin name');
+  }
+  if (requireDigest && !plugin.archive && !plugin.file) {
+    throw new Error(`External plugin ${plugin.name} must declare an archive or file`);
+  }
   if (plugin.archive && requireDigest && plugin.sha256 === undefined) {
     throw new Error(`External plugin archive ${plugin.name} must declare a SHA-256 digest`);
   }
