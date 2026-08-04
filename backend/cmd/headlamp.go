@@ -569,6 +569,14 @@ func setupInClusterContext(config *HeadlampConfig) {
 	}
 }
 
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
+		next.ServeHTTP(w, r)
+	})
+}
+
 //nolint:gocognit,funlen,gocyclo
 func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
@@ -645,6 +653,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		baseRoute := mux.NewRouter()
 		r = baseRoute.PathPrefix(config.BaseURL).Subrouter()
 	}
+
+	r.Use(securityHeadersMiddleware)
 
 	logger.Log(logger.LevelInfo, nil, nil, "*** Headlamp Server ***")
 	logger.Log(logger.LevelInfo, nil, nil, "  API Routers:")
