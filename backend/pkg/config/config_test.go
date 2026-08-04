@@ -159,6 +159,13 @@ var ParseWithEnvTests = []struct {
 		},
 	},
 	{
+		name: "websocket_mode_from_flag",
+		args: []string{"go run ./cmd", "--websocket-mode=off"},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, "off", conf.WebsocketMode)
+		},
+	},
+	{
 		name: "both_args_and_env",
 		args: []string{"go run ./cmd", "--port=9876"},
 		env: map[string]string{

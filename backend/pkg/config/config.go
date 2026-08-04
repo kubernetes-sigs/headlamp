@@ -579,6 +579,7 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Bool("no-browser", false, "Disable automatically opening the browser when using embedded frontend")
 	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
 	f.String("log-level", "info", "Set backend log verbosity. Options: debug, info (default), warn, error")
+	f.String("websocket-mode", "websockets", "Set real-time update mode. Options: websockets, multiplexer, off")
 	f.Bool("enable-dynamic-clusters", false, "Enable dynamic clusters, which stores stateless clusters in the frontend.")
 	f.Bool("allow-kubeconfig-changes", false,
 		"Allow Headlamp to make changes to the known kubeconfigs when needed. "+
