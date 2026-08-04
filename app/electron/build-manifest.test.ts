@@ -252,7 +252,7 @@ describe('plugin archive integrity', () => {
     expect(() => validatePluginSource({ name: 'bundled' }, false)).not.toThrow();
   });
 
-  it.each([undefined, '../plugin', 'plugins/example', 'plugins\\example'])(
+  it.each([undefined, '', '.', '..', '../plugin', 'plugins/example', 'plugins\\example'])(
     'rejects an unsafe external plugin name: %j',
     name => {
       expect(() =>

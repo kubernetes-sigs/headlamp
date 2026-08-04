@@ -22,6 +22,9 @@ function validatePluginSource(plugin, requireDigest = externalManifest) {
   if (
     requireDigest &&
     (typeof plugin.name !== 'string' ||
+      plugin.name === '' ||
+      plugin.name === '.' ||
+      plugin.name === '..' ||
       plugin.name !== path.basename(plugin.name) ||
       plugin.name.includes('/') ||
       plugin.name.includes('\\'))
