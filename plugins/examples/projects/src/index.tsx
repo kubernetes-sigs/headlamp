@@ -172,6 +172,15 @@ registerProjectDetailsTab({
 registerProjectOverviewSection({
   id: 'resource-usage',
   component: ({ project }) => <div>Custom resource usage for project {project.id}</div>,
+  // Display this section for projects that have at least one cluster.
+  isEnabled: async ({ project }) => project.clusters.length > 0,
+});
+
+registerProjectOverviewSection({
+  id: 'multi-cluster-summary',
+  component: ({ project }) => <div>Multi-cluster project: {project.id}</div>,
+  // Display this section only for projects spanning multiple clusters.
+  isEnabled: async ({ project }) => project.clusters.length > 1,
 });
 
 registerProjectDeleteButton({
