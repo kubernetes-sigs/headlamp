@@ -865,4 +865,3 @@ func TestPluginRegistryInitialSyncNoRefreshKey(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, false, val)
 }
-

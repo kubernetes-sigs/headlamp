@@ -578,9 +578,11 @@ func pluginKey(meta PluginMetadata) string {
 	if meta.Path != "" {
 		return meta.Path
 	}
+
 	if meta.Type != "" {
 		return meta.Name + ":" + meta.Type
 	}
+
 	return meta.Name
 }
 
@@ -612,6 +614,7 @@ func (r *PluginRegistry) Register(meta PluginMetadata, handler http.Handler, cle
 	}
 
 	r.syncCacheLocked()
+
 	if r.cache != nil {
 		_ = r.cache.Set(context.Background(), PluginRefreshKey, canSendRefresh(r.cache))
 	}
@@ -663,6 +666,7 @@ func (r *PluginRegistry) Deregister(name string) error {
 		delete(r.cleanups, foundKey)
 
 		r.syncCacheLocked()
+
 		if r.cache != nil {
 			_ = r.cache.Set(context.Background(), PluginRefreshKey, canSendRefresh(r.cache))
 		}
