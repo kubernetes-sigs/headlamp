@@ -200,6 +200,18 @@ func loadOidcCACert(oidcCAFile string) string {
 	return string(caFileContents)
 }
 
+func splitOIDCScopes(scopes string) []string {
+	result := []string{}
+
+	for _, scope := range strings.Split(scopes, ",") {
+		if scope = strings.TrimSpace(scope); scope != "" {
+			result = append(result, scope)
+		}
+	}
+
+	return result
+}
+
 func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	cache := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
@@ -216,7 +228,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcIdpIssuerURL:          conf.OidcIdpIssuerURL,
 		OidcCallbackURL:           conf.OidcCallbackURL,
 		OidcValidatorIdpIssuerURL: conf.OidcValidatorIdpIssuerURL,
-		OidcScopes:                strings.Split(conf.OidcScopes, ","),
+		OidcScopes:                splitOIDCScopes(conf.OidcScopes),
 		OidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
 		OidcSkipLogout:            conf.OidcSkipLogout,
 		OidcUseAccessToken:        conf.OidcUseAccessToken,
