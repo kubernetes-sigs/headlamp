@@ -748,7 +748,7 @@ func startClusterInventory(ctx context.Context, config *HeadlampConfig) error {
 
 	runner, err := clusterinventory.NewRunner(clusterinventory.Options{
 		Store:                 config.KubeConfigStore,
-		ProviderFile:          config.ClusterInventoryProviderFile,
+		OIDC:                  globalOidcConfig(config),
 		LabelSelector:         config.ClusterInventoryLabelSelector,
 		Namespaces:            config.ClusterInventoryNamespaces,
 		RootReconcileInterval: config.ClusterInventoryRootReconcileInterval,
@@ -764,6 +764,27 @@ func startClusterInventory(ctx context.Context, config *HeadlampConfig) error {
 	go runner.Run(ctx)
 
 	return nil
+}
+
+// globalOidcConfig assembles Headlamp's global OIDC settings for discovered clusters.
+func globalOidcConfig(config *HeadlampConfig) *kubeconfig.OidcConfig {
+	skipTLSVerify := config.OidcSkipTLSVerify
+
+	var caCert *string
+
+	if config.OidcCACert != "" {
+		oidcCACert := config.OidcCACert
+		caCert = &oidcCACert
+	}
+
+	return &kubeconfig.OidcConfig{
+		ClientID:      config.OidcClientID,
+		ClientSecret:  config.OidcClientSecret,
+		IdpIssuerURL:  config.OidcIdpIssuerURL,
+		Scopes:        config.OidcScopes,
+		SkipTLSVerify: &skipTLSVerify,
+		CACert:        caCert,
+	}
 }
 
 func setupInClusterContext(config *HeadlampConfig) {
@@ -938,6 +959,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		r.Use(telemetry.TracingMiddleware("headlamp-server"))
 		r.Use(config.Metrics.RequestCounterMiddleware)
 	}
+
+	r.Use(config.requireInventoryAuthentication)
 
 	logger.Log(logger.LevelInfo, nil, nil, "*** Headlamp Server ***")
 	logger.Log(logger.LevelInfo, nil, nil, "  API Routers:")
@@ -1666,6 +1689,15 @@ func clearConfiguredProxyTokenHeader(r *http.Request, proxyAuthTokenHeader strin
 	}
 }
 
+// proxyAuthToken returns the token supplied by the trusted auth proxy header, if any.
+func (c *HeadlampConfig) proxyAuthToken(r *http.Request) string {
+	if !c.ProxyAuthEnabled || c.ProxyAuthTokenHeader == "" {
+		return ""
+	}
+
+	return strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
+}
+
 func (c *HeadlampConfig) shouldUseUnsafeServiceAccountToken() bool {
 	return c != nil && c.UseInCluster && c.UnsafeUseServiceAccountToken
 }
@@ -2348,11 +2380,7 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
 			clearRequestAuthorization(r)
 		} else {
-			var token string
-
-			if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
-				token = strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
-			}
+			token := c.proxyAuthToken(r)
 
 			if token == "" {
 				token, _ = auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
@@ -3407,8 +3435,9 @@ func (c *HeadlampConfig) handleNodeDrain(w http.ResponseWriter, r *http.Request)
 
 	token := c.requestTokenForContext(r, drainPayload.Cluster, ctxtProxy)
 
-	if token == "" && c.UseInCluster && ctxtProxy.Source == kubeconfig.InCluster &&
-		!c.shouldUseUnsafeServiceAccountTokenForContext(ctxtProxy) {
+	if token == "" && (ctxtProxy.Source == kubeconfig.ClusterInventory ||
+		(c.UseInCluster && ctxtProxy.Source == kubeconfig.InCluster &&
+			!c.shouldUseUnsafeServiceAccountTokenForContext(ctxtProxy))) {
 		c.handleError(w, ctx, span, errors.New("user authentication is required"),
 			"missing drain credentials", http.StatusUnauthorized)
 
