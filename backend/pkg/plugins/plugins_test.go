@@ -18,6 +18,7 @@ package plugins_test
 
 import (
 	"context"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
@@ -767,4 +768,81 @@ func TestDelete(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestPluginRegistryLifecycleAndCleanup(t *testing.T) {
+	ch := cache.New[interface{}]()
+	reg := plugins.NewPluginRegistry("", "", "", ch)
+
+	cleanedUp := false
+	meta := plugins.PluginMetadata{
+		Name: "test-dynamic-plugin",
+		Path: "user-plugins/test-dynamic-plugin",
+		Type: plugins.PluginTypeUser,
+	}
+
+	// Register plugin with a dummy handler and cleanup function
+	dummyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	reg.Register(meta, dummyHandler, func() {
+		cleanedUp = true
+	})
+
+	gotMeta, ok := reg.Get("test-dynamic-plugin")
+	require.True(t, ok)
+	assert.Equal(t, "user-plugins/test-dynamic-plugin", gotMeta.Path)
+
+	handler, ok := reg.GetHandler("test-dynamic-plugin")
+	require.True(t, ok)
+	assert.NotNil(t, handler)
+
+	list := reg.List()
+	assert.Len(t, list, 1)
+
+	// Deregister plugin and verify cleanup executed
+	err := reg.Deregister("test-dynamic-plugin")
+	require.NoError(t, err)
+	assert.True(t, cleanedUp, "Cleanup callback should be executed upon Deregister")
+
+	_, ok = reg.Get("test-dynamic-plugin")
+	assert.False(t, ok)
+}
+
+func TestPluginRegistrySyncAndSSE(t *testing.T) {
+	userDir := t.TempDir()
+	ch := cache.New[interface{}]()
+	reg := plugins.NewPluginRegistry("", userDir, "", ch)
+
+	// Create SSE test server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		reg.ServeSSE(w, r)
+	}))
+	defer server.Close()
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", server.URL, nil)
+	require.NoError(t, err)
+
+	resp, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+
+	defer func() { _ = resp.Body.Close() }()
+
+	assert.Equal(t, "text/event-stream", resp.Header.Get("Content-Type"))
+
+	// Create a new plugin directory on disk
+	createPlugin(t, userDir, "hot-reload-plugin")
+
+	// Trigger SyncFromDisk
+	err = reg.SyncFromDisk()
+	require.NoError(t, err)
+
+	// Verify plugin appears in registry without server restart
+	gotMeta, ok := reg.Get("hot-reload-plugin")
+	require.True(t, ok)
+	assert.Equal(t, "user-plugins/hot-reload-plugin", gotMeta.Path)
+	assert.Equal(t, plugins.PluginTypeUser, gotMeta.Type)
 }

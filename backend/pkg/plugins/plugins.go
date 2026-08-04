@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
@@ -485,6 +486,13 @@ func canSendRefresh(c cache.Cache[interface{}]) bool {
 func HandlePluginEvents(staticPluginDir, userPluginDir, pluginDir string,
 	notify <-chan string, cache cache.Cache[interface{}],
 ) {
+	HandlePluginEventsWithRegistry(nil, staticPluginDir, userPluginDir, pluginDir, notify, cache)
+}
+
+// HandlePluginEventsWithRegistry handles plugin filesystem watcher events with a PluginRegistry.
+func HandlePluginEventsWithRegistry(registry *PluginRegistry, staticPluginDir, userPluginDir, pluginDir string,
+	notify <-chan string, cache cache.Cache[interface{}],
+) {
 	for event := range notify {
 		// Skip CHMOD events to avoid looping on electron when user-plugins folder is watched
 		// these events are not relevant to see if plugins have changed.
@@ -492,23 +500,374 @@ func HandlePluginEvents(staticPluginDir, userPluginDir, pluginDir string,
 			continue
 		}
 
-		// Set the refresh signal only if we cannot send it. We prevent it here
-		// because we only want to send refresh signals that *happen after* we are
-		// allowed to send them.
-		err := cache.Set(context.Background(), PluginRefreshKey, canSendRefresh(cache))
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "setting plugin refresh key")
-		}
+		if registry != nil {
+			_ = registry.SyncFromDisk()
+		} else {
+			// Set the refresh signal only if we cannot send it. We prevent it here
+			// because we only want to send refresh signals that *happen after* we are
+			// allowed to send them.
+			err := cache.Set(context.Background(), PluginRefreshKey, canSendRefresh(cache))
+			if err != nil {
+				logger.Log(logger.LevelError, nil, err, "setting plugin refresh key")
+			}
 
-		// generate the plugin list
-		pluginList, err := GeneratePluginPaths(staticPluginDir, userPluginDir, pluginDir)
-		if err != nil && !os.IsNotExist(err) {
-			logger.Log(logger.LevelError, nil, err, "generating plugins path")
-		}
+			// generate the plugin list
+			pluginList, err := GeneratePluginPaths(staticPluginDir, userPluginDir, pluginDir)
+			if err != nil && !os.IsNotExist(err) {
+				logger.Log(logger.LevelError, nil, err, "generating plugins path")
+			}
 
-		err = cache.Set(context.Background(), PluginListKey, pluginList)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "setting plugin list key")
+			err = cache.Set(context.Background(), PluginListKey, pluginList)
+			if err != nil {
+				logger.Log(logger.LevelError, nil, err, "setting plugin list key")
+			}
+		}
+	}
+}
+
+// PluginEventType represents the type of change on a plugin.
+type PluginEventType string
+
+const (
+	PluginEventCreated PluginEventType = "created"
+	PluginEventUpdated PluginEventType = "updated"
+	PluginEventDeleted PluginEventType = "deleted"
+)
+
+// PluginEvent represents a structured event emitted when a plugin changes.
+type PluginEvent struct {
+	Type      PluginEventType `json:"type"`
+	Plugin    PluginMetadata  `json:"plugin"`
+	Timestamp time.Time       `json:"timestamp"`
+}
+
+// PluginRegistry is a thread-safe registry for backend plugins, HTTP handlers,
+// context cleanups, and SSE client notifications.
+type PluginRegistry struct {
+	mu         sync.RWMutex
+	plugins    map[string]PluginMetadata
+	handlers   map[string]http.Handler
+	cleanups   map[string]func()
+	listeners  map[chan PluginEvent]struct{}
+	listenerMu sync.RWMutex
+	staticDir  string
+	userDir    string
+	devDir     string
+	cache      cache.Cache[interface{}]
+}
+
+// NewPluginRegistry constructs a new PluginRegistry instance.
+func NewPluginRegistry(staticPluginDir, userPluginDir, pluginDir string, c cache.Cache[interface{}]) *PluginRegistry {
+	r := &PluginRegistry{
+		plugins:   make(map[string]PluginMetadata),
+		handlers:  make(map[string]http.Handler),
+		cleanups:  make(map[string]func()),
+		listeners: make(map[chan PluginEvent]struct{}),
+		staticDir: staticPluginDir,
+		userDir:   userPluginDir,
+		devDir:    pluginDir,
+		cache:     c,
+	}
+
+	_ = r.SyncFromDisk()
+
+	return r
+}
+
+// Register adds or updates a plugin entry with optional HTTP handler and cleanup callback.
+func (r *PluginRegistry) Register(meta PluginMetadata, handler http.Handler, cleanup func()) {
+	var oldCleanup func()
+
+	eventType := PluginEventCreated
+
+	r.mu.Lock()
+	if _, exists := r.plugins[meta.Name]; exists {
+		eventType = PluginEventUpdated
+		oldCleanup = r.cleanups[meta.Name]
+	}
+
+	r.plugins[meta.Name] = meta
+
+	if handler != nil {
+		r.handlers[meta.Name] = handler
+	} else {
+		delete(r.handlers, meta.Name)
+	}
+
+	if cleanup != nil {
+		r.cleanups[meta.Name] = cleanup
+	} else {
+		delete(r.cleanups, meta.Name)
+	}
+
+	r.syncCacheLocked()
+	r.mu.Unlock()
+
+	if oldCleanup != nil {
+		oldCleanup()
+	}
+
+	r.NotifySubscribers(PluginEvent{
+		Type:      eventType,
+		Plugin:    meta,
+		Timestamp: time.Now(),
+	})
+}
+
+// Deregister removes a plugin from the registry and runs its cleanup callback.
+func (r *PluginRegistry) Deregister(name string) error {
+	var meta PluginMetadata
+
+	var cleanup func()
+
+	var found bool
+
+	r.mu.Lock()
+	if m, ok := r.plugins[name]; ok {
+		found = true
+		meta = m
+		cleanup = r.cleanups[name]
+
+		delete(r.plugins, name)
+		delete(r.handlers, name)
+		delete(r.cleanups, name)
+
+		r.syncCacheLocked()
+	}
+	r.mu.Unlock()
+
+	if !found {
+		return fmt.Errorf("plugin %q not found in registry", name)
+	}
+
+	if cleanup != nil {
+		cleanup()
+	}
+
+	r.NotifySubscribers(PluginEvent{
+		Type:      PluginEventDeleted,
+		Plugin:    meta,
+		Timestamp: time.Now(),
+	})
+
+	return nil
+}
+
+// Get retrieves metadata for a plugin by name.
+func (r *PluginRegistry) Get(name string) (PluginMetadata, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	p, ok := r.plugins[name]
+
+	return p, ok
+}
+
+// GetHandler retrieves the dynamic http.Handler associated with a plugin.
+func (r *PluginRegistry) GetHandler(name string) (http.Handler, bool) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	h, ok := r.handlers[name]
+
+	return h, ok
+}
+
+// List returns all currently registered plugin metadata.
+func (r *PluginRegistry) List() []PluginMetadata {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+
+	list := make([]PluginMetadata, 0, len(r.plugins))
+	for _, p := range r.plugins {
+		list = append(list, p)
+	}
+
+	return list
+}
+
+func (r *PluginRegistry) syncCacheLocked() {
+	if r.cache == nil {
+		return
+	}
+
+	list := make([]PluginMetadata, 0, len(r.plugins))
+	for _, p := range r.plugins {
+		list = append(list, p)
+	}
+
+	_ = r.cache.Set(context.Background(), PluginListKey, list)
+	_ = r.cache.Set(context.Background(), PluginRefreshKey, canSendRefresh(r.cache))
+}
+
+// SyncFromDisk re-scans plugin directories, updates registry state and cache,
+// executes context cleanups for removed/updated plugins, and emits SSE events.
+//
+//nolint:funlen
+func (r *PluginRegistry) SyncFromDisk() error {
+	newList, err := GeneratePluginPaths(r.staticDir, r.userDir, r.devDir)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+
+	newMap := make(map[string]PluginMetadata, len(newList))
+	for _, meta := range newList {
+		newMap[meta.Name] = meta
+	}
+
+	var events []PluginEvent
+
+	var cleanupsToRun []func()
+
+	r.mu.Lock()
+
+	// Check for deleted or updated plugins
+	for name, oldMeta := range r.plugins {
+		newMeta, exists := newMap[name]
+		if !exists {
+			delete(r.plugins, name)
+			delete(r.handlers, name)
+
+			if cleanup, ok := r.cleanups[name]; ok {
+				cleanupsToRun = append(cleanupsToRun, cleanup)
+
+				delete(r.cleanups, name)
+			}
+
+			events = append(events, PluginEvent{
+				Type:      PluginEventDeleted,
+				Plugin:    oldMeta,
+				Timestamp: time.Now(),
+			})
+		} else if oldMeta.Path != newMeta.Path || oldMeta.Type != newMeta.Type {
+			r.plugins[name] = newMeta
+
+			if cleanup, ok := r.cleanups[name]; ok {
+				cleanupsToRun = append(cleanupsToRun, cleanup)
+
+				delete(r.cleanups, name)
+			}
+
+			events = append(events, PluginEvent{
+				Type:      PluginEventUpdated,
+				Plugin:    newMeta,
+				Timestamp: time.Now(),
+			})
+		}
+	}
+
+	// Check for newly created plugins
+	for name, newMeta := range newMap {
+		if _, exists := r.plugins[name]; !exists {
+			r.plugins[name] = newMeta
+			events = append(events, PluginEvent{
+				Type:      PluginEventCreated,
+				Plugin:    newMeta,
+				Timestamp: time.Now(),
+			})
+		}
+	}
+
+	r.syncCacheLocked()
+	r.mu.Unlock()
+
+	for _, cleanup := range cleanupsToRun {
+		if cleanup != nil {
+			cleanup()
+		}
+	}
+
+	for _, evt := range events {
+		r.NotifySubscribers(evt)
+	}
+
+	return nil
+}
+
+// Subscribe adds an SSE event listener channel. Returns channel and unsubscribe function.
+func (r *PluginRegistry) Subscribe() (<-chan PluginEvent, func()) {
+	ch := make(chan PluginEvent, 32)
+
+	r.listenerMu.Lock()
+	r.listeners[ch] = struct{}{}
+	r.listenerMu.Unlock()
+
+	var once sync.Once
+
+	unsubscribe := func() {
+		once.Do(func() {
+			r.listenerMu.Lock()
+			delete(r.listeners, ch)
+			r.listenerMu.Unlock()
+			close(ch)
+		})
+	}
+
+	return ch, unsubscribe
+}
+
+// NotifySubscribers broadcasts an event to all active SSE listener channels.
+func (r *PluginRegistry) NotifySubscribers(event PluginEvent) {
+	r.listenerMu.RLock()
+	chans := make([]chan PluginEvent, 0, len(r.listeners))
+
+	for ch := range r.listeners {
+		chans = append(chans, ch)
+	}
+
+	r.listenerMu.RUnlock()
+
+	for _, ch := range chans {
+		select {
+		case ch <- event:
+		default:
+			logger.Log(logger.LevelInfo, nil, nil, "SSE listener buffer full, dropping event")
+		}
+	}
+}
+
+// ServeSSE handles GET /plugins/events SSE HTTP streaming connections.
+func (r *PluginRegistry) ServeSSE(w http.ResponseWriter, req *http.Request) {
+	flusher, ok := w.(http.Flusher)
+	if !ok {
+		http.Error(w, "Streaming unsupported", http.StatusBadRequest)
+
+		return
+	}
+
+	w.Header().Set("Content-Type", "text/event-stream")
+	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+
+	ch, unsubscribe := r.Subscribe()
+	defer unsubscribe()
+
+	if _, err := fmt.Fprintf(w, "event: connected\ndata: {\"status\":\"connected\"}\n\n"); err != nil {
+		return
+	}
+
+	flusher.Flush()
+
+	for {
+		select {
+		case <-req.Context().Done():
+			return
+		case event, ok := <-ch:
+			if !ok {
+				return
+			}
+
+			b, err := json.Marshal(event)
+			if err != nil {
+				continue
+			}
+
+			if _, err := fmt.Fprintf(w, "event: plugin-event\ndata: %s\n\n", b); err != nil {
+				return
+			}
+
+			flusher.Flush()
 		}
 	}
 }
