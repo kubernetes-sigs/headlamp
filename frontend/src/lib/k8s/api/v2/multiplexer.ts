@@ -192,19 +192,41 @@ export const WebSocketManager = {
     }
 
     // Establish connection and send REQUEST
-    const socket = await this.connect();
-    const userId = getUserIdFromLocalStorage();
-    const requestMsg: WebSocketMessage = {
-      clusterId,
-      path,
-      query,
-      userId: userId || '',
-      type: 'REQUEST',
-    };
-    socket.send(JSON.stringify(requestMsg));
+    try {
+      const socket = await this.connect();
+      const userId = getUserIdFromLocalStorage();
+      const requestMsg: WebSocketMessage = {
+        clusterId,
+        path,
+        query,
+        userId: userId || '',
+        type: 'REQUEST',
+      };
+      socket.send(JSON.stringify(requestMsg));
 
-    // Return cleanup function
-    return () => this.unsubscribe(key, clusterId, path, query, onMessage, onError);
+      // Return cleanup function
+      return () => this.unsubscribe(key, clusterId, path, query, onMessage, onError);
+    } catch (err) {
+      // Clean up orphaned listeners if connection fails
+      this.activeSubscriptions.delete(key);
+      const msgListeners = this.listeners.get(key);
+      if (msgListeners) {
+        msgListeners.delete(onMessage);
+        if (msgListeners.size === 0) {
+          this.listeners.delete(key);
+        }
+      }
+      if (onError) {
+        const errListeners = this.errorListeners.get(key);
+        if (errListeners) {
+          errListeners.delete(onError);
+          if (errListeners.size === 0) {
+            this.errorListeners.delete(key);
+          }
+        }
+      }
+      throw err;
+    }
   },
 
   /**
