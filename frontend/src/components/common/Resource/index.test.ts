@@ -70,6 +70,7 @@ const checkExports = [
   'ViewButton',
   'AuthVisible',
   'LogsButton',
+  'KubectlCopyButton',
 ];
 
 function getFilesToVerify() {
