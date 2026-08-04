@@ -3,6 +3,7 @@ package kubeconfig_test
 import (
 	"context"
 	"encoding/base64"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -699,6 +700,21 @@ func TestContextCopyReturnsDeepCopy(t *testing.T) {
 
 	assert.Equal(t, original, copied)
 	assert.NotSame(t, original, copied)
+}
+
+func TestContextJSONRedactsOIDCClientSecret(t *testing.T) {
+	original := newTestContext()
+	copied := original.Copy()
+
+	for _, contextCopy := range []*kubeconfig.Context{original, copied} {
+		encoded, err := json.Marshal(contextCopy)
+		require.NoError(t, err)
+		assert.NotContains(t, string(encoded), "test-client-secret")
+		assert.NotContains(t, string(encoded), "ClientSecret")
+	}
+
+	assert.Equal(t, "test-client-secret", original.OidcConf.ClientSecret)
+	assert.Equal(t, "test-client-secret", copied.OidcConf.ClientSecret)
 }
 
 func TestContextCopyExcludesProxy(t *testing.T) {
