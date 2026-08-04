@@ -31,70 +31,47 @@ helm install my-headlamp headlamp/headlamp --namespace kube-system --set replica
 
 ### Cluster Inventory
 
-Headlamp can discover clusters from Cluster Inventory API `ClusterProfile`
-resources when Cluster Inventory is enabled. The Helm chart configures the
-backend flags from `config.clusterInventory` and mounts an access provider
-config file.
-
-Create `cluster-inventory-values.yaml`:
+Cluster Inventory lets a shared Headlamp deployment discover clusters from
+`ClusterProfile` resources. Each user signs in through Headlamp's OIDC provider;
+the discovered Kubernetes API server validates that user's token and applies
+that user's RBAC permissions.
 
 ```yaml
 config:
+  oidc:
+    clientID: headlamp
+    clientSecret: your-client-secret
+    issuerURL: https://idp.example.com
+    scopes: profile,email,offline_access
   clusterInventory:
     enabled: true
-    accessProvidersConfig:
-      providers:
-        - name: secretreader
-          execConfig:
-            apiVersion: client.authentication.k8s.io/v1
-            command: /access-plugins/secretreader/bin/secretreader-plugin
-            interactiveMode: Never
-            provideClusterInfo: true
-        - name: kubeconfig-secretreader
-          execConfig:
-            apiVersion: client.authentication.k8s.io/v1
-            command: /access-plugins/kubeconfig-secretreader/bin/kubeconfig-secretreader-plugin
-            interactiveMode: Never
-            provideClusterInfo: true
-    plugins:
-      - name: secretreader
-        image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.3@sha256:ec3090dc166aa2b42fb35d714d161c417d8b27bbc463404c8f615f5f4c610a1d
-        mountPath: /access-plugins/secretreader
-      - name: kubeconfig-secretreader
-        image: registry.k8s.io/cluster-inventory-api/kubeconfig-secretreader:v0.1.3@sha256:b92966cc6e4ac78002a63862921022a71d54956826f6e4febcb7247495eb98c0
-        mountPath: /access-plugins/kubeconfig-secretreader
-```
-
-Then install Headlamp with the values file:
-
-```bash
-helm install my-headlamp headlamp/headlamp --namespace kube-system --values cluster-inventory-values.yaml
-```
-
-The `accessProvidersConfig` object is the provider config consumed by the
-Cluster Inventory access provider. The `plugins` entries are Kubernetes `image`
-volumes that mount provider binaries into the Headlamp container, not Headlamp
-UI plugins. By default, Headlamp watches `ClusterProfile` resources that do not
-have the `headlamp.dev/ignore` label because the chart sets
-`config.clusterInventory.labelSelector` to `!headlamp.dev/ignore`. Discovery is
-scoped to the Headlamp pod's namespace. This follows the namespaced consumer
-model for ClusterProfile: each Headlamp instance reads the profiles published
-for that consumer's namespace.
-
-To watch specific namespaces, set:
-
-```yaml
-config:
-  clusterInventory:
     namespaces:
       - inventory-team-a
       - inventory-team-b
 ```
 
-Each selected namespace requires permission to get, list, and watch
-ClusterProfiles. Set `namespaces` to `["*"]` to watch all namespaces. `*`
-cannot be combined with named namespaces, and all-namespace discovery requires
-equivalent cluster-wide access.
+All discovered clusters' API servers must trust the same OIDC issuer and client
+as Headlamp. `offline_access` enables refresh tokens when the identity provider
+requires that scope. Enabling Inventory without an OIDC client ID and issuer is
+an error. Inventory remains an experimental/alpha feature and is disabled by
+default.
+
+| Connection | Credential used | Required permission |
+| --- | --- | --- |
+| Headlamp reads ClusterProfiles on the inventory root | Pod service account | Get, list, and watch ClusterProfiles in the watched namespaces |
+| A user opens a discovered cluster | That user's OIDC token | RBAC granted to that user on the discovered cluster |
+
+Without an explicit namespace list, Headlamp watches its pod namespace. Set
+`namespaces: ["*"]` to watch all namespaces with equivalent cluster-wide
+ClusterProfile access; `*` cannot be combined with named namespaces. The default
+label selector excludes profiles carrying `headlamp.dev/ignore`.
+
+The first `status.accessProviders` entry with a non-empty `cluster.server`
+supplies the HTTPS endpoint, inline CA data, TLS settings, and proxy URL. An
+invalid selected endpoint is rejected. Provider names do not select credentials.
+Headlamp does not execute access-provider plugins or read cluster credentials
+from Inventory. `accessProvidersConfig`, `plugins`, and
+`--cluster-inventory-provider-file` are no longer supported and return an error.
 
 ## Using simple yaml
 
