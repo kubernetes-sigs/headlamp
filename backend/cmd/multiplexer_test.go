@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -1204,9 +1205,15 @@ func TestHandleClientWebSocket_InvalidMessages(t *testing.T) {
 func TestProcessClientMessageRejectsMismatchedRouteCluster(t *testing.T) {
 	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
 	clientConn, clientServer := createTestWebSocketConnection()
+
 	defer clientServer.Close()
 
-	req := httptest.NewRequest(http.MethodGet, "/clusters/route-cluster/wsMultiplexer", nil)
+	req := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/clusters/route-cluster/wsMultiplexer",
+		nil,
+	)
 	req = mux.SetURLVars(req, map[string]string{"clusterName": "route-cluster"})
 	m.processClientMessage(req, clientConn, Message{
 		Type:      "REQUEST",
@@ -1221,19 +1228,50 @@ func TestProcessClientMessageRejectsMismatchedRouteCluster(t *testing.T) {
 	assert.Contains(t, response.Data, "does not match WebSocket route cluster")
 }
 
+func dialAuthenticatedTestMultiplexer(t *testing.T, serverURL, token string) *websocket.Conn {
+	t.Helper()
+
+	header := http.Header{}
+	header.Add("Cookie", (&http.Cookie{
+		Name:     "headlamp-auth-test-cluster.0",
+		Value:    token,
+		Secure:   true,
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+	}).String())
+
+	wsURL := "ws" + strings.TrimPrefix(serverURL, "http") + "/clusters/test-cluster/wsMultiplexer"
+	client, response, err := websocket.DefaultDialer.Dial(wsURL, header)
+	require.NoError(t, err)
+
+	if response != nil && response.Body != nil {
+		t.Cleanup(func() { _ = response.Body.Close() })
+	}
+
+	t.Cleanup(func() { _ = client.Close() })
+
+	return client
+}
+
 func TestClusterScopedMultiplexerUsesAuthCookie(t *testing.T) {
 	const clusterName = "test-cluster"
+
 	const token = "cookie-token"
 
 	receivedAuth := make(chan string, 1)
+
 	clusterServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		receivedAuth <- r.Header.Get("Authorization")
+
 		upgrader := websocket.Upgrader{CheckOrigin: func(r *http.Request) bool { return true }}
 		conn, err := upgrader.Upgrade(w, r, nil)
 		require.NoError(t, err)
+
 		defer func() { _ = conn.Close() }()
+
 		_, _, _ = conn.ReadMessage()
 	}))
+
 	defer clusterServer.Close()
 
 	store := kubeconfig.NewContextStore()
@@ -1248,17 +1286,10 @@ func TestClusterScopedMultiplexerUsesAuthCookie(t *testing.T) {
 	router := mux.NewRouter()
 	router.HandleFunc("/clusters/{clusterName}/wsMultiplexer", m.HandleClientWebSocket)
 	server := httptest.NewServer(router)
+
 	defer server.Close()
 
-	header := http.Header{}
-	header.Add("Cookie", (&http.Cookie{Name: "headlamp-auth-test-cluster.0", Value: token}).String())
-	wsURL := "ws" + strings.TrimPrefix(server.URL, "http") + "/clusters/test-cluster/wsMultiplexer"
-	client, response, err := websocket.DefaultDialer.Dial(wsURL, header)
-	require.NoError(t, err)
-	if response != nil && response.Body != nil {
-		defer func() { _ = response.Body.Close() }()
-	}
-	defer func() { _ = client.Close() }()
+	client := dialAuthenticatedTestMultiplexer(t, server.URL, token)
 
 	require.NoError(t, client.WriteJSON(Message{
 		Type:      "REQUEST",

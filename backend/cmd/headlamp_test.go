@@ -97,6 +97,7 @@ type recordingMultiplexer struct {
 
 func (m *recordingMultiplexer) HandleClientWebSocket(w http.ResponseWriter, _ *http.Request) {
 	m.called = true
+
 	w.WriteHeader(http.StatusNoContent)
 }
 
@@ -122,7 +123,7 @@ func TestClusterMultiplexerRoutePrecedesClusterAPIProxy(t *testing.T) {
 	recorder := httptest.NewRecorder()
 	handler.ServeHTTP(
 		recorder,
-		httptest.NewRequest(http.MethodGet, "/clusters/test/wsMultiplexer", nil),
+		httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/test/wsMultiplexer", nil),
 	)
 
 	assert.True(t, multiplexer.called)
