@@ -63,11 +63,11 @@ export const WebSocketManager = {
   /**
    * Establishes or returns an existing WebSocket connection.
    *
-    * Concurrent callers for the same cluster share one connection promise. Different
-    * clusters use separate sockets so each request carries the matching cluster-scoped
-    * authentication cookie.
+   * Concurrent callers for the same cluster share one connection promise. Different
+   * clusters use separate sockets so each request carries the matching cluster-scoped
+   * authentication cookie.
    *
-    * @param clusterId - Cluster whose authenticated multiplexer route should be used.
+   * @param clusterId - Cluster whose authenticated multiplexer route should be used.
    * @returns Promise resolving to WebSocket connection
    */
   async connect(clusterId: string): Promise<WebSocket> {
