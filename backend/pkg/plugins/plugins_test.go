@@ -846,3 +846,23 @@ func TestPluginRegistrySyncAndSSE(t *testing.T) {
 	assert.Equal(t, "user-plugins/hot-reload-plugin", gotMeta.Path)
 	assert.Equal(t, plugins.PluginTypeUser, gotMeta.Type)
 }
+
+func TestPluginRegistryInitialSyncNoRefreshKey(t *testing.T) {
+	staticDir := t.TempDir()
+	devDir := t.TempDir()
+	createPlugin(t, staticDir, "my-plugin")
+	createPlugin(t, devDir, "my-plugin")
+
+	ch := cache.New[interface{}]()
+	reg := plugins.NewPluginRegistry(staticDir, "", devDir, ch)
+
+	// Verify both plugins (shipped & dev) are present without key collision
+	list := reg.List()
+	assert.Len(t, list, 2)
+
+	// Verify PluginRefreshKey is false after initial sync
+	val, err := ch.Get(context.Background(), plugins.PluginRefreshKey)
+	require.NoError(t, err)
+	assert.Equal(t, false, val)
+}
+

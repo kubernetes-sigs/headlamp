@@ -574,33 +574,47 @@ func NewPluginRegistry(staticPluginDir, userPluginDir, pluginDir string, c cache
 	return r
 }
 
+func pluginKey(meta PluginMetadata) string {
+	if meta.Path != "" {
+		return meta.Path
+	}
+	if meta.Type != "" {
+		return meta.Name + ":" + meta.Type
+	}
+	return meta.Name
+}
+
 // Register adds or updates a plugin entry with optional HTTP handler and cleanup callback.
 func (r *PluginRegistry) Register(meta PluginMetadata, handler http.Handler, cleanup func()) {
 	var oldCleanup func()
 
+	key := pluginKey(meta)
 	eventType := PluginEventCreated
 
 	r.mu.Lock()
-	if _, exists := r.plugins[meta.Name]; exists {
+	if _, exists := r.plugins[key]; exists {
 		eventType = PluginEventUpdated
-		oldCleanup = r.cleanups[meta.Name]
+		oldCleanup = r.cleanups[key]
 	}
 
-	r.plugins[meta.Name] = meta
+	r.plugins[key] = meta
 
 	if handler != nil {
-		r.handlers[meta.Name] = handler
+		r.handlers[key] = handler
 	} else {
-		delete(r.handlers, meta.Name)
+		delete(r.handlers, key)
 	}
 
 	if cleanup != nil {
-		r.cleanups[meta.Name] = cleanup
+		r.cleanups[key] = cleanup
 	} else {
-		delete(r.cleanups, meta.Name)
+		delete(r.cleanups, key)
 	}
 
 	r.syncCacheLocked()
+	if r.cache != nil {
+		_ = r.cache.Set(context.Background(), PluginRefreshKey, canSendRefresh(r.cache))
+	}
 	r.mu.Unlock()
 
 	if oldCleanup != nil {
@@ -622,17 +636,36 @@ func (r *PluginRegistry) Deregister(name string) error {
 
 	var found bool
 
+	var foundKey string
+
 	r.mu.Lock()
 	if m, ok := r.plugins[name]; ok {
 		found = true
+		foundKey = name
 		meta = m
-		cleanup = r.cleanups[name]
+	} else {
+		for k, m := range r.plugins {
+			if m.Name == name || m.Path == name {
+				found = true
+				foundKey = k
+				meta = m
 
-		delete(r.plugins, name)
-		delete(r.handlers, name)
-		delete(r.cleanups, name)
+				break
+			}
+		}
+	}
+
+	if found {
+		cleanup = r.cleanups[foundKey]
+
+		delete(r.plugins, foundKey)
+		delete(r.handlers, foundKey)
+		delete(r.cleanups, foundKey)
 
 		r.syncCacheLocked()
+		if r.cache != nil {
+			_ = r.cache.Set(context.Background(), PluginRefreshKey, canSendRefresh(r.cache))
+		}
 	}
 	r.mu.Unlock()
 
@@ -653,14 +686,22 @@ func (r *PluginRegistry) Deregister(name string) error {
 	return nil
 }
 
-// Get retrieves metadata for a plugin by name.
+// Get retrieves metadata for a plugin by name or path.
 func (r *PluginRegistry) Get(name string) (PluginMetadata, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	p, ok := r.plugins[name]
+	if p, ok := r.plugins[name]; ok {
+		return p, true
+	}
 
-	return p, ok
+	for _, p := range r.plugins {
+		if p.Name == name || p.Path == name {
+			return p, true
+		}
+	}
+
+	return PluginMetadata{}, false
 }
 
 // GetHandler retrieves the dynamic http.Handler associated with a plugin.
@@ -668,9 +709,17 @@ func (r *PluginRegistry) GetHandler(name string) (http.Handler, bool) {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
 
-	h, ok := r.handlers[name]
+	if h, ok := r.handlers[name]; ok {
+		return h, true
+	}
 
-	return h, ok
+	for k, h := range r.handlers {
+		if p, ok := r.plugins[k]; ok && (p.Name == name || p.Path == name) {
+			return h, true
+		}
+	}
+
+	return nil, false
 }
 
 // List returns all currently registered plugin metadata.
@@ -697,7 +746,6 @@ func (r *PluginRegistry) syncCacheLocked() {
 	}
 
 	_ = r.cache.Set(context.Background(), PluginListKey, list)
-	_ = r.cache.Set(context.Background(), PluginRefreshKey, canSendRefresh(r.cache))
 }
 
 // SyncFromDisk re-scans plugin directories, updates registry state and cache,
@@ -712,7 +760,7 @@ func (r *PluginRegistry) SyncFromDisk() error {
 
 	newMap := make(map[string]PluginMetadata, len(newList))
 	for _, meta := range newList {
-		newMap[meta.Name] = meta
+		newMap[pluginKey(meta)] = meta
 	}
 
 	var events []PluginEvent
@@ -722,16 +770,16 @@ func (r *PluginRegistry) SyncFromDisk() error {
 	r.mu.Lock()
 
 	// Check for deleted or updated plugins
-	for name, oldMeta := range r.plugins {
-		newMeta, exists := newMap[name]
+	for key, oldMeta := range r.plugins {
+		newMeta, exists := newMap[key]
 		if !exists {
-			delete(r.plugins, name)
-			delete(r.handlers, name)
+			delete(r.plugins, key)
+			delete(r.handlers, key)
 
-			if cleanup, ok := r.cleanups[name]; ok {
+			if cleanup, ok := r.cleanups[key]; ok {
 				cleanupsToRun = append(cleanupsToRun, cleanup)
 
-				delete(r.cleanups, name)
+				delete(r.cleanups, key)
 			}
 
 			events = append(events, PluginEvent{
@@ -740,12 +788,12 @@ func (r *PluginRegistry) SyncFromDisk() error {
 				Timestamp: time.Now(),
 			})
 		} else if oldMeta.Path != newMeta.Path || oldMeta.Type != newMeta.Type {
-			r.plugins[name] = newMeta
+			r.plugins[key] = newMeta
 
-			if cleanup, ok := r.cleanups[name]; ok {
+			if cleanup, ok := r.cleanups[key]; ok {
 				cleanupsToRun = append(cleanupsToRun, cleanup)
 
-				delete(r.cleanups, name)
+				delete(r.cleanups, key)
 			}
 
 			events = append(events, PluginEvent{
@@ -757,9 +805,9 @@ func (r *PluginRegistry) SyncFromDisk() error {
 	}
 
 	// Check for newly created plugins
-	for name, newMeta := range newMap {
-		if _, exists := r.plugins[name]; !exists {
-			r.plugins[name] = newMeta
+	for key, newMeta := range newMap {
+		if _, exists := r.plugins[key]; !exists {
+			r.plugins[key] = newMeta
 			events = append(events, PluginEvent{
 				Type:      PluginEventCreated,
 				Plugin:    newMeta,
@@ -769,6 +817,11 @@ func (r *PluginRegistry) SyncFromDisk() error {
 	}
 
 	r.syncCacheLocked()
+
+	if len(events) > 0 && r.cache != nil {
+		_ = r.cache.Set(context.Background(), PluginRefreshKey, canSendRefresh(r.cache))
+	}
+
 	r.mu.Unlock()
 
 	for _, cleanup := range cleanupsToRun {
