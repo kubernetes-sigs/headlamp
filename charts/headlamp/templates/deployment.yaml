@@ -19,9 +19,11 @@
 {{- $meUserInfoURL := "" }}
 {{- $clusterInventory := .Values.config.clusterInventory | default dict }}
 {{- $clusterInventoryEnabled := $clusterInventory.enabled | default false }}
-{{- $clusterInventoryProviderFile := "/etc/cluster-inventory/config.json" }}
-{{- $clusterInventoryProviderMountDir := "/etc/cluster-inventory" }}
-{{- $clusterInventoryProviderConfigPath := "config.json" }}
+{{- range $key := list "accessProvidersConfig" "plugins" }}
+{{- if hasKey $clusterInventory $key }}
+{{-   fail (printf "config.clusterInventory.%s is no longer supported; Cluster Inventory requires per-user OIDC" $key) }}
+{{- end }}
+{{- end }}
 {{- $readOnlyRootFs := eq (include "headlamp.readOnlyRootFilesystem" .Values) "true" }}
 {{- $pluginManagerSecurityContext := dict }}
 {{- if .Values.pluginsManager.securityContext }}
@@ -70,6 +72,12 @@
   {{- if eq .name "OIDC_AUTO_LOGIN" }}
     {{- $oidcAutoLogin = .value | toString }}
   {{- end }}
+{{- end }}
+
+{{- $oidcClientConfigured := or (ne $oidc.clientID "") (ne $clientID "") }}
+{{- $oidcIssuerConfigured := or (ne $oidc.issuerURL "") (ne $issuerURL "") }}
+{{- if and $clusterInventoryEnabled (not (or $oidc.externalSecret.enabled (and $oidcClientConfigured $oidcIssuerConfigured))) }}
+{{-   fail "Cluster Inventory requires the OIDC client ID and issuer URL; set config.oidc (or OIDC env vars / externalSecret)" }}
 {{- end }}
 
 apiVersion: apps/v1
@@ -311,7 +319,6 @@ spec:
             {{- end }}
             {{- if $clusterInventoryEnabled }}
             - "-enable-cluster-inventory"
-            - "-cluster-inventory-provider-file={{ $clusterInventoryProviderFile }}"
             {{- with $clusterInventory.labelSelector }}
             - "-cluster-inventory-label-selector={{ . }}"
             {{- end }}
@@ -443,25 +450,11 @@ spec:
             failureThreshold: {{ .Values.probes.readinessProbe.failureThreshold | default 3 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if or .Values.pluginsManager.enabled $clusterInventoryEnabled .Values.volumeMounts $tmpCtx.addMount }}
+          {{- if or .Values.pluginsManager.enabled .Values.volumeMounts $tmpCtx.addMount }}
           volumeMounts:
             {{- if .Values.pluginsManager.enabled }}
             - name: plugins-dir
               mountPath: {{ .Values.config.pluginsDir }}
-            {{- end }}
-            {{- if $clusterInventoryEnabled }}
-            - name: cluster-inventory-config
-              mountPath: {{ $clusterInventoryProviderMountDir }}
-              readOnly: true
-            {{- range $index, $plugin := ($clusterInventory.plugins | default list) }}
-            {{- $mountPath := $plugin.mountPath | default "" | toString | clean }}
-            {{- if not (hasPrefix "/" $mountPath) }}
-            {{-   fail (printf "config.clusterInventory.plugins[%d].mountPath must be an absolute path, got %q" $index ($plugin.mountPath | default "" | toString)) }}
-            {{- end }}
-            - name: {{ $plugin.name }}
-              mountPath: {{ $mountPath }}
-              readOnly: true
-            {{- end }}
             {{- end }}
             {{- with .Values.volumeMounts }}
             {{- toYaml . | nindent 12 }}
@@ -548,7 +541,7 @@ spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . | quote }}
       {{- end }}
-      {{- if or .Values.pluginsManager.enabled $clusterInventoryEnabled .Values.volumes $tmpCtx.addVolume $pluginsTmpCtx.addVolume }}
+      {{- if or .Values.pluginsManager.enabled .Values.volumes $tmpCtx.addVolume $pluginsTmpCtx.addVolume }}
       volumes:
         {{- if .Values.pluginsManager.enabled }}
         - name: plugins-dir
@@ -559,19 +552,6 @@ spec:
         {{- if $pluginsTmpCtx.addVolume }}
         - name: headlamp-plugins-tmp
           emptyDir: {}
-        {{- end }}
-        {{- end }}
-        {{- if $clusterInventoryEnabled }}
-        - name: cluster-inventory-config
-          configMap:
-            name: {{ include "headlamp.fullname" . }}-cluster-inventory
-            items:
-              - key: config.json
-                path: {{ $clusterInventoryProviderConfigPath }}
-        {{- range $plugin := ($clusterInventory.plugins | default list) }}
-        - name: {{ $plugin.name }}
-          image:
-            reference: {{ $plugin.image | quote }}
         {{- end }}
         {{- end }}
         {{- if $tmpCtx.addVolume }}

@@ -66,51 +66,6 @@ $ helm upgrade my-headlamp headlamp/headlamp \
   --set image.tag=v<appVersion>
 ```
 
-### Installation with Cluster Inventory
-
-> **Warning**
-> Cluster Inventory support in Headlamp is alpha/experimental and disabled by
-> default. The upstream Cluster Inventory API is currently `v1alpha1` and this
-> integration uses the `v0.1.x` API, so fields and behavior may change.
-
-```console
-$ helm install my-headlamp headlamp/headlamp \
-  --namespace kube-system \
-  --values cluster-inventory-values.yaml
-```
-
-`cluster-inventory-values.yaml`:
-
-```yaml
-config:
-  clusterInventory:
-    enabled: true
-    accessProvidersConfig:
-      providers:
-        - name: secretreader
-          execConfig:
-            apiVersion: client.authentication.k8s.io/v1
-            command: /access-plugins/secretreader/bin/secretreader-plugin
-            interactiveMode: Never
-            provideClusterInfo: true
-        - name: kubeconfig-secretreader
-          execConfig:
-            apiVersion: client.authentication.k8s.io/v1
-            command: /access-plugins/kubeconfig-secretreader/bin/kubeconfig-secretreader-plugin
-            interactiveMode: Never
-            provideClusterInfo: true
-    plugins:
-      - name: secretreader
-        image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.3@sha256:ec3090dc166aa2b42fb35d714d161c417d8b27bbc463404c8f615f5f4c610a1d
-        mountPath: /access-plugins/secretreader
-      - name: kubeconfig-secretreader
-        image: registry.k8s.io/cluster-inventory-api/kubeconfig-secretreader:v0.1.3@sha256:b92966cc6e4ac78002a63862921022a71d54956826f6e4febcb7247495eb98c0
-        mountPath: /access-plugins/kubeconfig-secretreader
-```
-
-`plugins[]` mounts Cluster Inventory access provider binaries as Kubernetes
-`image` volumes; it is not for Headlamp UI plugins.
-
 ## Configuration
 
 ### Core Parameters
@@ -139,8 +94,6 @@ config:
 | config.nodeShellImage | string | `""`               | Default image to use when creating node shell pods                         |
 | config.nodeShellNamespace | string | `""`            | Default namespace to use when creating node shell pods                      |
 | config.clusterInventory.enabled | bool | `false` | Enable experimental/alpha Cluster Inventory discovery |
-| config.clusterInventory.accessProvidersConfig | object | `{}` | Experimental/alpha Cluster Inventory access providers config. Required when Cluster Inventory is enabled |
-| config.clusterInventory.plugins | list | `[]` | Kubernetes image volumes that provide experimental/alpha Cluster Inventory access provider binaries |
 | config.clusterInventory.labelSelector | string | `"!headlamp.dev/ignore"` | Kubernetes label selector used to filter experimental/alpha ClusterProfile resources |
 | config.clusterInventory.namespaces | list | `[]` | Namespaces watched for experimental/alpha ClusterProfile resources. Empty uses the Headlamp pod namespace for in-cluster roots and the kubeconfig context namespace for kubeconfig roots; `["*"]` watches all and requires equivalent cluster-wide RBAC permissions |
 | config.clusterInventory.rootReconcileInterval | string | `""` | Override the experimental/alpha Cluster Inventory root reconcile interval. Empty uses the Headlamp default |
@@ -212,42 +165,34 @@ config:
 > default. The upstream Cluster Inventory API is currently `v1alpha1` and this
 > integration uses the `v0.1.x` API, so fields and behavior may change.
 
-When `config.clusterInventory.enabled` is true, the chart creates a provider
-ConfigMap, makes it available read-only at `/etc/cluster-inventory/config.json`,
-and adds the Headlamp Cluster Inventory flags automatically.
+When `config.clusterInventory.enabled` is true, every discovered cluster uses
+Headlamp's configured OIDC login. Its Kubernetes API server validates each
+user's token and applies that user's RBAC. The chart requires an OIDC client ID
+and issuer, supplied through `config.oidc`, the existing OIDC environment
+variables, or `config.oidc.externalSecret`.
 
 ```yaml
 config:
+  oidc:
+    clientID: headlamp
+    clientSecret: your-client-secret
+    issuerURL: https://idp.example.com
+    scopes: profile,email,offline_access
   clusterInventory:
     enabled: true
-    accessProvidersConfig:
-      providers:
-        - name: secretreader
-          execConfig:
-            apiVersion: client.authentication.k8s.io/v1
-            command: /access-plugins/secretreader/bin/secretreader-plugin
-            interactiveMode: Never
-            provideClusterInfo: true
-        - name: kubeconfig-secretreader
-          execConfig:
-            apiVersion: client.authentication.k8s.io/v1
-            command: /access-plugins/kubeconfig-secretreader/bin/kubeconfig-secretreader-plugin
-            interactiveMode: Never
-            provideClusterInfo: true
-    plugins:
-      - name: secretreader
-        image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.3@sha256:ec3090dc166aa2b42fb35d714d161c417d8b27bbc463404c8f615f5f4c610a1d
-        mountPath: /access-plugins/secretreader
-      - name: kubeconfig-secretreader
-        image: registry.k8s.io/cluster-inventory-api/kubeconfig-secretreader:v0.1.3@sha256:b92966cc6e4ac78002a63862921022a71d54956826f6e4febcb7247495eb98c0
-        mountPath: /access-plugins/kubeconfig-secretreader
+    namespaces:
+      - inventory-team-a
 ```
 
-`plugins[]` is for Cluster Inventory access provider binaries, not Headlamp UI
-plugins. Each entry renders as a Kubernetes `image` volume and is mounted
-read-only into the Headlamp container. If an access provider `execConfig.command`
-is configured, the command must be under one of the absolute
-`plugins[].mountPath` values.
+The pod's service account reads ClusterProfiles; it is not used to authenticate
+user requests to discovered clusters. HTTPS connection metadata comes from the
+first access-provider entry with a non-empty server. All discovered API servers
+must trust the configured OIDC issuer and client.
+
+The chart no longer creates a provider ConfigMap or mounts access-provider
+binaries. The former `accessProvidersConfig` and `plugins` values
+are rejected. Headlamp UI plugins configured elsewhere are independent of
+Cluster Inventory.
 
 ### Deployment Configuration
 

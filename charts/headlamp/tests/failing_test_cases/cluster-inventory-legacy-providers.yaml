@@ -1,0 +1,6 @@
+config:
+  clusterInventory:
+    enabled: true
+    accessProvidersConfig:
+      providers:
+        - name: legacy-provider
