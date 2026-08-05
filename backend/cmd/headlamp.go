@@ -1430,7 +1430,11 @@ func StartHeadlampServer(config *HeadlampConfig) {
 		return
 	}
 
-	runServer(config, cancel, handler, healthChecker)
+	// Mount the main application handler under the top-level router so
+	// that health endpoints registered above are reachable alongside it.
+	router.PathPrefix("/").Handler(handler)
+
+	runServer(config, cancel, router, healthChecker)
 }
 
 // runServer creates the HTTP server, sets up graceful shutdown, starts
