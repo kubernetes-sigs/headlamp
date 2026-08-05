@@ -738,5 +738,6 @@ describe('adjustSourceMapOffsetForFunction', () => {
       'Failed to adjust source map offset',
       expect.any(SyntaxError)
     );
+    consoleError.mockRestore();
   });
 });
