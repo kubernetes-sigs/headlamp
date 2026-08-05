@@ -556,81 +556,135 @@ func TestCachedResponseIsNotServedToADifferentRequest(t *testing.T) {
 	assert.True(t, served, "repeating the same filtered request should hit the cache")
 }
 
-// TestNewCacheableRequest covers the requests that must never reach the response cache:
-// watch streams, subresources, self-subject reviews, and non-API paths.
+// TestNewAPIRequest covers both questions the middleware asks of a request: whether it
+// addresses the Kubernetes API, and whether its response may use the cache.
 //
 //nolint:funlen
-func TestNewCacheableRequest(t *testing.T) {
+func TestNewAPIRequest(t *testing.T) {
 	tests := []struct {
-		name         string
-		rawURL       string
-		expectBypass bool
+		name            string
+		rawURL          string
+		expectAPI       bool
+		expectCacheable bool
 	}{
 		{
-			name:         "namespaced list is cacheable",
-			rawURL:       "/clusters/c/api/v1/namespaces/default/pods",
-			expectBypass: false,
+			name:            "namespaced list",
+			rawURL:          "/clusters/c/api/v1/namespaces/default/pods",
+			expectAPI:       true,
+			expectCacheable: true,
 		},
 		{
-			name:         "filtered list is cacheable",
-			rawURL:       "/clusters/c/api/v1/namespaces/default/pods?labelSelector=app%3Dfoo",
-			expectBypass: false,
+			name:            "filtered list",
+			rawURL:          "/clusters/c/api/v1/namespaces/default/pods?labelSelector=app%3Dfoo",
+			expectAPI:       true,
+			expectCacheable: true,
 		},
 		{
-			name:         "named GET is cacheable",
-			rawURL:       "/clusters/c/api/v1/namespaces/default/pods/mypod",
-			expectBypass: false,
+			name:            "named GET",
+			rawURL:          "/clusters/c/api/v1/namespaces/default/pods/mypod",
+			expectAPI:       true,
+			expectCacheable: true,
 		},
 		{
-			name:         "discovery path is cacheable",
-			rawURL:       "/clusters/c/apis/metrics.k8s.io",
-			expectBypass: false,
+			name:            "discovery path",
+			rawURL:          "/clusters/c/apis/metrics.k8s.io",
+			expectAPI:       true,
+			expectCacheable: true,
 		},
 		{
-			name:         "watch request is bypassed",
-			rawURL:       "/clusters/c/api/v1/namespaces/default/pods?watch=true",
-			expectBypass: true,
+			name:            "watch request",
+			rawURL:          "/clusters/c/api/v1/namespaces/default/pods?watch=true",
+			expectAPI:       true,
+			expectCacheable: false,
 		},
 		{
-			name:         "watch request using 1 is bypassed",
-			rawURL:       "/clusters/c/api/v1/namespaces/default/pods?watch=1",
-			expectBypass: true,
+			name:            "watch request using 1",
+			rawURL:          "/clusters/c/api/v1/namespaces/default/pods?watch=1",
+			expectAPI:       true,
+			expectCacheable: false,
 		},
 		{
-			name:         "pod log subresource is bypassed",
-			rawURL:       "/clusters/c/api/v1/namespaces/default/pods/mypod/log",
-			expectBypass: true,
+			name:            "pod log subresource",
+			rawURL:          "/clusters/c/api/v1/namespaces/default/pods/mypod/log",
+			expectAPI:       true,
+			expectCacheable: false,
 		},
 		{
-			name:         "scale subresource is bypassed",
-			rawURL:       "/clusters/c/apis/apps/v1/namespaces/default/deployments/web/scale",
-			expectBypass: true,
+			name:            "scale subresource",
+			rawURL:          "/clusters/c/apis/apps/v1/namespaces/default/deployments/web/scale",
+			expectAPI:       true,
+			expectCacheable: false,
 		},
 		{
-			name:         "self subject access review is bypassed",
-			rawURL:       "/clusters/c/apis/authorization.k8s.io/v1/selfsubjectaccessreviews",
-			expectBypass: true,
+			name:            "self subject access review",
+			rawURL:          "/clusters/c/apis/authorization.k8s.io/v1/selfsubjectaccessreviews",
+			expectAPI:       true,
+			expectCacheable: false,
 		},
 		{
-			name:         "non-API path is bypassed",
-			rawURL:       "/clusters/c/version",
-			expectBypass: true,
+			name:      "non-API path",
+			rawURL:    "/clusters/c/version",
+			expectAPI: false,
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, tc.rawURL, nil)
-			cacheable, ok := k8cache.NewCacheableRequest(req)
-			assert.Equal(t, tc.expectBypass, !ok)
 
-			if ok {
-				key, err := k8cache.GenerateKey(req.URL, "ctx")
-				require.NoError(t, err)
-				assert.Equal(t, key, cacheable.Key("ctx"), "both key paths must agree")
+			apiRequest, ok := k8cache.NewAPIRequest(req)
+			assert.Equal(t, tc.expectAPI, ok)
+
+			if !ok {
+				return
 			}
+
+			assert.Equal(t, tc.expectCacheable, apiRequest.Cacheable())
+
+			key, err := k8cache.GenerateKey(req.URL, "ctx")
+			require.NoError(t, err)
+			assert.Equal(t, key, apiRequest.Key("ctx"), "both key paths must agree")
 		})
 	}
+}
+
+// TestAPIRequestCacheableRequiresGET checks that only reads may use the cache, so a method
+// that is neither a read nor a mutation is never answered from a cached GET.
+func TestAPIRequestCacheableRequiresGET(t *testing.T) {
+	methods := []string{
+		http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete, http.MethodHead,
+	}
+
+	for _, method := range methods {
+		t.Run(method, func(t *testing.T) {
+			req := httptest.NewRequestWithContext(
+				context.Background(), method, "/clusters/c/api/v1/namespaces/default/pods", nil,
+			)
+
+			apiRequest, ok := k8cache.NewAPIRequest(req)
+			require.True(t, ok)
+			assert.False(t, apiRequest.Cacheable())
+		})
+	}
+}
+
+// TestSubresourceKeyAddressesItsParent pins the property invalidation relies on: a
+// subresource key shares the prefix DeleteKeys matches on with its parent object's key.
+func TestSubresourceKeyAddressesItsParent(t *testing.T) {
+	subresource := "/clusters/c/apis/apps/v1/namespaces/ns/deployments/web/scale"
+	parent := "/clusters/c/apis/apps/v1/namespaces/ns/deployments/web"
+
+	subresourceKey, err := generateKeyForRawURL(t, subresource)
+	require.NoError(t, err)
+
+	parentKey, err := generateKeyForRawURL(t, parent)
+	require.NoError(t, err)
+
+	assert.NotEqual(t, parentKey, subresourceKey, "the subresource must not share the parent's entry")
+
+	prefix := "apps+deployments+ns+mycluster+web+"
+	assert.True(t, strings.HasPrefix(subresourceKey, prefix), "got %q", subresourceKey)
+	assert.True(t, strings.HasPrefix(parentKey, prefix), "got %q", parentKey)
 }
 
 // TestGenerateKeyVariantSeparatesCollidingRequests checks that requests sharing every
@@ -911,8 +965,8 @@ func TestStoreK8sResponseInCache(t *testing.T) {
 	}
 }
 
-// TestStoreK8sResponseInCacheTTL checks that pages reached through a continue token, which
-// a client never requests twice, expire well before ordinary responses.
+// TestStoreK8sResponseInCacheTTL checks that pages reached through a continue token expire
+// well before ordinary responses.
 func TestStoreK8sResponseInCacheTTL(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -1140,8 +1194,7 @@ func TestLoadFromCache_MissesEdgeCases(t *testing.T) {
 }
 
 // TestStoreK8sResponseInCache_SkipSelfSubjectReviews verifies that self-subject review
-// responses are never written to the cache, through the same predicate that keeps them
-// out of the serve path.
+// responses are never written to the cache.
 func TestStoreK8sResponseInCache_SkipSelfSubjectReviews(t *testing.T) {
 	paths := []string{
 		"/apis/authorization.k8s.io/v1/selfsubjectrulesreviews",

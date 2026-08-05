@@ -286,8 +286,8 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 		return
 	}
 
-	cacheable, ok := k8cache.NewCacheableRequest(r)
-	if !ok {
+	apiRequest, ok := k8cache.NewAPIRequest(r)
+	if !ok || (!apiRequest.Cacheable() && !k8cache.InvalidatesCache(r)) {
 		next.ServeHTTP(w, r)
 		return
 	}
@@ -297,9 +297,14 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 		return
 	}
 
-	key := cacheable.Key(contextKey)
+	key := apiRequest.Key(contextKey)
 
 	if k8cache.HandleNonGETCacheInvalidation(k8sResponseCache, w, r, next, key) {
+		return
+	}
+
+	if !apiRequest.Cacheable() {
+		next.ServeHTTP(w, r)
 		return
 	}
 

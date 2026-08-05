@@ -206,7 +206,7 @@ func TestDeleteKeys(t *testing.T) { //nolint:funlen
 }
 
 // TestDeleteCollectionKeys covers the eviction a collection delete needs: the objects it
-// removed must go too, since nothing else evicts them for resources without an informer.
+// removed must go too.
 func TestDeleteCollectionKeys(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -874,9 +874,8 @@ func TestHandleNonGETCacheInvalidation_BypassURLExcluded(t *testing.T) {
 }
 
 // TestHandleNonGETCacheInvalidation_PostOnNormalURL exercises the full invalidation path:
-// POST on a normal (non-excluded) URL evicts every cached variant of the object and its
-// lists, forwards the request once, and reports the request as handled. The evicted entries
-// are not refilled, so the modifying request costs exactly one upstream call.
+// a POST evicts every cached variant of the object, forwards the request once, and does not
+// refill what it evicted.
 func TestHandleNonGETCacheInvalidation_PostOnNormalURL(t *testing.T) {
 	mockCache := NewMockCache()
 	targetURL := &url.URL{Path: "/clusters/kind/api/v1/namespaces/ns/configmaps/version"}
@@ -906,9 +905,96 @@ func TestHandleNonGETCacheInvalidation_PostOnNormalURL(t *testing.T) {
 	assert.Error(t, err, "the stale entry must be evicted, not refilled")
 }
 
+// TestInvalidatesCache covers which requests reach cache invalidation: the mutating methods
+// on a resource path, including subresource writes, and nothing else.
+func TestInvalidatesCache(t *testing.T) {
+	tests := []struct {
+		name   string
+		method string
+		rawURL string
+		want   bool
+	}{
+		{
+			name:   "delete of an object",
+			method: http.MethodDelete,
+			rawURL: "/clusters/c/api/v1/namespaces/ns/pods/mypod",
+			want:   true,
+		},
+		{
+			name:   "patch of a subresource",
+			method: http.MethodPatch,
+			rawURL: "/clusters/c/apis/apps/v1/namespaces/ns/deployments/web/scale",
+			want:   true,
+		},
+		{
+			name:   "post creating an object",
+			method: http.MethodPost,
+			rawURL: "/clusters/c/api/v1/namespaces/ns/pods",
+			want:   true,
+		},
+		{
+			name:   "get",
+			method: http.MethodGet,
+			rawURL: "/clusters/c/api/v1/namespaces/ns/pods",
+			want:   false,
+		},
+		{
+			name:   "head",
+			method: http.MethodHead,
+			rawURL: "/clusters/c/api/v1/namespaces/ns/pods",
+			want:   false,
+		},
+		{
+			name:   "post to a self subject review",
+			method: http.MethodPost,
+			rawURL: "/clusters/c/apis/authorization.k8s.io/v1/selfsubjectaccessreviews",
+			want:   false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			r := httptest.NewRequestWithContext(context.Background(), tc.method, tc.rawURL, nil)
+			assert.Equal(t, tc.want, k8cache.InvalidatesCache(r))
+		})
+	}
+}
+
+// TestHandleNonGETCacheInvalidation_SubresourceWrite checks that writing a subresource
+// evicts the parent object and the lists it appears in.
+func TestHandleNonGETCacheInvalidation_SubresourceWrite(t *testing.T) {
+	scaleURL := &url.URL{Path: "/clusters/kind/apis/apps/v1/namespaces/ns/deployments/web/scale"}
+	objectURL := &url.URL{Path: "/clusters/kind/apis/apps/v1/namespaces/ns/deployments/web"}
+	listURL := &url.URL{Path: "/clusters/kind/apis/apps/v1/namespaces/ns/deployments"}
+
+	scaleKey, err := k8cache.GenerateKey(scaleURL, "ctx")
+	require.NoError(t, err)
+
+	mockCache := NewMockCache()
+
+	for _, u := range []*url.URL{objectURL, listURL} {
+		key, err := k8cache.GenerateKey(u, "ctx")
+		require.NoError(t, err)
+		require.NoError(t, mockCache.Set(context.Background(), key, `{"body":"stale"}`))
+	}
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodPut, scaleURL.String(), nil)
+	r.URL = scaleURL
+
+	assert.True(t, k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, scaleKey))
+
+	remaining, err := mockCache.GetAll(context.Background(), nil)
+	require.NoError(t, err)
+	assert.Empty(t, remaining, "the scaled deployment and its lists must not stay cached")
+}
+
 // TestHandleNonGETCacheInvalidation_CollectionScope checks that only a delete widens
-// eviction to the objects of the collection it addresses: a create adds one object and must
-// leave its siblings cached.
+// eviction to the objects of the collection it addresses.
 func TestHandleNonGETCacheInvalidation_CollectionScope(t *testing.T) {
 	collectionURL := &url.URL{Path: "/clusters/kind/api/v1/namespaces/ns/configmaps"}
 	objectURL := &url.URL{Path: "/clusters/kind/api/v1/namespaces/ns/configmaps/settings"}
@@ -948,9 +1034,8 @@ func TestHandleNonGETCacheInvalidation_CollectionScope(t *testing.T) {
 	}
 }
 
-// TestHandleNonGETCacheInvalidation_EvictsAfterTheWrite covers the window where a read
-// racing the modifying request caches pre-write state: the entry written while the request
-// is in flight must not survive it.
+// TestHandleNonGETCacheInvalidation_EvictsAfterTheWrite checks that an entry cached while
+// the modifying request is in flight does not survive it.
 func TestHandleNonGETCacheInvalidation_EvictsAfterTheWrite(t *testing.T) {
 	mockCache := NewMockCache()
 	targetURL := &url.URL{Path: "/clusters/kind/api/v1/namespaces/ns/configmaps/settings"}

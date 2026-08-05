@@ -40,9 +40,8 @@ import (
 
 // deleteByPrefixes removes every cache entry whose key starts with any of prefixes. An
 // object has one entry per requested variant, so invalidation cannot address them by exact
-// key. The cache is swept once regardless of how many prefixes are supplied, since each
-// sweep walks every entry; duplicates are dropped so no entry is tested twice, which happens
-// whenever a cluster-scoped object makes the namespaced and all-namespace prefixes equal.
+// key. The cache is swept once regardless of how many prefixes are supplied, and duplicate
+// prefixes are dropped so no entry is tested twice.
 func deleteByPrefixes(k8scache cache.Cache[string], prefixes ...string) {
 	if len(prefixes) == 0 {
 		return
@@ -83,8 +82,7 @@ func DeleteKeys(key string, k8scache cache.Cache[string]) {
 }
 
 // deleteCollectionKeys does what DeleteKeys does and, when key addresses a collection rather
-// than a single object, also evicts every object in that collection. It is for mutations that
-// remove the collection's members, whose cached objects would otherwise outlive them.
+// than a single object, also evicts every object in that collection.
 func deleteCollectionKeys(key string, k8scache cache.Cache[string]) {
 	deleteKeys(key, k8scache, true)
 }
@@ -117,8 +115,7 @@ func deleteKeys(key string, k8scache cache.Cache[string], removesCollection bool
 }
 
 // invalidateForMethod evicts what a request of this method invalidates. Only a delete can
-// remove a collection's members, so only it widens eviction to the objects in the collection:
-// a create adds one object and must leave its siblings cached.
+// remove a collection's members, so only it widens eviction to the objects in it.
 func invalidateForMethod(k8scache cache.Cache[string], key, method string) {
 	if method == http.MethodDelete {
 		deleteCollectionKeys(key, k8scache)
@@ -129,24 +126,29 @@ func invalidateForMethod(k8scache cache.Cache[string], key, method string) {
 	DeleteKeys(key, k8scache)
 }
 
+// InvalidatesCache reports whether r modifies cluster state the response cache holds, and so
+// must be routed through HandleNonGETCacheInvalidation. This is independent of whether r's
+// own response is cacheable: a subresource write invalidates its parent object.
+func InvalidatesCache(r *http.Request) bool {
+	switch r.Method {
+	case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
+		return IsAuthBypassURL(r.URL.Path)
+	default:
+		return false
+	}
+}
+
 // HandleNonGETCacheInvalidation purges every cached response a modifying request
 // (POST/PUT/PATCH/DELETE) invalidates, then forwards the request upstream. It reports
-// whether it handled the request; GET requests are left to the caller.
+// whether it handled the request; requests InvalidatesCache rejects are left to the caller.
 //
-// Eviction brackets the forwarded request. The first pass stops reads being served from
-// entries the write is about to invalidate; the second discards what a read racing the
-// write may have cached in the meantime, since it would hold pre-write state that nothing
-// else evicts for resources without an informer.
-//
-// The entries are deliberately not refilled here: key holds the query the modifying request
-// carried, so a response fetched under it would land on a variant no read can address. The
-// next GET repopulates the variant it actually needs.
+// Eviction brackets the forwarded request, so an entry cached by a read racing the write
+// does not outlive it. The entries are not refilled here; the next GET repopulates the
+// variant it needs.
 func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.ResponseWriter, r *http.Request,
 	next http.Handler, key string,
 ) bool {
-	// The cache middleware never routes the excluded paths here; the check keeps direct
-	// callers of this exported function from invalidating on them.
-	if r.Method == http.MethodGet || !IsAuthBypassURL(r.URL.Path) {
+	if !InvalidatesCache(r) {
 		return false
 	}
 
@@ -393,8 +395,8 @@ func RunInformerToWatch(gvrList []schema.GroupVersionResource,
 	}
 }
 
-// resourceVersionUnchanged reports whether an update event carries no new object state.
-// Invalidation sweeps the whole cache, so these events are dropped rather than paid for.
+// resourceVersionUnchanged reports whether an update event carries no new object state, as
+// the events an informer relist replays do.
 func resourceVersionUnchanged(oldObj, newObj interface{}) bool {
 	oldUnstructured, oldOK := oldObj.(*unstructured.Unstructured)
 	newUnstructured, newOK := newObj.(*unstructured.Unstructured)

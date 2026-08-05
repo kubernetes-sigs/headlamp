@@ -167,12 +167,8 @@ func canonicalQuery(rawQuery string) string {
 
 // requestVariant returns the cache key segment distinguishing requests that address the
 // same object: the API version serving it, its subresource, and the query parameters
-// selecting what is returned.
-//
-// The version belongs here rather than in the key prefix because a group/resource served
-// under several versions (multi-version CRDs) returns a different representation per
-// version, while invalidation is version-agnostic: a change to the object must evict every
-// versioned representation of it, and prefix matching does exactly that.
+// selecting what is returned. It sits outside the prefix invalidation matches on, so
+// evicting an object evicts every version and variant of it.
 func requestVariant(version, subresource, rawQuery string) string {
 	h := sha256.New()
 	_, _ = io.WriteString(h, version)
@@ -255,9 +251,7 @@ func buildCacheKey(apiGroup, resource, namespace, contextID, name, variant strin
 
 // cacheKeyFields resolves the request into the Kubernetes resource it addresses. Discovery
 // paths such as /api or /apis/{group} carry no resource, so they fall back to the trailing
-// segment of the API-relative path to stay cacheable. That path is used rather than the
-// request path so that proxied and direct routing of one discovery endpoint agree, and so
-// that /api and /apis keep the resource segments that tell them apart.
+// segment of the API-relative path, which proxied and direct routing share.
 func cacheKeyFields(u *url.URL) (request apiResourceRequest, ok bool) {
 	apiPath, ok := apiRelativePath(u.Path)
 	if !ok {
@@ -280,54 +274,61 @@ func cacheKeyFields(u *url.URL) (request apiResourceRequest, ok bool) {
 	}, true
 }
 
-// CacheableRequest is a request that may use the response cache, resolved into the fields
-// its cache key is built from. Holding the parse lets the middleware decide cacheability
-// before it knows the context ID and still build the key without parsing the URL twice.
-//
-// Only NewCacheableRequest yields a usable value; the zero value addresses no request and
-// its key is meaningless.
-type CacheableRequest struct {
-	request  apiResourceRequest
-	rawQuery string
+// APIRequest is a Kubernetes API request resolved into the fields its cache key is built
+// from. Only NewAPIRequest yields a usable value; the zero value addresses no request.
+type APIRequest struct {
+	request   apiResourceRequest
+	rawQuery  string
+	cacheable bool
 }
 
-// NewCacheableRequest resolves r, reporting false when the request must neither be served
-// from nor stored in the response cache. Alongside non-API and self-subject review paths,
-// that covers watch requests, whose responses are open-ended streams, and subresources such
-// as pod logs, which change without an event on their parent object and would otherwise be
-// served stale.
-func NewCacheableRequest(r *http.Request) (CacheableRequest, bool) {
-	if !IsKubernetesAPIPath(r.URL.Path) || IsSelfSubjectReviewAPIPath(r.URL.Path) || IsWatchRequest(r) {
-		return CacheableRequest{}, false
+// NewAPIRequest resolves r, reporting false when it does not address the Kubernetes API.
+func NewAPIRequest(r *http.Request) (APIRequest, bool) {
+	if !IsKubernetesAPIPath(r.URL.Path) {
+		return APIRequest{}, false
 	}
 
 	request, ok := cacheKeyFields(r.URL)
-	if !ok || request.subresource != "" {
-		return CacheableRequest{}, false
+	if !ok {
+		return APIRequest{}, false
 	}
 
-	return CacheableRequest{request: request, rawQuery: r.URL.RawQuery}, true
+	return APIRequest{
+		request:  request,
+		rawQuery: r.URL.RawQuery,
+		cacheable: r.Method == http.MethodGet &&
+			request.subresource == "" &&
+			!IsSelfSubjectReviewAPIPath(r.URL.Path) &&
+			!IsWatchRequest(r),
+	}, true
 }
 
-// Key returns the cache key addressing this request within contextID.
-func (c CacheableRequest) Key(contextID string) string {
+// Cacheable reports whether the response may be served from and stored in the response
+// cache. Only a GET qualifies, and not one for a self-subject review, a watch stream, or a
+// subresource. A request that is not cacheable can still invalidate the cache.
+func (a APIRequest) Cacheable() bool {
+	return a.cacheable
+}
+
+// Key returns the cache key addressing this request within contextID. For a subresource the
+// key identifies the parent object, since the subresource only distinguishes the variant.
+func (a APIRequest) Key(contextID string) string {
 	return buildCacheKey(
-		c.request.group, c.request.resource, c.request.namespace, contextID, c.request.name,
-		requestVariant(c.request.version, c.request.subresource, c.rawQuery),
+		a.request.group, a.request.resource, a.request.namespace, contextID, a.request.name,
+		requestVariant(a.request.version, a.request.subresource, a.rawQuery),
 	)
 }
 
 // GenerateKey builds the cache key addressing url within contextID, returning an error for
 // paths outside the Kubernetes API. It is the entry point for callers holding only a URL;
-// the middleware goes through NewCacheableRequest instead, which resolves the request once
-// and reuses that parse for the key.
+// the middleware goes through NewAPIRequest.
 func GenerateKey(url *url.URL, contextID string) (string, error) {
 	request, ok := cacheKeyFields(url)
 	if !ok {
 		return "", fmt.Errorf("invalid url format")
 	}
 
-	return CacheableRequest{request: request, rawQuery: url.RawQuery}.Key(contextID), nil
+	return APIRequest{request: request, rawQuery: url.RawQuery}.Key(contextID), nil
 }
 
 // SetHeader function help to serve response from cache to ensure the client
@@ -390,9 +391,8 @@ func LoadFromCache(k8scache cache.Cache[string], isAllowed bool,
 
 const (
 	responseTTL = 10 * time.Minute
-	// cursorResponseTTL bounds the entries a paginating client leaves behind. Each page is
-	// keyed by the continue token that produced it, and clients never send the same token
-	// twice, so those entries are unreachable the moment they are written.
+	// cursorResponseTTL bounds the entries a paginating client leaves behind, since a
+	// continue token is never sent twice.
 	cursorResponseTTL = time.Minute
 )
 
