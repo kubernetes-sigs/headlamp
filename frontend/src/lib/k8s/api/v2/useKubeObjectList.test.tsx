@@ -951,7 +951,7 @@ describe('useKubeObjectList', () => {
 
       // Render-phase setState triggers a synchronous re-render; the connection
       // is present without waiting for a post-commit effect.
-      await vi.waitFor(() => {
+      await waitFor(() => {
         expect(spy.mock.calls[1][0].connections.length).toBe(1);
         expect(spy.mock.calls[1][0].connections[0].cluster).toBe('default');
       });
