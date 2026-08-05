@@ -16,10 +16,12 @@
 
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
-import Button from '@mui/material/Button';
+import IconButton from '@mui/material/IconButton';
+import Link from '@mui/material/Link';
 import useMediaQuery from '@mui/material/useMediaQuery';
-import { styled } from '@mui/system';
 import { useTranslation } from 'react-i18next';
+import { Link as RouterLink } from 'react-router-dom';
+import { createRouteURL } from '../../lib/router/createRouteURL';
 import { AppLogo } from '../App/AppLogo';
 
 export interface HeadlampButtonProps {
@@ -32,10 +34,6 @@ export interface HeadlampButtonProps {
   /** Whether the button is to be disabled or not. */
   disabled?: boolean;
 }
-
-const StyledIcon = styled(Icon)`
-  margin-right: ${({ theme }) => theme.spacing(1)};
-`;
 
 export default function HeadlampButton({
   open,
@@ -51,8 +49,8 @@ export default function HeadlampButton({
   }
 
   return (
-    <Box>
-      <Button
+    <Box sx={{ display: 'flex', alignItems: 'center' }}>
+      <IconButton
         onClick={onToggleOpen}
         sx={theme => ({
           padding: isSmall && !open ? `10px 10px` : '6px 8px',
@@ -61,7 +59,15 @@ export default function HeadlampButton({
         aria-label={open ? t('Shrink sidebar') : t('Expand sidebar')}
         disabled={disabled}
       >
-        <StyledIcon icon={open ? 'mdi:backburger' : 'mdi:menu'} width="1.5rem" />
+        <Icon icon={open ? 'mdi:backburger' : 'mdi:menu'} width="1.5rem" />
+      </IconButton>
+      <Link
+        component={RouterLink}
+        to={createRouteURL('chooser')}
+        aria-label={t('Go to home page')}
+        sx={{ display: 'flex', alignItems: 'center', color: 'inherit' }}
+        underline="none"
+      >
         <AppLogo
           logoType={'large'}
           sx={{
@@ -69,7 +75,7 @@ export default function HeadlampButton({
             width: 'auto',
           }}
         />
-      </Button>
+      </Link>
     </Box>
   );
 }
