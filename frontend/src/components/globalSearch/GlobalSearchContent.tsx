@@ -99,6 +99,8 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [loadFailed, setLoadFailed] = useState(false);
 
+  // loadSearchResourceClasses is a stable module import; do not list it in deps
+  // (eslint flags outer-scope values as unnecessary dependencies).
   useEffect(() => {
     let cancelled = false;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
@@ -130,7 +132,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
         clearTimeout(retryTimer);
       }
     };
-  }, [loadAttempt, loadSearchResourceClasses]);
+  }, [loadAttempt]);
 
   if (!resourceClasses) {
     return (
