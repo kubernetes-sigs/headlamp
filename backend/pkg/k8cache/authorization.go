@@ -563,11 +563,17 @@ func IsAllowed(
 		return false, err
 	}
 
+	// Only cache SSAR results for read verbs (get, list, watch).
+	// Non-GET requests produce verb="unknown" which is meaningless to cache.
+	cacheable := isSSARCacheable(resourceAttributes.Verb)
+
 	// Check the SSAR result cache before making an API call.
 	ssarKey := buildSSARCacheKey(headlampContextKey, token, resourceAttributes)
 
-	if allowed, found := getSSARCacheResult(ssarKey); found {
-		return allowed, nil
+	if cacheable {
+		if allowed, found := getSSARCacheResult(ssarKey); found {
+			return allowed, nil
+		}
 	}
 
 	clientset, err := GetClientSet(headlampContextKey, k, token)
@@ -594,9 +600,24 @@ func IsAllowed(
 		return false, fmt.Errorf("nil SelfSubjectAccessReview result")
 	}
 
-	storeSSARCacheResult(ssarKey, result.Status.Allowed)
+	if cacheable {
+		storeSSARCacheResult(ssarKey, result.Status.Allowed)
+	}
 
 	return result.Status.Allowed, nil
+}
+
+// isSSARCacheable reports whether an SSAR result for the given verb
+// should be cached. Only read verbs (get, list, watch) produce stable,
+// meaningful results worth caching. Non-GET HTTP methods map to
+// verb="unknown" which is not useful to cache.
+func isSSARCacheable(verb string) bool {
+	switch verb {
+	case "get", "list", "watch":
+		return true
+	default:
+		return false
+	}
 }
 
 // buildSSARCacheKey produces a unique cache key for an SSAR result

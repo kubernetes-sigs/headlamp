@@ -199,3 +199,26 @@ func TestSSARCacheDifferentTokensSameResource(t *testing.T) {
 	require.True(t, found2)
 	assert.False(t, allowed2)
 }
+
+func TestIsSSARCacheable(t *testing.T) {
+	tests := []struct {
+		verb     string
+		expected bool
+	}{
+		{"get", true},
+		{"list", true},
+		{"watch", true},
+		{"unknown", false},
+		{"create", false},
+		{"update", false},
+		{"delete", false},
+		{"patch", false},
+		{"", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.verb, func(t *testing.T) {
+			assert.Equal(t, tc.expected, isSSARCacheable(tc.verb))
+		})
+	}
+}
