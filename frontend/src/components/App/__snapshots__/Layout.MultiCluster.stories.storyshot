@@ -19,9 +19,15 @@
           <div
             class="MuiToolbar-root MuiToolbar-gutters MuiToolbar-regular css-1g5gxk7-MuiToolbar-root"
           >
-            <div
-              class="MuiBox-root css-19midj6"
-            />
+            <a
+              aria-label="Go to home page"
+              class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone css-ps6m1v-MuiTypography-root-MuiLink-root"
+              href="/"
+            >
+              <div
+                class="MuiBox-root css-19midj6"
+              />
+            </a>
             <div
               class="MuiBox-root css-p8ekiu"
             >
