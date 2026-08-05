@@ -130,7 +130,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
         clearTimeout(retryTimer);
       }
     };
-  }, [loadAttempt]);
+  }, [loadAttempt, loadSearchResourceClasses]);
 
   if (!resourceClasses) {
     return (
