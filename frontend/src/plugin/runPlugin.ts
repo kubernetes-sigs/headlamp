@@ -127,6 +127,50 @@ export function getInfoForRunningPlugins({
   ];
 }
 
+const BASE64_DIGITS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+/**
+ * Checks whether source-map mappings contain valid Base64-VLQ segments.
+ * Empty generated lines are valid; nonempty segments must contain 1, 4, or 5 values.
+ *
+ * @param mappings source-map `mappings` field to validate
+ * @returns whether every generated line and segment has valid syntax
+ */
+function isValidSourceMapMappings(mappings: string): boolean {
+  if (mappings === '') {
+    return true;
+  }
+
+  return mappings.split(';').every(line => {
+    if (line === '') {
+      return true;
+    }
+
+    return line.split(',').every(segment => {
+      if (segment === '') {
+        return false;
+      }
+
+      let valueCount = 0;
+      let hasContinuation = false;
+
+      for (const character of segment) {
+        const digit = BASE64_DIGITS.indexOf(character);
+        if (digit === -1) {
+          return false;
+        }
+
+        hasContinuation = (digit & 32) !== 0;
+        if (!hasContinuation) {
+          valueCount++;
+        }
+      }
+
+      return !hasContinuation && [1, 4, 5].includes(valueCount);
+    });
+  });
+}
+
 /**
  * Adjusts inline source maps for code that will be executed via `new Function()`.
  *
@@ -149,7 +193,11 @@ export function adjustSourceMapOffsetForFunction(jsSource: string) {
 
     const sourceMap = JSON.parse(atob(base64Data));
 
-    if (!sourceMap.mappings || typeof sourceMap.mappings !== 'string') {
+    if (typeof sourceMap.mappings !== 'string') {
+      return jsSource;
+    }
+
+    if (!isValidSourceMapMappings(sourceMap.mappings)) {
       return jsSource;
     }
 
