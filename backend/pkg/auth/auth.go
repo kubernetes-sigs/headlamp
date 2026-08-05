@@ -229,14 +229,17 @@ func CacheRefreshedToken(token *oauth2.Token, tokenType string, oldToken string,
 func GetNewToken(clientID, clientSecret string, cache cache.Cache[interface{}],
 	tokenType string, token string, tokenURL string, ctx context.Context,
 ) (*oauth2.Token, error) {
-	// Detach from the caller's context so that one request's cancellation (e.g.
-	// the client disconnecting) doesn't abort the shared refresh that other
-	// concurrent requests for the same token are waiting on. Bound it with its
-	// own timeout so a hung IdP can't block waiting callers indefinitely.
-	refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), refreshTimeout)
-	defer cancel()
-
 	result, err, _ := refreshGroup.Do(token, func() (interface{}, error) {
+		// Detach from the caller's context so that one request's cancellation (e.g.
+		// the client disconnecting) doesn't abort the shared refresh that other
+		// concurrent requests for the same token are waiting on. Bound it with its
+		// own timeout so a hung IdP can't block waiting callers indefinitely.
+		//
+		// Created here, inside the singleflight closure, so it's allocated exactly
+		// once per in-flight refresh rather than once per waiting caller.
+		refreshCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), refreshTimeout)
+		defer cancel()
+
 		return refreshTokenFromIDP(refreshCtx, clientID, clientSecret, cache, tokenType, token, tokenURL)
 	})
 	if err != nil {
