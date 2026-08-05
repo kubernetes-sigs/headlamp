@@ -454,5 +454,5 @@ test('opens aggregated logs for a workload', async ({ page }) => {
 
   await expect(page.locator('#xterm-container')).toBeVisible();
   await expect(page.getByLabel('Select Pod')).toBeVisible();
-  await expect(page.getByLabel('Container')).toBeVisible();
+  await expect(page.getByRole('combobox', { name: /^Container/ })).toBeVisible();
 });
