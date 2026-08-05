@@ -30,6 +30,34 @@ function runPluginInner(info: runPluginProps) {
 }
 
 describe('runPlugin', () => {
+  test('It should offset inline source maps before compiling a plugin', () => {
+    const sourceMap = {
+      version: 3,
+      sources: ['plugin.ts'],
+      mappings: 'AAAA',
+    };
+    const sourceMapMarker = ['//# source', 'MappingURL='].join('');
+    const source = [
+      `console.log('plugin');`,
+      `${sourceMapMarker}data:application/json;charset=utf-8;base64,${btoa(
+        JSON.stringify(sourceMap)
+      )}`,
+    ].join('\n');
+    const compiledSources: string[] = [];
+    const executePlugin = vi.fn();
+    const PrivateFunction = function (...parameters: string[]) {
+      compiledSources.push(parameters.at(-1)!);
+      return executePlugin;
+    } as unknown as typeof Function;
+
+    runPlugin(source, 'test-package', '1.0.0', vi.fn(), PrivateFunction, [], []);
+
+    const encodedSourceMap = compiledSources[0].split('base64,')[1];
+    const compiledSourceMap = JSON.parse(atob(encodedSourceMap));
+    expect(compiledSourceMap.mappings).toBe(';;AAAA');
+    expect(executePlugin).toHaveBeenCalledOnce();
+  });
+
   test('It should fail to access permissionSecrets defined in the test scope', () => {
     let theError: Error | null = null;
     let errorMessage = '';
