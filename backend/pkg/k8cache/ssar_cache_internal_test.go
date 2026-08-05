@@ -28,67 +28,53 @@ func resetSSARCache() {
 	ssarMu.Unlock()
 }
 
-func TestBuildSSARCacheKey(t *testing.T) {
-	tests := []struct {
-		name        string
-		contextKey  string
-		token       string
-		attrs       *authorizationv1.ResourceAttributes
-		expectedKey string
-	}{
-		{
-			name:       "core resource list",
-			contextKey: "kind-cluster",
-			token:      "tok-abc",
-			attrs: &authorizationv1.ResourceAttributes{
-				Group:     "",
-				Resource:  "pods",
-				Verb:      "list",
-				Namespace: "default",
-			},
-			expectedKey: "kind-cluster\x00tok-abc\x00/pods//list/default/",
+var buildSSARCacheKeyTests = []struct {
+	name        string
+	contextKey  string
+	token       string
+	attrs       *authorizationv1.ResourceAttributes
+	expectedKey string
+}{
+	{
+		name:       "core resource list",
+		contextKey: "kind-cluster",
+		token:      "tok-abc",
+		attrs: &authorizationv1.ResourceAttributes{
+			Group: "", Resource: "pods", Verb: "list", Namespace: "default",
 		},
-		{
-			name:       "named API resource get",
-			contextKey: "prod-cluster",
-			token:      "tok-xyz",
-			attrs: &authorizationv1.ResourceAttributes{
-				Group:     "apps",
-				Resource:  "deployments",
-				Verb:      "get",
-				Namespace: "kube-system",
-				Name:      "frontend",
-			},
-			expectedKey: "prod-cluster\x00tok-xyz\x00apps/deployments//get/kube-system/frontend",
+		expectedKey: "kind-cluster\x00tok-abc\x00/pods//list/default/",
+	},
+	{
+		name:       "named API resource get",
+		contextKey: "prod-cluster",
+		token:      "tok-xyz",
+		attrs: &authorizationv1.ResourceAttributes{
+			Group: "apps", Resource: "deployments", Verb: "get", Namespace: "kube-system", Name: "frontend",
 		},
-		{
-			name:       "cluster-scoped resource",
-			contextKey: "dev",
-			token:      "t1",
-			attrs: &authorizationv1.ResourceAttributes{
-				Group:     "",
-				Resource:  "namespaces",
-				Verb:      "list",
-				Namespace: "",
-			},
-			expectedKey: "dev\x00t1\x00/namespaces//list//",
+		expectedKey: "prod-cluster\x00tok-xyz\x00apps/deployments//get/kube-system/frontend",
+	},
+	{
+		name:       "cluster-scoped resource",
+		contextKey: "dev",
+		token:      "t1",
+		attrs: &authorizationv1.ResourceAttributes{
+			Group: "", Resource: "namespaces", Verb: "list", Namespace: "",
 		},
-		{
-			name:       "subresource produces distinct key",
-			contextKey: "dev",
-			token:      "t1",
-			attrs: &authorizationv1.ResourceAttributes{
-				Resource:    "pods",
-				Subresource: "log",
-				Verb:        "get",
-				Namespace:   "default",
-				Name:        "nginx",
-			},
-			expectedKey: "dev\x00t1\x00/pods/log/get/default/nginx",
+		expectedKey: "dev\x00t1\x00/namespaces//list//",
+	},
+	{
+		name:       "subresource produces distinct key",
+		contextKey: "dev",
+		token:      "t1",
+		attrs: &authorizationv1.ResourceAttributes{
+			Resource: "pods", Subresource: "log", Verb: "get", Namespace: "default", Name: "nginx",
 		},
-	}
+		expectedKey: "dev\x00t1\x00/pods/log/get/default/nginx",
+	},
+}
 
-	for _, tc := range tests {
+func TestBuildSSARCacheKey(t *testing.T) {
+	for _, tc := range buildSSARCacheKeyTests {
 		t.Run(tc.name, func(t *testing.T) {
 			key := buildSSARCacheKey(tc.contextKey, tc.token, tc.attrs)
 			assert.Equal(t, tc.expectedKey, key)
