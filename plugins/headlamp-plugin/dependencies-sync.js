@@ -80,7 +80,7 @@ const dependenciesToNotCopy = [
 // Dependencies that can have different versions
 const differentlyVersionedDependencies = ['eslint-plugin-react-hooks'];
 
-const yargs = require('yargs/yargs');
+const yargs = require('yargs');
 const fs = require('fs-extra');
 const headlampPluginPkg = require('./package.json');
 const frontendPkg = require('../../frontend/package.json');
