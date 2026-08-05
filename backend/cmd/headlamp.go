@@ -1400,7 +1400,9 @@ func StartHeadlampServer(config *HeadlampConfig) {
 	router := mux.NewRouter()
 
 	// Health and readiness endpoints are registered on the top-level
-	// router so they bypass auth and telemetry middleware.
+	// router so they bypass auth middleware. Telemetry middleware (tracing,
+	// request counting) still applies, which is intentional — it lets
+	// operators observe probe traffic in dashboards.
 	healthChecker := health.NewChecker()
 	router.HandleFunc("/healthz", healthChecker.HandlerHealthz()).Methods(http.MethodGet)
 	router.HandleFunc("/readyz", healthChecker.HandlerReadyz()).Methods(http.MethodGet)
