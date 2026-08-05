@@ -10,6 +10,7 @@ func mockHelmServer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "index.yaml") {
 			w.WriteHeader(http.StatusOK)
+
 			if _, err := w.Write([]byte(`apiVersion: v1
 entries:
   headlamp:
@@ -27,6 +28,7 @@ entries:
 				http.Error(w, "internal server error", http.StatusInternalServerError)
 				return
 			}
+
 			return
 		}
 

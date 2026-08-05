@@ -149,6 +149,7 @@ func TestAddRepository(t *testing.T) {
 	t.Run("add_repo_success", func(t *testing.T) {
 		ts := mockHelmServer()
 		defer ts.Close()
+
 		testAddRepo(t, helmHandler, "headlamp_test_repo", ts.URL)
 	})
 
@@ -196,6 +197,7 @@ func TestRemoveRepository(t *testing.T) {
 	t.Run("remove_repo_success", func(t *testing.T) {
 		ts := mockHelmServer()
 		defer ts.Close()
+
 		testAddRepo(t, helmHandler, "headlamp_test_repo", ts.URL)
 
 		removeRepoRequest, err := http.NewRequestWithContext(context.Background(), "DELETE",

@@ -760,14 +760,17 @@ func (r *PluginRegistry) syncCacheLocked() {
 			case PluginTypeDevelopment:
 				return 2
 			}
+
 			return 3
 		}
 
 		pA := typePriority(a.Type)
 		pB := typePriority(b.Type)
+
 		if pA != pB {
 			return pA - pB
 		}
+
 		return strings.Compare(a.Name, b.Name)
 	})
 
@@ -790,7 +793,9 @@ func (r *PluginRegistry) SyncFromDisk() error {
 	}
 
 	var events []PluginEvent
+
 	var cleanupsToRun []func()
+
 	r.mu.Lock()
 
 	// Check for deleted or updated plugins
@@ -802,6 +807,7 @@ func (r *PluginRegistry) SyncFromDisk() error {
 
 			if cleanup, ok := r.cleanups[key]; ok {
 				cleanupsToRun = append(cleanupsToRun, cleanup)
+
 				delete(r.cleanups, key)
 			}
 
@@ -815,6 +821,7 @@ func (r *PluginRegistry) SyncFromDisk() error {
 
 			if cleanup, ok := r.cleanups[key]; ok {
 				cleanupsToRun = append(cleanupsToRun, cleanup)
+
 				delete(r.cleanups, key)
 			}
 

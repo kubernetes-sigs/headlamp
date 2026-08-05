@@ -120,6 +120,7 @@ func TestInstallRelease(t *testing.T) {
 	// add headlmap repo
 	ts := mockHelmServer()
 	defer ts.Close()
+
 	testAddRepo(t, helmHandler, "headlamp_test_repo", ts.URL)
 
 	// uninstall release if it already exists
