@@ -46,6 +46,10 @@ function ns(name: string, opts: { project?: string; cluster?: string } = {}) {
 }
 
 describe('groupNamespacesIntoProjects', () => {
+  it('returns no projects when there are no namespaces', () => {
+    expect(groupNamespacesIntoProjects([])).toEqual([]);
+  });
+
   it('groups namespaces by project id', () => {
     const projects = groupNamespacesIntoProjects([
       ns('app-prod', { project: 'app' }),
@@ -68,6 +72,15 @@ describe('groupNamespacesIntoProjects', () => {
     expect(projects).toHaveLength(1);
     expect(projects[0].namespaces).toEqual(['shared']);
     expect(projects[0].clusters).toEqual(['cluster-a', 'cluster-b']);
+  });
+
+  it('deduplicates repeated namespaces and clusters', () => {
+    const projects = groupNamespacesIntoProjects([
+      ns('shared', { project: 'app', cluster: 'cluster-a' }),
+      ns('shared', { project: 'app', cluster: 'cluster-a' }),
+    ]);
+
+    expect(projects).toEqual([{ id: 'app', namespaces: ['shared'], clusters: ['cluster-a'] }]);
   });
 
   // Regression test for #5254: a namespace without metadata.labels reached
