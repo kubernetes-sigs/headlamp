@@ -185,17 +185,40 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
   const [selectedSources, setSelectedSources] = useState(() => {
     const _selectedSources = new Set<string>();
 
+    let disabledSources: string[] = [];
+    try {
+      const stored = localStorage.getItem('headlamp_resource_map_disabled_sources');
+      if (stored) {
+        disabledSources = JSON.parse(stored);
+      }
+    } catch (e) {
+      console.error('Error loading disabled map sources from localStorage:', e);
+    }
+    const disabledSet = new Set(disabledSources);
+
     const step = (source: GraphSource) => {
-      if (source.isEnabledByDefault ?? true) {
+      if (disabledSet.has(source.id)) {
+        // Skip selecting this source
+      } else if (source.isEnabledByDefault ?? true) {
         _selectedSources.add(source.id);
-        if ('sources' in source) {
-          source.sources.forEach(step);
-        }
+      }
+      if ('sources' in source) {
+        source.sources.forEach(step);
       }
     };
     sources.map(step);
     return _selectedSources;
   });
+
+  useEffect(() => {
+    const allFlatSources = getFlatSources(sources);
+    const disabled = allFlatSources.filter(s => !selectedSources.has(s.id)).map(s => s.id);
+    try {
+      localStorage.setItem('headlamp_resource_map_disabled_sources', JSON.stringify(disabled));
+    } catch (e) {
+      console.error('Error saving disabled map sources to localStorage:', e);
+    }
+  }, [selectedSources, sources]);
 
   const toggleSelection = useCallback(
     (source: GraphSource) => {
