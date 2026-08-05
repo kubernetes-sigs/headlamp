@@ -43,6 +43,8 @@ export * from './CreateResourceForm';
 export { default as CreateResourceForm } from './CreateResourceForm';
 export * from './CopyButton';
 export { default as CopyButton } from './CopyButton';
+export * from './CopyKubectlCommandButton';
+export { default as CopyKubectlCommandButton } from './CopyKubectlCommandButton';
 export * from './DeleteButton';
 export { default as DeleteButton } from './DeleteButton';
 export * from './DocsViewer';
