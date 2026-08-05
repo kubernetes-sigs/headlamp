@@ -267,6 +267,7 @@ func TestUpdateRepo(t *testing.T) {
 // TestListRepositories.
 func TestListRepositories(t *testing.T) {
 	helmHandler := newHelmHandler(t)
+
 	ts := mockHelmServer()
 	defer ts.Close()
 
@@ -365,6 +366,7 @@ func TestAddRepositoryWithAuth(t *testing.T) {
 
 func testUpdateRepo(t *testing.T, helmHandler *helm.Handler) {
 	t.Helper()
+
 	ts := mockHelmServer()
 	defer ts.Close()
 

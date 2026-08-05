@@ -544,16 +544,16 @@ type PluginEvent struct {
 // PluginRegistry is a thread-safe registry for backend plugins, HTTP handlers,
 // context cleanups, and SSE client notifications.
 type PluginRegistry struct {
-	mu         sync.RWMutex
-	plugins    map[string]PluginMetadata
-	handlers   map[string]http.Handler
-	cleanups   map[string]func()
-	listeners  map[chan PluginEvent]struct{}
-	listenerMu sync.RWMutex
-	staticDir  string
-	userDir    string
-	devDir     string
-	cache      cache.Cache[interface{}]
+	mu              sync.RWMutex
+	plugins         map[string]PluginMetadata
+	handlers        map[string]http.Handler
+	cleanups        map[string]func()
+	listeners       map[chan PluginEvent]struct{}
+	listenerMu      sync.RWMutex
+	staticDir       string
+	userDir         string
+	devDir          string
+	cache           cache.Cache[interface{}]
 	initialSyncDone bool
 }
 
@@ -790,9 +790,7 @@ func (r *PluginRegistry) SyncFromDisk() error {
 	}
 
 	var events []PluginEvent
-
 	var cleanupsToRun []func()
-
 	r.mu.Lock()
 
 	// Check for deleted or updated plugins
@@ -804,7 +802,6 @@ func (r *PluginRegistry) SyncFromDisk() error {
 
 			if cleanup, ok := r.cleanups[key]; ok {
 				cleanupsToRun = append(cleanupsToRun, cleanup)
-
 				delete(r.cleanups, key)
 			}
 
@@ -818,7 +815,6 @@ func (r *PluginRegistry) SyncFromDisk() error {
 
 			if cleanup, ok := r.cleanups[key]; ok {
 				cleanupsToRun = append(cleanupsToRun, cleanup)
-
 				delete(r.cleanups, key)
 			}
 

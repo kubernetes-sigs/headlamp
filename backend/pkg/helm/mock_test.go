@@ -10,7 +10,7 @@ func mockHelmServer() *httptest.Server {
 	return httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasSuffix(r.URL.Path, "index.yaml") {
 			w.WriteHeader(http.StatusOK)
-			w.Write([]byte(`apiVersion: v1
+			if _, err := w.Write([]byte(`apiVersion: v1
 entries:
   headlamp:
   - apiVersion: v2
@@ -23,9 +23,13 @@ entries:
     urls:
     - https://github.com/kubernetes-sigs/headlamp/releases/download/headlamp-0.1.0/headlamp-0.1.0.tgz
     version: 0.1.0
-`))
+`)); err != nil {
+				http.Error(w, "internal server error", http.StatusInternalServerError)
+				return
+			}
 			return
 		}
+
 		w.WriteHeader(http.StatusNotFound)
 	}))
 }

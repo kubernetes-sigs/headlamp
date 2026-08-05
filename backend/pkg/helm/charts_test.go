@@ -41,6 +41,7 @@ func TestListChart(t *testing.T) {
 
 	ts := mockHelmServer()
 	defer ts.Close()
+
 	testAddRepo(t, helmHandler, "headlamp_test_repo", ts.URL)
 
 	// list chart request
@@ -102,6 +103,7 @@ func TestListChartContentType(t *testing.T) {
 
 	ts := mockHelmServer()
 	defer ts.Close()
+
 	testAddRepo(t, helmHandler, "headlamp_test_repo", ts.URL)
 
 	listChartsRequest, err := http.NewRequestWithContext(context.Background(),
