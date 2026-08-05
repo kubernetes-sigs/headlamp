@@ -22,7 +22,10 @@ import { Base64 } from 'js-base64';
 import { getHeadlampAPIHeaders } from '../helpers/getHeadlampAPIHeaders';
 import store from '../redux/stores/store';
 import { backendFetch } from './k8s/api/v2/fetch';
-import { NAMESPACE_DISCOVERY_QUERY_KEY } from './k8s/useDiscoveredNamespaces';
+import {
+  getNamespaceDiscoveryAuthQueryKey,
+  NAMESPACE_DISCOVERY_QUERY_KEY,
+} from './k8s/useDiscoveredNamespaces';
 import { queryClient } from './queryClient';
 
 /**
@@ -124,13 +127,21 @@ export function setToken(cluster: string, token: string | null) {
   return setCookieToken(cluster, token).then(result => {
     if (token) {
       queryClient.invalidateQueries({ queryKey: ['auth', cluster], exact: true });
-      queryClient.invalidateQueries({ queryKey: ['clusterMe', cluster], exact: true });
+      queryClient.invalidateQueries({
+        queryKey: getNamespaceDiscoveryAuthQueryKey(cluster),
+        exact: true,
+      });
       queryClient.invalidateQueries({
         queryKey: [NAMESPACE_DISCOVERY_QUERY_KEY, cluster],
         exact: true,
       });
+      queryClient.invalidateQueries({ queryKey: ['clusterMe', cluster], exact: true });
     } else {
       queryClient.removeQueries({ queryKey: ['auth', cluster], exact: true });
+      queryClient.removeQueries({
+        queryKey: getNamespaceDiscoveryAuthQueryKey(cluster),
+        exact: true,
+      });
       queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
       queryClient.removeQueries({
         queryKey: [NAMESPACE_DISCOVERY_QUERY_KEY, cluster],

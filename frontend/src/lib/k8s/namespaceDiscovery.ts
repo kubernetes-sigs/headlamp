@@ -320,6 +320,13 @@ export async function discoverAccessibleNamespaces(
     };
   }
 
+  // After OIDC login, /me and SelfSubjectReview can fail briefly while cookies propagate.
+  // user=main (cluster name) + rolebindings 403 is this race — retry instead of showing an error.
+  // Check before fallback: defaultNamespace/kubeconfig fallback must not mask the auth race.
+  if (roleBindingDiscovery.listFailed && isFallbackClusterIdentity(userInfo)) {
+    throw new AuthNotReadyForDiscoveryError();
+  }
+
   const fallbackNamespaces = getFallbackNamespaces(cluster);
   if (fallbackNamespaces.length > 0) {
     return {
@@ -327,12 +334,6 @@ export async function discoverAccessibleNamespaces(
       isClusterWide: false,
       source: 'fallback',
     };
-  }
-
-  // After OIDC login, /me and SelfSubjectReview can fail briefly while cookies propagate.
-  // user=main (cluster name) + rolebindings 403 is this race — retry instead of showing an error.
-  if (roleBindingDiscovery.listFailed && isFallbackClusterIdentity(userInfo)) {
-    throw new AuthNotReadyForDiscoveryError();
   }
 
   return {
