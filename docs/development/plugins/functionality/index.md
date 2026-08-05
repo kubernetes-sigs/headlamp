@@ -177,6 +177,33 @@ React to Headlamp events with
 - Example plugin: [How to show snackbars for Headlamp events](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/headlamp-events)
 - API reference: [registerHeadlampEventCallback](../../api/plugin/registry/functions/registerheadlampeventcallback)
 
+### Plugin Extension Registry
+
+Plugins can expose extension data for other plugins with
+[registerPluginExtension](../../api/plugin/registry/functions/registerpluginextension).
+Other plugins can read the current extensions with
+[getPluginExtensions](../../api/plugin/registry/functions/getpluginextensions) or subscribe from React
+components with [usePluginExtensions](../../api/plugin/registry/functions/usepluginextensions).
+
+Use this for plugin-owned extension points where Headlamp core should not know the payload shape.
+The plugin that defines an extension point owns the payload shape and should validate registered
+values before using them. Extension point keys should be stable and versioned. For example:
+
+```ts
+const extensionPoint = 'example.resourceInsights.v1';
+```
+
+If the payload shape changes in a breaking way, use a new key such as
+`example.resourceInsights.v2`.
+
+Each registered extension must have a stable `id` that is unique within the extension point. If the
+same `id` is registered again for the same extension point, it replaces the previous value.
+
+- Example plugin: [How to register and consume plugin extensions](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/plugin-extensions)
+- API reference: [registerPluginExtension](../../api/plugin/registry/functions/registerpluginextension)
+- API reference: [getPluginExtensions](../../api/plugin/registry/functions/getpluginextensions)
+- API reference: [usePluginExtensions](../../api/plugin/registry/functions/usepluginextensions)
+
 ### Plugin Settings
 
 Plugins can have user settings. Create them with
