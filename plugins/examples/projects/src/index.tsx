@@ -189,10 +189,11 @@ registerProjectDeleteButton({
 // Example of adding a custom action button to the project details header
 registerProjectHeaderAction({
   id: 'custom-header-action',
-  component: ({ project }) => (
+  component: ({ project, setSelectedTab }) => (
     <button
       onClick={() => {
         console.log('Custom header action for project:', project.id);
+        setSelectedTab?.('my-tab');
       }}
     >
       Custom Action
