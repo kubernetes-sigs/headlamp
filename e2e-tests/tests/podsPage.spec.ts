@@ -443,3 +443,18 @@ test('react-hotkey for logs search', async ({ page }) => {
   await expect(searchInput).toBeVisible();
   await expect(searchInput).toBeFocused();
 });
+
+test('opens aggregated logs for a workload', async ({ page }) => {
+  const headlampPage = new HeadlampPage(page);
+  await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+  await headlampPage.navigateTopage(
+    '/c/test/deployments/kube-system/headlamp',
+    /^Deployment: headlamp/
+  );
+
+  await page.getByRole('button', { name: /^Show Logs$/ }).click();
+
+  await expect(page.locator('#xterm-container')).toBeVisible();
+  await expect(page.getByLabel('Select Pod')).toBeVisible();
+  await expect(page.getByLabel('Container')).toBeVisible();
+});
