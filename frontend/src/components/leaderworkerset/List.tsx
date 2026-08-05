@@ -15,6 +15,7 @@
  */
 
 import { useTranslation } from 'react-i18next';
+import { getTopCondition } from '../../lib/k8s/conditions';
 import LeaderWorkerSet from '../../lib/k8s/leaderWorkerSet';
 import ResourceListView from '../common/Resource/ResourceListView';
 
@@ -23,34 +24,8 @@ import ResourceListView from '../common/Resource/ResourceListView';
 // steady-state Available condition it sits alongside.
 const conditionPriority = ['UpdateInProgress', 'Progressing', 'Available'];
 
-function getLeaderWorkerSetCondition(leaderWorkerSet: LeaderWorkerSet): string {
-  const conditions = leaderWorkerSet.status?.conditions;
-  if (!conditions) return '-';
-
-  const trueConditions = conditions.filter(c => c.status === 'True');
-  if (trueConditions.length === 0) {
-    return '-';
-  }
-
-  let selected = trueConditions[0];
-  let bestPriorityIndex = conditionPriority.length;
-
-  for (const cond of trueConditions) {
-    const idx = conditionPriority.indexOf(cond.type);
-    if (idx !== -1 && idx < bestPriorityIndex) {
-      bestPriorityIndex = idx;
-      selected = cond;
-    }
-  }
-
-  return selected.type ?? '-';
-}
-
 function getReadyGroups(leaderWorkerSet: LeaderWorkerSet): string {
-  const ready = leaderWorkerSet.status?.readyReplicas ?? 0;
-  const desired = leaderWorkerSet.spec?.replicas ?? 0;
-
-  return `${ready}/${desired}`;
+  return `${leaderWorkerSet.getReadyReplicas()}/${leaderWorkerSet.getDesiredReplicas()}`;
 }
 
 /** Number of pods per group: one leader plus its workers. */
@@ -88,7 +63,7 @@ export default function LeaderWorkerSetList() {
           label: t('translation|Conditions'),
           gridTemplate: 'min-content',
           getValue: (leaderWorkerSet: LeaderWorkerSet) =>
-            getLeaderWorkerSetCondition(leaderWorkerSet),
+            getTopCondition(leaderWorkerSet.status?.conditions, conditionPriority) ?? '-',
         },
         'age',
       ]}

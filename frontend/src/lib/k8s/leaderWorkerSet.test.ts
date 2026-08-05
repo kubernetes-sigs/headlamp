@@ -22,17 +22,44 @@ import LeaderWorkerSet from './leaderWorkerSet';
 // eslint-disable-next-line no-unused-vars
 const _dont_delete_me = App;
 
-describe('LeaderWorkerSet class', () => {
-  describe('getHealth', () => {
-    const makeLeaderWorkerSet = (spec: any, status: any) =>
-      new LeaderWorkerSet({
-        apiVersion: 'leaderworkerset.x-k8s.io/v1',
-        kind: 'LeaderWorkerSet',
-        metadata: { name: 'test-lws', namespace: 'default' },
-        spec,
-        status,
-      } as any);
+const makeLeaderWorkerSet = (spec: any, status: any) =>
+  new LeaderWorkerSet({
+    apiVersion: 'leaderworkerset.x-k8s.io/v1',
+    kind: 'LeaderWorkerSet',
+    metadata: { name: 'test-lws', namespace: 'default' },
+    spec,
+    status,
+  } as any);
 
+describe('LeaderWorkerSet class', () => {
+  describe('getDesiredReplicas', () => {
+    it('returns the requested number of groups', () => {
+      expect(makeLeaderWorkerSet({ replicas: 3 }, {}).getDesiredReplicas()).toBe(3);
+    });
+
+    it('defaults to the CRD default of 1 when replicas is absent', () => {
+      // The Ready column and the Workloads overview health both read the desired
+      // count from here, so neither can fall back to a different default and
+      // disagree about the same object.
+      expect(makeLeaderWorkerSet({}, {}).getDesiredReplicas()).toBe(1);
+    });
+
+    it('keeps an explicit scale to zero', () => {
+      expect(makeLeaderWorkerSet({ replicas: 0 }, {}).getDesiredReplicas()).toBe(0);
+    });
+  });
+
+  describe('getReadyReplicas', () => {
+    it('returns the number of ready groups', () => {
+      expect(makeLeaderWorkerSet({}, { readyReplicas: 2 }).getReadyReplicas()).toBe(2);
+    });
+
+    it('treats an absent readyReplicas as none ready', () => {
+      expect(makeLeaderWorkerSet({}, {}).getReadyReplicas()).toBe(0);
+    });
+  });
+
+  describe('getHealth', () => {
     it('classifies a fully ready leader worker set as healthy', () => {
       expect(makeLeaderWorkerSet({ replicas: 3 }, { readyReplicas: 3 }).getHealth()).toBe(
         'healthy'

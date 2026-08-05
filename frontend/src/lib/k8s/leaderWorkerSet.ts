@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { isConditionTrue } from './conditions';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 import type { WorkloadHealthCategory } from './Workload';
@@ -59,6 +60,24 @@ class LeaderWorkerSet extends KubeObject<KubeLeaderWorkerSet> {
   }
 
   /**
+   * Number of groups the leader worker set is asked to run.
+   *
+   * The CRD defaults `replicas` to 1, so an object read from a cluster always
+   * has it. Mirror that default rather than falling back to 0, which would
+   * otherwise read as a deliberate scale to zero. Every view derives the desired
+   * count from here so the list and the Workloads overview can't disagree about
+   * an object whose `spec.replicas` is missing.
+   */
+  getDesiredReplicas(): number {
+    return this.spec?.replicas ?? 1;
+  }
+
+  /** Number of groups that have all of their pods ready. */
+  getReadyReplicas(): number {
+    return this.status?.readyReplicas ?? 0;
+  }
+
+  /**
    * Classifies the leader worker set into a coarse health category for the
    * Workloads overview chart. Unlike job sets, a leader worker set does have
    * replica fields, so readiness is judged by comparing ready against desired
@@ -67,21 +86,16 @@ class LeaderWorkerSet extends KubeObject<KubeLeaderWorkerSet> {
    * is still coming up is transitional rather than failed.
    */
   getHealth(): WorkloadHealthCategory {
-    const conditions = this.status?.conditions || [];
-    const isTrue = (type: string) => conditions.some(c => c.type === type && c.status === 'True');
+    const conditions = this.status?.conditions;
 
     // An in-progress rollout is transitional regardless of the replica counts,
     // which briefly match while pods are being replaced.
-    if (isTrue('UpdateInProgress')) {
+    if (isConditionTrue(conditions, 'UpdateInProgress')) {
       return 'transitional';
     }
 
-    // The CRD defaults replicas to 1, so an object read from a cluster always
-    // has it. Mirror that default rather than falling back to 0, which would
-    // otherwise take the scale-to-zero branch below and call a partially
-    // constructed leader worker set healthy.
-    const desired = this.spec?.replicas ?? 1;
-    const ready = this.status?.readyReplicas ?? 0;
+    const desired = this.getDesiredReplicas();
+    const ready = this.getReadyReplicas();
 
     if (desired === 0) {
       return 'healthy';
@@ -93,7 +107,7 @@ class LeaderWorkerSet extends KubeObject<KubeLeaderWorkerSet> {
       // No group is ready yet. While the controller reports progress on creating
       // or scaling groups, that is a workload still coming up rather than a
       // failure, so don't flag a freshly created leader worker set as failed.
-      return isTrue('Progressing') ? 'transitional' : 'failed';
+      return isConditionTrue(conditions, 'Progressing') ? 'transitional' : 'failed';
     }
     return 'degraded';
   }
