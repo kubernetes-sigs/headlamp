@@ -65,10 +65,11 @@ const (
 // since it uniquely identifies the in-flight refresh for a given session.
 //
 // This only dedupes calls that overlap in time. A request can still observe the
-// old, about-to-expire token via the middleware's IsTokenAboutToExpire check,
-// then reach GetNewToken after some other request already completed a refresh
-// for that same token (the singleflight.Group forgets a key as soon as its Do
-// call returns). refreshedTokenKeyPrefix below covers that non-overlapping case.
+// old, about-to-expire token via RefreshTokenIfNeeded's IsTokenAboutToExpire
+// check, then reach GetNewToken after some other request already completed a
+// refresh for that same token (the singleflight.Group forgets a key as soon as
+// its Do call returns). refreshedTokenKeyPrefix below covers that non-overlapping
+// case.
 var refreshGroup singleflight.Group
 
 const JWTExpirationTTL = 10 * time.Second // seconds
@@ -739,4 +740,23 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 
 		params.TelemetryHandler.RecordEvent(params.Span, "Token refreshed successfully")
 	}
+}
+
+// RefreshTokenIfNeeded checks whether params.Token is close to expiring and, if
+// so, refreshes it via RefreshAndSetToken. It reports whether a refresh was
+// attempted, so callers can tell "token still valid, nothing to do" apart from
+// "token was expiring, refresh was attempted" without checking expiry themselves.
+//
+// This keeps the expiry decision next to the refresh machinery it gates,
+// instead of split out into the caller (e.g. the middleware): the caller no
+// longer needs its own IsTokenAboutToExpire check before deciding whether to
+// invoke a refresh.
+func RefreshTokenIfNeeded(params RefreshAndSetTokenParams) bool {
+	if !IsTokenAboutToExpire(params.Token) {
+		return false
+	}
+
+	RefreshAndSetToken(params)
+
+	return true
 }

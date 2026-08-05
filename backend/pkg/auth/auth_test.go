@@ -1203,6 +1203,94 @@ func TestRefreshAndSetToken_ErrorDoesNotSetCookie(t *testing.T) {
 	assert.False(t, ok, "expected no auth cookie to be set on error")
 }
 
+// TestRefreshTokenIfNeeded_SkipsWhenNotExpiring verifies that the expiry
+// decision now made inside RefreshTokenIfNeeded still behaves like the old
+// middleware-side IsTokenAboutToExpire check: a token that isn't close to
+// expiry is left untouched, with no IdP call and no cookie write.
+func TestRefreshTokenIfNeeded_SkipsWhenNotExpiring(t *testing.T) {
+	const cluster = "test"
+
+	token := makeJWTWithPayload(t, map[string]interface{}{
+		"exp": float64(time.Now().Add(auth.JWTExpirationTTL + time.Hour).Unix()),
+	})
+
+	tokenEndpointCalled := false
+	srv := newOIDCProviderServer(t, "", func(_ http.ResponseWriter, _ *http.Request) {
+		tokenEndpointCalled = true
+	})
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster, nil)
+	rr := httptest.NewRecorder()
+
+	refreshed := auth.RefreshTokenIfNeeded(auth.RefreshAndSetTokenParams{
+		Ctx:              context.Background(),
+		OIDCAuthConfig:   &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"},
+		Cache:            &fakeCache{},
+		Token:            token,
+		Cluster:          cluster,
+		Writer:           rr,
+		Request:          req,
+		TelemetryHandler: &telemetry.RequestHandler{},
+		OIDCIdpIssuerURL: srv.URL,
+		BaseURL:          "",
+	})
+
+	assert.False(t, refreshed, "expected no refresh attempt for a token that isn't about to expire")
+	assert.False(t, tokenEndpointCalled, "token endpoint should not be called for a token that isn't about to expire")
+
+	resp := rr.Result()
+	defer func() { _ = resp.Body.Close() }()
+
+	_, ok := findAuthCookie(resp, cluster)
+	assert.False(t, ok, "expected no auth cookie to be set")
+}
+
+// TestRefreshTokenIfNeeded_RefreshesWhenExpiring verifies that a token close
+// to expiry is refreshed and the auth cookie updated, matching what the
+// middleware used to get from IsTokenAboutToExpire + RefreshAndSetToken.
+func TestRefreshTokenIfNeeded_RefreshesWhenExpiring(t *testing.T) {
+	const cluster = "test"
+
+	token := makeJWTWithPayload(t, map[string]interface{}{
+		"exp": float64(time.Now().Add(auth.JWTExpirationTTL / 2).Unix()),
+	})
+
+	fc := &fakeCache{store: map[string]interface{}{"oidc-token-" + token: "REFRESH_OLD"}}
+
+	srv := newOIDCProviderServer(t, "", func(w http.ResponseWriter, r *http.Request) {
+		require.NoError(t, r.ParseForm())
+		require.Equal(t, "REFRESH_OLD", r.PostForm.Get("refresh_token"))
+
+		w.Header().Set("Content-Type", "application/json")
+		require.NoError(t, json.NewEncoder(w).Encode(oauthSuccessBody))
+	})
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster, nil)
+	rr := httptest.NewRecorder()
+
+	refreshed := auth.RefreshTokenIfNeeded(auth.RefreshAndSetTokenParams{
+		Ctx:              context.Background(),
+		OIDCAuthConfig:   &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"},
+		Cache:            fc,
+		Token:            token,
+		Cluster:          cluster,
+		Writer:           rr,
+		Request:          req,
+		TelemetryHandler: &telemetry.RequestHandler{},
+		OIDCIdpIssuerURL: srv.URL,
+		BaseURL:          "",
+	})
+
+	assert.True(t, refreshed, "expected a refresh attempt for a token about to expire")
+
+	resp := rr.Result()
+	defer func() { _ = resp.Body.Close() }()
+
+	cookieVal, ok := findAuthCookie(resp, cluster)
+	require.True(t, ok, "expected auth cookie to be set")
+	assert.Equal(t, "NEW", cookieVal)
+}
+
 // TestConfigureTLSContext_NoConfig tests when both skipTLSVerify and caCert are not set.
 func TestConfigureTLSContext_NoConfig(t *testing.T) {
 	baseCtx := context.Background()

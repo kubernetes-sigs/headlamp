@@ -121,17 +121,7 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				return
 			}
 
-			if !IsTokenAboutToExpire(token) {
-				config.TelemetryHandler.RecordEvent(span, "Token not about to expire, skipping refresh")
-
-				status = "token_valid"
-
-				next.ServeHTTP(w, r)
-
-				return
-			}
-
-			RefreshAndSetToken(RefreshAndSetTokenParams{
+			refreshed := RefreshTokenIfNeeded(RefreshAndSetTokenParams{
 				Ctx:                       ctx,
 				OIDCAuthConfig:            oidcAuthConfig,
 				Cache:                     config.Cache,
@@ -147,6 +137,11 @@ func NewOIDCTokenRefreshMiddleware(config OIDCTokenRefreshConfig) func(http.Hand
 				BaseURL:                   config.BaseURL,
 				SessionTTL:                config.SessionTTL,
 			})
+			if !refreshed {
+				config.TelemetryHandler.RecordEvent(span, "Token not about to expire, skipping refresh")
+
+				status = "token_valid"
+			}
 
 			next.ServeHTTP(w, r)
 		})
