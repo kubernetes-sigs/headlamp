@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	defaultNewConfigFileMode   os.FileMode = os.FileMode(0o644)
+	defaultNewConfigFileMode   os.FileMode = os.FileMode(0o600)
 	defaultNewConfigFolderMode os.FileMode = os.FileMode(0o770)
 )
 
@@ -169,6 +169,13 @@ func addRepository(request AddUpdateRepoRequest, settings *cli.EnvSettings) erro
 	newRepo := &repo.Entry{
 		Name: request.Name,
 		URL:  request.URL,
+	}
+
+	// repo.File.Update replaces the entry wholesale, so carry over the
+	// server-side fields (credentials, TLS file paths) that the HTTP API
+	// deliberately does not accept from clients.
+	if existing := repoFile.Get(request.Name); existing != nil {
+		copyExistingRepoFields(newRepo, existing)
 	}
 
 	applyRequestFields(newRepo, request)

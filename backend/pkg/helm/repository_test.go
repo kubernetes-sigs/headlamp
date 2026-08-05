@@ -442,6 +442,54 @@ func TestUpdateRepositoryPreservesAuth(t *testing.T) {
 	assert.Equal(t, testPassword, updatedEntry.Password)
 }
 
+func TestAddRepositoryPreservesAuth(t *testing.T) {
+	helmHandler := newIsolatedHelmHandler(t)
+
+	ts := newAuthRepoIndexServer(t)
+	defer ts.Close()
+
+	username := testUsername
+	password := testPassword
+
+	addRepo := helm.AddUpdateRepoRequest{
+		Name:     "auth_add_repo",
+		URL:      ts.URL,
+		Username: &username,
+		Password: &password,
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "POST",
+		"/clusters/minikube/helm/repositories/charts", mustJSONBody(t, addRepo))
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	helmHandler.AddRepo(rr, req)
+	require.Equal(t, http.StatusOK, rr.Code)
+
+	// Add the same repo again without credentials
+	addRepoNoAuth := helm.AddUpdateRepoRequest{
+		Name: "auth_add_repo",
+		URL:  ts.URL,
+	}
+
+	addReqNoAuth, err := http.NewRequestWithContext(context.Background(), "POST",
+		"/clusters/minikube/helm/repositories/charts", mustJSONBody(t, addRepoNoAuth))
+	require.NoError(t, err)
+
+	rr = httptest.NewRecorder()
+	helmHandler.AddRepo(rr, addReqNoAuth)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	repoFile, err := repo.LoadFile(helmHandler.RepositoryConfig)
+	require.NoError(t, err)
+
+	updatedEntry := repoFile.Get("auth_add_repo")
+	require.NotNil(t, updatedEntry)
+
+	assert.Equal(t, testUsername, updatedEntry.Username)
+	assert.Equal(t, testPassword, updatedEntry.Password)
+}
+
 func TestCreateFileIfNotThere(t *testing.T) {
 	t.Run("creates_missing_file_and_directories", func(t *testing.T) {
 		dir := t.TempDir()
