@@ -692,8 +692,10 @@ func newOIDCProviderServer(t *testing.T, issuerURL string, tokenHandler http.Han
 	return srv
 }
 
-func findAuthCookie(resp *http.Response, cluster string) (string, bool) {
-	want := fmt.Sprintf("headlamp-auth-%s.0", auth.SanitizeClusterName(cluster))
+// findAuthCookie looks up the auth cookie for the "test" cluster used by every
+// caller in this file.
+func findAuthCookie(resp *http.Response) (string, bool) {
+	want := fmt.Sprintf("headlamp-auth-%s.0", auth.SanitizeClusterName("test"))
 	for _, cookie := range resp.Cookies() {
 		if cookie.Name == want {
 			return cookie.Value, true
@@ -1111,7 +1113,7 @@ func TestRefreshAndSetToken_DefaultsToIDToken(t *testing.T) {
 
 	defer func() { _ = resp.Body.Close() }()
 
-	cookieVal, ok := findAuthCookie(resp, cluster)
+	cookieVal, ok := findAuthCookie(resp)
 	require.True(t, ok, "expected auth cookie to be set")
 	assert.Equal(t, "NEW", cookieVal)
 }
@@ -1162,7 +1164,7 @@ func TestRefreshAndSetToken_UsesAccessToken(t *testing.T) {
 
 	defer func() { _ = resp.Body.Close() }()
 
-	cookieVal, ok := findAuthCookie(resp, cluster)
+	cookieVal, ok := findAuthCookie(resp)
 	require.True(t, ok, "expected auth cookie to be set")
 	assert.Equal(t, "ACCESS_NEW", cookieVal)
 }
@@ -1199,7 +1201,7 @@ func TestRefreshAndSetToken_ErrorDoesNotSetCookie(t *testing.T) {
 
 	defer func() { _ = resp.Body.Close() }()
 
-	_, ok := findAuthCookie(resp, cluster)
+	_, ok := findAuthCookie(resp)
 	assert.False(t, ok, "expected no auth cookie to be set on error")
 }
 
@@ -1241,7 +1243,7 @@ func TestRefreshTokenIfNeeded_SkipsWhenNotExpiring(t *testing.T) {
 	resp := rr.Result()
 	defer func() { _ = resp.Body.Close() }()
 
-	_, ok := findAuthCookie(resp, cluster)
+	_, ok := findAuthCookie(resp)
 	assert.False(t, ok, "expected no auth cookie to be set")
 }
 
@@ -1286,7 +1288,7 @@ func TestRefreshTokenIfNeeded_RefreshesWhenExpiring(t *testing.T) {
 	resp := rr.Result()
 	defer func() { _ = resp.Body.Close() }()
 
-	cookieVal, ok := findAuthCookie(resp, cluster)
+	cookieVal, ok := findAuthCookie(resp)
 	require.True(t, ok, "expected auth cookie to be set")
 	assert.Equal(t, "NEW", cookieVal)
 }
