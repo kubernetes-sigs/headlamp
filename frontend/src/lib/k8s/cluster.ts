@@ -67,7 +67,7 @@ export interface Cluster {
    * Whether requests to this cluster are authenticated with the backend's own service
    * account token, in which case a user-supplied token is never applied.
    */
-  usesServiceAccountToken?: boolean;
+  uses_service_account_token?: boolean;
   [propName: string]: any;
 }
 

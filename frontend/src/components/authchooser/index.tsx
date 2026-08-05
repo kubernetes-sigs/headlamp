@@ -108,7 +108,7 @@ function AuthChooser({ children }: AuthChooserProps) {
       if (clusterAuthType !== 'oidc' && cluster.useToken === undefined) {
         // When the backend authenticates with its own service account, a user token is
         // never applied, so a failed check must not fall back to asking for one.
-        let useToken = !cluster.usesServiceAccountToken;
+        let useToken = !cluster.uses_service_account_token;
 
         setTestingAuth(true);
 
