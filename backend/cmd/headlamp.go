@@ -79,23 +79,58 @@ import (
 type HeadlampConfig struct {
 	*headlampconfig.HeadlampConfig
 	proxyURLMu        sync.Mutex
-	compiledProxyURLs []glob.Glob
+	compiledProxyURLs []proxyURLMatcher
 	oidcStateReader   io.Reader
 }
 
-func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
-	compiledProxyURLs := make([]glob.Glob, 0, len(patterns))
+// proxyURLMatcher matches a request URL against a single proxyURLs allowlist
+// entry. The host is matched on its own so a wildcard in the host part of a
+// pattern cannot reach into the path, query or fragment of a different host --
+// that would be an SSRF allowlist bypass (e.g. "https://*.example.com" must not
+// match "https://evil.com/a.example.com"). The path keeps normal glob matching
+// so an entry like "https://host/*" still covers nested paths.
+type proxyURLMatcher struct {
+	scheme string
+	host   glob.Glob
+	path   glob.Glob
+}
+
+func compileProxyURLPatterns(patterns []string) ([]proxyURLMatcher, error) {
+	matchers := make([]proxyURLMatcher, 0, len(patterns))
 
 	for _, pattern := range patterns {
-		g, err := glob.Compile(pattern)
+		parsed, err := url.Parse(pattern)
 		if err != nil {
 			return nil, fmt.Errorf("compiling proxy URL pattern %q: %w", pattern, err)
 		}
 
-		compiledProxyURLs = append(compiledProxyURLs, g)
+		// A pattern without a host (e.g. "example.com/path" parsed as a path, or
+		// a bare path) is not a usable allowlist entry -- reject it so a typo
+		// can't silently compile into an entry that never matches.
+		if parsed.Host == "" {
+			return nil, fmt.Errorf("compiling proxy URL pattern %q: pattern has no host", pattern)
+		}
+
+		hostGlob, err := glob.Compile(parsed.Host)
+		if err != nil {
+			return nil, fmt.Errorf("compiling proxy URL pattern %q: %w", pattern, err)
+		}
+
+		// An empty path in the pattern allows any path on the matched host.
+		pathPattern := parsed.Path
+		if pathPattern == "" {
+			pathPattern = "*"
+		}
+
+		pathGlob, err := glob.Compile(pathPattern)
+		if err != nil {
+			return nil, fmt.Errorf("compiling proxy URL pattern %q: %w", pattern, err)
+		}
+
+		matchers = append(matchers, proxyURLMatcher{scheme: parsed.Scheme, host: hostGlob, path: pathGlob})
 	}
 
-	return compiledProxyURLs, nil
+	return matchers, nil
 }
 
 func (c *HeadlampConfig) proxyURLAllowed(proxyURL string) (bool, error) {
@@ -115,8 +150,13 @@ func (c *HeadlampConfig) proxyURLAllowed(proxyURL string) (bool, error) {
 	compiledProxyURLs := c.compiledProxyURLs
 	c.proxyURLMu.Unlock()
 
-	for _, g := range compiledProxyURLs {
-		if g.Match(proxyURL) {
+	parsed, err := url.Parse(proxyURL)
+	if err != nil {
+		return false, nil
+	}
+
+	for _, m := range compiledProxyURLs {
+		if m.scheme == parsed.Scheme && m.host.Match(parsed.Host) && m.path.Match(parsed.Path) {
 			return true, nil
 		}
 	}
