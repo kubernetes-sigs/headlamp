@@ -51,6 +51,7 @@ vi.mock('./main', () => ({
 }));
 
 import {
+  addRunCmdConsent,
   checkPermissionSecret,
   environmentOverrides,
   handleRunCommand,
@@ -423,5 +424,41 @@ describe('runScript', () => {
 
     expect(consoleErrorMock).toHaveBeenCalledTimes(1);
     expect(exitMock).toHaveBeenCalledWith(1);
+  });
+});
+
+describe('addRunCmdConsent', () => {
+  const AI_ASSISTANT_COMMANDS = ['gh auth', 'az account', 'az cognitiveservices'];
+
+  it.each([
+    ['headlamp_ai-assistant'],
+    ['headlamp_ai_assistant'],
+    ['headlamp_ai-assistantprerelease'],
+    ['headlamp_ai_assistantprerelease'],
+  ])('pre-populates AI assistant commands for plugin name "%s"', async pluginName => {
+    const { loadSettings, saveSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: {} });
+    vi.mocked(saveSettings).mockClear();
+
+    addRunCmdConsent({ name: pluginName });
+
+    expect(saveSettings).toHaveBeenCalledTimes(1);
+    const savedSettings = vi.mocked(saveSettings).mock.calls[0][1] as any;
+    for (const cmd of AI_ASSISTANT_COMMANDS) {
+      expect(savedSettings.confirmedCommands[cmd]).toBe(true);
+    }
+  });
+
+  it('does not pre-populate AI assistant commands for an unrecognised plugin name', async () => {
+    const { loadSettings, saveSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: {} });
+    vi.mocked(saveSettings).mockClear();
+
+    addRunCmdConsent({ name: 'some-other-plugin' });
+
+    const savedSettings = vi.mocked(saveSettings).mock.calls[0]?.[1] as any;
+    for (const cmd of AI_ASSISTANT_COMMANDS) {
+      expect(savedSettings?.confirmedCommands?.[cmd]).toBeUndefined();
+    }
   });
 });
