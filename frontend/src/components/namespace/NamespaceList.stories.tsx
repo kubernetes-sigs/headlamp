@@ -73,6 +73,7 @@ export const Regular = Template.bind({});
 Regular.parameters = {
   msw: {
     handlers: {
+      base: null,
       story: [
         http.get(`${API_BASE}/api/v1/namespaces`, () =>
           HttpResponse.json({
@@ -80,6 +81,9 @@ Regular.parameters = {
             items,
             metadata: {},
           })
+        ),
+        http.post(`${API_BASE}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, () =>
+          HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
         ),
       ],
     },
@@ -102,6 +106,7 @@ export const NoStatus = Template.bind({});
 NoStatus.parameters = {
   msw: {
     handlers: {
+      base: null,
       story: [
         http.get(`${API_BASE}/api/v1/namespaces`, () =>
           HttpResponse.json({
@@ -109,6 +114,9 @@ NoStatus.parameters = {
             items: noStatusItems,
             metadata: {},
           })
+        ),
+        http.post(`${API_BASE}/apis/authorization.k8s.io/v1/selfsubjectaccessreviews`, () =>
+          HttpResponse.json({ status: { allowed: true, reason: '', code: 200 } })
         ),
       ],
     },
