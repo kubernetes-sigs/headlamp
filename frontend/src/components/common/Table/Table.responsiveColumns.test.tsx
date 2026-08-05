@@ -17,7 +17,7 @@
 import { ThemeProvider } from '@mui/material/styles';
 import { render, screen, waitFor } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { beforeAll, describe, expect, it, vi } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import { createMuiTheme } from '../../../lib/themes';
 import { TestContext } from '../../../test';
 import Table, { TableColumn } from './Table';
@@ -86,10 +86,22 @@ async function toggleColumnFromChooser(user: ReturnType<typeof userEvent.setup>,
 
 const columnHeader = (name: RegExp) => screen.queryByRole('columnheader', { name });
 
+/**
+ * Reads the grid track list off the table. MUI applies `sx` as a class, so the value
+ * lives in the stylesheet rather than in the element's inline style.
+ */
+const gridTemplateOf = (container: HTMLElement) =>
+  window.getComputedStyle(container.querySelector('table') as HTMLElement).gridTemplateColumns;
+
 describe('Table responsive column hiding', () => {
   beforeAll(() => {
     // jsdom has no layout engine; Table only hides columns once it measures a width.
     mockContainerWidth(240);
+  });
+
+  afterAll(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   it('hides low priority columns that do not fit', async () => {
@@ -165,6 +177,22 @@ describe('Table responsive column hiding', () => {
 
     await waitFor(() => expect(columnHeader(/name/i)).not.toBeInTheDocument());
     expect(columnHeader(/actions/i)).not.toBeInTheDocument();
+  });
+
+  it('drops the row actions track once every data column is hidden', async () => {
+    const single: TableColumn<Row>[] = [
+      { id: 'name', header: 'Name', accessorFn: (r: Row) => r.name },
+    ];
+
+    const visible = renderTable({ columns: single as any, enableRowActions: true });
+    await waitFor(() => expect(gridTemplateOf(visible.container)).toContain('0.05fr'));
+
+    const hidden = renderTable({
+      columns: single as any,
+      enableRowActions: true,
+      state: { columnVisibility: { name: false } },
+    });
+    await waitFor(() => expect(gridTemplateOf(hidden.container)).not.toContain('0.05fr'));
   });
 
   it('forwards only the user change to a caller supplied handler', async () => {

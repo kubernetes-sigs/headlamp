@@ -175,10 +175,15 @@ const StyledBody = styled('tbody')({ display: 'contents' });
 const DEFAULT_MIN_COLUMN_WIDTH = 100;
 
 /**
+ * Id MRT gives the actions column it renders for `enableRowActions`.
+ */
+const MRT_ROW_ACTIONS_COLUMN_ID = 'mrt-row-actions';
+
+/**
  * Ids of the action columns, which follow the other columns in and out of view rather
  * than being toggled on their own: the caller-defined one and MRT's built-in one.
  */
-const ACTIONS_COLUMN_IDS = ['actions', 'mrt-row-actions'];
+const ACTIONS_COLUMN_IDS = ['actions', MRT_ROW_ACTIONS_COLUMN_ID];
 
 /**
  * Tracks the current width of an element using a ResizeObserver.
@@ -393,7 +398,7 @@ export default function Table<RowItem extends Record<string, any>>({
     const presentActionIds = ACTIONS_COLUMN_IDS.filter(
       id =>
         tableColumns.some(col => (col.id ?? '') === id) ||
-        (id === 'mrt-row-actions' && tableProps.enableRowActions)
+        (id === MRT_ROW_ACTIONS_COLUMN_ID && tableProps.enableRowActions)
     );
 
     presentActionIds.forEach(id => {
@@ -604,7 +609,10 @@ export default function Table<RowItem extends Record<string, any>>({
         return it.gridTemplate ?? '1fr';
       })
       .join(' ');
-    if (tableProps.enableRowActions) {
+    if (
+      tableProps.enableRowActions &&
+      mergedColumnVisibility[MRT_ROW_ACTIONS_COLUMN_ID] !== false
+    ) {
       preGridTemplateColumns = `${preGridTemplateColumns} 0.05fr`;
     }
     if (tableProps.enableRowSelection) {
