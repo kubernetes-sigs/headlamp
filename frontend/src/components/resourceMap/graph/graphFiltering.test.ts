@@ -70,7 +70,7 @@ describe('filterGraph', () => {
   ];
 
   it('filters nodes by namespace', () => {
-    const filters: GraphFilter[] = [{ type: 'namespace', namespaces: new Set(['ns3']) }];
+    const filters: GraphFilter[] = [{ type: 'namespace', namespaces: ['ns3'] }];
     const { nodes: filteredNodes } = filterGraph(nodes, edges, filters);
 
     // Output contains two nodes that both have same namespace ns3
@@ -216,7 +216,7 @@ describe('filterGraph', () => {
     const testNodes = [nsNode, errNode, otherNode];
     const testEdges: GraphEdge[] = [];
     const filters: GraphFilter[] = [
-      { type: 'namespace', namespaces: new Set(['kube-system']) },
+      { type: 'namespace', namespaces: ['kube-system'] },
       { type: 'hasErrors' },
     ];
 
@@ -255,7 +255,7 @@ describe('filterGraph', () => {
     ];
     const testEdges: GraphEdge[] = [];
     const filters: GraphFilter[] = [
-      { type: 'namespace', namespaces: new Set(['kube-system']) },
+      { type: 'namespace', namespaces: ['kube-system'] },
       { type: 'hasErrors' },
     ];
 
@@ -694,7 +694,7 @@ describe('filterGraphIncremental', () => {
     const addedNodeIds = new Set(['pod-3']);
 
     // Filter by 'default' namespace (same filter as before)
-    const filters: GraphFilter[] = [{ type: 'namespace', namespaces: new Set(['default']) }];
+    const filters: GraphFilter[] = [{ type: 'namespace', namespaces: ['default'] }];
 
     const result = filterGraphIncremental(
       prevFilteredNodes,
@@ -1050,7 +1050,7 @@ describe('filterGraphIncremental', () => {
     const addedNodeIds = new Set(['pod-1', 'pod-2', 'pod-3']);
 
     const filters: GraphFilter[] = [
-      { type: 'namespace', namespaces: new Set(['kube-system']) },
+      { type: 'namespace', namespaces: ['kube-system'] },
       { type: 'hasErrors' },
     ];
 
@@ -1221,7 +1221,7 @@ describe('filterGraphIncremental', () => {
       { id: 'e2', source: 'healthy-pod', target: 'isolated-pod' },
     ];
     const filters: GraphFilter[] = [
-      { type: 'namespace', namespaces: new Set(['kube-system']) },
+      { type: 'namespace', namespaces: ['kube-system'] },
       { type: 'hasErrors' },
     ];
 
@@ -1282,7 +1282,7 @@ describe('filterGraphIncremental', () => {
     ];
     const prevEdges: GraphEdge[] = [{ id: 'e1', source: 'pod-0', target: 'pod-1' }];
     const filters: GraphFilter[] = [
-      { type: 'namespace', namespaces: new Set(['kube-system']) },
+      { type: 'namespace', namespaces: ['kube-system'] },
       { type: 'hasErrors' },
     ];
 
@@ -1350,7 +1350,7 @@ describe('filterGraphIncremental', () => {
     };
 
     const filters: GraphFilter[] = [
-      { type: 'namespace', namespaces: new Set(['kube-system']) },
+      { type: 'namespace', namespaces: ['kube-system'] },
       { type: 'hasErrors' },
     ];
 

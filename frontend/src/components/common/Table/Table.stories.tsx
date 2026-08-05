@@ -263,14 +263,14 @@ const TemplateWithFilter: StoryFn<{
   const storeWithFilterAndSettings = configureStore({
     reducer: (
       state = {
-        filter: { namespaces: new Set<string>(), search: '' },
+        filter: { namespaces: [], search: '' },
         config: { settings: { tableRowsPerPageOptions: [10, 20, 50, 100] } },
         shortcuts: { ...shortcutsReducer(undefined, { type: '' }) },
       }
     ) => state,
     preloadedState: {
       filter: {
-        namespaces: new Set(namespaces),
+        namespaces,
         search,
       },
       config: {

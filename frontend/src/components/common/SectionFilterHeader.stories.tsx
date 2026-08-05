@@ -26,7 +26,7 @@ import SectionFilterHeader, { SectionFilterHeaderProps } from './SectionFilterHe
 function makeStore(namespaces: string[] = []) {
   return configureStore({
     reducer: reducers,
-    preloadedState: { filter: { namespaces: new Set(namespaces), search: '' } } as any,
+    preloadedState: { filter: { namespaces, search: '' } } as any,
     middleware: getDefaultMiddleware => getDefaultMiddleware({ serializableCheck: false }),
   });
 }
