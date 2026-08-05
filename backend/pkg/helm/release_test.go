@@ -118,7 +118,9 @@ func TestInstallRelease(t *testing.T) {
 	helmHandler := newHelmHandler(t)
 
 	// add headlmap repo
-	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
+	ts := mockHelmServer()
+	defer ts.Close()
+	testAddRepo(t, helmHandler, "headlamp_test_repo", ts.URL)
 
 	// uninstall release if it already exists
 	k8sClientConfig := GetClient(t, "minikube")

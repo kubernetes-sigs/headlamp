@@ -554,6 +554,7 @@ type PluginRegistry struct {
 	userDir    string
 	devDir     string
 	cache      cache.Cache[interface{}]
+	initialSyncDone bool
 }
 
 // NewPluginRegistry constructs a new PluginRegistry instance.
@@ -749,6 +750,27 @@ func (r *PluginRegistry) syncCacheLocked() {
 		list = append(list, p)
 	}
 
+	slices.SortFunc(list, func(a, b PluginMetadata) int {
+		typePriority := func(t string) int {
+			switch t {
+			case PluginTypeShipped:
+				return 0
+			case PluginTypeUser:
+				return 1
+			case PluginTypeDevelopment:
+				return 2
+			}
+			return 3
+		}
+
+		pA := typePriority(a.Type)
+		pB := typePriority(b.Type)
+		if pA != pB {
+			return pA - pB
+		}
+		return strings.Compare(a.Name, b.Name)
+	})
+
 	_ = r.cache.Set(context.Background(), PluginListKey, list)
 }
 
@@ -822,10 +844,15 @@ func (r *PluginRegistry) SyncFromDisk() error {
 
 	r.syncCacheLocked()
 
-	if len(events) > 0 && r.cache != nil {
-		_ = r.cache.Set(context.Background(), PluginRefreshKey, canSendRefresh(r.cache))
+	if r.cache != nil {
+		if !r.initialSyncDone {
+			_ = r.cache.Set(context.Background(), PluginRefreshKey, false)
+		} else if len(events) > 0 {
+			_ = r.cache.Set(context.Background(), PluginRefreshKey, canSendRefresh(r.cache))
+		}
 	}
 
+	r.initialSyncDone = true
 	r.mu.Unlock()
 
 	for _, cleanup := range cleanupsToRun {

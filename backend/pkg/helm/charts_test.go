@@ -39,7 +39,9 @@ func TestListChart(t *testing.T) {
 	helmHandler, err := helm.NewHandlerWithSettings(cache, settings)
 	require.NoError(t, err)
 
-	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
+	ts := mockHelmServer()
+	defer ts.Close()
+	testAddRepo(t, helmHandler, "headlamp_test_repo", ts.URL)
 
 	// list chart request
 	listChartsRequest, err := http.NewRequestWithContext(context.Background(),
@@ -98,7 +100,9 @@ func TestListChartContentType(t *testing.T) {
 	helmHandler, err := helm.NewHandlerWithSettings(ch, settings)
 	require.NoError(t, err)
 
-	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
+	ts := mockHelmServer()
+	defer ts.Close()
+	testAddRepo(t, helmHandler, "headlamp_test_repo", ts.URL)
 
 	listChartsRequest, err := http.NewRequestWithContext(context.Background(),
 		"GET", "/clusters/minikube/helm/repositories/charts", nil)
