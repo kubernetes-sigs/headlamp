@@ -76,6 +76,11 @@ export interface FormField {
     onChange: (value: any) => void;
     resource: Record<string, any>;
   }) => React.ReactNode;
+  /** Optional custom validator for `required` fields with a custom `render`.
+   *  Called with the current value at `path`; must return `true` when the
+   *  value is considered valid. When omitted, the built-in type-based check
+   *  is used. */
+  validate?: (value: any) => boolean;
 }
 
 /** A labelled group of fields. */
@@ -127,6 +132,9 @@ export function metadataSection(t: (key: string) => string): FormSection {
 
 /** Check whether a required field's current value is valid for its type. */
 function isFieldValid(field: FormField, value: any): boolean {
+  if (field.validate) {
+    return field.validate(value);
+  }
   switch (field.type) {
     case 'containers':
       return (
