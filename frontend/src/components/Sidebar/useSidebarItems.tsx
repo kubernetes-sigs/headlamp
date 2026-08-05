@@ -20,7 +20,8 @@ import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getClusterAppearanceFromMeta } from '../../helpers/clusterAppearance';
 import { isElectron } from '../../helpers/isElectron';
-import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
+import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
+import { useApiGroupAvailable } from '../../lib/k8s/api/v2/useApiGroupAvailable';
 import CRD from '../../lib/k8s/crd';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { useTypedSelector } from '../../redux/hooks';
@@ -63,6 +64,16 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   const allClustersConf = useClustersConf();
   const { t } = useTranslation();
   const theme = useTheme();
+  const cluster = useCluster();
+  // useCluster() may return an arbitrary selected cluster when multiple clusters
+  // are selected, so skip the availability check in that case to avoid hiding
+  // the Gateway API section just because the (arbitrarily) picked cluster
+  // doesn't have it, even though other selected clusters might.
+  const isGatewayAPIAvailable = useApiGroupAvailable(
+    'gateway.networking.k8s.io',
+    'v1',
+    selectedClusters.length > 1 ? null : cluster
+  );
 
   const [crds, error] = CRD.useList();
   if (error !== null) {
@@ -327,6 +338,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         name: 'gatewayapi',
         label: t('glossary|Gateway (beta)'),
         icon: 'mdi:lan-connect',
+        hide: isGatewayAPIAvailable === false,
         subList: [
           {
             name: 'gateways',
