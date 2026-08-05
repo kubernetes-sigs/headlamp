@@ -371,7 +371,7 @@ const ProjectDetailsContext = createContext<
 /**
  * Project Details page
  */
-function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
+export function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
   const { t } = useTranslation();
   const registeredTabs = useTypedSelector(state => state.projects.detailsTabs);
   const customDeleteButton = useTypedSelector(state => state.projects.projectDeleteButton);
