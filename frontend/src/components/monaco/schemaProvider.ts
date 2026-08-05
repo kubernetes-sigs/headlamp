@@ -134,13 +134,15 @@ export function validateObjectAgainstSchema(
     if (!propSchema) {
       // Unknown field check if properties schema is defined
       if (Object.keys(properties).length > 0 && key !== 'apiVersion' && key !== 'kind') {
-        const { line, column } = findKeyLocationInYaml(yamlText, key);
-        errors.push({
-          path: fullPath,
-          message: `Unknown property '${key}' for schema '${schema.title || 'resource'}'`,
-          line,
-          column,
-        });
+        if (schema.additionalProperties === false) {
+          const { line, column } = findKeyLocationInYaml(yamlText, key);
+          errors.push({
+            path: fullPath,
+            message: `Unknown property '${key}' for schema '${schema.title || 'resource'}'`,
+            line,
+            column,
+          });
+        }
       }
       continue;
     }
@@ -185,11 +187,28 @@ export function validateObjectAgainstSchema(
           line,
           column,
         });
+      } else if (
+        expectedType === 'object' &&
+        (typeof value !== 'object' || value === null || Array.isArray(value))
+      ) {
+        const typeName = value === null ? 'null' : actualType;
+        const { line, column } = findKeyLocationInYaml(yamlText, key);
+        errors.push({
+          path: fullPath,
+          message: `Invalid type for '${key}': expected object, got ${typeName}`,
+          line,
+          column,
+        });
       }
     }
 
     // Recurse into nested object properties
-    if (propSchema.type === 'object' && typeof value === 'object' && value !== null) {
+    if (
+      propSchema.type === 'object' &&
+      typeof value === 'object' &&
+      value !== null &&
+      !Array.isArray(value)
+    ) {
       errors.push(...validateObjectAgainstSchema(value, propSchema, yamlText, fullPath));
     }
   }
@@ -240,6 +259,7 @@ export async function applyMonacoSchemaValidation(
     parsedObj = yaml.load(yamlText);
   } catch (e) {
     // If syntax error, skip schema validation markers (handled by headlamp-yaml-parse)
+    monaco.editor.setModelMarkers(model, 'headlamp-schema-validation', []);
     return;
   }
 
@@ -263,30 +283,37 @@ export async function applyMonacoSchemaValidation(
   }
 
   // Register schema in monaco jsonDefaults for hover and completion support
-  const schemaUri = `inmemory://k8s-schemas/${apiVersion}/${kind}.json`;
-  if (monaco.languages?.json?.jsonDefaults?.setDiagnosticsOptions) {
-    monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
-      validate: true,
-      schemas: [
-        {
-          uri: schemaUri,
-          fileMatch: [model.uri.toString()],
-          schema: schema as any,
-        },
-      ],
-    });
+  // Only apply to JSON models, as this is a global Monaco setting for JSON.
+  if (model.getLanguageId() === 'json') {
+    const schemaUri = `inmemory://k8s-schemas/${apiVersion}/${kind}.json`;
+    if (monaco.languages?.json?.jsonDefaults?.setDiagnosticsOptions) {
+      monaco.languages.json.jsonDefaults.setDiagnosticsOptions({
+        validate: true,
+        schemas: [
+          {
+            uri: schemaUri,
+            fileMatch: [model.uri.toString()],
+            schema: schema as any,
+          },
+        ],
+      });
+    }
   }
 
   // Validate parsed YAML object against schema and set markers
   const errors = validateObjectAgainstSchema(parsedObj, schema, yamlText);
-  const markers: editor.IMarkerData[] = errors.map(err => ({
-    startLineNumber: err.line,
-    startColumn: err.column,
-    endLineNumber: err.line,
-    endColumn: err.column + 20,
-    message: err.message,
-    severity: monaco.MarkerSeverity.Error,
-  }));
+  const markers: editor.IMarkerData[] = errors.map(err => {
+    const maxColumn = model.getLineMaxColumn(err.line);
+    const endColumn = Math.min(err.column + 20, maxColumn);
+    return {
+      startLineNumber: err.line,
+      startColumn: err.column,
+      endLineNumber: err.line,
+      endColumn: endColumn,
+      message: err.message,
+      severity: monaco.MarkerSeverity.Error,
+    };
+  });
 
   monaco.editor.setModelMarkers(model, 'headlamp-schema-validation', markers);
 }

@@ -155,6 +155,8 @@ describe('schemaProvider', () => {
     it('should set model markers when schema validation fails', async () => {
       const mockModel = {
         uri: { toString: () => 'inmemory://model1' },
+        getLanguageId: () => 'json',
+        getLineMaxColumn: () => 100,
       };
       const mockEditor = {
         getModel: () => mockModel,
