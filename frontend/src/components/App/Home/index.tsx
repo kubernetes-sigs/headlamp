@@ -154,11 +154,10 @@ function HomeComponent(props: HomeComponentProps) {
 
   React.useEffect(() => {
     if (isBackstage()) {
-      // Only announce readiness to a configured, trusted Backstage origin.
-      const [trustedOrigin] = getTrustedBackstageOrigins();
-      if (trustedOrigin) {
-        window.parent.postMessage({ type: 'HEADLAMP_READY' }, trustedOrigin);
-      }
+      // Only announce readiness to configured, trusted Backstage origins.
+      getTrustedBackstageOrigins().forEach(origin => {
+        window.parent.postMessage({ type: 'HEADLAMP_READY' }, origin);
+      });
       return setupBackstageMessageReceiver();
     }
   }, []);
