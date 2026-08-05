@@ -60,6 +60,55 @@ describe('clusterRequest failure handling', () => {
     expect(err.message).toMatch(/timed-out/i);
   });
 
+  it('reports an abort as a timeout even when it is not an Error', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => Promise.reject({ name: 'AbortError', message: 'The operation was aborted.' }))
+    );
+
+    const err: ApiError = await clusterRequest('/version').catch(e => e);
+
+    expect(err.status).toBe(408);
+    expect(err.message).toMatch(/timed-out/i);
+  });
+
+  it('does not report a cancellation through the caller signal as a timeout', async () => {
+    const caller = new AbortController();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => {
+        caller.abort();
+        return Promise.reject(abortError());
+      })
+    );
+
+    const err: ApiError = await clusterRequest('/version', { signal: caller.signal }).catch(e => e);
+
+    expect(err.name).toBe('AbortError');
+    expect(err.status).toBeUndefined();
+  });
+
+  it('applies the timeout even when the caller supplies a signal', async () => {
+    const caller = new AbortController();
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        (_url: string, init: RequestInit) =>
+          new Promise((_resolve, reject) => {
+            init.signal?.addEventListener('abort', () => reject(abortError()));
+          })
+      )
+    );
+
+    const err: ApiError = await clusterRequest('/version', {
+      signal: caller.signal,
+      timeout: 5,
+    }).catch(e => e);
+
+    expect(err.status).toBe(408);
+    expect(err.message).toMatch(/timed-out/i);
+  });
+
   it('keeps the original message when the network fails', async () => {
     vi.stubGlobal(
       'fetch',

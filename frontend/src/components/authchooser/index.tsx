@@ -132,6 +132,12 @@ function AuthChooser({ children }: AuthChooserProps) {
                 // failures below, which do require one.
                 console.debug(`Could not reach ${clusterName} while testing auth:`, err);
                 errorObj = err;
+              } else if (cluster.uses_service_account_token) {
+                // A user token is never applied to this cluster, so asking for one is not a
+                // recovery. The failure is the answer, and hiding it would send the user on
+                // into a cluster they cannot read.
+                console.debug(`Auth failed for ${clusterName} and no token can be applied:`, err);
+                errorObj = err;
               } else {
                 console.debug(`Requiring token for ${clusterName} as testing auth failed:`, err);
               }

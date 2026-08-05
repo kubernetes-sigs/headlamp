@@ -491,7 +491,6 @@ func TestGetClustersClusterInventorySource(t *testing.T) {
 	assert.Equal(t, "False", configCondition["status"])
 }
 
-// clusterInventoryConfigContext returns a minimal discovered context with Cluster Inventory metadata.
 // TestGetClustersUsesServiceAccountToken checks the signal the auth chooser relies on to
 // know that a user-supplied token would never be applied to a cluster.
 func TestGetClustersUsesServiceAccountToken(t *testing.T) {
@@ -535,6 +534,7 @@ func TestGetClustersUsesServiceAccountToken(t *testing.T) {
 	}
 }
 
+// clusterInventoryConfigContext returns a minimal discovered context with Cluster Inventory metadata.
 func clusterInventoryConfigContext() *kubeconfig.Context {
 	return &kubeconfig.Context{
 		Name:        "cluster-inventory-in-cluster--default--spoke-a--dbdb0aa95e5d",

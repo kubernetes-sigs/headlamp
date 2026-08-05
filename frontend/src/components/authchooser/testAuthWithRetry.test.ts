@@ -70,9 +70,11 @@ describe('testAuthWithRetry', () => {
   });
 
   it('rejects when the retry also fails', async () => {
-    testAuthMock.mockRejectedValueOnce(apiError(408)).mockRejectedValueOnce(apiError(408));
+    const firstError = apiError(408);
+    const retryError = apiError(408);
+    testAuthMock.mockRejectedValueOnce(firstError).mockRejectedValueOnce(retryError);
 
-    await expect(testAuthWithRetry('my-cluster')).rejects.toMatchObject({ status: 408 });
+    await expect(testAuthWithRetry('my-cluster')).rejects.toBe(retryError);
     expect(testAuthMock).toHaveBeenCalledTimes(2);
   });
 
