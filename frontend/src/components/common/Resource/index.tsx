@@ -54,6 +54,7 @@ export * from './DownloadButton';
 export { default as DownloadButton } from './DownloadButton';
 export * from './EditorDialog';
 export { default as EditorDialog } from './EditorDialog';
+export { EmptyStateActions, type EmptyStateActionsProps } from './EmptyStateActions';
 export * from './MatchExpressions';
 export * from './PortForward';
 export { default as PortForward } from './PortForward';

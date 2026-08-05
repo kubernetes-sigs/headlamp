@@ -46,6 +46,7 @@ const checkExports = [
   'DryRunPreviewDialog',
   'EditButton',
   'EditorDialog',
+  'EmptyStateActions',
   'EnvVarGrid',
   'MainInfoSection',
   'MatchExpressions',
