@@ -75,6 +75,21 @@ func TestDeleteKeys(t *testing.T) { //nolint:funlen
 			},
 		},
 		{
+			name: "a collection key leaves the objects in that collection cached",
+			beforemockCache: &MockCache{
+				store: map[string]string{
+					"+pods+default+test-context++variant":      "value-1",
+					"+pods+default+test-context+mypod+variant": "value-2",
+				},
+			},
+			key: "+pods+default+test-context++variant",
+			aftermockCache: &MockCache{
+				store: map[string]string{
+					"+pods+default+test-context+mypod+variant": "value-2",
+				},
+			},
+		},
+		{
 			name: "every query variant of the same list is deleted",
 			beforemockCache: &MockCache{
 				store: map[string]string{
@@ -94,15 +109,15 @@ func TestDeleteKeys(t *testing.T) { //nolint:funlen
 			name: "a named key also deletes the lists it appears in, but not a sibling object",
 			beforemockCache: &MockCache{
 				store: map[string]string{
-					"+pods+default+test-context+mypod+variant":   "value-1",
-					"+pods+default+test-context++variant":        "value-2",
-					"+pods+default+test-context+otherpod+varian": "value-3",
+					"+pods+default+test-context+mypod+variant":    "value-1",
+					"+pods+default+test-context++variant":         "value-2",
+					"+pods+default+test-context+otherpod+variant": "value-3",
 				},
 			},
 			key: "+pods+default+test-context+mypod+variant",
 			aftermockCache: &MockCache{
 				store: map[string]string{
-					"+pods+default+test-context+otherpod+varian": "value-3",
+					"+pods+default+test-context+otherpod+variant": "value-3",
 				},
 			},
 		},
@@ -138,7 +153,7 @@ func TestDeleteKeys(t *testing.T) { //nolint:funlen
 			},
 		},
 		{ //nolint:exhaustruct
-			name: "malformed key with fewer than 5 parts does not panic",
+			name: "malformed key with fewer than 6 parts does not panic",
 			beforemockCache: &MockCache{ //nolint:exhaustruct
 				store: map[string]string{
 					"+pods+default+test-context++variant": "value-1",
@@ -165,6 +180,20 @@ func TestDeleteKeys(t *testing.T) { //nolint:funlen
 				},
 			},
 		},
+		{ //nolint:exhaustruct
+			name: "a key without a variant segment is treated as malformed",
+			beforemockCache: &MockCache{ //nolint:exhaustruct
+				store: map[string]string{
+					"+pods+default+test-context++variant": "value-1",
+				},
+			},
+			key: "+pods+default+test-context+mypod",
+			aftermockCache: &MockCache{ //nolint:exhaustruct
+				store: map[string]string{
+					"+pods+default+test-context++variant": "value-1",
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
@@ -172,6 +201,56 @@ func TestDeleteKeys(t *testing.T) { //nolint:funlen
 			mockCache := tc.beforemockCache
 			k8cache.DeleteKeys(tc.key, mockCache)
 			assert.Equal(t, tc.aftermockCache, mockCache)
+		})
+	}
+}
+
+// TestDeleteCollectionKeys covers the eviction a collection delete needs: the objects it
+// removed must go too, since nothing else evicts them for resources without an informer.
+func TestDeleteCollectionKeys(t *testing.T) {
+	tests := []struct {
+		name   string
+		key    string
+		before map[string]string
+		after  map[string]string
+	}{
+		{
+			name: "a collection key deletes the objects in that collection",
+			key:  "+pods+default+test-context++variant",
+			before: map[string]string{
+				"+pods+default+test-context++variant":                 "value-1",
+				"+pods+default+test-context+mypod+variant":            "value-2",
+				"+pods+default+test-context+otherpod+variant":         "value-3",
+				"+pods+other+test-context+mypod+variant":              "value-4",
+				"apps+deployments+default+test-context+mypod+variant": "value-5",
+			},
+			after: map[string]string{
+				"+pods+other+test-context+mypod+variant":              "value-4",
+				"apps+deployments+default+test-context+mypod+variant": "value-5",
+			},
+		},
+		{
+			name: "a named key deletes only that object and its lists",
+			key:  "+pods+default+test-context+mypod+variant",
+			before: map[string]string{
+				"+pods+default+test-context++variant":         "value-1",
+				"+pods+default+test-context+mypod+variant":    "value-2",
+				"+pods+default+test-context+otherpod+variant": "value-3",
+			},
+			after: map[string]string{
+				"+pods+default+test-context+otherpod+variant": "value-3",
+			},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockCache := &MockCache{store: tc.before}
+			k8cache.ExportedDeleteCollectionKeys(tc.key, mockCache)
+
+			all, err := mockCache.GetAll(context.Background(), nil)
+			require.NoError(t, err)
+			assert.Equal(t, tc.after, all)
 		})
 	}
 }
@@ -263,6 +342,7 @@ func TestRunInformerToWatch(t *testing.T) { //nolint: funlen
 			"metadata": map[string]interface{}{
 				"name":              "test-pod",
 				"namespace":         "default",
+				"resourceVersion":   "1",
 				"creationTimestamp": time.Now().UTC().Format(time.RFC3339),
 			},
 		},
@@ -384,6 +464,7 @@ func TestRunInformerToWatch(t *testing.T) { //nolint: funlen
 
 				updatedPod := tc.mockPod.DeepCopy()
 				updatedPod.Object["metadata"].(map[string]interface{})["labels"] = map[string]interface{}{"app": "updated"}
+				updatedPod.SetResourceVersion("2")
 
 				gvr := schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
 				err = client.Tracker().Update(gvr, updatedPod, "default")
@@ -750,10 +831,8 @@ func TestServeFromCacheOrForwardToK8s_StoreError(t *testing.T) {
 	assert.Error(t, err, "failed cache write must not persist the key")
 }
 
-// HandleNonGETCacheInvalidation — three branches currently at 0%
-
 // TestHandleNonGETCacheInvalidation_GETSkipped verifies that GET requests
-// return nil immediately without touching the cache or calling next.
+// are left to the caller without touching the cache or calling next.
 func TestHandleNonGETCacheInvalidation_GETSkipped(t *testing.T) {
 	mockCache := NewMockCache()
 	called := false
@@ -767,14 +846,13 @@ func TestHandleNonGETCacheInvalidation_GETSkipped(t *testing.T) {
 		"/clusters/kind/api/v1/pods", nil,
 	)
 
-	err := k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx-key")
-	assert.NoError(t, err)
+	assert.False(t, k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "key"))
 	assert.False(t, called, "next must not be called for GET requests")
 }
 
 // TestHandleNonGETCacheInvalidation_BypassURLExcluded verifies that a POST
 // on a selfsubjectrulesreviews authorization endpoint is NOT invalidated because
-// IsAuthBypassURL returns false for that path — the function returns nil.
+// IsAuthBypassURL returns false for that path.
 func TestHandleNonGETCacheInvalidation_BypassURLExcluded(t *testing.T) {
 	mockCache := NewMockCache()
 	called := false
@@ -791,38 +869,18 @@ func TestHandleNonGETCacheInvalidation_BypassURLExcluded(t *testing.T) {
 	)
 	r.URL = targetURL
 
-	err := k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx-key")
-	assert.NoError(t, err)
+	assert.False(t, k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "key"))
 	assert.False(t, called, "next must not be called for excluded URLs")
 }
 
-// TestHandleNonGETCacheInvalidation_PostOnNormalURL exercises the full
-// invalidation path: POST on a normal (non-excluded) URL →
-// IsAuthBypassURL returns true → delete stale keys → forward request →
-// cache fresh GET → return ErrHandled.
+// TestHandleNonGETCacheInvalidation_PostOnNormalURL exercises the full invalidation path:
+// POST on a normal (non-excluded) URL evicts every cached variant of the object and its
+// lists, forwards the request once, and reports the request as handled. The evicted entries
+// are not refilled, so the modifying request costs exactly one upstream call.
 func TestHandleNonGETCacheInvalidation_PostOnNormalURL(t *testing.T) {
 	mockCache := NewMockCache()
-
-	next := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte(`{"kind":"PodList"}`))
-	})
-
-	w := httptest.NewRecorder()
-	targetURL := &url.URL{Path: "/clusters/kind/api/v1/pods"}
-	r := httptest.NewRequestWithContext(
-		context.Background(), http.MethodPost, targetURL.String(), nil,
-	)
-	r.URL = targetURL
-
-	// IsAuthBypassURL("/…/pods") == true → full invalidation → ErrHandled.
-	err := k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
-	assert.ErrorIs(t, err, k8cache.ErrHandled)
-}
-
-func TestHandleNonGETCacheInvalidation_PostOnResourceNamedVersion(t *testing.T) {
-	mockCache := NewMockCache()
 	targetURL := &url.URL{Path: "/clusters/kind/api/v1/namespaces/ns/configmaps/version"}
+
 	cacheKey, err := k8cache.GenerateKey(targetURL, "ctx")
 	require.NoError(t, err)
 	require.NoError(t, mockCache.Set(context.Background(), cacheKey, `{"body":"stale"}`))
@@ -841,14 +899,82 @@ func TestHandleNonGETCacheInvalidation_PostOnResourceNamedVersion(t *testing.T) 
 	)
 	r.URL = targetURL
 
-	err = k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
-	assert.ErrorIs(t, err, k8cache.ErrHandled)
-	assert.Equal(t, 2, called, "original POST and fresh GET should both be forwarded")
+	assert.True(t, k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, cacheKey))
+	assert.Equal(t, 1, called, "only the original request should be forwarded")
 
-	cachedValue, err := mockCache.Get(context.Background(), cacheKey)
+	_, err = mockCache.Get(context.Background(), cacheKey)
+	assert.Error(t, err, "the stale entry must be evicted, not refilled")
+}
+
+// TestHandleNonGETCacheInvalidation_CollectionScope checks that only a delete widens
+// eviction to the objects of the collection it addresses: a create adds one object and must
+// leave its siblings cached.
+func TestHandleNonGETCacheInvalidation_CollectionScope(t *testing.T) {
+	collectionURL := &url.URL{Path: "/clusters/kind/api/v1/namespaces/ns/configmaps"}
+	objectURL := &url.URL{Path: "/clusters/kind/api/v1/namespaces/ns/configmaps/settings"}
+
+	collectionKey, err := k8cache.GenerateKey(collectionURL, "ctx")
 	require.NoError(t, err)
-	assert.Contains(t, cachedValue, "ConfigMap")
-	assert.NotContains(t, cachedValue, "stale")
+
+	objectKey, err := k8cache.GenerateKey(objectURL, "ctx")
+	require.NoError(t, err)
+
+	tests := []struct {
+		method       string
+		objectCached bool
+	}{
+		{method: http.MethodPost, objectCached: true},
+		{method: http.MethodDelete, objectCached: false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.method, func(t *testing.T) {
+			mockCache := NewMockCache()
+			require.NoError(t, mockCache.Set(context.Background(), objectKey, `{"body":"sibling"}`))
+
+			next := http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.WriteHeader(http.StatusOK)
+			})
+
+			w := httptest.NewRecorder()
+			r := httptest.NewRequestWithContext(context.Background(), tc.method, collectionURL.String(), nil)
+			r.URL = collectionURL
+
+			assert.True(t, k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, collectionKey))
+
+			_, err := mockCache.Get(context.Background(), objectKey)
+			assert.Equal(t, tc.objectCached, err == nil)
+		})
+	}
+}
+
+// TestHandleNonGETCacheInvalidation_EvictsAfterTheWrite covers the window where a read
+// racing the modifying request caches pre-write state: the entry written while the request
+// is in flight must not survive it.
+func TestHandleNonGETCacheInvalidation_EvictsAfterTheWrite(t *testing.T) {
+	mockCache := NewMockCache()
+	targetURL := &url.URL{Path: "/clusters/kind/api/v1/namespaces/ns/configmaps/settings"}
+
+	cacheKey, err := k8cache.GenerateKey(targetURL, "ctx")
+	require.NoError(t, err)
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// A concurrent GET repopulating the cache before the write lands upstream.
+		require.NoError(t, mockCache.Set(context.Background(), cacheKey, `{"body":"pre-write"}`))
+
+		w.WriteHeader(http.StatusOK)
+	})
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(
+		context.Background(), http.MethodDelete, targetURL.String(), nil,
+	)
+	r.URL = targetURL
+
+	assert.True(t, k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, cacheKey))
+
+	_, err = mockCache.Get(context.Background(), cacheKey)
+	assert.Error(t, err, "an entry cached during the write must be evicted afterwards")
 }
 
 var filterImportantResourcesTests = []struct {

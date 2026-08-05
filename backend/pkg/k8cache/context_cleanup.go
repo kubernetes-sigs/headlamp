@@ -30,7 +30,7 @@ func cacheKeyBelongsToContext(key, contextKey string) bool {
 	}
 
 	parts := strings.SplitN(key, "+", 6)
-	if len(parts) < 4 {
+	if len(parts) < 6 {
 		return false
 	}
 
@@ -101,7 +101,7 @@ func collectCachedContextKeys(k8scache cache.Cache[string]) map[string]struct{} 
 
 	for key := range allKeys {
 		parts := strings.SplitN(key, "+", 6)
-		if len(parts) >= 4 && parts[3] != "" {
+		if len(parts) == 6 && parts[3] != "" {
 			keys[unescapeCacheKeySegment(parts[3])] = struct{}{}
 		}
 	}

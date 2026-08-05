@@ -172,6 +172,11 @@ func ExportedReturnGVRList(apiResourceLists []*metav1.APIResourceList) []schema.
 	return returnGVRList(apiResourceLists)
 }
 
+// ExportedDeleteCollectionKeys exposes deleteCollectionKeys for testing.
+func ExportedDeleteCollectionKeys(key string, k8scache cache.Cache[string]) {
+	deleteCollectionKeys(key, k8scache)
+}
+
 // ExportedDeleteByPrefixes exposes deleteByPrefixes for testing.
 func ExportedDeleteByPrefixes(k8scache cache.Cache[string], prefixes ...string) {
 	deleteByPrefixes(k8scache, prefixes...)

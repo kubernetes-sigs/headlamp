@@ -31,12 +31,14 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/k8cache"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // MockCache is struct which help to mock caching for testing purpose.
 type MockCache struct {
 	mu    sync.RWMutex
 	store map[string]string
+	ttls  map[string]time.Duration
 	err   error
 }
 
@@ -63,7 +65,28 @@ func (m *MockCache) Set(ctx context.Context, key, value string) error {
 
 // SetWithTTL Mocks storing of value with its corresponding key string with time-to-live.
 func (m *MockCache) SetWithTTL(ctx context.Context, key, value string, ttl time.Duration) error {
-	return m.Set(ctx, key, value)
+	if err := m.Set(ctx, key, value); err != nil {
+		return err
+	}
+
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if m.ttls == nil {
+		m.ttls = make(map[string]time.Duration)
+	}
+
+	m.ttls[key] = ttl
+
+	return nil
+}
+
+// TTL reports the time-to-live the last SetWithTTL stored key with.
+func (m *MockCache) TTL(key string) time.Duration {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	return m.ttls[key]
 }
 
 // Delete Mocks deleting value with the help of key string.
@@ -292,87 +315,6 @@ func TestGetAPIGroup(t *testing.T) {
 	}
 }
 
-// TestExtractNamespace verifies namespace extraction from different kinds
-// of URLs, including valid, empty, and malformed ones.
-//
-//nolint:funlen
-func TestExtractNamespace(t *testing.T) {
-	tests := []struct {
-		name       string
-		urlPath    url.URL
-		namespaces string
-		kind       string
-	}{
-		{
-			name:       "return empty namespaces",
-			urlPath:    url.URL{Path: "/clusters/kind-kind/api/v1/pods"},
-			namespaces: "",
-			kind:       "pods",
-		},
-		{
-			name:       "return namespace and kind",
-			urlPath:    url.URL{Path: "/clusters/kind-kind/api/v1/namespaces/test-namespace/pods"},
-			namespaces: "test-namespace",
-			kind:       "pods",
-		},
-		{
-			name:       "two namespaces in the url",
-			urlPath:    url.URL{Path: "/api/v1/namespaces/foo/services/namespaces/bar/pods"},
-			namespaces: "foo",
-			kind:       "pods",
-		},
-		{
-			name:       "cluster-scoped resource with query string",
-			urlPath:    url.URL{Path: "/api/v1/pods?label=app=nginx"},
-			namespaces: "",
-			kind:       "pods",
-		},
-		{
-			name:       "malformed path with only namespaces",
-			urlPath:    url.URL{Path: "/api/v1/namespaces"},
-			namespaces: "",
-			kind:       "namespaces",
-		},
-		{
-			name:       "valid namespaced resource with trailing slash",
-			urlPath:    url.URL{Path: "/api/v1/namespaces/dev/services/"},
-			namespaces: "dev",
-			kind:       "services",
-		},
-		{
-			name:       "valid namespaced resource with multiple trailing slashes",
-			urlPath:    url.URL{Path: "/api/v1/namespaces/dev/services//"},
-			namespaces: "dev",
-			kind:       "services",
-		},
-		{
-			name:       "internal cluster URL without API group",
-			urlPath:    url.URL{Path: "/clusters/production-cluster"},
-			namespaces: "",
-			kind:       "",
-		},
-		{
-			name:       "internal cluster URL with literal api segment",
-			urlPath:    url.URL{Path: "/clusters/api/overview"},
-			namespaces: "",
-			kind:       "",
-		},
-		{
-			name:       "internal plugin URL without API group",
-			urlPath:    url.URL{Path: "/plugins/my-custom-plugin"},
-			namespaces: "",
-			kind:       "",
-		},
-	}
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			namespace, kind := k8cache.ExtractNamespace(tc.urlPath.Path)
-			assert.Equal(t, tc.namespaces, namespace)
-			assert.Equal(t, tc.kind, kind)
-		})
-	}
-}
-
 func TestIsKubernetesAPIPath(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -434,7 +376,7 @@ func TestIsKubernetesAPIPath(t *testing.T) {
 }
 
 // TestGenerateKey ensures the generated key carries the expected
-// apiGroup+kind+namespace+context prefix for both normal and empty cluster name scenarios.
+// apiGroup+resource+namespace+context prefix for both normal and empty cluster name scenarios.
 //
 //nolint:funlen
 func TestGenerateKey(t *testing.T) {
@@ -614,11 +556,11 @@ func TestCachedResponseIsNotServedToADifferentRequest(t *testing.T) {
 	assert.True(t, served, "repeating the same filtered request should hit the cache")
 }
 
-// TestShouldBypassCache covers the requests that must never reach the response cache:
+// TestNewCacheableRequest covers the requests that must never reach the response cache:
 // watch streams, subresources, self-subject reviews, and non-API paths.
 //
 //nolint:funlen
-func TestShouldBypassCache(t *testing.T) {
+func TestNewCacheableRequest(t *testing.T) {
 	tests := []struct {
 		name         string
 		rawURL       string
@@ -679,13 +621,22 @@ func TestShouldBypassCache(t *testing.T) {
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, tc.rawURL, nil)
-			assert.Equal(t, tc.expectBypass, k8cache.ShouldBypassCache(req))
+			cacheable, ok := k8cache.NewCacheableRequest(req)
+			assert.Equal(t, tc.expectBypass, !ok)
+
+			if ok {
+				key, err := k8cache.GenerateKey(req.URL, "ctx")
+				require.NoError(t, err)
+				assert.Equal(t, key, cacheable.Key("ctx"), "both key paths must agree")
+			}
 		})
 	}
 }
 
 // TestGenerateKeyVariantSeparatesCollidingRequests checks that requests sharing every
-// apiGroup+kind+namespace+context segment still get distinct keys.
+// apiGroup+resource+namespace+context segment still get distinct keys.
+//
+//nolint:funlen
 func TestGenerateKeyVariantSeparatesCollidingRequests(t *testing.T) {
 	tests := []struct {
 		name string
@@ -706,6 +657,26 @@ func TestGenerateKeyVariantSeparatesCollidingRequests(t *testing.T) {
 			name: "same subresource of two different pods",
 			a:    "/clusters/c/api/v1/namespaces/default/pods/podA/log",
 			b:    "/clusters/c/api/v1/namespaces/default/pods/podB/log",
+		},
+		{
+			name: "list of a multi-version resource under two versions",
+			a:    "/clusters/c/apis/example.io/v1alpha1/namespaces/default/widgets",
+			b:    "/clusters/c/apis/example.io/v1/namespaces/default/widgets",
+		},
+		{
+			name: "named GET of a multi-version resource under two versions",
+			a:    "/clusters/c/apis/example.io/v1alpha1/namespaces/default/widgets/w1",
+			b:    "/clusters/c/apis/example.io/v1/namespaces/default/widgets/w1",
+		},
+		{
+			name: "core and named discovery roots requested directly",
+			a:    "/api",
+			b:    "/apis",
+		},
+		{
+			name: "core resource under two versions",
+			a:    "/clusters/c/api/v1/namespaces/default/pods",
+			b:    "/clusters/c/api/v2/namespaces/default/pods",
 		},
 		{
 			name: "list filtered by different label selectors",
@@ -769,6 +740,11 @@ func TestGenerateKeyIsStableAndRouteIndependent(t *testing.T) {
 			name: "proxied and direct routing of the same request",
 			a:    "/clusters/c/api/v1/namespaces/default/pods",
 			b:    "/api/v1/namespaces/default/pods",
+		},
+		{
+			name: "proxied and direct routing of a discovery root",
+			a:    "/clusters/c/apis",
+			b:    "/apis",
 		},
 	}
 
@@ -931,6 +907,48 @@ func TestStoreK8sResponseInCache(t *testing.T) {
 			newCache := NewMockCache()
 			err := k8cache.StoreK8sResponseInCache(newCache, tc.urlObj, rcw, tc.key)
 			assert.NoError(t, err)
+		})
+	}
+}
+
+// TestStoreK8sResponseInCacheTTL checks that pages reached through a continue token, which
+// a client never requests twice, expire well before ordinary responses.
+func TestStoreK8sResponseInCacheTTL(t *testing.T) {
+	tests := []struct {
+		name     string
+		rawURL   string
+		expected time.Duration
+	}{
+		{
+			name:     "list response",
+			rawURL:   "/api/v1/namespaces/default/pods",
+			expected: 10 * time.Minute,
+		},
+		{
+			name:     "filtered list response",
+			rawURL:   "/api/v1/namespaces/default/pods?labelSelector=app%3Dfoo",
+			expected: 10 * time.Minute,
+		},
+		{
+			name:     "paginated page reached through a continue token",
+			rawURL:   "/api/v1/namespaces/default/pods?limit=1&continue=ey4tokeu",
+			expected: time.Minute,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			parsed, err := url.Parse(tc.rawURL)
+			assert.NoError(t, err)
+
+			rcw := k8cache.NewResponseCapture(httptest.NewRecorder())
+			rcw.WriteHeader(http.StatusOK)
+			_, err = rcw.Write([]byte(`{"kind":"PodList"}`))
+			assert.NoError(t, err)
+
+			mockCache := NewMockCache()
+			assert.NoError(t, k8cache.StoreK8sResponseInCache(mockCache, parsed, rcw, "key"))
+			assert.Equal(t, tc.expected, mockCache.TTL("key"))
 		})
 	}
 }
@@ -1121,21 +1139,30 @@ func TestLoadFromCache_MissesEdgeCases(t *testing.T) {
 	}
 }
 
-// TestStoreK8sResponseInCache_SkipSelfSubjectRulesReview verifies that
-// responses for selfsubjectrulesreviews are never written to the cache.
-func TestStoreK8sResponseInCache_SkipSelfSubjectRulesReview(t *testing.T) {
-	mockCache := NewMockCache()
-	targetURL := &url.URL{Path: "/api/v1/selfsubjectrulesreviews"}
+// TestStoreK8sResponseInCache_SkipSelfSubjectReviews verifies that self-subject review
+// responses are never written to the cache, through the same predicate that keeps them
+// out of the serve path.
+func TestStoreK8sResponseInCache_SkipSelfSubjectReviews(t *testing.T) {
+	paths := []string{
+		"/apis/authorization.k8s.io/v1/selfsubjectrulesreviews",
+		"/apis/authorization.k8s.io/v1/selfsubjectaccessreviews",
+		"/clusters/kind/apis/authorization.k8s.io/v1beta1/selfsubjectrulesreviews",
+	}
 
-	rw := httptest.NewRecorder()
-	rcw := k8cache.NewResponseCapture(rw)
+	for _, path := range paths {
+		t.Run(path, func(t *testing.T) {
+			mockCache := NewMockCache()
+			rcw := k8cache.NewResponseCapture(httptest.NewRecorder())
+			rcw.WriteHeader(http.StatusCreated)
+			_, err := rcw.Write([]byte(`{"kind":"SelfSubjectRulesReview"}`))
+			assert.NoError(t, err)
 
-	err := k8cache.StoreK8sResponseInCache(mockCache, targetURL, rcw, "skip-key")
-	assert.NoError(t, err)
+			assert.NoError(t, k8cache.StoreK8sResponseInCache(mockCache, &url.URL{Path: path}, rcw, "skip-key"))
 
-	// Key must NOT have been written to the cache.
-	_, getErr := mockCache.Get(context.Background(), "skip-key")
-	assert.Error(t, getErr, "selfsubjectrulesreviews response should never be cached")
+			_, getErr := mockCache.Get(context.Background(), "skip-key")
+			assert.Error(t, getErr, "self-subject review responses should never be cached")
+		})
+	}
 }
 
 // TestStoreK8sResponseInCache_GzipBody verifies that a gzip-compressed
@@ -1189,38 +1216,6 @@ func TestStoreK8sResponseInCache_FailureBodyNotCached(t *testing.T) {
 	// Key must NOT have been written to the cache.
 	_, getErr := mockCache.Get(context.Background(), "failure-key")
 	assert.Error(t, getErr, "Failure responses should never be cached")
-}
-
-// TestExtractNamespace_QueryStringOnNamespacedURL verifies that query
-// parameters are stripped correctly even when a namespace is present.
-func TestExtractNamespace_QueryStringOnNamespacedURL(t *testing.T) {
-	tests := []struct {
-		name              string
-		rawURL            string
-		expectedNamespace string
-		expectedKind      string
-	}{
-		{
-			name:              "namespaced resource with query string",
-			rawURL:            "/api/v1/namespaces/prod/pods?labelSelector=app%3Dnginx",
-			expectedNamespace: "prod",
-			expectedKind:      "pods",
-		},
-		{
-			name:              "cluster-scoped resource with multiple query params",
-			rawURL:            "/api/v1/nodes?limit=500&continue=token123",
-			expectedNamespace: "",
-			expectedKind:      "nodes",
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			namespace, kind := k8cache.ExtractNamespace(tc.rawURL)
-			assert.Equal(t, tc.expectedNamespace, namespace)
-			assert.Equal(t, tc.expectedKind, kind)
-		})
-	}
 }
 
 func TestStoreK8sResponseInCache_5xxResponseShouldNotBeCached(t *testing.T) {
