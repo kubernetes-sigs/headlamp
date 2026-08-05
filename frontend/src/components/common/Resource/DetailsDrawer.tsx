@@ -15,15 +15,43 @@
  */
 
 import Box from '@mui/material/Box';
-import { useTheme } from '@mui/material/styles';
+import { type SxProps, type Theme, useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { setSelectedResource } from '../../../redux/drawerModeSlice';
+import { type DetailDrawerSide, setSelectedResource } from '../../../redux/drawerModeSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { KubeObjectDetails } from '../../resourceMap/details/KubeNodeDetails';
 import { ActionButton } from '..';
+
+const drawerPositionStyles = {
+  right: {
+    top: 0,
+    right: 0,
+    width: '60vw',
+    height: '100%',
+    boxShadow: '-5px 0 20px rgba(0,0,0,0.08)',
+    borderRadius: '10px 0 0 10px',
+  },
+  left: {
+    top: 0,
+    left: 0,
+    width: '60vw',
+    height: '100%',
+    boxShadow: '5px 0 20px rgba(0,0,0,0.08)',
+    borderRadius: '0 10px 10px 0',
+  },
+  bottom: {
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
+    height: '60vh',
+    boxShadow: '0 -5px 20px rgba(0,0,0,0.08)',
+    borderRadius: '10px 10px 0 0',
+  },
+} as const satisfies Record<DetailDrawerSide, SxProps<Theme>>;
 
 export default function DetailsDrawer() {
   const { t } = useTranslation();
@@ -32,6 +60,7 @@ export default function DetailsDrawer() {
   const theme = useTheme();
   const isSmallScreen = useMediaQuery(theme.breakpoints.down('md'));
   const isDetailDrawerEnabled = useTypedSelector(state => state?.drawerMode?.isDetailDrawerEnabled);
+  const detailDrawerSide = useTypedSelector(state => state.drawerMode.detailDrawerSide);
 
   const drawerRef = useRef<HTMLDivElement>(null);
 
@@ -61,19 +90,17 @@ export default function DetailsDrawer() {
     return null;
   }
 
+  const positionSx = drawerPositionStyles[detailDrawerSide] ?? drawerPositionStyles.right;
+
   return (
     <Box
       ref={drawerRef}
       tabIndex={-1}
       sx={{
         position: 'absolute',
+        ...positionSx,
         backgroundColor: 'background.paper',
-        width: '60vw',
-        right: 0,
-        height: '100%',
         overflowY: 'auto',
-        boxShadow: '-5px 0 20px rgba(0,0,0,0.08)',
-        borderRadius: '10px 0 0 10px',
         zIndex: 1,
         border: '1px solid',
         borderColor: theme.palette.divider,
@@ -84,6 +111,7 @@ export default function DetailsDrawer() {
       aria-describedby="resource-details-content"
       aria-modal="true"
       data-details-drawer="true"
+      data-details-drawer-side={detailDrawerSide}
     >
       <Box
         sx={{

@@ -16,16 +16,16 @@
 
 import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
-import drawerModeReducer from '../../../redux/drawerModeSlice';
+import drawerModeReducer, { type DetailDrawerSide } from '../../../redux/drawerModeSlice';
 import { TestContext } from '../../../test';
 import DrawerModeSettings from './DrawerModeSettings';
 
 // A store preloaded with a fixed drawer state keeps the snapshot deterministic
 // (the real initial state is read from localStorage).
-function storeWith(isDetailDrawerEnabled: boolean) {
+function storeWith(isDetailDrawerEnabled: boolean, detailDrawerSide: DetailDrawerSide = 'right') {
   return configureStore({
     reducer: { drawerMode: drawerModeReducer },
-    preloadedState: { drawerMode: { isDetailDrawerEnabled } },
+    preloadedState: { drawerMode: { isDetailDrawerEnabled, detailDrawerSide } },
   });
 }
 
@@ -34,14 +34,20 @@ export default {
   component: DrawerModeSettings,
 } as Meta<typeof DrawerModeSettings>;
 
-const Template: StoryFn<{ enabled: boolean }> = ({ enabled }) => (
-  <TestContext store={storeWith(enabled)}>
+const Template: StoryFn<{ enabled: boolean; side?: DetailDrawerSide }> = ({ enabled, side }) => (
+  <TestContext store={storeWith(enabled, side)}>
     <DrawerModeSettings />
   </TestContext>
 );
 
 export const DrawerEnabled = Template.bind({});
-DrawerEnabled.args = { enabled: true };
+DrawerEnabled.args = { enabled: true, side: 'right' };
+
+export const DrawerEnabledLeft = Template.bind({});
+DrawerEnabledLeft.args = { enabled: true, side: 'left' };
+
+export const DrawerEnabledBottom = Template.bind({});
+DrawerEnabledBottom.args = { enabled: true, side: 'bottom' };
 
 export const FullPage = Template.bind({});
 FullPage.args = { enabled: false };

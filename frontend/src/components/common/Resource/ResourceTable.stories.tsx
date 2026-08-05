@@ -56,7 +56,7 @@ const TemplateWithFilter: StoryFn<{
         filter: { namespaces: new Set<string>() },
         config: { settings: { tableRowsPerPageOptions: [10, 20, 50, 100] } },
         ui: { ...uiSlice.getInitialState() },
-        drawerMode: { isDetailDrawerEnabled: false },
+        drawerMode: { isDetailDrawerEnabled: false, detailDrawerSide: 'right' as const },
         shortcuts: { ...shortcutsReducer(undefined, { type: '' }) },
       }
     ) => state,
@@ -73,7 +73,7 @@ const TemplateWithFilter: StoryFn<{
       resourceTable: {
         tableColumnsProcessors: [],
       },
-      drawerMode: { isDetailDrawerEnabled: false },
+      drawerMode: { isDetailDrawerEnabled: false, detailDrawerSide: 'right' as const },
       shortcuts: { ...shortcutsReducer(undefined, { type: '' }) },
     },
   });
