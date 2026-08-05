@@ -186,6 +186,22 @@ describe('discoverAccessibleNamespaces', () => {
       AuthNotReadyForDiscoveryError
     );
   });
+
+  it('retries when auth is not ready even if defaultNamespace fallback is configured', async () => {
+    storeClusterSettings('test-cluster', { defaultNamespace: 'app-team' });
+    mockedGetClusterUserInfoForRbac.mockResolvedValue({
+      username: 'test-cluster',
+      isClusterNamePlaceholder: true,
+    });
+    mockedClusterRequest
+      .mockRejectedValueOnce(forbiddenError())
+      .mockRejectedValueOnce(forbiddenError());
+    mockedPost.mockResolvedValue({ status: { allowed: false } });
+
+    await expect(discoverAccessibleNamespaces('test-cluster')).rejects.toBeInstanceOf(
+      AuthNotReadyForDiscoveryError
+    );
+  });
 });
 
 describe('usesDiscoveredNamespaceRouting', () => {

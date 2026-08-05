@@ -41,6 +41,11 @@ const DISCOVERY_RETRY_DELAY_MS = 1000;
 const DISCOVERY_MAX_AUTH_ATTEMPTS = 3;
 
 export const NAMESPACE_DISCOVERY_QUERY_KEY = 'namespaceDiscovery';
+export const NAMESPACE_DISCOVERY_AUTH_PROBE = 'namespaceDiscovery';
+
+export function getNamespaceDiscoveryAuthQueryKey(cluster: string) {
+  return ['auth', cluster, NAMESPACE_DISCOVERY_AUTH_PROBE] as const;
+}
 
 function isTransientAuthFailure(error: unknown): boolean {
   const status = error instanceof ApiError ? error.status : (error as ApiError)?.status;
@@ -242,7 +247,7 @@ export async function runNamespaceDiscoveryWithAuthRetry(
 
 function useClusterAuthReady(cluster: string | null) {
   return useQuery({
-    queryKey: ['auth', cluster],
+    queryKey: getNamespaceDiscoveryAuthQueryKey(cluster!),
     queryFn: () => testAuth(cluster!),
     enabled: !!cluster && getManualAllowedNamespaces(cluster).length === 0,
     ...authProbeQueryOptions,
@@ -299,7 +304,7 @@ export function useDiscoveredNamespaces(cluster: string | null = getCluster()) {
 export function useDiscoveredNamespacesMap(clusters: string[]) {
   const authQueries = useQueries({
     queries: clusters.map(cluster => ({
-      queryKey: ['auth', cluster],
+      queryKey: getNamespaceDiscoveryAuthQueryKey(cluster),
       queryFn: () => testAuth(cluster),
       enabled: !!cluster && getManualAllowedNamespaces(cluster).length === 0,
       ...authProbeQueryOptions,

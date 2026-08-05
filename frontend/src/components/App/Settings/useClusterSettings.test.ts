@@ -16,7 +16,10 @@
 
 import { act, renderHook } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { NAMESPACE_DISCOVERY_QUERY_KEY } from '../../../lib/k8s/useDiscoveredNamespaces';
+import {
+  getNamespaceDiscoveryAuthQueryKey,
+  NAMESPACE_DISCOVERY_QUERY_KEY,
+} from '../../../lib/k8s/useDiscoveredNamespaces';
 import { queryClient } from '../../../lib/queryClient';
 import { useClusterSettings } from './useClusterSettings';
 
@@ -37,6 +40,10 @@ describe('useClusterSettings', () => {
 
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['auth', 'prod'], exact: true });
     expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: getNamespaceDiscoveryAuthQueryKey('prod'),
+      exact: true,
+    });
+    expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: [NAMESPACE_DISCOVERY_QUERY_KEY, 'prod'],
       exact: true,
     });
@@ -52,6 +59,10 @@ describe('useClusterSettings', () => {
     });
 
     expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: ['auth', 'prod'], exact: true });
+    expect(invalidateSpy).toHaveBeenCalledWith({
+      queryKey: getNamespaceDiscoveryAuthQueryKey('prod'),
+      exact: true,
+    });
     expect(invalidateSpy).toHaveBeenCalledWith({
       queryKey: [NAMESPACE_DISCOVERY_QUERY_KEY, 'prod'],
       exact: true,

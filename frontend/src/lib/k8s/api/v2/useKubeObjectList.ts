@@ -603,7 +603,7 @@ export function useKubeObjectList<K extends KubeObject>({
   const query = useQueries({
     queries,
     combine(results) {
-      if (isPendingDiscovery) {
+      if (isPendingDiscovery && queries.length === 0) {
         return {
           data: [],
           clusterResults: {},
@@ -649,9 +649,9 @@ export function useKubeObjectList<K extends KubeObject>({
           : results.flatMap(result => result?.data?.list?.items ?? []),
         errors: results.map(result => result.error).filter(Boolean),
         isError: results.some(result => result.isError),
-        isLoading: results.some(result => result.isLoading),
-        isFetching: results.some(result => result.isFetching),
-        isSuccess: results.every(result => result.isSuccess),
+        isLoading: isPendingDiscovery || results.some(result => result.isLoading),
+        isFetching: isPendingDiscovery || results.some(result => result.isFetching),
+        isSuccess: !isPendingDiscovery && results.every(result => result.isSuccess),
         // Whether any result set has more items available via pagination.
         hasMore,
         remainingItemCount:

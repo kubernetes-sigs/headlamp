@@ -431,17 +431,16 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
         (typeof namespace === 'string' && namespace.length > 0) ||
         (Array.isArray(namespace) && namespace.length > 0);
 
+      const anyDiscoveryPending =
+        isNamespaced &&
+        !hasExplicitNamespace &&
+        clusterList.some(currentCluster => isLoadingByCluster[currentCluster]);
+
       const clustersForRequests = hasExplicitNamespace
         ? clusterList
         : clusterList.filter(currentCluster => !isLoadingByCluster[currentCluster]);
 
-      const isPendingDiscovery =
-        isNamespaced &&
-        !hasExplicitNamespace &&
-        clusterList.length > 0 &&
-        clustersForRequests.length === 0;
-
-      if (isPendingDiscovery) {
+      if (anyDiscoveryPending && clustersForRequests.length === 0) {
         return { requests: [], pendingDiscovery: true };
       }
 
@@ -464,7 +463,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
           isNamespaced,
           namespacesFromParams
         ),
-        pendingDiscovery: false,
+        pendingDiscovery: anyDiscoveryPending,
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
