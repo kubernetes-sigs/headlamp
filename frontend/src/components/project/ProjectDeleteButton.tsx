@@ -27,18 +27,25 @@ interface ProjectDeleteButtonProps {
   buttonStyle?: ButtonStyle;
 }
 
-function useAllNamespacesAuthorized(namespaces: Namespace[], authVerb: 'update' | 'delete') {
+function useAllNamespacesAuthorized(
+  namespaces: Namespace[],
+  authVerb: 'update' | 'delete',
+  enabled = true
+) {
   const authQueries = useQueries({
     queries: namespaces.map(namespace => ({
       queryKey: ['projectDelete:auth', authVerb, namespace.cluster, namespace.metadata.name],
       queryFn: () => namespace.getAuthorization(authVerb),
+      enabled,
     })),
   });
 
   return {
     allAuthorized:
-      namespaces.length > 0 && authQueries.every(query => query.data?.status?.allowed === true),
-    isLoading: authQueries.some(query => query.isLoading),
+      enabled &&
+      namespaces.length > 0 &&
+      authQueries.every(query => query.data?.status?.allowed === true),
+    isLoading: enabled && authQueries.some(query => query.isLoading),
   };
 }
 
@@ -50,7 +57,11 @@ export function ProjectDeleteButton({ project, buttonStyle }: ProjectDeleteButto
   const projectNamespaces =
     namespaces?.filter(ns => project.namespaces.includes(ns.metadata.name)) ?? [];
   const updateAuthorization = useAllNamespacesAuthorized(projectNamespaces, 'update');
-  const deleteAuthorization = useAllNamespacesAuthorized(projectNamespaces, 'delete');
+  const deleteAuthorization = useAllNamespacesAuthorized(
+    projectNamespaces,
+    'delete',
+    openDialog && updateAuthorization.allAuthorized
+  );
 
   // Project deletion affects every namespace, so only expose the action after
   // update authorization has been confirmed for every target namespace.

@@ -131,6 +131,9 @@ describe('ProjectDeleteButton', () => {
       expect(namespaces[0].getAuthorization).toHaveBeenCalledWith('update');
       expect(namespaces[1].getAuthorization).toHaveBeenCalledWith('update');
     });
+
+    expect(namespaces[0].getAuthorization).not.toHaveBeenCalledWith('delete');
+    expect(namespaces[1].getAuthorization).not.toHaveBeenCalledWith('delete');
     expect(screen.queryByRole('button', { name: 'Delete project' })).not.toBeInTheDocument();
   });
 
@@ -199,7 +202,7 @@ describe('ProjectDeleteButton', () => {
     );
   });
 
-  it('enables namespace deletion when every namespace can be deleted', async () => {
+  it('checks delete authorization after the dialog is opened', async () => {
     const namespaces = [
       makeNamespace('ns1', { update: true, delete: true }),
       makeNamespace('ns2', { update: true, delete: true }),
@@ -207,9 +210,16 @@ describe('ProjectDeleteButton', () => {
 
     renderButton(namespaces);
 
-    fireEvent.click(await screen.findByRole('button', { name: 'Delete project' }));
+    const deleteButton = await screen.findByRole('button', { name: 'Delete project' });
+
+    expect(namespaces[0].getAuthorization).not.toHaveBeenCalledWith('delete');
+    expect(namespaces[1].getAuthorization).not.toHaveBeenCalledWith('delete');
+
+    fireEvent.click(deleteButton);
 
     await waitFor(() => {
+      expect(namespaces[0].getAuthorization).toHaveBeenCalledWith('delete');
+      expect(namespaces[1].getAuthorization).toHaveBeenCalledWith('delete');
       expect(screen.getByTestId('delete-dialog')).toHaveAttribute(
         'data-can-delete-namespaces',
         'true'
