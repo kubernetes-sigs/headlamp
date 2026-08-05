@@ -952,12 +952,10 @@ func TestOnCacheInvalidationHook(t *testing.T) {
 	)
 	require.NoError(t, err)
 
-	time.Sleep(500 * time.Millisecond)
+	assert.Eventually(t, func() bool {
+		mu.Lock()
+		defer mu.Unlock()
 
-	mu.Lock()
-	count := callCount
-	mu.Unlock()
-
-	assert.GreaterOrEqual(t, count, int32(1),
-		"OnCacheInvalidation hook should have been called at least once")
+		return callCount >= 1
+	}, 2*time.Second, 50*time.Millisecond, "OnCacheInvalidation hook should have been called at least once")
 }

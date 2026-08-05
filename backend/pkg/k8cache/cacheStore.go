@@ -330,6 +330,25 @@ func StoreK8sResponseInCache(k8scache cache.Cache[string],
 	return nil
 }
 
+// WasResponseStored reports whether StoreK8sResponseInCache would have
+// actually written the response to the cache (as opposed to silently
+// skipping it). It mirrors the skip conditions: status >= 500, body
+// contains "Failure", or selfsubjectrulesreviews path. Callers use
+// this to record store_count only on actual cache writes.
+func WasResponseStored(rcw *ResponseCapture, url *url.URL) bool {
+	if rcw.StatusCode >= 500 {
+		return false
+	}
+
+	if strings.Contains(url.Path, "selfsubjectrulesreviews") {
+		return false
+	}
+
+	body := rcw.Body.String()
+
+	return !strings.Contains(body, "Failure")
+}
+
 // redactContextKey returns a redacted version of the context key to avoid leaking PII/sensitive info in logs.
 func redactContextKey(key string) string {
 	if key == "" {
