@@ -60,7 +60,7 @@ func PurgeCacheForContext(k8scache cache.Cache[string], contextKey string) {
 }
 
 // collectCachedContextKeys returns Headlamp context keys that still have k8cache,
-// clientset cache, or in-flight clientset creation entries.
+// clientset cache, in-flight clientset creation, or SSAR authorization entries.
 func collectCachedContextKeys(k8scache cache.Cache[string]) map[string]struct{} {
 	keys := make(map[string]struct{})
 
@@ -79,6 +79,22 @@ func collectCachedContextKeys(k8scache cache.Cache[string]) map[string]struct{} 
 	}
 
 	mu.Unlock()
+
+	ssarMu.RLock()
+
+	for cacheKey := range ssarCache {
+		if prefix := ssarCachePrefixFromCacheKey(cacheKey); prefix != "" {
+			keys[prefix] = struct{}{}
+		}
+	}
+
+	for cacheKey := range ssarInFlight {
+		if prefix := ssarCachePrefixFromCacheKey(cacheKey); prefix != "" {
+			keys[prefix] = struct{}{}
+		}
+	}
+
+	ssarMu.RUnlock()
 
 	if k8scache == nil {
 		return keys

@@ -21,6 +21,8 @@ package k8cache
 
 import (
 	"container/list"
+	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -50,9 +52,16 @@ const unknownVerb = "unknown"
 // cache for expired entries.
 const janitorInterval = 5 * time.Minute
 
-// ssarTTL is how long a cached SelfSubjectAccessReview result is
-// considered valid before a fresh API call is required.
-const ssarTTL = 30 * time.Second
+const (
+	// ssarTTL is how long a cached SelfSubjectAccessReview result is
+	// considered valid before a fresh API call is required.
+	ssarTTL             = 30 * time.Second
+	ssarRequestTimeout  = 30 * time.Second
+	ssarCacheMaxEntries = 1024
+	ssarMaxInFlight     = 64
+)
+
+var errSSARWorkersAtCapacity = errors.New("SSAR worker capacity reached")
 
 type CachedClientSet struct {
 	clientset *kubernetes.Clientset
@@ -76,8 +85,17 @@ type blockedPrefixEntry struct {
 
 // ssarCacheEntry holds a cached SelfSubjectAccessReview result.
 type ssarCacheEntry struct {
-	allowed   bool
-	expiresAt time.Time
+	allowed      bool
+	expiresAt    time.Time
+	orderElement *list.Element
+}
+
+type ssarInFlightEntry struct {
+	waitCh       chan struct{}
+	allowed      bool
+	err          error
+	completed    bool
+	workerActive bool
 }
 
 var (
@@ -121,8 +139,11 @@ func getMaxClientsetsLimit() int {
 // ssarCache holds cached SelfSubjectAccessReview results to avoid
 // redundant authorization API calls for the same user/resource/verb.
 var (
-	ssarCache = make(map[string]*ssarCacheEntry)
-	ssarMu    sync.RWMutex
+	ssarCache       = make(map[string]*ssarCacheEntry)
+	ssarCacheOrder  = list.New()
+	ssarInFlight    = make(map[string]*ssarInFlightEntry)
+	ssarWorkerCount int
+	ssarMu          sync.RWMutex
 )
 
 // startJanitor launches a background goroutine (exactly once) that
@@ -741,17 +762,46 @@ func IsAllowed(
 
 	// Only cache SSAR results for read verbs (get, list, watch).
 	// Non-GET requests produce verb="unknown" which is meaningless to cache.
-	cacheable := isSSARCacheable(resourceAttributes.Verb)
+	// Ambient credentials may rotate without changing ContextCacheKey, so
+	// cache only when the current bearer token is explicitly known.
+	cacheable := token != "" && isSSARCacheable(resourceAttributes.Verb)
 
-	// Check the SSAR result cache before making an API call.
-	ssarKey := buildSSARCacheKey(headlampContextKey, token, resourceAttributes)
-
-	if cacheable {
-		if allowed, found := getSSARCacheResult(ssarKey); found {
-			return allowed, nil
-		}
+	if !cacheable {
+		return requestSSAR(r.Context(), headlampContextKey, k, token, resourceAttributes)
 	}
 
+	contextCacheKey, err := ContextCacheKey(headlampContextKey, k)
+	if err != nil {
+		return false, err
+	}
+
+	ssarKey := buildSSARCacheKey(contextCacheKey, token, resourceAttributes)
+
+	allowed, found, inFlight, leader := acquireSSARRequest(ssarKey)
+	if found {
+		return allowed, nil
+	}
+
+	if inFlight == nil {
+		return false, errSSARWorkersAtCapacity
+	}
+
+	if leader {
+		startSSARRequest(r.Context(), ssarKey, inFlight, ssarRequestTimeout, func(ctx context.Context) (bool, error) {
+			return requestSSAR(ctx, headlampContextKey, k, token, resourceAttributes)
+		})
+	}
+
+	return waitForSSARRequest(r.Context(), inFlight)
+}
+
+func requestSSAR(
+	ctx context.Context,
+	headlampContextKey string,
+	k *kubeconfig.Context,
+	token string,
+	resourceAttributes *authorizationv1.ResourceAttributes,
+) (bool, error) {
 	clientset, err := GetClientSet(headlampContextKey, k, token)
 	if err != nil {
 		return false, err
@@ -764,7 +814,7 @@ func IsAllowed(
 	}
 
 	result, err := clientset.AuthorizationV1().SelfSubjectAccessReviews().Create(
-		r.Context(),
+		ctx,
 		review,
 		metav1.CreateOptions{},
 	)
@@ -776,8 +826,8 @@ func IsAllowed(
 		return false, fmt.Errorf("nil SelfSubjectAccessReview result")
 	}
 
-	if cacheable {
-		storeSSARCacheResult(ssarKey, result.Status.Allowed)
+	if result.Status.EvaluationError != "" {
+		return false, fmt.Errorf("SelfSubjectAccessReview evaluation error: %s", result.Status.EvaluationError)
 	}
 
 	return result.Status.Allowed, nil
@@ -802,43 +852,270 @@ func isSSARCacheable(verb string) bool {
 // that name-scoped or subresource-scoped RBAC rules produce distinct
 // cache entries.
 func buildSSARCacheKey(
-	headlampContextKey, token string,
+	contextCacheKey, token string,
 	attrs *authorizationv1.ResourceAttributes,
 ) string {
-	return headlampContextKey + "\x00" + token + "\x00" +
-		attrs.Group + "/" + attrs.Resource + "/" + attrs.Subresource + "/" +
-		attrs.Verb + "/" + attrs.Namespace + "/" + attrs.Name
+	fieldSelector := ""
+	if attrs.FieldSelector != nil {
+		fieldSelector = attrs.FieldSelector.RawSelector
+	}
+
+	labelSelector := ""
+	if attrs.LabelSelector != nil {
+		labelSelector = attrs.LabelSelector.RawSelector
+	}
+
+	return strings.Join([]string{
+		contextCacheKey,
+		token,
+		attrs.Group,
+		attrs.Version,
+		attrs.Resource,
+		attrs.Subresource,
+		attrs.Verb,
+		attrs.Namespace,
+		attrs.Name,
+		fieldSelector,
+		labelSelector,
+	}, "\x00")
+}
+
+func ssarCachePrefixFromCacheKey(cacheKey string) string {
+	prefix := cacheKey
+
+	for range 10 {
+		separator := strings.LastIndex(prefix, "\x00")
+		if separator < 0 {
+			return ""
+		}
+
+		prefix = prefix[:separator]
+	}
+
+	return prefix
 }
 
 // getSSARCacheResult returns the cached SSAR result for the given key.
 // The second return value is false if no valid (non-expired) entry exists.
 func getSSARCacheResult(key string) (bool, bool) {
-	ssarMu.RLock()
+	now := time.Now()
+
+	ssarMu.Lock()
 
 	entry, found := ssarCache[key]
-
-	ssarMu.RUnlock()
-
 	if !found {
+		ssarMu.Unlock()
 		return false, false
 	}
 
-	if time.Now().After(entry.expiresAt) {
+	if !now.Before(entry.expiresAt) {
+		deleteSSARCacheEntryLocked(key)
+		ssarMu.Unlock()
+
 		return false, false
 	}
 
-	return entry.allowed, true
+	allowed := entry.allowed
+	ssarMu.Unlock()
+
+	return allowed, true
+}
+
+func acquireSSARRequest(key string) (bool, bool, *ssarInFlightEntry, bool) {
+	now := time.Now()
+
+	ssarMu.Lock()
+
+	defer ssarMu.Unlock()
+
+	if entry, found := ssarCache[key]; found {
+		if now.Before(entry.expiresAt) {
+			return entry.allowed, true, nil, false
+		}
+
+		deleteSSARCacheEntryLocked(key)
+	}
+
+	if entry, found := ssarInFlight[key]; found {
+		return false, false, entry, false
+	}
+
+	if ssarWorkerCount >= ssarMaxInFlight {
+		return false, false, nil, false
+	}
+
+	entry := &ssarInFlightEntry{
+		waitCh:       make(chan struct{}),
+		workerActive: true,
+	}
+	ssarInFlight[key] = entry
+	ssarWorkerCount++
+
+	return false, false, entry, true
+}
+
+func waitForSSARRequest(ctx context.Context, entry *ssarInFlightEntry) (bool, error) {
+	select {
+	case <-entry.waitCh:
+		return entry.allowed, entry.err
+	case <-ctx.Done():
+		return false, ctx.Err()
+	}
+}
+
+func startSSARRequest(
+	parent context.Context,
+	key string,
+	entry *ssarInFlightEntry,
+	timeout time.Duration,
+	request func(context.Context) (bool, error),
+) {
+	go func() {
+		ctx, cancel := context.WithTimeout(context.WithoutCancel(parent), timeout)
+		defer cancel()
+
+		requestDone := make(chan struct{})
+
+		go func() {
+			allowed, err := request(ctx)
+			finishSSARRequest(key, entry, allowed, err)
+			close(requestDone)
+		}()
+
+		select {
+		case <-requestDone:
+			return
+		case <-ctx.Done():
+			timeoutSSARRequest(entry, ctx.Err())
+		}
+	}()
+}
+
+func finishSSARRequest(key string, entry *ssarInFlightEntry, allowed bool, err error) {
+	if entry == nil {
+		return
+	}
+
+	mu.Lock()
+
+	blocked := isClientsetPrefixBlockedLocked(key)
+
+	ssarMu.Lock()
+
+	current, attached := ssarInFlight[key]
+
+	if entry.completed {
+		finishSSARWorkerLocked(entry)
+
+		if attached && current == entry {
+			delete(ssarInFlight, key)
+		}
+		ssarMu.Unlock()
+		mu.Unlock()
+
+		return
+	}
+
+	entry.allowed = allowed
+	entry.err = err
+	entry.completed = true
+	finishSSARWorkerLocked(entry)
+
+	if err == nil && !blocked && attached && current == entry {
+		storeSSARCacheResultLocked(key, allowed)
+	}
+
+	if attached && current == entry {
+		delete(ssarInFlight, key)
+	}
+
+	close(entry.waitCh)
+
+	ssarMu.Unlock()
+	mu.Unlock()
+}
+
+func finishSSARWorkerLocked(entry *ssarInFlightEntry) {
+	if !entry.workerActive {
+		return
+	}
+
+	entry.workerActive = false
+
+	if ssarWorkerCount > 0 {
+		ssarWorkerCount--
+	}
+}
+
+func timeoutSSARRequest(entry *ssarInFlightEntry, err error) {
+	ssarMu.Lock()
+
+	if entry.completed {
+		ssarMu.Unlock()
+
+		return
+	}
+
+	entry.allowed = false
+	entry.err = err
+	entry.completed = true
+	close(entry.waitCh)
+
+	// Keep the current entry attached until its worker exits. This releases
+	// callers to fallback immediately without spawning retry workers.
+	ssarMu.Unlock()
 }
 
 // storeSSARCacheResult stores an SSAR result in the cache with the
 // configured TTL.
 func storeSSARCacheResult(key string, allowed bool) {
 	ssarMu.Lock()
-	ssarCache[key] = &ssarCacheEntry{
+
+	storeSSARCacheResultLocked(key, allowed)
+
+	ssarMu.Unlock()
+}
+
+func storeSSARCacheResultLocked(key string, allowed bool) {
+	if _, found := ssarCache[key]; found {
+		deleteSSARCacheEntryLocked(key)
+	}
+
+	for len(ssarCache) >= ssarCacheMaxEntries {
+		element := ssarCacheOrder.Front()
+		if element == nil {
+			break
+		}
+
+		oldestKey, ok := element.Value.(string)
+		if !ok {
+			ssarCacheOrder.Remove(element)
+
+			continue
+		}
+
+		deleteSSARCacheEntryLocked(oldestKey)
+	}
+
+	entry := &ssarCacheEntry{
 		allowed:   allowed,
 		expiresAt: time.Now().Add(ssarTTL),
 	}
-	ssarMu.Unlock()
+	entry.orderElement = ssarCacheOrder.PushBack(key)
+	ssarCache[key] = entry
+}
+
+func deleteSSARCacheEntryLocked(key string) {
+	entry, found := ssarCache[key]
+	if !found {
+		return
+	}
+
+	if entry.orderElement != nil {
+		ssarCacheOrder.Remove(entry.orderElement)
+	}
+
+	delete(ssarCache, key)
 }
 
 // evictSSARCacheForPrefix removes all cached SSAR results whose keys
@@ -853,9 +1130,15 @@ func evictSSARCacheForPrefix(prefix string) {
 
 	for key := range ssarCache {
 		if strings.HasPrefix(key, ssarPrefix) {
-			delete(ssarCache, key)
+			deleteSSARCacheEntryLocked(key)
 
 			evicted++
+		}
+	}
+
+	for key := range ssarInFlight {
+		if strings.HasPrefix(key, ssarPrefix) {
+			delete(ssarInFlight, key)
 		}
 	}
 
@@ -877,7 +1160,7 @@ func evictExpiredSSARResults(now time.Time) {
 
 	for key, entry := range ssarCache {
 		if now.After(entry.expiresAt) {
-			delete(ssarCache, key)
+			deleteSSARCacheEntryLocked(key)
 
 			evicted++
 		}

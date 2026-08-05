@@ -15,7 +15,20 @@ package k8cache
 
 import (
 	"container/list"
+	"time"
 )
+
+// ExpireSSARForTesting marks cached SSAR decisions as expired without
+// disturbing clientsets or resource watchers.
+func ExpireSSARForTesting() {
+	now := time.Now().Add(-ssarTTL)
+
+	ssarMu.Lock()
+	for _, entry := range ssarCache {
+		entry.expiresAt = now
+	}
+	ssarMu.Unlock()
+}
 
 // ResetForTesting clears package-global k8cache state between integration tests.
 func ResetForTesting() {
@@ -30,6 +43,9 @@ func ResetForTesting() {
 
 	ssarMu.Lock()
 	ssarCache = make(map[string]*ssarCacheEntry)
+	ssarCacheOrder = list.New()
+	ssarInFlight = make(map[string]*ssarInFlightEntry)
+	ssarWorkerCount = 0
 	ssarMu.Unlock()
 
 	clearWatcherRegistriesForTesting()
