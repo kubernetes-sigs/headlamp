@@ -27,6 +27,7 @@ import { useTypedSelector } from '../../../../redux/hooks';
 import ErrorBoundary from '../../ErrorBoundary';
 import SectionHeader, { HeaderStyle } from '../../SectionHeader';
 import CopyButton from '../CopyButton';
+import CopyKubectlCommandButton from '../CopyKubectlCommandButton';
 import DeleteButton from '../DeleteButton';
 import EditButton from '../EditButton';
 import { RestartButton } from '../RestartButton';
@@ -70,6 +71,9 @@ export function MainInfoHeader<T extends KubeObject>(props: MainInfoHeaderProps<
         case DefaultHeaderAction.DELETE:
           Action = DeleteButton;
           break;
+        case DefaultHeaderAction.COPY_KUBECTL_COMMAND:
+          Action = CopyKubectlCommandButton;
+          break;
         default:
           break;
       }
@@ -104,6 +108,9 @@ export function MainInfoHeader<T extends KubeObject>(props: MainInfoHeaderProps<
     },
     {
       id: DefaultHeaderAction.DELETE,
+    },
+    {
+      id: DefaultHeaderAction.COPY_KUBECTL_COMMAND,
     },
   ];
 
