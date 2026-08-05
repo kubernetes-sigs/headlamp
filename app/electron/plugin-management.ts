@@ -312,14 +312,48 @@ export class PluginManager {
         fs.mkdirSync(destinationFolder, { recursive: true });
       }
 
-      // remove the existing plugin folder
-      fs.rmSync(pluginDir, { recursive: true, force: true });
+      // Stage the new content alongside the existing plugin directory so
+      // a failure during the move does not leave the plugin in a broken
+      // state. The rename from the staging directory to the real plugin
+      // directory is atomic when both reside on the same filesystem.
+      const stagingDir = pluginDir + '.staging';
 
-      // create the plugin folder
-      fs.mkdirSync(pluginDir, { recursive: true });
+      if (fs.existsSync(stagingDir)) {
+        fs.rmSync(stagingDir, { recursive: true, force: true });
+      }
+      fs.mkdirSync(stagingDir, { recursive: true });
 
-      // move the plugin to the destination folder
-      moveDirs(tempFolder, pluginDir);
+      try {
+        moveDirs(tempFolder, stagingDir);
+
+        const backupDir = pluginDir + '.backup';
+
+        if (fs.existsSync(backupDir)) {
+          fs.rmSync(backupDir, { recursive: true, force: true });
+        }
+
+        if (fs.existsSync(pluginDir)) {
+          fs.renameSync(pluginDir, backupDir);
+        }
+
+        try {
+          fs.renameSync(stagingDir, pluginDir);
+        } catch (err) {
+          if (fs.existsSync(backupDir)) {
+            fs.renameSync(backupDir, pluginDir);
+          }
+          throw err;
+        }
+
+        if (fs.existsSync(backupDir)) {
+          fs.rmSync(backupDir, { recursive: true, force: true });
+        }
+      } finally {
+        if (fs.existsSync(stagingDir)) {
+          fs.rmSync(stagingDir, { recursive: true, force: true });
+        }
+      }
+
       if (progressCallback) {
         progressCallback({ type: 'success', message: 'Plugin Updated' });
       }
