@@ -82,6 +82,7 @@
     "HoverInfoLabel": [Function],
     "InfoLabel": [Function],
     "InnerTable": [Function],
+    "KubectlCopyButton": [Function],
     "LOGGABLE_WORKLOAD_KINDS": Set {
       "Deployment",
       "ReplicaSet",
@@ -176,6 +177,7 @@
       "FieldLabel": [Function],
       "FieldWrapper": [Function],
       "FormTextField": [Function],
+      "KubectlCopyButton": [Function],
       "LOGGABLE_WORKLOAD_KINDS": Set {
         "Deployment",
         "ReplicaSet",
@@ -699,6 +701,7 @@
   "registerProjectDetailsTab": [Function],
   "registerProjectHeaderAction": [Function],
   "registerProjectOverviewSection": [Function],
+  "registerResourceRelationProvider": [Function],
   "registerResourceTableColumnsProcessor": [Function],
   "registerRoute": [Function],
   "registerRouteFilter": [Function],

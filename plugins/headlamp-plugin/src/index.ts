@@ -31,7 +31,7 @@ import * as Utils from './lib/util';
 import { Headlamp, Plugin } from './plugin/lib';
 import { getSupportedLocales, isLocaleSupported, useTranslation } from './plugin/pluginI18n';
 import { PluginSettingsDetailsProps } from './plugin/pluginsSlice';
-import type { CallbackActionOptions, HeadlampEvent } from './plugin/registry';
+import type { CallbackActionOptions, HeadlampEvent, Relation } from './plugin/registry';
 import Registry, {
   AppLogoProps,
   clusterAction,
@@ -71,6 +71,7 @@ import Registry, {
   registerProjectDetailsTab,
   registerProjectHeaderAction,
   registerProjectOverviewSection,
+  registerResourceRelationProvider,
   registerResourceTableColumnsProcessor,
   registerRoute,
   registerRouteFilter,
@@ -123,6 +124,7 @@ export {
   ConfigStore,
   registerKindIcon,
   registerMapSource,
+  registerResourceRelationProvider,
   PluginManager,
   registerUIPanel,
   registerAppTheme,
@@ -149,4 +151,5 @@ export type {
   DetailsViewSectionProps,
   DefaultSidebars,
   HeadlampEvent,
+  Relation,
 };

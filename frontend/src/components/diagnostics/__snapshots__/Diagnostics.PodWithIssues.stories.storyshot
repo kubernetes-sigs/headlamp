@@ -1,0 +1,166 @@
+<body>
+  <div>
+    <div
+      class="MuiBox-root css-j1fy4m"
+    >
+      <div
+        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+      >
+        <div
+          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        >
+          <div
+            class="MuiBox-root css-70qvj9"
+          >
+            <h2
+              class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+            >
+              Diagnostics
+            </h2>
+            <div
+              class="MuiBox-root css-ldp2l3"
+            />
+          </div>
+        </div>
+      </div>
+      <div
+        class="MuiBox-root css-1txv3mw"
+      >
+        <div
+          class="MuiBox-root css-j7qwjs"
+        >
+          <div
+            class="MuiBox-root css-k1dapx"
+          >
+            <div
+              class="MuiBox-root css-1qocved"
+            >
+              <span
+                class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+              >
+                Critical
+              </span>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-vtuj24-MuiTypography-root"
+              >
+                Pod status: ImagePullBackOff
+              </p>
+            </div>
+            <p
+              class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+            >
+              Back-off pulling image "doesnotexist:nover" The image could not be pulled. Verify the image name and tag, and that the registry is reachable with valid credentials.
+            </p>
+            <div
+              class="MuiBox-root css-p9ukdl"
+            >
+              <div
+                class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                >
+                  Phase: Pending
+                </span>
+              </div>
+              <div
+                class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                >
+                  Ready containers: 0/1
+                </span>
+              </div>
+              <div
+                class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                >
+                  Total restarts: 1
+                </span>
+              </div>
+            </div>
+          </div>
+          <div
+            class="MuiBox-root css-pbze50"
+          >
+            <div
+              class="MuiBox-root css-1qocved"
+            >
+              <span
+                class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
+              >
+                Info
+              </span>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-vtuj24-MuiTypography-root"
+              >
+                Previous logs may be available for restarted containers
+              </p>
+            </div>
+            <div
+              class="MuiBox-root css-p9ukdl"
+            >
+              <div
+                class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                >
+                  Container: imagepullbackoff (1)
+                </span>
+              </div>
+            </div>
+          </div>
+          <div
+            class="MuiBox-root css-pbze50"
+          >
+            <div
+              class="MuiBox-root css-1qocved"
+            >
+              <span
+                class="MuiTypography-root MuiTypography-body1 css-1dablfr-MuiTypography-root"
+              >
+                Warning
+              </span>
+              <p
+                class="MuiTypography-root MuiTypography-body1 css-vtuj24-MuiTypography-root"
+              >
+                Warning event: Unhealthy (7 times)
+              </p>
+            </div>
+            <p
+              class="MuiTypography-root MuiTypography-body2 css-11zj6ou-MuiTypography-root"
+            >
+              Readiness probe failed: HTTP probe failed with statuscode: 500
+            </p>
+            <div
+              class="MuiBox-root css-p9ukdl"
+            >
+              <div
+                class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                >
+                  Last seen: 90d (2023-04-01T10:00:00.000Z)
+                </span>
+              </div>
+              <div
+                class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
+              >
+                <span
+                  class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                >
+                  7 times since 90d
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</body>
