@@ -65,6 +65,8 @@ describe('PriorityClassList', () => {
 
     expect(value.getValue({ value: 1000000 })).toBe(1000000);
     expect(globalDefault.getValue({ globalDefault: true })).toBe('true');
-    expect(globalDefault.getValue({ globalDefault: false })).toBe('False');
+    expect(globalDefault.getValue({ globalDefault: false })).toBe('false');
+    expect(globalDefault.render({ globalDefault: true })).toContain('Yes');
+    expect(globalDefault.render({ globalDefault: false })).toBeNull();
   });
 });
