@@ -149,7 +149,7 @@ export function adjustSourceMapOffsetForFunction(jsSource: string) {
 
     const sourceMap = JSON.parse(atob(base64Data));
 
-    if (!sourceMap.mappings || typeof sourceMap.mappings !== 'string') {
+    if (typeof sourceMap.mappings !== 'string') {
       return jsSource;
     }
 

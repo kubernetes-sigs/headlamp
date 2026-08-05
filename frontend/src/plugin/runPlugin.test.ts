@@ -803,6 +803,19 @@ describe('adjustSourceMapOffsetForFunction', () => {
     expect(adjustSourceMapOffsetForFunction(jsSource)).toBe(jsSource);
   });
 
+  test('should offset an empty mappings string', () => {
+    const sourceMap = { version: 3, sources: ['test.ts'], mappings: '' };
+    const marker = ['//# source', 'MappingURL='].join('');
+    const jsSource = `${marker}data:application/json;charset=utf-8;base64,${btoa(
+      JSON.stringify(sourceMap)
+    )}`;
+
+    const result = adjustSourceMapOffsetForFunction(jsSource);
+    const encodedSourceMap = result.split('base64,')[1];
+
+    expect(JSON.parse(atob(encodedSourceMap)).mappings).toBe(';;');
+  });
+
   test('should return source unchanged when the source map cannot be parsed', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const marker = ['//# source', 'MappingURL='].join('');
