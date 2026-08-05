@@ -192,16 +192,30 @@ export const WebSocketManager = {
     }
 
     // Establish connection and send REQUEST
-    const socket = await this.connect();
-    const userId = getUserIdFromLocalStorage();
-    const requestMsg: WebSocketMessage = {
-      clusterId,
-      path,
-      query,
-      userId: userId || '',
-      type: 'REQUEST',
-    };
-    socket.send(JSON.stringify(requestMsg));
+    try {
+      const socket = await this.connect();
+      const userId = getUserIdFromLocalStorage();
+      const requestMsg: WebSocketMessage = {
+        clusterId,
+        path,
+        query,
+        userId: userId || '',
+        type: 'REQUEST',
+      };
+      socket.send(JSON.stringify(requestMsg));
+    } catch (err) {
+      // Clean up registered listeners since connection failed
+      this.listeners.get(key)?.delete(onMessage);
+      if (onError) {
+        this.errorListeners.get(key)?.delete(onError);
+      }
+
+      // If no listeners remain, delete the active subscription
+      if (this.listeners.get(key)?.size === 0) {
+        this.activeSubscriptions.delete(key);
+      }
+      throw err;
+    }
 
     // Return cleanup function
     return () => this.unsubscribe(key, clusterId, path, query, onMessage, onError);
