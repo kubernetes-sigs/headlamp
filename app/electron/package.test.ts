@@ -27,6 +27,7 @@ const packageJson = JSON.parse(
   build: {
     artifactName: string;
   };
+  optionalDependencies: Record<string, string>;
 };
 const require = createRequire(import.meta.url);
 const { expandMsiArtifactName } = require('../windows/msi/artifact-name.js') as {
@@ -48,5 +49,16 @@ describe('desktop package configuration', () => {
         arch: 'x64',
       })
     ).toBe(`${packageJson.name}-${packageJson.version}-win-x64.msi`);
+  });
+});
+
+describe.runIf(process.platform === 'darwin')('app package', () => {
+  it('includes DMG license support for macOS packaging', () => {
+    const packageLock = JSON.parse(
+      fs.readFileSync(new URL('../package-lock.json', import.meta.url), 'utf8')
+    );
+
+    expect(packageJson.optionalDependencies).toHaveProperty('dmg-license', expect.any(String));
+    expect(packageLock.packages[''].optionalDependencies).toEqual(packageJson.optionalDependencies);
   });
 });
