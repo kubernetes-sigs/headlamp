@@ -852,8 +852,7 @@ export function useKubeObjectList<K extends KubeObject>({
   // With no list queries yet, useQueries would otherwise report success + empty data.
   const isEndpointPending = !endpoint && !endpointError;
   const items = endpointError ? [] : query.items;
-  const error =
-    endpointError ?? paginationError ?? query.errors.find(it => it !== null) ?? null;
+  const error = endpointError ?? paginationError ?? query.errors.find(it => it !== null) ?? null;
   const errors = endpointError ? [endpointError] : queryErrors.length > 0 ? queryErrors : null;
   const isLoading = isEndpointPending || query.isLoading;
   const isFetching = isEndpointPending || query.isFetching;
