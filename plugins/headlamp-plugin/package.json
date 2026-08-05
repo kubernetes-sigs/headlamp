@@ -25,7 +25,7 @@
     "@headlamp-k8s/pluginctl": "^0.1.1",
     "@iconify/icons-mdi": "^1.2.9",
     "@iconify/react": "^3.2.1",
-    "@monaco-editor/react": "^4.3.1",
+    "@monaco-editor/react": "^4.7.0",
     "@mui/icons-material": "^5.16.7",
     "@mui/lab": "^5.0.0-alpha.152",
     "@mui/material": "^5.15.14",
@@ -87,7 +87,7 @@
     "jsonpath-plus": "^10.3.0",
     "lodash": "^4.17.23",
     "material-react-table": "^2.13.3",
-    "monaco-editor": "^0.52.0",
+    "monaco-editor": "^0.56.0",
     "msw": "2.4.9",
     "msw-storybook-addon": "2.0.3",
     "notistack": "^3.0.2",
@@ -129,7 +129,8 @@
     "nth-check": "2.0.1",
     "domain-browser": "npm:dry-uninstall",
     "typescript": "5.6.2",
-    "rollup": "^4.59.0"
+    "rollup": "^4.59.0",
+    "dompurify": "^3.4.12"
   },
   "files": [
     "bin",
