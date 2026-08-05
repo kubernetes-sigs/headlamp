@@ -177,7 +177,14 @@ vi.mock('../LogViewer', () => ({
         };
       }
     }, [xtermRef]);
-    return <div data-testid="mock-log-viewer">{props.topActions}</div>;
+    return (
+      <div data-testid="mock-log-viewer">
+        {props.topActions}
+        {props.showReconnectButton && (
+          <button onClick={props.handleReconnect}>Reconnect test stream</button>
+        )}
+      </div>
+    );
   },
 }));
 
@@ -253,6 +260,7 @@ describe('LogsButton', () => {
 
   afterEach(() => {
     Pod.prototype.getLogs = originalGetLogs;
+    localStorage.clear();
   });
 
   it('renders the logs button for a Deployment', () => {
@@ -271,6 +279,25 @@ describe('LogsButton', () => {
       </TestContext>
     );
     expect(screen.getByLabelText('translation|Show logs')).toBeInTheDocument();
+  });
+
+  it('does not render the logs button without a loggable workload', () => {
+    const { rerender } = render(
+      <TestContext>
+        <LogsButton item={null} />
+      </TestContext>
+    );
+
+    expect(screen.queryByLabelText('translation|Show logs')).not.toBeInTheDocument();
+
+    const unknownItem = new MockKubeObject({ kind: 'Unknown', metadata: { name: 'unknown' } });
+    rerender(
+      <TestContext>
+        <LogsButton item={unknownItem as any} />
+      </TestContext>
+    );
+
+    expect(screen.queryByLabelText('translation|Show logs')).not.toBeInTheDocument();
   });
 
   it('uses the Job spec.selector when launching logs for a Job', async () => {
@@ -379,6 +406,108 @@ describe('LogsButton', () => {
     });
   });
 
+  it('shows an error when the workload has no label selector', async () => {
+    vi.mocked(labelSelectorToQuery).mockReturnValueOnce('');
+
+    render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    await waitFor(() => {
+      expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
+        'translation|Failed to fetch pods: {{error}}',
+        expect.objectContaining({ variant: 'error' })
+      );
+    });
+    expect(mockClusterFetch).not.toHaveBeenCalled();
+  });
+
+  it('shows an error for an invalid pods response', async () => {
+    mockClusterFetch.mockResolvedValue({ json: async () => ({}) });
+
+    render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    await waitFor(() => {
+      expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
+        'translation|Failed to fetch pods: {{error}}',
+        expect.objectContaining({ variant: 'error' })
+      );
+    });
+    expect(mockClusterFetch).toHaveBeenCalledOnce();
+  });
+
+  it('shows an error when fetching related pods fails', async () => {
+    mockClusterFetch.mockRejectedValue(new Error('network unavailable'));
+
+    render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    await waitFor(() => {
+      expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
+        'translation|Failed to fetch pods: {{error}}',
+        expect.objectContaining({ variant: 'error' })
+      );
+    });
+    expect(mockClusterFetch).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    ['malformed JSON', '{'],
+    ['a non-array value', '"error"'],
+    ['an empty array', '[]'],
+    ['only unknown severities', '["verbose"]'],
+  ])('falls back to all severities for %s in storage', async (_case, storedValue) => {
+    localStorage.setItem('headlamp.logs.severityFilter', storedValue);
+    mockClusterFetch.mockResolvedValue({ json: async () => ({ items: [mockPodData] }) });
+
+    render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    await waitFor(() => expect(screen.getByTestId('mock-log-viewer')).toBeInTheDocument());
+    expect(document.querySelectorAll('.MuiSelect-select')[3]).toHaveTextContent('translation|All');
+  });
+
+  it('restores valid severities from storage', async () => {
+    localStorage.setItem('headlamp.logs.severityFilter', '["error","info","unknown"]');
+    mockClusterFetch.mockResolvedValue({ json: async () => ({ items: [mockPodData] }) });
+
+    render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    await waitFor(() => expect(document.querySelectorAll('.MuiSelect-select')[3]).toBeTruthy());
+    expect(document.querySelectorAll('.MuiSelect-select')[3]).toHaveTextContent('ERROR, INFO');
+  });
+
   it('streams logs successfully', async () => {
     mockClusterFetch.mockResolvedValue({
       json: async () => ({ items: [mockPodData] }),
@@ -401,6 +530,135 @@ describe('LogsButton', () => {
 
     await waitFor(() => {
       expect(mockXTermWrite).toHaveBeenCalledWith(expect.stringContaining('log line 1'));
+    });
+  });
+
+  it('streams a selected pod in chunks and ignores updates after unmount', async () => {
+    const requestAnimationFrameSpy = vi
+      .spyOn(window, 'requestAnimationFrame')
+      .mockImplementation(callback => {
+        callback(0);
+        return 1;
+      });
+    mockClusterFetch.mockResolvedValue({
+      json: async () => ({ items: [mockPodData] }),
+    });
+
+    let onLogsCallback: any;
+    Pod.prototype.getLogs = vi.fn((...args: any[]) => {
+      onLogsCallback = args.find(arg => typeof arg === 'function');
+      return () => {};
+    }) as any;
+
+    render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    const { unmount } = render(<TestContext>{activityContent}</TestContext>);
+
+    await waitFor(() => expect(document.querySelectorAll('.MuiSelect-select')[0]).toBeTruthy());
+    fireEvent.mouseDown(document.querySelectorAll('.MuiSelect-select')[0]);
+    fireEvent.click(await screen.findByText('test-pod-1'));
+    await waitFor(() => expect(onLogsCallback).toBeDefined());
+
+    act(() => {
+      onLogsCallback({ logs: Array.from({ length: 1001 }, (_, index) => `line ${index}\n`) });
+    });
+    expect(mockXTermWrite).toHaveBeenCalledWith(expect.stringContaining('line 999'));
+    expect(requestAnimationFrameSpy).toHaveBeenCalled();
+
+    mockXTermWrite.mockClear();
+    unmount();
+    act(() => onLogsCallback({ logs: ['after unmount\n'] }));
+    expect(mockXTermWrite).not.toHaveBeenCalled();
+    requestAnimationFrameSpy.mockRestore();
+  });
+
+  it('clears the reconnect prompt when requested', async () => {
+    mockClusterFetch.mockResolvedValue({
+      json: async () => ({ items: [mockPodData] }),
+    });
+
+    let onReconnectStop: (() => void) | undefined;
+    Pod.prototype.getLogs = vi.fn((...args: any[]) => {
+      onReconnectStop = args.at(-1)?.onReconnectStop;
+      return () => {};
+    }) as any;
+
+    render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    await waitFor(() => expect(onReconnectStop).toBeDefined());
+    act(() => onReconnectStop?.());
+    fireEvent.click(await screen.findByRole('button', { name: 'Reconnect test stream' }));
+
+    expect(mockXTermClear).toHaveBeenCalled();
+    expect(screen.queryByRole('button', { name: 'Reconnect test stream' })).not.toBeInTheDocument();
+  });
+
+  it('updates stream options for a restarted container', async () => {
+    const restartedPod = {
+      ...mockPodData,
+      spec: {
+        containers: [
+          { name: 'nginx', image: 'nginx' },
+          { name: 'sidecar', image: 'busybox' },
+        ],
+      },
+      status: {
+        ...mockPodData.status,
+        containerStatuses: [
+          { name: 'nginx', restartCount: 1 },
+          { name: 'sidecar', restartCount: 0 },
+        ],
+      },
+    };
+    mockClusterFetch.mockResolvedValue({ json: async () => ({ items: [restartedPod] }) });
+    Pod.prototype.getLogs = vi.fn(() => () => {}) as any;
+
+    render(
+      <TestContext>
+        <LogsButton item={new Deployment(deploymentData as any)} />
+      </TestContext>
+    );
+    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    const activityContent = mockActivityLaunch.mock.calls[0][0].content;
+    render(<TestContext>{activityContent}</TestContext>);
+
+    const previousSwitch = await screen.findByRole('checkbox', {
+      name: 'translation|Show previous',
+    });
+    expect(previousSwitch).toBeEnabled();
+    fireEvent.click(previousSwitch);
+    fireEvent.click(screen.getByRole('checkbox', { name: 'translation|Timestamps' }));
+    fireEvent.click(screen.getByRole('checkbox', { name: 'translation|Follow' }));
+
+    const selects = document.querySelectorAll('.MuiSelect-select');
+    fireEvent.mouseDown(selects[2]);
+    fireEvent.click(await screen.findByText('1000'));
+    fireEvent.mouseDown(document.querySelectorAll('.MuiSelect-select')[1]);
+    fireEvent.click(await screen.findByText('sidecar'));
+
+    await waitFor(() => {
+      expect(Pod.prototype.getLogs).toHaveBeenLastCalledWith(
+        'sidecar',
+        expect.any(Function),
+        expect.objectContaining({
+          tailLines: 1000,
+          showPrevious: true,
+          showTimestamps: false,
+          follow: false,
+        })
+      );
     });
   });
 
