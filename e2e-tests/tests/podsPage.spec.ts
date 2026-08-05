@@ -447,12 +447,10 @@ test('react-hotkey for logs search', async ({ page }) => {
 test('opens aggregated logs for a workload', async ({ page }) => {
   const headlampPage = new HeadlampPage(page);
   await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
-  await headlampPage.navigateTopage(
-    '/c/test/deployments/kube-system/headlamp',
-    /^Deployment: headlamp/
-  );
+  await headlampPage.navigateTopage('/c/test/deployments/kube-system/headlamp');
+  await expect(page.getByRole('heading', { level: 1, name: 'Deployment: headlamp' })).toBeVisible();
 
-  await page.getByRole('button', { name: /^Show Logs$/ }).click();
+  await page.getByRole('button', { name: /^Show logs$/i }).click();
 
   await expect(page.locator('#xterm-container')).toBeVisible();
   await expect(page.getByLabel('Select Pod')).toBeVisible();
