@@ -46,7 +46,7 @@ func TestBuildSSARCacheKey(t *testing.T) {
 				Verb:      "list",
 				Namespace: "default",
 			},
-			expectedKey: "kind-cluster\x00tok-abc\x00/pods/list/default",
+			expectedKey: "kind-cluster\x00tok-abc\x00/pods//list/default/",
 		},
 		{
 			name:       "named API resource get",
@@ -57,8 +57,9 @@ func TestBuildSSARCacheKey(t *testing.T) {
 				Resource:  "deployments",
 				Verb:      "get",
 				Namespace: "kube-system",
+				Name:      "frontend",
 			},
-			expectedKey: "prod-cluster\x00tok-xyz\x00apps/deployments/get/kube-system",
+			expectedKey: "prod-cluster\x00tok-xyz\x00apps/deployments//get/kube-system/frontend",
 		},
 		{
 			name:       "cluster-scoped resource",
@@ -70,7 +71,20 @@ func TestBuildSSARCacheKey(t *testing.T) {
 				Verb:      "list",
 				Namespace: "",
 			},
-			expectedKey: "dev\x00t1\x00/namespaces/list/",
+			expectedKey: "dev\x00t1\x00/namespaces//list//",
+		},
+		{
+			name:       "subresource produces distinct key",
+			contextKey: "dev",
+			token:      "t1",
+			attrs: &authorizationv1.ResourceAttributes{
+				Resource:    "pods",
+				Subresource: "log",
+				Verb:        "get",
+				Namespace:   "default",
+				Name:        "nginx",
+			},
+			expectedKey: "dev\x00t1\x00/pods/log/get/default/nginx",
 		},
 	}
 

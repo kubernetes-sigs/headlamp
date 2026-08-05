@@ -622,12 +622,16 @@ func isSSARCacheable(verb string) bool {
 
 // buildSSARCacheKey produces a unique cache key for an SSAR result
 // based on the cluster context, user token, and resource attributes.
+// All fields that affect the authorization outcome are included so
+// that name-scoped or subresource-scoped RBAC rules produce distinct
+// cache entries.
 func buildSSARCacheKey(
 	headlampContextKey, token string,
 	attrs *authorizationv1.ResourceAttributes,
 ) string {
 	return headlampContextKey + "\x00" + token + "\x00" +
-		attrs.Group + "/" + attrs.Resource + "/" + attrs.Verb + "/" + attrs.Namespace
+		attrs.Group + "/" + attrs.Resource + "/" + attrs.Subresource + "/" +
+		attrs.Verb + "/" + attrs.Namespace + "/" + attrs.Name
 }
 
 // getSSARCacheResult returns the cached SSAR result for the given key.
