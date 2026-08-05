@@ -191,6 +191,9 @@ export function identifyPackages(
     .replace(/user-plugins[\\/]/, 'user-plugins/');
 
   // For artifacthub installed packages, the package name is the folder name.
+  // The ArtifactHub installer converts hyphens to underscores in folder names,
+  // so 'headlamp_ai-assistant' (hyphen) and 'headlamp_ai_assistant' (underscore)
+  // must both be recognised.
   const pluginPaths: Record<string, string[]> = {
     '@headlamp-k8s/minikube': [
       'plugins/headlamp_minikube',
@@ -207,6 +210,13 @@ export function identifyPackages(
       'plugins/headlamp_ai-assistantprerelease',
       'user-plugins/headlamp_ai-assistantprerelease',
       'static-plugins/headlamp_ai-assistantprerelease',
+      // Underscore variants: ArtifactHub installer converts hyphens to underscores
+      'plugins/headlamp_ai_assistant',
+      'user-plugins/headlamp_ai_assistant',
+      'static-plugins/headlamp_ai_assistant',
+      'plugins/headlamp_ai_assistantprerelease',
+      'user-plugins/headlamp_ai_assistantprerelease',
+      'static-plugins/headlamp_ai_assistantprerelease',
     ],
   };
 
