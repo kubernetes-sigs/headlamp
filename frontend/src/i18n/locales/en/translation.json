@@ -210,6 +210,7 @@
   "Account of current user": "Account of current user",
   "Appbar Tools": "Appbar Tools",
   "show more": "show more",
+  "Go to home page": "Go to home page",
   "Version information": "Version information",
   "Getting auth info: {{ clusterName }}": "Getting auth info: {{ clusterName }}",
   "Getting auth info": "Getting auth info",
