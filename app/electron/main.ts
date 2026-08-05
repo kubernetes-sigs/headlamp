@@ -44,6 +44,7 @@ import {
   loadLegalDocuments,
   readLegalDocument,
 } from './legal-documents';
+import { runListPluginsCommand } from './list-plugins';
 import MCPClient from './mcp/MCPClient';
 import { filterUserOwnedPids } from './ownedProcesses';
 import {
@@ -144,15 +145,7 @@ const args = yargs(hideBin(process.argv))
     'List all static and user-added plugins.',
     () => {},
     () => {
-      try {
-        const backendPath = path.join(process.resourcesPath, 'headlamp-server');
-        const stdout = execFileSync(backendPath, ['list-plugins']);
-        process.stdout.write(stdout);
-        process.exit(0);
-      } catch (error) {
-        console.error(`Error listing plugins: ${error}`);
-        process.exit(1);
-      }
+      process.exit(runListPluginsCommand(process.resourcesPath));
     }
   )
   .options({
