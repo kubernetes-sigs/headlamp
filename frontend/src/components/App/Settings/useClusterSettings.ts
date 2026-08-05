@@ -20,7 +20,10 @@ import {
   loadClusterSettings,
   storeClusterSettings,
 } from '../../../helpers/clusterSettings';
-import { NAMESPACE_DISCOVERY_QUERY_KEY } from '../../../lib/k8s/useDiscoveredNamespaces';
+import {
+  getNamespaceDiscoveryAuthQueryKey,
+  NAMESPACE_DISCOVERY_QUERY_KEY,
+} from '../../../lib/k8s/useDiscoveredNamespaces';
 import { queryClient } from '../../../lib/queryClient';
 
 function allowedNamespacesChanged(prev: ClusterSettings, next: ClusterSettings): boolean {
@@ -42,6 +45,10 @@ function namespaceDiscoverySettingsChanged(prev: ClusterSettings, next: ClusterS
 
 function invalidateNamespaceDiscoveryForCluster(cluster: string) {
   queryClient.invalidateQueries({ queryKey: ['auth', cluster], exact: true });
+  queryClient.invalidateQueries({
+    queryKey: getNamespaceDiscoveryAuthQueryKey(cluster),
+    exact: true,
+  });
   queryClient.invalidateQueries({
     queryKey: [NAMESPACE_DISCOVERY_QUERY_KEY, cluster],
     exact: true,
