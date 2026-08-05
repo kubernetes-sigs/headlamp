@@ -163,6 +163,12 @@ export interface ResourceTableProps<RowItem> {
   errors?: ApiError[] | null;
   /** State of the Table (page, rows per page) is reflected in the url */
   reflectInURL?: string | boolean;
+  /**
+   * Optional quick-action controls (e.g. "Refresh", "Create <Kind>") shown
+   * below the empty message when the table has no data. Pass `null` to
+   * explicitly suppress the default that `ResourceListView` provides.
+   */
+  emptyActions?: ReactNode;
 }
 
 export interface ResourceTableFromResourceClassProps<KubeClass extends KubeObjectClass>
@@ -320,6 +326,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     enableRowActions = false,
     enableRowSelection = false,
     errors,
+    emptyActions,
   } = props;
   const { t } = useTranslation(['glossary', 'translation']);
   const theme = useTheme();
@@ -724,6 +731,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
         globalFilterFn="kubeObjectSearch"
         filterFunction={filterFunc}
         getRowId={getResourceRowId}
+        emptyActions={emptyActions}
       />
     </>
   );
