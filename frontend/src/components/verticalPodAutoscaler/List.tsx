@@ -52,6 +52,7 @@ export default function VpaList() {
         <ResourceListView
           title={t('glossary|Vertical Pod Autoscalers')}
           resourceClass={VPA}
+          reflectInURL
           columns={[
             'name',
             'namespace',

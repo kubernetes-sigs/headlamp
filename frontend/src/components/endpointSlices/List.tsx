@@ -46,6 +46,7 @@ export default function EndpointSliceList() {
     <ResourceListView
       title={t('glossary|Endpoint Slices')}
       resourceClass={EndpointSlice}
+      reflectInURL
       columns={[
         'name',
         'namespace',

@@ -187,6 +187,7 @@ export function CustomResourceListTable(props: CustomResourceTableProps) {
         ),
       }}
       resourceClass={CRClass}
+      reflectInURL
       columns={cols}
     />
   );

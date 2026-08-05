@@ -86,6 +86,7 @@ export default function RoleBindingList() {
 
   return (
     <ResourceListView
+      reflectInURL
       title={t('glossary|Role Bindings')}
       errors={allErrors}
       columns={[

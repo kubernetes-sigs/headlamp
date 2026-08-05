@@ -25,6 +25,7 @@ export default function GRPCRouteList() {
     <ResourceListView
       title={t('GRPCRoutes')}
       resourceClass={GRPCRoute}
+      reflectInURL
       columns={['name', 'namespace', 'cluster', 'age']}
     />
   );

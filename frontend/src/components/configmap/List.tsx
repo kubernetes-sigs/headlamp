@@ -25,6 +25,7 @@ export default function ConfigMapList() {
     <ResourceListView
       title={t('glossary|Config Maps')}
       resourceClass={ConfigMap}
+      reflectInURL
       columns={[
         'name',
         'namespace',

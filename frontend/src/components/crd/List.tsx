@@ -41,6 +41,7 @@ export default function CustomResourceDefinitionList() {
 
   return (
     <ResourceListView
+      reflectInURL
       title={t('glossary|Custom Resources')}
       headerProps={{
         noNamespaceFilter: true,

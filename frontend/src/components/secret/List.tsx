@@ -38,6 +38,7 @@ export default function SecretList() {
 
   return (
     <ResourceListView
+      reflectInURL
       id="headlamp-secrets"
       title={t('Secrets')}
       data={filteredSecrets}

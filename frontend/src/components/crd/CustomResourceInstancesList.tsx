@@ -81,6 +81,7 @@ function CrInstancesView({ crds }: { crds: CRD[]; key: string }) {
         </Alert>
       )}
       <ResourceListView
+        reflectInURL
         title={t('translation|Custom Resource Instances')}
         headerProps={{
           noNamespaceFilter: false,
