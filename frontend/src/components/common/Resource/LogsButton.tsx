@@ -56,6 +56,10 @@ import { LightTooltip } from '../Tooltip';
 import { ALL_SEVERITIES, filterLogsBySeverity, LogSeverity } from './logSeverityFilter';
 
 export interface WorkloadLogsProps {
+  item: KubeObject;
+}
+
+interface LogsButtonProps {
   item: KubeObject | null;
 }
 
@@ -703,7 +707,7 @@ export function launchWorkloadLogs(
   });
 }
 
-export function LogsButton({ item }: WorkloadLogsProps) {
+export function LogsButton({ item }: LogsButtonProps) {
   const { t } = useTranslation();
   const dispatchHeadlampEvent = useEventCallback();
 
