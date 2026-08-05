@@ -28,13 +28,15 @@ const namespace = {
   status: { phase: 'Active' },
 };
 
+const longPodName = 'resize-test-pod-with-a-long-name-that-needs-to-wrap';
+
 const pods = Array.from({ length: 1001 }, (_, index) => ({
   apiVersion: 'v1',
   kind: 'Pod',
   metadata: {
-    name: `resize-test-pod-${index}`,
+    name: index === 0 ? longPodName : `resize-test-pod-${index}`,
     namespace: namespace.metadata.name,
-    uid: `resize-test-pod-${index}`,
+    uid: index === 0 ? longPodName : `resize-test-pod-${index}`,
     resourceVersion: String(index + 1),
   },
   spec: {
@@ -181,4 +183,29 @@ test('groups scheduled and unscheduled pods by node', async ({ page }) => {
 
   await expect(page.locator('[data-id="Node-worker-1"]')).toBeVisible({ timeout: 30_000 });
   await expect(page.locator('[data-id="Node-Unscheduled"]')).toBeVisible();
+});
+
+test('reflows long resource labels without clipping', async ({ page }) => {
+  test.setTimeout(60_000);
+  const cluster = process.env.HEADLAMP_TEST_CLUSTER || 'test';
+  const headlampPage = new HeadlampPage(page);
+  await mockResourceMapCollections(page, cluster);
+  await headlampPage.navigateToCluster(cluster, process.env.HEADLAMP_TEST_TOKEN);
+
+  await headlampPage.navigateTopage(`/c/${cluster}/map`);
+
+  const namespaceNode = page.locator(`[data-id="${namespace.metadata.uid}"]`);
+  await expect(namespaceNode).toBeVisible({ timeout: 30_000 });
+  await namespaceNode.getByRole('button').click();
+
+  const podNode = page.locator(`[data-id="${longPodName}"]`);
+  const button = podNode.getByRole('button');
+  const label = button.getByText(longPodName);
+  await expect(label).toBeVisible({ timeout: 30_000 });
+  await button.focus();
+
+  await expect(label).toHaveCSS('white-space', 'normal');
+  await expect(label).toHaveCSS('word-break', 'break-word');
+  await expect(label.locator('..')).toHaveCSS('overflow', 'visible');
+  await expect(label.locator('../..')).toHaveCSS('min-height', '48px');
 });
