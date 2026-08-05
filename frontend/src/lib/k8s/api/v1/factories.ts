@@ -186,7 +186,6 @@ type FunctionKeys<T> = {
  *
  * @returns A function that cancels the streaming function call.
  */
-let lastCluster = '';
 
 async function repeatStreamFunc<
   ResourceType extends KubeObjectInterface,
@@ -214,12 +213,6 @@ async function repeatStreamFunc<
   if (!clusterStr) {
     clusterStr = getCluster() || '';
   }
-
-  // Invalidate cache if cluster context changed
-  if (lastCluster && clusterStr !== lastCluster) {
-    clearEndpointCache();
-  }
-  lastCluster = clusterStr;
 
   // Extract resource key: group/resource
   const firstEndpoint = apiEndpoints[0];

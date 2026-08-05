@@ -492,7 +492,7 @@ export async function connectStreamWithParams<T>(
     }
 
     if (path.includes('customresourcedefinitions')) {
-      clearEndpointCache();
+      clearEndpointCache(cluster);
     }
 
     cb(item);
@@ -567,9 +567,17 @@ export function isEndpointIndexFailed(
   return endpointCache.get(key)?.failedIndices.has(index) ?? false;
 }
 
-export function clearEndpointCache() {
+export function clearEndpointCache(cluster?: string) {
   if (isDebugVerbose('k8s/apiProxy@clearEndpointCache')) {
-    console.debug('k8s/apiProxy@clearEndpointCache - Invalidation triggered');
+    console.debug('k8s/apiProxy@clearEndpointCache - Invalidation triggered', { cluster });
   }
-  endpointCache.clear();
+  if (cluster) {
+    for (const key of endpointCache.keys()) {
+      if (key.startsWith(`${cluster}:`)) {
+        endpointCache.delete(key);
+      }
+    }
+  } else {
+    endpointCache.clear();
+  }
 }

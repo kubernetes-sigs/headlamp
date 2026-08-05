@@ -25,6 +25,7 @@ import WS from 'vitest-websocket-mock';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
 import * as cluster from '../../../cluster';
 import * as apiProxy from '../../apiProxy';
+import { clearEndpointCache } from './streamingApi';
 
 const baseApiUrl = getAppUrl();
 const originalFetch = global.fetch;
@@ -1250,6 +1251,7 @@ describe('apiProxy', () => {
       global.fetch = originalFetch;
       cb = vi.fn();
       errCb = vi.fn();
+      clearEndpointCache();
     });
 
     afterEach(() => {
@@ -1311,7 +1313,7 @@ describe('apiProxy', () => {
       server2.close();
     });
 
-    it('should invalidate cache when the cluster context changes', async () => {
+    it('should use independent caches per cluster context', async () => {
       const group = 'example.com';
       const resource = 'myresources';
 
@@ -1361,6 +1363,64 @@ describe('apiProxy', () => {
       cancel2();
       server1.close();
       server2.close();
+    });
+
+    it('should not mark endpoint failed on get 404 due to missing instance (preferred index)', async () => {
+      const group = 'example.com';
+      const resource = 'myresources';
+
+      nock(baseApiUrl)
+        .get(`/clusters/${clusterName}/apis/${group}/v1beta1/${resource}`)
+        .reply(200, {
+          kind: 'MyResourceList',
+          items: [],
+          metadata: { resourceVersion: '123' },
+        });
+
+      const server1 = new WS(`${wsUrl}clusters/${clusterName}/apis/${group}/v1beta1/${resource}`);
+      const client = apiProxy.apiFactory([group, 'v1beta1', resource], [group, 'v1', resource]);
+
+      const cancel1 = await client.list(cb, errCb, {}, clusterName);
+      await server1.connected;
+      expect(cb).toHaveBeenCalled();
+      cancel1();
+      server1.close();
+
+      const instanceName = 'missing-instance';
+      nock(baseApiUrl)
+        .get(`/clusters/${clusterName}/apis/${group}/v1beta1/${resource}/${instanceName}`)
+        .reply(404, {
+          message: 'not found',
+          code: 404,
+        });
+
+      const getCb = vi.fn();
+      const getErrCb = vi.fn();
+
+      const cancel2 = await client.get(instanceName, getCb, getErrCb, {}, clusterName);
+
+      await new Promise(resolve => setTimeout(resolve, 50));
+      cancel2();
+
+      expect(getErrCb).toHaveBeenCalled();
+
+      nock(baseApiUrl)
+        .get(`/clusters/${clusterName}/apis/${group}/v1beta1/${resource}`)
+        .reply(200, {
+          kind: 'MyResourceList',
+          items: [],
+          metadata: { resourceVersion: '124' },
+        });
+
+      const server3 = new WS(`${wsUrl}clusters/${clusterName}/apis/${group}/v1beta1/${resource}`);
+
+      const listCb2 = vi.fn();
+      const cancel3 = await client.list(listCb2, errCb, {}, clusterName);
+      await server3.connected;
+      expect(listCb2).toHaveBeenCalled();
+
+      cancel3();
+      server3.close();
     });
 
     it('should invalidate cache when writing to customresourcedefinitions', async () => {
