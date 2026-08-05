@@ -36,7 +36,7 @@ import (
 )
 
 const (
-	defaultNewConfigFileMode   os.FileMode = os.FileMode(0o644)
+	defaultNewConfigFileMode   os.FileMode = os.FileMode(0o600)
 	defaultNewConfigFolderMode os.FileMode = os.FileMode(0o770)
 )
 

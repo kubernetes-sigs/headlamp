@@ -396,7 +396,10 @@ func testUpdateRepo(t *testing.T, helmHandler *helm.Handler) {
 	}
 }
 
-func TestUpdateRepositoryPreservesAuth(t *testing.T) {
+func runAuthPreservationTest(t *testing.T,
+	updateAction func(t *testing.T, handler *helm.Handler, ts *httptest.Server),
+) {
+	t.Helper()
 	helmHandler := newIsolatedHelmHandler(t)
 
 	ts := newAuthRepoIndexServer(t)
@@ -406,7 +409,7 @@ func TestUpdateRepositoryPreservesAuth(t *testing.T) {
 	password := testPassword
 
 	addRepo := helm.AddUpdateRepoRequest{
-		Name:     "auth_update_repo",
+		Name:     "auth_preserve_repo",
 		URL:      ts.URL,
 		Username: &username,
 		Password: &password,
@@ -420,23 +423,12 @@ func TestUpdateRepositoryPreservesAuth(t *testing.T) {
 	helmHandler.AddRepo(rr, req)
 	require.Equal(t, http.StatusOK, rr.Code)
 
-	updateRepo := helm.AddUpdateRepoRequest{
-		Name: "auth_update_repo",
-		URL:  ts.URL,
-	}
-
-	updateReq, err := http.NewRequestWithContext(context.Background(), "PUT",
-		"/clusters/minikube/helm/repositories", mustJSONBody(t, updateRepo))
-	require.NoError(t, err)
-
-	rr = httptest.NewRecorder()
-	helmHandler.UpdateRepository(rr, updateReq)
-	assert.Equal(t, http.StatusOK, rr.Code)
+	updateAction(t, helmHandler, ts)
 
 	repoFile, err := repo.LoadFile(helmHandler.RepositoryConfig)
 	require.NoError(t, err)
 
-	updatedEntry := repoFile.Get("auth_update_repo")
+	updatedEntry := repoFile.Get("auth_preserve_repo")
 	require.NotNil(t, updatedEntry)
 
 	assert.Equal(t, testUsername, updatedEntry.Username)
@@ -562,6 +554,7 @@ func TestAddRepoRequestFieldsOverrideExisting(t *testing.T) {
 	require.NotNil(t, entry)
 	assert.Equal(t, testUsername, entry.Username)
 	assert.Equal(t, testPassword, entry.Password)
+
 }
 
 func TestCreateFileIfNotThere(t *testing.T) {
