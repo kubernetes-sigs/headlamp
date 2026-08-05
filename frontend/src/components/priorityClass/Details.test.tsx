@@ -72,12 +72,12 @@ describe('PriorityClassDetails', () => {
     );
 
     expect(byName['Value']).toBe(1000000);
-    expect(byName['Global Default']).toBe(true);
+    expect(byName['Global Default']).toBe('translation|Yes');
     expect(byName['Preemption Policy']).toBe('PreemptLowerPriority');
     expect(byName['Description']).toBe('Mission Critical apps.');
   });
 
-  it('falls back to False when globalDefault is unset', () => {
+  it('falls back to No when globalDefault is false or unset', () => {
     render(
       <TestContext routerMap={{ name: 'high-priority-apps' }}>
         <PriorityClassDetails />
@@ -85,8 +85,15 @@ describe('PriorityClassDetails', () => {
     );
 
     const props = mockDetailsGrid.mock.calls[0][0];
-    const extraInfo = props.extraInfo({ ...priorityClass, globalDefault: false });
-    const globalDefault = extraInfo.find((f: any) => f.name.includes('Global Default'));
-    expect(globalDefault.value).toBe('False');
+
+    const falseInfo = props.extraInfo({ ...priorityClass, globalDefault: false });
+    expect(falseInfo.find((f: any) => f.name.includes('Global Default')).value).toBe(
+      'translation|No'
+    );
+
+    const unsetInfo = props.extraInfo({ ...priorityClass, globalDefault: undefined });
+    expect(unsetInfo.find((f: any) => f.name.includes('Global Default')).value).toBe(
+      'translation|No'
+    );
   });
 });
