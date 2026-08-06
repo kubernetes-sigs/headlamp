@@ -33,6 +33,27 @@ import * as tar from 'tar';
 import zlib from 'zlib';
 import envPaths from './env-paths';
 
+let appConfigDirName = 'Headlamp';
+
+/**
+ * Sets the application name used for per-user storage directories.
+ *
+ * @param name - Runtime product name for the desktop application.
+ */
+export function setAppConfigDirName(name: string): void {
+  appConfigDirName = name;
+}
+
+/**
+ * Returns the base directory for application-managed user data.
+ *
+ * @returns The data directory when it exists, otherwise the config directory.
+ */
+function defaultAppDataDir(): string {
+  const paths = envPaths(appConfigDirName, { suffix: '' });
+  return fs.existsSync(paths.data) ? paths.data : paths.config;
+}
+
 // comment out for testing
 // function sleep(ms) {
 //   // console.log(ms)
@@ -1065,10 +1086,8 @@ function checkValidPluginFolder(folder: string): boolean {
  *
  * @returns {string} The path to the default plugins directory.
  */
-export function defaultPluginsDir() {
-  const paths = envPaths('Headlamp', { suffix: '' });
-  const configDir = fs.existsSync(paths.data) ? paths.data : paths.config;
-  return path.join(configDir, 'plugins');
+export function defaultPluginsDir(): string {
+  return path.join(defaultAppDataDir(), 'plugins');
 }
 
 /**
@@ -1079,10 +1098,21 @@ export function defaultPluginsDir() {
  *
  * @returns {string} The path to the default user-plugins directory.
  */
-export function defaultUserPluginsDir() {
-  const paths = envPaths('Headlamp', { suffix: '' });
-  const configDir = fs.existsSync(paths.data) ? paths.data : paths.config;
-  return path.join(configDir, 'user-plugins');
+export function defaultUserPluginsDir(): string {
+  return path.join(defaultAppDataDir(), 'user-plugins');
+}
+
+/**
+ * Returns the default directory for app-managed kubeconfig files.
+ * This matches the backend's platform defaults so existing managed clusters
+ * remain available when the desktop app starts passing an explicit directory.
+ *
+ * @returns The backend-compatible kubeconfigs directory for the application.
+ */
+export function defaultKubeConfigsDir(): string {
+  const paths = envPaths(appConfigDirName, { suffix: '' });
+  const configDir = process.platform === 'darwin' ? paths.data : paths.config;
+  return path.join(configDir, 'kubeconfigs');
 }
 
 /**

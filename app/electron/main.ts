@@ -47,11 +47,13 @@ import { filterUserOwnedPids } from './ownedProcesses';
 import {
   addToPath,
   ArtifactHubHeadlampPkg,
+  defaultKubeConfigsDir,
   defaultPluginsDir,
   defaultUserPluginsDir,
   getMatchingExtraFiles,
   getPluginBinDirectories,
   PluginManager,
+  setAppConfigDirName,
 } from './plugin-management';
 import {
   addRunCmdConsent,
@@ -73,6 +75,8 @@ import windowSize from './windowSize';
 if (process.env.APPIMAGE) {
   app.commandLine.appendSwitch('disable-setuid-sandbox');
 }
+
+setAppConfigDirName(app.getName());
 
 // On Linux, force the GTK 3 backend. Electron 36+ defaults to GTK 4, which
 // conflicts with GTK 2/3 symbols pulled into the process by IM modules and
@@ -856,6 +860,15 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   } catch (err) {
     // Directory doesn't exist or is not readable — ignore and continue.
   }
+
+  serverArgs = serverArgs.concat([
+    '--plugins-dir',
+    defaultPluginsDir(),
+    '--user-plugins-dir',
+    defaultUserPluginsDir(),
+    '--kubeconfig-dir',
+    defaultKubeConfigsDir(),
+  ]);
 
   serverArgs = serverArgs.concat(flags);
   console.log('arguments passed to backend server', serverArgs);
