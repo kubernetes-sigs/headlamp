@@ -161,6 +161,8 @@ export interface ResourceTableProps<RowItem> {
   errorMessage?: string | null;
   /** Display an errors */
   errors?: ApiError[] | null;
+  /** Whether the listed resource is namespaced, which decides how a forbidden list is explained */
+  namespacedResource?: boolean;
   /** State of the Table (page, rows per page) is reflected in the url */
   reflectInURL?: string | boolean;
 }
@@ -214,6 +216,7 @@ function TableFromResourceClass<KubeClass extends KubeObjectClass>(
   return (
     <ResourceTableContent
       errors={errors}
+      namespacedResource={resourceClass.isNamespaced}
       id={id || `headlamp-${resourceClass.pluralName}`}
       {...otherProps}
       data={throttledItems}
@@ -320,6 +323,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     enableRowActions = false,
     enableRowSelection = false,
     errors,
+    namespacedResource,
   } = props;
   const { t } = useTranslation(['glossary', 'translation']);
   const theme = useTheme();
@@ -693,7 +697,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
 
   return (
     <>
-      <ClusterGroupErrorMessage errors={errors} />
+      <ClusterGroupErrorMessage errors={errors} namespacedResource={namespacedResource} />
       <Table<RowItem>
         enableFullScreenToggle={false}
         enableFacetedValues={enableFacetedValues}

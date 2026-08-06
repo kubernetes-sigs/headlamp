@@ -18,9 +18,11 @@ import FormControlLabel from '@mui/material/FormControlLabel';
 import Grid from '@mui/material/Grid';
 import { Theme } from '@mui/material/styles';
 import Switch from '@mui/material/Switch';
+import { uniqBy } from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router';
+import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import Event from '../../lib/k8s/event';
 import Node from '../../lib/k8s/node';
 import Pod from '../../lib/k8s/pod';
@@ -36,6 +38,7 @@ import { PageGrid } from '../common/Resource';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { SectionBox } from '../common/SectionBox';
 import ShowHideLabel from '../common/ShowHideLabel';
+import TileChart from '../common/TileChart';
 import { LightTooltip } from '../common/Tooltip';
 import {
   CpuCircularChart,
@@ -47,39 +50,103 @@ import { ClusterGroupErrorMessage } from './ClusterGroupErrorMessage';
 
 const OVERVIEW_REFETCH_INTERVAL_MS = 60_000;
 
-export default function Overview() {
+/**
+ * Renders a chart, or a placeholder when its resources could not be listed at all. A list
+ * spanning several namespaces or clusters reports an error while still returning what the
+ * other requests found, so the chart stays as long as it has something to count. The reason
+ * is reported once for the whole section rather than in every chart it affects.
+ */
+function ChartSlot({
+  error,
+  hasItems,
+  title,
+  children,
+}: {
+  error?: ApiError | null;
+  hasItems?: boolean;
+  title: string;
+  children: React.ReactNode;
+}) {
   const { t } = useTranslation(['translation']);
+
+  if (error && !hasItems) {
+    return <TileChart title={title} legend={t('translation|Unavailable')} />;
+  }
+
+  return <>{children}</>;
+}
+
+export default function Overview() {
+  const { t } = useTranslation(['translation', 'glossary']);
+  const namespaces = useNamespaces();
+
   // The overview only needs periodic snapshots for aggregate charts. Avoid long-lived
   // watches here because large clusters can stream enough events to exhaust the tab.
-  const [pods] = Pod.useList({ refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS });
-  const [nodes] = Node.useList({ refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS });
+  const [pods, podsError] = Pod.useList({
+    namespace: namespaces,
+    refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS,
+  });
+  const [nodes, nodesError] = Node.useList({ refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS });
   const [nodeMetrics, metricsError] = Node.useMetrics();
   const chartProcessors = useTypedSelector(state => state.overviewCharts.processors);
 
-  const noPermissions = metricsError?.status === 403;
-  const noMetrics = metricsError !== null && !noPermissions;
+  const forbiddenMetrics = metricsError?.status === 403 ? metricsError : null;
+  const noMetrics = metricsError !== null && !forbiddenMetrics;
+
+  // A forbidden metrics response leaves the usage charts with nothing to sum, and summing
+  // nothing reads as 0 usage rather than as the missing permission it is.
+  const hasNodeUsage = !!nodes?.length && (!forbiddenMetrics || !!nodeMetrics?.length);
+
+  const chartErrors = React.useMemo(
+    () =>
+      uniqBy(
+        [podsError, nodesError, forbiddenMetrics].filter((error): error is ApiError => !!error),
+        error => error.status
+      ),
+    [podsError, nodesError, forbiddenMetrics]
+  );
 
   // Process the default charts through any registered processors
   const defaultCharts: OverviewChart[] = [
     {
       id: 'cpu',
       component: () => (
-        <CpuCircularChart items={nodes} itemsMetrics={nodeMetrics} noMetrics={noMetrics} />
+        <ChartSlot
+          error={nodesError ?? forbiddenMetrics}
+          hasItems={hasNodeUsage}
+          title={t('glossary|CPU')}
+        >
+          <CpuCircularChart items={nodes} itemsMetrics={nodeMetrics} noMetrics={noMetrics} />
+        </ChartSlot>
       ),
     },
     {
       id: 'memory',
       component: () => (
-        <MemoryCircularChart items={nodes} itemsMetrics={nodeMetrics} noMetrics={noMetrics} />
+        <ChartSlot
+          error={nodesError ?? forbiddenMetrics}
+          hasItems={hasNodeUsage}
+          title={t('glossary|Memory')}
+        >
+          <MemoryCircularChart items={nodes} itemsMetrics={nodeMetrics} noMetrics={noMetrics} />
+        </ChartSlot>
       ),
     },
     {
       id: 'pods',
-      component: () => <PodsStatusCircleChart items={pods} />,
+      component: () => (
+        <ChartSlot error={podsError} hasItems={!!pods?.length} title={t('glossary|Pods')}>
+          <PodsStatusCircleChart items={pods} />
+        </ChartSlot>
+      ),
     },
     {
       id: 'nodes',
-      component: () => <NodesStatusCircleChart items={nodes} />,
+      component: () => (
+        <ChartSlot error={nodesError} hasItems={!!nodes?.length} title={t('glossary|Nodes')}>
+          <NodesStatusCircleChart items={nodes} />
+        </ChartSlot>
+      ),
     },
   ];
   const charts = chartProcessors.reduce(
@@ -90,17 +157,17 @@ export default function Overview() {
   return (
     <PageGrid>
       <SectionBox title={t('translation|Overview')} py={2} mt={[4, 0, 0]}>
-        {noPermissions ? (
-          <ClusterGroupErrorMessage errors={[metricsError]} />
-        ) : (
-          <Grid container justifyContent="flex-start" alignItems="stretch" spacing={4}>
-            {charts.map(chart => (
-              <Grid key={chart.id} item xs sx={{ maxWidth: '300px' }}>
-                <chart.component />
-              </Grid>
-            ))}
-          </Grid>
-        )}
+        <ClusterGroupErrorMessage
+          errors={chartErrors}
+          namespacedResource={podsError?.status === 403}
+        />
+        <Grid container justifyContent="flex-start" alignItems="stretch" spacing={4}>
+          {charts.map(chart => (
+            <Grid key={chart.id} item xs sx={{ maxWidth: '300px' }}>
+              <chart.component />
+            </Grid>
+          ))}
+        </Grid>
       </SectionBox>
       <EventsSection />
     </PageGrid>

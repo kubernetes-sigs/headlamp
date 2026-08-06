@@ -39,6 +39,49 @@
                 class="MuiBox-root css-lpikod"
               >
                 <div
+                  class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorWarning MuiAlert-standardWarning MuiAlert-standard css-rme5zz-MuiPaper-root-MuiAlert-root"
+                  role="alert"
+                >
+                  <div
+                    class="MuiAlert-icon css-1ytlwq5-MuiAlert-icon"
+                  >
+                    <svg
+                      aria-hidden="true"
+                      class="MuiSvgIcon-root MuiSvgIcon-fontSizeInherit css-1vooibu-MuiSvgIcon-root"
+                      data-testid="ReportProblemOutlinedIcon"
+                      focusable="false"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        d="M12 5.99L19.53 19H4.47L12 5.99M12 2L1 21h22L12 2zm1 14h-2v2h2v-2zm0-6h-2v4h2v-4z"
+                      />
+                    </svg>
+                  </div>
+                  <div
+                    class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
+                  >
+                    <div
+                      class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom MuiAlertTitle-root css-1mny8mx-MuiTypography-root-MuiAlertTitle-root"
+                    >
+                      Failed to load resources
+                    </div>
+                  </div>
+                  <div
+                    class="MuiAlert-action css-ki1hdl-MuiAlert-action"
+                  >
+                    <button
+                      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textWarning MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorWarning MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textWarning MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorWarning MuiButton-disableElevation css-1s9cj53-MuiButtonBase-root-MuiButton-root"
+                      tabindex="0"
+                      type="button"
+                    >
+                      Show details
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                  </div>
+                </div>
+                <div
                   class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-4 css-13cu5dn-MuiGrid-root"
                 >
                   <div
@@ -297,101 +340,12 @@
                           <p
                             class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
                           >
-                            0 / 0 Requested
+                            Unavailable
                           </p>
                         </div>
                         <div
                           class="MuiBox-root css-0"
-                        >
-                          <div
-                            aria-busy="false"
-                            aria-live="polite"
-                            class="MuiBox-root css-2esbmj"
-                          >
-                            <div
-                              class="recharts-wrapper"
-                              style="position: relative; cursor: default; width: 112px; height: 112px; margin-left: auto; margin-right: auto;"
-                            >
-                              <svg
-                                class="recharts-surface"
-                                cx="70"
-                                cy="70"
-                                height="112"
-                                style="width: 100%; height: 100%;"
-                                viewBox="0 0 112 112"
-                                width="112"
-                              >
-                                <title />
-                                <desc />
-                                <defs>
-                                  <clippath
-                                    id="recharts-id"
-                                  >
-                                    <rect
-                                      height="102"
-                                      width="102"
-                                      x="5"
-                                      y="5"
-                                    />
-                                  </clippath>
-                                </defs>
-                                <g
-                                  class="recharts-layer recharts-pie"
-                                  tabindex="0"
-                                >
-                                  <g
-                                    class="recharts-layer recharts-pie-sector"
-                                    tabindex="-1"
-                                  />
-                                  <g
-                                    class="recharts-layer recharts-pie-sector"
-                                    tabindex="-1"
-                                  />
-                                  <g
-                                    class="recharts-layer recharts-pie-sector"
-                                    tabindex="-1"
-                                  >
-                                    <path
-                                      aria-label="0 %"
-                                      class="recharts-sector"
-                                      cx="61"
-                                      cy="61"
-                                      d="M 61,16.199999999999996
-    A 44.800000000000004,44.800000000000004,0,
-    1,1,
-    60.99921809249515,16.20000000682343
-  L 60.999410078712856,27.200000005148027
-            A 33.800000000000004,33.800000000000004,0,
-            1,0,
-            61,27.199999999999996 Z"
-                                      fill="#e0e0e0"
-                                      name="total"
-                                      role="img"
-                                      stroke="#e0e0e0"
-                                      tabindex="-1"
-                                    />
-                                  </g>
-                                  <text
-                                    class="recharts-text recharts-label"
-                                    fill="#808080"
-                                    offset="5"
-                                    style="font-size: 16.8px; fill: #000;"
-                                    text-anchor="middle"
-                                    x="61"
-                                    y="61"
-                                  >
-                                    <tspan
-                                      dy="0.355em"
-                                      x="61"
-                                    >
-                                      0 %
-                                    </tspan>
-                                  </text>
-                                </g>
-                              </svg>
-                            </div>
-                          </div>
-                        </div>
+                        />
                       </div>
                     </div>
                   </div>
