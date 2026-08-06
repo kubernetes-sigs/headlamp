@@ -22,7 +22,15 @@ export class HeadlampPage {
   constructor(private page: Page) {}
 
   async a11y() {
-    const accessibilityResults = await new AxeBuilder({ page: this.page }).analyze();
+    // Legacy mode runs axe.run() directly on this page instead of the default
+    // runPartial/finishRun flow, which needs to open a blank page via
+    // context.newPage(). Electron's CDP implementation does not support
+    // Target.createTarget, so that call fails with
+    // "Protocol error (Target.createTarget): Not supported" when this page
+    // belongs to an Electron BrowserWindow (PLAYWRIGHT_TEST_MODE=app).
+    const accessibilityResults = await new AxeBuilder({ page: this.page })
+      .setLegacyMode(true)
+      .analyze();
     const violations = accessibilityResults.violations.filter(
       v => v.impact === 'critical' || v.impact === 'serious'
     );
