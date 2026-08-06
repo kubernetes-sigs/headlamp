@@ -139,6 +139,36 @@ jobs:
           echo "Executing: $CMD"
           eval $CMD
 
+      - name: Resolve release tag
+        id: release_tag
+        shell: bash
+        run: |
+          # gh release download/upload identify releases by their git tag, but
+          # inputs.release_name is matched against the release *name* (see
+          # push-release-assets.js), which for this repo's releases differs from
+          # the tag (e.g. name "0.44.0" vs tag "v0.44.0"). Resolve the actual tag
+          # via the API so download/upload target the right release.
+          set -eo pipefail
+          tags=$(gh api --paginate "repos/${{ github.repository }}/releases" \
+            --jq '[.[] | select(.name == env.RELEASE_NAME) | .tag_name]')
+
+          count=$(echo "$tags" | jq 'length')
+          if [ "$count" -eq 0 ]; then
+            echo "::error::Could not find a release named '$RELEASE_NAME' to resolve its tag"
+            exit 1
+          fi
+          if [ "$count" -gt 1 ]; then
+            echo "::error::Found $count releases named '$RELEASE_NAME'; expected exactly one"
+            exit 1
+          fi
+
+          tag=$(echo "$tags" | jq -r '.[0]')
+          echo "Resolved release name '$RELEASE_NAME' to tag '$tag'"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+        env:
+          GITHUB_TOKEN: ${{ secrets.RELEASE_UPDATE_TOKEN }}
+          RELEASE_NAME: ${{ inputs.release_name }}
+
       - name: Create and sign checksums signature
         run: |
           # Wait a moment for the checksums.txt to be available
@@ -148,17 +178,18 @@ jobs:
           mkdir -p ./temp-checksums
 
           # Download the checksums.txt file that was just uploaded
-          gh release download ${{ inputs.release_name }} --pattern "checksums.txt" --dir ./temp-checksums --clobber
+          gh release download "$RELEASE_TAG" --pattern "checksums.txt" --dir ./temp-checksums --clobber
 
           # Create detached signature for checksums.txt
           gpg --batch --yes --passphrase-file "$CR_PASSPHRASE_FILE" --default-key "${{ secrets.GPG_SIGNING_KEY_NAME }}" --armor --detach-sign ./temp-checksums/checksums.txt
 
           # Upload the signature file
-          gh release upload ${{ inputs.release_name }} ./temp-checksums/checksums.txt.asc --clobber
+          gh release upload "$RELEASE_TAG" ./temp-checksums/checksums.txt.asc --clobber
 
           echo "Checksums signature created and uploaded successfully"
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_UPDATE_TOKEN }}
+          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
@@ -169,10 +200,11 @@ jobs:
             --bundle ./temp-checksums/checksums.txt.sigstore.json \
             ./temp-checksums/checksums.txt
 
-          gh release upload ${{ inputs.release_name }} \
+          gh release upload "$RELEASE_TAG" \
             ./temp-checksums/checksums.txt.sigstore.json \
             --clobber
 
           echo "Cosign bundle uploaded successfully"
         env:
           GITHUB_TOKEN: ${{ secrets.RELEASE_UPDATE_TOKEN }}
+          RELEASE_TAG: ${{ steps.release_tag.outputs.tag }}
