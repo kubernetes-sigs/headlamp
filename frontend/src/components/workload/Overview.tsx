@@ -64,6 +64,9 @@ export default function Overview() {
   const { t } = useTranslation('glossary');
 
   function getPods(item: Workload) {
+    if (item.kind === 'CronJob') {
+      return '-';
+    }
     return `${getReadyReplicas(item)}/${getTotalReplicas(item)}`;
   }
 
