@@ -14,13 +14,16 @@
  * limitations under the License.
  */
 
-import { act, render } from '@testing-library/react';
+import { ThemeProvider } from '@mui/material/styles';
+import { act, render, screen } from '@testing-library/react';
 import { createMemoryHistory } from 'history';
 import { SnackbarProvider } from 'notistack';
 import { Provider } from 'react-redux';
 import { Route, Router } from 'react-router-dom';
+import { createMuiTheme } from '../../lib/themes';
 import defaultStore from '../../redux/stores/store';
 import { TestContext } from '../../test';
+import NameValueTable from '../common/NameValueTable';
 
 const { mockActivityLaunch, mockDispatchHeadlampEvent } = vi.hoisted(() => ({
   mockActivityLaunch: vi.fn(),
@@ -45,14 +48,17 @@ vi.mock('../../redux/headlampEventSlice', async () => {
   };
 });
 let capturedOnResourceUpdate: ((item: any, error?: any) => void) | undefined;
+let capturedExtraInfo: ((item: any) => any[]) | undefined;
 
 vi.mock('../common/Resource', () => ({
   DetailsGrid: (props: any) => {
     capturedOnResourceUpdate = props.onResourceUpdate;
+    capturedExtraInfo = props.extraInfo;
     return <div data-testid="details-grid" />;
   },
   ConditionsSection: () => null,
   ContainersSection: () => null,
+  MetadataDictGrid: () => null,
   VolumeSection: () => null,
 }));
 
@@ -544,5 +550,72 @@ describe('PodLogViewer prettifyLogs persistence', () => {
       (args: any[]) => args[2]?.prettifyLogs === true
     );
     expect(anyWithPrettify).toBe(false);
+  });
+});
+
+describe('PodDetails IP rows', () => {
+  // Renders the extraInfo rows through the real NameValueTable so the hide
+  // filtering is exercised by the actual integration path, not reimplemented.
+  function renderIPTable(item: any) {
+    const rows = capturedExtraInfo?.(item) || [];
+    render(
+      <ThemeProvider theme={createMuiTheme({ name: 'light', base: 'light' })}>
+        <NameValueTable rows={rows} />
+      </ThemeProvider>
+    );
+  }
+
+  it('shows only singular IP rows when the pod has no IPs', () => {
+    const podWithoutIPs = {
+      ...mockPod,
+      status: {
+        ...mockPod.status,
+        hostIPs: [],
+        podIPs: [],
+      },
+    };
+
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'test-pod' }} urlPrefix="/c/main/pods">
+        <PodDetails name="test-pod" namespace="default" />
+      </TestContext>
+    );
+
+    act(() => {
+      capturedOnResourceUpdate?.(podWithoutIPs);
+    });
+
+    renderIPTable(podWithoutIPs);
+    expect(screen.getByText('Host IP')).toBeInTheDocument();
+    expect(screen.getByText('Pod IP')).toBeInTheDocument();
+    expect(screen.queryByText('Host IPs')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pod IPs')).not.toBeInTheDocument();
+  });
+
+  it('shows only plural IP rows when the pod has multiple IPs', () => {
+    const podWithIPs = {
+      ...mockPod,
+      status: {
+        ...mockPod.status,
+        hostIPs: [{ ip: '10.0.0.1' }],
+        podIPs: [{ ip: '10.0.0.2' }],
+      },
+    };
+
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'test-pod' }} urlPrefix="/c/main/pods">
+        <PodDetails name="test-pod" namespace="default" />
+      </TestContext>
+    );
+
+    act(() => {
+      capturedOnResourceUpdate?.(podWithIPs);
+    });
+
+    renderIPTable(podWithIPs);
+    expect(screen.getByText('Host IPs')).toBeInTheDocument();
+    expect(screen.getByText('Pod IPs')).toBeInTheDocument();
+    expect(screen.queryByText('Host IP')).not.toBeInTheDocument();
+    expect(screen.queryByText('Pod IP')).not.toBeInTheDocument();
   });
 });
