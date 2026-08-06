@@ -331,8 +331,8 @@ func serveWithNoCacheHeader(fs http.Handler) http.HandlerFunc {
 	}
 }
 
-func defaultHeadlampKubeConfigFile() (string, error) {
-	return cfg.DefaultHeadlampKubeConfigFile()
+func defaultHeadlampKubeConfigFile(kubeConfigDir string) (string, error) {
+	return cfg.DefaultKubeConfigFile(kubeConfigDir)
 }
 
 // addPluginRoutes adds plugin routes to a router.
@@ -714,7 +714,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	}
 
 	// load dynamic clusters
-	kubeConfigPersistenceFile, err := defaultHeadlampKubeConfigFile()
+	kubeConfigPersistenceFile, err := defaultHeadlampKubeConfigFile(config.KubeConfigDir)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "getting default kubeconfig persistence file")
 	} else {
@@ -2390,7 +2390,7 @@ func (c *HeadlampConfig) writeKubeConfig(kubeConfigBase64 string) error {
 		return fmt.Errorf("loading kubeconfig: %w", err)
 	}
 
-	kubeConfigPersistenceDir, err := cfg.MakeHeadlampKubeConfigsDir()
+	kubeConfigPersistenceDir, err := cfg.MakeKubeConfigsDir(c.KubeConfigDir)
 	if err != nil {
 		return fmt.Errorf("getting default kubeconfig persistence dir: %w", err)
 	}
@@ -2501,7 +2501,7 @@ func (c *HeadlampConfig) getKubeConfigPath(source string) (string, error) {
 		return c.KubeConfigPath, nil
 	}
 
-	return defaultHeadlampKubeConfigFile()
+	return defaultHeadlampKubeConfigFile(c.KubeConfigDir)
 }
 
 // Handler for renaming a stateless cluster.

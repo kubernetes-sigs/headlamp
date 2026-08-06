@@ -55,6 +55,7 @@ type Config struct {
 	WatchPluginsChanges    bool   `koanf:"watch-plugins-changes"`
 	Port                   uint   `koanf:"port"`
 	KubeConfigPath         string `koanf:"kubeconfig"`
+	KubeConfigDir          string `koanf:"kubeconfig-dir"`
 	SkippedKubeContexts    string `koanf:"skipped-kube-contexts"`
 	StaticDir              string `koanf:"html-static-dir"`
 	PluginsDir             string `koanf:"plugins-dir"`
@@ -472,6 +473,16 @@ func Parse(args []string) (*Config, error) {
 // MakeHeadlampKubeConfigsDir returns the default directory to store kubeconfig
 // files of clusters that are loaded in Headlamp.
 func MakeHeadlampKubeConfigsDir() (string, error) {
+	return MakeKubeConfigsDir("")
+}
+
+// MakeKubeConfigsDir returns the configured directory for persisted kubeconfigs.
+// When kubeConfigDir is empty, it uses Headlamp's platform-specific default.
+func MakeKubeConfigsDir(kubeConfigDir string) (string, error) {
+	if kubeConfigDir != "" {
+		return makeConfiguredKubeConfigsDir(kubeConfigDir)
+	}
+
 	userConfigDir, err := os.UserConfigDir()
 	if err == nil {
 		kubeConfigDir := filepath.Join(userConfigDir, "Headlamp", "kubeconfigs")
@@ -499,8 +510,23 @@ func MakeHeadlampKubeConfigsDir() (string, error) {
 	return "", fmt.Errorf("failed to get default kubeconfig persistence directory: %w", err)
 }
 
+// makeConfiguredKubeConfigsDir creates and returns the configured kubeconfig directory.
+func makeConfiguredKubeConfigsDir(kubeConfigDir string) (string, error) {
+	if err := os.MkdirAll(kubeConfigDir, fs.FileMode(0o755)); err != nil {
+		return "", fmt.Errorf("creating kubeconfig persistence directory: %w", err)
+	}
+
+	return kubeConfigDir, nil
+}
+
+// DefaultHeadlampKubeConfigFile returns Headlamp's default persisted kubeconfig file.
 func DefaultHeadlampKubeConfigFile() (string, error) {
-	kubeConfigDir, err := MakeHeadlampKubeConfigsDir()
+	return DefaultKubeConfigFile("")
+}
+
+// DefaultKubeConfigFile returns the persisted kubeconfig file in kubeConfigDir.
+func DefaultKubeConfigFile(kubeConfigDir string) (string, error) {
+	kubeConfigDir, err := MakeKubeConfigsDir(kubeConfigDir)
 	if err != nil {
 		return "", err
 	}
@@ -558,6 +584,7 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Bool("watch-plugins-changes", true, "Reloads plugins when there are changes to them or their directory")
 
 	f.String("kubeconfig", "", "Absolute path to the kubeconfig file")
+	f.String("kubeconfig-dir", "", "Directory for Headlamp-managed kubeconfig files")
 	f.String("skipped-kube-contexts", "", "Context name which should be ignored in kubeconfig file")
 	f.String("html-static-dir", "", "Static HTML directory to serve")
 	f.String("plugins-dir", defaultPluginDir(), "Specify the plugins directory to build the backend with")

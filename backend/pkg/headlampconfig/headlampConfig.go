@@ -59,6 +59,7 @@ type HeadlampCFG struct {
 	WatchPluginsChanges    bool
 	Port                   uint
 	KubeConfigPath         string
+	KubeConfigDir          string
 	SkippedKubeContexts    string
 	StaticDir              string
 	PluginDir              string

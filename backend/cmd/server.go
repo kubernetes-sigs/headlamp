@@ -84,6 +84,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		UseInCluster:           conf.InCluster,
 		InClusterContextName:   conf.InClusterContextName,
 		KubeConfigPath:         conf.KubeConfigPath,
+		KubeConfigDir:          conf.KubeConfigDir,
 		SkippedKubeContexts:    conf.SkippedKubeContexts,
 		ListenAddr:             conf.ListenAddr,
 		CacheEnabled:           conf.CacheEnabled,
