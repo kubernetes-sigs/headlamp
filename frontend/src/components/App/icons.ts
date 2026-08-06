@@ -578,16 +578,24 @@ export function getOfflineIcon(name: string, fallbackName: string = 'mdi:help-ci
   if (iconExists(iconName)) {
     return iconName;
   }
-  return fallbackName;
+  return fallbackName.startsWith('mdi:') ? fallbackName : `mdi:${fallbackName}`;
 }
+
+let isOffline = false;
+let originalProvider: any = null;
 
 /**
  * Configure Iconify API provider options for air-gapped / offline operation.
  * When disableRemote is true, prevents Iconify from attempting outbound CDN fetches.
  */
 export function configureOfflineIconProvider(disableRemote: boolean = false) {
-  if (disableRemote) {
+  if (disableRemote && !isOffline) {
+    originalProvider = { resources: ['https://api.iconify.design'] };
     addAPIProvider('', { resources: [] });
+    isOffline = true;
+  } else if (!disableRemote && isOffline) {
+    addAPIProvider('', originalProvider || { resources: ['https://api.iconify.design'] });
+    isOffline = false;
   }
 }
 

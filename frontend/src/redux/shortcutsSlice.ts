@@ -167,7 +167,7 @@ export const shortcutsSlice = createSlice({
       state.shortcuts[config.id] = {
         ...config,
         key,
-        category: config.category || 'plugin',
+        category: 'plugin',
       };
     },
     deregisterShortcut(state, action: PayloadAction<string>) {
@@ -177,6 +177,19 @@ export const shortcutsSlice = createSlice({
       }
       if (state.shortcuts[id]) {
         delete state.shortcuts[id];
+
+        try {
+          const stored = localStorage.getItem('keyboardShortcuts');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            if (parsed[id]) {
+              delete parsed[id];
+              localStorage.setItem('keyboardShortcuts', JSON.stringify(parsed));
+            }
+          }
+        } catch (e) {
+          console.error('Failed to remove keyboard shortcut override from localStorage:', e);
+        }
       }
     },
   },

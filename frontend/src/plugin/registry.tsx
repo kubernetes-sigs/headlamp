@@ -1330,6 +1330,7 @@ export function registerResourceRelationProvider(relation: Relation) {
     return;
   }
   store.dispatch(graphViewSlice.actions.addRelation(relation));
+}
 
 /**
  * Register a custom keyboard shortcut.
@@ -1347,7 +1348,6 @@ export function registerShortcut(config: PluginShortcutConfig) {
  */
 export function deregisterShortcut(id: string) {
   store.dispatch(deregisterShortcutAction(id));
-
 }
 
 export {
