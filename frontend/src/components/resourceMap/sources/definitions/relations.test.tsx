@@ -241,6 +241,7 @@ describe('useGetAllRelations', () => {
     }
     const customResourceDefinition = {
       makeCRClass: () => CustomResource,
+      makeCRClassOrNull: () => CustomResource,
     } as unknown as CRD;
     vi.spyOn(CRD, 'useList').mockImplementation(
       () => ({ items: crds } as ReturnType<typeof CRD.useList>)
