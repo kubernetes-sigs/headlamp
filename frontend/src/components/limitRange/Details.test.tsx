@@ -41,7 +41,8 @@ vi.mock('../../lib/k8s/limitRange', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, options?: Record<string, string>) =>
+      options ? key.replace(/{{\s*(\w+)\s*}}/g, (_, name) => options[name] ?? '') : key,
   }),
 }));
 
@@ -110,7 +111,7 @@ describe('LimitRangeDetails', () => {
     const extraInfo = props.extraInfo(fakeLimitRange);
 
     expect(extraInfo).toHaveLength(1);
-    expect(extraInfo[0].name).toContain('Limits');
+    expect(extraInfo[0].name).toBe('translation|Container Limits');
     expect(extraInfo[0].value).toBeDefined();
   });
 
@@ -137,6 +138,8 @@ describe('LimitRangeDetails', () => {
     const extraInfo = props.extraInfo(fakeLimitRange);
 
     expect(extraInfo).toHaveLength(2);
+    expect(extraInfo[0].name).toBe('translation|Container Limits');
+    expect(extraInfo[1].name).toBe('translation|Pod Limits');
 
     render(<>{extraInfo[0].value}</>);
     render(<>{extraInfo[1].value}</>);
