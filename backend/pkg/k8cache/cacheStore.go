@@ -344,9 +344,16 @@ func WasResponseStored(rcw *ResponseCapture, url *url.URL) bool {
 		return false
 	}
 
-	body := rcw.Body.String()
+	capturedHeaders := rcw.Header()
+	encoding := capturedHeaders.Get("Content-Encoding")
+	bodyBytes := rcw.Body.Bytes()
 
-	return !strings.Contains(body, "Failure")
+	dcmpBody, err := GetResponseBody(bodyBytes, encoding)
+	if err != nil {
+		return false
+	}
+
+	return !strings.Contains(dcmpBody, "Failure")
 }
 
 // redactContextKey returns a redacted version of the context key to avoid leaking PII/sensitive info in logs.
