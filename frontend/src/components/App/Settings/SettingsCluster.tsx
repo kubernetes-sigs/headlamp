@@ -32,6 +32,7 @@ import { isElectron } from '../../../helpers/isElectron';
 import { useCluster, useClustersConf } from '../../../lib/k8s';
 import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
 import { setConfig } from '../../../redux/configSlice';
+import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import ConfirmButton from '../../common/ConfirmButton';
 import Empty from '../../common/EmptyContent';
 import Link from '../../common/Link';
@@ -68,6 +69,14 @@ export default function SettingsCluster() {
   const dispatch = useDispatch();
   const location = useLocation();
   const { enqueueSnackbar } = useSnackbar();
+  const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.CLUSTER_SETTINGS_VIEW);
+
+  React.useEffect(() => {
+    if (!cluster) {
+      return;
+    }
+    dispatchHeadlampEvent({ cluster });
+  }, [cluster]);
 
   const removeCluster = () => {
     deleteCluster(cluster || '')
