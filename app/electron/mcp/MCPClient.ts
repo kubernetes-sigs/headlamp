@@ -21,6 +21,7 @@ import {
   hasClusterDependentServers,
   loadMCPSettings,
   makeMcpServersFromSettings,
+  mcpPermissionsCenter,
   MCPSettings,
   saveMCPSettings,
   showSettingsChangeDialog,
@@ -456,6 +457,25 @@ export default class MCPClient {
     }
   }
 
+  private async mcpGetPermissions() {
+    try {
+      const currentSettings = loadMCPSettings(this.settingsPath);
+      const toolsConfig = this.mcpToolState?.getConfig() || {};
+
+      return {
+        success: true,
+        permissions: mcpPermissionsCenter(currentSettings, toolsConfig),
+      };
+    } catch (error) {
+      console.error('Error getting MCP permissions:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error',
+        permissions: [],
+      };
+    }
+  }
+
   private async mcpUpdateToolsConfig(toolsConfig: MCPToolsConfig) {
     console.log('Requested MCP tools configuration update:', toolsConfig);
     try {
@@ -551,6 +571,7 @@ export default class MCPClient {
     );
     ipcMain?.handle('mcp-get-config', async () => this.mcpGetConfig());
     ipcMain?.handle('mcp-get-tools-config', async () => this.mcpGetToolsConfig());
+    ipcMain?.handle('mcp-get-permissions', async () => this.mcpGetPermissions());
     ipcMain?.handle('mcp-update-tools-config', async (event, toolsConfig: MCPToolsConfig) =>
       this.mcpUpdateToolsConfig(toolsConfig)
     );
