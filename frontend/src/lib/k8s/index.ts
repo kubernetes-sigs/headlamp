@@ -61,6 +61,8 @@ import Service from './service';
 import ServiceAccount from './serviceAccount';
 import StatefulSet from './statefulSet';
 import StorageClass from './storageClass';
+import ValidatingAdmissionPolicy from './validatingAdmissionPolicy';
+import ValidatingAdmissionPolicyBinding from './validatingAdmissionPolicyBinding';
 import VolumeAttributesClass from './volumeAttributesClass';
 
 export const ResourceClasses = {
@@ -100,6 +102,8 @@ export const ResourceClasses = {
   ServiceAccount,
   StatefulSet,
   StorageClass,
+  ValidatingAdmissionPolicy,
+  ValidatingAdmissionPolicyBinding,
   VolumeAttributesClass,
   Gateway,
   GatewayClass,
@@ -411,4 +415,6 @@ export * as service from './service';
 export * as serviceAccount from './serviceAccount';
 export * as statefulSet from './statefulSet';
 export * as storageClass from './storageClass';
+export * as validatingAdmissionPolicy from './validatingAdmissionPolicy';
+export * as validatingAdmissionPolicyBinding from './validatingAdmissionPolicyBinding';
 export * as volumeAttributesClass from './volumeAttributesClass';

@@ -137,6 +137,8 @@ const kindGroups = {
     'LimitRange',
     'MutatingWebhookConfiguration',
     'ValidatingWebhookConfiguration',
+    'ValidatingAdmissionPolicy',
+    'ValidatingAdmissionPolicyBinding',
   ]),
 } as const;
 
