@@ -15,33 +15,42 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { queryClient } from './queryClient';
-
-function retryQuery(failureCount: number, error: unknown): boolean {
-  const retry = queryClient.getDefaultOptions().queries?.retry;
-  expect(retry).toBeTypeOf('function');
-  return (retry as (failureCount: number, error: unknown) => boolean)(failureCount, error);
-}
+import { queryClient, shouldRetryQuery } from './queryClient';
 
 describe('queryClient', () => {
   it('keeps the existing query defaults', () => {
     expect(queryClient.getDefaultOptions().queries).toMatchObject({
       staleTime: 3 * 60_000,
       refetchOnWindowFocus: false,
+      retry: shouldRetryQuery,
     });
   });
+});
 
-  it.each([400, 401, 403, 404])('does not retry HTTP %s responses', status => {
-    expect(retryQuery(0, { status })).toBe(false);
+describe('shouldRetryQuery', () => {
+  it.each([400, 401, 403, 404])('does not immediately retry HTTP %s responses', status => {
+    expect(shouldRetryQuery(0, { status })).toBe(false);
   });
 
-  it('keeps the three-attempt limit for server errors', () => {
-    expect(retryQuery(2, { status: 500 })).toBe(true);
-    expect(retryQuery(3, { status: 500 })).toBe(false);
+  it.each([408, 429, 500])('retries transient HTTP %s responses up to three times', status => {
+    expect(shouldRetryQuery(2, { status })).toBe(true);
+    expect(shouldRetryQuery(3, { status })).toBe(false);
   });
 
-  it('keeps the three-attempt limit for network errors', () => {
-    expect(retryQuery(2, new Error('network error'))).toBe(true);
-    expect(retryQuery(3, new Error('network error'))).toBe(false);
+  it.each([
+    null,
+    'network error',
+    new Error('network error'),
+    { message: 'network error' },
+    { status: '403' },
+    { status: Number.NaN },
+  ])('retries errors without a numeric HTTP status up to three times', error => {
+    expect(shouldRetryQuery(2, error)).toBe(true);
+    expect(shouldRetryQuery(3, error)).toBe(false);
+  });
+
+  it('retries responses outside the permanent client-error range', () => {
+    expect(shouldRetryQuery(2, { status: 399 })).toBe(true);
+    expect(shouldRetryQuery(2, { status: undefined })).toBe(true);
   });
 });
