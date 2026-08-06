@@ -37,7 +37,7 @@ export default function ValidatingAdmissionPolicyList() {
           id: 'failurePolicy',
           label: t('Failure Policy'),
           gridTemplate: 'min-content',
-          getValue: policy => policy.spec?.failurePolicy || '',
+          getValue: policy => policy.spec?.failurePolicy || 'Fail',
         },
         'labels',
         'age',

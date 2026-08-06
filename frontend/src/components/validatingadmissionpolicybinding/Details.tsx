@@ -47,6 +47,7 @@ export default function ValidatingAdmissionPolicyBindingDetails(props: {
               <Link
                 routeName="validatingadmissionpolicy"
                 params={{ name: item.spec?.policyName || '' }}
+                activeCluster={item.cluster}
               >
                 {item.spec?.policyName}
               </Link>
@@ -112,6 +113,10 @@ export default function ValidatingAdmissionPolicyBindingDetails(props: {
                                 getter: rule => rule.operations?.join(', '),
                               },
                               {
+                                label: t('Resource Names'),
+                                getter: rule => rule.resourceNames?.join(', '),
+                              },
+                              {
                                 label: t('Resources'),
                                 getter: rule => rule.resources?.join(', '),
                               },
@@ -142,6 +147,10 @@ export default function ValidatingAdmissionPolicyBindingDetails(props: {
                                 getter: rule => rule.operations?.join(', '),
                               },
                               {
+                                label: t('Resource Names'),
+                                getter: rule => rule.resourceNames?.join(', '),
+                              },
+                              {
                                 label: t('Resources'),
                                 getter: rule => rule.resources?.join(', '),
                               },
@@ -150,6 +159,44 @@ export default function ValidatingAdmissionPolicyBindingDetails(props: {
                                 getter: rule => rule.scope,
                               },
                             ]}
+                          />
+                        ),
+                      },
+                    ]}
+                  />
+                </SectionBox>
+              );
+            },
+          },
+          {
+            id: 'validatingadmissionpolicybinding-paramref',
+            section: () => {
+              if (!item.spec?.paramRef) {
+                return <></>;
+              }
+              const paramRef = item.spec.paramRef;
+              return (
+                <SectionBox title={t('Parameter Reference')}>
+                  <NameValueTable
+                    rows={[
+                      {
+                        name: t('Name'),
+                        value: paramRef.name,
+                      },
+                      {
+                        name: t('Namespace'),
+                        value: paramRef.namespace,
+                      },
+                      {
+                        name: t('Parameter Not Found Action'),
+                        value: paramRef.parameterNotFoundAction,
+                      },
+                      {
+                        name: t('Selector'),
+                        value: (
+                          <MatchExpressions
+                            matchLabels={paramRef.selector?.matchLabels}
+                            matchExpressions={paramRef.selector?.matchExpressions}
                           />
                         ),
                       },

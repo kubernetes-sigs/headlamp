@@ -41,7 +41,7 @@ export default function ValidatingAdmissionPolicyDetails(props: {
         item && [
           {
             name: t('Failure Policy'),
-            value: item.spec?.failurePolicy,
+            value: item.spec?.failurePolicy || 'Fail',
           },
         ]
       }
@@ -99,6 +99,10 @@ export default function ValidatingAdmissionPolicyDetails(props: {
                                 getter: rule => rule.operations?.join(', '),
                               },
                               {
+                                label: t('Resource Names'),
+                                getter: rule => rule.resourceNames?.join(', '),
+                              },
+                              {
                                 label: t('Resources'),
                                 getter: rule => rule.resources?.join(', '),
                               },
@@ -127,6 +131,10 @@ export default function ValidatingAdmissionPolicyDetails(props: {
                               {
                                 label: t('Operations'),
                                 getter: rule => rule.operations?.join(', '),
+                              },
+                              {
+                                label: t('Resource Names'),
+                                getter: rule => rule.resourceNames?.join(', '),
                               },
                               {
                                 label: t('Resources'),
@@ -214,6 +222,10 @@ export default function ValidatingAdmissionPolicyDetails(props: {
                       {
                         label: t('Message'),
                         getter: validation => validation.message,
+                      },
+                      {
+                        label: t('Message Expression'),
+                        getter: validation => validation.messageExpression,
                       },
                       {
                         label: t('Reason'),

@@ -30,6 +30,7 @@ export interface KubeResourceRule {
   apiGroups: string[];
   apiVersions: string[];
   operations: string[];
+  resourceNames?: string[];
   resources: string[];
   scope?: string;
 }
