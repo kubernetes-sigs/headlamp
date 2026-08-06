@@ -13,11 +13,16 @@
 
 package k8cache
 
+import (
+	"container/list"
+)
+
 // ResetForTesting clears package-global k8cache state between integration tests.
 func ResetForTesting() {
 	mu.Lock()
 
-	clientsetCache = make(map[string]*CachedClientSet)
+	clientsetCache = make(map[string]*list.Element)
+	clientsetLRUList = list.New()
 	blockedClientsetPrefixes = make(map[string]blockedPrefixEntry)
 	inFlight = make(map[string]*inFlightEntry)
 
