@@ -88,27 +88,15 @@ of exposing the Service will do, as long as `HEADLAMP_TEST_URL` points at it.
 (`playwright.config.ts`), so an unset variable shows up as connection errors
 rather than as an obvious configuration problem.
 
-### Kubeconfig with certificates on disk
+### Kubeconfig certificate handling
 
-`dynamicCluster.spec.ts` reads your kubeconfig with `kubectl config view`, which
-redacts embedded `certificate-authority-data` and the client certificate fields,
-and then reads the referenced files from disk. If those fields are embedded
-rather than file paths, six tests in that file fail with `ENOENT`.
-
-CI works around this by rewriting the kubeconfig so the certificates live in
-files. If you hit those failures, do the same, and note that the paths must be
-absolute, because the test resolves them relative to its own working directory:
-
-```bash
-mkdir -p ~/headlamp-e2e-certs
-kubectl config view --raw --minify --context=test -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 --decode > ~/headlamp-e2e-certs/ca.crt
-kubectl config set-cluster kind-test --certificate-authority="$HOME/headlamp-e2e-certs/ca.crt" --embed-certs=false
-kubectl config unset clusters.kind-test.certificate-authority-data
-```
-
-Do the same for the `client-certificate-data` and `client-key-data` fields on
-the user entry. To update the second cluster, use `--context=test2` and the
-`kind-test2` cluster entry.
+`dynamicCluster.spec.ts` reads your kubeconfig with
+`kubectl config view --minify --raw --flatten`, which embeds the certificate
+data directly in the output and includes only the current context, so
+credentials for unrelated contexts stay out of the tests. Embedded
+`certificate-authority-data`/client certificate fields and file-based
+certificates (absolute or kubeconfig-relative paths) all work as-is, so no
+kubeconfig rewriting is needed.
 
 ### Additional suites
 
