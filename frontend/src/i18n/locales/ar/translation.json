@@ -755,7 +755,7 @@
   "Lease Duration Seconds": "مدة التأجير بالثواني",
   "Renew Time": "وقت التجديد",
   "Holder": "المالك",
-  "Container Limits": "حدود الحاوية",
+  "{{ type }} Limits": "",
   "Default Request": "الطلب الافتراضي",
   "Max": "الحد الأقصى",
   "Min": "الحد الأدنى",
