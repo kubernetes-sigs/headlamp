@@ -728,6 +728,19 @@ describe('adjustSourceMapOffsetForFunction', () => {
     }
   );
 
+  test('should return source unchanged when the source map is not valid base64', () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const marker = ['//# source', 'MappingURL='].join('');
+    const jsSource = `${marker}data:application/json;charset=utf-8;base64,%%%`;
+
+    expect(adjustSourceMapOffsetForFunction(jsSource)).toBe(jsSource);
+    expect(consoleError).toHaveBeenCalledWith(
+      'Failed to adjust source map offset',
+      expect.anything()
+    );
+    consoleError.mockRestore();
+  });
+
   test('should return source unchanged when the source map cannot be parsed', () => {
     const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
     const marker = ['//# source', 'MappingURL='].join('');
