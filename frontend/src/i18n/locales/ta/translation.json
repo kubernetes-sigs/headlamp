@@ -254,6 +254,7 @@
   "{{count}} clusters_other": "",
   "Current//context:cluster": "தற்போதைய",
   "Choose cluster": "க்ளஸ்டர் தேர்ந்தெடுக்கவும்",
+  "Headlamp is requesting resources across the whole cluster. If you only have access to some namespaces, list them under Allowed namespaces in the cluster settings.": "",
   "Failed to load resources": "ரிசோர்ஸ்களை ஏற்றுவதில் தோல்வி",
   "You don't have permissions to view this resource": "இந்த ரிசோர்ஸைப் பார்க்க உங்களுக்கு அனுமதிகள் இல்லை",
   "Resource not found": "ரிசோர்ஸ் கிடைக்கவில்லை",
