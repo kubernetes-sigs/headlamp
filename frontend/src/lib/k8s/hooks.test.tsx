@@ -61,7 +61,7 @@ describe('KubeObject hooks', () => {
   describe('useKubeApiGet', () => {
     it('calls apiGet on the provided class', () => {
       const onGet = vi.fn();
-      renderHook(() => useKubeApiGet(MockKubeObject as any, 'test-name', 'test-ns', onGet));
+      renderHook(() => useKubeApiGet(MockKubeObject as any, onGet, 'test-name', 'test-ns'));
       expect(mockApiGet).toHaveBeenCalled();
     });
   });
