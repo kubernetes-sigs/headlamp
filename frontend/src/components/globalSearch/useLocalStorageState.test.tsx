@@ -263,4 +263,59 @@ describe('useLocalStorageState', () => {
       expect(JSON.parse(localStorage.getItem(secondKey)!)).toBe('updated');
     });
   });
+
+  describe('update', () => {
+    it('propagates updates via useLocalStorageState.update across hook instances', () => {
+      const { result: a } = renderHook(() => useLocalStorageState(storageKey, 0));
+      const { result: b } = renderHook(() => useLocalStorageState(storageKey, 0));
+
+      act(() => {
+        useLocalStorageState.update(storageKey, 42);
+      });
+
+      // Both hook instances must reflect the new value.
+      expect(a.current[0]).toBe(42);
+      expect(b.current[0]).toBe(42);
+      expect(JSON.parse(localStorage.getItem(storageKey)!)).toBe(42);
+    });
+
+    it('persists the value to localStorage', () => {
+      act(() => {
+        useLocalStorageState.update(storageKey, 'hello');
+      });
+
+      expect(JSON.parse(localStorage.getItem(storageKey)!)).toBe('hello');
+    });
+
+    it('does not notify listeners if update fails to persist', () => {
+      const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+        throw new Error('Storage write disabled');
+      });
+      const { result } = renderHook(() => useLocalStorageState(storageKey, 0));
+
+      act(() => {
+        useLocalStorageState.update(storageKey, 42);
+      });
+
+      expect(result.current[0]).toBe(0);
+      expect(consoleSpy).toHaveBeenCalled();
+    });
+
+    it('does not throw when update() is called after unmount', () => {
+      const { result, unmount } = renderHook(() => useLocalStorageState(storageKey, 0));
+
+      unmount();
+
+      // After unmount, update() should not throw even though there are no listeners.
+      expect(() => {
+        act(() => {
+          useLocalStorageState.update(storageKey, 99);
+        });
+      }).not.toThrow();
+
+      // The unmounted hook's last known value should be unchanged.
+      expect(result.current[0]).toBe(0);
+    });
+  });
 });
