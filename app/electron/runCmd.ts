@@ -156,7 +156,13 @@ export function addRunCmdConsent(pluginInfo: { name: string }): void {
   const pluginIsAiAssistant =
     pluginInfo.name === 'headlamp_ai-assistant' ||
     pluginInfo.name === 'headlamp_ai-assistantprerelease' ||
-    (process.env.NODE_ENV === 'development' && pluginInfo.name === 'ai-assistant');
+    pluginInfo.name === 'headlamp_ai_assistant' ||
+    pluginInfo.name === 'headlamp_ai_assistantprerelease' ||
+    (process.env.NODE_ENV === 'development' &&
+      (pluginInfo.name === 'ai-assistant' ||
+        pluginInfo.name === 'ai_assistant' ||
+        pluginInfo.name === 'ai-assistantprerelease' ||
+        pluginInfo.name === 'ai_assistantprerelease'));
   if (pluginIsAiAssistant) {
     commands = COMMANDS_WITH_CONSENT.headlamp_ai_assistant;
   }
@@ -189,7 +195,9 @@ export function removeRunCmdConsent(pluginName: string): void {
   }
   if (
     pluginName === '@headlamp-k8s/ai-assistant' ||
-    pluginName === '@headlamp-k8s/ai-assistantprerelease'
+    pluginName === '@headlamp-k8s/ai-assistantprerelease' ||
+    pluginName === '@headlamp-k8s/ai_assistant' ||
+    pluginName === '@headlamp-k8s/ai_assistantprerelease'
   ) {
     commands = COMMANDS_WITH_CONSENT.headlamp_ai_assistant;
   }

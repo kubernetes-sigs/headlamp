@@ -207,6 +207,12 @@ export function identifyPackages(
       'plugins/headlamp_ai-assistantprerelease',
       'user-plugins/headlamp_ai-assistantprerelease',
       'static-plugins/headlamp_ai-assistantprerelease',
+      'plugins/headlamp_ai_assistant',
+      'user-plugins/headlamp_ai_assistant',
+      'static-plugins/headlamp_ai_assistant',
+      'plugins/headlamp_ai_assistantprerelease',
+      'user-plugins/headlamp_ai_assistantprerelease',
+      'static-plugins/headlamp_ai_assistantprerelease',
     ],
   };
 
@@ -215,7 +221,9 @@ export function identifyPackages(
       'plugins/minikube';
     pluginPaths['@headlamp-k8s/ai-assistant'].push(
       'plugins/ai-assistant',
-      'plugins/ai-assistantprerelease'
+      'plugins/ai-assistantprerelease',
+      'plugins/ai_assistant',
+      'plugins/ai_assistantprerelease'
     );
   }
   const pluginPackageNames: Record<string, string[]> = {
@@ -223,6 +231,8 @@ export function identifyPackages(
     '@headlamp-k8s/ai-assistant': [
       '@headlamp-k8s/ai-assistant',
       '@headlamp-k8s/ai-assistantprerelease',
+      '@headlamp-k8s/ai_assistant',
+      '@headlamp-k8s/ai_assistantprerelease',
     ],
   };
   const isPackage: Record<string, boolean> = {};

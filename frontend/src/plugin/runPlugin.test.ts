@@ -542,4 +542,27 @@ describe('identifyPackages', () => {
     );
     expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
   });
+
+  test('should identify ai-assistant package with underscore folder name variant in production mode', () => {
+    const result = identifyPackages(
+      'plugins/headlamp_ai_assistant',
+      '@headlamp-k8s/ai_assistant',
+      false
+    );
+    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+  });
+
+  test('should identify ai-assistant package with underscore prerelease folder name variant in production mode', () => {
+    const result = identifyPackages(
+      'plugins/headlamp_ai_assistantprerelease',
+      '@headlamp-k8s/ai_assistantprerelease',
+      false
+    );
+    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+  });
+
+  test('should identify ai-assistant package with underscore dev path variant in development mode', () => {
+    const result = identifyPackages('plugins/ai_assistant', '@headlamp-k8s/ai_assistant', true);
+    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+  });
 });

@@ -51,9 +51,11 @@ vi.mock('./main', () => ({
 }));
 
 import {
+  addRunCmdConsent,
   checkPermissionSecret,
   environmentOverrides,
   handleRunCommand,
+  removeRunCmdConsent,
   validateCommandData,
 } from './runCmd';
 
@@ -423,5 +425,38 @@ describe('runScript', () => {
 
     expect(consoleErrorMock).toHaveBeenCalledTimes(1);
     expect(exitMock).toHaveBeenCalledWith(1);
+  });
+});
+
+describe('addRunCmdConsent and removeRunCmdConsent', () => {
+  it('adds consent for ai-assistant plugin with underscore and hyphen variants', async () => {
+    const { saveSettings } = await import('./settings');
+    const saveSettingsMock = saveSettings as Mock;
+
+    addRunCmdConsent({ name: 'headlamp_ai_assistant' });
+    expect(saveSettingsMock).toHaveBeenCalledWith(
+      '/fake/settings.json',
+      expect.objectContaining({
+        confirmedCommands: expect.objectContaining({
+          'gh auth': true,
+          'az account': true,
+          'az cognitiveservices': true,
+        }),
+      })
+    );
+
+    addRunCmdConsent({ name: 'headlamp_ai_assistantprerelease' });
+    expect(saveSettingsMock).toHaveBeenCalled();
+  });
+
+  it('removes consent for ai-assistant plugin with underscore and hyphen variants', async () => {
+    const { saveSettings } = await import('./settings');
+    const saveSettingsMock = saveSettings as Mock;
+
+    removeRunCmdConsent('@headlamp-k8s/ai_assistant');
+    expect(saveSettingsMock).toHaveBeenCalled();
+
+    removeRunCmdConsent('@headlamp-k8s/ai_assistantprerelease');
+    expect(saveSettingsMock).toHaveBeenCalled();
   });
 });
