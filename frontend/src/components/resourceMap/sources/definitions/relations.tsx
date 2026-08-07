@@ -79,11 +79,7 @@ const makeRelation = <From extends KubeObjectClass, To extends KubeObjectClass>(
         ? true
         : fromObject.metadata.namespace === toObject.metadata.namespace;
 
-    return (
-      fromObject.cluster === toObject.cluster &&
-      hasSameNamespace &&
-      Boolean(selector(fromObject, toObject))
-    );
+    return hasSameNamespace && Boolean(selector(fromObject, toObject));
   },
 });
 
@@ -107,7 +103,14 @@ const makeOwnerRelation = (cl: KubeObjectClass): Relation => ({
       for (const owner of refs) {
         const to = nodesByUid.get(owner.uid);
         if (to) {
-          edges.push({ id: from.id + '-' + to.id, source: from.id, target: to.id });
+          edges.push({
+            id: from.id + '-' + to.id,
+            source: from.id,
+            target: to.id,
+            data: {
+              isCrossCluster: from.kubeObject?.cluster !== to.kubeObject?.cluster,
+            },
+          });
         }
       }
     }
@@ -150,7 +153,14 @@ const makeOwnerRelationReversed = (cl: KubeObjectClass): Relation => ({
       const targets = refIndex.get(uid);
       if (!targets) continue;
       for (const to of targets) {
-        edges.push({ id: from.id + '-' + to.id, source: from.id, target: to.id });
+        edges.push({
+          id: from.id + '-' + to.id,
+          source: from.id,
+          target: to.id,
+          data: {
+            isCrossCluster: from.kubeObject?.cluster !== to.kubeObject?.cluster,
+          },
+        });
       }
     }
     return edges;

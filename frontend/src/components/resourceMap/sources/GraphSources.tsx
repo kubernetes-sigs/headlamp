@@ -349,6 +349,9 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
                 source: from.id,
                 target: to.id,
                 label: relation.label,
+                data: {
+                  isCrossCluster: from.kubeObject?.cluster !== to.kubeObject?.cluster,
+                },
               });
             }
           });
