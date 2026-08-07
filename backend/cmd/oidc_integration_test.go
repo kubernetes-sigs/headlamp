@@ -113,7 +113,14 @@ func startOIDCIntegrationServer(t *testing.T, cfg *HeadlampConfig) *httptest.Ser
 	require.NoError(t, err, "port %d busy; another test server may still be running",
 		oidcTestCallbackPort)
 
-	srv := httptest.NewUnstartedServer(createHeadlampHandler(context.Background(), cfg))
+	// createHeadlampHandler starts a state-eviction goroutine that only stops
+	// on ctx.Done() (backend/cmd/headlamp.go:868-880). Each test builds a fresh
+	// server, so a cancelable context is required here to stop that goroutine
+	// on cleanup instead of leaking it for the life of the test binary.
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+
+	srv := httptest.NewUnstartedServer(createHeadlampHandler(ctx, cfg))
 	require.NoError(t, srv.Listener.Close())
 	srv.Listener = ln
 	srv.Start()
@@ -200,4 +207,24 @@ func TestOIDCIntegration_LoginSucceeds(t *testing.T) {
 	refreshToken, ok := cached.(string)
 	require.True(t, ok, "cached refresh token should be a string")
 	assert.NotEmpty(t, refreshToken)
+}
+
+func TestOIDCIntegration_LoginSucceedsWithPKCE(t *testing.T) {
+	issuer := requireDexIssuer(t)
+
+	cfg := newOIDCIntegrationConfig(t, issuer)
+	// Sends code_challenge on /oidc and code_verifier on exchange.
+	cfg.OidcUsePKCE = true
+
+	srv := startOIDCIntegrationServer(t, cfg)
+
+	resp, jar := runOIDCLoginFlow(t, srv) //nolint:bodyclose // closed inside runOIDCLoginFlow via defer
+
+	// Dex rejects a mismatched or malformed verifier at the token endpoint,
+	// which surfaces as a 500 from /oidc-callback rather than this redirect.
+	require.Equal(t, oidcTestCluster, resp.Request.URL.Query().Get("cluster"))
+	assert.Equal(t, "/auth", resp.Request.URL.Path)
+
+	rawToken := authTokenFromJar(t, srv, jar)
+	assert.Len(t, strings.Split(rawToken, "."), 3, "ID token should be a JWT")
 }
