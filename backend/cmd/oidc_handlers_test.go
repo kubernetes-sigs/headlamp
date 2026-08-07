@@ -224,6 +224,11 @@ func withCache(c cache.Cache[interface{}]) oidcTestOption {
 	return func(hc *HeadlampConfig) { hc.Cache = c }
 }
 
+// withAccessToken makes the callback read access_token instead of id_token.
+func withAccessToken() oidcTestOption {
+	return func(c *HeadlampConfig) { c.OidcUseAccessToken = true }
+}
+
 // newOIDCTestHandler builds a Headlamp handler with one OIDC-configured
 // kubeconfig context whose IdP issuer points at the supplied mock server.
 // Returns the handler and the cluster name registered.
@@ -766,4 +771,33 @@ func TestOIDCCallback_VerificationFailure(t *testing.T) {
 		"current behavior: the refresh token is cached before verification, so a "+
 			"rejected token still leaves an entry")
 	assert.Equal(t, "refresh-orphan", got)
+}
+
+// TestOIDCCallback_UsesAccessTokenWhenConfigured characterizes OidcUseAccessToken.
+//
+// Note what this reveals: the flag only changes which field is READ. The value
+// is still passed through the ID-token verifier, so an opaque access token —
+// what most providers actually issue — would be rejected. The access_token
+// here is therefore a second signed JWT, distinguishable only by its subject.
+func TestOIDCCallback_UsesAccessTokenWhenConfigured(t *testing.T) {
+	srv := newOIDCTestServer(t, nil)
+	handler, cluster := newOIDCTestHandler(t, srv, withAccessToken())
+
+	idToken := srv.signToken(t, map[string]any{"sub": "id-token-subject"})
+	accessToken := srv.signToken(t, map[string]any{"sub": "access-token-subject"})
+	require.NotEqual(t, idToken, accessToken, "the two tokens must be distinguishable")
+
+	srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		_, _ = io.WriteString(w, `{"access_token":"`+accessToken+`","token_type":"Bearer",`+
+			`"refresh_token":"refresh-abc","id_token":"`+idToken+`"}`)
+	})
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := driveOIDCCallback(t, handler, state, "auth-code")
+
+	require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
+	assert.Equal(t, accessToken, authCookieValue(t, rr, cluster),
+		"with OidcUseAccessToken, the access_token — not the id_token — reaches the cookie")
 }
