@@ -202,49 +202,41 @@ config:
       name: your-oidc-secret
 ```
 
-### Cluster Inventory Configuration
-
-> **Warning**
-> Cluster Inventory support in Headlamp is alpha/experimental and disabled by
-> default. The upstream Cluster Inventory API is currently `v1alpha1` and this
-> integration uses the `v0.1.x` API, so fields and behavior may change.
-
-When `config.clusterInventory.enabled` is true, the chart creates a provider
-ConfigMap, makes it available read-only at `/etc/cluster-inventory/config.json`,
-and adds the Headlamp Cluster Inventory flags automatically.
-
-```yaml
-config:
-  clusterInventory:
-    enabled: true
-    accessProvidersConfig:
-      providers:
-        - name: secretreader
-          execConfig:
-            apiVersion: client.authentication.k8s.io/v1
-            command: /access-plugins/secretreader/bin/secretreader-plugin
-            interactiveMode: Never
-            provideClusterInfo: true
-        - name: kubeconfig-secretreader
-          execConfig:
-            apiVersion: client.authentication.k8s.io/v1
-            command: /access-plugins/kubeconfig-secretreader/bin/kubeconfig-secretreader-plugin
-            interactiveMode: Never
-            provideClusterInfo: true
-    plugins:
-      - name: secretreader
-        image: registry.k8s.io/cluster-inventory-api/secretreader:v0.1.3@sha256:ec3090dc166aa2b42fb35d714d161c417d8b27bbc463404c8f615f5f4c610a1d
-        mountPath: /access-plugins/secretreader
-      - name: kubeconfig-secretreader
-        image: registry.k8s.io/cluster-inventory-api/kubeconfig-secretreader:v0.1.3@sha256:b92966cc6e4ac78002a63862921022a71d54956826f6e4febcb7247495eb98c0
-        mountPath: /access-plugins/kubeconfig-secretreader
-```
-
-`plugins[]` is for Cluster Inventory access provider binaries, not Headlamp UI
+### Cluster Inventory Plugins
+`config.clusterInventory.plugins[]` is for Cluster Inventory access provider binaries, not Headlamp UI
 plugins. Each entry renders as a Kubernetes `image` volume and is mounted
 read-only into the Headlamp container. If an access provider `execConfig.command`
 is configured, the command must be under one of the absolute
-`plugins[].mountPath` values.
+`config.clusterInventory.plugins[].mountPath` values.
+
+### Multi-Cluster Configuration
+
+Headlamp supports managing multiple Kubernetes clusters by mounting kubeconfig files from secrets. This is ideal for fleet management scenarios where you want to access multiple clusters from a single Headlamp installation.
+
+#### Using Kubeconfig Secrets
+
+| Key | Type | Default | Description |
+|-----|------|---------|-------------|
+| config.kubeconfigSecrets | list | `[]` | List of secrets containing kubeconfig files |
+| config.kubeconfigSecrets[].secretName | string | required | Name of the secret containing kubeconfig |
+| config.kubeconfigSecrets[].key | string | `"config"` | Key within the secret data (optional, defaults to "config") |
+
+**Example: Multiple Clusters with Custom Keys**
+```yaml
+config:
+  kubeconfigSecrets:
+    - secretName: prod-cluster-kubeconfig
+      key: config
+    - secretName: dev-cluster-kubeconfig
+      key: kubeconfig
+    - secretName: staging-cluster-kubeconfig
+```
+
+When `config.kubeconfigSecrets` is set, the chart mounts each secret and passes
+the joined kubeconfig paths to Headlamp via the `-kubeconfig` argument. This
+works alongside `config.inCluster` (the default), so the in-cluster context and
+the clusters from the mounted kubeconfig secrets are all loaded together into the
+same store.
 
 ### Deployment Configuration
 

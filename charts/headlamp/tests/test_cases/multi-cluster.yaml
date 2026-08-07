@@ -1,0 +1,11 @@
+config:
+  # kubeconfigSecrets works alongside in-cluster mode; both the in-cluster
+  # context and the mounted kubeconfig clusters are loaded together.
+  inCluster: true
+
+  kubeconfigSecrets:
+    - secretName: prod-cluster-kubeconfig
+      key: kubeconfig
+    - secretName: dev-cluster-kubeconfig
+      key: kubeconfig
+    - secretName: staging-cluster-kubeconfig
