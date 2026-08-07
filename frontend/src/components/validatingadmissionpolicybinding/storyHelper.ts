@@ -40,6 +40,16 @@ export const mockBinding: KubeValidatingAdmissionPolicyBinding = {
           apiVersions: ['v1'],
           operations: ['CREATE', 'UPDATE'],
           resources: ['deployments'],
+          resourceNames: ['my-deployment'],
+        },
+      ],
+      excludeResourceRules: [
+        {
+          apiGroups: ['apps'],
+          apiVersions: ['v1'],
+          operations: ['DELETE'],
+          resources: ['deployments'],
+          resourceNames: ['my-important-deployment'],
         },
       ],
     },

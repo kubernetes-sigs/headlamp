@@ -355,7 +355,9 @@
                           </td>
                           <td
                             class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
-                          />
+                          >
+                            my-deployment
+                          </td>
                           <td
                             class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                           >
@@ -382,21 +384,95 @@
                     aria-live="polite"
                     class="MuiBox-root css-ty8jgw"
                     role="status"
-                  >
-                    No data to be shown.
-                  </div>
+                  />
                   <div
-                    class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
+                    class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-onzayo-MuiPaper-root-MuiTableContainer-root"
+                    tabindex="0"
                   >
-                    <div
-                      class="MuiBox-root css-19midj6"
+                    <table
+                      class="MuiTable-root css-1t02l4h-MuiTable-root"
                     >
-                      <p
-                        class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+                      <thead
+                        class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
                       >
-                        No data to be shown.
-                      </p>
-                    </div>
+                        <tr
+                          class="MuiTableRow-root MuiTableRow-head css-13jktim-MuiTableRow-root"
+                        >
+                          <th
+                            class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                            scope="col"
+                          >
+                            API Groups
+                          </th>
+                          <th
+                            class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                            scope="col"
+                          >
+                            API Versions
+                          </th>
+                          <th
+                            class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                            scope="col"
+                          >
+                            Operations
+                          </th>
+                          <th
+                            class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                            scope="col"
+                          >
+                            Resource Names
+                          </th>
+                          <th
+                            class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                            scope="col"
+                          >
+                            Resources
+                          </th>
+                          <th
+                            class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                            scope="col"
+                          >
+                            Scope
+                          </th>
+                        </tr>
+                      </thead>
+                      <tbody
+                        class="MuiTableBody-root css-apqrd9-MuiTableBody-root"
+                      >
+                        <tr
+                          class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                        >
+                          <td
+                            class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                          >
+                            apps
+                          </td>
+                          <td
+                            class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                          >
+                            v1
+                          </td>
+                          <td
+                            class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                          >
+                            DELETE
+                          </td>
+                          <td
+                            class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                          >
+                            my-important-deployment
+                          </td>
+                          <td
+                            class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                          >
+                            deployments
+                          </td>
+                          <td
+                            class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                          />
+                        </tr>
+                      </tbody>
+                    </table>
                   </div>
                 </dd>
               </dl>

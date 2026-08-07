@@ -77,3 +77,18 @@ Error.parameters = {
     },
   },
 };
+
+export const Loading = Template.bind({});
+Loading.parameters = {
+  storyshots: { disable: true },
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          'http://localhost:4466/apis/admissionregistration.k8s.io/v1/validatingadmissionpolicybindings/test-binding',
+          () => new Promise(() => {})
+        ),
+      ],
+    },
+  },
+};
