@@ -193,6 +193,7 @@ registerProjectHeaderAction({
     <button
       onClick={() => {
         console.log('Custom header action for project:', project.id);
+        // Select the project details tab registered above with the ID "my-tab".
         setSelectedTab?.('my-tab');
       }}
     >

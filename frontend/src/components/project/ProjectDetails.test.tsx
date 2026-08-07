@@ -17,7 +17,7 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
-import { vi } from 'vitest';
+import { afterEach, vi } from 'vitest';
 import App from '../../App';
 import projectsReducer, {
   addDetailsTab,
@@ -40,6 +40,10 @@ vi.mock('./ProjectDeleteButton', () => ({
 }));
 
 describe('ProjectDetailsContent', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
   const project: ProjectDefinition = {
     id: 'project-one',
     namespaces: ['project-one'],
@@ -61,15 +65,26 @@ describe('ProjectDetailsContent', () => {
       addDetailsTab({
         id: 'metrics',
         label: 'Metrics',
-        icon: 'mdi:chart-line',
+        icon: 'mdi:view-dashboard',
         component: () => <div>Metrics panel</div>,
+      })
+    );
+    store.dispatch(
+      addDetailsTab({
+        id: 'unavailable',
+        label: 'Unavailable',
+        icon: 'mdi:view-dashboard',
+        component: undefined,
       })
     );
     store.dispatch(
       addHeaderAction({
         id: 'open-metrics',
         component: ({ setSelectedTab }) => (
-          <button onClick={() => setSelectedTab?.('metrics')}>Open metrics</button>
+          <>
+            <button onClick={() => setSelectedTab?.('metrics')}>Open metrics</button>
+            <button onClick={() => setSelectedTab?.('unavailable')}>Open unavailable</button>
+          </>
         ),
       })
     );
@@ -83,6 +98,10 @@ describe('ProjectDetailsContent', () => {
     fireEvent.click(await screen.findByRole('button', { name: 'Open metrics' }));
 
     expect(await screen.findByText('Metrics panel')).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('button', { name: 'Open unavailable' }));
+
+    expect(screen.getByText('Metrics panel')).toBeInTheDocument();
   });
 
   it('renders only header actions whose enablement check succeeds', async () => {

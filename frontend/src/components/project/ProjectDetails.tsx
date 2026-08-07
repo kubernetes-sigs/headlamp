@@ -384,6 +384,7 @@ export function ProjectDetailsContent({ project }: { project: ProjectDefinition 
   const [headerActions, setHeaderActions] = useState<ReactNode[]>([]);
   const [selectedTab, setSelectedTab] = useState<string>();
   const [selectedCategoryName, setSelectedCategoryName] = React.useState<string>();
+  const [allTabs, setAllTabs] = useState<Record<string, ProjectDetailsTab>>(DEFAULT_TABS);
 
   // Load custom delete button
   useEffect(() => {
@@ -418,6 +419,11 @@ export function ProjectDetailsContent({ project }: { project: ProjectDefinition 
 
     async function loadHeaderActions() {
       const actionsList = Object.values(registeredHeaderActions);
+      const selectAvailableTab = (tabId: string) => {
+        if (allTabs[tabId]?.component) {
+          setSelectedTab(tabId);
+        }
+      };
 
       // Get a list of enabled header actions
       const enabledActions = (
@@ -440,7 +446,11 @@ export function ProjectDetailsContent({ project }: { project: ProjectDefinition 
         const actions = enabledActions
           .map(action =>
             action ? (
-              <action.component key={action.id} project={project} setSelectedTab={setSelectedTab} />
+              <action.component
+                key={action.id}
+                project={project}
+                setSelectedTab={selectAvailableTab}
+              />
             ) : null
           )
           .filter(Boolean);
@@ -453,11 +463,9 @@ export function ProjectDetailsContent({ project }: { project: ProjectDefinition 
     return () => {
       isCurrent = false;
     };
-  }, [registeredHeaderActions, project]);
+  }, [registeredHeaderActions, project, allTabs]);
 
   const { items, isLoading } = useProjectItems(project);
-
-  const [allTabs, setAllTabs] = useState<Record<string, ProjectDetailsTab>>(DEFAULT_TABS);
 
   useEffect(() => {
     async function loadTabs() {
