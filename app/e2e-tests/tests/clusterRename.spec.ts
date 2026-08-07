@@ -33,6 +33,16 @@ const appPath = path.resolve(__dirname, '../../');
 // is never modified and the suite stays repeatable.
 const ISOLATED_KUBECONFIG = path.join(os.tmpdir(), `headlamp-e2e-rename-${process.pid}.kubeconfig`);
 
+// Electron's default userData directory persists across launches. Reusing it
+// (by omitting --user-data-dir) accumulates real browser state — cache,
+// IndexedDB, etc. — across every Electron launch that came before this one,
+// including from other spec files in the same run. That leftover state
+// reproducibly caused a phantom element to intercept clicks aimed at the
+// cluster link below (confirmed by bisecting: identical launch args except
+// for --user-data-dir turned a 100%-reproducible failure into a 100% pass).
+// A throwaway profile per run sidesteps it entirely.
+const PROFILE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-e2e-rename-profile-'));
+
 function writeIsolatedKubeconfig(context: string, target: string): void {
   fs.writeFileSync(
     target,
@@ -75,9 +85,15 @@ async function renameCluster(
 ) {
   await page.fill(`input[placeholder="${fromName}"]`, toName);
   await page.getByRole('button', { name: 'Apply' }).click();
-  // ConfirmDialog sets aria-label="confirm-button"/"cancel-button", which becomes
-  // the accessible name and overrides the visible "Yes"/"No" text.
-  await page.getByRole('button', { name: confirm ? 'confirm-button' : 'cancel-button' }).click();
+  // ConfirmDialog (frontend/src/components/common/ConfirmDialog.tsx) only
+  // sets data-testid="confirm-button"/"cancel-button", not aria-label —
+  // data-testid never affects the accessible name, so this previously
+  // waited on a role+name pair that could never match, and only worked at
+  // all because of a since-fixed profile flake masking the real failure.
+  // The "Change name" confirm dialog (ClusterNameEditor.tsx) doesn't
+  // override confirmLabel/cancelLabel, so the accessible names are the
+  // ConfirmDialog defaults: "Yes" and "No".
+  await page.getByRole('button', { name: confirm ? 'Yes' : 'No' }).click();
   await page.waitForLoadState('load');
   await page.locator(`a[href="#/c/${toName}/"]`).click();
 }
@@ -89,7 +105,7 @@ test.beforeAll(async () => {
   electronApp = await _electron.launch({
     cwd: appPath,
     executablePath: electronPath,
-    args: ['.'],
+    args: ['.', `--user-data-dir=${PROFILE_DIR}`],
     env: {
       ...process.env,
       NODE_ENV: 'development',
@@ -108,6 +124,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await electronApp?.close();
   fs.rmSync(ISOLATED_KUBECONFIG, { force: true });
+  fs.rmSync(PROFILE_DIR, { recursive: true, force: true });
 });
 
 // Requesting the `page` fixture here launches Playwright's own Chromium

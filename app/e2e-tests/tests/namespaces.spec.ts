@@ -39,6 +39,16 @@ const appPath = path.resolve(__dirname, '../../');
 let electronApp;
 let electronPage: Page;
 
+// Electron's default userData directory persists across launches. Reusing
+// it (by omitting --user-data-dir) accumulates real browser state — cache,
+// IndexedDB, etc. — across every Electron launch that came before this one,
+// including from other spec files in the same run. That leftover state
+// reproducibly caused a phantom element to intercept clicks in this suite
+// (confirmed by bisecting: identical launch args except for
+// --user-data-dir turned a 100%-reproducible click-interception failure
+// into a 100% pass). A throwaway profile per run sidesteps it entirely.
+const PROFILE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-e2e-namespaces-profile-'));
+
 test.beforeAll(async () => {
   fs.writeFileSync(
     ISOLATED_KUBECONFIG,
@@ -51,7 +61,7 @@ test.beforeAll(async () => {
   electronApp = await electron.launch({
     cwd: appPath,
     executablePath: electronPath,
-    args: ['.'],
+    args: ['.', `--user-data-dir=${PROFILE_DIR}`],
     env: {
       ...process.env,
       NODE_ENV: 'development',
@@ -70,6 +80,7 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await electronApp?.close();
   fs.rmSync(ISOLATED_KUBECONFIG, { force: true });
+  fs.rmSync(PROFILE_DIR, { recursive: true, force: true });
 });
 
 // Requesting the `page` fixture here launches Playwright's own Chromium

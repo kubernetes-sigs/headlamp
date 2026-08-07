@@ -100,10 +100,6 @@ async function launchWithFreshProfile(): Promise<{
 }
 
 test.describe('Release Notes modal', () => {
-  test.beforeEach(() => {
-    test.skip(process.env.PLAYWRIGHT_TEST_MODE !== 'app', 'These tests only run in app mode');
-  });
-
   test('stays dismissed even with a stale app_version stored', async () => {
     const { electronApp, cleanup } = await launchWithFreshProfile();
 
@@ -245,10 +241,6 @@ test.describe('Release Notes modal', () => {
  * regression, not because this was ever actually broken.
  */
 test.describe('Update available toast', () => {
-  test.beforeEach(() => {
-    test.skip(process.env.PLAYWRIGHT_TEST_MODE !== 'app', 'These tests only run in app mode');
-  });
-
   test('is announced politely and warns "Read more" opens a new tab', async () => {
     const { electronApp, cleanup } = await launchWithFreshProfile();
 
