@@ -15,12 +15,14 @@
  */
 
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { isElectron } from '../../../helpers/isElectron';
+import { reloadPage } from '../../../helpers/window';
 import LocaleSelect from '../../../i18n/LocaleSelect/LocaleSelect';
 import { setAppSettings } from '../../../redux/configSlice';
 import { defaultTableRowsPerPageOptions } from '../../../redux/configSlice';
@@ -28,6 +30,7 @@ import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEven
 import { useTypedSelector } from '../../../redux/hooks';
 import { uiSlice } from '../../../redux/uiSlice';
 import ActionButton from '../../common/ActionButton';
+import ConfirmDialog from '../../common/ConfirmDialog';
 import NameValueTable from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
 import TimezoneSelect from '../../common/TimezoneSelect';
@@ -50,6 +53,7 @@ export default function Settings() {
   const [selectedTimezone, setSelectedTimezone] = useState<string>(
     storedTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   );
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [sortSidebar, setSortSidebar] = useState<boolean>(storedSortSidebar);
   const [expandGraph, setExpandGraph] = useState<boolean>(expandLargeGraph);
   const [useEvict, setUseEvict] = useState<boolean>(storedUseEvict);
@@ -352,6 +356,43 @@ export default function Settings() {
             )}
           </Typography>
           <ShortcutsList />
+        </SectionBox>
+      </Box>
+      <Box sx={{ mt: 4 }}>
+        <SectionBox
+          title={t('translation|Reset Application State')}
+          headerProps={{
+            headerStyle: 'subsection',
+          }}
+        >
+          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+            {t(
+              'translation|Clear all local preferences such as column visibility, theme, and sidebar configurations.'
+            )}
+          </Typography>
+          <Button variant="contained" color="error" onClick={() => setIsResetDialogOpen(true)}>
+            {t('translation|Reset App State')}
+          </Button>
+          <ConfirmDialog
+            open={isResetDialogOpen}
+            title={t('translation|Reset App State')}
+            description={t(
+              'translation|Are you sure you want to reset all application preferences? This cannot be undone and the application will reload.'
+            )}
+            handleClose={() => setIsResetDialogOpen(false)}
+            onConfirm={() => {
+              try {
+                const headlampUserId = localStorage.getItem('headlamp-userId');
+                localStorage.clear();
+                if (headlampUserId) {
+                  localStorage.setItem('headlamp-userId', headlampUserId);
+                }
+              } catch (e) {
+                console.warn('Failed to clear local storage during app reset', e);
+              }
+              reloadPage();
+            }}
+          />
         </SectionBox>
       </Box>
     </SectionBox>
