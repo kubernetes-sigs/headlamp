@@ -924,7 +924,7 @@ describe('useKubeObjectList', () => {
     expect(spy.mock.calls[3][0].connections[0].cluster).toBe('cluster-1');
   });
 
-  it('should add newly discovered lists via render-phase state update', async () => {
+  it('should watch newly discovered lists', async () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const spy = vi.spyOn(websocket, 'useWebSockets');
     const queryClient = new QueryClient();
@@ -949,19 +949,17 @@ describe('useKubeObjectList', () => {
         }
       );
 
-      // Render-phase setState triggers a synchronous re-render; the connection
-      // is present without waiting for a post-commit effect.
+      // Wait for the watched list to be updated before asserting websocket connections.
       await waitFor(() => {
         expect(spy.mock.calls[1][0].connections.length).toBe(1);
         expect(spy.mock.calls[1][0].connections[0].cluster).toBe('default');
       });
 
-      // Same-component render-phase setState is the React-documented pattern;
-      // no "Cannot update a component" warning should be emitted.
-      const renderPhaseWarnings = consoleErrorSpy.mock.calls.filter(args =>
+      // No unexpected React warning about updating component state should be emitted.
+      const unexpectedStateUpdateWarnings = consoleErrorSpy.mock.calls.filter(args =>
         args.some(arg => typeof arg === 'string' && arg.includes('Cannot update a component'))
       );
-      expect(renderPhaseWarnings).toHaveLength(0);
+      expect(unexpectedStateUpdateWarnings).toHaveLength(0);
     } finally {
       consoleErrorSpy.mockRestore();
     }
