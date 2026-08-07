@@ -41,7 +41,7 @@ export interface PodGroupTemplateReference {
   };
 }
 
-/** How v1alpha3 references the Workload a group was templated from. */
+/** How v1alpha3 and v1beta1 reference the Workload a group was templated from. */
 export interface PodGroupWorkloadReference {
   workloadName: string;
   templateName: string;
@@ -59,8 +59,8 @@ export interface PodGroupSchedulingConstraints {
 }
 
 /**
- * How v1alpha3 describes which pods a disruption affects. Exactly one field is set:
- * `single` matches the v1alpha2 'Pod' mode, `all` matches 'PodGroup'.
+ * How v1alpha3 and v1beta1 describe which pods a disruption affects. Exactly one field
+ * is set: `single` matches the v1alpha2 'Pod' mode, `all` matches 'PodGroup'.
  */
 export interface PodGroupDisruptionMode {
   single?: Record<string, never>;
@@ -69,20 +69,26 @@ export interface PodGroupDisruptionMode {
 
 export interface PodGroupSpec {
   schedulingPolicy: PodGroupSchedulingPolicy;
-  /** Served by v1alpha2. v1alpha3 uses `workloadRef` instead. */
+  /** Served by v1alpha2. Later versions use `workloadRef` instead. */
   podGroupTemplateRef?: PodGroupTemplateReference;
-  /** Served by v1alpha3. v1alpha2 uses `podGroupTemplateRef` instead. */
+  /** Served by v1alpha3 and v1beta1. v1alpha2 uses `podGroupTemplateRef` instead. */
   workloadRef?: PodGroupWorkloadReference;
-  /** The composite group this group belongs to, when nested. Served by v1alpha3. */
+  /**
+   * The composite group this group belongs to, when nested. Served by v1alpha3 and
+   * v1beta1.
+   */
   parentCompositePodGroupName?: string;
   /** Set only when the WorkloadAwarePreemption feature gate is enabled. */
   priorityClassName?: string;
   priority?: number;
-  /** Served by v1alpha3. Whether preemption may evict lower priority pods. */
+  /**
+   * Served by v1alpha3 and v1beta1. Whether preemption may evict lower priority pods.
+   */
   preemptionPolicy?: 'PreemptLowerPriority' | 'Never';
   /**
-   * v1alpha2 serves this as the string 'Pod' or 'PodGroup'; v1alpha3 serves it as an
-   * object with a `single` or `all` field. Read it through the `disruptionMode` getter.
+   * v1alpha2 serves this as the string 'Pod' or 'PodGroup'; v1alpha3 and v1beta1 serve
+   * it as an object with a `single` or `all` field. Read it through the
+   * `disruptionMode` getter.
    */
   disruptionMode?: 'Pod' | 'PodGroup' | PodGroupDisruptionMode;
   /** Set only when the TopologyAwareWorkloadScheduling feature gate is enabled. */
@@ -117,8 +123,8 @@ export function getSchedulingPolicyKind(
 
 /**
  * Human readable disruption mode across API versions. v1alpha2 uses the strings
- * 'Pod'/'PodGroup'; v1alpha3 uses an object with a `single` or `all` field. Both
- * describe the same choice: disrupt one pod at a time, or the whole group together.
+ * 'Pod'/'PodGroup'; v1alpha3 and v1beta1 use an object with a `single` or `all` field.
+ * Both describe the same choice: disrupt one pod at a time, or the whole group together.
  * @param mode - The disruptionMode field of a PodGroup spec.
  * @returns 'Pod', 'PodGroup', or undefined when no mode is set.
  */
@@ -140,12 +146,16 @@ export function getDisruptionMode(
 class PodGroup extends KubeObject<KubePodGroup> {
   static kind = 'PodGroup';
   static apiName = 'podgroups';
-  static apiVersion = ['scheduling.k8s.io/v1alpha3', 'scheduling.k8s.io/v1alpha2'];
+  static apiVersion = [
+    'scheduling.k8s.io/v1beta1',
+    'scheduling.k8s.io/v1alpha3',
+    'scheduling.k8s.io/v1alpha2',
+  ];
   static isNamespaced = true;
 
   /**
    * Whether the cluster serves the workload aware scheduling APIs, which requires the
-   * alpha GenericWorkload feature gate to be enabled.
+   * GenericWorkload feature gate to be enabled.
    *
    * This asks for each candidate version directly instead of using apiDiscovery, because
    * discovery only reports the first version of each group and scheduling.k8s.io also

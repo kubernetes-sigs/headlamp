@@ -26,7 +26,7 @@ const _dont_delete_me = App;
 const makeWorkload = (spec: Partial<KubeSchedulingWorkload['spec']>) =>
   new Workload({
     kind: 'Workload',
-    apiVersion: 'scheduling.k8s.io/v1alpha3',
+    apiVersion: 'scheduling.k8s.io/v1beta1',
     metadata: {
       name: 'training-job',
       namespace: 'gang-demo',
