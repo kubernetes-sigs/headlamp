@@ -17,13 +17,30 @@
 import { expect, test } from '@playwright/test';
 import { HeadlampPage } from './headlampPage';
 
-const projectName = 'header-action-e2e';
-const namespacePath = `/clusters/test/api/v1/namespaces/${projectName}`;
+let projectName: string;
+let namespaceCreated = false;
 
-test.beforeEach(async ({ page }) => {
+test.beforeEach(async ({ page }, testInfo) => {
   const headlampPage = new HeadlampPage(page);
   const token = process.env.HEADLAMP_TEST_TOKEN;
+  projectName = `header-action-e2e-${testInfo.workerIndex}-${Date.now()}`;
+  namespaceCreated = false;
+
+  await page.route('**/apis/argoproj.io/v1alpha1/namespaces/*/applications*', route =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        apiVersion: 'argoproj.io/v1alpha1',
+        kind: 'ApplicationList',
+        metadata: {},
+        items: [],
+      }),
+    })
+  );
+
   await headlampPage.navigateToCluster('test', token);
+  await headlampPage.navigateToCluster('test2', process.env.HEADLAMP_TEST2_TOKEN);
 
   const response = await page.request.post('/clusters/test/api/v1/namespaces', {
     headers: { Authorization: `Bearer ${token}` },
@@ -37,11 +54,16 @@ test.beforeEach(async ({ page }) => {
     },
   });
 
+  namespaceCreated = response.status() === 201;
   expect([201, 409]).toContain(response.status());
 });
 
 test.afterEach(async ({ page }) => {
-  const response = await page.request.delete(namespacePath, {
+  if (!namespaceCreated) {
+    return;
+  }
+
+  const response = await page.request.delete(`/clusters/test/api/v1/namespaces/${projectName}`, {
     headers: { Authorization: `Bearer ${process.env.HEADLAMP_TEST_TOKEN}` },
   });
 
