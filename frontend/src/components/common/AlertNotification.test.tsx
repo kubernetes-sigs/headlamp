@@ -67,4 +67,22 @@ describe('PureAlertNotification', () => {
     await act(async () => await vi.advanceTimersByTimeAsync(5000));
     expect(checkerFunction).toHaveBeenCalledTimes(3);
   });
+
+  // Routes in ROUTES_WITHOUT_ALERT hide the alert, so polling there only
+  // accrues expected failures. That stale error and backoff used to render
+  // as a "lost connection" banner right after OIDC sign-in.
+  it('does not poll cluster health on routes that hide the alert', async () => {
+    const checkerFunction = vi.fn().mockRejectedValue(new Error('no session'));
+
+    await act(async () => {
+      render(
+        <TestContext urlPrefix="/c/test-cluster/login">
+          <PureAlertNotification checkerFunction={checkerFunction} />
+        </TestContext>
+      );
+    });
+
+    await act(async () => await vi.advanceTimersByTimeAsync(20000));
+    expect(checkerFunction).not.toHaveBeenCalled();
+  });
 });
