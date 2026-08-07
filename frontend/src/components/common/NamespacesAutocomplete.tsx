@@ -271,7 +271,10 @@ const useDefaultNamespaceFallback = (
 function NamespacesFromClusterAutocomplete(
   props: Omit<PureNamespacesAutocompleteProps, 'namespaceNames'>
 ) {
-  const [namespacesList, error] = Namespace.useList();
+  const res = Namespace.useList();
+  const namespacesList = (Array.isArray(res) ? res[0] : res?.items) ?? null;
+  const error = (Array.isArray(res) ? res[1] : res?.error) ?? null;
+  const isLoading = Array.isArray(res) ? false : Boolean(res?.isLoading);
   const dispatch = useDispatch();
   const filter = props.filter;
   const selectedNamespaces = filter.namespaces;
@@ -285,14 +288,14 @@ function NamespacesFromClusterAutocomplete(
   );
 
   useEffect(() => {
-    if (namespacesList !== null && !error && selectedNamespaces.size > 0) {
+    if (!isLoading && namespacesList !== null && !error && selectedNamespaces.size > 0) {
       const currentNamespaces = [...selectedNamespaces];
       const validNamespaces = currentNamespaces.filter(ns => namespaceNames.includes(ns));
       if (validNamespaces.length !== currentNamespaces.length) {
         dispatch(setNamespaceFilter(validNamespaces));
       }
     }
-  }, [namespacesList, error, namespaceNames, selectedNamespaces, dispatch]);
+  }, [isLoading, namespacesList, error, namespaceNames, selectedNamespaces, dispatch]);
 
   useDefaultNamespaceFallback(namespacesList, Boolean(error));
 

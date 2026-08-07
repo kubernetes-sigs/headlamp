@@ -24,6 +24,7 @@ import filterReducer, { setNamespaceFilter } from '../../redux/filterSlice';
 import { NamespacesAutocomplete, PureNamespacesAutocomplete } from './NamespacesAutocomplete';
 
 vi.mock('../../lib/k8s/namespace', () => ({
+  __esModule: true,
   default: {
     useList: vi.fn(),
   },
@@ -139,5 +140,36 @@ describe('NamespacesAutocomplete', () => {
       const state = store.getState().filter;
       expect(Array.from(state.namespaces)).toEqual([]);
     });
+  });
+
+  it('does not clear selected namespaces while namespace list is loading', () => {
+    const store = configureStore({
+      reducer: {
+        filter: filterReducer,
+      },
+    });
+
+    store.dispatch(setNamespaceFilter(['my-namespace']));
+
+    vi.mocked(Namespace.useList).mockReturnValue({
+      items: [],
+      error: null,
+      isLoading: true,
+      *[Symbol.iterator]() {
+        yield [];
+        yield null;
+      },
+    } as unknown as ReturnType<typeof Namespace.useList>);
+
+    render(
+      <Provider store={store}>
+        <MemoryRouter>
+          <NamespacesAutocomplete />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    const state = store.getState().filter;
+    expect(Array.from(state.namespaces)).toEqual(['my-namespace']);
   });
 });
