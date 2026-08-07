@@ -283,6 +283,9 @@
                           app: example
                         </p>
                       </div>
+                      <div
+                        class="MuiBox-root css-axw7ok"
+                      />
                     </div>
                   </dd>
                 </dl>

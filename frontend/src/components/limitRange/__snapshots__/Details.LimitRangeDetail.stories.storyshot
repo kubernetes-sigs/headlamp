@@ -198,6 +198,9 @@
                             memory: 128Mi
                           </p>
                         </div>
+                        <div
+                          class="MuiBox-root css-axw7ok"
+                        />
                       </div>
                     </div>
                     <div
@@ -225,6 +228,9 @@
                             memory: 64Mi
                           </p>
                         </div>
+                        <div
+                          class="MuiBox-root css-axw7ok"
+                        />
                       </div>
                     </div>
                     <div
@@ -252,6 +258,9 @@
                             memory: 1Gi
                           </p>
                         </div>
+                        <div
+                          class="MuiBox-root css-axw7ok"
+                        />
                       </div>
                     </div>
                     <div
@@ -279,6 +288,9 @@
                             memory: 4Mi
                           </p>
                         </div>
+                        <div
+                          class="MuiBox-root css-axw7ok"
+                        />
                       </div>
                     </div>
                     <div
@@ -306,6 +318,9 @@
                             memory: 1.5
                           </p>
                         </div>
+                        <div
+                          class="MuiBox-root css-axw7ok"
+                        />
                       </div>
                     </div>
                   </dd>

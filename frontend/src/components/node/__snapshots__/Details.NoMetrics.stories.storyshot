@@ -748,6 +748,21 @@
                           kubernetes.io/os: linux
                         </p>
                       </div>
+                      <div
+                        class="MuiBox-root css-axw7ok"
+                      >
+                        <button
+                          aria-label="Copy to clipboard"
+                          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                          data-mui-internal-clone-element="true"
+                          tabindex="0"
+                          type="button"
+                        >
+                          <span
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          />
+                        </button>
+                      </div>
                     </div>
                   </dd>
                   <dt
@@ -881,6 +896,9 @@
                           ephemeral-storage: 50000000Ki
                         </p>
                       </div>
+                      <div
+                        class="MuiBox-root css-axw7ok"
+                      />
                     </div>
                   </dd>
                   <dt
@@ -918,6 +936,9 @@
                           ephemeral-storage: 50000000Ki
                         </p>
                       </div>
+                      <div
+                        class="MuiBox-root css-axw7ok"
+                      />
                     </div>
                   </dd>
                 </dl>

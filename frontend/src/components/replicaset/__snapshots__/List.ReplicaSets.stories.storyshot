@@ -961,6 +961,9 @@
                           pod-template-hash: b123456
                         </p>
                       </div>
+                      <div
+                        class="MuiBox-root css-axw7ok"
+                      />
                     </div>
                   </td>
                   <td
@@ -1101,6 +1104,9 @@
                           pod-template-hash: a123456
                         </p>
                       </div>
+                      <div
+                        class="MuiBox-root css-axw7ok"
+                      />
                     </div>
                   </td>
                   <td
