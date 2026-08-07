@@ -204,8 +204,8 @@ export function NamespacesAutocomplete() {
   React.useEffect(() => {
     const settings = loadClusterSettings(cluster || '');
     const allowedNamespaces = settings?.allowedNamespaces || [];
+    setNamespaceNames(allowedNamespaces);
     if (allowedNamespaces.length > 0) {
-      setNamespaceNames(allowedNamespaces);
       const currentNamespaces = [...filter.namespaces];
       const valid = currentNamespaces.filter(ns => allowedNamespaces.includes(ns));
       if (valid.length !== currentNamespaces.length) {

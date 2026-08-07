@@ -34,11 +34,41 @@ vi.mock('../../lib/k8s', () => ({
   useClustersConf: () => ({}),
 }));
 
+const mockLoadClusterSettings = vi.fn();
 vi.mock('../../helpers/clusterSettings', () => ({
-  loadClusterSettings: () => ({}),
+  loadClusterSettings: (...args: any[]) => mockLoadClusterSettings(...args),
 }));
 
 describe('NamespacesAutocomplete', () => {
+  beforeEach(() => {
+    mockLoadClusterSettings.mockReturnValue({});
+    vi.mocked(Namespace.useList).mockReturnValue([[], null] as unknown as ReturnType<
+      typeof Namespace.useList
+    >);
+  });
+
+  it('renders PureNamespacesAutocomplete when allowedNamespaces are set in cluster settings', async () => {
+    mockLoadClusterSettings.mockReturnValue({
+      allowedNamespaces: ['allowed-ns-1', 'allowed-ns-2'],
+    });
+
+    const store = configureStore({
+      reducer: {
+        filter: filterReducer,
+      },
+    });
+
+    const { getByLabelText } = render(
+      <Provider store={store}>
+        <MemoryRouter>
+          <NamespacesAutocomplete />
+        </MemoryRouter>
+      </Provider>
+    );
+
+    expect(getByLabelText('Namespaces')).toBeDefined();
+  });
+
   it('renders PureNamespacesAutocomplete correctly with options', () => {
     const filter = { namespaces: new Set(['default']) };
     const onChange = vi.fn();
