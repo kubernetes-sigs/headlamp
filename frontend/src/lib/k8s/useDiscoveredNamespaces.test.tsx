@@ -100,6 +100,7 @@ describe('useDiscoveredNamespaces', () => {
     await waitFor(
       () => {
         expect(result.current.isError).toBe(true);
+        expect(clusterApi.testAuth).toHaveBeenCalledTimes(3);
       },
       { timeout: 10000 }
     );
@@ -111,7 +112,10 @@ describe('useDiscoveredNamespaces', () => {
 
 describe('shouldRetryAuthProbe', () => {
   it('retries transient 401/403 up to DISCOVERY_MAX_AUTH_ATTEMPTS - 1 times', () => {
+    const unauthorized = new ApiError('Unauthorized', { status: 401 });
     const forbidden = new ApiError('Forbidden', { status: 403 });
+    expect(shouldRetryAuthProbe(0, unauthorized)).toBe(true);
+    expect(shouldRetryAuthProbe(2, unauthorized)).toBe(false);
     expect(shouldRetryAuthProbe(0, forbidden)).toBe(true);
     expect(shouldRetryAuthProbe(1, forbidden)).toBe(true);
     expect(shouldRetryAuthProbe(2, forbidden)).toBe(false);
@@ -164,6 +168,7 @@ describe('useDiscoveredNamespacesMap', () => {
     await waitFor(
       () => {
         expect(result.current.isErrorByCluster['auto-cluster']).toBe(true);
+        expect(clusterApi.testAuth).toHaveBeenCalledTimes(3);
       },
       { timeout: 10000 }
     );
