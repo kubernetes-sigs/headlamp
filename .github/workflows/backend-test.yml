@@ -69,7 +69,8 @@ jobs:
           docker run -d --name headlamp-dex \
             -p 5556:5556 \
             -v "$GITHUB_WORKSPACE/backend/cmd/headlamp_testdata/dex-integration.yaml:/etc/dex/config.yaml:ro" \
-            ghcr.io/dexidp/dex:v2.44.0 dex serve /etc/dex/config.yaml
+            ghcr.io/dexidp/dex@sha256:5d0656fce7d453c0e3b2706abf40c0d0ce5b371fb0b73b3cf714d05f35fa5f86 \
+            dex serve /etc/dex/config.yaml # v2.44.0
 
           for i in $(seq 1 30); do
             if curl -sf http://127.0.0.1:5556/dex/.well-known/openid-configuration >/dev/null; then
