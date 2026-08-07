@@ -1,10 +1,10 @@
 <body>
   <div>
     <div
-      class="MuiBox-root css-1v5z18m"
+      class="MuiBox css-hash"
     >
       <div
-        class="MuiBox-root css-k008qs"
+        class="MuiBox css-hash"
       >
         <span
           id="my-label2"

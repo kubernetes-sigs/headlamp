@@ -1,10 +1,10 @@
 <body>
   <div>
     <div
-      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-mhc70k-MuiGrid-root"
+      class="MuiGrid MuiGrid MuiGrid css-hash"
     >
       <div
-        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        class="MuiGrid MuiGrid css-hash"
       />
     </div>
   </div>

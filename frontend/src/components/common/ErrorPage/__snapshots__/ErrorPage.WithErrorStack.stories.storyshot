@@ -1,27 +1,27 @@
 <body>
   <div>
     <div
-      class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column css-1b95sop-MuiGrid-root"
+      class="MuiGrid MuiGrid MuiGrid css-hash"
     >
       <div
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+        class="MuiGrid MuiGrid MuiGrid css-hash"
       >
         <img
           alt=""
-          class="css-8atqhb"
+          class="css-hash"
           src="/src/assets/headlamp-broken.svg"
         />
         <h1
-          class="MuiTypography-root MuiTypography-h1 css-5ewpze-MuiTypography-root"
+          class="MuiTypography MuiTypography css-hash"
         >
           Uh-oh! Something went wrong.
         </h1>
         <h2
-          class="MuiTypography-root MuiTypography-h2 css-15otqr2-MuiTypography-root"
+          class="MuiTypography MuiTypography css-hash"
         >
           Head back 
           <a
-            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+            class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
             href="/"
           >
             home
@@ -30,76 +30,76 @@
         </h2>
       </div>
       <div
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+        class="MuiGrid MuiGrid MuiGrid css-hash"
       >
         <div
-          class="MuiBox-root css-iefvb7"
+          class="MuiBox css-hash"
         >
           <div
-            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAccordion-root MuiAccordion-rounded MuiAccordion-gutters css-d0yk9k-MuiPaper-root-MuiAccordion-root"
+            class="MuiAccordion MuiAccordion MuiAccordion MuiPaper MuiPaper MuiPaper css-hash"
           >
             <div
               aria-expanded="false"
-              class="MuiButtonBase-root MuiAccordionSummary-root MuiAccordionSummary-gutters css-1f773le-MuiButtonBase-root-MuiAccordionSummary-root"
+              class="MuiAccordionSummary MuiAccordionSummary MuiButtonBase css-hash"
               role="button"
               tabindex="0"
             >
               <div
-                class="MuiAccordionSummary-content MuiAccordionSummary-contentGutters css-eqpfi5-MuiAccordionSummary-content"
+                class="MuiAccordionSummary MuiAccordionSummary css-hash"
               >
                 <p
-                  class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                  class="MuiTypography MuiTypography css-hash"
                 >
                   Error Details
                 </p>
               </div>
               <div
-                class="MuiAccordionSummary-expandIconWrapper css-yw020d-MuiAccordionSummary-expandIconWrapper"
+                class="MuiAccordionSummary css-hash"
               />
             </div>
             <div
-              class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-bz4dnt-MuiCollapse-root"
+              class="MuiCollapse MuiCollapse MuiCollapse css-hash"
               style="min-height: 0px;"
             >
               <div
-                class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
+                class="MuiCollapse MuiCollapse css-hash"
               >
                 <div
-                  class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
+                  class="MuiCollapse MuiCollapse css-hash"
                 >
                   <div
-                    class="MuiAccordion-region"
+                    class="MuiAccordion"
                     role="region"
                   >
                     <div
-                      class="MuiAccordionDetails-root css-15v22id-MuiAccordionDetails-root"
+                      class="MuiAccordionDetails css-hash"
                     >
                       <div
-                        class="MuiBox-root css-ch27pp"
+                        class="MuiBox css-hash"
                       >
                         <button
-                          class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"
+                          class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
                           tabindex="0"
                           type="button"
                         >
                           Copy
                           <span
-                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                            class="MuiTouchRipple css-hash"
                           />
                         </button>
                         <button
-                          class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"
+                          class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
                           tabindex="0"
                           type="button"
                         >
                           Open Issue on GitHub
                           <span
-                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                            class="MuiTouchRipple css-hash"
                           />
                         </button>
                       </div>
                       <pre
-                        class="MuiTypography-root MuiTypography-body2 css-dna8j4-MuiTypography-root"
+                        class="MuiTypography MuiTypography css-hash"
                       >
                         Error: Unexpected error occurred
     at ComponentName (http://localhost:3000/static/js/main.chunk.js:1234:56)

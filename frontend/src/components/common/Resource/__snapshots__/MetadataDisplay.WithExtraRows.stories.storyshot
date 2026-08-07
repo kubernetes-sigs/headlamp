@@ -1,80 +1,80 @@
 <body>
   <div>
     <div
-      class="MuiBox-root css-0"
+      class="MuiBox css-hash"
     >
       <dl
-        class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+        class="MuiGrid MuiGrid css-hash"
       >
         <dt
-          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
         >
           Name
         </dt>
         <dd
-          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
         >
           <span
-            class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+            class="MuiTypography MuiTypography css-hash"
           >
             my-new-kind
           </span>
         </dd>
         <dt
-          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
         >
           Namespace
         </dt>
         <dd
-          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
         >
           <a
-            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+            class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
             href="/"
           >
             kube-system
           </a>
         </dd>
         <dt
-          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
         >
           Creation
         </dt>
         <dd
-          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
         >
           <span
-            class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+            class="MuiTypography MuiTypography css-hash"
           >
             2021-06-02T00:00:00.000Z
           </span>
         </dd>
         <dt
-          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
         >
           Labels
         </dt>
         <dd
-          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
         >
           <div
-            class="MuiBox-root css-0"
+            class="MuiBox css-hash"
           >
             <div
-              class="MuiBox-root css-yi3mkw"
+              class="MuiBox css-hash"
             >
               <p
-                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 label1: My Label 1
               </p>
               <p
-                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 label2: My Label 2
               </p>
               <p
-                class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 label3: My Label 3
               </p>
@@ -82,43 +82,43 @@
           </div>
         </dd>
         <dt
-          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
         >
           Some extra label 1
         </dt>
         <dd
-          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
         >
           <span
-            class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+            class="MuiTypography MuiTypography css-hash"
           >
             Some extra value 1
           </span>
         </dd>
         <dt
-          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
         >
           Some extra label 2
         </dt>
         <dd
-          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
         >
           <span
-            class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+            class="MuiTypography MuiTypography css-hash"
           >
             Some extra value 2
           </span>
         </dd>
         <dt
-          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
         >
           Some extra label 3
         </dt>
         <dd
-          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
         >
           <span
-            class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+            class="MuiTypography MuiTypography css-hash"
           >
             Some extra value 3
           </span>

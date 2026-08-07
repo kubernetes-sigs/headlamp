@@ -1,22 +1,22 @@
 <body>
   <div>
     <div
-      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1if9c89-MuiPaper-root"
+      class="MuiPaper MuiPaper MuiPaper css-hash"
     >
       <div
-        class="MuiBox-root css-0"
+        class="MuiBox css-hash"
       >
         <button
           aria-label="Shrink sidebar"
-          class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-1rafjp7-MuiButtonBase-root-MuiButton-root"
+          class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
           tabindex="0"
           type="button"
         >
           <div
-            class="MuiBox-root css-19midj6"
+            class="MuiBox css-hash"
           />
           <span
-            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            class="MuiTouchRipple css-hash"
           />
         </button>
       </div>

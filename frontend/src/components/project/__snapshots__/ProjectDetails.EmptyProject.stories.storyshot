@@ -4,11 +4,11 @@
       style="height: 700px;"
     >
       <div
-        class="MuiBox-root css-5cned0"
+        class="MuiBox css-hash"
       >
         <span
           aria-label="Loading"
-          class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
+          class="MuiCircularProgress MuiCircularProgress MuiCircularProgress css-hash"
           role="progressbar"
           style="width: 40px; height: 40px;"
           title="Loading"

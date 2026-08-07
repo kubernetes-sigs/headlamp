@@ -3,12 +3,12 @@
     aria-hidden="true"
   />
   <div
-    class="MuiDialog-root MuiModal-root css-zw3mfo-MuiModal-root-MuiDialog-root"
+    class="MuiDialog MuiModal css-hash"
     role="presentation"
   >
     <div
       aria-hidden="true"
-      class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
+      class="MuiBackdrop MuiModal css-hash"
       style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
     />
     <div
@@ -16,29 +16,29 @@
       tabindex="0"
     />
     <div
-      class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
+      class="MuiDialog MuiDialog css-hash"
       role="presentation"
       style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
       tabindex="-1"
     >
       <div
         aria-labelledby=":mock-test-id:"
-        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm MuiDialog-paperFullWidth css-1ehm288-MuiPaper-root-MuiDialog-paper"
+        class="MuiDialog MuiDialog MuiDialog MuiDialog MuiPaper MuiPaper MuiPaper css-hash"
         role="dialog"
       >
         <h2
-          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
+          class="MuiDialogTitle MuiTypography MuiTypography css-hash"
           id=":mock-test-id:"
           style="display: flex;"
         >
           <div
-            class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
+            class="MuiGrid MuiGrid css-hash"
           >
             <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              class="MuiGrid MuiGrid css-hash"
             >
               <h1
-                class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
                 id=":mock-test-id:"
                 style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
                 tabindex="-1"
@@ -47,20 +47,20 @@
               </h1>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              class="MuiGrid MuiGrid css-hash"
             >
               <div
-                class="MuiBox-root css-0"
+                class="MuiBox css-hash"
               >
                 <button
                   aria-label="Close"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                  class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                   data-mui-internal-clone-element="true"
                   tabindex="0"
                   type="button"
                 >
                   <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    class="MuiTouchRipple css-hash"
                   />
                 </button>
               </div>
@@ -68,184 +68,184 @@
           </div>
         </h2>
         <div
-          class="MuiDialogContent-root css-1d05cnk-MuiDialogContent-root"
+          class="MuiDialogContent css-hash"
         >
           <div
-            class="MuiBox-root css-1dr59fg"
+            class="MuiBox css-hash"
           >
             <div
-              class="MuiBox-root css-1yuhvjn"
+              class="MuiBox css-hash"
             >
               <dl
-                class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+                class="MuiGrid MuiGrid css-hash"
               >
                 <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 MuiGrid-grid-md-12 css-gvwr1e-MuiGrid-root"
+                  class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-button css-jwury-MuiTypography-root"
+                    class="MuiTypography MuiTypography css-hash"
                   >
                     Search
                   </span>
                 </dt>
                 <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                 >
                   <div
-                    class="MuiBox-root css-0"
+                    class="MuiBox css-hash"
                   >
                     <p
-                      class="MuiTypography-root MuiTypography-body2 css-1k32pko-MuiTypography-root"
+                      class="MuiTypography MuiTypography css-hash"
                     >
                       Global Search
                     </p>
                     <span
-                      class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                      class="MuiTypography MuiTypography css-hash"
                     >
                       Open the global search dialog
                     </span>
                   </div>
                 </dt>
                 <dd
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                 >
                   <div
-                    class="MuiBox-root css-42kczj"
+                    class="MuiBox css-hash"
                   >
                     <button
-                      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-14ebh8n-MuiButtonBase-root-MuiButton-root"
+                      class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
                       tabindex="0"
                       type="button"
                     >
                       /
                       <span
-                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        class="MuiTouchRipple css-hash"
                       />
                     </button>
                   </div>
                 </dd>
                 <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                 >
                   <div
-                    class="MuiBox-root css-0"
+                    class="MuiBox css-hash"
                   >
                     <p
-                      class="MuiTypography-root MuiTypography-body2 css-1k32pko-MuiTypography-root"
+                      class="MuiTypography MuiTypography css-hash"
                     >
                       Log Viewer Search
                     </p>
                     <span
-                      class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                      class="MuiTypography MuiTypography css-hash"
                     >
                       Toggle search in log viewer
                     </span>
                   </div>
                 </dt>
                 <dd
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                 >
                   <div
-                    class="MuiBox-root css-42kczj"
+                    class="MuiBox css-hash"
                   >
                     <button
-                      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-14ebh8n-MuiButtonBase-root-MuiButton-root"
+                      class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
                       tabindex="0"
                       type="button"
                     >
                       Ctrl + Shift + F
                       <span
-                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        class="MuiTouchRipple css-hash"
                       />
                     </button>
                   </div>
                 </dd>
                 <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 MuiGrid-grid-md-12 css-gvwr1e-MuiGrid-root"
+                  class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-button css-jwury-MuiTypography-root"
+                    class="MuiTypography MuiTypography css-hash"
                   >
                     Navigation
                   </span>
                 </dt>
                 <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+                  class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                 >
                   <div
-                    class="MuiBox-root css-0"
+                    class="MuiBox css-hash"
                   >
                     <p
-                      class="MuiTypography-root MuiTypography-body2 css-1k32pko-MuiTypography-root"
+                      class="MuiTypography MuiTypography css-hash"
                     >
                       Cluster Chooser
                     </p>
                     <span
-                      class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                      class="MuiTypography MuiTypography css-hash"
                     >
                       Open the cluster chooser popup
                     </span>
                   </div>
                 </dt>
                 <dd
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+                  class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                 >
                   <div
-                    class="MuiBox-root css-42kczj"
+                    class="MuiBox css-hash"
                   >
                     <button
-                      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-14ebh8n-MuiButtonBase-root-MuiButton-root"
+                      class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
                       tabindex="0"
                       type="button"
                     >
                       Ctrl + Shift + L
                       <span
-                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        class="MuiTouchRipple css-hash"
                       />
                     </button>
                   </div>
                 </dd>
                 <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 MuiGrid-grid-md-12 css-gvwr1e-MuiGrid-root"
+                  class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-button css-jwury-MuiTypography-root"
+                    class="MuiTypography MuiTypography css-hash"
                   >
                     General
                   </span>
                 </dt>
                 <dt
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+                  class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                 >
                   <div
-                    class="MuiBox-root css-0"
+                    class="MuiBox css-hash"
                   >
                     <p
-                      class="MuiTypography-root MuiTypography-body2 css-1k32pko-MuiTypography-root"
+                      class="MuiTypography MuiTypography css-hash"
                     >
                       Toggle Table Filters
                     </p>
                     <span
-                      class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                      class="MuiTypography MuiTypography css-hash"
                     >
                       Toggle column filters in tables
                     </span>
                   </div>
                 </dt>
                 <dd
-                  class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+                  class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                 >
                   <div
-                    class="MuiBox-root css-42kczj"
+                    class="MuiBox css-hash"
                   >
                     <button
-                      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-14ebh8n-MuiButtonBase-root-MuiButton-root"
+                      class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
                       tabindex="0"
                       type="button"
                     >
                       Alt + Shift + T
                       <span
-                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        class="MuiTouchRipple css-hash"
                       />
                     </button>
                   </div>
@@ -255,29 +255,29 @@
           </div>
         </div>
         <div
-          class="MuiDialogActions-root MuiDialogActions-spacing css-1u2rwzb-MuiDialogActions-root"
+          class="MuiDialogActions MuiDialogActions css-hash"
         >
           <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeSmall MuiButton-containedSizeSmall MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeSmall MuiButton-containedSizeSmall MuiButton-colorSecondary MuiButton-disableElevation css-142jlxe-MuiButtonBase-root-MuiButton-root"
+            class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
             tabindex="0"
             type="button"
           >
             <span
-              class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+              class="MuiButton MuiButton MuiButton css-hash"
             />
             Reset All to Defaults
             <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              class="MuiTouchRipple css-hash"
             />
           </button>
           <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
+            class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
             tabindex="0"
             type="button"
           >
             Close
             <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              class="MuiTouchRipple css-hash"
             />
           </button>
         </div>

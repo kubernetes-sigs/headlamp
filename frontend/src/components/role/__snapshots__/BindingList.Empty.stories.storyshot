@@ -1,53 +1,53 @@
 <body>
   <div>
     <div
-      class="MuiContainer-root MuiContainer-maxWidthXl css-4hqp1a-MuiContainer-root"
+      class="MuiContainer MuiContainer css-hash"
     >
       <div
-        class="MuiBox-root css-j1fy4m"
+        class="MuiBox css-hash"
       >
         <div
-          class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid css-hash"
         >
           <div
-            class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            class="MuiGrid MuiGrid css-hash"
           >
             <div
-              class="MuiBox-root css-70qvj9"
+              class="MuiBox css-hash"
             >
               <h1
-                class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
+                class="MuiTypography MuiTypography MuiTypography css-hash"
               >
                 Role Bindings
               </h1>
               <div
-                class="MuiBox-root css-ldp2l3"
+                class="MuiBox css-hash"
               />
             </div>
           </div>
         </div>
         <div
-          class="MuiBox-root css-1txv3mw"
+          class="MuiBox css-hash"
         >
           <div
-            class="MuiBox-root css-8atqhb"
+            class="MuiBox css-hash"
           >
             <div
               aria-atomic="true"
               aria-live="polite"
-              class="MuiBox-root css-ty8jgw"
+              class="MuiBox css-hash"
               role="status"
             >
               No data to be shown.
             </div>
             <div
-              class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
+              class="MuiPaper MuiPaper MuiPaper css-hash"
             >
               <div
-                class="MuiBox-root css-19midj6"
+                class="MuiBox css-hash"
               >
                 <p
-                  class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+                  class="MuiTypography MuiTypography MuiTypography css-hash"
                 >
                   No data to be shown.
                 </p>

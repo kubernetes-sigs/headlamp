@@ -1,24 +1,24 @@
 <body>
   <div>
     <div
-      class="MuiBox-root css-0"
+      class="MuiBox css-hash"
     >
       <div
-        class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+        class="MuiFormControl MuiFormControl MuiTextField css-hash"
       >
         <div
           aria-activedescendant=""
           aria-autocomplete="list"
           aria-expanded="false"
           autocapitalize="none"
-          class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth Mui-focused MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd css-1qswgw4-MuiInputBase-root-MuiOutlinedInput-root"
+          class="Mui-focused MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
           role="combobox"
           spellcheck="false"
         >
           <input
             aria-invalid="false"
             autocomplete="off"
-            class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+            class="MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
             id=":mock-test-id:"
             placeholder="Search resources, pages, clusters by name"
             type="text"
@@ -26,21 +26,21 @@
           />
           <button
             aria-label="Clear"
-            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ppbyx2-MuiButtonBase-root-MuiIconButton-root"
+            class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
             data-mui-internal-clone-element="true"
             tabindex="0"
             type="button"
           >
             <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              class="MuiTouchRipple css-hash"
             />
           </button>
           <fieldset
             aria-hidden="true"
-            class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+            class="MuiOutlinedInput css-hash"
           >
             <legend
-              class="css-1whs34k-MuiNotchedOutlined-root"
+              class="css-hash"
             >
               <span
                 class="notranslate"
@@ -54,7 +54,7 @@
     </div>
   </div>
   <div
-    class="MuiPopper-root css-5vmmeo-MuiPopper-root"
+    class="MuiPopper css-hash"
     data-popper-escaped=""
     data-popper-placement="bottom"
     data-popper-reference-hidden=""
@@ -63,7 +63,7 @@
   >
     <ul
       aria-labelledby=":mock-test-id:"
-      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-atm94b-MuiPaper-root"
+      class="MuiPaper MuiPaper MuiPaper css-hash"
       id=":mock-test-id:"
       role="listbox"
     />

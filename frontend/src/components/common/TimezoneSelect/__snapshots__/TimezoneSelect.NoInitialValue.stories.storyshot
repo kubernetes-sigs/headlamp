@@ -1,13 +1,13 @@
 <body>
   <div>
     <div
-      class="MuiAutocomplete-root MuiAutocomplete-hasPopupIcon css-ka7ti6-MuiAutocomplete-root"
+      class="MuiAutocomplete MuiAutocomplete css-hash"
     >
       <div
-        class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+        class="MuiFormControl MuiFormControl MuiTextField css-hash"
       >
         <div
-          class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
+          class="MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
         >
           <input
             aria-autocomplete="both"
@@ -17,7 +17,7 @@
             aria-label="Timezone"
             autocapitalize="none"
             autocomplete="off"
-            class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+            class="MuiAutocomplete MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
             id="timezone-selector-autocomplete"
             role="combobox"
             spellcheck="false"
@@ -25,11 +25,11 @@
             value=""
           />
           <div
-            class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
+            class="MuiAutocomplete css-hash"
           >
             <button
               aria-label="Open"
-              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-1aav1nn-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
+              class="MuiAutocomplete MuiButtonBase MuiIconButton MuiIconButton css-hash"
               tabindex="-1"
               title="Open"
               type="button"
@@ -46,16 +46,16 @@
                 />
               </svg>
               <span
-                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                class="MuiTouchRipple css-hash"
               />
             </button>
           </div>
           <fieldset
             aria-hidden="true"
-            class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+            class="MuiOutlinedInput css-hash"
           >
             <legend
-              class="css-1whs34k-MuiNotchedOutlined-root"
+              class="css-hash"
             >
               <span
                 class="notranslate"
@@ -66,7 +66,7 @@
           </fieldset>
         </div>
         <p
-          class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained css-153yz37-MuiFormHelperText-root"
+          class="MuiFormHelperText MuiFormHelperText MuiFormHelperText css-hash"
           id="timezone-selector-autocomplete-helper-text"
         >
           Timezone

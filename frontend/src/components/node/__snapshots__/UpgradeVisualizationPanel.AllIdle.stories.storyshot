@@ -1,93 +1,93 @@
 <body>
   <div>
     <div
-      class="MuiBox-root css-1qgzacq"
+      class="MuiBox css-hash"
     >
       <div
-        class="MuiBox-root css-1qm1lh"
+        class="MuiBox css-hash"
       >
         <h6
-          class="MuiTypography-root MuiTypography-subtitle1 css-ofbfey-MuiTypography-root"
+          class="MuiTypography MuiTypography css-hash"
         >
           Idle Nodes
         </h6>
         <div
-          class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-m11i2x-MuiPaper-root"
+          class="MuiPaper MuiPaper MuiPaper css-hash"
         >
           <div
-            class="MuiBox-root css-axw7ok"
+            class="MuiBox css-hash"
           >
             <h6
-              class="MuiTypography-root MuiTypography-subtitle2 css-l62m0z-MuiTypography-root"
+              class="MuiTypography MuiTypography css-hash"
             >
               aks-node-upgrading
             </h6>
             <div
-              class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-outlinedSuccess css-s5qog2-MuiChip-root"
+              class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
             >
               <span
-                class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                class="MuiChip MuiChip css-hash"
               >
                 Ready
               </span>
             </div>
           </div>
           <p
-            class="MuiTypography-root MuiTypography-body2 css-plok08-MuiTypography-root"
+            class="MuiTypography MuiTypography css-hash"
           >
             Version: v1.29.0
           </p>
         </div>
         <div
-          class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-m11i2x-MuiPaper-root"
+          class="MuiPaper MuiPaper MuiPaper css-hash"
         >
           <div
-            class="MuiBox-root css-axw7ok"
+            class="MuiBox css-hash"
           >
             <h6
-              class="MuiTypography-root MuiTypography-subtitle2 css-l62m0z-MuiTypography-root"
+              class="MuiTypography MuiTypography css-hash"
             >
               aks-node-surge
             </h6>
             <div
-              class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-outlinedSuccess css-s5qog2-MuiChip-root"
+              class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
             >
               <span
-                class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                class="MuiChip MuiChip css-hash"
               >
                 Ready
               </span>
             </div>
           </div>
           <p
-            class="MuiTypography-root MuiTypography-body2 css-plok08-MuiTypography-root"
+            class="MuiTypography MuiTypography css-hash"
           >
             Version: v1.29.0
           </p>
         </div>
         <div
-          class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-m11i2x-MuiPaper-root"
+          class="MuiPaper MuiPaper MuiPaper css-hash"
         >
           <div
-            class="MuiBox-root css-axw7ok"
+            class="MuiBox css-hash"
           >
             <h6
-              class="MuiTypography-root MuiTypography-subtitle2 css-l62m0z-MuiTypography-root"
+              class="MuiTypography MuiTypography css-hash"
             >
               aks-node-idle
             </h6>
             <div
-              class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-outlinedSuccess css-s5qog2-MuiChip-root"
+              class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
             >
               <span
-                class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                class="MuiChip MuiChip css-hash"
               >
                 Ready
               </span>
             </div>
           </div>
           <p
-            class="MuiTypography-root MuiTypography-body2 css-plok08-MuiTypography-root"
+            class="MuiTypography MuiTypography css-hash"
           >
             Version: v1.29.0
           </p>

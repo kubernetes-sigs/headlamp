@@ -3,12 +3,12 @@
     aria-hidden="true"
   />
   <div
-    class="MuiDialog-root MuiModal-root css-zw3mfo-MuiModal-root-MuiDialog-root"
+    class="MuiDialog MuiModal css-hash"
     role="presentation"
   >
     <div
       aria-hidden="true"
-      class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
+      class="MuiBackdrop MuiModal css-hash"
       style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
     />
     <div
@@ -16,29 +16,29 @@
       tabindex="0"
     />
     <div
-      class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
+      class="MuiDialog MuiDialog css-hash"
       role="presentation"
       style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
       tabindex="-1"
     >
       <div
         aria-labelledby=":mock-test-id:"
-        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthLg MuiDialog-paperFullWidth css-kl791l-MuiPaper-root-MuiDialog-paper"
+        class="MuiDialog MuiDialog MuiDialog MuiDialog MuiPaper MuiPaper MuiPaper css-hash"
         role="dialog"
       >
         <h2
-          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
+          class="MuiDialogTitle MuiTypography MuiTypography css-hash"
           id=":mock-test-id:"
           style="display: flex;"
         >
           <div
-            class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
+            class="MuiGrid MuiGrid css-hash"
           >
             <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              class="MuiGrid MuiGrid css-hash"
             >
               <h1
-                class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
                 id=":mock-test-id:"
                 style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
               >
@@ -46,31 +46,31 @@
               </h1>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              class="MuiGrid MuiGrid css-hash"
             >
               <div
-                class="MuiBox-root css-0"
+                class="MuiBox css-hash"
               >
                 <button
                   aria-label="Toggle fullscreen"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                  class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                   data-mui-internal-clone-element="true"
                   tabindex="0"
                   type="button"
                 >
                   <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    class="MuiTouchRipple css-hash"
                   />
                 </button>
                 <button
                   aria-label="Close"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                  class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                   data-mui-internal-clone-element="true"
                   tabindex="0"
                   type="button"
                 >
                   <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    class="MuiTouchRipple css-hash"
                   />
                 </button>
               </div>
@@ -78,36 +78,36 @@
           </div>
         </h2>
         <div
-          class="MuiDialogContent-root css-4kzd3n-MuiDialogContent-root"
+          class="MuiDialogContent css-hash"
         >
           <div
-            class="MuiGrid-root MuiGrid-container MuiGrid-wrap-xs-nowrap css-1c9lqjq-MuiGrid-root"
+            class="MuiGrid MuiGrid MuiGrid css-hash"
           >
             <div
-              class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-1 css-v8g4am-MuiGrid-root"
+              class="MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
             >
               <div
-                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                class="MuiGrid MuiGrid css-hash"
               >
                 <div
-                  class="MuiFormControl-root css-1rb4qd1-MuiFormControl-root"
+                  class="MuiFormControl css-hash"
                 >
                   <label
-                    class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeMedium MuiInputLabel-standard MuiFormLabel-colorPrimary MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeMedium MuiInputLabel-standard css-1xqhkuv-MuiFormLabel-root-MuiInputLabel-root"
+                    class="MuiFormLabel MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
                     data-shrink="true"
                     id="container-name-chooser-label"
                   >
                     Container
                   </label>
                   <div
-                    class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary MuiInputBase-formControl css-m7fptp-MuiInputBase-root-MuiInput-root-MuiSelect-root"
+                    class="MuiInput MuiInput MuiInputBase MuiInputBase MuiInputBase css-hash"
                   >
                     <div
                       aria-controls=":mock-test-id:"
                       aria-expanded="false"
                       aria-haspopup="listbox"
                       aria-labelledby="container-name-chooser-label container-name-chooser"
-                      class="MuiSelect-select MuiSelect-standard MuiInputBase-input MuiInput-input css-9t3t1q-MuiSelect-select-MuiInputBase-input-MuiInput-input"
+                      class="MuiInput MuiInputBase MuiSelect MuiSelect css-hash"
                       id="container-name-chooser"
                       role="combobox"
                       tabindex="0"
@@ -117,7 +117,7 @@
                     <input
                       aria-hidden="true"
                       aria-invalid="false"
-                      class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+                      class="MuiSelect css-hash"
                       tabindex="-1"
                       value="main-container"
                     />
@@ -136,27 +136,27 @@
                 </div>
               </div>
               <div
-                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                class="MuiGrid MuiGrid css-hash"
               >
                 <div
-                  class="MuiFormControl-root css-c16j3x-MuiFormControl-root"
+                  class="MuiFormControl css-hash"
                 >
                   <label
-                    class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeMedium MuiInputLabel-standard MuiFormLabel-colorPrimary MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeMedium MuiInputLabel-standard css-1xqhkuv-MuiFormLabel-root-MuiInputLabel-root"
+                    class="MuiFormLabel MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
                     data-shrink="true"
                     id="container-lines-chooser-label"
                   >
                     Lines
                   </label>
                   <div
-                    class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary MuiInputBase-formControl css-m7fptp-MuiInputBase-root-MuiInput-root-MuiSelect-root"
+                    class="MuiInput MuiInput MuiInputBase MuiInputBase MuiInputBase css-hash"
                   >
                     <div
                       aria-controls=":mock-test-id:"
                       aria-expanded="false"
                       aria-haspopup="listbox"
                       aria-labelledby="container-lines-chooser-label container-lines-chooser"
-                      class="MuiSelect-select MuiSelect-standard MuiInputBase-input MuiInput-input css-9t3t1q-MuiSelect-select-MuiInputBase-input-MuiInput-input"
+                      class="MuiInput MuiInputBase MuiSelect MuiSelect css-hash"
                       id="container-lines-chooser"
                       role="combobox"
                       tabindex="0"
@@ -166,7 +166,7 @@
                     <input
                       aria-hidden="true"
                       aria-invalid="false"
-                      class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+                      class="MuiSelect css-hash"
                       tabindex="-1"
                       value="100"
                     />
@@ -185,140 +185,140 @@
                 </div>
               </div>
               <div
-                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                class="MuiGrid MuiGrid css-hash"
               >
                 <label
                   aria-label="You can only select this option for containers that have been restarted."
-                  class="MuiFormControlLabel-root Mui-disabled MuiFormControlLabel-labelPlacementEnd css-10aumk-MuiFormControlLabel-root"
+                  class="Mui-disabled MuiFormControlLabel MuiFormControlLabel css-hash"
                   data-mui-internal-clone-element="true"
                 >
                   <span
-                    class="MuiSwitch-root MuiSwitch-sizeSmall css-yg3kr-MuiSwitch-root"
+                    class="MuiSwitch MuiSwitch css-hash"
                   >
                     <span
                       aria-disabled="true"
-                      class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-disabled Mui-disabled PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-disabled Mui-disabled css-po6g13-MuiButtonBase-root-MuiSwitchBase-root-MuiSwitch-switchBase"
+                      class="Mui-disabled Mui-disabled Mui-disabled Mui-disabled MuiButtonBase MuiSwitch MuiSwitch MuiSwitch MuiSwitch PrivateSwitchBase-root css-hash"
                       tabindex="-1"
                     >
                       <input
-                        class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
+                        class="MuiSwitch PrivateSwitchBase-input css-hash"
                         disabled=""
                         name="checkPrevious"
                         type="checkbox"
                       />
                       <span
-                        class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
+                        class="MuiSwitch css-hash"
                       />
                     </span>
                     <span
-                      class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
+                      class="MuiSwitch css-hash"
                     />
                   </span>
                   <span
-                    class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label Mui-disabled css-1ezega9-MuiTypography-root"
+                    class="Mui-disabled MuiFormControlLabel MuiTypography MuiTypography css-hash"
                   >
                     Previous
                   </span>
                 </label>
               </div>
               <div
-                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                class="MuiGrid MuiGrid css-hash"
               >
                 <label
                   aria-label="Show timestamps in the logs."
-                  class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-10aumk-MuiFormControlLabel-root"
+                  class="MuiFormControlLabel MuiFormControlLabel css-hash"
                   data-mui-internal-clone-element="true"
                 >
                   <span
-                    class="MuiSwitch-root MuiSwitch-sizeSmall css-yg3kr-MuiSwitch-root"
+                    class="MuiSwitch MuiSwitch css-hash"
                   >
                     <span
-                      class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-po6g13-MuiButtonBase-root-MuiSwitchBase-root-MuiSwitch-switchBase"
+                      class="Mui-checked Mui-checked Mui-checked MuiButtonBase MuiSwitch MuiSwitch MuiSwitch MuiSwitch PrivateSwitchBase-root css-hash"
                     >
                       <input
                         checked=""
-                        class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
+                        class="MuiSwitch PrivateSwitchBase-input css-hash"
                         name="checkTimestamps"
                         type="checkbox"
                       />
                       <span
-                        class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
+                        class="MuiSwitch css-hash"
                       />
                       <span
-                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        class="MuiTouchRipple css-hash"
                       />
                     </span>
                     <span
-                      class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
+                      class="MuiSwitch css-hash"
                     />
                   </span>
                   <span
-                    class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
+                    class="MuiFormControlLabel MuiTypography MuiTypography css-hash"
                   >
                     Timestamps
                   </span>
                 </label>
               </div>
               <div
-                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                class="MuiGrid MuiGrid css-hash"
               >
                 <label
                   aria-label="Follow logs in real-time."
-                  class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-10aumk-MuiFormControlLabel-root"
+                  class="MuiFormControlLabel MuiFormControlLabel css-hash"
                   data-mui-internal-clone-element="true"
                 >
                   <span
-                    class="MuiSwitch-root MuiSwitch-sizeSmall css-yg3kr-MuiSwitch-root"
+                    class="MuiSwitch MuiSwitch css-hash"
                   >
                     <span
-                      class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-po6g13-MuiButtonBase-root-MuiSwitchBase-root-MuiSwitch-switchBase"
+                      class="Mui-checked Mui-checked Mui-checked MuiButtonBase MuiSwitch MuiSwitch MuiSwitch MuiSwitch PrivateSwitchBase-root css-hash"
                     >
                       <input
                         checked=""
-                        class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
+                        class="MuiSwitch PrivateSwitchBase-input css-hash"
                         name="follow"
                         type="checkbox"
                       />
                       <span
-                        class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
+                        class="MuiSwitch css-hash"
                       />
                       <span
-                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                        class="MuiTouchRipple css-hash"
                       />
                     </span>
                     <span
-                      class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
+                      class="MuiSwitch css-hash"
                     />
                   </span>
                   <span
-                    class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
+                    class="MuiFormControlLabel MuiTypography MuiTypography css-hash"
                   >
                     Follow
                   </span>
                 </label>
               </div>
               <div
-                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                class="MuiGrid MuiGrid css-hash"
               >
                 <div
-                  class="MuiFormControl-root css-wbib2n-MuiFormControl-root"
+                  class="MuiFormControl css-hash"
                 >
                   <label
-                    class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeMedium MuiInputLabel-standard MuiFormLabel-colorPrimary MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeMedium MuiInputLabel-standard css-1xqhkuv-MuiFormLabel-root-MuiInputLabel-root"
+                    class="MuiFormLabel MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
                     data-shrink="true"
                     id="severity-filter-label"
                   >
                     Severity
                   </label>
                   <div
-                    class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary MuiInputBase-formControl css-m7fptp-MuiInputBase-root-MuiInput-root-MuiSelect-root"
+                    class="MuiInput MuiInput MuiInputBase MuiInputBase MuiInputBase css-hash"
                   >
                     <div
                       aria-controls=":mock-test-id:"
                       aria-expanded="false"
                       aria-haspopup="listbox"
                       aria-labelledby="severity-filter-label severity-filter"
-                      class="MuiSelect-select MuiSelect-standard MuiSelect-multiple MuiInputBase-input MuiInput-input css-9t3t1q-MuiSelect-select-MuiInputBase-input-MuiInput-input"
+                      class="MuiInput MuiInputBase MuiSelect MuiSelect MuiSelect css-hash"
                       id="severity-filter"
                       role="combobox"
                       tabindex="0"
@@ -328,7 +328,7 @@
                     <input
                       aria-hidden="true"
                       aria-invalid="false"
-                      class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+                      class="MuiSelect css-hash"
                       tabindex="-1"
                       value="error,warn,info,debug"
                     />
@@ -348,53 +348,53 @@
               </div>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-1z0dvx8-MuiGrid-root"
+              class="MuiGrid MuiGrid MuiGrid css-hash"
             >
               <button
                 aria-label="Find"
-                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                 data-mui-internal-clone-element="true"
                 tabindex="0"
                 type="button"
               >
                 <span
-                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  class="MuiTouchRipple css-hash"
                 />
               </button>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-1z0dvx8-MuiGrid-root"
+              class="MuiGrid MuiGrid MuiGrid css-hash"
             >
               <button
                 aria-label="Clear"
-                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                 data-mui-internal-clone-element="true"
                 tabindex="0"
                 type="button"
               >
                 <span
-                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  class="MuiTouchRipple css-hash"
                 />
               </button>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-1z0dvx8-MuiGrid-root"
+              class="MuiGrid MuiGrid MuiGrid css-hash"
             >
               <button
                 aria-label="Download"
-                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                 data-mui-internal-clone-element="true"
                 tabindex="0"
                 type="button"
               >
                 <span
-                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  class="MuiTouchRipple css-hash"
                 />
               </button>
             </div>
           </div>
           <div
-            class="MuiBox-root css-1j1vsa7"
+            class="MuiBox css-hash"
           >
             <div
               id="xterm-container"

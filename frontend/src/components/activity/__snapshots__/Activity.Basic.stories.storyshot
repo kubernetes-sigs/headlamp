@@ -1,227 +1,227 @@
 <body>
   <div>
     <div
-      class="MuiBox-root css-y7vegm"
+      class="MuiBox css-hash"
     >
       <div
-        class="MuiBox-root css-5lww48"
+        class="MuiBox css-hash"
         id="main"
       />
       <div
-        class="MuiBox-root css-11hh78l"
+        class="MuiBox css-hash"
       />
       <div
-        class="MuiBox-root css-3xoqkk"
+        class="MuiBox css-hash"
         role="complementary"
       >
         <div
-          class="MuiBox-root css-eyh8nb"
+          class="MuiBox css-hash"
         >
           <div
-            class="MuiBox-root css-ha4r1w"
+            class="MuiBox css-hash"
           >
             <div
-              class="MuiBox-root css-19rsff"
+              class="MuiBox css-hash"
             />
             <p
-              class="MuiTypography-root MuiTypography-body1 css-slk4bd-MuiTypography-root"
+              class="MuiTypography MuiTypography css-hash"
             />
             <div
-              class="MuiBox-root css-1po99kh"
+              class="MuiBox css-hash"
             />
             <button
               aria-expanded="false"
               aria-haspopup="menu"
-              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
               tabindex="0"
               title="Window"
               type="button"
             >
               <span
-                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                class="MuiTouchRipple css-hash"
               />
             </button>
             <button
-              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
               tabindex="0"
               title="Minimize"
               type="button"
             >
               <span
-                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                class="MuiTouchRipple css-hash"
               />
             </button>
             <button
-              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
               tabindex="0"
               title="Close"
               type="button"
             >
               <span
-                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                class="MuiTouchRipple css-hash"
               />
             </button>
           </div>
           <div
-            class="MuiBox-root css-wqatdk"
+            class="MuiBox css-hash"
           >
             Left
           </div>
         </div>
       </div>
       <div
-        class="MuiBox-root css-3xoqkk"
+        class="MuiBox css-hash"
         role="complementary"
       >
         <div
-          class="MuiBox-root css-1u6as83"
+          class="MuiBox css-hash"
         >
           <div
-            class="MuiBox-root css-ha4r1w"
+            class="MuiBox css-hash"
           >
             <div
-              class="MuiBox-root css-19rsff"
+              class="MuiBox css-hash"
             />
             <p
-              class="MuiTypography-root MuiTypography-body1 css-slk4bd-MuiTypography-root"
+              class="MuiTypography MuiTypography css-hash"
             />
             <div
-              class="MuiBox-root css-1po99kh"
+              class="MuiBox css-hash"
             />
             <button
               aria-expanded="false"
               aria-haspopup="menu"
-              class="MuiButtonBase-root Mui-focusVisible MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              class="Mui-focusVisible MuiButtonBase MuiIconButton MuiIconButton css-hash"
               tabindex="0"
               title="Window"
               type="button"
             >
               <span
-                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                class="MuiTouchRipple css-hash"
               >
                 <span
-                  class="css-y4cjyz-MuiTouchRipple-ripple MuiTouchRipple-ripple MuiTouchRipple-rippleVisible MuiTouchRipple-ripplePulsate"
+                  class="MuiTouchRipple MuiTouchRipple MuiTouchRipple css-hash"
                   style="width: 1px; height: 1px; top: -0.5px; left: -0.5px;"
                 >
                   <span
-                    class="MuiTouchRipple-child MuiTouchRipple-childPulsate"
+                    class="MuiTouchRipple MuiTouchRipple"
                   />
                 </span>
               </span>
             </button>
             <button
-              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
               tabindex="0"
               title="Minimize"
               type="button"
             >
               <span
-                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                class="MuiTouchRipple css-hash"
               />
             </button>
             <button
-              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
               tabindex="0"
               title="Close"
               type="button"
             >
               <span
-                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                class="MuiTouchRipple css-hash"
               />
             </button>
           </div>
           <div
-            class="MuiBox-root css-wqatdk"
+            class="MuiBox css-hash"
           >
             Right
           </div>
         </div>
       </div>
       <div
-        class="MuiBox-root css-3ykv34"
+        class="MuiBox css-hash"
       >
         <div
-          class="MuiBox-root css-16dgwon"
+          class="MuiBox css-hash"
         >
           <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-1m1hqao-MuiButtonBase-root-MuiButton-root"
+            class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
             tabindex="0"
             type="button"
           >
             <div
-              class="MuiBox-root css-zlkkwz"
+              class="MuiBox css-hash"
             />
             <div
-              class="MuiBox-root css-18bzmof"
+              class="MuiBox css-hash"
             >
               <div
-                class="MuiBox-root css-1h2ruwl"
+                class="MuiBox css-hash"
               >
                 Something
               </div>
             </div>
             <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              class="MuiTouchRipple css-hash"
             />
           </button>
           <button
             aria-label="Close"
-            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-182yqqz-MuiButtonBase-root-MuiIconButton-root"
+            class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
             tabindex="0"
             type="button"
           >
             <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              class="MuiTouchRipple css-hash"
             />
           </button>
         </div>
         <div
-          class="MuiBox-root css-15k1pc3"
+          class="MuiBox css-hash"
         >
           <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-1m1hqao-MuiButtonBase-root-MuiButton-root"
+            class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
             tabindex="0"
             type="button"
           >
             <div
-              class="MuiBox-root css-zlkkwz"
+              class="MuiBox css-hash"
             />
             <div
-              class="MuiBox-root css-18bzmof"
+              class="MuiBox css-hash"
             >
               <div
-                class="MuiBox-root css-1h2ruwl"
+                class="MuiBox css-hash"
               >
                 Something
               </div>
             </div>
             <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              class="MuiTouchRipple css-hash"
             />
           </button>
           <button
             aria-label="Close"
-            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-182yqqz-MuiButtonBase-root-MuiIconButton-root"
+            class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
             tabindex="0"
             type="button"
           >
             <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              class="MuiTouchRipple css-hash"
             />
           </button>
         </div>
         <div
-          class="MuiBox-root css-a9us1r"
+          class="MuiBox css-hash"
         >
           <button
             aria-label="Overview"
-            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+            class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
             data-mui-internal-clone-element="true"
             tabindex="0"
             type="button"
           >
             <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              class="MuiTouchRipple css-hash"
             />
           </button>
         </div>

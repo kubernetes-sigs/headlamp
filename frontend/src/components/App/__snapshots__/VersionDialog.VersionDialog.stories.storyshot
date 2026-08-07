@@ -4,13 +4,13 @@
   />
   <div
     aria-label="Version information"
-    class="MuiDialog-root MuiModal-root css-zw3mfo-MuiModal-root-MuiDialog-root"
+    class="MuiDialog MuiModal css-hash"
     role="presentation"
     style="z-index: 1900;"
   >
     <div
       aria-hidden="true"
-      class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
+      class="MuiBackdrop MuiModal css-hash"
       style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
     />
     <div
@@ -18,29 +18,29 @@
       tabindex="0"
     />
     <div
-      class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
+      class="MuiDialog MuiDialog css-hash"
       role="presentation"
       style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
       tabindex="-1"
     >
       <div
         aria-labelledby=":mock-test-id:"
-        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm MuiDialog-paperFullWidth css-1ehm288-MuiPaper-root-MuiDialog-paper"
+        class="MuiDialog MuiDialog MuiDialog MuiDialog MuiPaper MuiPaper MuiPaper css-hash"
         role="dialog"
       >
         <h2
-          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
+          class="MuiDialogTitle MuiTypography MuiTypography css-hash"
           id=":mock-test-id:"
           style="display: flex;"
         >
           <div
-            class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
+            class="MuiGrid MuiGrid css-hash"
           >
             <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              class="MuiGrid MuiGrid css-hash"
             >
               <h1
-                class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
                 id=":mock-test-id:"
                 style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
               >
@@ -48,20 +48,20 @@
               </h1>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              class="MuiGrid MuiGrid css-hash"
             >
               <div
-                class="MuiBox-root css-0"
+                class="MuiBox css-hash"
               >
                 <button
                   aria-label="Close"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                  class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                   data-mui-internal-clone-element="true"
                   tabindex="0"
                   type="button"
                 >
                   <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    class="MuiTouchRipple css-hash"
                   />
                 </button>
               </div>
@@ -69,35 +69,35 @@
           </div>
         </h2>
         <div
-          class="MuiDialogContent-root css-ypiqx9-MuiDialogContent-root"
+          class="MuiDialogContent css-hash"
         >
           <dl
-            class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
+            class="MuiGrid MuiGrid css-hash"
           >
             <dt
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+              class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
             >
               Version
             </dt>
             <dd
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+              class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
             >
               <span
-                class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 0.0.1
               </span>
             </dd>
             <dt
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
+              class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
             >
               Git Commit
             </dt>
             <dd
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
+              class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
             >
               <span
-                class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 abc123abc123abc123abc123abc123abc123abc123abc123abc123
               </span>

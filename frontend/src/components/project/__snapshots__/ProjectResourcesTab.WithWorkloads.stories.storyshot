@@ -4,61 +4,61 @@
       style="height: 500px;"
     >
       <div
-        class="MuiBox-root css-1xxsrwd"
+        class="MuiBox css-hash"
       >
         <div
-          class="MuiBox-root css-6su6fj"
+          class="MuiBox css-hash"
         >
           <ul
-            class="MuiList-root MuiList-padding MuiList-dense css-h4y409-MuiList-root"
+            class="MuiList MuiList MuiList css-hash"
           >
             <li
-              class="MuiListItem-root MuiListItem-dense MuiListItem-gutters css-g2go0r-MuiListItem-root"
+              class="MuiListItem MuiListItem MuiListItem css-hash"
             >
               <div
-                class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-dense MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-dense MuiListItemButton-gutters css-12sacnv-MuiButtonBase-root-MuiListItemButton-root"
+                class="MuiButtonBase MuiListItemButton MuiListItemButton MuiListItemButton MuiListItemButton MuiListItemButton MuiListItemButton css-hash"
                 role="button"
                 tabindex="0"
               >
                 <div
-                  class="MuiListItemIcon-root css-cveggr-MuiListItemIcon-root"
+                  class="MuiListItemIcon css-hash"
                 />
                 <div
-                  class="MuiListItemText-root MuiListItemText-dense MuiListItemText-multiline css-konndc-MuiListItemText-root"
+                  class="MuiListItemText MuiListItemText MuiListItemText css-hash"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 MuiListItemText-primary css-z2qth0-MuiTypography-root"
+                    class="MuiListItemText MuiTypography MuiTypography css-hash"
                   >
                     Workloads
                   </span>
                   <p
-                    class="MuiTypography-root MuiTypography-body2 MuiListItemText-secondary css-pglae5-MuiTypography-root"
+                    class="MuiListItemText MuiTypography MuiTypography css-hash"
                   >
                     Applications and compute resources
                   </p>
                 </div>
                 <div
-                  class="MuiListItemIcon-root css-1fqgk7o-MuiListItemIcon-root"
+                  class="MuiListItemIcon css-hash"
                 >
                   <div
-                    class="MuiBox-root css-171onha"
+                    class="MuiBox css-hash"
                   >
                     <h6
-                      class="MuiTypography-root MuiTypography-h6 css-1xkn1z3-MuiTypography-root"
+                      class="MuiTypography MuiTypography css-hash"
                     >
                       6
                     </h6>
                   </div>
                 </div>
                 <span
-                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  class="MuiTouchRipple css-hash"
                 />
               </div>
             </li>
           </ul>
         </div>
         <div
-          class="MuiBox-root css-mndmei"
+          class="MuiBox css-hash"
         />
       </div>
     </div>

@@ -1,58 +1,58 @@
 <body>
   <div>
     <div
-      class="MuiBox-root css-j1fy4m"
+      class="MuiBox css-hash"
     >
       <div
-        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+        class="MuiGrid MuiGrid MuiGrid css-hash"
       >
         <div
-          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+          class="MuiGrid MuiGrid css-hash"
         >
           <div
-            class="MuiBox-root css-70qvj9"
+            class="MuiBox css-hash"
           >
             <h2
-              class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+              class="MuiTypography MuiTypography MuiTypography css-hash"
             >
               Cluster Settings
             </h2>
             <div
-              class="MuiBox-root css-ldp2l3"
+              class="MuiBox css-hash"
             />
           </div>
         </div>
       </div>
       <div
-        class="MuiBox-root css-1txv3mw"
+        class="MuiBox css-hash"
       >
         <div
           aria-atomic="true"
           aria-live="polite"
-          class="MuiBox-root css-ty8jgw"
+          class="MuiBox css-hash"
           role="status"
         />
         <div
-          class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-onzayo-MuiPaper-root-MuiTableContainer-root"
+          class="MuiPaper MuiPaper MuiPaper MuiTableContainer css-hash"
           tabindex="0"
         >
           <table
-            class="MuiTable-root css-1ml9dpn-MuiTable-root"
+            class="MuiTable css-hash"
           >
             <thead
-              class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
+              class="MuiTableHead css-hash"
             >
               <tr
-                class="MuiTableRow-root MuiTableRow-head css-13jktim-MuiTableRow-root"
+                class="MuiTableRow MuiTableRow css-hash"
               >
                 <th
-                  class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                   scope="col"
                 >
                   Name
                 </th>
                 <th
-                  class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                   scope="col"
                 >
                   Server
@@ -60,99 +60,99 @@
               </tr>
             </thead>
             <tbody
-              class="MuiTableBody-root css-apqrd9-MuiTableBody-root"
+              class="MuiTableBody css-hash"
             >
               <tr
-                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                class="MuiTableRow css-hash"
               >
                 <td
-                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                     href="/settings/cluster?c=local-kind"
                   >
                     local-kind
                   </a>
                 </td>
                 <td
-                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                 >
                   https://127.0.0.1:6443
                 </td>
               </tr>
               <tr
-                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                class="MuiTableRow css-hash"
               >
                 <td
-                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                     href="/settings/cluster?c=minikube"
                   >
                     minikube
                   </a>
                 </td>
                 <td
-                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                 >
                   https://192.168.49.2:8443
                 </td>
               </tr>
               <tr
-                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                class="MuiTableRow css-hash"
               >
                 <td
-                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                     href="/settings/cluster?c=eks-cluster"
                   >
                     eks-cluster
                   </a>
                 </td>
                 <td
-                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                 >
                   https://ABC123DEF456.gr7.us-west-2.eks.amazonaws.com
                 </td>
               </tr>
               <tr
-                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                class="MuiTableRow css-hash"
               >
                 <td
-                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                     href="/settings/cluster?c=gke-cluster"
                   >
                     gke-cluster
                   </a>
                 </td>
                 <td
-                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                 >
                   https://34.123.45.67
                 </td>
               </tr>
               <tr
-                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                class="MuiTableRow css-hash"
               >
                 <td
-                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                 >
                   <a
-                    class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                    class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                     href="/settings/cluster?c=aks-cluster"
                   >
                     aks-cluster
                   </a>
                 </td>
                 <td
-                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                 >
                   https://myaks-dns-12345678.hcp.eastus.azmk8s.io:443
                 </td>

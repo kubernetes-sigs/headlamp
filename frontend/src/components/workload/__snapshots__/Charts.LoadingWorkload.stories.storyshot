@@ -1,44 +1,44 @@
 <body>
   <div>
     <div
-      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
+      class="MuiPaper MuiPaper MuiPaper css-hash"
     >
       <div
-        class="MuiBox-root css-qrw4x1"
+        class="MuiBox css-hash"
       >
         <div
-          class="MuiBox-root css-1sl8dhm"
+          class="MuiBox css-hash"
         >
           <div
-            class="MuiBox-root css-0"
+            class="MuiBox css-hash"
           >
             <p
-              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+              class="MuiTypography MuiTypography MuiTypography css-hash"
             />
           </div>
           <p
-            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
+            class="MuiTypography MuiTypography MuiTypography css-hash"
           >
             …
           </p>
         </div>
         <div
-          class="MuiBox-root css-0"
+          class="MuiBox css-hash"
         >
           <div
             aria-busy="true"
             aria-live="polite"
-            class="MuiBox-root css-2esbmj"
+            class="MuiBox css-hash"
           >
             <div
-              class="MuiBox-root css-5cned0"
+              class="MuiBox css-hash"
             >
               <span
-                aria-label="Loading data for "
-                class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
+                aria-label="Loading data for"
+                class="MuiCircularProgress MuiCircularProgress MuiCircularProgress css-hash"
                 role="progressbar"
                 style="width: 40px; height: 40px;"
-                title="Loading data for "
+                title="Loading data for"
               >
                 <svg
                   class="MuiCircularProgress-svg css-1idz92c-MuiCircularProgress-svg"

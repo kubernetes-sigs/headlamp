@@ -1,14 +1,14 @@
 <body>
   <div>
     <div
-      class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+      class="MuiGrid MuiGrid css-hash"
       style="background-color: rgba(0, 0, 0, 0.87);"
     >
       <ul
-        class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
+        class="MuiList MuiList css-hash"
       >
         <li
-          class="MuiDivider-root MuiDivider-fullWidth css-lu63ml-MuiDivider-root"
+          class="MuiDivider MuiDivider css-hash"
           role="separator"
         />
       </ul>

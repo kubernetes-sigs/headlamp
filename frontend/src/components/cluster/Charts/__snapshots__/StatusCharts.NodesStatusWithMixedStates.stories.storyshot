@@ -1,36 +1,36 @@
 <body>
   <div>
     <div
-      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
+      class="MuiPaper MuiPaper MuiPaper css-hash"
     >
       <div
-        class="MuiBox-root css-qrw4x1"
+        class="MuiBox css-hash"
       >
         <div
-          class="MuiBox-root css-1sl8dhm"
+          class="MuiBox css-hash"
         >
           <div
-            class="MuiBox-root css-0"
+            class="MuiBox css-hash"
           >
             <p
-              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+              class="MuiTypography MuiTypography MuiTypography css-hash"
             >
               Nodes
             </p>
           </div>
           <p
-            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
+            class="MuiTypography MuiTypography MuiTypography css-hash"
           >
             2 / 3 Ready
           </p>
         </div>
         <div
-          class="MuiBox-root css-0"
+          class="MuiBox css-hash"
         >
           <div
             aria-busy="false"
             aria-live="polite"
-            class="MuiBox-root css-2esbmj"
+            class="MuiBox css-hash"
           >
             <div
               class="recharts-wrapper"
@@ -72,14 +72,7 @@
                       class="recharts-sector"
                       cx="61"
                       cy="61"
-                      d="M 61,16.199999999999996
-    A 44.800000000000004,44.800000000000004,0,
-    1,1,
-    22.20206191045714,83.4
-  L 31.72834135208597,77.9
-            A 33.800000000000004,33.800000000000004,0,
-            1,0,
-            61,27.199999999999996 Z"
+                      d="M 61,16.199999999999996 A 44.800000000000004,44.800000000000004,0, 1,1, 22.20206191045714,83.4 L 31.72834135208597,77.9 A 33.800000000000004,33.800000000000004,0, 1,0, 61,27.199999999999996 Z"
                       fill="#000"
                       name="ready"
                       role="img"
@@ -96,14 +89,7 @@
                       class="recharts-sector"
                       cx="61"
                       cy="61"
-                      d="M 22.20206191045714,83.4
-    A 44.800000000000004,44.800000000000004,0,
-    0,1,
-    60.99999999999999,16.199999999999996
-  L 60.99999999999999,27.199999999999996
-            A 33.800000000000004,33.800000000000004,0,
-            0,0,
-            31.72834135208597,77.9 Z"
+                      d="M 22.20206191045714,83.4 A 44.800000000000004,44.800000000000004,0, 0,1, 60.99999999999999,16.199999999999996 L 60.99999999999999,27.199999999999996 A 33.800000000000004,33.800000000000004,0, 0,0, 31.72834135208597,77.9 Z"
                       fill="#c62828"
                       name="notReady"
                       role="img"

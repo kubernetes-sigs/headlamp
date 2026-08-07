@@ -1,10 +1,10 @@
 <body>
   <div>
     <div
-      class="MuiBox-root css-1v5z18m"
+      class="MuiBox css-hash"
     >
       <div
-        class="MuiBox-root css-k008qs"
+        class="MuiBox css-hash"
       >
         <span
           id="label-id"
@@ -16,12 +16,12 @@
             aria-controls="label-id"
             aria-expanded="false"
             aria-label="Expand"
-            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-z81te2-MuiButtonBase-root-MuiIconButton-root"
+            class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
             tabindex="0"
             type="button"
           >
             <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              class="MuiTouchRipple css-hash"
             />
           </button>
         </span>

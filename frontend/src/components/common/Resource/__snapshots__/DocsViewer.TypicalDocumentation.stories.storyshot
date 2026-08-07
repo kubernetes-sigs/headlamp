@@ -1,45 +1,45 @@
 <body>
   <div>
     <div
-      class="MuiBox-root css-19midj6"
+      class="MuiBox css-hash"
     >
       <p
-        class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+        class="MuiTypography MuiTypography css-hash"
       >
         Showing documentation for: Pod
       </p>
       <ul
         aria-multiselectable="false"
-        class="MuiTreeView-root css-16c5dhn-MuiTreeView-root"
+        class="MuiTreeView css-hash"
         id=":mock-test-id:"
         role="tree"
         tabindex="0"
       >
         <li
           aria-expanded="false"
-          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
+          class="MuiTreeItem css-hash"
           id=":mock-test-id:"
           role="treeitem"
           tabindex="-1"
         >
           <div
-            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+            class="MuiTreeItem css-hash"
           >
             <div
-              class="MuiTreeItem-iconContainer"
+              class="MuiTreeItem"
             />
             <div
-              class="MuiTreeItem-label"
+              class="MuiTreeItem"
             >
               <div>
                 <p
-                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                  class="MuiTypography MuiTypography css-hash"
                 >
                   apiVersion
                 </p>
                  
                 <span
-                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                  class="MuiTypography MuiTypography css-hash"
                 >
                   (
                   string
@@ -51,29 +51,29 @@
         </li>
         <li
           aria-expanded="false"
-          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
+          class="MuiTreeItem css-hash"
           id=":mock-test-id:"
           role="treeitem"
           tabindex="-1"
         >
           <div
-            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+            class="MuiTreeItem css-hash"
           >
             <div
-              class="MuiTreeItem-iconContainer"
+              class="MuiTreeItem"
             />
             <div
-              class="MuiTreeItem-label"
+              class="MuiTreeItem"
             >
               <div>
                 <p
-                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                  class="MuiTypography MuiTypography css-hash"
                 >
                   kind
                 </p>
                  
                 <span
-                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                  class="MuiTypography MuiTypography css-hash"
                 >
                   (
                   string
@@ -85,29 +85,29 @@
         </li>
         <li
           aria-expanded="false"
-          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
+          class="MuiTreeItem css-hash"
           id=":mock-test-id:"
           role="treeitem"
           tabindex="-1"
         >
           <div
-            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+            class="MuiTreeItem css-hash"
           >
             <div
-              class="MuiTreeItem-iconContainer"
+              class="MuiTreeItem"
             />
             <div
-              class="MuiTreeItem-label"
+              class="MuiTreeItem"
             >
               <div>
                 <p
-                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                  class="MuiTypography MuiTypography css-hash"
                 >
                   metadata
                 </p>
                  
                 <span
-                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                  class="MuiTypography MuiTypography css-hash"
                 >
                   (
                   object
@@ -119,29 +119,29 @@
         </li>
         <li
           aria-expanded="false"
-          class="MuiTreeItem-root css-16alkdk-MuiTreeItem-root"
+          class="MuiTreeItem css-hash"
           id=":mock-test-id:"
           role="treeitem"
           tabindex="-1"
         >
           <div
-            class="css-198jaxq-MuiTreeItem-content MuiTreeItem-content"
+            class="MuiTreeItem css-hash"
           >
             <div
-              class="MuiTreeItem-iconContainer"
+              class="MuiTreeItem"
             />
             <div
-              class="MuiTreeItem-label"
+              class="MuiTreeItem"
             >
               <div>
                 <p
-                  class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+                  class="MuiTypography MuiTypography css-hash"
                 >
                   spec
                 </p>
                  
                 <span
-                  class="MuiTypography-root MuiTypography-caption css-i3d2e2-MuiTypography-root"
+                  class="MuiTypography MuiTypography css-hash"
                 >
                   (
                   object

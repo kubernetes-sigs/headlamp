@@ -1,48 +1,48 @@
 <body>
   <div>
     <div
-      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-e1wsad-MuiPaper-root"
+      class="MuiPaper MuiPaper MuiPaper css-hash"
     >
       <h6
-        class="MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-r34k9t-MuiTypography-root"
+        class="MuiTypography MuiTypography MuiTypography css-hash"
       >
         Outer Container Title
       </h6>
       <div
-        class="MuiBox-root css-v0ml89"
+        class="MuiBox css-hash"
       >
         <h6
-          class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
+          class="MuiTypography MuiTypography css-hash"
         >
           Section Containing InnerTable
         </h6>
         <div
           aria-atomic="true"
           aria-live="polite"
-          class="MuiBox-root css-ty8jgw"
+          class="MuiBox css-hash"
           role="status"
         />
         <div
-          class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-1sjkwtf-MuiPaper-root-MuiTableContainer-root"
+          class="MuiPaper MuiPaper MuiPaper MuiTableContainer css-hash"
           tabindex="0"
         >
           <table
-            class="MuiTable-root css-1ml9dpn-MuiTable-root"
+            class="MuiTable css-hash"
           >
             <thead
-              class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
+              class="MuiTableHead css-hash"
             >
               <tr
-                class="MuiTableRow-root MuiTableRow-head css-13jktim-MuiTableRow-root"
+                class="MuiTableRow MuiTableRow css-hash"
               >
                 <th
-                  class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                   scope="col"
                 >
                   Key
                 </th>
                 <th
-                  class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                   scope="col"
                 >
                   Value
@@ -50,32 +50,32 @@
               </tr>
             </thead>
             <tbody
-              class="MuiTableBody-root css-apqrd9-MuiTableBody-root"
+              class="MuiTableBody css-hash"
             >
               <tr
-                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                class="MuiTableRow css-hash"
               >
                 <td
-                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                 >
                   config_option_1
                 </td>
                 <td
-                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                 >
                   true
                 </td>
               </tr>
               <tr
-                class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+                class="MuiTableRow css-hash"
               >
                 <td
-                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                 >
                   config_option_2
                 </td>
                 <td
-                  class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+                  class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                 >
                   12345
                 </td>

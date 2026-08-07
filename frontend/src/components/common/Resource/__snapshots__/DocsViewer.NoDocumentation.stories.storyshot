@@ -1,10 +1,10 @@
 <body>
   <div>
     <div
-      class="MuiBox-root css-19midj6"
+      class="MuiBox css-hash"
     >
       <p
-        class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+        class="MuiTypography MuiTypography MuiTypography css-hash"
       >
         No documentation available.
       </p>

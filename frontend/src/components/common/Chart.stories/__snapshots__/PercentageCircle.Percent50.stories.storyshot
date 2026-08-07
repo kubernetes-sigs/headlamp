@@ -3,10 +3,10 @@
     <div
       aria-busy="false"
       aria-live="polite"
-      class="MuiBox-root css-2esbmj"
+      class="MuiBox css-hash"
     >
       <p
-        class="MuiTypography-root MuiTypography-body1 css-b7twky-MuiTypography-root"
+        class="MuiTypography MuiTypography css-hash"
       >
         Pods
       </p>
@@ -50,14 +50,7 @@
                 class="recharts-sector"
                 cx="85"
                 cy="85"
-                d="M 85,21
-    A 64,64,0,
-    0,1,
-    85,149
-  L 85,133
-            A 48,48,0,
-            0,0,
-            85,37 Z"
+                d="M 85,21 A 64,64,0, 0,1, 85,149 L 85,133 A 48,48,0, 0,0, 85,37 Z"
                 fill="#000"
                 name="ready"
                 role="img"
@@ -74,14 +67,7 @@
                 class="recharts-sector"
                 cx="85"
                 cy="85"
-                d="M 85,149
-    A 64,64,0,
-    0,1,
-    84.99999999999999,21
-  L 84.99999999999999,37
-            A 48,48,0,
-            0,0,
-            85,133 Z"
+                d="M 85,149 A 64,64,0, 0,1, 84.99999999999999,21 L 84.99999999999999,37 A 48,48,0, 0,0, 85,133 Z"
                 fill="#f44336"
                 name="notReady"
                 role="img"
@@ -113,7 +99,7 @@
         </svg>
       </div>
       <p
-        class="MuiTypography-root MuiTypography-body1 css-1linoo0-MuiTypography-root"
+        class="MuiTypography MuiTypography css-hash"
       >
         5 / 10 Requested
       </p>

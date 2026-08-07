@@ -2,26 +2,26 @@
   <div>
     <div
       aria-labelledby="recent-clusters-label"
-      class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-2 css-1vj4bu4-MuiGrid-root"
+      class="MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
       role="group"
     >
       <div
-        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        class="MuiGrid MuiGrid css-hash"
       >
         <button
-          class="MuiButtonBase-root Mui-focusVisible css-10d1a0h-MuiButtonBase-root"
+          class="Mui-focusVisible MuiButtonBase css-hash"
           tabindex="0"
           type="button"
         >
           <div
-            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-18nhd06-MuiPaper-root-MuiCard-root"
+            class="MuiCard MuiPaper MuiPaper MuiPaper css-hash"
           >
             <div
-              class="MuiCardContent-root css-d64700-MuiCardContent-root"
+              class="MuiCardContent css-hash"
             >
               <p
                 aria-label="cluster0"
-                class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-qscjxq-MuiTypography-root"
+                class="MuiTypography MuiTypography MuiTypography css-hash"
                 data-mui-internal-clone-element="true"
               >
                 cluster0
@@ -29,14 +29,14 @@
             </div>
           </div>
           <span
-            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            class="MuiTouchRipple css-hash"
           >
             <span
-              class="css-y4cjyz-MuiTouchRipple-ripple MuiTouchRipple-ripple MuiTouchRipple-rippleVisible MuiTouchRipple-ripplePulsate"
+              class="MuiTouchRipple MuiTouchRipple MuiTouchRipple css-hash"
               style="width: 1px; height: 1px; top: -0.5px; left: -0.5px;"
             >
               <span
-                class="MuiTouchRipple-child MuiTouchRipple-childPulsate"
+                class="MuiTouchRipple MuiTouchRipple"
               />
             </span>
           </span>

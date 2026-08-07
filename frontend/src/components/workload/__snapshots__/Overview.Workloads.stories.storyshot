@@ -1,47 +1,47 @@
 <body>
   <div>
     <div
-      class="MuiContainer-root MuiContainer-maxWidthXl css-4hqp1a-MuiContainer-root"
+      class="MuiContainer MuiContainer css-hash"
     >
       <div
-        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-1 css-1ub3t8b-MuiGrid-root"
+        class="MuiGrid MuiGrid MuiGrid css-hash"
       >
         <div
-          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid css-hash"
         >
           <div
-            class="MuiBox-root css-p0cik4"
+            class="MuiBox css-hash"
           >
             <div
-              class="MuiBox-root css-j1fy4m"
+              class="MuiBox css-hash"
             >
               <div
-                class="MuiBox-root css-th22mn"
+                class="MuiBox css-hash"
               >
                 <div
-                  class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-flggza-MuiGrid-root"
+                  class="MuiGrid MuiGrid MuiGrid css-hash"
                 >
                   <div
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-6 MuiGrid-grid-md-4 MuiGrid-grid-lg-3 css-10tsekr-MuiGrid-root"
+                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                     style="min-width: 0;"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
+                      class="MuiPaper MuiPaper MuiPaper css-hash"
                     >
                       <div
-                        class="MuiBox-root css-qrw4x1"
+                        class="MuiBox css-hash"
                       >
                         <div
-                          class="MuiBox-root css-1sl8dhm"
+                          class="MuiBox css-hash"
                         >
                           <div
-                            class="MuiBox-root css-0"
+                            class="MuiBox css-hash"
                           >
                             <p
-                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+                              class="MuiTypography MuiTypography MuiTypography css-hash"
                             >
                               <a
-                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                                class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                                 href="/"
                               >
                                 Pods
@@ -49,23 +49,23 @@
                             </p>
                           </div>
                           <p
-                            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
+                            class="MuiTypography MuiTypography MuiTypography css-hash"
                           >
                             1 Healthy
                             <span
-                              class="MuiBox-root css-172fsqw"
+                              class="MuiBox css-hash"
                             >
                               1 Other
                             </span>
                           </p>
                         </div>
                         <div
-                          class="MuiBox-root css-0"
+                          class="MuiBox css-hash"
                         >
                           <div
                             aria-busy="false"
                             aria-live="polite"
-                            class="MuiBox-root css-2esbmj"
+                            class="MuiBox css-hash"
                           >
                             <div
                               class="recharts-wrapper"
@@ -107,14 +107,7 @@
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
-                                      d="M 61,16.199999999999996
-    A 44.800000000000004,44.800000000000004,0,
-    0,1,
-    61,105.80000000000001
-  L 61,94.80000000000001
-            A 33.800000000000004,33.800000000000004,0,
-            0,0,
-            61,27.199999999999996 Z"
+                                      d="M 61,16.199999999999996 A 44.800000000000004,44.800000000000004,0, 0,1, 61,105.80000000000001 L 61,94.80000000000001 A 33.800000000000004,33.800000000000004,0, 0,0, 61,27.199999999999996 Z"
                                       fill="#2e7d32"
                                       name="healthy"
                                       role="img"
@@ -135,14 +128,7 @@
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
-                                      d="M 61,105.80000000000001
-    A 44.800000000000004,44.800000000000004,0,
-    0,1,
-    60.99999999999999,16.199999999999996
-  L 60.99999999999999,27.199999999999996
-            A 33.800000000000004,33.800000000000004,0,
-            0,0,
-            61,94.80000000000001 Z"
+                                      d="M 61,105.80000000000001 A 44.800000000000004,44.800000000000004,0, 0,1, 60.99999999999999,16.199999999999996 L 60.99999999999999,27.199999999999996 A 33.800000000000004,33.800000000000004,0, 0,0, 61,94.80000000000001 Z"
                                       fill="#9e9e9e"
                                       name="transitional"
                                       role="img"
@@ -183,26 +169,26 @@
                     </div>
                   </div>
                   <div
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-6 MuiGrid-grid-md-4 MuiGrid-grid-lg-3 css-10tsekr-MuiGrid-root"
+                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                     style="min-width: 0;"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
+                      class="MuiPaper MuiPaper MuiPaper css-hash"
                     >
                       <div
-                        class="MuiBox-root css-qrw4x1"
+                        class="MuiBox css-hash"
                       >
                         <div
-                          class="MuiBox-root css-1sl8dhm"
+                          class="MuiBox css-hash"
                         >
                           <div
-                            class="MuiBox-root css-0"
+                            class="MuiBox css-hash"
                           >
                             <p
-                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+                              class="MuiTypography MuiTypography MuiTypography css-hash"
                             >
                               <a
-                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                                class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                                 href="/"
                               >
                                 Deployments
@@ -210,18 +196,18 @@
                             </p>
                           </div>
                           <p
-                            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
+                            class="MuiTypography MuiTypography MuiTypography css-hash"
                           >
                             1 Failed / 1 Running
                           </p>
                         </div>
                         <div
-                          class="MuiBox-root css-0"
+                          class="MuiBox css-hash"
                         >
                           <div
                             aria-busy="false"
                             aria-live="polite"
-                            class="MuiBox-root css-2esbmj"
+                            class="MuiBox css-hash"
                           >
                             <div
                               class="recharts-wrapper"
@@ -263,14 +249,7 @@
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
-                                      d="M 61,16.199999999999996
-    A 44.800000000000004,44.800000000000004,0,
-    1,1,
-    60.99921809249515,16.20000000682343
-  L 60.999410078712856,27.200000005148027
-            A 33.800000000000004,33.800000000000004,0,
-            1,0,
-            61,27.199999999999996 Z"
+                                      d="M 61,16.199999999999996 A 44.800000000000004,44.800000000000004,0, 1,1, 60.99921809249515,16.20000000682343 L 60.999410078712856,27.200000005148027 A 33.800000000000004,33.800000000000004,0, 1,0, 61,27.199999999999996 Z"
                                       fill="#c62828"
                                       name="failed"
                                       role="img"
@@ -307,26 +286,26 @@
                     </div>
                   </div>
                   <div
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-6 MuiGrid-grid-md-4 MuiGrid-grid-lg-3 css-10tsekr-MuiGrid-root"
+                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                     style="min-width: 0;"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
+                      class="MuiPaper MuiPaper MuiPaper css-hash"
                     >
                       <div
-                        class="MuiBox-root css-qrw4x1"
+                        class="MuiBox css-hash"
                       >
                         <div
-                          class="MuiBox-root css-1sl8dhm"
+                          class="MuiBox css-hash"
                         >
                           <div
-                            class="MuiBox-root css-0"
+                            class="MuiBox css-hash"
                           >
                             <p
-                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+                              class="MuiTypography MuiTypography MuiTypography css-hash"
                             >
                               <a
-                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                                class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                                 href="/"
                               >
                                 Stateful Sets
@@ -334,18 +313,18 @@
                             </p>
                           </div>
                           <p
-                            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
+                            class="MuiTypography MuiTypography MuiTypography css-hash"
                           >
                             1 Running
                           </p>
                         </div>
                         <div
-                          class="MuiBox-root css-0"
+                          class="MuiBox css-hash"
                         >
                           <div
                             aria-busy="false"
                             aria-live="polite"
-                            class="MuiBox-root css-2esbmj"
+                            class="MuiBox css-hash"
                           >
                             <div
                               class="recharts-wrapper"
@@ -391,14 +370,7 @@
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
-                                      d="M 61,16.199999999999996
-    A 44.800000000000004,44.800000000000004,0,
-    1,1,
-    60.99921809249515,16.20000000682343
-  L 60.999410078712856,27.200000005148027
-            A 33.800000000000004,33.800000000000004,0,
-            1,0,
-            61,27.199999999999996 Z"
+                                      d="M 61,16.199999999999996 A 44.800000000000004,44.800000000000004,0, 1,1, 60.99921809249515,16.20000000682343 L 60.999410078712856,27.200000005148027 A 33.800000000000004,33.800000000000004,0, 1,0, 61,27.199999999999996 Z"
                                       fill="#000"
                                       name="total"
                                       role="img"
@@ -431,26 +403,26 @@
                     </div>
                   </div>
                   <div
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-6 MuiGrid-grid-md-4 MuiGrid-grid-lg-3 css-10tsekr-MuiGrid-root"
+                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                     style="min-width: 0;"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
+                      class="MuiPaper MuiPaper MuiPaper css-hash"
                     >
                       <div
-                        class="MuiBox-root css-qrw4x1"
+                        class="MuiBox css-hash"
                       >
                         <div
-                          class="MuiBox-root css-1sl8dhm"
+                          class="MuiBox css-hash"
                         >
                           <div
-                            class="MuiBox-root css-0"
+                            class="MuiBox css-hash"
                           >
                             <p
-                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+                              class="MuiTypography MuiTypography MuiTypography css-hash"
                             >
                               <a
-                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                                class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                                 href="/"
                               >
                                 Daemon Sets
@@ -458,18 +430,18 @@
                             </p>
                           </div>
                           <p
-                            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
+                            class="MuiTypography MuiTypography MuiTypography css-hash"
                           >
                             1 Running
                           </p>
                         </div>
                         <div
-                          class="MuiBox-root css-0"
+                          class="MuiBox css-hash"
                         >
                           <div
                             aria-busy="false"
                             aria-live="polite"
-                            class="MuiBox-root css-2esbmj"
+                            class="MuiBox css-hash"
                           >
                             <div
                               class="recharts-wrapper"
@@ -515,14 +487,7 @@
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
-                                      d="M 61,16.199999999999996
-    A 44.800000000000004,44.800000000000004,0,
-    1,1,
-    60.99921809249515,16.20000000682343
-  L 60.999410078712856,27.200000005148027
-            A 33.800000000000004,33.800000000000004,0,
-            1,0,
-            61,27.199999999999996 Z"
+                                      d="M 61,16.199999999999996 A 44.800000000000004,44.800000000000004,0, 1,1, 60.99921809249515,16.20000000682343 L 60.999410078712856,27.200000005148027 A 33.800000000000004,33.800000000000004,0, 1,0, 61,27.199999999999996 Z"
                                       fill="#000"
                                       name="total"
                                       role="img"
@@ -555,26 +520,26 @@
                     </div>
                   </div>
                   <div
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-6 MuiGrid-grid-md-4 MuiGrid-grid-lg-3 css-10tsekr-MuiGrid-root"
+                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                     style="min-width: 0;"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
+                      class="MuiPaper MuiPaper MuiPaper css-hash"
                     >
                       <div
-                        class="MuiBox-root css-qrw4x1"
+                        class="MuiBox css-hash"
                       >
                         <div
-                          class="MuiBox-root css-1sl8dhm"
+                          class="MuiBox css-hash"
                         >
                           <div
-                            class="MuiBox-root css-0"
+                            class="MuiBox css-hash"
                           >
                             <p
-                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+                              class="MuiTypography MuiTypography MuiTypography css-hash"
                             >
                               <a
-                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                                class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                                 href="/"
                               >
                                 Replica Sets
@@ -582,18 +547,18 @@
                             </p>
                           </div>
                           <p
-                            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
+                            class="MuiTypography MuiTypography MuiTypography css-hash"
                           >
                             1 Failed / 1 Running
                           </p>
                         </div>
                         <div
-                          class="MuiBox-root css-0"
+                          class="MuiBox css-hash"
                         >
                           <div
                             aria-busy="false"
                             aria-live="polite"
-                            class="MuiBox-root css-2esbmj"
+                            class="MuiBox css-hash"
                           >
                             <div
                               class="recharts-wrapper"
@@ -635,14 +600,7 @@
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
-                                      d="M 61,16.199999999999996
-    A 44.800000000000004,44.800000000000004,0,
-    1,1,
-    60.99921809249515,16.20000000682343
-  L 60.999410078712856,27.200000005148027
-            A 33.800000000000004,33.800000000000004,0,
-            1,0,
-            61,27.199999999999996 Z"
+                                      d="M 61,16.199999999999996 A 44.800000000000004,44.800000000000004,0, 1,1, 60.99921809249515,16.20000000682343 L 60.999410078712856,27.200000005148027 A 33.800000000000004,33.800000000000004,0, 1,0, 61,27.199999999999996 Z"
                                       fill="#c62828"
                                       name="failed"
                                       role="img"
@@ -679,26 +637,26 @@
                     </div>
                   </div>
                   <div
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-6 MuiGrid-grid-md-4 MuiGrid-grid-lg-3 css-10tsekr-MuiGrid-root"
+                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                     style="min-width: 0;"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
+                      class="MuiPaper MuiPaper MuiPaper css-hash"
                     >
                       <div
-                        class="MuiBox-root css-qrw4x1"
+                        class="MuiBox css-hash"
                       >
                         <div
-                          class="MuiBox-root css-1sl8dhm"
+                          class="MuiBox css-hash"
                         >
                           <div
-                            class="MuiBox-root css-0"
+                            class="MuiBox css-hash"
                           >
                             <p
-                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+                              class="MuiTypography MuiTypography MuiTypography css-hash"
                             >
                               <a
-                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                                class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                                 href="/"
                               >
                                 Jobs
@@ -706,23 +664,23 @@
                             </p>
                           </div>
                           <p
-                            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
+                            class="MuiTypography MuiTypography MuiTypography css-hash"
                           >
                             0 Healthy
                             <span
-                              class="MuiBox-root css-172fsqw"
+                              class="MuiBox css-hash"
                             >
                               1 Other
                             </span>
                           </p>
                         </div>
                         <div
-                          class="MuiBox-root css-0"
+                          class="MuiBox css-hash"
                         >
                           <div
                             aria-busy="false"
                             aria-live="polite"
-                            class="MuiBox-root css-2esbmj"
+                            class="MuiBox css-hash"
                           >
                             <div
                               class="recharts-wrapper"
@@ -772,14 +730,7 @@
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
-                                      d="M 61,16.199999999999996
-    A 44.800000000000004,44.800000000000004,0,
-    1,1,
-    60.99921809249515,16.20000000682343
-  L 60.999410078712856,27.200000005148027
-            A 33.800000000000004,33.800000000000004,0,
-            1,0,
-            61,27.199999999999996 Z"
+                                      d="M 61,16.199999999999996 A 44.800000000000004,44.800000000000004,0, 1,1, 60.99921809249515,16.20000000682343 L 60.999410078712856,27.200000005148027 A 33.800000000000004,33.800000000000004,0, 1,0, 61,27.199999999999996 Z"
                                       fill="#9e9e9e"
                                       name="transitional"
                                       role="img"
@@ -820,26 +771,26 @@
                     </div>
                   </div>
                   <div
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-6 MuiGrid-grid-md-4 MuiGrid-grid-lg-3 css-10tsekr-MuiGrid-root"
+                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                     style="min-width: 0;"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
+                      class="MuiPaper MuiPaper MuiPaper css-hash"
                     >
                       <div
-                        class="MuiBox-root css-qrw4x1"
+                        class="MuiBox css-hash"
                       >
                         <div
-                          class="MuiBox-root css-1sl8dhm"
+                          class="MuiBox css-hash"
                         >
                           <div
-                            class="MuiBox-root css-0"
+                            class="MuiBox css-hash"
                           >
                             <p
-                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+                              class="MuiTypography MuiTypography MuiTypography css-hash"
                             >
                               <a
-                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                                class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                                 href="/"
                               >
                                 Cron Jobs
@@ -847,18 +798,18 @@
                             </p>
                           </div>
                           <p
-                            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
+                            class="MuiTypography MuiTypography MuiTypography css-hash"
                           >
                             1 Healthy
                           </p>
                         </div>
                         <div
-                          class="MuiBox-root css-0"
+                          class="MuiBox css-hash"
                         >
                           <div
                             aria-busy="false"
                             aria-live="polite"
-                            class="MuiBox-root css-2esbmj"
+                            class="MuiBox css-hash"
                           >
                             <div
                               class="recharts-wrapper"
@@ -900,14 +851,7 @@
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
-                                      d="M 61,16.199999999999996
-    A 44.800000000000004,44.800000000000004,0,
-    1,1,
-    60.99921809249515,16.20000000682343
-  L 60.999410078712856,27.200000005148027
-            A 33.800000000000004,33.800000000000004,0,
-            1,0,
-            61,27.199999999999996 Z"
+                                      d="M 61,16.199999999999996 A 44.800000000000004,44.800000000000004,0, 1,1, 60.99921809249515,16.20000000682343 L 60.999410078712856,27.200000005148027 A 33.800000000000004,33.800000000000004,0, 1,0, 61,27.199999999999996 Z"
                                       fill="#2e7d32"
                                       name="healthy"
                                       role="img"
@@ -956,26 +900,26 @@
                     </div>
                   </div>
                   <div
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-6 MuiGrid-grid-md-4 MuiGrid-grid-lg-3 css-10tsekr-MuiGrid-root"
+                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
                     style="min-width: 0;"
                   >
                     <div
-                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
+                      class="MuiPaper MuiPaper MuiPaper css-hash"
                     >
                       <div
-                        class="MuiBox-root css-qrw4x1"
+                        class="MuiBox css-hash"
                       >
                         <div
-                          class="MuiBox-root css-1sl8dhm"
+                          class="MuiBox css-hash"
                         >
                           <div
-                            class="MuiBox-root css-0"
+                            class="MuiBox css-hash"
                           >
                             <p
-                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
+                              class="MuiTypography MuiTypography MuiTypography css-hash"
                             >
                               <a
-                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                                class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                                 href="/"
                               >
                                 Job Sets
@@ -983,18 +927,18 @@
                             </p>
                           </div>
                           <p
-                            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
+                            class="MuiTypography MuiTypography MuiTypography css-hash"
                           >
                             0 Healthy
                           </p>
                         </div>
                         <div
-                          class="MuiBox-root css-0"
+                          class="MuiBox css-hash"
                         >
                           <div
                             aria-busy="false"
                             aria-live="polite"
-                            class="MuiBox-root css-2esbmj"
+                            class="MuiBox css-hash"
                           >
                             <div
                               class="recharts-wrapper"
@@ -1036,14 +980,7 @@
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
-                                      d="M 61,16.199999999999996
-    A 44.800000000000004,44.800000000000004,0,
-    1,1,
-    60.99921809249515,16.20000000682343
-  L 60.999410078712856,27.200000005148027
-            A 33.800000000000004,33.800000000000004,0,
-            1,0,
-            61,27.199999999999996 Z"
+                                      d="M 61,16.199999999999996 A 44.800000000000004,44.800000000000004,0, 1,1, 60.99921809249515,16.20000000682343 L 60.999410078712856,27.200000005148027 A 33.800000000000004,33.800000000000004,0, 1,0, 61,27.199999999999996 Z"
                                       fill="#e0e0e0"
                                       name="total"
                                       role="img"
@@ -1197,54 +1134,54 @@
           </div>
         </div>
         <div
-          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid css-hash"
         >
           <div
-            class="MuiBox-root css-p0cik4"
+            class="MuiBox css-hash"
           >
             <div
-              class="MuiBox-root css-j1fy4m"
+              class="MuiBox css-hash"
             >
               <div
-                class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+                class="MuiGrid MuiGrid MuiGrid css-hash"
               >
                 <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                  class="MuiGrid MuiGrid css-hash"
                 >
                   <div
-                    class="MuiBox-root css-70qvj9"
+                    class="MuiBox css-hash"
                   >
                     <h1
-                      class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
+                      class="MuiTypography MuiTypography MuiTypography css-hash"
                     >
                       Workloads
                     </h1>
                     <div
-                      class="MuiBox-root css-ldp2l3"
+                      class="MuiBox css-hash"
                     />
                   </div>
                 </div>
                 <div
-                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                  class="MuiGrid MuiGrid css-hash"
                 >
                   <div
-                    class="MuiGrid-root MuiGrid-container MuiGrid-item css-ztq4zc-MuiGrid-root"
+                    class="MuiGrid MuiGrid MuiGrid css-hash"
                   >
                     <div
-                      class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                      class="MuiGrid MuiGrid css-hash"
                     >
                       <div
-                        class="MuiAutocomplete-root MuiAutocomplete-hasPopupIcon css-1x6bjyf-MuiAutocomplete-root"
+                        class="MuiAutocomplete MuiAutocomplete css-hash"
                       >
                         <div
-                          class="MuiBox-root css-1dipl1t"
+                          class="MuiBox css-hash"
                         >
                           <div
-                            class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+                            class="MuiFormControl MuiFormControl MuiTextField css-hash"
                             style="margin-top: 0px;"
                           >
                             <label
-                              class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
+                              class="MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
                               data-shrink="true"
                               for="namespaces-filter"
                               id="namespaces-filter-label"
@@ -1252,7 +1189,7 @@
                               Namespaces
                             </label>
                             <div
-                              class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
+                              class="MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
                             >
                               <input
                                 aria-autocomplete="both"
@@ -1260,7 +1197,7 @@
                                 aria-invalid="false"
                                 autocapitalize="none"
                                 autocomplete="off"
-                                class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+                                class="MuiAutocomplete MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
                                 id="namespaces-filter"
                                 placeholder="Filter"
                                 role="combobox"
@@ -1269,11 +1206,11 @@
                                 value=""
                               />
                               <div
-                                class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
+                                class="MuiAutocomplete css-hash"
                               >
                                 <button
                                   aria-label="Open"
-                                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-1aav1nn-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
+                                  class="MuiAutocomplete MuiButtonBase MuiIconButton MuiIconButton css-hash"
                                   tabindex="-1"
                                   title="Open"
                                   type="button"
@@ -1290,16 +1227,16 @@
                                     />
                                   </svg>
                                   <span
-                                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                                    class="MuiTouchRipple css-hash"
                                   />
                                 </button>
                               </div>
                               <fieldset
                                 aria-hidden="true"
-                                class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+                                class="MuiOutlinedInput css-hash"
                               >
                                 <legend
-                                  class="css-sl37lx-MuiNotchedOutlined-root"
+                                  class="css-hash"
                                 >
                                   <span>
                                     Namespaces
@@ -1315,42 +1252,42 @@
                 </div>
               </div>
               <div
-                class="MuiBox-root css-1txv3mw"
+                class="MuiBox css-hash"
               >
                 <div
-                  class="MuiBox-root css-8atqhb"
+                  class="MuiBox css-hash"
                 >
                   <div
                     aria-atomic="true"
                     aria-live="polite"
-                    class="MuiBox-root css-ty8jgw"
+                    class="MuiBox css-hash"
                     role="status"
                   />
                   <div
-                    class="MuiBox-root css-1ipmh7v"
+                    class="MuiBox css-hash"
                   >
                     <div
-                      class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-bz4dnt-MuiCollapse-root"
+                      class="MuiCollapse MuiCollapse MuiCollapse css-hash"
                       style="min-height: 0px;"
                     >
                       <div
-                        class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
+                        class="MuiCollapse MuiCollapse css-hash"
                       >
                         <div
-                          class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
+                          class="MuiCollapse MuiCollapse css-hash"
                         >
                           <div
-                            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorInfo MuiAlert-standardInfo MuiAlert-standard css-s0ueq2-MuiPaper-root-MuiAlert-root"
+                            class="MuiAlert MuiAlert MuiAlert MuiAlert MuiPaper MuiPaper MuiPaper css-hash"
                             role="alert"
                           >
                             <div
-                              class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
+                              class="MuiAlert css-hash"
                             >
                               <div
-                                class="MuiStack-root css-5kul5x-MuiStack-root"
+                                class="MuiStack css-hash"
                               >
                                 <div
-                                  class="MuiBox-root css-k008qs"
+                                  class="MuiBox css-hash"
                                 >
                                    
                                 </div>
@@ -1361,28 +1298,28 @@
                       </div>
                     </div>
                     <div
-                      class="Mui-ToolbarDropZone MuiBox-root css-1fwjva3"
+                      class="Mui-ToolbarDropZone MuiBox css-hash"
                       style="opacity: 0; visibility: hidden;"
                     >
                       <p
-                        class="MuiTypography-root MuiTypography-body1 css-18b7jph-MuiTypography-root"
+                        class="MuiTypography MuiTypography css-hash"
                       >
                         Drop to group by 
                       </p>
                     </div>
                     <div
-                      class="MuiBox-root css-zrlv9q"
+                      class="MuiBox css-hash"
                     >
                       <span />
                       <div
-                        class="MuiBox-root css-1p0wbhh"
+                        class="MuiBox css-hash"
                       >
                         <div
-                          class="MuiBox-root css-di3982"
+                          class="MuiBox css-hash"
                         >
                           <button
                             aria-label="Show/Hide search"
-                            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                            class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                             data-mui-internal-clone-element="true"
                             tabindex="0"
                             type="button"
@@ -1399,12 +1336,12 @@
                               />
                             </svg>
                             <span
-                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              class="MuiTouchRipple css-hash"
                             />
                           </button>
                           <button
                             aria-label="Show/Hide filters"
-                            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                            class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                             data-mui-internal-clone-element="true"
                             tabindex="0"
                             type="button"
@@ -1421,12 +1358,12 @@
                               />
                             </svg>
                             <span
-                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              class="MuiTouchRipple css-hash"
                             />
                           </button>
                           <button
                             aria-label="Show/Hide columns"
-                            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                            class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                             data-mui-internal-clone-element="true"
                             tabindex="0"
                             type="button"
@@ -1443,7 +1380,7 @@
                               />
                             </svg>
                             <span
-                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              class="MuiTouchRipple css-hash"
                             />
                           </button>
                         </div>
@@ -1451,38 +1388,38 @@
                     </div>
                   </div>
                   <table
-                    class="MuiTable-root css-t42u2c-MuiTable-root"
+                    class="MuiTable css-hash"
                   >
                     <thead
-                      class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
+                      class="MuiTableHead css-hash"
                     >
                       <tr
-                        class="css-1lqh5un"
+                        class="css-hash"
                       >
                         <th
                           aria-sort="none"
-                          class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-199xzek-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell MuiTableCell css-hash"
                           colspan="1"
                           data-index="-1"
                           scope="col"
                         >
                           <div
-                            class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                            class="Mui-TableHeadCell-Content MuiBox css-hash"
                           >
                             <div
-                              class="Mui-TableHeadCell-Content-Labels MuiBox-root css-4ng264"
+                              class="Mui-TableHeadCell-Content-Labels MuiBox css-hash"
                             >
                               <div
-                                class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-bbxzxe"
+                                class="Mui-TableHeadCell-Content-Wrapper MuiBox css-hash"
                               >
                                 <span
                                   aria-label="Toggle select all"
-                                  class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                                  class="MuiButtonBase MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox PrivateSwitchBase-root css-hash"
                                   data-mui-internal-clone-element="true"
                                 >
                                   <input
                                     aria-label="Toggle select all"
-                                    class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                                    class="PrivateSwitchBase-input css-hash"
                                     data-indeterminate="false"
                                     type="checkbox"
                                   />
@@ -1498,43 +1435,43 @@
                                     />
                                   </svg>
                                   <span
-                                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                                    class="MuiTouchRipple css-hash"
                                   />
                                 </span>
                               </div>
                             </div>
                             <div
-                              class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                              class="Mui-TableHeadCell-Content-Actions MuiBox css-hash"
                             />
                           </div>
                         </th>
                         <th
                           aria-sort="none"
-                          class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-h8hlgh-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell MuiTableCell css-hash"
                           colspan="1"
                           data-can-sort="true"
                           data-index="-1"
                           scope="col"
                         >
                           <div
-                            class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                            class="Mui-TableHeadCell-Content MuiBox css-hash"
                           >
                             <div
-                              class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
+                              class="Mui-TableHeadCell-Content-Labels MuiBox css-hash"
                             >
                               <div
-                                class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
+                                class="Mui-TableHeadCell-Content-Wrapper MuiBox css-hash"
                               >
                                 Kind
                               </div>
                               <span
                                 aria-label="Sort by Kind ascending"
-                                class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                                class="MuiBadge css-hash"
                                 data-mui-internal-clone-element="true"
                               >
                                 <span
                                   aria-label="Sort by Kind ascending"
-                                  class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                                  class="Mui-active MuiButtonBase MuiTableSortLabel css-hash"
                                   role="button"
                                   tabindex="0"
                                 >
@@ -1552,44 +1489,44 @@
                                   </svg>
                                 </span>
                                 <span
-                                  class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                                  class="MuiBadge MuiBadge MuiBadge MuiBadge MuiBadge MuiBadge css-hash"
                                 >
                                   0
                                 </span>
                               </span>
                             </div>
                             <div
-                              class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                              class="Mui-TableHeadCell-Content-Actions MuiBox css-hash"
                             />
                           </div>
                         </th>
                         <th
                           aria-sort="none"
-                          class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-pksupb-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell MuiTableCell css-hash"
                           colspan="1"
                           data-can-sort="true"
                           data-index="-1"
                           scope="col"
                         >
                           <div
-                            class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                            class="Mui-TableHeadCell-Content MuiBox css-hash"
                           >
                             <div
-                              class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
+                              class="Mui-TableHeadCell-Content-Labels MuiBox css-hash"
                             >
                               <div
-                                class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
+                                class="Mui-TableHeadCell-Content-Wrapper MuiBox css-hash"
                               >
                                 Name
                               </div>
                               <span
                                 aria-label="Sort by Name ascending"
-                                class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                                class="MuiBadge css-hash"
                                 data-mui-internal-clone-element="true"
                               >
                                 <span
                                   aria-label="Sort by Name ascending"
-                                  class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                                  class="Mui-active MuiButtonBase MuiTableSortLabel css-hash"
                                   role="button"
                                   tabindex="0"
                                 >
@@ -1607,44 +1544,44 @@
                                   </svg>
                                 </span>
                                 <span
-                                  class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                                  class="MuiBadge MuiBadge MuiBadge MuiBadge MuiBadge MuiBadge css-hash"
                                 >
                                   0
                                 </span>
                               </span>
                             </div>
                             <div
-                              class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                              class="Mui-TableHeadCell-Content-Actions MuiBox css-hash"
                             />
                           </div>
                         </th>
                         <th
                           aria-sort="none"
-                          class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1r8sxpv-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell MuiTableCell css-hash"
                           colspan="1"
                           data-can-sort="true"
                           data-index="-1"
                           scope="col"
                         >
                           <div
-                            class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                            class="Mui-TableHeadCell-Content MuiBox css-hash"
                           >
                             <div
-                              class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
+                              class="Mui-TableHeadCell-Content-Labels MuiBox css-hash"
                             >
                               <div
-                                class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
+                                class="Mui-TableHeadCell-Content-Wrapper MuiBox css-hash"
                               >
                                 Namespace
                               </div>
                               <span
                                 aria-label="Sort by Namespace ascending"
-                                class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                                class="MuiBadge css-hash"
                                 data-mui-internal-clone-element="true"
                               >
                                 <span
                                   aria-label="Sort by Namespace ascending"
-                                  class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                                  class="Mui-active MuiButtonBase MuiTableSortLabel css-hash"
                                   role="button"
                                   tabindex="0"
                                 >
@@ -1662,44 +1599,44 @@
                                   </svg>
                                 </span>
                                 <span
-                                  class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                                  class="MuiBadge MuiBadge MuiBadge MuiBadge MuiBadge MuiBadge css-hash"
                                 >
                                   0
                                 </span>
                               </span>
                             </div>
                             <div
-                              class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                              class="Mui-TableHeadCell-Content-Actions MuiBox css-hash"
                             />
                           </div>
                         </th>
                         <th
                           aria-sort="none"
-                          class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-twaa4c-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell MuiTableCell css-hash"
                           colspan="1"
                           data-can-sort="true"
                           data-index="-1"
                           scope="col"
                         >
                           <div
-                            class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                            class="Mui-TableHeadCell-Content MuiBox css-hash"
                           >
                             <div
-                              class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
+                              class="Mui-TableHeadCell-Content-Labels MuiBox css-hash"
                             >
                               <div
-                                class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
+                                class="Mui-TableHeadCell-Content-Wrapper MuiBox css-hash"
                               >
                                 Pods
                               </div>
                               <span
                                 aria-label="Sort by Pods ascending"
-                                class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                                class="MuiBadge css-hash"
                                 data-mui-internal-clone-element="true"
                               >
                                 <span
                                   aria-label="Sort by Pods ascending"
-                                  class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
+                                  class="Mui-active MuiButtonBase MuiTableSortLabel css-hash"
                                   role="button"
                                   tabindex="0"
                                 >
@@ -1717,20 +1654,20 @@
                                   </svg>
                                 </span>
                                 <span
-                                  class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                                  class="MuiBadge MuiBadge MuiBadge MuiBadge MuiBadge MuiBadge css-hash"
                                 >
                                   0
                                 </span>
                               </span>
                             </div>
                             <div
-                              class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                              class="Mui-TableHeadCell-Content-Actions MuiBox css-hash"
                             />
                           </div>
                         </th>
                         <th
                           aria-sort="ascending"
-                          class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-7mz8xn-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell MuiTableCell css-hash"
                           colspan="1"
                           data-can-sort="true"
                           data-index="-1"
@@ -1738,24 +1675,24 @@
                           scope="col"
                         >
                           <div
-                            class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                            class="Mui-TableHeadCell-Content MuiBox css-hash"
                           >
                             <div
-                              class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
+                              class="Mui-TableHeadCell-Content-Labels MuiBox css-hash"
                             >
                               <div
-                                class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-chb057"
+                                class="Mui-TableHeadCell-Content-Wrapper MuiBox css-hash"
                               >
                                 Age
                               </div>
                               <span
                                 aria-label="Sorted by Age ascending"
-                                class="MuiBadge-root css-1c32n2y-MuiBadge-root"
+                                class="MuiBadge css-hash"
                                 data-mui-internal-clone-element="true"
                               >
                                 <span
                                   aria-label="Sorted by Age ascending"
-                                  class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-kfi25q-MuiButtonBase-root-MuiTableSortLabel-root"
+                                  class="Mui-active MuiButtonBase MuiTableSortLabel css-hash"
                                   role="button"
                                   tabindex="0"
                                 >
@@ -1772,61 +1709,61 @@
                                   </svg>
                                 </span>
                                 <span
-                                  class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
+                                  class="MuiBadge MuiBadge MuiBadge MuiBadge MuiBadge MuiBadge css-hash"
                                 >
                                   0
                                 </span>
                               </span>
                             </div>
                             <div
-                              class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                              class="Mui-TableHeadCell-Content-Actions MuiBox css-hash"
                             />
                           </div>
                         </th>
                         <th
                           aria-sort="none"
-                          class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-nv4ey6-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell MuiTableCell css-hash"
                           colspan="1"
                           data-index="-1"
                           scope="col"
                         >
                           <div
-                            class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
+                            class="Mui-TableHeadCell-Content MuiBox css-hash"
                           >
                             <div
-                              class="Mui-TableHeadCell-Content-Labels MuiBox-root css-4ng264"
+                              class="Mui-TableHeadCell-Content-Labels MuiBox css-hash"
                             >
                               <div
-                                class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-bbxzxe"
+                                class="Mui-TableHeadCell-Content-Wrapper MuiBox css-hash"
                               >
                                 Actions
                               </div>
                             </div>
                             <div
-                              class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
+                              class="Mui-TableHeadCell-Content-Actions MuiBox css-hash"
                             />
                           </div>
                         </th>
                       </tr>
                     </thead>
                     <tbody
-                      class="css-1obf64m"
+                      class="css-hash"
                     >
                       <tr
-                        class="css-1ospngb"
+                        class="css-hash"
                         data-selected="false"
                       >
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <span
                             aria-label="Toggle select row"
-                            class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                            class="MuiButtonBase MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox PrivateSwitchBase-root css-hash"
                             data-mui-internal-clone-element="true"
                           >
                             <input
                               aria-label="Toggle select row"
-                              class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                              class="PrivateSwitchBase-input css-hash"
                               data-indeterminate="false"
                               type="checkbox"
                             />
@@ -1842,82 +1779,82 @@
                               />
                             </svg>
                             <span
-                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              class="MuiTouchRipple css-hash"
                             />
                           </span>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-nch70x-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           Job
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <a
-                            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                            class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                             href="/"
                           >
                             backup-job
                           </a>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2bq9ry-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <a
-                            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                            class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                             href="/"
                           >
                             default
                           </a>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1s3kq9u-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           0/0
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <p
                             aria-label="2025-05-20T12:00:00.000Z"
-                            class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                            class="MuiTypography MuiTypography css-hash"
                             data-mui-internal-clone-element="true"
                           >
                             90d
                           </p>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-hq12h3-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <button
                             aria-label="Row Actions"
-                            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-1cxdeyj-MuiButtonBase-root-MuiIconButton-root"
+                            class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                             data-mui-internal-clone-element="true"
                             tabindex="0"
                             type="button"
                           >
                             <span
-                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              class="MuiTouchRipple css-hash"
                             />
                           </button>
                         </td>
                       </tr>
                       <tr
-                        class="css-1ospngb"
+                        class="css-hash"
                         data-selected="false"
                       >
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <span
                             aria-label="Toggle select row"
-                            class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                            class="MuiButtonBase MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox PrivateSwitchBase-root css-hash"
                             data-mui-internal-clone-element="true"
                           >
                             <input
                               aria-label="Toggle select row"
-                              class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                              class="PrivateSwitchBase-input css-hash"
                               data-indeterminate="false"
                               type="checkbox"
                             />
@@ -1933,82 +1870,82 @@
                               />
                             </svg>
                             <span
-                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              class="MuiTouchRipple css-hash"
                             />
                           </span>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-nch70x-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           ReplicaSet
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <a
-                            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                            class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                             href="/"
                           >
                             nginx-deployment-abc123
                           </a>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2bq9ry-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <a
-                            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                            class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                             href="/"
                           >
                             default
                           </a>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1s3kq9u-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           2/3
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <p
                             aria-label="2025-05-20T09:30:00.000Z"
-                            class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                            class="MuiTypography MuiTypography css-hash"
                             data-mui-internal-clone-element="true"
                           >
                             90d
                           </p>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-hq12h3-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <button
                             aria-label="Row Actions"
-                            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-1cxdeyj-MuiButtonBase-root-MuiIconButton-root"
+                            class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                             data-mui-internal-clone-element="true"
                             tabindex="0"
                             type="button"
                           >
                             <span
-                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              class="MuiTouchRipple css-hash"
                             />
                           </button>
                         </td>
                       </tr>
                       <tr
-                        class="css-1ospngb"
+                        class="css-hash"
                         data-selected="false"
                       >
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <span
                             aria-label="Toggle select row"
-                            class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                            class="MuiButtonBase MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox PrivateSwitchBase-root css-hash"
                             data-mui-internal-clone-element="true"
                           >
                             <input
                               aria-label="Toggle select row"
-                              class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                              class="PrivateSwitchBase-input css-hash"
                               data-indeterminate="false"
                               type="checkbox"
                             />
@@ -2024,82 +1961,82 @@
                               />
                             </svg>
                             <span
-                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              class="MuiTouchRipple css-hash"
                             />
                           </span>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-nch70x-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           Deployment
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <a
-                            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                            class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                             href="/"
                           >
                             nginx-deployment
                           </a>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2bq9ry-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <a
-                            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                            class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                             href="/"
                           >
                             default
                           </a>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1s3kq9u-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           2/3
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <p
                             aria-label="2025-05-20T09:00:00.000Z"
-                            class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                            class="MuiTypography MuiTypography css-hash"
                             data-mui-internal-clone-element="true"
                           >
                             90d
                           </p>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-hq12h3-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <button
                             aria-label="Row Actions"
-                            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-1cxdeyj-MuiButtonBase-root-MuiIconButton-root"
+                            class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                             data-mui-internal-clone-element="true"
                             tabindex="0"
                             type="button"
                           >
                             <span
-                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              class="MuiTouchRipple css-hash"
                             />
                           </button>
                         </td>
                       </tr>
                       <tr
-                        class="css-1ospngb"
+                        class="css-hash"
                         data-selected="false"
                       >
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <span
                             aria-label="Toggle select row"
-                            class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                            class="MuiButtonBase MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox PrivateSwitchBase-root css-hash"
                             data-mui-internal-clone-element="true"
                           >
                             <input
                               aria-label="Toggle select row"
-                              class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                              class="PrivateSwitchBase-input css-hash"
                               data-indeterminate="false"
                               type="checkbox"
                             />
@@ -2115,82 +2052,82 @@
                               />
                             </svg>
                             <span
-                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              class="MuiTouchRipple css-hash"
                             />
                           </span>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-nch70x-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           StatefulSet
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <a
-                            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                            class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                             href="/"
                           >
                             mysql-statefulset
                           </a>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2bq9ry-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <a
-                            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                            class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                             href="/"
                           >
                             default
                           </a>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1s3kq9u-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           2/2
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <p
                             aria-label="2025-05-20T08:00:00.000Z"
-                            class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                            class="MuiTypography MuiTypography css-hash"
                             data-mui-internal-clone-element="true"
                           >
                             90d
                           </p>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-hq12h3-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <button
                             aria-label="Row Actions"
-                            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-1cxdeyj-MuiButtonBase-root-MuiIconButton-root"
+                            class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                             data-mui-internal-clone-element="true"
                             tabindex="0"
                             type="button"
                           >
                             <span
-                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              class="MuiTouchRipple css-hash"
                             />
                           </button>
                         </td>
                       </tr>
                       <tr
-                        class="css-1ospngb"
+                        class="css-hash"
                         data-selected="false"
                       >
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <span
                             aria-label="Toggle select row"
-                            class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                            class="MuiButtonBase MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox PrivateSwitchBase-root css-hash"
                             data-mui-internal-clone-element="true"
                           >
                             <input
                               aria-label="Toggle select row"
-                              class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                              class="PrivateSwitchBase-input css-hash"
                               data-indeterminate="false"
                               type="checkbox"
                             />
@@ -2206,82 +2143,82 @@
                               />
                             </svg>
                             <span
-                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              class="MuiTouchRipple css-hash"
                             />
                           </span>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-nch70x-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           DaemonSet
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <a
-                            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                            class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                             href="/"
                           >
                             fluentd-daemonset
                           </a>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2bq9ry-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <a
-                            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                            class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                             href="/"
                           >
                             kube-system
                           </a>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1s3kq9u-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           1/1
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <p
                             aria-label="2025-05-20T07:00:00.000Z"
-                            class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                            class="MuiTypography MuiTypography css-hash"
                             data-mui-internal-clone-element="true"
                           >
                             90d
                           </p>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-hq12h3-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <button
                             aria-label="Row Actions"
-                            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-1cxdeyj-MuiButtonBase-root-MuiIconButton-root"
+                            class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                             data-mui-internal-clone-element="true"
                             tabindex="0"
                             type="button"
                           >
                             <span
-                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              class="MuiTouchRipple css-hash"
                             />
                           </button>
                         </td>
                       </tr>
                       <tr
-                        class="css-1ospngb"
+                        class="css-hash"
                         data-selected="false"
                       >
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1nchbpl-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <span
                             aria-label="Toggle select row"
-                            class="MuiButtonBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall PrivateSwitchBase-root MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall MuiCheckbox-root MuiCheckbox-colorPrimary MuiCheckbox-sizeSmall css-3nlepf-MuiButtonBase-root-MuiSwitchBase-root-MuiCheckbox-root"
+                            class="MuiButtonBase MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox MuiCheckbox PrivateSwitchBase-root css-hash"
                             data-mui-internal-clone-element="true"
                           >
                             <input
                               aria-label="Toggle select row"
-                              class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                              class="PrivateSwitchBase-input css-hash"
                               data-indeterminate="false"
                               type="checkbox"
                             />
@@ -2297,63 +2234,63 @@
                               />
                             </svg>
                             <span
-                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              class="MuiTouchRipple css-hash"
                             />
                           </span>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-nch70x-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           CronJob
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <a
-                            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                            class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                             href="/"
                           >
                             daily-report-cronjob
                           </a>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2bq9ry-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <a
-                            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                            class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
                             href="/"
                           >
                             default
                           </a>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1s3kq9u-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           0/0
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignRight MuiTableCell-sizeMedium css-14i1ub9-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <p
                             aria-label="2025-05-20T06:00:00.000Z"
-                            class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                            class="MuiTypography MuiTypography css-hash"
                             data-mui-internal-clone-element="true"
                           >
                             90d
                           </p>
                         </td>
                         <td
-                          class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-hq12h3-MuiTableCell-root"
+                          class="MuiTableCell MuiTableCell MuiTableCell css-hash"
                         >
                           <button
                             aria-label="Row Actions"
-                            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-1cxdeyj-MuiButtonBase-root-MuiIconButton-root"
+                            class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                             data-mui-internal-clone-element="true"
                             tabindex="0"
                             type="button"
                           >
                             <span
-                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                              class="MuiTouchRipple css-hash"
                             />
                           </button>
                         </td>
@@ -2361,14 +2298,14 @@
                     </tbody>
                   </table>
                   <div
-                    class="MuiBox-root css-1bxknjp"
+                    class="MuiBox css-hash"
                   >
                     <div
-                      class="MuiBox-root css-1llu0od"
+                      class="MuiBox css-hash"
                     >
                       <span />
                       <div
-                        class="MuiBox-root css-qpxlqp"
+                        class="MuiBox css-hash"
                       />
                     </div>
                   </div>

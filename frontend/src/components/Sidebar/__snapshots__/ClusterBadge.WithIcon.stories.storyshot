@@ -1,13 +1,13 @@
 <body>
   <div>
     <div
-      class="MuiBox-root css-172hjuw"
+      class="MuiBox css-hash"
     >
       <div
-        class="MuiBox-root css-iyhyxy"
+        class="MuiBox css-hash"
       />
       <span
-        class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
+        class="MuiTypography MuiTypography css-hash"
       >
         my-cluster
       </span>

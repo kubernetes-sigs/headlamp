@@ -2,10 +2,10 @@
   <div>
     <div
       aria-owns=":mock-test-id:"
-      class="MuiBox-root css-0"
+      class="MuiBox css-hash"
     >
       <div
-        class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+        class="MuiFormControl MuiFormControl MuiTextField css-hash"
       >
         <div
           aria-activedescendant=""
@@ -13,7 +13,7 @@
           aria-controls=":mock-test-id:"
           aria-expanded="true"
           autocapitalize="none"
-          class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth Mui-focused MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd css-1qswgw4-MuiInputBase-root-MuiOutlinedInput-root"
+          class="Mui-focused MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
           role="combobox"
           spellcheck="false"
         >
@@ -21,7 +21,7 @@
             aria-activedescendant=":mock-test-id:"
             aria-invalid="false"
             autocomplete="off"
-            class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
+            class="MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
             id=":mock-test-id:"
             placeholder="Search resources, pages, clusters by name"
             type="text"
@@ -29,21 +29,21 @@
           />
           <button
             aria-label="Clear"
-            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-1oql5kp-MuiButtonBase-root-MuiIconButton-root"
+            class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
             data-mui-internal-clone-element="true"
             tabindex="0"
             type="button"
           >
             <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              class="MuiTouchRipple css-hash"
             />
           </button>
           <fieldset
             aria-hidden="true"
-            class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+            class="MuiOutlinedInput css-hash"
           >
             <legend
-              class="css-1whs34k-MuiNotchedOutlined-root"
+              class="css-hash"
             >
               <span
                 class="notranslate"
@@ -57,7 +57,7 @@
     </div>
   </div>
   <div
-    class="MuiPopper-root css-5vmmeo-MuiPopper-root"
+    class="MuiPopper css-hash"
     data-popper-escaped=""
     data-popper-placement="bottom"
     data-popper-reference-hidden=""
@@ -66,7 +66,7 @@
   >
     <ul
       aria-labelledby=":mock-test-id:"
-      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-atm94b-MuiPaper-root"
+      class="MuiPaper MuiPaper MuiPaper css-hash"
       id=":mock-test-id:"
       role="listbox"
     >
@@ -79,7 +79,7 @@
           <li
             aria-disabled="false"
             aria-selected="false"
-            class="MuiBox-root css-iuk3p6"
+            class="MuiBox css-hash"
             data-option-index="0"
             id=":mock-test-id:"
             role="option"
@@ -87,10 +87,10 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox-root css-hj9wmn"
+              class="MuiBox css-hash"
             >
               <div
-                class="MuiBox-root css-72qomf"
+                class="MuiBox css-hash"
               >
                 <svg
                   height="17.500378mm"
@@ -211,10 +211,10 @@
               </div>
             </div>
             <div
-              class="MuiBox-root css-kznbd2"
+              class="MuiBox css-hash"
             >
               <span
-                class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 <span
                   style="font-weight: bold;"
@@ -224,7 +224,7 @@
                  • default
               </span>
               <div
-                class="MuiBox-root css-72rvq0"
+                class="MuiBox css-hash"
               >
                 <span
                   style="font-weight: bold;"
@@ -238,7 +238,7 @@
           <li
             aria-disabled="false"
             aria-selected="false"
-            class="MuiBox-root css-iuk3p6"
+            class="MuiBox css-hash"
             data-option-index="1"
             id=":mock-test-id:"
             role="option"
@@ -246,10 +246,10 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox-root css-hj9wmn"
+              class="MuiBox css-hash"
             >
               <div
-                class="MuiBox-root css-72qomf"
+                class="MuiBox css-hash"
               >
                 <svg
                   height="17.500378mm"
@@ -370,10 +370,10 @@
               </div>
             </div>
             <div
-              class="MuiBox-root css-kznbd2"
+              class="MuiBox css-hash"
             >
               <span
-                class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 <span
                   style="font-weight: bold;"
@@ -383,7 +383,7 @@
                  • default
               </span>
               <div
-                class="MuiBox-root css-72rvq0"
+                class="MuiBox css-hash"
               >
                 <span
                   style="font-weight: bold;"
@@ -397,7 +397,7 @@
           <li
             aria-disabled="false"
             aria-selected="false"
-            class="MuiBox-root css-iuk3p6"
+            class="MuiBox css-hash"
             data-option-index="2"
             id=":mock-test-id:"
             role="option"
@@ -405,10 +405,10 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox-root css-hj9wmn"
+              class="MuiBox css-hash"
             >
               <div
-                class="MuiBox-root css-72qomf"
+                class="MuiBox css-hash"
               >
                 <svg
                   height="17.500378mm"
@@ -529,10 +529,10 @@
               </div>
             </div>
             <div
-              class="MuiBox-root css-kznbd2"
+              class="MuiBox css-hash"
             >
               <span
-                class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 <span
                   style="font-weight: bold;"
@@ -542,7 +542,7 @@
                  • default
               </span>
               <div
-                class="MuiBox-root css-72rvq0"
+                class="MuiBox css-hash"
               >
                 <span
                   style="font-weight: bold;"
@@ -556,7 +556,7 @@
           <li
             aria-disabled="false"
             aria-selected="false"
-            class="MuiBox-root css-iuk3p6"
+            class="MuiBox css-hash"
             data-option-index="3"
             id=":mock-test-id:"
             role="option"
@@ -564,10 +564,10 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox-root css-hj9wmn"
+              class="MuiBox css-hash"
             >
               <div
-                class="MuiBox-root css-72qomf"
+                class="MuiBox css-hash"
               >
                 <svg
                   height="17.500378mm"
@@ -688,10 +688,10 @@
               </div>
             </div>
             <div
-              class="MuiBox-root css-kznbd2"
+              class="MuiBox css-hash"
             >
               <span
-                class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 <span
                   style="font-weight: bold;"
@@ -701,7 +701,7 @@
                  • default
               </span>
               <div
-                class="MuiBox-root css-72rvq0"
+                class="MuiBox css-hash"
               >
                 <span
                   style="font-weight: bold;"
@@ -715,7 +715,7 @@
           <li
             aria-disabled="false"
             aria-selected="false"
-            class="MuiBox-root css-iuk3p6"
+            class="MuiBox css-hash"
             data-option-index="4"
             id=":mock-test-id:"
             role="option"
@@ -723,10 +723,10 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox-root css-hj9wmn"
+              class="MuiBox css-hash"
             >
               <div
-                class="MuiBox-root css-72qomf"
+                class="MuiBox css-hash"
               >
                 <svg
                   height="17.500378mm"
@@ -847,10 +847,10 @@
               </div>
             </div>
             <div
-              class="MuiBox-root css-kznbd2"
+              class="MuiBox css-hash"
             >
               <span
-                class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 <span
                   style="font-weight: bold;"
@@ -860,7 +860,7 @@
                  • default
               </span>
               <div
-                class="MuiBox-root css-72rvq0"
+                class="MuiBox css-hash"
               >
                 <span
                   style="font-weight: bold;"
@@ -874,7 +874,7 @@
           <li
             aria-disabled="false"
             aria-selected="false"
-            class="MuiBox-root css-iuk3p6"
+            class="MuiBox css-hash"
             data-option-index="5"
             id=":mock-test-id:"
             role="option"
@@ -882,18 +882,18 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox-root css-hj9wmn"
+              class="MuiBox css-hash"
             />
             <div
-              class="MuiBox-root css-kznbd2"
+              class="MuiBox css-hash"
             >
               <span
-                class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 Page
               </span>
               <div
-                class="MuiBox-root css-72rvq0"
+                class="MuiBox css-hash"
               >
                 <span
                   style="font-weight: bold;"
@@ -907,7 +907,7 @@
           <li
             aria-disabled="false"
             aria-selected="false"
-            class="MuiBox-root css-iuk3p6"
+            class="MuiBox css-hash"
             data-option-index="6"
             id=":mock-test-id:"
             role="option"
@@ -915,18 +915,18 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox-root css-hj9wmn"
+              class="MuiBox css-hash"
             />
             <div
-              class="MuiBox-root css-kznbd2"
+              class="MuiBox css-hash"
             >
               <span
-                class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 Page
               </span>
               <div
-                class="MuiBox-root css-72rvq0"
+                class="MuiBox css-hash"
               >
                 <span
                   style="font-weight: bold;"
@@ -940,7 +940,7 @@
           <li
             aria-disabled="false"
             aria-selected="false"
-            class="MuiBox-root css-iuk3p6"
+            class="MuiBox css-hash"
             data-option-index="7"
             id=":mock-test-id:"
             role="option"
@@ -948,18 +948,18 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox-root css-hj9wmn"
+              class="MuiBox css-hash"
             />
             <div
-              class="MuiBox-root css-kznbd2"
+              class="MuiBox css-hash"
             >
               <span
-                class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 Page
               </span>
               <div
-                class="MuiBox-root css-72rvq0"
+                class="MuiBox css-hash"
               >
                 Vertical 
                 <span
@@ -974,7 +974,7 @@
           <li
             aria-disabled="false"
             aria-selected="false"
-            class="MuiBox-root css-iuk3p6"
+            class="MuiBox css-hash"
             data-option-index="8"
             id=":mock-test-id:"
             role="option"
@@ -982,18 +982,18 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox-root css-hj9wmn"
+              class="MuiBox css-hash"
             />
             <div
-              class="MuiBox-root css-kznbd2"
+              class="MuiBox css-hash"
             >
               <span
-                class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 Page
               </span>
               <div
-                class="MuiBox-root css-72rvq0"
+                class="MuiBox css-hash"
               >
                 H
                 <span
@@ -1020,7 +1020,7 @@
           <li
             aria-disabled="false"
             aria-selected="false"
-            class="MuiBox-root css-iuk3p6"
+            class="MuiBox css-hash"
             data-option-index="9"
             id=":mock-test-id:"
             role="option"
@@ -1028,18 +1028,18 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox-root css-hj9wmn"
+              class="MuiBox css-hash"
             />
             <div
-              class="MuiBox-root css-kznbd2"
+              class="MuiBox css-hash"
             >
               <span
-                class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 Advanced Search (Beta)
               </span>
               <div
-                class="MuiBox-root css-72rvq0"
+                class="MuiBox css-hash"
               >
                 Search "
                 <span
@@ -1054,7 +1054,7 @@
           <li
             aria-disabled="false"
             aria-selected="false"
-            class="MuiBox-root css-iuk3p6"
+            class="MuiBox css-hash"
             data-option-index="10"
             id=":mock-test-id:"
             role="option"
@@ -1062,10 +1062,10 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox-root css-hj9wmn"
+              class="MuiBox css-hash"
             >
               <div
-                class="MuiBox-root css-wjpmq5"
+                class="MuiBox css-hash"
               >
                 <svg
                   height="17.500378mm"
@@ -1165,15 +1165,15 @@
               </div>
             </div>
             <div
-              class="MuiBox-root css-kznbd2"
+              class="MuiBox css-hash"
             >
               <span
-                class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 Current Namespace
               </span>
               <div
-                class="MuiBox-root css-72rvq0"
+                class="MuiBox css-hash"
               >
                 Set names
                 <span

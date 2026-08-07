@@ -4,17 +4,17 @@
       style="height: 500px;"
     >
       <div
-        class="MuiBox-root css-1xxsrwd"
+        class="MuiBox css-hash"
       >
         <div
-          class="MuiBox-root css-6su6fj"
+          class="MuiBox css-hash"
         >
           <ul
-            class="MuiList-root MuiList-padding MuiList-dense css-h4y409-MuiList-root"
+            class="MuiList MuiList MuiList css-hash"
           />
         </div>
         <div
-          class="MuiBox-root css-mndmei"
+          class="MuiBox css-hash"
         />
       </div>
     </div>

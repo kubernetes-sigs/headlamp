@@ -1,33 +1,33 @@
 <body>
   <div>
     <div
-      class="MuiSnackbar-root MuiSnackbar-anchorOriginBottomRight css-pvolpf-MuiSnackbar-root"
+      class="MuiSnackbar MuiSnackbar css-hash"
       role="presentation"
     >
       <div
         aria-describedby="updatePopup"
-        class="MuiPaper-root MuiPaper-outlined MuiSnackbarContent-root css-1cboije-MuiPaper-root-MuiSnackbarContent-root"
+        class="MuiPaper MuiPaper MuiSnackbarContent css-hash"
         direction="up"
         role="alert"
         style="opacity: 1; transform: none; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms,transform 150ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
       >
         <div
-          class="MuiSnackbarContent-message css-1exqwzz-MuiSnackbarContent-message"
+          class="MuiSnackbarContent css-hash"
         >
           Fetching release information…
         </div>
         <div
-          class="MuiSnackbarContent-action css-1kr9x0n-MuiSnackbarContent-action"
+          class="MuiSnackbarContent css-hash"
         >
           <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-5534ty-MuiButtonBase-root-MuiButton-root"
+            class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
             style="color: rgb(255, 242, 0);"
             tabindex="0"
             type="button"
           >
             Skip
             <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              class="MuiTouchRipple css-hash"
             />
           </button>
         </div>

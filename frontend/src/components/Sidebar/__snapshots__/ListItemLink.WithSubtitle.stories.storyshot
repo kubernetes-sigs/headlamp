@@ -1,40 +1,40 @@
 <body>
   <div>
     <div
-      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1ic9gem-MuiPaper-root"
+      class="MuiPaper MuiPaper MuiPaper css-hash"
     >
       <nav>
         <ul
-          class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
+          class="MuiList MuiList css-hash"
         >
           <li
-            class="css-1tmipa6"
+            class="css-hash"
           >
             <a
-              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-bcux7k-MuiButtonBase-root-MuiListItemButton-root"
+              class="MuiButtonBase MuiListItemButton MuiListItemButton MuiListItemButton MuiListItemButton css-hash"
               href="/cluster-info"
               role="button"
               tabindex="0"
             >
               <div
-                class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
+                class="MuiListItemIcon css-hash"
               />
               <div
-                class="MuiListItemText-root MuiListItemText-multiline css-konndc-MuiListItemText-root"
+                class="MuiListItemText MuiListItemText css-hash"
               >
                 <span
-                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                  class="MuiListItemText MuiTypography MuiTypography css-hash"
                 >
                   Cluster Info
                 </span>
                 <p
-                  class="MuiTypography-root MuiTypography-body2 MuiListItemText-secondary css-1xo4sfx-MuiTypography-root"
+                  class="MuiListItemText MuiTypography MuiTypography css-hash"
                 >
                   Details about your cluster
                 </p>
               </div>
               <span
-                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                class="MuiTouchRipple css-hash"
               />
             </a>
           </li>

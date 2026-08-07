@@ -1,55 +1,55 @@
 <body>
   <div>
     <button
-      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+      class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
       tabindex="0"
       type="button"
     >
       <span
-        class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+        class="MuiButton MuiButton MuiButton css-hash"
       />
       <p
-        class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+        class="MuiTypography MuiTypography css-hash"
         style="padding-top: 3px;"
       >
         Back
       </p>
       <span
-        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+        class="MuiTouchRipple css-hash"
       />
     </button>
     <div
-      class="MuiBox-root css-j1fy4m"
+      class="MuiBox css-hash"
     >
       <div
-        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+        class="MuiGrid MuiGrid MuiGrid css-hash"
       >
         <div
-          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+          class="MuiGrid MuiGrid css-hash"
         >
           <div
-            class="MuiBox-root css-70qvj9"
+            class="MuiBox css-hash"
           >
             <h2
-              class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+              class="MuiTypography MuiTypography MuiTypography css-hash"
             >
               Cluster Settings
             </h2>
             <div
-              class="MuiBox-root css-ldp2l3"
+              class="MuiBox css-hash"
             />
           </div>
         </div>
       </div>
       <div
-        class="MuiBox-root css-1txv3mw"
+        class="MuiBox css-hash"
       />
     </div>
     <div
-      class="MuiBox-root css-19midj6"
+      class="MuiBox css-hash"
     >
       <p
-        class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-9ldkza-MuiTypography-root"
+        class="MuiTypography MuiTypography MuiTypography css-hash"
       >
         There seem to be no clusters configured…
       </p>

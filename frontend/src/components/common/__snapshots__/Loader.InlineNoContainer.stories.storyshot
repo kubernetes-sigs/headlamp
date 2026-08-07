@@ -2,7 +2,7 @@
   <div>
     <span
       aria-label="Loading inline..."
-      class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
+      class="MuiCircularProgress MuiCircularProgress MuiCircularProgress css-hash"
       role="progressbar"
       style="width: 40px; height: 40px;"
       title="Loading inline..."

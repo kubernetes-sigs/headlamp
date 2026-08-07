@@ -17,10 +17,12 @@
 import '@xyflow/react/dist/base.css';
 import './GraphView.css';
 import { Icon } from '@iconify/react';
+import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Chip from '@mui/material/Chip';
 import { Theme } from '@mui/material/styles';
 import { styled } from '@mui/material/styles';
+import TextField from '@mui/material/TextField';
 import ThemeProvider from '@mui/system/ThemeProvider';
 import { Edge, Node, Panel, ReactFlowProvider } from '@xyflow/react';
 import {
@@ -159,6 +161,8 @@ function GraphViewContent({
 
   // Filters
   const [hasErrorsFilter, setHasErrorsFilter] = useState(false);
+  const [selectedKinds, setSelectedKinds] = useState<string[]>([]);
+  const [labelInput, setLabelInput] = useState('');
 
   // Incremental update toggle - allows comparing performance
   const [useIncrementalUpdates, setUseIncrementalUpdates] = useState(true);
@@ -197,6 +201,42 @@ function GraphViewContent({
   // Load source data
   const { nodes, edges, selectedSources, sourceData, isLoading, toggleSelection } = useSources();
 
+  // Available resource kinds from current graph nodes
+  const availableKinds = useMemo(() => {
+    const kinds = new Set<string>();
+    nodes.forEach(node => {
+      if (node.kubeObject?.kind) {
+        kinds.add(node.kubeObject.kind);
+      }
+    });
+    return Array.from(kinds).sort();
+  }, [nodes]);
+
+  // Parsed label selector entries from search input
+  const parsedLabels = useMemo(() => {
+    const labels: Record<string, string> = {};
+    if (!labelInput.trim()) return labels;
+
+    const parts = labelInput.split(/[\s,]+/);
+    for (const part of parts) {
+      if (!part) continue;
+      const eqIdx = part.indexOf('=');
+      if (eqIdx !== -1) {
+        const k = part.substring(0, eqIdx).trim();
+        const v = part.substring(eqIdx + 1).trim();
+        if (k) {
+          labels[k] = v;
+        }
+      } else {
+        const k = part.trim();
+        if (k) {
+          labels[k] = '';
+        }
+      }
+    }
+    return labels;
+  }, [labelInput]);
+
   // Track previous graph state for incremental update detection.
   // When only a small fraction of nodes change (e.g., WebSocket updates),
   // incremental filtering avoids reprocessing the entire graph.
@@ -226,8 +266,14 @@ function GraphViewContent({
     if (namespaces?.size > 0) {
       filters.push({ type: 'namespace', namespaces });
     }
+    if (selectedKinds.length > 0) {
+      filters.push({ type: 'resourceType', kinds: new Set(selectedKinds) });
+    }
+    if (Object.keys(parsedLabels).length > 0) {
+      filters.push({ type: 'labelSelector', labels: parsedLabels });
+    }
     return filters;
-  }, [defaultFilters, hasErrorsFilter, namespaces]);
+  }, [defaultFilters, hasErrorsFilter, namespaces, selectedKinds, parsedLabels]);
 
   // Compute a stable JSON signature for a filters array (normalizes Set→sorted array).
   const computeFilterSig = useCallback(
@@ -236,6 +282,18 @@ function GraphViewContent({
         filters.map(filter => {
           if (filter.type === 'namespace') {
             return { type: 'namespace', namespaces: Array.from(filter.namespaces).sort() };
+          }
+          if (filter.type === 'resourceType') {
+            return { type: 'resourceType', kinds: Array.from(filter.kinds).sort() };
+          }
+          if (filter.type === 'labelSelector') {
+            const sortedLabels = Object.keys(filter.labels)
+              .sort()
+              .reduce((acc, key) => {
+                acc[key] = filter.labels[key];
+                return acc;
+              }, {} as Record<string, string>);
+            return { type: 'labelSelector', labels: sortedLabels };
           }
           return filter;
         })
@@ -499,6 +557,26 @@ function GraphViewContent({
                 flexWrap="wrap"
               >
                 <NamespacesAutocomplete />
+
+                <Autocomplete
+                  multiple
+                  size="small"
+                  options={availableKinds}
+                  value={selectedKinds}
+                  onChange={(_, newValue) => setSelectedKinds(newValue)}
+                  renderInput={params => (
+                    <TextField {...params} placeholder={t('Resource Types')} size="small" />
+                  )}
+                  sx={{ minWidth: 180, maxWidth: 300 }}
+                />
+
+                <TextField
+                  size="small"
+                  placeholder={t('Labels (e.g. app=nginx)')}
+                  value={labelInput}
+                  onChange={e => setLabelInput(e.target.value)}
+                  sx={{ minWidth: 180 }}
+                />
 
                 <GraphSourcesView
                   sources={sources}

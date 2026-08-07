@@ -1,67 +1,67 @@
 <body>
   <div>
     <div
-      class="MuiBox-root css-1qgzacq"
+      class="MuiBox css-hash"
     >
       <div
-        class="MuiBox-root css-1qm1lh"
+        class="MuiBox css-hash"
       >
         <h6
-          class="MuiTypography-root MuiTypography-subtitle1 css-ofbfey-MuiTypography-root"
+          class="MuiTypography MuiTypography css-hash"
         >
           Upgrading Nodes
         </h6>
         <div
-          class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-111shyz-MuiPaper-root"
+          class="MuiPaper MuiPaper MuiPaper css-hash"
         >
           <div
-            class="MuiBox-root css-1sl8bg8"
+            class="MuiBox css-hash"
           >
             <div
-              class="MuiBox-root css-axw7ok"
+              class="MuiBox css-hash"
             >
               <h6
-                class="MuiTypography-root MuiTypography-subtitle1 css-1p3zzy4-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 aks-node-upgrading
               </h6>
               <div
-                class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-outlinedSuccess css-s5qog2-MuiChip-root"
+                class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
               >
                 <span
-                  class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                  class="MuiChip MuiChip css-hash"
                 >
                   Ready
                 </span>
               </div>
             </div>
             <p
-              class="MuiTypography-root MuiTypography-body2 css-plok08-MuiTypography-root"
+              class="MuiTypography MuiTypography css-hash"
             >
               Version: v1.29.0
             </p>
           </div>
           <div
-            class="MuiStepper-root MuiStepper-horizontal MuiStepper-alternativeLabel css-10mg1vw-MuiStepper-root"
+            class="MuiStepper MuiStepper MuiStepper css-hash"
           >
             <div
-              class="MuiStep-root MuiStep-horizontal MuiStep-alternativeLabel Mui-completed css-n7tliy-MuiStep-root"
+              class="Mui-completed MuiStep MuiStep MuiStep css-hash"
             >
               <span
-                class="MuiStepLabel-root MuiStepLabel-horizontal MuiStepLabel-alternativeLabel css-sir6m0-MuiStepLabel-root"
+                class="MuiStepLabel MuiStepLabel MuiStepLabel css-hash"
               >
                 <span
-                  class="MuiStepLabel-iconContainer Mui-completed MuiStepLabel-alternativeLabel css-vnkopk-MuiStepLabel-iconContainer"
+                  class="Mui-completed MuiStepLabel MuiStepLabel css-hash"
                 >
                   <div
-                    class="MuiBox-root css-1j6q5jz"
+                    class="MuiBox css-hash"
                   />
                 </span>
                 <span
-                  class="MuiStepLabel-labelContainer MuiStepLabel-alternativeLabel css-1vyamtt-MuiStepLabel-labelContainer"
+                  class="MuiStepLabel MuiStepLabel css-hash"
                 >
                   <span
-                    class="MuiStepLabel-label Mui-completed MuiStepLabel-alternativeLabel css-172s6dr-MuiStepLabel-label"
+                    class="Mui-completed MuiStepLabel MuiStepLabel css-hash"
                   >
                     Cordon
                   </span>
@@ -69,30 +69,30 @@
               </span>
             </div>
             <div
-              class="MuiStep-root MuiStep-horizontal MuiStep-alternativeLabel css-n7tliy-MuiStep-root"
+              class="MuiStep MuiStep MuiStep css-hash"
             >
               <div
-                class="MuiStepConnector-root MuiStepConnector-horizontal MuiStepConnector-alternativeLabel Mui-active css-h3mslu-MuiStepConnector-root"
+                class="Mui-active MuiStepConnector MuiStepConnector MuiStepConnector css-hash"
               >
                 <span
-                  class="MuiStepConnector-line MuiStepConnector-lineHorizontal css-z7uhs0-MuiStepConnector-line"
+                  class="MuiStepConnector MuiStepConnector css-hash"
                 />
               </div>
               <span
-                class="MuiStepLabel-root MuiStepLabel-horizontal MuiStepLabel-alternativeLabel css-pdevfk-MuiStepLabel-root"
+                class="MuiStepLabel MuiStepLabel MuiStepLabel css-hash"
               >
                 <span
-                  class="MuiStepLabel-iconContainer Mui-active MuiStepLabel-alternativeLabel css-vnkopk-MuiStepLabel-iconContainer"
+                  class="Mui-active MuiStepLabel MuiStepLabel css-hash"
                 >
                   <div
-                    class="MuiBox-root css-1y1xhmb"
+                    class="MuiBox css-hash"
                   />
                 </span>
                 <span
-                  class="MuiStepLabel-labelContainer MuiStepLabel-alternativeLabel css-1vyamtt-MuiStepLabel-labelContainer"
+                  class="MuiStepLabel MuiStepLabel css-hash"
                 >
                   <span
-                    class="MuiStepLabel-label Mui-active MuiStepLabel-alternativeLabel css-172s6dr-MuiStepLabel-label"
+                    class="Mui-active MuiStepLabel MuiStepLabel css-hash"
                   >
                     Drain
                   </span>
@@ -100,30 +100,30 @@
               </span>
             </div>
             <div
-              class="MuiStep-root MuiStep-horizontal MuiStep-alternativeLabel css-n7tliy-MuiStep-root"
+              class="MuiStep MuiStep MuiStep css-hash"
             >
               <div
-                class="MuiStepConnector-root MuiStepConnector-horizontal MuiStepConnector-alternativeLabel Mui-disabled css-h3mslu-MuiStepConnector-root"
+                class="Mui-disabled MuiStepConnector MuiStepConnector MuiStepConnector css-hash"
               >
                 <span
-                  class="MuiStepConnector-line MuiStepConnector-lineHorizontal css-z7uhs0-MuiStepConnector-line"
+                  class="MuiStepConnector MuiStepConnector css-hash"
                 />
               </div>
               <span
-                class="MuiStepLabel-root MuiStepLabel-horizontal Mui-disabled MuiStepLabel-alternativeLabel css-3zc5vx-MuiStepLabel-root"
+                class="Mui-disabled MuiStepLabel MuiStepLabel MuiStepLabel css-hash"
               >
                 <span
-                  class="MuiStepLabel-iconContainer Mui-disabled MuiStepLabel-alternativeLabel css-vnkopk-MuiStepLabel-iconContainer"
+                  class="Mui-disabled MuiStepLabel MuiStepLabel css-hash"
                 >
                   <div
-                    class="MuiBox-root css-o5ezry"
+                    class="MuiBox css-hash"
                   />
                 </span>
                 <span
-                  class="MuiStepLabel-labelContainer MuiStepLabel-alternativeLabel css-1vyamtt-MuiStepLabel-labelContainer"
+                  class="MuiStepLabel MuiStepLabel css-hash"
                 >
                   <span
-                    class="MuiStepLabel-label Mui-disabled MuiStepLabel-alternativeLabel css-172s6dr-MuiStepLabel-label"
+                    class="Mui-disabled MuiStepLabel MuiStepLabel css-hash"
                   >
                     Delete
                   </span>
@@ -131,30 +131,30 @@
               </span>
             </div>
             <div
-              class="MuiStep-root MuiStep-horizontal MuiStep-alternativeLabel css-n7tliy-MuiStep-root"
+              class="MuiStep MuiStep MuiStep css-hash"
             >
               <div
-                class="MuiStepConnector-root MuiStepConnector-horizontal MuiStepConnector-alternativeLabel Mui-disabled css-h3mslu-MuiStepConnector-root"
+                class="Mui-disabled MuiStepConnector MuiStepConnector MuiStepConnector css-hash"
               >
                 <span
-                  class="MuiStepConnector-line MuiStepConnector-lineHorizontal css-z7uhs0-MuiStepConnector-line"
+                  class="MuiStepConnector MuiStepConnector css-hash"
                 />
               </div>
               <span
-                class="MuiStepLabel-root MuiStepLabel-horizontal Mui-disabled MuiStepLabel-alternativeLabel css-3zc5vx-MuiStepLabel-root"
+                class="Mui-disabled MuiStepLabel MuiStepLabel MuiStepLabel css-hash"
               >
                 <span
-                  class="MuiStepLabel-iconContainer Mui-disabled MuiStepLabel-alternativeLabel css-vnkopk-MuiStepLabel-iconContainer"
+                  class="Mui-disabled MuiStepLabel MuiStepLabel css-hash"
                 >
                   <div
-                    class="MuiBox-root css-o5ezry"
+                    class="MuiBox css-hash"
                   />
                 </span>
                 <span
-                  class="MuiStepLabel-labelContainer MuiStepLabel-alternativeLabel css-1vyamtt-MuiStepLabel-labelContainer"
+                  class="MuiStepLabel MuiStepLabel css-hash"
                 >
                   <span
-                    class="MuiStepLabel-label Mui-disabled MuiStepLabel-alternativeLabel css-172s6dr-MuiStepLabel-label"
+                    class="Mui-disabled MuiStepLabel MuiStepLabel css-hash"
                   >
                     Reimage
                   </span>
@@ -162,30 +162,30 @@
               </span>
             </div>
             <div
-              class="MuiStep-root MuiStep-horizontal MuiStep-alternativeLabel css-n7tliy-MuiStep-root"
+              class="MuiStep MuiStep MuiStep css-hash"
             >
               <div
-                class="MuiStepConnector-root MuiStepConnector-horizontal MuiStepConnector-alternativeLabel Mui-disabled css-h3mslu-MuiStepConnector-root"
+                class="Mui-disabled MuiStepConnector MuiStepConnector MuiStepConnector css-hash"
               >
                 <span
-                  class="MuiStepConnector-line MuiStepConnector-lineHorizontal css-z7uhs0-MuiStepConnector-line"
+                  class="MuiStepConnector MuiStepConnector css-hash"
                 />
               </div>
               <span
-                class="MuiStepLabel-root MuiStepLabel-horizontal Mui-disabled MuiStepLabel-alternativeLabel css-3zc5vx-MuiStepLabel-root"
+                class="Mui-disabled MuiStepLabel MuiStepLabel MuiStepLabel css-hash"
               >
                 <span
-                  class="MuiStepLabel-iconContainer Mui-disabled MuiStepLabel-alternativeLabel css-vnkopk-MuiStepLabel-iconContainer"
+                  class="Mui-disabled MuiStepLabel MuiStepLabel css-hash"
                 >
                   <div
-                    class="MuiBox-root css-o5ezry"
+                    class="MuiBox css-hash"
                   />
                 </span>
                 <span
-                  class="MuiStepLabel-labelContainer MuiStepLabel-alternativeLabel css-1vyamtt-MuiStepLabel-labelContainer"
+                  class="MuiStepLabel MuiStepLabel css-hash"
                 >
                   <span
-                    class="MuiStepLabel-label Mui-disabled MuiStepLabel-alternativeLabel css-172s6dr-MuiStepLabel-label"
+                    class="Mui-disabled MuiStepLabel MuiStepLabel css-hash"
                   >
                     Complete
                   </span>
@@ -196,81 +196,81 @@
         </div>
       </div>
       <div
-        class="MuiBox-root css-1qm1lh"
+        class="MuiBox css-hash"
       >
         <h6
-          class="MuiTypography-root MuiTypography-subtitle1 css-ofbfey-MuiTypography-root"
+          class="MuiTypography MuiTypography css-hash"
         >
           Surge Nodes
         </h6>
         <div
-          class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-m11i2x-MuiPaper-root"
+          class="MuiPaper MuiPaper MuiPaper css-hash"
         >
           <div
-            class="MuiBox-root css-axw7ok"
+            class="MuiBox css-hash"
           >
             <h6
-              class="MuiTypography-root MuiTypography-subtitle2 css-l62m0z-MuiTypography-root"
+              class="MuiTypography MuiTypography css-hash"
             >
               aks-node-surge
             </h6>
             <div
-              class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-outlinedSuccess css-s5qog2-MuiChip-root"
+              class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
             >
               <span
-                class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                class="MuiChip MuiChip css-hash"
               >
                 Ready
               </span>
             </div>
             <div
-              class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-1qavl4s-MuiChip-root"
+              class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
             >
               <span
-                class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
+                class="MuiChip MuiChip css-hash"
               >
                 Surge Node
               </span>
             </div>
           </div>
           <p
-            class="MuiTypography-root MuiTypography-body2 css-plok08-MuiTypography-root"
+            class="MuiTypography MuiTypography css-hash"
           >
             Version: v1.29.0
           </p>
         </div>
       </div>
       <div
-        class="MuiBox-root css-1qm1lh"
+        class="MuiBox css-hash"
       >
         <h6
-          class="MuiTypography-root MuiTypography-subtitle1 css-ofbfey-MuiTypography-root"
+          class="MuiTypography MuiTypography css-hash"
         >
           Idle Nodes
         </h6>
         <div
-          class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-m11i2x-MuiPaper-root"
+          class="MuiPaper MuiPaper MuiPaper css-hash"
         >
           <div
-            class="MuiBox-root css-axw7ok"
+            class="MuiBox css-hash"
           >
             <h6
-              class="MuiTypography-root MuiTypography-subtitle2 css-l62m0z-MuiTypography-root"
+              class="MuiTypography MuiTypography css-hash"
             >
               aks-node-idle
             </h6>
             <div
-              class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-outlinedSuccess css-s5qog2-MuiChip-root"
+              class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
             >
               <span
-                class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                class="MuiChip MuiChip css-hash"
               >
                 Ready
               </span>
             </div>
           </div>
           <p
-            class="MuiTypography-root MuiTypography-body2 css-plok08-MuiTypography-root"
+            class="MuiTypography MuiTypography css-hash"
           >
             Version: v1.29.0
           </p>

@@ -1,11 +1,11 @@
 <body>
   <div>
     <div
-      class="MuiBox-root css-5cned0"
+      class="MuiBox css-hash"
     >
       <span
         aria-label="Loading with custom color..."
-        class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorSecondary css-q10m9g-MuiCircularProgress-root"
+        class="MuiCircularProgress MuiCircularProgress MuiCircularProgress css-hash"
         role="progressbar"
         style="width: 40px; height: 40px;"
         title="Loading with custom color..."

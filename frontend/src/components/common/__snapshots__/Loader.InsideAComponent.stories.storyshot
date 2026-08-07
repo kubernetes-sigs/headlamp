@@ -2,24 +2,24 @@
   <div>
      
     <div
-      class="MuiBox-root css-r4bbqj"
+      class="MuiBox css-hash"
     >
       <h6
-        class="MuiTypography-root MuiTypography-h6 css-k6p83p-MuiTypography-root"
+        class="MuiTypography MuiTypography css-hash"
       >
         Some Content Area
       </h6>
       <p
-        class="MuiTypography-root MuiTypography-body2 MuiTypography-gutterBottom css-1hgh5ir-MuiTypography-root"
+        class="MuiTypography MuiTypography MuiTypography css-hash"
       >
         Imagine data is being fetched for this section.
       </p>
       <div
-        class="MuiBox-root css-5cned0"
+        class="MuiBox css-hash"
       >
         <span
           aria-label="Fetching section data..."
-          class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
+          class="MuiCircularProgress MuiCircularProgress MuiCircularProgress css-hash"
           role="progressbar"
           style="width: 30px; height: 30px;"
           title="Fetching section data..."
@@ -40,7 +40,7 @@
         </span>
       </div>
       <p
-        class="MuiTypography-root MuiTypography-body2 css-ab4e19-MuiTypography-root"
+        class="MuiTypography MuiTypography css-hash"
         style="margin-top: 1rem;"
       >
         More content can be around the loader.

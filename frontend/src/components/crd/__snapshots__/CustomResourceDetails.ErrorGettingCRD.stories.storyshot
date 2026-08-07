@@ -1,10 +1,10 @@
 <body>
   <div>
     <div
-      class="MuiBox-root css-19midj6"
+      class="MuiBox css-hash"
     >
       <p
-        class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-9ldkza-MuiTypography-root"
+        class="MuiTypography MuiTypography MuiTypography css-hash"
       >
         Error getting custom resource definition error.crd.io: Failed to fetch
       </p>

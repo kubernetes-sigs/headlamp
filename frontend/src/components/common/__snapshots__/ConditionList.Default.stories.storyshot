@@ -3,42 +3,42 @@
     <div
       aria-atomic="true"
       aria-live="polite"
-      class="MuiBox-root css-ty8jgw"
+      class="MuiBox css-hash"
       role="status"
     />
     <div
-      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-onzayo-MuiPaper-root-MuiTableContainer-root"
+      class="MuiPaper MuiPaper MuiPaper MuiTableContainer css-hash"
       tabindex="0"
     >
       <table
-        class="MuiTable-root css-qzmaqi-MuiTable-root"
+        class="MuiTable css-hash"
       >
         <thead
-          class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
+          class="MuiTableHead css-hash"
         >
           <tr
-            class="MuiTableRow-root MuiTableRow-head css-13jktim-MuiTableRow-root"
+            class="MuiTableRow MuiTableRow css-hash"
           >
             <th
-              class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+              class="MuiTableCell MuiTableCell MuiTableCell css-hash"
               scope="col"
             >
               Condition
             </th>
             <th
-              class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+              class="MuiTableCell MuiTableCell MuiTableCell css-hash"
               scope="col"
             >
               Status
             </th>
             <th
-              class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+              class="MuiTableCell MuiTableCell MuiTableCell css-hash"
               scope="col"
             >
               Last Transition
             </th>
             <th
-              class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
+              class="MuiTableCell MuiTableCell MuiTableCell css-hash"
               scope="col"
             >
               Reason
@@ -46,36 +46,36 @@
           </tr>
         </thead>
         <tbody
-          class="MuiTableBody-root css-apqrd9-MuiTableBody-root"
+          class="MuiTableBody css-hash"
         >
           <tr
-            class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+            class="MuiTableRow css-hash"
           >
             <td
-              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+              class="MuiTableCell MuiTableCell MuiTableCell css-hash"
             >
               <span
-                class="MuiTypography-root MuiTypography-body1 css-1aajmzw-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 Ready
               </span>
             </td>
             <td
-              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+              class="MuiTableCell MuiTableCell MuiTableCell css-hash"
             >
               True
             </td>
             <td
-              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+              class="MuiTableCell MuiTableCell MuiTableCell css-hash"
             >
               -
             </td>
             <td
-              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+              class="MuiTableCell MuiTableCell MuiTableCell css-hash"
             >
               <p
                 aria-label="Pod is ready"
-                class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
                 data-mui-internal-clone-element="true"
               >
                 PodReady
@@ -83,33 +83,33 @@
             </td>
           </tr>
           <tr
-            class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+            class="MuiTableRow css-hash"
           >
             <td
-              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+              class="MuiTableCell MuiTableCell MuiTableCell css-hash"
             >
               <span
-                class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 PodScheduled
               </span>
             </td>
             <td
-              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+              class="MuiTableCell MuiTableCell MuiTableCell css-hash"
             >
               False
             </td>
             <td
-              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+              class="MuiTableCell MuiTableCell MuiTableCell css-hash"
             >
               -
             </td>
             <td
-              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+              class="MuiTableCell MuiTableCell MuiTableCell css-hash"
             >
               <p
                 aria-label="No nodes available"
-                class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
                 data-mui-internal-clone-element="true"
               >
                 Unschedulable
@@ -117,29 +117,29 @@
             </td>
           </tr>
           <tr
-            class="MuiTableRow-root css-13jktim-MuiTableRow-root"
+            class="MuiTableRow css-hash"
           >
             <td
-              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+              class="MuiTableCell MuiTableCell MuiTableCell css-hash"
             >
               <span
-                class="MuiTypography-root MuiTypography-body1 css-j24kpb-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
               >
                 Initialized
               </span>
             </td>
             <td
-              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+              class="MuiTableCell MuiTableCell MuiTableCell css-hash"
             >
               Unknown
             </td>
             <td
-              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+              class="MuiTableCell MuiTableCell MuiTableCell css-hash"
             >
               -
             </td>
             <td
-              class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
+              class="MuiTableCell MuiTableCell MuiTableCell css-hash"
             >
               -
             </td>

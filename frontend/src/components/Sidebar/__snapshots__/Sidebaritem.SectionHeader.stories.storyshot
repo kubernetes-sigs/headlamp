@@ -1,14 +1,14 @@
 <body>
   <div>
     <div
-      class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+      class="MuiGrid MuiGrid css-hash"
       style="background-color: rgba(0, 0, 0, 0.87);"
     >
       <ul
-        class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
+        class="MuiList MuiList css-hash"
       >
         <li
-          class="MuiListSubheader-root MuiListSubheader-gutters css-u1ph1t-MuiListSubheader-root"
+          class="MuiListSubheader MuiListSubheader css-hash"
         >
           Plugin Section
         </li>

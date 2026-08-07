@@ -3,12 +3,12 @@
     aria-hidden="true"
   />
   <div
-    class="MuiDialog-root MuiModal-root css-zw3mfo-MuiModal-root-MuiDialog-root"
+    class="MuiDialog MuiModal css-hash"
     role="presentation"
   >
     <div
       aria-hidden="true"
-      class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
+      class="MuiBackdrop MuiModal css-hash"
       style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
     />
     <div
@@ -16,29 +16,29 @@
       tabindex="0"
     />
     <div
-      class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
+      class="MuiDialog MuiDialog css-hash"
       role="presentation"
       style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
       tabindex="-1"
     >
       <div
         aria-labelledby=":mock-test-id:"
-        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthLg MuiDialog-paperFullWidth css-kl791l-MuiPaper-root-MuiDialog-paper"
+        class="MuiDialog MuiDialog MuiDialog MuiDialog MuiPaper MuiPaper MuiPaper css-hash"
         role="dialog"
       >
         <h2
-          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
+          class="MuiDialogTitle MuiTypography MuiTypography css-hash"
           id=":mock-test-id:"
           style="display: flex;"
         >
           <div
-            class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
+            class="MuiGrid MuiGrid css-hash"
           >
             <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              class="MuiGrid MuiGrid css-hash"
             >
               <h1
-                class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
+                class="MuiTypography MuiTypography css-hash"
                 id=":mock-test-id:"
                 style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
               >
@@ -46,31 +46,31 @@
               </h1>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+              class="MuiGrid MuiGrid css-hash"
             >
               <div
-                class="MuiBox-root css-0"
+                class="MuiBox css-hash"
               >
                 <button
                   aria-label="Toggle fullscreen"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                  class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                   data-mui-internal-clone-element="true"
                   tabindex="0"
                   type="button"
                 >
                   <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    class="MuiTouchRipple css-hash"
                   />
                 </button>
                 <button
                   aria-label="Close"
-                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+                  class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
                   data-mui-internal-clone-element="true"
                   tabindex="0"
                   type="button"
                 >
                   <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    class="MuiTouchRipple css-hash"
                   />
                 </button>
               </div>
@@ -78,46 +78,46 @@
           </div>
         </h2>
         <div
-          class="MuiDialogContent-root css-ehnsxd-MuiDialogContent-root"
+          class="MuiDialogContent css-hash"
         >
           <div
-            class="MuiBox-root css-1leskuh"
+            class="MuiBox css-hash"
           >
             <label
-              class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
+              class="MuiFormControlLabel MuiFormControlLabel css-hash"
             >
               <span
-                class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
+                class="MuiSwitch MuiSwitch css-hash"
               >
                 <span
-                  class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-po6g13-MuiButtonBase-root-MuiSwitchBase-root-MuiSwitch-switchBase"
+                  class="Mui-checked Mui-checked Mui-checked MuiButtonBase MuiSwitch MuiSwitch MuiSwitch MuiSwitch PrivateSwitchBase-root css-hash"
                 >
                   <input
                     checked=""
-                    class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
+                    class="MuiSwitch PrivateSwitchBase-input css-hash"
                     name="hideManagedFields"
                     type="checkbox"
                   />
                   <span
-                    class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
+                    class="MuiSwitch css-hash"
                   />
                   <span
-                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    class="MuiTouchRipple css-hash"
                   />
                 </span>
                 <span
-                  class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
+                  class="MuiSwitch css-hash"
                 />
               </span>
               <span
-                class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
+                class="MuiFormControlLabel MuiTypography MuiTypography css-hash"
               >
                 Hide Managed Fields
               </span>
             </label>
           </div>
           <div
-            class="MuiBox-root css-i9gxme"
+            class="MuiBox css-hash"
           >
             <div
               class="mock-monaco-editor"
@@ -125,17 +125,17 @@
           </div>
         </div>
         <div
-          class="MuiDialogActions-root MuiDialogActions-spacing css-knqc4i-MuiDialogActions-root"
+          class="MuiDialogActions MuiDialogActions css-hash"
         >
           <button
             aria-label="close-button"
-            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-14f6w6s-MuiButtonBase-root-MuiButton-root"
+            class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
             tabindex="0"
             type="button"
           >
             Close
             <span
-              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              class="MuiTouchRipple css-hash"
             />
           </button>
         </div>

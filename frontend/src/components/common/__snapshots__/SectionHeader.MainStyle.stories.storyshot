@@ -2,21 +2,21 @@
   <div>
      
     <div
-      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+      class="MuiGrid MuiGrid MuiGrid css-hash"
     >
       <div
-        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        class="MuiGrid MuiGrid css-hash"
       >
         <div
-          class="MuiBox-root css-70qvj9"
+          class="MuiBox css-hash"
         >
           <h1
-            class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
+            class="MuiTypography MuiTypography MuiTypography css-hash"
           >
             Main Section Title
           </h1>
           <div
-            class="MuiBox-root css-ldp2l3"
+            class="MuiBox css-hash"
           />
         </div>
       </div>

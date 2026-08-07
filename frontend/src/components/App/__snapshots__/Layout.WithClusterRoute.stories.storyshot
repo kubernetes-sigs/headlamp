@@ -1,41 +1,41 @@
 <body>
   <div>
     <a
-      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-1561pfm-MuiTypography-root-MuiLink-root"
+      class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
       href="#main"
     >
       Skip to main content
     </a>
     <div
-      class="MuiBox-root css-12ub0xu"
+      class="MuiBox css-hash"
     >
       <div
-        class="MuiBox-root css-1uqao6u"
+        class="MuiBox css-hash"
       >
         <nav
           aria-label="Appbar Tools"
-          class="MuiPaper-root MuiPaper-outlined MuiAppBar-root MuiAppBar-colorPrimary MuiAppBar-positionStatic css-1sf61jf-MuiPaper-root-MuiAppBar-root"
+          class="MuiAppBar MuiAppBar MuiAppBar MuiPaper MuiPaper css-hash"
         >
           <div
-            class="MuiToolbar-root MuiToolbar-gutters MuiToolbar-regular css-1g5gxk7-MuiToolbar-root"
+            class="MuiToolbar MuiToolbar MuiToolbar css-hash"
           >
             <div
-              class="MuiBox-root css-19midj6"
+              class="MuiBox css-hash"
             />
             <div
-              class="MuiBox-root css-p8ekiu"
+              class="MuiBox css-hash"
             >
               <div
-                class="MuiBox-root css-xqhmuz"
+                class="MuiBox css-hash"
               >
                 <div
-                  class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
+                  class="MuiFormControl MuiFormControl MuiTextField css-hash"
                 >
                   <div
-                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedStart MuiInputBase-adornedEnd css-1amr0ad-MuiInputBase-root-MuiOutlinedInput-root"
+                    class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
                   >
                     <div
-                      class="MuiInputAdornment-root MuiInputAdornment-positionStart MuiInputAdornment-outlined MuiInputAdornment-sizeSmall css-16yk9m0-MuiInputAdornment-root"
+                      class="MuiInputAdornment MuiInputAdornment MuiInputAdornment MuiInputAdornment css-hash"
                     >
                       <span
                         class="notranslate"
@@ -45,18 +45,18 @@
                     </div>
                     <input
                       aria-invalid="false"
-                      class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedStart MuiInputBase-inputAdornedEnd css-12yjm75-MuiInputBase-input-MuiOutlinedInput-input"
+                      class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
                       id=":mock-test-id:"
                       placeholder="Search"
                       type="text"
                       value=""
                     />
                     <div
-                      class="MuiBox-root css-yqa0zz"
+                      class="MuiBox css-hash"
                     >
                       Press
                       <kbd
-                        class="MuiBox-root css-a3hhso"
+                        class="MuiBox css-hash"
                       >
                         /
                       </kbd>
@@ -64,10 +64,10 @@
                     </div>
                     <fieldset
                       aria-hidden="true"
-                      class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+                      class="MuiOutlinedInput css-hash"
                     >
                       <legend
-                        class="css-1whs34k-MuiNotchedOutlined-root"
+                        class="css-hash"
                       >
                         <span
                           class="notranslate"
@@ -81,30 +81,30 @@
               </div>
             </div>
             <div
-              class="MuiBox-root css-0"
+              class="MuiBox css-hash"
             />
           </div>
         </nav>
         <div
-          class="MuiBox-root css-1xd9zsj"
+          class="MuiBox css-hash"
         >
           <main
-            class="css-afmxug"
+            class="css-hash"
             id="main"
           >
             <div
-              class="MuiBox-root css-10klw3m"
+              class="MuiBox css-hash"
             >
               <div
-                class="css-0"
+                class="css-hash"
               />
               <div
-                class="MuiContainer-root MuiContainer-maxWidthXl css-15p3enc-MuiContainer-root"
+                class="MuiContainer MuiContainer css-hash"
               />
             </div>
           </main>
           <div
-            class="MuiBox-root css-11hh78l"
+            class="MuiBox css-hash"
           />
         </div>
       </div>

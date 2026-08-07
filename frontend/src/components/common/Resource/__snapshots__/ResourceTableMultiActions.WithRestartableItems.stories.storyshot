@@ -1,50 +1,50 @@
 <body>
   <div>
     <div
-      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-mhc70k-MuiGrid-root"
+      class="MuiGrid MuiGrid MuiGrid css-hash"
     >
       <div
-        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        class="MuiGrid MuiGrid css-hash"
       >
         <button
           aria-label="Scale items"
-          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+          class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
           data-mui-internal-clone-element="true"
           tabindex="0"
           type="button"
         >
           <span
-            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            class="MuiTouchRipple css-hash"
           />
         </button>
       </div>
       <div
-        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        class="MuiGrid MuiGrid css-hash"
       >
         <button
           aria-label="Restart items"
-          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+          class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
           data-mui-internal-clone-element="true"
           tabindex="0"
           type="button"
         >
           <span
-            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            class="MuiTouchRipple css-hash"
           />
         </button>
       </div>
       <div
-        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+        class="MuiGrid MuiGrid css-hash"
       >
         <button
           aria-label="Delete items"
-          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+          class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
           data-mui-internal-clone-element="true"
           tabindex="0"
           type="button"
         >
           <span
-            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            class="MuiTouchRipple css-hash"
           />
         </button>
         <div />

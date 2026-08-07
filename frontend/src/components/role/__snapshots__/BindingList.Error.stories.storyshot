@@ -1,40 +1,40 @@
 <body>
   <div>
     <div
-      class="MuiContainer-root MuiContainer-maxWidthXl css-4hqp1a-MuiContainer-root"
+      class="MuiContainer MuiContainer css-hash"
     >
       <div
-        class="MuiBox-root css-j1fy4m"
+        class="MuiBox css-hash"
       >
         <div
-          class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+          class="MuiGrid MuiGrid MuiGrid css-hash"
         >
           <div
-            class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+            class="MuiGrid MuiGrid css-hash"
           >
             <div
-              class="MuiBox-root css-70qvj9"
+              class="MuiBox css-hash"
             >
               <h1
-                class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
+                class="MuiTypography MuiTypography MuiTypography css-hash"
               >
                 Role Bindings
               </h1>
               <div
-                class="MuiBox-root css-ldp2l3"
+                class="MuiBox css-hash"
               />
             </div>
           </div>
         </div>
         <div
-          class="MuiBox-root css-1txv3mw"
+          class="MuiBox css-hash"
         >
           <div
-            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorWarning MuiAlert-standardWarning MuiAlert-standard css-rme5zz-MuiPaper-root-MuiAlert-root"
+            class="MuiAlert MuiAlert MuiAlert MuiAlert MuiPaper MuiPaper MuiPaper css-hash"
             role="alert"
           >
             <div
-              class="MuiAlert-icon css-1ytlwq5-MuiAlert-icon"
+              class="MuiAlert css-hash"
             >
               <svg
                 aria-hidden="true"
@@ -49,35 +49,35 @@
               </svg>
             </div>
             <div
-              class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
+              class="MuiAlert css-hash"
             >
               <div
-                class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom MuiAlertTitle-root css-1mny8mx-MuiTypography-root-MuiAlertTitle-root"
+                class="MuiAlertTitle MuiTypography MuiTypography MuiTypography css-hash"
               >
                 Failed to load resources
               </div>
             </div>
             <div
-              class="MuiAlert-action css-ki1hdl-MuiAlert-action"
+              class="MuiAlert css-hash"
             >
               <button
-                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textWarning MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorWarning MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textWarning MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorWarning MuiButton-disableElevation css-1s9cj53-MuiButtonBase-root-MuiButton-root"
+                class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
                 tabindex="0"
                 type="button"
               >
                 Show details
                 <span
-                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  class="MuiTouchRipple css-hash"
                 />
               </button>
             </div>
           </div>
           <div
-            class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorWarning MuiAlert-standardWarning MuiAlert-standard css-rme5zz-MuiPaper-root-MuiAlert-root"
+            class="MuiAlert MuiAlert MuiAlert MuiAlert MuiPaper MuiPaper MuiPaper css-hash"
             role="alert"
           >
             <div
-              class="MuiAlert-icon css-1ytlwq5-MuiAlert-icon"
+              class="MuiAlert css-hash"
             >
               <svg
                 aria-hidden="true"
@@ -92,48 +92,48 @@
               </svg>
             </div>
             <div
-              class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
+              class="MuiAlert css-hash"
             >
               <div
-                class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom MuiAlertTitle-root css-1mny8mx-MuiTypography-root-MuiAlertTitle-root"
+                class="MuiAlertTitle MuiTypography MuiTypography MuiTypography css-hash"
               >
                 Failed to load resources
               </div>
             </div>
             <div
-              class="MuiAlert-action css-ki1hdl-MuiAlert-action"
+              class="MuiAlert css-hash"
             >
               <button
-                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textWarning MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorWarning MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textWarning MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorWarning MuiButton-disableElevation css-1s9cj53-MuiButtonBase-root-MuiButton-root"
+                class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
                 tabindex="0"
                 type="button"
               >
                 Show details
                 <span
-                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  class="MuiTouchRipple css-hash"
                 />
               </button>
             </div>
           </div>
           <div
-            class="MuiBox-root css-8atqhb"
+            class="MuiBox css-hash"
           >
             <div
               aria-atomic="true"
               aria-live="polite"
-              class="MuiBox-root css-ty8jgw"
+              class="MuiBox css-hash"
               role="status"
             >
               No data to be shown.
             </div>
             <div
-              class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
+              class="MuiPaper MuiPaper MuiPaper css-hash"
             >
               <div
-                class="MuiBox-root css-19midj6"
+                class="MuiBox css-hash"
               >
                 <p
-                  class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
+                  class="MuiTypography MuiTypography MuiTypography css-hash"
                 >
                   No data to be shown.
                 </p>

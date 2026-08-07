@@ -1248,6 +1248,7 @@ export function registerProjectApiResource(apiResource: ApiResource) {
 }
 
 /**
+
  * Registers a custom resource relation definition (a Relation object) for the Resource Map.
  *
  * @param relation - The Relation definition object to add.

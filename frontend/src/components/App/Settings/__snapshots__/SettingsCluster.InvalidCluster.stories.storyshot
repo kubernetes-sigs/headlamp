@@ -1,59 +1,59 @@
 <body>
   <div>
     <button
-      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
+      class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
       tabindex="0"
       type="button"
     >
       <span
-        class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
+        class="MuiButton MuiButton MuiButton css-hash"
       />
       <p
-        class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+        class="MuiTypography MuiTypography css-hash"
         style="padding-top: 3px;"
       >
         Back
       </p>
       <span
-        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+        class="MuiTouchRipple css-hash"
       />
     </button>
     <div
-      class="MuiBox-root css-j1fy4m"
+      class="MuiBox css-hash"
     >
       <div
-        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+        class="MuiGrid MuiGrid MuiGrid css-hash"
       >
         <div
-          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+          class="MuiGrid MuiGrid css-hash"
         >
           <div
-            class="MuiBox-root css-70qvj9"
+            class="MuiBox css-hash"
           >
             <h2
-              class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+              class="MuiTypography MuiTypography MuiTypography css-hash"
             >
               Cluster Settings
             </h2>
             <div
-              class="MuiBox-root css-ldp2l3"
+              class="MuiBox css-hash"
             />
           </div>
         </div>
       </div>
       <div
-        class="MuiBox-root css-1txv3mw"
+        class="MuiBox css-hash"
       >
         <h3
-          class="MuiTypography-root MuiTypography-h6 css-1wtlvj8-MuiTypography-root"
+          class="MuiTypography MuiTypography css-hash"
         >
           Cluster nonexistent-cluster does not exist. Please select a valid cluster:
         </h3>
         <div
-          class="MuiFormControl-root MuiFormControl-marginNormal css-1gtduw2-MuiFormControl-root"
+          class="MuiFormControl MuiFormControl css-hash"
         >
           <label
-            class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined css-10fydcw-MuiFormLabel-root-MuiInputLabel-root"
+            class="MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
             data-shrink="false"
             id="settings--cluster-selector"
           >
@@ -61,14 +61,14 @@
           </label>
           <div
             aria-label="Cluster selector"
-            class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall css-uwmwwo-MuiInputBase-root-MuiOutlinedInput-root-MuiSelect-root"
+            class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
           >
             <div
               aria-controls=":mock-test-id:"
               aria-expanded="false"
               aria-haspopup="listbox"
               aria-labelledby="settings--cluster-selector"
-              class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-oswssk-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
+              class="MuiInputBase MuiInputBase MuiOutlinedInput MuiSelect MuiSelect css-hash"
               role="combobox"
               tabindex="0"
             >
@@ -81,7 +81,7 @@
             <input
               aria-hidden="true"
               aria-invalid="false"
-              class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
+              class="MuiSelect css-hash"
               tabindex="-1"
               value=""
             />
@@ -98,10 +98,10 @@
             </svg>
             <fieldset
               aria-hidden="true"
-              class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
+              class="MuiOutlinedInput css-hash"
             >
               <legend
-                class="css-njhac4-MuiNotchedOutlined-root"
+                class="css-hash"
               >
                 <span>
                   Cluster

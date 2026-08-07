@@ -1,29 +1,29 @@
 <body>
   <div>
     <ul
-      class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
+      class="MuiList MuiList css-hash"
       role="menu"
       tabindex="-1"
     >
       <li
-        class="MuiButtonBase-root MuiMenuItem-root MuiMenuItem-gutters MuiMenuItem-root MuiMenuItem-gutters css-1sgjfx9-MuiButtonBase-root-MuiMenuItem-root"
+        class="MuiButtonBase MuiMenuItem MuiMenuItem MuiMenuItem MuiMenuItem css-hash"
         role="menuitem"
         tabindex="-1"
       >
         <div
-          class="MuiListItemIcon-root css-cveggr-MuiListItemIcon-root"
+          class="MuiListItemIcon css-hash"
         />
         <div
-          class="MuiListItemText-root css-tlelie-MuiListItemText-root"
+          class="MuiListItemText css-hash"
         >
           <span
-            class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+            class="MuiListItemText MuiTypography MuiTypography css-hash"
           >
             Scale items
           </span>
         </div>
         <span
-          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+          class="MuiTouchRipple css-hash"
         />
       </li>
     </ul>

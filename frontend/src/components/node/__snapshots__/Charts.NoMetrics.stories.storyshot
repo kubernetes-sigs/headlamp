@@ -1,12 +1,12 @@
 <body>
   <div>
     <p
-      class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+      class="MuiTypography MuiTypography css-hash"
     >
       4000m
     </p>
     <div
-      class="MuiContainer-root MuiContainer-maxWidthLg css-64uahr-MuiContainer-root"
+      class="MuiContainer MuiContainer css-hash"
     />
   </div>
 </body>

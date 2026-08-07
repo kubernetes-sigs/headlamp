@@ -1,100 +1,100 @@
 <body>
   <div>
     <div
-      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-1 css-1ub3t8b-MuiGrid-root"
+      class="MuiGrid MuiGrid MuiGrid css-hash"
     >
       <div
-        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+        class="MuiGrid MuiGrid MuiGrid css-hash"
       >
         <div
-          class="MuiBox-root css-p0cik4"
+          class="MuiBox css-hash"
         >
           <div
-            class="MuiBox-root css-j1fy4m"
+            class="MuiBox css-hash"
           >
             <div
-              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
+              class="MuiGrid MuiGrid MuiGrid css-hash"
             >
               <div
-                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
+                class="MuiGrid MuiGrid css-hash"
               >
                 <div
-                  class="MuiBox-root css-70qvj9"
+                  class="MuiBox css-hash"
                 >
                   <h1
-                    class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
+                    class="MuiTypography MuiTypography MuiTypography css-hash"
                   >
                     Home
                   </h1>
                   <div
-                    class="MuiBox-root css-ldp2l3"
+                    class="MuiBox css-hash"
                   />
                 </div>
               </div>
             </div>
             <div
-              class="MuiBox-root css-1txv3mw"
+              class="MuiBox css-hash"
             >
               <div
-                class="MuiBox-root css-1fkybvm"
+                class="MuiBox css-hash"
               >
                 <div
-                  class="MuiTabs-root css-1ujnqem-MuiTabs-root"
+                  class="MuiTabs css-hash"
                 >
                   <div
-                    class="MuiTabs-scroller MuiTabs-fixed css-jpln7h-MuiTabs-scroller"
+                    class="MuiTabs MuiTabs css-hash"
                     style="overflow: hidden; margin-bottom: 0px;"
                   >
                     <div
-                      class="MuiTabs-flexContainer css-heg063-MuiTabs-flexContainer"
+                      class="MuiTabs css-hash"
                       role="tablist"
                     >
                       <button
                         aria-selected="true"
-                        class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-mn9ohw-MuiButtonBase-root-MuiTab-root"
+                        class="Mui-selected MuiButtonBase MuiTab MuiTab css-hash"
                         role="tab"
                         tabindex="0"
                         type="button"
                       >
                         <p
-                          class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                          class="MuiTypography MuiTypography css-hash"
                         >
                           All Clusters
                         </p>
                         <span
-                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          class="MuiTouchRipple css-hash"
                         />
                       </button>
                       <button
                         aria-selected="false"
-                        class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-mn9ohw-MuiButtonBase-root-MuiTab-root"
+                        class="MuiButtonBase MuiTab MuiTab css-hash"
                         role="tab"
                         tabindex="-1"
                         type="button"
                       >
                         <p
-                          class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
+                          class="MuiTypography MuiTypography css-hash"
                         >
                           Projects
                         </p>
                         <span
-                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                          class="MuiTouchRipple css-hash"
                         />
                       </button>
                     </div>
                     <span
-                      class="MuiTabs-indicator css-1s2zz1g-MuiTabs-indicator"
+                      class="MuiTabs css-hash"
                       style="left: 0px; width: 0px;"
                     />
                   </div>
                 </div>
               </div>
               <div
-                class="MuiBox-root css-5cned0"
+                class="MuiBox css-hash"
               >
                 <span
                   aria-label="Loading..."
-                  class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
+                  class="MuiCircularProgress MuiCircularProgress MuiCircularProgress css-hash"
                   role="progressbar"
                   style="width: 40px; height: 40px;"
                   title="Loading..."

@@ -26,6 +26,14 @@ export type GraphFilter =
   | {
       type: 'namespace';
       namespaces: Set<string>;
+    }
+  | {
+      type: 'resourceType';
+      kinds: Set<string>;
+    }
+  | {
+      type: 'labelSelector';
+      labels: Record<string, string>;
     };
 
 /**
@@ -42,6 +50,20 @@ export function matchesAllFilters(node: GraphNode, filters: GraphFilter[]): bool
     if (filter.type === 'namespace' && filter.namespaces.size > 0) {
       const namespace = node.kubeObject?.metadata?.namespace;
       return !!namespace && filter.namespaces.has(namespace);
+    }
+    if (filter.type === 'resourceType' && filter.kinds.size > 0) {
+      const kind = node.kubeObject?.kind;
+      return !!kind && filter.kinds.has(kind);
+    }
+    if (filter.type === 'labelSelector' && Object.keys(filter.labels).length > 0) {
+      const nodeLabels = node.kubeObject?.metadata?.labels;
+      if (!nodeLabels) return false;
+      return Object.entries(filter.labels).every(([key, value]) => {
+        if (!value) {
+          return key in nodeLabels;
+        }
+        return nodeLabels[key] === value;
+      });
     }
     return true;
   });

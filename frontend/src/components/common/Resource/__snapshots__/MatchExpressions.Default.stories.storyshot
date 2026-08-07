@@ -1,12 +1,12 @@
 <body>
   <div>
     <p
-      class="MuiTypography-root MuiTypography-body1 css-cwic1g-MuiTypography-root"
+      class="MuiTypography MuiTypography css-hash"
     >
       env: production
     </p>
     <p
-      class="MuiTypography-root MuiTypography-body1 css-cwic1g-MuiTypography-root"
+      class="MuiTypography MuiTypography css-hash"
     >
       tier: frontend
     </p>
