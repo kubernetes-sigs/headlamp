@@ -527,6 +527,12 @@ function MyPodsPage() {
         </Table>
       </TableContainer>
 
+      {pods && pods.length > 20 && (
+        <Typography sx={{ mt: 2, color: 'text.secondary' }}>
+          Showing first 20 of {pods.length} pods
+        </Typography>
+      )}
+
       {/* Feedback Snackbar */}
       <Snackbar
         open={snackbar.open}
