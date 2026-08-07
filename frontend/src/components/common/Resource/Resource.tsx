@@ -1835,6 +1835,43 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
   );
 }
 
+export interface TargetedPodsSectionProps {
+  /** Namespace to look for the pods in. */
+  namespace?: string;
+  /** Label selector query identifying the targeted pods. */
+  labelSelector: string;
+  cluster?: string;
+}
+
+/**
+ * Lists the pods matched by a label selector, e.g. the pods a Service or
+ * NetworkPolicy targets. Unlike OwnedPodsSection it takes an explicit selector
+ * instead of deriving one from spec.selector, so it works for a Service (whose
+ * selector is a plain label map) and a NetworkPolicy (spec.podSelector).
+ */
+export function TargetedPodsSection(props: TargetedPodsSectionProps) {
+  const { namespace, labelSelector, cluster } = props;
+  const queryData = { namespace, labelSelector, cluster };
+  const { items: pods, errors } = Pod.useList(queryData);
+  const { items: podMetrics } = PodMetrics.useList({
+    ...queryData,
+    refetchInterval: METRIC_REFETCH_INTERVAL_MS,
+  });
+
+  return (
+    <PodListRenderer
+      hideColumns={namespace ? ['namespace'] : undefined}
+      pods={pods}
+      errors={errors}
+      metrics={podMetrics}
+      noNamespaceFilter={!!namespace}
+      hideCreateButton
+      enableRowActions={false}
+      enableRowSelection={false}
+    />
+  );
+}
+
 export interface OwnedJobsSectionProps {
   resource: KubeObject;
 }
