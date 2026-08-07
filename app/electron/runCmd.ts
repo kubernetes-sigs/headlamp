@@ -46,10 +46,10 @@ interface CommandData {
 /** Returns only values changed by shell initialization. */
 export function environmentOverrides(
   environment: NodeJS.ProcessEnv,
-  currentEnvironment: NodeJS.ProcessEnv = process.env
+  currentEnvironment: NodeJS.ProcessEnv = process.env,
 ): NodeJS.ProcessEnv {
   return Object.fromEntries(
-    Object.entries(environment).filter(([key, value]) => currentEnvironment[key] !== value)
+    Object.entries(environment).filter(([key, value]) => currentEnvironment[key] !== value),
   );
 }
 
@@ -155,6 +155,7 @@ export function addRunCmdConsent(pluginInfo: { name: string }): void {
 
   const pluginIsAiAssistant =
     pluginInfo.name === 'headlamp_ai-assistant' ||
+    pluginInfo.name === 'headlamp_ai_assistant' ||
     pluginInfo.name === 'headlamp_ai-assistantprerelease' ||
     (process.env.NODE_ENV === 'development' && pluginInfo.name === 'ai-assistant');
   if (pluginIsAiAssistant) {
@@ -208,7 +209,7 @@ export function removeRunCmdConsent(pluginName: string): void {
  */
 export function checkPermissionSecret(
   commandData: CommandData,
-  permissionSecrets: Record<string, number>
+  permissionSecrets: Record<string, number>,
 ): [boolean, string] {
   let permissionName = 'runCmd-' + commandData.command;
   if (commandData.command === 'scriptjs') {
@@ -264,7 +265,7 @@ export async function handleRunCommand(
   event: IpcMainEvent,
   eventData: CommandDataPartial,
   mainWindow: BrowserWindow | null,
-  permissionSecrets: Record<string, number>
+  permissionSecrets: Record<string, number>,
 ): Promise<void> {
   if (mainWindow === null) {
     console.error('Main window is null, cannot run command');
@@ -358,7 +359,7 @@ export function runScript() {
     !scriptPath.startsWith(staticPluginsDir)
   ) {
     console.error(
-      `Invalid script path: ${scriptPath}. Must be within ${baseDir}, ${userPluginsDir}, or ${staticPluginsDir}.`
+      `Invalid script path: ${scriptPath}. Must be within ${baseDir}, ${userPluginsDir}, or ${staticPluginsDir}.`,
     );
     process.exit(1);
   }
@@ -417,7 +418,7 @@ export function setupRunCmdHandlers(mainWindow: BrowserWindow | null, ipcMain: E
   });
 
   ipcMain.on('run-command', (event, eventData) =>
-    handleRunCommand(event, eventData, mainWindow, permissionSecrets)
+    handleRunCommand(event, eventData, mainWindow, permissionSecrets),
   );
 }
 
@@ -460,7 +461,7 @@ export function validateCommandData(eventData: CommandDataPartial): [boolean, st
     return [
       false,
       `Invalid command: ${eventData.command}, only valid commands are: ${JSON.stringify(
-        validCommands
+        validCommands,
       )}`,
     ];
   }

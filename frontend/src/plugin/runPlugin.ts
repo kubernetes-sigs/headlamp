@@ -47,7 +47,7 @@ export type runPluginProps = [
   /** A private copy of runPlugin */
   internalRunPlugin: typeof runPlugin,
   /** A private copy of console.error */
-  consoleError: typeof console.error
+  consoleError: typeof console.error,
 ];
 
 /**
@@ -91,12 +91,12 @@ export function getInfoForRunningPlugins({
   getAllowedPermissions: (
     pluginName: string,
     pluginPath: string,
-    permissionSecrets: Record<string, number>
+    permissionSecrets: Record<string, number>,
   ) => Record<string, number>;
   getArgValues: (
     pluginName: string,
     pluginPath: string,
-    allowedPermissions: Record<string, number>
+    allowedPermissions: Record<string, number>,
   ) => [string[], unknown[]];
   PrivateFunction: typeof Function;
   internalRunPlugin: typeof runPlugin;
@@ -149,7 +149,7 @@ export function runPlugin(
   handleError: (error: unknown, packageName: string, packageVersion: string) => void,
   PrivateFunction: typeof Function,
   args: string[],
-  values: unknown[]
+  values: unknown[],
 ): void {
   // We use PrivateFunction here instead of global Function so people can't
   //   override Function and snoop on it.
@@ -182,7 +182,7 @@ export function runPlugin(
 export function identifyPackages(
   pluginPath: string,
   pluginName: string,
-  isDevelopmentMode: boolean
+  isDevelopmentMode: boolean,
 ): Record<string, boolean> {
   // Normalize path for Windows compatibility
   const pluginPathNormalized = pluginPath
@@ -207,6 +207,9 @@ export function identifyPackages(
       'plugins/headlamp_ai-assistantprerelease',
       'user-plugins/headlamp_ai-assistantprerelease',
       'static-plugins/headlamp_ai-assistantprerelease',
+      'plugins/headlamp_ai_assistant',
+      'user-plugins/headlamp_ai_assistant',
+      'static-plugins/headlamp_ai_assistant',
     ],
   };
 
@@ -215,7 +218,7 @@ export function identifyPackages(
       'plugins/minikube';
     pluginPaths['@headlamp-k8s/ai-assistant'].push(
       'plugins/ai-assistant',
-      'plugins/ai-assistantprerelease'
+      'plugins/ai-assistantprerelease',
     );
   }
   const pluginPackageNames: Record<string, string[]> = {
