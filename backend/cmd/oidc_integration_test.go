@@ -131,14 +131,26 @@ func startOIDCIntegrationServer(t *testing.T, cfg *HeadlampConfig) *httptest.Ser
 
 // runOIDCLoginFlow drives GET /oidc through Dex and back to /oidc-callback.
 // With skipApprovalScreen and a lone mockCallback connector, every hop is a
-// redirect, so the default client policy walks the entire flow.
-func runOIDCLoginFlow(t *testing.T, srv *httptest.Server) (*http.Response, *cookiejar.Jar) {
+// redirect, so the default client policy walks the entire flow. The returned
+// slice records the URL of every hop the client was redirected to (via
+// CheckRedirect), so callers can inspect query params Dex received on
+// intermediate redirects -- e.g. code_challenge on the authorize request --
+// which the final response/cookie alone cannot reveal.
+func runOIDCLoginFlow(t *testing.T, srv *httptest.Server) (*http.Response, *cookiejar.Jar, []*url.URL) {
 	t.Helper()
 
 	jar, err := cookiejar.New(nil)
 	require.NoError(t, err)
 
-	client := &http.Client{Jar: jar}
+	var redirects []*url.URL
+
+	client := &http.Client{
+		Jar: jar,
+		CheckRedirect: func(req *http.Request, _ []*http.Request) error {
+			redirects = append(redirects, req.URL)
+			return nil
+		},
+	}
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
 		fmt.Sprintf("%s/oidc?cluster=%s", srv.URL, oidcTestCluster), nil)
@@ -149,7 +161,28 @@ func runOIDCLoginFlow(t *testing.T, srv *httptest.Server) (*http.Response, *cook
 
 	defer func() { _ = resp.Body.Close() }()
 
-	return resp, jar
+	return resp, jar, redirects
+}
+
+// dexAuthorizeRequest returns the redirect hop that hit Dex's authorization
+// endpoint, where PKCE's code_challenge and code_challenge_method would
+// appear as query params. That hop is identified by response_type=code,
+// which oauth2.Config.AuthCodeURL sets and nothing else in this flow does --
+// Headlamp's own final redirect to /auth?cluster=... has no such param, so
+// matching on path alone would be ambiguous between the two. Fails the test
+// if no such hop was recorded.
+func dexAuthorizeRequest(t *testing.T, redirects []*url.URL) *url.URL {
+	t.Helper()
+
+	for _, u := range redirects {
+		if u.Query().Get("response_type") == "code" {
+			return u
+		}
+	}
+
+	require.Fail(t, "no redirect to Dex's authorization endpoint was recorded")
+
+	return nil
 }
 
 // authTokenFromJar reads the auth cookie back through the production reader,
@@ -185,12 +218,21 @@ func TestOIDCIntegration_LoginSucceeds(t *testing.T) {
 	cfg := newOIDCIntegrationConfig(t, issuer)
 	srv := startOIDCIntegrationServer(t, cfg)
 
-	resp, jar := runOIDCLoginFlow(t, srv) //nolint:bodyclose // closed inside runOIDCLoginFlow via defer
+	resp, jar, redirects := runOIDCLoginFlow(t, srv) //nolint:bodyclose // closed inside runOIDCLoginFlow via defer
 
 	// The callback ends with 303 -> /auth?cluster=<name>. The client follows
 	// it; the SPA route is not served here, so only the path is asserted.
 	require.Equal(t, oidcTestCluster, resp.Request.URL.Query().Get("cluster"))
 	assert.Equal(t, "/auth", resp.Request.URL.Path)
+
+	// Without OidcUsePKCE, /oidc must not send a code_challenge -- this is
+	// the negative half of the PKCE pair: it proves the flag in
+	// TestOIDCIntegration_LoginSucceedsWithPKCE changes observable behavior,
+	// rather than both tests passing for the same reason (Dex does not
+	// require PKCE from a client authenticating with a secret).
+	authorizeReq := dexAuthorizeRequest(t, redirects)
+	assert.Empty(t, authorizeReq.Query().Get("code_challenge"),
+		"non-PKCE login should not send a code_challenge")
 
 	// A token reached the browser, and it is a real JWT: /oidc-callback only
 	// gets this far after Verifier.Verify checks the signature against Dex's
@@ -218,12 +260,20 @@ func TestOIDCIntegration_LoginSucceedsWithPKCE(t *testing.T) {
 
 	srv := startOIDCIntegrationServer(t, cfg)
 
-	resp, jar := runOIDCLoginFlow(t, srv) //nolint:bodyclose // closed inside runOIDCLoginFlow via defer
+	resp, jar, redirects := runOIDCLoginFlow(t, srv) //nolint:bodyclose // closed inside runOIDCLoginFlow via defer
 
 	// Dex rejects a mismatched or malformed verifier at the token endpoint,
 	// which surfaces as a 500 from /oidc-callback rather than this redirect.
 	require.Equal(t, oidcTestCluster, resp.Request.URL.Query().Get("cluster"))
 	assert.Equal(t, "/auth", resp.Request.URL.Path)
+
+	// This is what makes the test prove PKCE was exercised rather than
+	// merely "setting OidcUsePKCE doesn't break login": Dex does not require
+	// PKCE from a client that authenticates with a secret, so without this,
+	// a silently dropped code_challenge would still pass.
+	authorizeReq := dexAuthorizeRequest(t, redirects)
+	assert.NotEmpty(t, authorizeReq.Query().Get("code_challenge"))
+	assert.Equal(t, "S256", authorizeReq.Query().Get("code_challenge_method"))
 
 	rawToken := authTokenFromJar(t, srv, jar)
 	assert.Len(t, strings.Split(rawToken, "."), 3, "ID token should be a JWT")
