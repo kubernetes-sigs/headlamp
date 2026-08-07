@@ -23,6 +23,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react';
 import { KubeObject } from '../../../lib/k8s/cluster';
@@ -131,6 +132,16 @@ export const makeKubeToKubeEdge = (from: KubeObject, to: KubeObject): GraphEdge 
 });
 
 /**
+ * How long a single source is given to resolve before it's treated as
+ * empty. Without this, a source whose watch/list never settles (e.g. an
+ * API group that hangs or a CRD that never syncs) leaves its entry in
+ * sourceData as `null` forever, which keeps the whole Map view's
+ * aggregate isLoading stuck at true (see GraphSourceManager.isLoading),
+ * even though every other source finished loading.
+ */
+export const SOURCE_LOADING_TIMEOUT_MS = 15000;
+
+/**
  * Since we can't use hooks in a loop, we need to create a component for each source
  * that will load the data and pass it to the parent component.
  */
@@ -145,11 +156,28 @@ const SourceLoader = memo(
     id: string;
   }) => {
     const data = useHook();
+    const dataRef = useRef(data);
+    dataRef.current = data;
 
     useEffect(() => {
       onData(id, data);
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id, data]);
+
+    // Give this source a bounded amount of time to resolve. If it's still
+    // null when the timeout fires, treat it as loaded-but-empty so that a
+    // single hung source can't block the rest of the Map view from
+    // rendering forever. If real data arrives later, the effect above
+    // will still update it normally.
+    useEffect(() => {
+      const timeout = setTimeout(() => {
+        if (dataRef.current === null) {
+          onData(id, { nodes: [], edges: [] });
+        }
+      }, SOURCE_LOADING_TIMEOUT_MS);
+      return () => clearTimeout(timeout);
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [id]);
 
     return null;
   }
