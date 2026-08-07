@@ -16,6 +16,16 @@ limitations under the License.
 
 package main
 
+// NOTE: these tests exercise a real Dex instance (see
+// headlamp_testdata/dex-integration.yaml) rather than a mock, so go test's
+// result caching hides real failures -- a cached PASS survives Dex being
+// stopped or reconfigured unless a rerun is forced. Always pass -count=1
+// when running these against a live Dex, e.g.:
+//
+//	HEADLAMP_RUN_INTEGRATION_TESTS=true \
+//	HEADLAMP_TEST_OIDC_ISSUER=http://127.0.0.1:5556/dex \
+//	go test ./cmd/ -run 'TestOIDCIntegration_' -v -count=1
+
 import (
 	"context"
 	"fmt"
