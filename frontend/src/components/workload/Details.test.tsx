@@ -221,3 +221,56 @@ describe('WorkloadDetails owned-pods diagnostics wiring', () => {
     expect(lastDiagnosticsProps().pods).toBe(podsAfterFirst);
   });
 });
+
+describe('WorkloadDetails update strategy', () => {
+  beforeEach(() => {
+    mockLaunchWorkloadLogs.mockReset();
+    mockDetailsGrid.mockReset();
+  });
+
+  it('falls back to the strategy type when rollingUpdate is absent', () => {
+    // Regression test: a RollingUpdate strategy without a rollingUpdate
+    // sub-object (valid before server defaulting) used to throw TypeError
+    // and crash the details view.
+    render(
+      <TestContext>
+        <WorkloadDetails workloadKind={fakeWorkloadKind} name="nginx" namespace="default" />
+      </TestContext>
+    );
+
+    const { extraInfo } = mockDetailsGrid.mock.calls.at(-1)![0];
+    const workload: any = {
+      ...fakeDeployment,
+      spec: { strategy: { type: 'RollingUpdate' } },
+    };
+
+    const rows = extraInfo(workload);
+    const strategyRow = rows.find((row: any) => row.name === 'Strategy Type');
+    expect(strategyRow).toBeDefined();
+    expect(strategyRow.value).toBe('RollingUpdate');
+  });
+
+  it('renders max unavailable and max surge when rollingUpdate is present', () => {
+    render(
+      <TestContext>
+        <WorkloadDetails workloadKind={fakeWorkloadKind} name="nginx" namespace="default" />
+      </TestContext>
+    );
+
+    const { extraInfo } = mockDetailsGrid.mock.calls.at(-1)![0];
+    const workload: any = {
+      ...fakeDeployment,
+      spec: {
+        strategy: {
+          type: 'RollingUpdate',
+          rollingUpdate: { maxUnavailable: '25%', maxSurge: 1 },
+        },
+      },
+    };
+
+    const rows = extraInfo(workload);
+    const strategyRow = rows.find((row: any) => row.name === 'Strategy Type');
+    expect(strategyRow.value).toContain('25%');
+    expect(strategyRow.value).toContain('1');
+  });
+});
