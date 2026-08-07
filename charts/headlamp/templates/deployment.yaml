@@ -267,14 +267,17 @@ spec:
             - "-in-cluster-context-name={{ .Values.config.inClusterContextName }}"
             {{- end }}
             {{- end }}
+            {{- if include "headlamp.hasKubeconfigSecrets" . }}
+            - "-kubeconfig={{ include "headlamp.kubeconfigPath" . }}"
+            {{- end }}
             {{- with .Values.config.enableHelm }}
             - "-enable-helm"
             {{- end }}
             {{- if .Values.config.watchPlugins }}
             - "-watch-plugins-changes"
             {{- end }}
-            {{- if .Values.config.oidc.useCookie }}  
-            - "-oidc-use-cookie"                     
+            {{- if .Values.config.oidc.useCookie }}
+            - "-oidc-use-cookie"
             {{- end }}
             {{- with .Values.config.pluginsDir}}
             - "-plugins-dir={{ . }}"
@@ -418,7 +421,7 @@ spec:
             failureThreshold: {{ .Values.probes.readinessProbe.failureThreshold | default 3 }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
-          {{- if or .Values.pluginsManager.enabled $clusterInventoryEnabled .Values.volumeMounts $tmpCtx.addMount }}
+          {{- if or .Values.pluginsManager.enabled $clusterInventoryEnabled .Values.volumeMounts $tmpCtx.addMount (include "headlamp.hasKubeconfigSecrets" .) }}
           volumeMounts:
             {{- if .Values.pluginsManager.enabled }}
             - name: plugins-dir
@@ -435,6 +438,13 @@ spec:
             {{- end }}
             - name: {{ $plugin.name }}
               mountPath: {{ $mountPath }}
+              readOnly: true
+            {{- end }}
+            {{- end }}
+            {{- if include "headlamp.hasKubeconfigSecrets" . }}
+            {{- range $index, $secret := .Values.config.kubeconfigSecrets }}
+            - name: kubeconfig-{{ $index }}
+              mountPath: /kubeconfigs/{{ $index }}
               readOnly: true
             {{- end }}
             {{- end }}
@@ -523,7 +533,7 @@ spec:
       {{- with .Values.priorityClassName }}
       priorityClassName: {{ . | quote }}
       {{- end }}
-      {{- if or .Values.pluginsManager.enabled $clusterInventoryEnabled .Values.volumes $tmpCtx.addVolume $pluginsTmpCtx.addVolume }}
+      {{- if or .Values.pluginsManager.enabled $clusterInventoryEnabled .Values.volumes $tmpCtx.addVolume $pluginsTmpCtx.addVolume (include "headlamp.hasKubeconfigSecrets" .) }}
       volumes:
         {{- if .Values.pluginsManager.enabled }}
         - name: plugins-dir
@@ -552,6 +562,16 @@ spec:
         {{- if $tmpCtx.addVolume }}
         - name: headlamp-tmp
           emptyDir: {}
+        {{- end }}
+        {{- if include "headlamp.hasKubeconfigSecrets" . }}
+        {{- range $index, $secret := .Values.config.kubeconfigSecrets }}
+        - name: kubeconfig-{{ $index }}
+          secret:
+            secretName: {{ required (printf "config.kubeconfigSecrets[%d].secretName is required" $index) $secret.secretName }}
+            items:
+              - key: {{ default "config" $secret.key }}
+                path: {{ default "config" $secret.key }}
+        {{- end }}
         {{- end }}
         {{- with .Values.volumes}}
         {{- toYaml . | nindent 8 }}
