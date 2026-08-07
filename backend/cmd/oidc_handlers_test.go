@@ -291,24 +291,7 @@ func newOIDCTestHandler(t *testing.T, oidcSrv *oidcTestServer, opts ...oidcTestO
 func driveOIDCStart(t *testing.T, handler http.Handler, cluster string) *url.URL {
 	t.Helper()
 
-	target := "http://localhost:4466/oidc?cluster=" + url.QueryEscape(cluster)
-
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, target, nil)
-	require.NoError(t, err)
-
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-
-	require.Equal(t, http.StatusFound, rr.Code,
-		"GET /oidc should 302 to the IdP; got %d body=%q", rr.Code, rr.Body.String())
-
-	loc := rr.Header().Get("Location")
-	require.NotEmpty(t, loc, "Location header missing on /oidc redirect")
-
-	u, err := url.Parse(loc)
-	require.NoError(t, err)
-
-	return u
+	return driveOIDCStartWithPrefix(t, handler, cluster, "")
 }
 
 // extractState returns the `state` query parameter from a parsed URL,
@@ -342,16 +325,7 @@ func callOIDCCallback(t *testing.T, handler http.Handler, rawQuery string) *http
 func driveOIDCCallback(t *testing.T, handler http.Handler, state, code string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	target := "http://localhost:4466/oidc-callback?state=" + url.QueryEscape(state) +
-		"&code=" + url.QueryEscape(code)
-
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, target, nil)
-	require.NoError(t, err)
-
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-
-	return rr
+	return driveOIDCCallbackWithPrefix(t, handler, state, code, "")
 }
 
 // driveOIDCStartWithPrefix is driveOIDCStart with the request path prefixed
