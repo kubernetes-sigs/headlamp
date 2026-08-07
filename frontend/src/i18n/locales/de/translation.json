@@ -819,7 +819,7 @@
   "Policy": "Richtlinie",
   "Min Count": "Mindestanzahl",
   "Pod Group Template Name": "Name der Pod-Gruppen-Vorlage",
-  "Composite Pod Group": "",
+  "Composite Pod Group": "Zusammengesetzte Pod-Gruppe",
   "Disruption Mode": "Unterbrechungsmodus",
   "Preemption Policy": "",
   "Topology Keys": "Topologie-Schlüssel",

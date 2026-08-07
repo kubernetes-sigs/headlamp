@@ -825,7 +825,7 @@
   "Policy": "Política",
   "Min Count": "Contagem mínima",
   "Pod Group Template Name": "Nome do modelo de grupo de Pods",
-  "Composite Pod Group": "",
+  "Composite Pod Group": "Grupo composto de Pods",
   "Disruption Mode": "Modo de interrupção",
   "Preemption Policy": "",
   "Topology Keys": "Chaves de topologia",

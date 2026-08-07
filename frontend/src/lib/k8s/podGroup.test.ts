@@ -66,7 +66,7 @@ describe('getDisruptionMode', () => {
     expect(getDisruptionMode('PodGroup')).toBe('PodGroup');
   });
 
-  it('maps the v1alpha3 object form to the same values', () => {
+  it('maps the v1alpha3 and v1beta1 object form to the same values', () => {
     expect(getDisruptionMode({ single: {} })).toBe('Pod');
     expect(getDisruptionMode({ all: {} })).toBe('PodGroup');
   });
@@ -105,6 +105,10 @@ describe('PodGroup', () => {
       'scheduling.k8s.io/v1alpha3',
       { workloadRef: { workloadName: 'training-job', templateName: 'workers' } },
     ],
+    [
+      'scheduling.k8s.io/v1beta1',
+      { workloadRef: { workloadName: 'training-job', templateName: 'workers' } },
+    ],
   ])('on %s', (apiVersion, spec) => {
     it('reads the workload and template names from the workload reference', () => {
       const podGroup = makePodGroup(spec, undefined, apiVersion);
@@ -114,16 +118,16 @@ describe('PodGroup', () => {
     });
   });
 
-  it('prefers the v1alpha3 reference when a cluster serves both shapes', () => {
+  it('prefers the workload reference when a cluster serves both shapes', () => {
     const podGroup = makePodGroup({
-      workloadRef: { workloadName: 'from-v1alpha3', templateName: 'v1alpha3-workers' },
+      workloadRef: { workloadName: 'from-workload-ref', templateName: 'workload-ref-workers' },
       podGroupTemplateRef: {
         workload: { workloadName: 'from-v1alpha2', podGroupTemplateName: 'v1alpha2-workers' },
       },
     });
 
-    expect(podGroup.workloadName).toBe('from-v1alpha3');
-    expect(podGroup.podGroupTemplateName).toBe('v1alpha3-workers');
+    expect(podGroup.workloadName).toBe('from-workload-ref');
+    expect(podGroup.podGroupTemplateName).toBe('workload-ref-workers');
   });
 
   it('has no workload or template name when the group was not templated', () => {
@@ -167,10 +171,13 @@ describe('PodGroup.isEnabled', () => {
 
     expect(await PodGroup.isEnabled('test-cluster')).toBe(true);
     expect(mockRequest).toHaveBeenCalledTimes(1);
-    expect(mockRequest.mock.calls[0][0]).toBe('/apis/scheduling.k8s.io/v1alpha3');
+    expect(mockRequest.mock.calls[0][0]).toBe('/apis/scheduling.k8s.io/v1beta1');
   });
 
-  it('falls back to the previous version when the newest is not served', async () => {
+  it('falls back to the older versions when the newest is not served', async () => {
+    mockRequest.mockRejectedValueOnce(
+      new Error('the server could not find the requested resource')
+    );
     mockRequest.mockRejectedValueOnce(
       new Error('the server could not find the requested resource')
     );
@@ -178,6 +185,7 @@ describe('PodGroup.isEnabled', () => {
 
     expect(await PodGroup.isEnabled('test-cluster')).toBe(true);
     expect(mockRequest.mock.calls.map(call => call[0])).toEqual([
+      '/apis/scheduling.k8s.io/v1beta1',
       '/apis/scheduling.k8s.io/v1alpha3',
       '/apis/scheduling.k8s.io/v1alpha2',
     ]);
@@ -187,6 +195,6 @@ describe('PodGroup.isEnabled', () => {
     mockRequest.mockRejectedValue(new Error('the server could not find the requested resource'));
 
     expect(await PodGroup.isEnabled('test-cluster')).toBe(false);
-    expect(mockRequest).toHaveBeenCalledTimes(2);
+    expect(mockRequest).toHaveBeenCalledTimes(3);
   });
 });

@@ -813,7 +813,7 @@
   "Policy": "정책",
   "Min Count": "최소 개수",
   "Pod Group Template Name": "파드 그룹 템플릿 이름",
-  "Composite Pod Group": "",
+  "Composite Pod Group": "복합 파드 그룹",
   "Disruption Mode": "중단 모드",
   "Preemption Policy": "",
   "Topology Keys": "토폴로지 키",

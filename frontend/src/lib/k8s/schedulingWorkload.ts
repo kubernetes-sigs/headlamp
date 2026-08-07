@@ -36,13 +36,15 @@ export interface PodGroupTemplate {
   schedulingPolicy: PodGroupSchedulingPolicy;
   schedulingConstraints?: PodGroupSchedulingConstraints;
   resourceClaims?: PodGroupResourceClaim[];
-  /** Served by v1alpha3. Whether preemption may evict lower priority pods. */
+  /**
+   * Served by v1alpha3 and v1beta1. Whether preemption may evict lower priority pods.
+   */
   preemptionPolicy?: 'PreemptLowerPriority' | 'Never';
 }
 
 /**
- * A group of pod group templates scheduled together. Served by v1alpha3, and may
- * nest further composite templates.
+ * A group of pod group templates scheduled together. Served by v1alpha3 and v1beta1,
+ * and may nest further composite templates.
  */
 export interface CompositePodGroupTemplate {
   name: string;
@@ -55,7 +57,9 @@ export interface CompositePodGroupTemplate {
 
 export interface WorkloadSpec {
   podGroupTemplates: PodGroupTemplate[];
-  /** Served by v1alpha3. Templates that schedule several pod groups together. */
+  /**
+   * Served by v1alpha3 and v1beta1. Templates that schedule several pod groups together.
+   */
   compositePodGroupTemplates?: CompositePodGroupTemplate[];
   /** The object this Workload was created for, such as a Deployment or a Job. */
   controllerRef?: {
@@ -72,7 +76,11 @@ export interface KubeSchedulingWorkload extends KubeObjectInterface {
 class Workload extends KubeObject<KubeSchedulingWorkload> {
   static kind = 'Workload';
   static apiName = 'workloads';
-  static apiVersion = ['scheduling.k8s.io/v1alpha3', 'scheduling.k8s.io/v1alpha2'];
+  static apiVersion = [
+    'scheduling.k8s.io/v1beta1',
+    'scheduling.k8s.io/v1alpha3',
+    'scheduling.k8s.io/v1alpha2',
+  ];
   static isNamespaced = true;
 
   /**
