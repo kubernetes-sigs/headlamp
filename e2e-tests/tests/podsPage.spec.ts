@@ -114,6 +114,29 @@ test('loads the next page of pods', async ({ page }) => {
   expect(listRequests[1].searchParams.get('continue')).toBe('next-page');
 });
 
+test('changes column visibility with the keyboard', async ({ page }) => {
+  const headlampPage = new HeadlampPage(page);
+  await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+  await headlampPage.navigateTopage('/c/test/pods', /Pods/);
+
+  const columnSelector = page.getByRole('button', { name: 'Show/Hide columns' });
+  await columnSelector.focus();
+  await page.keyboard.press('Enter');
+
+  const columnItem = page.getByRole('menuitemcheckbox').first();
+  const initialChecked = await columnItem.getAttribute('aria-checked');
+  expect(initialChecked).toMatch(/^(true|false)$/);
+
+  await columnItem.focus();
+  await expect(columnItem).toBeFocused();
+
+  await page.keyboard.press('Space');
+  await expect(columnItem).toHaveAttribute(
+    'aria-checked',
+    initialChecked === 'true' ? 'false' : 'true'
+  );
+});
+
 test('multi tab create delete pod', async ({ browser }) => {
   // This test may be slow to create and delete a pod
   test.setTimeout(60000);
