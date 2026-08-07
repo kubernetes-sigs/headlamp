@@ -320,12 +320,17 @@ func callOIDCCallback(t *testing.T, handler http.Handler, rawQuery string) *http
 	return rr
 }
 
-// driveOIDCCallback calls /oidc-callback with the supplied state and code and
-// returns the raw recorder so callers can assert status, body, and cookies.
-func driveOIDCCallback(t *testing.T, handler http.Handler, state, code string) *httptest.ResponseRecorder {
+// testAuthCode is the authorization code the callback tests exchange. The mock
+// provider never validates it — only its presence on the request matters — so
+// there is nothing for a caller to vary.
+const testAuthCode = "auth-code"
+
+// driveOIDCCallback calls /oidc-callback with the supplied state and returns
+// the raw recorder so callers can assert status, body, and cookies.
+func driveOIDCCallback(t *testing.T, handler http.Handler, state string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	return driveOIDCCallbackWithPrefix(t, handler, state, code, "")
+	return driveOIDCCallbackWithPrefix(t, handler, state, "")
 }
 
 // driveOIDCStartWithPrefix is driveOIDCStart with the request path prefixed
@@ -359,12 +364,12 @@ func driveOIDCStartWithPrefix(t *testing.T, handler http.Handler, cluster, route
 // driveOIDCCallbackWithPrefix is driveOIDCCallback with the request path
 // prefixed by routePrefix; see driveOIDCStartWithPrefix.
 func driveOIDCCallbackWithPrefix(
-	t *testing.T, handler http.Handler, state, code, routePrefix string,
+	t *testing.T, handler http.Handler, state, routePrefix string,
 ) *httptest.ResponseRecorder {
 	t.Helper()
 
 	target := "http://localhost:4466" + routePrefix + "/oidc-callback?state=" + url.QueryEscape(state) +
-		"&code=" + url.QueryEscape(code)
+		"&code=" + url.QueryEscape(testAuthCode)
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, target, nil)
 	require.NoError(t, err)
@@ -709,7 +714,7 @@ func TestOIDCCallback_Success(t *testing.T) {
 	})
 
 	state := extractState(t, driveOIDCStart(t, handler, cluster))
-	rr := driveOIDCCallback(t, handler, state, "auth-code")
+	rr := driveOIDCCallback(t, handler, state)
 
 	require.Equal(t, http.StatusSeeOther, rr.Code,
 		"callback should 303 on success; body=%q", rr.Body.String())
@@ -739,7 +744,7 @@ func TestOIDCCallback_CachesRefreshToken(t *testing.T) {
 	})
 
 	state := extractState(t, driveOIDCStart(t, handler, cluster))
-	rr := driveOIDCCallback(t, handler, state, "auth-code")
+	rr := driveOIDCCallback(t, handler, state)
 	require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
 
 	got, err := c.Get(context.Background(), "oidc-token-"+idToken)
@@ -760,7 +765,7 @@ func TestOIDCCallback_TokenMissingFromResponse(t *testing.T) {
 	})
 
 	state := extractState(t, driveOIDCStart(t, handler, cluster))
-	rr := driveOIDCCallback(t, handler, state, "auth-code")
+	rr := driveOIDCCallback(t, handler, state)
 
 	assert.Equal(t, http.StatusInternalServerError, rr.Code)
 	assert.Contains(t, rr.Body.String(), "No id_token field in oauth2 token")
@@ -799,7 +804,7 @@ func TestOIDCCallback_VerificationFailure(t *testing.T) {
 	})
 
 	state := extractState(t, driveOIDCStart(t, handler, cluster))
-	rr := driveOIDCCallback(t, handler, state, "auth-code")
+	rr := driveOIDCCallback(t, handler, state)
 
 	require.Equal(t, http.StatusInternalServerError, rr.Code)
 	assert.Contains(t, rr.Body.String(), "Failed to verify ID Token")
@@ -833,7 +838,7 @@ func TestOIDCCallback_UsesAccessTokenWhenConfigured(t *testing.T) {
 	})
 
 	state := extractState(t, driveOIDCStart(t, handler, cluster))
-	rr := driveOIDCCallback(t, handler, state, "auth-code")
+	rr := driveOIDCCallback(t, handler, state)
 
 	require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
 	assert.Equal(t, accessToken, authCookieValue(t, rr, cluster),
@@ -891,7 +896,7 @@ func TestOIDCCallback_RedirectTarget(t *testing.T) {
 
 			loc := driveOIDCStartWithPrefix(t, handler, cluster, tc.routePrefix)
 			state := extractState(t, loc)
-			rr := driveOIDCCallbackWithPrefix(t, handler, state, "auth-code", tc.routePrefix)
+			rr := driveOIDCCallbackWithPrefix(t, handler, state, tc.routePrefix)
 
 			require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
 			assert.Equal(t, tc.want, rr.Header().Get("Location"))
