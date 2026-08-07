@@ -25,6 +25,7 @@ import {
   kubeOwnersEdgesReversed,
   makeKubeObjectNode,
   makeKubeToKubeEdge,
+  SOURCE_LOADING_TIMEOUT_MS,
   useSources,
 } from './GraphSources';
 
@@ -182,6 +183,82 @@ describe('GraphSourceManager', () => {
     expect(context.isLoading).toBe(true);
     expect(context.nodes).toEqual([]);
     expect(context.edges).toEqual([]);
+  });
+
+  it('stops blocking the whole Map view once a hung source times out', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    const settledHook = vi.fn(() => ({ nodes: [{ id: 'settled-node' }] }));
+    const hungHook = vi.fn(() => null);
+
+    render(
+      <GraphSourceManager
+        sources={[
+          source('settled', null, { hook: settledHook }),
+          source('hung', null, { hook: hungHook }),
+        ]}
+        relations={[]}
+      >
+        <Probe />
+      </GraphSourceManager>
+    );
+
+    await waitFor(() => expect(context.sourceData?.get('settled')?.nodes).toBeTruthy());
+    // The hung source never resolves, so the aggregate is still loading.
+    expect(context.isLoading).toBe(true);
+
+    await act(async () => {
+      vi.advanceTimersByTime(SOURCE_LOADING_TIMEOUT_MS);
+    });
+
+    await waitFor(() => expect(context.isLoading).toBe(false));
+    expect(context.sourceData?.get('hung')).toEqual({ nodes: [], edges: [] });
+    expect(context.nodes.map(node => node.id)).toEqual(['settled-node']);
+
+    vi.useRealTimers();
+  });
+
+  it('restarts the timeout when a source later re-enters a null loading state', async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+
+    const stableHook = vi.fn(() => ({ nodes: [{ id: 'stable-node' }] }));
+    const renderSources = (
+      lateLoadingData: { nodes?: GraphNode[]; edges?: GraphEdge[] } | null
+    ) => [
+      source('stable', null, { hook: stableHook }),
+      source('late-loading', null, { hook: vi.fn(() => lateLoadingData) }),
+    ];
+
+    const { rerender } = render(
+      <GraphSourceManager sources={renderSources({ nodes: [{ id: 'late-node' }] })} relations={[]}>
+        <Probe />
+      </GraphSourceManager>
+    );
+
+    await waitFor(() => expect(context.isLoading).toBe(false));
+
+    await act(async () => {
+      vi.advanceTimersByTime(SOURCE_LOADING_TIMEOUT_MS);
+    });
+
+    rerender(
+      <GraphSourceManager sources={renderSources(null)} relations={[]}>
+        <Probe />
+      </GraphSourceManager>
+    );
+
+    await waitFor(() => expect(context.sourceData?.get('late-loading')).toBeNull());
+    expect(context.isLoading).toBe(true);
+
+    await act(async () => {
+      vi.advanceTimersByTime(SOURCE_LOADING_TIMEOUT_MS);
+    });
+
+    await waitFor(() => expect(context.isLoading).toBe(false));
+    expect(context.sourceData?.get('late-loading')).toEqual({ nodes: [], edges: [] });
+    expect(context.nodes.map(node => node.id)).toEqual(['stable-node']);
+
+    vi.useRealTimers();
   });
 
   it('toggles leaves and recursively selects or deselects groups', async () => {
