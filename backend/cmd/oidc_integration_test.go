@@ -28,6 +28,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
@@ -277,4 +278,60 @@ func TestOIDCIntegration_LoginSucceedsWithPKCE(t *testing.T) {
 
 	rawToken := authTokenFromJar(t, srv, jar)
 	assert.Len(t, strings.Split(rawToken, "."), 3, "ID token should be a JWT")
+}
+
+func TestOIDCIntegration_RefreshTokenExchange(t *testing.T) {
+	issuer := requireDexIssuer(t)
+
+	cfg := newOIDCIntegrationConfig(t, issuer)
+	srv := startOIDCIntegrationServer(t, cfg)
+
+	// Log in first: this is what populates the cache with a Dex-issued
+	// refresh token keyed by the raw ID token.
+	_, jar, _ := runOIDCLoginFlow(t, srv) //nolint:bodyclose // closed inside runOIDCLoginFlow via defer
+	rawToken := authTokenFromJar(t, srv, jar)
+
+	kContext, err := cfg.KubeConfigStore.GetContext(oidcTestCluster)
+	require.NoError(t, err)
+
+	oidcConf, err := kContext.OidcConfig()
+	require.NoError(t, err)
+
+	newToken, err := auth.RefreshAndCacheNewToken(
+		context.Background(),
+		oidcConf,
+		cfg.Cache,
+		"id_token",
+		rawToken,
+		issuer,
+		"", // no validator issuer override
+	)
+	require.NoError(t, err)
+	require.NotNil(t, newToken)
+
+	// Dex minted a fresh ID token.
+	refreshedID, ok := newToken.Extra("id_token").(string)
+	require.True(t, ok, "refreshed token should carry an id_token")
+
+	// RefreshAndCacheNewToken does NOT verify (auth.go:293-323): it does
+	// discovery and hits the token endpoint, then returns the new token
+	// unverified. So this test verifies the refreshed ID token itself,
+	// against Dex's live JWKS -- this is the assertion that makes the test
+	// worth running against a real IdP rather than a mock.
+	provider, err := oidc.NewProvider(context.Background(), issuer)
+	require.NoError(t, err)
+
+	verified, err := provider.Verifier(&oidc.Config{ClientID: oidcTestClientID}).
+		Verify(context.Background(), refreshedID)
+	require.NoError(t, err, "refreshed ID token failed live JWKS verification")
+	assert.Equal(t, issuer, verified.Issuer)
+
+	// CacheRefreshedToken re-keys the entry under the NEW id_token
+	// (auth.go:173), keeping the old key alive briefly on a TTL.
+	cached, err := cfg.Cache.Get(context.Background(), "oidc-token-"+refreshedID)
+	require.NoError(t, err)
+
+	cachedRefresh, ok := cached.(string)
+	require.True(t, ok)
+	assert.NotEmpty(t, cachedRefresh)
 }
