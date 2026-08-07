@@ -15,6 +15,7 @@
  */
 
 import Box from '@mui/material/Box';
+import Button from '@mui/material/Button';
 import Switch from '@mui/material/Switch';
 import Typography from '@mui/material/Typography';
 import { useEffect, useState } from 'react';
@@ -27,6 +28,7 @@ import { defaultTableRowsPerPageOptions } from '../../../redux/configSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { uiSlice } from '../../../redux/uiSlice';
 import ActionButton from '../../common/ActionButton';
+import ConfirmDialog from '../../common/ConfirmDialog';
 import NameValueTable from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
 import TimezoneSelect from '../../common/TimezoneSelect';
@@ -48,6 +50,7 @@ export default function Settings() {
   const [selectedTimezone, setSelectedTimezone] = useState<string>(
     storedTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   );
+  const [isResetDialogOpen, setIsResetDialogOpen] = useState(false);
   const [sortSidebar, setSortSidebar] = useState<boolean>(storedSortSidebar);
   const [useEvict, setUseEvict] = useState<boolean>(storedUseEvict);
   const [trayIcon, setTrayIcon] = useState<boolean>(true);
@@ -320,6 +323,39 @@ export default function Settings() {
             )}
           </Typography>
           <ShortcutsList />
+        </SectionBox>
+      </Box>
+      <Box sx={{ mt: 4 }}>
+        <SectionBox
+          title={t('translation|Reset Application State')}
+          headerProps={{
+            headerStyle: 'subsection',
+          }}
+        >
+          <Typography variant="body2" sx={{ mb: 2, color: 'text.secondary' }}>
+            {t(
+              'translation|Clear all local preferences such as column visibility, theme, and sidebar configurations.'
+            )}
+          </Typography>
+          <Button variant="contained" color="error" onClick={() => setIsResetDialogOpen(true)}>
+            {t('translation|Reset App State')}
+          </Button>
+          <ConfirmDialog
+            open={isResetDialogOpen}
+            title={t('translation|Reset App State')}
+            description={t(
+              'translation|Are you sure you want to reset all application preferences? This cannot be undone and the application will reload.'
+            )}
+            handleClose={() => setIsResetDialogOpen(false)}
+            onConfirm={() => {
+              try {
+                localStorage.clear();
+              } catch (e) {
+                console.warn('Failed to clear local storage during app reset', e);
+              }
+              window.location.reload();
+            }}
+          />
         </SectionBox>
       </Box>
     </SectionBox>
