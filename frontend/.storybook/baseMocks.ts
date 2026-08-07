@@ -164,7 +164,18 @@ export const baseMocks = [
       items: [],
     })
   ),
-  http.get(`${API_BASE}/clusters/*/apis/extensions/v1beta1/ingresses`, () => HttpResponse.error()),
+  http.get(`${API_BASE}/clusters/*/apis/extensions/v1beta1/ingresses`, () =>
+    HttpResponse.json(
+      {
+        kind: 'Status',
+        apiVersion: 'v1',
+        status: 'Failure',
+        reason: 'NotFound',
+        code: 404,
+      },
+      { status: 404 }
+    )
+  ),
   http.get(`${API_BASE}/apis/metrics.k8s.io/v1beta1/nodes`, () =>
     HttpResponse.json({
       apiVersion: 'metrics.k8s.io/v1beta1',
