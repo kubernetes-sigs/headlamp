@@ -245,6 +245,7 @@
   "{{count}} clusters_other": "{{count}} کلسٹرز",
   "Current//context:cluster": "موجودہ",
   "Choose cluster": "کلسٹر منتخب کریں",
+  "Headlamp is requesting resources across the whole cluster. If you only have access to some namespaces, list them under Allowed namespaces in the cluster settings.": "",
   "Failed to load resources": "وسائل لوڈ نہیں ہو سکے",
   "You don't have permissions to view this resource": "آپ کو یہ وسیلہ دیکھنے کی اجازت نہیں ہے",
   "Resource not found": "وسیلہ نہیں ملا",

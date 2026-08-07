@@ -244,6 +244,7 @@
   "{{count}} clusters_other": "",
   "Current//context:cluster": "",
   "Choose cluster": "",
+  "Headlamp is requesting resources across the whole cluster. If you only have access to some namespaces, list them under Allowed namespaces in the cluster settings.": "",
   "Failed to load resources": "",
   "You don't have permissions to view this resource": "",
   "Resource not found": "",
