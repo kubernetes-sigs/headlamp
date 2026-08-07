@@ -51,18 +51,54 @@ vi.mock('./main', () => ({
 }));
 
 import {
+  addRunCmdConsent,
   checkPermissionSecret,
   environmentOverrides,
   handleRunCommand,
   validateCommandData,
 } from './runCmd';
+import { saveSettings } from './settings';
+
+describe('addRunCmdConsent', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('adds consent commands for headlamp_ai_assistant (underscore variant)', () => {
+    addRunCmdConsent({ name: 'headlamp_ai_assistant' });
+    expect(saveSettings).toHaveBeenCalledWith(
+      '/fake/settings.json',
+      expect.objectContaining({
+        confirmedCommands: expect.objectContaining({
+          'gh auth': true,
+          'az account': true,
+          'az cognitiveservices': true,
+        }),
+      }),
+    );
+  });
+
+  it('adds consent commands for headlamp_ai-assistant (hyphen variant)', () => {
+    addRunCmdConsent({ name: 'headlamp_ai-assistant' });
+    expect(saveSettings).toHaveBeenCalledWith(
+      '/fake/settings.json',
+      expect.objectContaining({
+        confirmedCommands: expect.objectContaining({
+          'gh auth': true,
+          'az account': true,
+          'az cognitiveservices': true,
+        }),
+      }),
+    );
+  });
+});
 
 it('does not cache process environment changes as shell overrides', () => {
   expect(
     environmentOverrides(
       { PATH: '/opt/homebrew/bin:/usr/bin', HEADLAMP_CONFIG_ENABLE_HELM: 'true' },
-      { PATH: '/usr/bin', HEADLAMP_CONFIG_ENABLE_HELM: 'true' }
-    )
+      { PATH: '/usr/bin', HEADLAMP_CONFIG_ENABLE_HELM: 'true' },
+    ),
   ).toEqual({ PATH: '/opt/homebrew/bin:/usr/bin' });
 });
 
@@ -158,10 +194,10 @@ describe('validateCommandData', () => {
   it('returns false if command is missing or not a string', () => {
     expect(validateCommandData({ args: [], options: {}, permissionSecrets: {} })[0]).toBe(false);
     expect(
-      validateCommandData({ command: 123 as any, args: [], options: {}, permissionSecrets: {} })[0]
+      validateCommandData({ command: 123 as any, args: [], options: {}, permissionSecrets: {} })[0],
     ).toBe(false);
     expect(
-      validateCommandData({ command: '', args: [], options: {}, permissionSecrets: {} })[0]
+      validateCommandData({ command: '', args: [], options: {}, permissionSecrets: {} })[0],
     ).toBe(false);
   });
 
@@ -172,7 +208,7 @@ describe('validateCommandData', () => {
         args: 'not-array' as any,
         options: {},
         permissionSecrets: {},
-      })[0]
+      })[0],
     ).toBe(false);
   });
 
@@ -183,7 +219,7 @@ describe('validateCommandData', () => {
         args: [],
         options: null as any,
         permissionSecrets: {},
-      })[0]
+      })[0],
     ).toBe(false);
     expect(
       validateCommandData({
@@ -191,7 +227,7 @@ describe('validateCommandData', () => {
         args: [],
         options: 123 as any,
         permissionSecrets: {},
-      })[0]
+      })[0],
     ).toBe(false);
   });
 
@@ -202,7 +238,7 @@ describe('validateCommandData', () => {
         args: [],
         options: {},
         permissionSecrets: null as any,
-      })[0]
+      })[0],
     ).toBe(false);
     expect(
       validateCommandData({
@@ -210,7 +246,7 @@ describe('validateCommandData', () => {
         args: [],
         options: {},
         permissionSecrets: 123 as any,
-      })[0]
+      })[0],
     ).toBe(false);
   });
 
@@ -221,7 +257,7 @@ describe('validateCommandData', () => {
         args: [],
         options: {},
         permissionSecrets: { foo: undefined as any },
-      })[0]
+      })[0],
     ).toBe(false);
   });
 
@@ -232,7 +268,7 @@ describe('validateCommandData', () => {
         args: [],
         options: {},
         permissionSecrets: {},
-      })[0]
+      })[0],
     ).toBe(false);
   });
 
@@ -243,7 +279,7 @@ describe('validateCommandData', () => {
         args: [],
         options: {},
         permissionSecrets: { 'runCmd-minikube': 123 },
-      })[0]
+      })[0],
     ).toBe(true);
   });
 
@@ -254,7 +290,7 @@ describe('validateCommandData', () => {
         args: ['arg1'],
         options: {},
         permissionSecrets: {},
-      })[0]
+      })[0],
     ).toBe(true);
   });
 
@@ -265,7 +301,7 @@ describe('validateCommandData', () => {
         args: ['myscript.js'],
         options: {},
         permissionSecrets: { 'runCmd-scriptjs-myscript.js': 42 },
-      })[0]
+      })[0],
     ).toBe(true);
   });
 });
@@ -312,7 +348,7 @@ describe('handleRunCommand', () => {
     expect(spawnMock).toHaveBeenCalledWith(
       'gh',
       ['auth', 'token'],
-      expect.objectContaining({ env: shellEnvironment })
+      expect.objectContaining({ env: shellEnvironment }),
     );
 
     const err = new Error('spawn error');
@@ -335,7 +371,7 @@ describe('handleRunCommand', () => {
     };
 
     await expect(
-      handleRunCommand(fakeEvent, eventData, { id: 1 } as any, { 'runCmd-gh': 99 })
+      handleRunCommand(fakeEvent, eventData, { id: 1 } as any, { 'runCmd-gh': 99 }),
     ).resolves.toBeUndefined();
 
     expect(sentMessages).toContainEqual(['command-stderr', 'test-id', 'spawn failed']);
@@ -354,14 +390,14 @@ describe('handleRunCommand', () => {
     };
 
     await expect(
-      handleRunCommand(fakeEvent, eventData, { id: 1 } as any, { 'runCmd-gh': 99 })
+      handleRunCommand(fakeEvent, eventData, { id: 1 } as any, { 'runCmd-gh': 99 }),
     ).resolves.toBeUndefined();
     expect(spawnMock).toHaveBeenCalledWith(
       'gh',
       ['auth', 'token'],
       expect.objectContaining({
         env: expect.objectContaining({ HEADLAMP_TEST_ENV: 'current' }),
-      })
+      }),
     );
   });
 });
