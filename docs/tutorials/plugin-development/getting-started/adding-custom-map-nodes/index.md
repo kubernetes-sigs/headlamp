@@ -125,7 +125,7 @@ registerMapSource(myPodSource);
 1. Save the file and let the plugin rebuild.
 2. Open Headlamp and connect to your cluster.
 3. Click **Map** in the sidebar.
-4. Open the source picker — the filter chip above the map, labelled with the sources currently shown — and tick **"My Pods"** in the list that drops down.
+4. Open the source picker — the filter chip above the map, labelled with the sources currently shown — and make sure **"My Pods"** is ticked in the list that drops down.
 
 You should see all pods from your cluster appear as nodes on the map under the **My Pods** source.
 
