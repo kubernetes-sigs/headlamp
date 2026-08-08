@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { useQueries } from '@tanstack/react-query';
 import _ from 'lodash';
 import React, { useMemo } from 'react';
 import { ConfigState } from '../../redux/configSlice';
@@ -274,6 +275,8 @@ export function matchExpressionSimplifier(
   return segments;
 }
 
+const versionFetchInterval = 10000; // ms
+
 /** Hook to get the version of the clusters given by the parameter.
  *
  * @param clusters
@@ -285,88 +288,33 @@ export function useClustersVersion(clusters: Cluster[]) {
     error: ApiError | null;
   };
 
-  const [clusterNames, setClusterNames] = React.useState<string[]>(
-    Object.values(clusters).map(c => c.name)
+  const [clusterNames, setClusterNames] = React.useState<string[]>(() =>
+    Object.values(clusters)
+      .map(c => c.name)
+      .sort()
   );
-  const [versions, setVersions] = React.useState<{ [cluster: string]: VersionInfo }>({});
-  const versionFetchInterval = 10000; // ms
-  const cancelledRef = React.useRef(false);
-  const lastUpdateRef = React.useRef(0);
 
+  // clusters gets a new array reference on every render; only update clusterNames when
+  // the actual set of names changes to avoid unnecessary query resets.
   React.useEffect(() => {
-    // We sort the lists so the order of clusters doesn't influence our comparison. We only
-    // care for presence, not for order.
-    const newClusterNames = Object.values(clusters)
+    const nextClusterNames = Object.values(clusters)
       .map(c => c.name)
       .sort();
-    const sortedClusterNames = [...clusterNames].sort();
-    if (_.isEqual(sortedClusterNames, newClusterNames)) {
-      return;
-    }
+    setClusterNames(prev => (_.isEqual(prev, nextClusterNames) ? prev : nextClusterNames));
+  }, [clusters]);
 
-    setClusterNames(newClusterNames);
-    lastUpdateRef.current = Date.now();
-  }, [clusters, clusterNames]);
+  const queries = React.useMemo(
+    () =>
+      clusterNames.map(clusterName => ({
+        queryKey: ['clusterVersion', clusterName],
+        queryFn: () => getVersion(clusterName),
+        refetchInterval: versionFetchInterval,
+        retry: false, // surface errors immediately rather than hammering unreachable clusters
+      })),
+    [clusterNames]
+  );
 
-  React.useEffect(() => {
-    const newVersions: typeof versions = {};
-
-    function updateValues() {
-      if (cancelledRef.current) {
-        return;
-      }
-
-      let needsUpdate = false;
-
-      setVersions(currentVersions => {
-        const newVersionsToSet = { ...currentVersions };
-        for (const clusterName in newVersions) {
-          if (!_.isEqual(newVersionsToSet[clusterName], newVersions[clusterName])) {
-            needsUpdate = true;
-            newVersionsToSet[clusterName] = newVersions[clusterName];
-          }
-        }
-
-        return needsUpdate ? newVersionsToSet : currentVersions;
-      });
-    }
-
-    clusterNames.forEach(clusterName => {
-      getVersion(clusterName)
-        .then(version => {
-          newVersions[clusterName] = { version, error: null };
-        })
-        .catch(err => {
-          newVersions[clusterName] = { version: null, error: err };
-        })
-        .finally(() => {
-          updateValues();
-        });
-    });
-  }, [clusterNames]);
-
-  React.useEffect(() => {
-    cancelledRef.current = false;
-    // Trigger periodically
-    const timeout = setInterval(() => {
-      if (cancelledRef.current) {
-        return;
-      }
-
-      if (Date.now() - lastUpdateRef.current > versionFetchInterval - 1) {
-        // Refreshes the list of clusters
-        // Creating a new array will trigger the useEffect above
-        // effectively refreshing the versions/errors/statuses
-        setClusterNames([...clusterNames]);
-      }
-    }, versionFetchInterval);
-
-    return function cleanup() {
-      cancelledRef.current = true;
-      clearInterval(timeout);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const results = useQueries({ queries });
 
   return React.useMemo<
     [{ [clusterName: string]: StringDict }, { [clusterName: string]: VersionInfo['error'] }]
@@ -374,15 +322,20 @@ export function useClustersVersion(clusters: Cluster[]) {
     const versionsInfo: { [clusterName: string]: StringDict } = {};
     const errorsInfo: { [clusterName: string]: VersionInfo['error'] } = {};
 
-    Object.entries(versions).forEach(([clusterName, versionInfo]) => {
-      if (!!versionInfo.version) {
-        versionsInfo[clusterName] = versionInfo.version;
+    clusterNames.forEach((clusterName, i) => {
+      const { data, error } = results[i];
+      if (data) {
+        versionsInfo[clusterName] = data;
       }
-      errorsInfo[clusterName] = versionInfo.error;
+      // Only set the error key once the query has resolved. An absent key (undefined)
+      // signals "still loading" to getClusterStatus; null means the cluster is active.
+      if (!results[i].isPending) {
+        errorsInfo[clusterName] = (error as ApiError | null) ?? null;
+      }
     });
 
     return [versionsInfo, errorsInfo];
-  }, [versions]);
+  }, [clusterNames, results]);
 }
 
 // Other exports that can be used by plugins:
