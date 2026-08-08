@@ -535,6 +535,23 @@ describe('WebSocket Multiplexer', () => {
       vi.stubGlobal('WebSocket', OriginalWebSocket);
     });
 
+    it('should clean up listeners and activeSubscriptions if connect() rejects', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=true';
+
+      const key = WebSocketManager.createKey(clusterName, path, query);
+
+      // Mock connect to fail
+      vi.spyOn(WebSocketManager, 'connect').mockRejectedValueOnce(new Error('Connection failed'));
+
+      await expect(WebSocketManager.subscribe(clusterName, path, query, onMessage)).rejects.toThrow(
+        'Connection failed'
+      );
+
+      expect(WebSocketManager.listeners.get(key)?.has(onMessage)).toBeFalsy();
+      expect(WebSocketManager.activeSubscriptions.has(key)).toBeFalsy();
+    });
+
     it('should handle reconnection and resubscribe', async () => {
       const path = '/api/v1/pods';
       const query = 'watch=true';
