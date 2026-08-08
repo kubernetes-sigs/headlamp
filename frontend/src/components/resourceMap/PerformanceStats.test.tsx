@@ -15,6 +15,7 @@
  */
 
 import { act, render, screen } from '@testing-library/react';
+import { groupGraph } from './graph/graphGrouping';
 import {
   addPerformanceMetric,
   clearPerformanceMetrics,
@@ -78,7 +79,6 @@ describe('PerformanceStats subscriptions', () => {
 
     const start = performance.now();
     // Simulate what groupGraph does internally
-    const { groupGraph } = require('./graph/graphGrouping');
     const result = groupGraph(mockNodes, mockEdges, {
       groupBy: 'cluster',
       namespaces: [],
