@@ -973,6 +973,7 @@
   "Expand sidebar": "توسيع الشريط الجانبي",
   "Main Navigation": "التنقل الرئيسي",
   "Navigation Tabs": "علامات تبويب التنقل",
+  "Audit Logs": "",
   "Instances": "المثيلات",
   "Cluster version upgraded to {{ gitVersion }}": "تمت ترقية إصدار الكتلة إلى {{ gitVersion }}",
   "Cluster version downgraded to {{ gitVersion }}": "تم تخفيض إصدار الكتلة إلى {{ gitVersion }}",

@@ -953,6 +953,7 @@
   "Expand sidebar": "Развернуть боковую панель",
   "Main Navigation": "Основная навигация",
   "Navigation Tabs": "Вкладки навигации",
+  "Audit Logs": "",
   "Instances": "Экземпляры",
   "Cluster version upgraded to {{ gitVersion }}": "Версия кластера обновлена \u200b\u200bдо {{ gitVersion }}.",
   "Cluster version downgraded to {{ gitVersion }}": "Версия кластера понижена до {{ gitVersion }}",
