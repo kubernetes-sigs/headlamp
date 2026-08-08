@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
+import { expect, test } from '@playwright/test';
 import { execFile } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { expect, test } from '@playwright/test';
 import { HeadlampPage } from './headlampPage';
 import { podsPage } from './podsPage';
 
@@ -112,6 +112,42 @@ test('loads the next page of pods', async ({ page }) => {
   expect(listRequests).toHaveLength(2);
   expect(listRequests[1].searchParams.get('limit')).toBe('1000');
   expect(listRequests[1].searchParams.get('continue')).toBe('next-page');
+});
+
+test('recovers from a corrected config error on scheduled refetch', async ({ page }) => {
+  let allowRecovery = false;
+  let lastConfigRequestAt = 0;
+  let recoveryStatus: number | undefined;
+  await page.route('**/config', async route => {
+    lastConfigRequestAt = Date.now();
+    if (!allowRecovery) {
+      await route.fulfill({ status: 403, json: { message: 'config is invalid' } });
+      return;
+    }
+
+    const response = await route.fetch();
+    recoveryStatus = response.status();
+    await route.fulfill({ response });
+  });
+
+  await page.goto('/');
+  await expect.poll(() => lastConfigRequestAt).toBeGreaterThan(0);
+  await expect.poll(() => Date.now() - lastConfigRequestAt).toBeGreaterThan(750);
+  allowRecovery = true;
+
+  const testCluster = page.locator('table tbody tr td a', { hasText: /^test$/ });
+  const recoveredDuringRetryWindow = await testCluster
+    .waitFor({ state: 'visible', timeout: 3000 })
+    .then(
+      () => true,
+      () => false
+    );
+  expect(recoveredDuringRetryWindow).toBe(false);
+  expect(recoveryStatus).toBeUndefined();
+
+  await expect.poll(() => recoveryStatus, { timeout: 15_000 }).toBe(200);
+  await expect(testCluster).toBeVisible();
+  await expect(page.locator('table tbody tr td a', { hasText: /^test2$/ })).toBeVisible();
 });
 
 test('multi tab create delete pod', async ({ browser }) => {
