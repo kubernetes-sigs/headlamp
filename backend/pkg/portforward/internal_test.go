@@ -106,16 +106,21 @@ func TestPortforwardKeyGenerator(t *testing.T) {
 		p    portForward
 		want string
 	}{
-		{"only_cluster_id", portForward{ID: "id", Cluster: "cluster"}, "PORT_FORWARD_clusterid"},
-		{"only_service", portForward{Cluster: "cluster", Service: "service"}, "PORT_FORWARD_clusterservice"},
-		{"only_pod", portForward{Cluster: "cluster", Pod: "pod"}, "PORT_FORWARD_clusterpod"},
-		{"service_and_pod", portForward{Cluster: "cluster", Service: "service", Pod: "pod"}, "PORT_FORWARD_clusterservice"},
-		{"id_and_service", portForward{Cluster: "cluster", ID: "id", Service: "service"}, "PORT_FORWARD_clusterid"},
-		{"id_and_pod", portForward{Cluster: "cluster", ID: "id", Pod: "pod"}, "PORT_FORWARD_clusterid"},
+		{"only_cluster_id", portForward{ID: "id", Cluster: "cluster"}, "PORT_FORWARD_cluster:id"},
+		{"only_service", portForward{Cluster: "cluster", Service: "service"}, "PORT_FORWARD_cluster:service"},
+		{"only_pod", portForward{Cluster: "cluster", Pod: "pod"}, "PORT_FORWARD_cluster:pod"},
+		{"service_and_pod", portForward{Cluster: "cluster", Service: "service", Pod: "pod"}, "PORT_FORWARD_cluster:service"},
+		{"id_and_service", portForward{Cluster: "cluster", ID: "id", Service: "service"}, "PORT_FORWARD_cluster:id"},
+		{"id_and_pod", portForward{Cluster: "cluster", ID: "id", Pod: "pod"}, "PORT_FORWARD_cluster:id"},
 		{
 			"id_and_service_and_pod",
 			portForward{Cluster: "cluster", ID: "id", Service: "service", Pod: "pod"},
-			"PORT_FORWARD_clusterid",
+			"PORT_FORWARD_cluster:id",
+		},
+		{
+			"delimiter_chars",
+			portForward{Cluster: "foo:bar", ID: "baz:qux"},
+			"PORT_FORWARD_foo%3Abar:baz%3Aqux",
 		},
 	}
 
@@ -126,6 +131,15 @@ func TestPortforwardKeyGenerator(t *testing.T) {
 			assert.Equal(t, tt.want, key)
 		})
 	}
+}
+
+func TestPortforwardClusterKey(t *testing.T) {
+	assert.Equal(t, "cluster", portforwardClusterKey("cluster", ""))
+	assert.Equal(t, "cluster\x00user", portforwardClusterKey("cluster", "user"))
+	assert.NotEqual(t,
+		portforwardClusterKey("foo", "bar/baz"),
+		portforwardClusterKey("foo/bar", "baz"),
+	)
 }
 
 // TestPortforwardStore tests portforwardstore function.
@@ -214,6 +228,53 @@ func TestGetPortForwardList(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []portForward{p3}, pfList)
+}
+
+func TestGetPortForwardList_ClusterPrefixCollision(t *testing.T) {
+	tests := []struct {
+		name    string
+		first   portForward
+		second  portForward
+		cluster string
+		want    []portForward
+	}{
+		{
+			name:    "similar_names",
+			first:   portForward{ID: "id1", Cluster: "foo"},
+			second:  portForward{ID: "id2", Cluster: "foobar"},
+			cluster: "foo",
+			want:    []portForward{{ID: "id1", Cluster: "foo"}},
+		},
+		{
+			name:    "delimiter_in_cluster_name",
+			first:   portForward{ID: "id1", Cluster: "foo"},
+			second:  portForward{ID: "id2", Cluster: "foo:bar"},
+			cluster: "foo",
+			want:    []portForward{{ID: "id1", Cluster: "foo"}},
+		},
+		{
+			name:    "delimiter_in_id",
+			first:   portForward{ID: "bar:baz", Cluster: "foo"},
+			second:  portForward{ID: "baz", Cluster: "foo:bar"},
+			cluster: "foo",
+			want:    []portForward{{ID: "bar:baz", Cluster: "foo"}},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cache := cache.New[interface{}]()
+
+			err := cache.Set(context.Background(), portforwardKeyGenerator(tt.first), tt.first)
+			require.NoError(t, err)
+
+			err = cache.Set(context.Background(), portforwardKeyGenerator(tt.second), tt.second)
+			require.NoError(t, err)
+
+			pfList := getPortForwardList(cache, tt.cluster)
+			assert.ElementsMatch(t, tt.want, pfList)
+		})
+	}
 }
 
 // Test portForwardRequest.Validate() function.
@@ -508,8 +569,29 @@ func TestGetPortForwardList_UserIDKeyIsolation(t *testing.T) {
 	assert.Equal(t, "pf-1", result[0].ID)
 
 	// Query with a user-specific key — should NOT find the entry.
-	resultWithUser := getPortForwardList(c, "clusteruser123")
+	resultWithUser := getPortForwardList(c, portforwardClusterKey("cluster", "user123"))
 	assert.Empty(t, resultWithUser, "user-specific key must not return entries stored under base cluster key")
+}
+
+func TestGetPortForwardList_UserIDCollision(t *testing.T) {
+	c := cache.New[interface{}]()
+
+	userPF := portForward{
+		ID:       "pf-user",
+		cacheKey: portforwardClusterKey("foo", "bar"),
+		Cluster:  "foo",
+		Status:   RUNNING,
+	}
+	clusterPF := portForward{ID: "pf-cluster", Cluster: "foobar", Status: RUNNING}
+
+	portforwardstore(c, userPF)
+	portforwardstore(c, clusterPF)
+
+	userResult := getPortForwardList(c, portforwardClusterKey("foo", "bar"))
+	assert.ElementsMatch(t, []portForward{userPF}, userResult)
+
+	clusterResult := getPortForwardList(c, "foobar")
+	assert.ElementsMatch(t, []portForward{clusterPF}, clusterResult)
 }
 
 // TestGetPortForwardByID_UserIDKeyIsolation verifies that getPortForwardByID
@@ -527,7 +609,7 @@ func TestGetPortForwardByID_UserIDKeyIsolation(t *testing.T) {
 	assert.Equal(t, "pf-2", found.ID)
 
 	// Lookup with a user-specific key — should fail.
-	_, err = getPortForwardByID(c, "clusteruser456", "pf-2")
+	_, err = getPortForwardByID(c, portforwardClusterKey("cluster", "user456"), "pf-2")
 	assert.Error(t, err, "user-specific key must not find entries stored under base cluster key")
 }
 
@@ -616,8 +698,42 @@ func TestGetPortForwardByIDHandler_UserIDKeyIsolation(t *testing.T) {
 		"user-specific lookup must not find entries under base cluster key")
 }
 
+func TestGetPortForwardByIDHandler_UserIDKeepsRouteCluster(t *testing.T) {
+	c := cache.New[interface{}]()
+
+	pf := portForward{
+		ID:        "pf-user",
+		cacheKey:  portforwardClusterKey("cluster", "user999"),
+		Cluster:   "cluster",
+		Pod:       "redis",
+		Namespace: "cache",
+		Status:    RUNNING,
+	}
+	portforwardstore(c, pf)
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/portforward?id=pf-user", nil)
+	r = mux.SetURLVars(r, map[string]string{"clusterName": "cluster"})
+	r.URL = &url.URL{RawQuery: "id=pf-user"}
+	r.Header.Set("X-HEADLAMP-USER-ID", "user999")
+
+	GetPortForwardByID(c, w, r)
+
+	res := w.Result()
+
+	defer func() { _ = res.Body.Close() }()
+
+	require.Equal(t, http.StatusOK, res.StatusCode)
+
+	var payload map[string]string
+
+	err := json.NewDecoder(res.Body).Decode(&payload)
+	require.NoError(t, err)
+	assert.Equal(t, "cluster", payload["cluster"])
+}
+
 // TestStopOrDeletePortForwardHandler_UserIDKeyIsolation verifies that
-// StopOrDeletePortForward uses cluster+userID as the cache key.
+// StopOrDeletePortForward uses the user-scoped cluster cache key.
 func TestStopOrDeletePortForwardHandler_UserIDKeyIsolation(t *testing.T) {
 	c := cache.New[interface{}]()
 

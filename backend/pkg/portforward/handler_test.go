@@ -214,14 +214,6 @@ func TestStartPortForward(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(stopRespBody), "stopped")
 
-	cacheKey := "PORT_FORWARD_" + minikubeName + id
-	chState, err := ch.Get(context.Background(), cacheKey)
-	require.NoError(t, err, "failed to get port-forward state from cache with key %s", cacheKey)
-
-	chData, err := json.Marshal(chState)
-	require.NoError(t, err)
-	assert.Contains(t, string(chData), "Stopped")
-
 	listReq := &http.Request{
 		Header: make(http.Header),
 	}
@@ -326,10 +318,11 @@ func TestStartPortForward(t *testing.T) {
 	require.Contains(t, string(deleteRespBody), "stopped")
 
 	require.Eventually(t, func() bool {
-		_, err := ch.Get(context.Background(), cacheKey)
-		return err != nil
-	}, 3*time.Second, 50*time.Millisecond,
-		"port-forward with key %s should be deleted from cache", cacheKey)
+		getAfterDeleteResp := httptest.NewRecorder()
+		portforward.GetPortForwardByID(ch, getAfterDeleteResp, getReq)
+
+		return getAfterDeleteResp.Code == http.StatusNotFound
+	}, 3*time.Second, 50*time.Millisecond, "port-forward should be deleted from cache")
 }
 
 // TestGetPortForwardsClusterNameNotExposingUserID verifies that when a dynamic
