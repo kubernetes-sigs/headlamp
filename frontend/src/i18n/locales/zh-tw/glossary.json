@@ -88,6 +88,7 @@
   "Session Persistence": "工作階段持續性",
   "No session persistence configured": "尚未設定工作階段持續性",
   "Backend Traffic Policies": "後端流量政策",
+  "Retry {{percent}}% per {{interval}}": "",
   "Controller Name": "控制器名稱",
   "Gateway Classes": "閘道類別",
   "Controller": "控制器",

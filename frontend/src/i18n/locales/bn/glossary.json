@@ -88,6 +88,7 @@
   "Session Persistence": "সেশন স্থায়িত্ব",
   "No session persistence configured": "কোনো সেশন স্থায়িত্ব কনফিগার করা হয়নি",
   "Backend Traffic Policies": "Backend ট্রাফিক পলিসি",
+  "Retry {{percent}}% per {{interval}}": "",
   "Controller Name": "কন্ট্রোলার নাম",
   "Gateway Classes": "গেটওয়ে ক্লাস",
   "Controller": "কন্ট্রোলার",

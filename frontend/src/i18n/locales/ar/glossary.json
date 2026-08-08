@@ -88,6 +88,7 @@
   "Session Persistence": "ثبات الجلسة",
   "No session persistence configured": "لم يتم تكوين ثبات الجلسة",
   "Backend Traffic Policies": "سياسات حركة المرور الخلفية",
+  "Retry {{percent}}% per {{interval}}": "",
   "Controller Name": "اسم المتحكم",
   "Gateway Classes": "فئات البوابة",
   "Controller": "المتحكم",

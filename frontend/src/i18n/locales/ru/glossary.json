@@ -88,6 +88,7 @@
   "Session Persistence": "Сохранение сеанса",
   "No session persistence configured": "Сохранение сеанса не настроено",
   "Backend Traffic Policies": "Backend Traffic Policies",
+  "Retry {{percent}}% per {{interval}}": "",
   "Controller Name": "Имя контроллера",
   "Gateway Classes": "Gateway Classes",
   "Controller": "Контроллер",
