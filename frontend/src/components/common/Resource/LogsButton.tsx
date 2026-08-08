@@ -55,7 +55,10 @@ import { LogViewer } from '../LogViewer';
 import { LightTooltip } from '../Tooltip';
 import { ALL_SEVERITIES, filterLogsBySeverity, LogSeverity } from './logSeverityFilter';
 
-// Component props interface
+export interface WorkloadLogsProps {
+  item: KubeObject;
+}
+
 interface LogsButtonProps {
   item: KubeObject | null;
 }
@@ -92,7 +95,10 @@ const PaddedFormControlLabel = styled(FormControlLabel)(({ theme }) => ({
   paddingRight: theme.spacing(2),
 }));
 
-function LogsButtonContent({ item }: LogsButtonProps) {
+/**
+ * Workload log controls and output for embedding outside the Activity view.
+ */
+export function WorkloadLogs({ item }: WorkloadLogsProps) {
   const [pods, setPods] = useState<Pod[]>([]);
   const [selectedPodIndex, setSelectedPodIndex] = useState<number | 'all'>('all');
   const [selectedContainer, setSelectedContainer] = useState('');
@@ -691,7 +697,7 @@ export function launchWorkloadLogs(
     icon: <Icon icon="mdi:file-document-box-outline" width="100%" height="100%" />,
     cluster: item.cluster,
     location: 'full',
-    content: <LogsButtonContent item={item} />,
+    content: <WorkloadLogs item={item} />,
   });
   dispatchHeadlampEvent?.({
     type: HeadlampEventType.LOGS,
