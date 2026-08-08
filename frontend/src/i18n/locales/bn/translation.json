@@ -210,6 +210,7 @@
   "Account of current user": "বর্তমান ব্যবহারকারীর অ্যাকাউন্ট",
   "Appbar Tools": "অ্যাপবার সরঞ্জাম",
   "show more": "আরও দেখান",
+  "Go to home page": "",
   "Version information": "Version তথ্য",
   "Getting auth info: {{ clusterName }}": "প্রমাণ তথ্য পাচ্ছেন: {{ clusterName }}",
   "Getting auth info": "প্রমাণ তথ্য পাচ্ছেন",

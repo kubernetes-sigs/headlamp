@@ -19,6 +19,7 @@ import AppBar from '@mui/material/AppBar';
 import Box from '@mui/material/Box';
 import Divider from '@mui/material/Divider';
 import IconButton from '@mui/material/IconButton';
+import Link from '@mui/material/Link';
 import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
@@ -32,7 +33,7 @@ import { has } from 'lodash';
 import React, { memo, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { useHistory } from 'react-router-dom';
+import { Link as RouterLink, useHistory } from 'react-router-dom';
 import { getProductName, getVersion } from '../../helpers/getProductInfo';
 import { logout } from '../../lib/auth';
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
@@ -589,7 +590,15 @@ export const PureTopBar = memo(
               </>
             ) : (
               <>
-                <AppLogo />
+                <Link
+                  component={RouterLink}
+                  to={createRouteURL('chooser')}
+                  aria-label={t('Go to home page')}
+                  sx={{ display: 'flex', alignItems: 'center', color: 'inherit' }}
+                  underline="none"
+                >
+                  <AppLogo />
+                </Link>
                 <AppBarActions
                   appBarActions={processAppBarActions(allAppBarActions, appBarActionsProcessors)}
                 />

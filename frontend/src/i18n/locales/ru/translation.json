@@ -210,6 +210,7 @@
   "Account of current user": "Аккаунт текущего пользователя",
   "Appbar Tools": "Инструменты панели приложений",
   "show more": "показать больше",
+  "Go to home page": "",
   "Version information": "Информация о версии",
   "Getting auth info: {{ clusterName }}": "Получение информации для авторизации: {{ clusterName }}",
   "Getting auth info": "Получение информации для авторизации",
