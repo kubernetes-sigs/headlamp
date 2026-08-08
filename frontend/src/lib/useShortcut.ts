@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { useEffect, useRef } from 'react';
 import { Options, useHotkeys } from 'react-hotkeys-hook';
 import { useTypedSelector } from '../redux/hooks';
 
@@ -33,6 +34,11 @@ export function useShortcut(
 ) {
   const shortcut = useTypedSelector(state => state.shortcuts.shortcuts[shortcutId]);
   const key = shortcut?.key || '';
+  const callbackRef = useRef(callback);
+
+  useEffect(() => {
+    callbackRef.current = callback;
+  }, [callback]);
 
   // preventDefault must never reach useHotkeys: as an option there, Chrome treats it as
   // blanket key interception and drops paste events on password inputs. It is called on
@@ -44,6 +50,7 @@ export function useShortcut(
     key,
     (event: KeyboardEvent) => {
       if (key) {
+        callbackRef.current(event);
         event.preventDefault();
         callback(event);
       }
