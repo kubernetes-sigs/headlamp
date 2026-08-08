@@ -20,6 +20,7 @@ import { renderHook } from '@testing-library/react';
 import React from 'react';
 import { Provider } from 'react-redux';
 import App from '../../App';
+import * as useApiGroupAvailableModule from '../../lib/k8s/api/v2/useApiGroupAvailable';
 import reducers from '../../redux/reducers/reducers';
 import { TestContext } from '../../test';
 import { DefaultSidebars, SidebarEntry } from './sidebarSlice';
@@ -251,5 +252,35 @@ describe('useSidebarItems', () => {
 
     // Check that home is still present
     expect(result.current.find(it => it.name === 'home')).toBeDefined();
+  });
+
+  it('should hide the Gateway API sidebar entry when its API group is not available on the cluster', () => {
+    const spy = vi.spyOn(useApiGroupAvailableModule, 'useApiGroupAvailable').mockReturnValue(false);
+
+    const store = mockStore({}, []);
+    const { result } = renderHook(() => useSidebarItems(), {
+      wrapper: wrapper(store),
+    });
+
+    const gatewayEntry = result.current.find(it => it.name === 'gatewayapi');
+    expect(gatewayEntry).toBeDefined();
+    expect(gatewayEntry?.hide).toBe(true);
+
+    spy.mockRestore();
+  });
+
+  it('should show the Gateway API sidebar entry when its API group is available on the cluster', () => {
+    const spy = vi.spyOn(useApiGroupAvailableModule, 'useApiGroupAvailable').mockReturnValue(true);
+
+    const store = mockStore({}, []);
+    const { result } = renderHook(() => useSidebarItems(), {
+      wrapper: wrapper(store),
+    });
+
+    const gatewayEntry = result.current.find(it => it.name === 'gatewayapi');
+    expect(gatewayEntry).toBeDefined();
+    expect(gatewayEntry?.hide).toBeFalsy();
+
+    spy.mockRestore();
   });
 });
