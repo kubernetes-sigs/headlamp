@@ -1569,4 +1569,91 @@ describe('filterGraphIncremental', () => {
       expect(nodeIds.has(edge.target)).toBe(true);
     }
   });
+
+  describe('resourceType filter', () => {
+    const podNode: GraphNode = {
+      id: 'pod1',
+      kubeObject: new Pod({
+        kind: 'Pod',
+        metadata: { namespace: 'ns1', name: 'pod1' },
+      } as any),
+    };
+    const svcNode: GraphNode = {
+      id: 'svc1',
+      kubeObject: new Pod({
+        kind: 'Service',
+        metadata: { namespace: 'ns1', name: 'svc1' },
+      } as any),
+    };
+    const deployNode: GraphNode = {
+      id: 'deploy1',
+      kubeObject: new Pod({
+        kind: 'Deployment',
+        metadata: { namespace: 'ns1', name: 'deploy1' },
+      } as any),
+    };
+
+    it('filters nodes by resourceType kind', () => {
+      const filters: GraphFilter[] = [
+        { type: 'resourceType', kinds: new Set(['Service', 'Deployment']) },
+      ];
+      const { nodes: filteredNodes } = filterGraph([podNode, svcNode, deployNode], [], filters);
+
+      expect(filteredNodes.map(it => it.id)).toEqual(['svc1', 'deploy1']);
+    });
+
+    it('returns all nodes when resourceType kinds set is empty', () => {
+      const filters: GraphFilter[] = [{ type: 'resourceType', kinds: new Set() }];
+      const { nodes: filteredNodes } = filterGraph([podNode, svcNode, deployNode], [], filters);
+
+      expect(filteredNodes.map(it => it.id)).toEqual(['pod1', 'svc1', 'deploy1']);
+    });
+  });
+
+  describe('labelSelector filter', () => {
+    const node1: GraphNode = {
+      id: 'n1',
+      kubeObject: new Pod({
+        kind: 'Pod',
+        metadata: { namespace: 'ns1', name: 'n1', labels: { app: 'nginx', env: 'prod' } },
+      } as any),
+    };
+    const node2: GraphNode = {
+      id: 'n2',
+      kubeObject: new Pod({
+        kind: 'Pod',
+        metadata: { namespace: 'ns1', name: 'n2', labels: { app: 'nginx', env: 'dev' } },
+      } as any),
+    };
+    const node3: GraphNode = {
+      id: 'n3',
+      kubeObject: new Pod({
+        kind: 'Pod',
+        metadata: { namespace: 'ns1', name: 'n3', labels: { app: 'redis' } },
+      } as any),
+    };
+
+    it('filters nodes by single key-value label', () => {
+      const filters: GraphFilter[] = [{ type: 'labelSelector', labels: { app: 'nginx' } }];
+      const { nodes: filteredNodes } = filterGraph([node1, node2, node3], [], filters);
+
+      expect(filteredNodes.map(it => it.id)).toEqual(['n1', 'n2']);
+    });
+
+    it('filters nodes by multiple key-value labels (AND logic)', () => {
+      const filters: GraphFilter[] = [
+        { type: 'labelSelector', labels: { app: 'nginx', env: 'prod' } },
+      ];
+      const { nodes: filteredNodes } = filterGraph([node1, node2, node3], [], filters);
+
+      expect(filteredNodes.map(it => it.id)).toEqual(['n1']);
+    });
+
+    it('filters nodes by label key existence when value is empty string', () => {
+      const filters: GraphFilter[] = [{ type: 'labelSelector', labels: { env: '' } }];
+      const { nodes: filteredNodes } = filterGraph([node1, node2, node3], [], filters);
+
+      expect(filteredNodes.map(it => it.id)).toEqual(['n1', 'n2']);
+    });
+  });
 });

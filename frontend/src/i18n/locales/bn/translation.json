@@ -900,6 +900,8 @@
   "Zoom in": "Zoom ইন",
   "Zoom out": "Zoom আউট",
   "No data to be shown. Try to change filters or select a different namespace.": "দেখানোর মতো কোনও Data নেই। filter পরিবর্তন করে অন্য namespace বাছুন",
+  "Resource Types": "",
+  "Labels (e.g. app=nginx)": "",
   "Group By": "Group By",
   "Instance": "উদাহরণ",
   "Status: Error or Warning": "Status: Error বা সতর্কতা",

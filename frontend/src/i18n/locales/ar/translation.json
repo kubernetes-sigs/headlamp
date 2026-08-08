@@ -928,6 +928,8 @@
   "Zoom in": "تكبير",
   "Zoom out": "تصغير",
   "No data to be shown. Try to change filters or select a different namespace.": "لا توجد بيانات للعرض حاول تغيير عوامل التصفية أو اختيار نطاق مختلف",
+  "Resource Types": "",
+  "Labels (e.g. app=nginx)": "",
   "Group By": "تجميع حسب",
   "Instance": "المثيل",
   "Status: Error or Warning": "الحالة: خطأ أو تحذير",
