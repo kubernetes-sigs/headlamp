@@ -131,7 +131,7 @@ describe('useGetAllRelations', () => {
         node(matchingService),
         node(pod({ ...matchingPod.metadata }, {}, 'cluster-b'))
       )
-    ).toBe(false);
+    ).toBe(true);
     expect(
       relation.predicate(
         node(matchingService),

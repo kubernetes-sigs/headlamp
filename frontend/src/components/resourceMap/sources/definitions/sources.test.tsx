@@ -127,7 +127,7 @@ describe('useGetAllSources', () => {
     const { result, rerender } = renderHook(() => podSource.useData());
 
     expect(result.current).toBeNull();
-    expect(useList).toHaveBeenCalledWith({ namespace: ['namespace-a'] });
+    expect(useList).toHaveBeenCalledWith({ namespace: ['namespace-a'], clusters: ['cluster-a'] });
 
     useList.mockReturnValue([[pod]] as any);
     rerender();
