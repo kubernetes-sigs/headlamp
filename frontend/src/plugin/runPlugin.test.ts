@@ -550,7 +550,10 @@ describe('identifyPackages', () => {
       '@headlamp-k8s/ai-assistant',
       false
     );
-    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+    expect(result).toEqual({
+      '@headlamp-k8s/minikube': false,
+      '@headlamp-k8s/ai-assistant': true,
+    });
   });
 
   test('should identify ai-assistant package by underscore user-plugins path', () => {
@@ -559,7 +562,10 @@ describe('identifyPackages', () => {
       '@headlamp-k8s/ai-assistant',
       false
     );
-    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+    expect(result).toEqual({
+      '@headlamp-k8s/minikube': false,
+      '@headlamp-k8s/ai-assistant': true,
+    });
   });
 
   test('should identify ai-assistant package by underscore static-plugins path', () => {
@@ -568,7 +574,10 @@ describe('identifyPackages', () => {
       '@headlamp-k8s/ai-assistant',
       false
     );
-    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+    expect(result).toEqual({
+      '@headlamp-k8s/minikube': false,
+      '@headlamp-k8s/ai-assistant': true,
+    });
   });
 
   test('should identify ai-assistant package by underscore prerelease plugins path', () => {
@@ -577,7 +586,10 @@ describe('identifyPackages', () => {
       '@headlamp-k8s/ai-assistantprerelease',
       false
     );
-    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+    expect(result).toEqual({
+      '@headlamp-k8s/minikube': false,
+      '@headlamp-k8s/ai-assistant': true,
+    });
   });
 
   test('should identify ai-assistant package by underscore prerelease user-plugins path', () => {
@@ -586,7 +598,10 @@ describe('identifyPackages', () => {
       '@headlamp-k8s/ai-assistantprerelease',
       false
     );
-    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+    expect(result).toEqual({
+      '@headlamp-k8s/minikube': false,
+      '@headlamp-k8s/ai-assistant': true,
+    });
   });
 
   test('should identify ai-assistant package by underscore prerelease static-plugins path', () => {
@@ -595,7 +610,10 @@ describe('identifyPackages', () => {
       '@headlamp-k8s/ai-assistantprerelease',
       false
     );
-    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+    expect(result).toEqual({
+      '@headlamp-k8s/minikube': false,
+      '@headlamp-k8s/ai-assistant': true,
+    });
   });
 
   test('should handle windows paths for ai-assistant underscore variant', () => {
@@ -604,7 +622,10 @@ describe('identifyPackages', () => {
       '@headlamp-k8s/ai-assistant',
       false
     );
-    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+    expect(result).toEqual({
+      '@headlamp-k8s/minikube': false,
+      '@headlamp-k8s/ai-assistant': true,
+    });
   });
 
   test('should handle windows static paths for ai-assistant underscore variant', () => {
@@ -613,7 +634,10 @@ describe('identifyPackages', () => {
       '@headlamp-k8s/ai-assistant',
       false
     );
-    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+    expect(result).toEqual({
+      '@headlamp-k8s/minikube': false,
+      '@headlamp-k8s/ai-assistant': true,
+    });
   });
 
   test('should handle windows paths for ai-assistant underscore prerelease variant', () => {
@@ -622,6 +646,134 @@ describe('identifyPackages', () => {
       '@headlamp-k8s/ai-assistantprerelease',
       false
     );
-    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+    expect(result).toEqual({
+      '@headlamp-k8s/minikube': false,
+      '@headlamp-k8s/ai-assistant': true,
+    });
+  });
+});
+
+describe('Security & Isolation (Issue #6826)', () => {
+  test('should shadow global window and globalThis identifiers', () => {
+    let accessedWindow: unknown = 'NOT_TESTED';
+    let accessedGlobalThis: unknown = 'NOT_TESTED';
+
+    const pluginSource = `
+        setAccessedWindow(typeof window !== 'undefined' ? window : undefined);
+        setAccessedGlobalThis(typeof globalThis !== 'undefined' ? globalThis : undefined);
+      `;
+
+    const PrivateFunction = Function;
+    const info = getInfoForRunningPlugins({
+      source: pluginSource,
+      pluginPath: '/path/to/plugin',
+      packageName: 'test-sandbox-package',
+      packageVersion: '1.0.0',
+      permissionSecrets: {},
+      handleError: () => {},
+      getAllowedPermissions: () => ({}),
+      getArgValues: () => [
+        ['setAccessedWindow', 'setAccessedGlobalThis'],
+        [
+          (val: unknown) => {
+            accessedWindow = val;
+          },
+          (val: unknown) => {
+            accessedGlobalThis = val;
+          },
+        ],
+      ],
+      PrivateFunction,
+      internalRunPlugin: runPlugin,
+      consoleError: console.error,
+    });
+
+    if (info) {
+      runPluginInner(info);
+    }
+
+    expect(accessedWindow).toBeUndefined();
+    expect(accessedGlobalThis).toBeUndefined();
+  });
+
+  test('should prevent top-level this binding from resolving to global window', () => {
+    let thisBinding: unknown = 'NOT_TESTED';
+
+    const pluginSource = `
+        setThis(this);
+      `;
+
+    const PrivateFunction = Function;
+    const info = getInfoForRunningPlugins({
+      source: pluginSource,
+      pluginPath: '/path/to/plugin',
+      packageName: 'test-sandbox-this-package',
+      packageVersion: '1.0.0',
+      permissionSecrets: {},
+      handleError: () => {},
+      getAllowedPermissions: () => ({}),
+      getArgValues: () => [
+        ['setThis'],
+        [
+          (val: unknown) => {
+            thisBinding = val;
+          },
+        ],
+      ],
+      PrivateFunction,
+      internalRunPlugin: runPlugin,
+      consoleError: console.error,
+    });
+
+    if (info) {
+      runPluginInner(info);
+    }
+
+    expect(thisBinding).toBeUndefined();
+  });
+
+  test.skip('ARCHITECTURAL LIMITATION: does not block prototype-chain escapes (({}).constructor.constructor)', () => {
+    // NOTE: This test is skipped because blocking this escape requires a true separate realm
+    // (like an iframe sandbox or Web Worker) with an explicit capability bridge.
+    // The current plugin architecture evaluates plugins directly in the main app's execution context,
+    // so lexical shadowing and strict mode cannot prevent a plugin from walking the prototype chain
+    // to obtain the real global object.
+    let accessedGlobalThis: unknown = 'NOT_TESTED';
+
+    const pluginSource = `
+      try {
+        const escapeGlobal = ({}).constructor.constructor('return globalThis')();
+        setAccessedGlobalThis(escapeGlobal);
+      } catch (e) {
+        // Blocked
+      }
+    `;
+
+    const PrivateFunction = Function;
+    const info = getInfoForRunningPlugins({
+      source: pluginSource,
+      pluginPath: '/path/to/plugin',
+      packageName: 'test-sandbox-escape',
+      packageVersion: '1.0.0',
+      permissionSecrets: {},
+      handleError: () => {},
+      getAllowedPermissions: () => ({}),
+      getArgValues: () => [
+        ['setAccessedGlobalThis'],
+        [
+          (val: unknown) => {
+            accessedGlobalThis = val;
+          },
+        ],
+      ],
+      PrivateFunction,
+      internalRunPlugin: runPlugin,
+      consoleError: console.error,
+    });
+
+    if (info) {
+      runPluginInner(info);
+    }
+    expect(accessedGlobalThis).toBe('NOT_TESTED');
   });
 });
