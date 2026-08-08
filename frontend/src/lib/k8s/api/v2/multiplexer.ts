@@ -191,17 +191,38 @@ export const WebSocketManager = {
       this.errorListeners.set(key, errListeners);
     }
 
-    // Establish connection and send REQUEST
-    const socket = await this.connect();
-    const userId = getUserIdFromLocalStorage();
-    const requestMsg: WebSocketMessage = {
-      clusterId,
-      path,
-      query,
-      userId: userId || '',
-      type: 'REQUEST',
-    };
-    socket.send(JSON.stringify(requestMsg));
+    try {
+      // Establish connection and send REQUEST
+      const socket = await this.connect();
+      const userId = getUserIdFromLocalStorage();
+      const requestMsg: WebSocketMessage = {
+        clusterId,
+        path,
+        query,
+        userId: userId || '',
+        type: 'REQUEST',
+      };
+      socket.send(JSON.stringify(requestMsg));
+    } catch (err) {
+      this.unsubscribe(key, clusterId, path, query, onMessage, onError);
+
+      // The REQUEST for this subscription was never sent, so there's nothing
+      // for the server to CLOSE. Cancel the debounced CLOSE that unsubscribe()
+      // just scheduled so a socket that opens later (e.g. for a different
+      // subscription) doesn't emit a spurious CLOSE for a watch that never opened.
+      const pendingTimeout = this.pendingUnsubscribes.get(key);
+      if (pendingTimeout) {
+        clearTimeout(pendingTimeout);
+        this.pendingUnsubscribes.delete(key);
+      }
+
+      if (!this.listeners.has(key)) {
+        this.activeSubscriptions.delete(key);
+        this.completedPaths.delete(key);
+      }
+
+      throw err;
+    }
 
     // Return cleanup function
     return () => this.unsubscribe(key, clusterId, path, query, onMessage, onError);
