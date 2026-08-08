@@ -52,11 +52,13 @@ function readStoredValue<T>(key: string, serializedDefaultValue: string): T {
   }
 }
 
-function writeStoredValue(key: string, value: unknown) {
+function writeStoredValue(key: string, value: unknown): boolean {
   try {
     localStorage.setItem(key, JSON.stringify(value));
+    return true;
   } catch (error) {
     console.error(`Error occurred while setting ${key} in local storage:`, error);
+    return false;
   }
 }
 
@@ -112,7 +114,7 @@ function updateEntry<T>(key: string, entry: StorageEntry, updater: (oldValue: T)
  * const [value, setValue] = useLocalStorageState<string>('myKey', 'default');
  * setValue(() => 'newValue');
  */
-export function useLocalStorageState<T>(key: string, defaultValue: T) {
+function useLocalStorageStateBase<T>(key: string, defaultValue: T) {
   // Serializing also gives each new entry its own deep clone of the default value.
   const serializedDefaultValue = JSON.stringify(defaultValue);
   const entry = useMemo(
@@ -133,3 +135,26 @@ export function useLocalStorageState<T>(key: string, defaultValue: T) {
 
   return [state, setState] as const;
 }
+
+export const useLocalStorageState = Object.assign(useLocalStorageStateBase, {
+  /**
+   * Update the value in local storage and notify all `useLocalStorageState` hooks.
+   *
+   * @param key - local storage key
+   * @param value - local storage value
+   */
+  update(key: string, value: unknown): void {
+    const entry = storageEntries.get(key);
+    const persisted = writeStoredValue(key, value);
+    if (!persisted) {
+      return;
+    }
+
+    if (entry) {
+      entry.value = value;
+      for (const listener of entry.listeners) {
+        listener();
+      }
+    }
+  },
+});
