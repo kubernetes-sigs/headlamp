@@ -157,7 +157,7 @@
                     class="MuiBox-root css-1nkprdw"
                   />
                   <button
-                    aria-labelledby="cluster-appearance-label color-picker-button"
+                    aria-labelledby="cluster-appearance-label accent-color-label color-picker-button"
                     class="MuiButtonBase-root MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-irzb5y-MuiButtonBase-root-MuiButton-root"
                     id="color-picker-button"
                     tabindex="0"
@@ -196,7 +196,7 @@
                   class="MuiBox-root css-axw7ok"
                 >
                   <button
-                    aria-labelledby="cluster-appearance-label icon-picker-button"
+                    aria-labelledby="cluster-appearance-label cluster-icon-label icon-picker-button"
                     class="MuiButtonBase-root MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-irzb5y-MuiButtonBase-root-MuiButton-root"
                     id="icon-picker-button"
                     tabindex="0"
