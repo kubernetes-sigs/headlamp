@@ -266,10 +266,40 @@ export function getPercentStr(value: number, total: number) {
 }
 
 export function getReadyReplicas(item: Workload) {
+  if (item.kind === 'Job') {
+    return item.status.ready ?? item.status.active ?? 0;
+  }
+  if (item.kind === 'CronJob') {
+    return 0;
+  }
+  if (item.kind === 'JobSet') {
+    const replicatedJobs = (item.spec as any).replicatedJobs || [];
+    const statuses = (item.status as any).replicatedJobsStatus || [];
+    return replicatedJobs.reduce((sum: number, rj: any) => {
+      const parallelism = rj.template?.spec?.parallelism ?? 1;
+      const jobStatus = statuses.find((s: any) => s.name === rj.name);
+      const readyJobs = jobStatus?.ready || 0;
+      return sum + readyJobs * parallelism;
+    }, 0);
+  }
   return item.status.readyReplicas || item.status.numberReady || 0;
 }
 
 export function getTotalReplicas(item: Workload) {
+  if (item.kind === 'Job') {
+    return item.spec.parallelism ?? 1;
+  }
+  if (item.kind === 'CronJob') {
+    return 0;
+  }
+  if (item.kind === 'JobSet') {
+    const replicatedJobs = (item.spec as any).replicatedJobs || [];
+    return replicatedJobs.reduce((sum: number, rj: any) => {
+      const replicas = rj.replicas || 0;
+      const parallelism = rj.template?.spec?.parallelism ?? 1;
+      return sum + replicas * parallelism;
+    }, 0);
+  }
   return (
     item.spec.replicas ||
     item.status.currentNumberScheduled ||
