@@ -52,7 +52,7 @@ func main() {
 
 	conf, err := config.Parse(os.Args)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "fetching config:%v")
+		logger.Log(logger.LevelError, nil, err, "fetching config")
 		os.Exit(1)
 	}
 
@@ -380,7 +380,7 @@ func handleCacheAuthorization(
 func runListPlugins() {
 	conf, err := config.Parse(os.Args[2:])
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "fetching config:%v")
+		logger.Log(logger.LevelError, nil, err, "fetching config")
 		os.Exit(1)
 	}
 
