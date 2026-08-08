@@ -64,6 +64,17 @@ export function makePodStatusLabel(pod: Pod, showContainerStatus: boolean, t: TF
   const { reason, message: tooltip } = pod.getDetailedStatus();
 
   const containerStatuses = pod.status?.containerStatuses || [];
+  const allContainerStatuses = [
+    ...(pod.status?.initContainerStatuses ?? []),
+    ...containerStatuses,
+    ...(pod.status?.ephemeralContainerStatuses ?? []),
+  ];
+  const isOOMKilled = allContainerStatuses.some(
+    cs =>
+      cs.state?.terminated?.reason === 'OOMKilled' ||
+      cs.lastState?.terminated?.reason === 'OOMKilled'
+  );
+
   const containerIndicators = containerStatuses.map((cs, index) => {
     const { color, tooltip } = getContainerDisplayStatus(cs, t);
     return (
@@ -107,6 +118,18 @@ export function makePodStatusLabel(pod: Pod, showContainerStatus: boolean, t: TF
           </StatusLabel>
         </Box>
       </LightTooltip>
+      {isOOMKilled && (
+        <LightTooltip
+          title={t('translation|Container was terminated due to OOMKilled (Out of Memory)')}
+        >
+          <Box display="inline">
+            <StatusLabel status="error">
+              <Icon aria-hidden="true" icon="mdi:alert-circle" width="1.2rem" height="1.2rem" />
+              {t('translation|OOMKilled')}
+            </StatusLabel>
+          </Box>
+        </LightTooltip>
+      )}
       {showContainerStatus && containerIndicators.length > 0 && (
         <Box display="flex" gap={0.5}>
           {containerIndicators}
@@ -327,12 +350,22 @@ export function PodListRenderer(props: PodListProps) {
           gridTemplate: 'min-content',
           filterVariant: 'multi-select',
           label: t('translation|Status'),
-          // include ready condition status so the cell re-renders when icon state changes
+          // include ready condition, OOMKilled status so the cell re-renders when icon state changes
           getValue: pod => {
             const status = pod.getDetailedStatus();
             const readyCondition = (pod.status?.conditions || []).find(c => c.type === 'Ready');
             const phase = pod.status?.phase || '';
-            return `${phase}:${status.reason}:${readyCondition?.status ?? ''}`;
+            const allStatuses = [
+              ...(pod.status?.initContainerStatuses ?? []),
+              ...(pod.status?.containerStatuses ?? []),
+              ...(pod.status?.ephemeralContainerStatuses ?? []),
+            ];
+            const isOOMKilled = allStatuses.some(
+              cs =>
+                cs.state?.terminated?.reason === 'OOMKilled' ||
+                cs.lastState?.terminated?.reason === 'OOMKilled'
+            );
+            return `${phase}:${status.reason}:${readyCondition?.status ?? ''}:${isOOMKilled}`;
           },
           render: pod => makePodStatusLabel(pod, true, t),
         },
@@ -374,9 +407,31 @@ export function PodListRenderer(props: PodListProps) {
                     );
                   }
 
+                  const limitPercent = limit > 0 ? (cpu / limit) * 100 : 0;
+                  const isHighCpu = limitPercent >= 95;
+
                   return (
                     <Box display="flex" alignItems="center" width="100%">
                       <span style={{ whiteSpace: 'nowrap' }}>{`${aValue} ${aUnit}`}</span>
+                      {isHighCpu && (
+                        <LightTooltip
+                          title={t('translation|CPU Near Limit: {{ percent }}% of limit', {
+                            percent: limitPercent.toFixed(0),
+                          })}
+                        >
+                          <Box
+                            component="span"
+                            sx={{ display: 'inline-flex', ml: 0.5, color: 'warning.main' }}
+                          >
+                            <Icon
+                              icon="mdi:alert-outline"
+                              width="16"
+                              height="16"
+                              aria-label={t('translation|CPU Near Limit')}
+                            />
+                          </Box>
+                        </LightTooltip>
+                      )}
                       {tooltipLines.length > 0 && (
                         <Box component="span" sx={{ display: 'inline-flex', ml: 'auto' }}>
                           <TooltipIcon>
@@ -426,9 +481,51 @@ export function PodListRenderer(props: PodListProps) {
                     );
                   }
 
+                  const limitPercent = limit > 0 ? (memory / limit) * 100 : 0;
+                  const isOOMRisk = limitPercent >= 90;
+                  const isHighMemory = limitPercent >= 75 && limitPercent < 90;
+
                   return (
                     <Box display="flex" alignItems="center" width="100%">
                       <span style={{ whiteSpace: 'nowrap' }}>{`${aValue} ${aUnit}`}</span>
+                      {isOOMRisk && (
+                        <LightTooltip
+                          title={t('translation|OOM Risk: {{ percent }}% of limit', {
+                            percent: limitPercent.toFixed(0),
+                          })}
+                        >
+                          <Box
+                            component="span"
+                            sx={{ display: 'inline-flex', ml: 0.5, color: 'error.main' }}
+                          >
+                            <Icon
+                              icon="mdi:alert-circle"
+                              width="16"
+                              height="16"
+                              aria-label={t('translation|OOM Risk')}
+                            />
+                          </Box>
+                        </LightTooltip>
+                      )}
+                      {isHighMemory && (
+                        <LightTooltip
+                          title={t('translation|High Memory: {{ percent }}% of limit', {
+                            percent: Math.floor(limitPercent),
+                          })}
+                        >
+                          <Box
+                            component="span"
+                            sx={{ display: 'inline-flex', ml: 0.5, color: 'warning.main' }}
+                          >
+                            <Icon
+                              icon="mdi:alert-outline"
+                              width="16"
+                              height="16"
+                              aria-label={t('translation|High Memory')}
+                            />
+                          </Box>
+                        </LightTooltip>
+                      )}
                       {tooltipLines.length > 0 && (
                         <Box component="span" sx={{ display: 'inline-flex', ml: 'auto' }}>
                           <TooltipIcon>
