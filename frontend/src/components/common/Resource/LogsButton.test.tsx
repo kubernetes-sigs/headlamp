@@ -261,7 +261,7 @@ describe('LogsButton', () => {
         <LogsButton item={new Deployment(deploymentData as any)} />
       </TestContext>
     );
-    expect(screen.getByLabelText('translation|Show logs')).toBeInTheDocument();
+    expect(screen.getByLabelText('Show logs')).toBeInTheDocument();
   });
 
   it('renders the logs button for a StatefulSet', () => {
@@ -270,7 +270,7 @@ describe('LogsButton', () => {
         <LogsButton item={new StatefulSet(statefulSetData as any)} />
       </TestContext>
     );
-    expect(screen.getByLabelText('translation|Show logs')).toBeInTheDocument();
+    expect(screen.getByLabelText('Show logs')).toBeInTheDocument();
   });
 
   it('uses the Job spec.selector when launching logs for a Job', async () => {
@@ -282,7 +282,7 @@ describe('LogsButton', () => {
       </TestContext>
     );
 
-    const button = screen.getByLabelText('translation|Show logs');
+    const button = screen.getByLabelText('Show logs');
     expect(button).toBeInTheDocument();
     fireEvent.click(button);
 
@@ -324,7 +324,7 @@ describe('LogsButton', () => {
       </TestContext>
     );
 
-    const button = screen.getByLabelText('translation|Show logs');
+    const button = screen.getByLabelText('Show logs');
     fireEvent.click(button);
 
     const activityContent = mockActivityLaunch.mock.calls[0][0].content;
@@ -351,7 +351,7 @@ describe('LogsButton', () => {
         <LogsButton item={new Deployment(deploymentData as any)} />
       </TestContext>
     );
-    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    fireEvent.click(screen.getByLabelText('Show logs'));
     expect(mockActivityLaunch).toHaveBeenCalledWith(
       expect.objectContaining({
         id: 'logs-dep-123',
@@ -367,7 +367,7 @@ describe('LogsButton', () => {
         <LogsButton item={new Deployment(deploymentData as any)} />
       </TestContext>
     );
-    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    fireEvent.click(screen.getByLabelText('Show logs'));
     const activityContent = mockActivityLaunch.mock.calls[0][0].content;
     render(<TestContext>{activityContent}</TestContext>);
 
@@ -395,7 +395,7 @@ describe('LogsButton', () => {
         <LogsButton item={new Deployment(deploymentData as any)} />
       </TestContext>
     );
-    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    fireEvent.click(screen.getByLabelText('Show logs'));
     const activityContent = mockActivityLaunch.mock.calls[0][0].content;
     render(<TestContext>{activityContent}</TestContext>);
 
@@ -430,7 +430,7 @@ describe('LogsButton', () => {
         <LogsButton item={new Deployment(deploymentData as any)} />
       </TestContext>
     );
-    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    fireEvent.click(screen.getByLabelText('Show logs'));
     const activityContent = mockActivityLaunch.mock.calls[0][0].content;
     render(<TestContext>{activityContent}</TestContext>);
 
@@ -481,7 +481,7 @@ describe('LogsButton', () => {
         <LogsButton item={new Deployment(deploymentData as any)} />
       </TestContext>
     );
-    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    fireEvent.click(screen.getByLabelText('Show logs'));
     const activityContent = mockActivityLaunch.mock.calls[0][0].content;
     const { unmount } = render(<TestContext>{activityContent}</TestContext>);
 
@@ -578,7 +578,7 @@ describe('LogsButton', () => {
       </TestContext>
     );
 
-    fireEvent.click(screen.getByLabelText('translation|Show logs'));
+    fireEvent.click(screen.getByLabelText('Show logs'));
     const activityContent = mockActivityLaunch.mock.calls[0][0].content;
     render(<TestContext>{activityContent}</TestContext>);
 
