@@ -56,6 +56,10 @@ export function useShortcut(
 export function formatShortcutKey(key: string): string {
   if (!key) return '';
 
+  if (key.toLowerCase() === 'shift+/') {
+    return '?';
+  }
+
   return key
     .split('+')
     .map(part => {
