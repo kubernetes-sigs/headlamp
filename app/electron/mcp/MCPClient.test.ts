@@ -237,6 +237,34 @@ describe('MCPClient', () => {
     expect(closeSpy).not.toHaveBeenCalled();
   });
 
+  it('handleClustersChange does not restart client when clusters are only reordered', async () => {
+    const getTools = vi.fn().mockResolvedValue([]);
+    const close = vi.fn().mockResolvedValue(undefined);
+    const MultiServerMCPClientMock = vi.fn().mockImplementation(() => ({ getTools, close }));
+
+    vi.resetModules();
+    vi.doMock('@langchain/mcp-adapters', () => ({
+      MultiServerMCPClient: MultiServerMCPClientMock,
+    }));
+    vi.doMock('./MCPSettings', () => ({
+      makeMcpServersFromSettings: vi.fn().mockReturnValue({ serverA: {} }),
+      hasClusterDependentServers: vi.fn().mockReturnValue(true),
+    }));
+
+    const { default: MCPClient } = await import('./MCPClient');
+    const client = new MCPClient(cfgPath, settingsPath);
+
+    await client.initialize();
+    (client as any).currentClusters = ['cluster-a', 'cluster-b'];
+
+    await client.handleClustersChange(['cluster-b', 'cluster-a']);
+    await client.handleClustersChange(['cluster-a', 'cluster-b']);
+
+    expect(close).not.toHaveBeenCalled();
+    expect(MultiServerMCPClientMock).toHaveBeenCalledTimes(1);
+    expect((client as any).currentClusters).toEqual(['cluster-a', 'cluster-b']);
+  });
+
   it('handleClustersChange restarts client when cluster-dependent servers exist', async () => {
     const getToolsFirst = vi.fn().mockResolvedValue([{ name: 'a' }]);
     const closeFirst = vi.fn().mockResolvedValue(undefined);
@@ -277,12 +305,15 @@ describe('MCPClient', () => {
 
     // The MCP client constructor should have been called for initial setup and again for restart
     expect(MultiServerMCPClientMock).toHaveBeenCalledTimes(2);
+    expect(makeMcpServersFromSettings).toHaveBeenNthCalledWith(1, settingsPath, []);
+    expect(makeMcpServersFromSettings).toHaveBeenNthCalledWith(2, settingsPath, ['new-cluster']);
 
     // After restart, client should have been replaced
     const afterClientRef = (client as any).client;
     expect(afterClientRef).not.toBeNull();
     // And tools should reflect second initialization
     expect((client as any).clientTools).toEqual([{ name: 'b' }]);
+    expect((client as any).clusters).toEqual(['new-cluster']);
   });
 });
 
