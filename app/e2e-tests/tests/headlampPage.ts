@@ -27,10 +27,14 @@ export class HeadlampPage {
     // context.newPage(). Electron's CDP implementation does not support
     // Target.createTarget, so that call fails with
     // "Protocol error (Target.createTarget): Not supported" when this page
-    // belongs to an Electron BrowserWindow (PLAYWRIGHT_TEST_MODE=app).
-    const accessibilityResults = await new AxeBuilder({ page: this.page })
-      .setLegacyMode(true)
-      .analyze();
+    // belongs to an Electron BrowserWindow (PLAYWRIGHT_TEST_MODE=app). Only
+    // enable it there: legacy mode disables cross-origin iframe scanning, a
+    // coverage loss this page (a plain browser tab) doesn't need to take.
+    const axeBuilder = new AxeBuilder({ page: this.page });
+    if (process.env.PLAYWRIGHT_TEST_MODE === 'app') {
+      axeBuilder.setLegacyMode(true);
+    }
+    const accessibilityResults = await axeBuilder.analyze();
     const violations = accessibilityResults.violations.filter(
       v => v.impact === 'critical' || v.impact === 'serious'
     );
