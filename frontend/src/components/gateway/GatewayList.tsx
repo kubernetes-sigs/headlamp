@@ -27,6 +27,7 @@ export default function GatewayList() {
     <ResourceListView
       title={t('Gateways')}
       resourceClass={Gateway}
+      reflectInURL
       columns={[
         'name',
         'namespace',

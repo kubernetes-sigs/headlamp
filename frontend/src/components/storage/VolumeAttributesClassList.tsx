@@ -28,6 +28,7 @@ export default function VolumeAttributesClassList() {
         noNamespaceFilter: true,
       }}
       resourceClass={VolumeAttributesClass}
+      reflectInURL
       columns={[
         'name',
         {

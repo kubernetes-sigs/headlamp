@@ -26,6 +26,7 @@ export default function HTTPRouteList() {
     <ResourceListView
       title={t('HttpRoutes')}
       resourceClass={HTTPRoute}
+      reflectInURL
       columns={[
         'name',
         'namespace',

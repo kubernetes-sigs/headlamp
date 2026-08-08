@@ -175,6 +175,7 @@ function EventsSection() {
 
   return (
     <ResourceListView
+      reflectInURL
       title={t('glossary|Events')}
       headerProps={{
         noNamespaceFilter: false,
