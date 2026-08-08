@@ -22,6 +22,7 @@ import path from 'path';
 import { _electron, Page } from 'playwright';
 import { HeadlampPage } from './headlampPage';
 import { NamespacesPage } from './namespacesPage';
+import { dismissReleaseNotes } from './releaseNotesTestUtils';
 
 const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'electron';
 const electronPath = path.resolve(__dirname, `../../node_modules/.bin/${electronExecutable}`);
@@ -59,7 +60,9 @@ test.beforeAll(async () => {
     },
   });
 
-  electronPage = await electronApp.firstWindow();
+  // Otherwise the Release Notes modal can open (see #6966) and its
+  // backdrop blocks clicks on the page underneath.
+  electronPage = await dismissReleaseNotes(electronApp);
 });
 
 // The app holds a single-instance lock, so it must be closed or a later

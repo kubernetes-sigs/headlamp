@@ -35,10 +35,15 @@ export default function ReleaseNotes() {
   const [releaseFetchFailed, setReleaseFetchFailed] = React.useState<boolean>(false);
   const [skipFetch, setSkipFetch] = React.useState(false);
 
-  // network controller this makes sure if the github request is still lying around we
-  // abort it on fetch release skip press button click
-  const controller = new AbortController();
-  const signal = controller.signal;
+  // Holds the controller for whichever fetch is currently in flight, so
+  // skipUpdateHandler below can always abort the real request. A plain
+  // `const controller = new AbortController()` in the render body would be
+  // re-created every render; by the time a user actually clicks Skip (after
+  // the 5s timeout has already triggered a re-render), that variable would
+  // point at a controller that was never passed to any fetch() call, and
+  // abort() on it would silently do nothing to the request actually in
+  // flight.
+  const controllerRef = React.useRef<AbortController | null>(null);
 
   React.useEffect(() => {
     if (desktopApi) {
@@ -65,6 +70,10 @@ export default function ReleaseNotes() {
             const timeoutID = setTimeout(() => {
               setFetchingRelease(true);
             }, 5000);
+
+            const controller = new AbortController();
+            controllerRef.current = controller;
+            const signal = controller.signal;
 
             const githubReleaseURL = `https://api.github.com/repos/kinvolk/headlamp/releases`;
 
@@ -179,21 +188,30 @@ export default function ReleaseNotes() {
 
   return (
     <>
-      {
+      {/* Suppressed while the modal is open: both can be set from the same
+          fetch, but the Snackbar's default z-index (theme.zIndex.snackbar)
+          sits above the dialog's (theme.zIndex.modal), so it would render on
+          top of — and remain mouse-clickable behind — a modal that's
+          otherwise supposed to be exclusive. */}
+      {!releaseNotes && (
         <UpdatePopup
           releaseDownloadURL={releaseDownloadURL || ''}
           fetchingRelease={fetchingRelease}
           releaseFetchFailed={releaseFetchFailed}
           skipUpdateHandler={() => {
-            // abort the github release fetch
-            controller.abort();
-            setSkipFetch(false);
+            // abort the github release fetch that's actually in flight
+            controllerRef.current?.abort();
+            setSkipFetch(true);
             setFetchingRelease(false);
           }}
         />
-      }
+      )}
       {releaseNotes && (
-        <ReleaseNotesModal releaseNotes={releaseNotes} appVersion={getAppVersion()} />
+        <ReleaseNotesModal
+          releaseNotes={releaseNotes}
+          appVersion={getAppVersion()}
+          onClose={() => setReleaseNotes('')}
+        />
       )}
     </>
   );

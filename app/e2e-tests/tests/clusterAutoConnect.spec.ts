@@ -39,6 +39,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { _electron, Page } from 'playwright';
+import { dismissReleaseNotes } from './releaseNotesTestUtils';
 
 const CLUSTER_NAME = 'headlamp-e2e-connect';
 const EXEC_KUBECONFIG = path.join(os.tmpdir(), `${CLUSTER_NAME}.kubeconfig`);
@@ -127,7 +128,9 @@ test.beforeAll(async () => {
       KUBECONFIG: MERGED_KUBECONFIG,
     },
   });
-  electronPage = await electronApp.firstWindow();
+  // Otherwise the Release Notes modal can open (see #6966) and its
+  // backdrop blocks clicks on the page underneath.
+  electronPage = await dismissReleaseNotes(electronApp);
   await electronPage.waitForLoadState('load');
   // The app uses file:// with hash routing: file:///...index.html#/
   // Capture the base file URL (without hash) for navigation.

@@ -65,9 +65,6 @@ function UpdatePopup({
         }}
         autoHideDuration={5000}
         message={t('translation|Fetching release information…')}
-        ContentProps={{
-          'aria-describedby': 'updatePopup',
-        }}
         open={fetchingRelease}
         action={
           <React.Fragment>
@@ -99,9 +96,6 @@ function UpdatePopup({
           setCloseSnackError(true);
         }}
         message={t('translation|Failed to fetch release information')}
-        ContentProps={{
-          'aria-describedby': 'updatePopup',
-        }}
         autoHideDuration={6000}
       />
     );
@@ -118,10 +112,10 @@ function UpdatePopup({
         horizontal: 'right',
       }}
       open={show}
-      autoHideDuration={100000}
-      ContentProps={{
-        'aria-describedby': 'updatePopup',
-      }}
+      // "An update is available" isn't urgent, so this is announced
+      // politely rather than interrupting whatever a screen reader is
+      // currently reading (SnackbarContent defaults to role="alert").
+      ContentProps={{ role: 'status' }}
       message={t('translation|An update is available')}
       action={
         <React.Fragment>
@@ -133,9 +127,22 @@ function UpdatePopup({
                   color: 'inherit',
                   textTransform: 'none',
                 }}
+                aria-describedby="update-popup-opens-new-tab"
               >
                 {t('translation|Read more')}
               </Button>
+              <Box
+                id="update-popup-opens-new-tab"
+                sx={{
+                  position: 'absolute',
+                  width: 1,
+                  height: 1,
+                  overflow: 'hidden',
+                  clip: 'rect(0 0 0 0)',
+                }}
+              >
+                {t('translation|Opens in a new tab')}
+              </Box>
             </Box>
             <Box mb={0.5}>
               <Button
