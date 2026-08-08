@@ -258,13 +258,13 @@ const TemplateWithFilter: StoryFn<{
   const storeWithFilterAndSettings = configureStore({
     reducer: (
       state = {
-        filter: { namespaces: new Set<string>() },
+        filter: { namespaces: [] },
         config: { settings: { tableRowsPerPageOptions: [10, 20, 50, 100] } },
       }
     ) => state,
     preloadedState: {
       filter: {
-        namespaces: new Set(namespaces),
+        namespaces,
       },
       config: {
         settings: {

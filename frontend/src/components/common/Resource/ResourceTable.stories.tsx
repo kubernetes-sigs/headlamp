@@ -53,7 +53,7 @@ const TemplateWithFilter: StoryFn<{
   const storeWithFilterAndSettings = configureStore({
     reducer: (
       state = {
-        filter: { namespaces: new Set<string>() },
+        filter: { namespaces: [] },
         config: { settings: { tableRowsPerPageOptions: [10, 20, 50, 100] } },
         ui: { ...uiSlice.getInitialState() },
         drawerMode: { isDetailDrawerEnabled: false },
@@ -63,7 +63,7 @@ const TemplateWithFilter: StoryFn<{
     preloadedState: {
       ui: { ...uiSlice.getInitialState() },
       filter: {
-        namespaces: new Set(namespaces),
+        namespaces,
       },
       config: {
         settings: {

@@ -28,15 +28,15 @@ export default {
 } as Meta;
 
 const Template: StoryFn<PureNamespacesAutocompleteProps> = args => {
-  const [filter, setFilter] = React.useState<{ namespaces: Set<string>; search: string }>({
-    namespaces: new Set([]),
+  const [filter, setFilter] = React.useState<{ namespaces: string[]; search: string }>({
+    namespaces: [],
     search: '',
   });
   const namespaceNames = React.useState<string[]>(['default', 'kube-system', 'kube-public'])[0];
 
   const onChange = (event: React.ChangeEvent<{}>, newValue: string[]) => {
     setFilter({
-      namespaces: new Set(newValue),
+      namespaces: newValue,
       search: '',
     });
   };
