@@ -193,11 +193,16 @@ func unescapeCacheKeySegment(s string) string {
 // Any code that parses or otherwise manipulates the key format (e.g. the
 // namespace stripping in cache invalidation) must stay consistent with this
 // encoding to avoid the two sides silently drifting out of sync.
-func buildCacheKey(apiGroup, kind, namespace, contextID string) string {
-	return escapeCacheKeySegment(apiGroup) + "+" +
+func buildCacheKey(apiGroup, kind, namespace, contextID, query string) string {
+	key := escapeCacheKeySegment(apiGroup) + "+" +
 		escapeCacheKeySegment(kind) + "+" +
 		escapeCacheKeySegment(namespace) + "+" +
 		escapeCacheKeySegment(contextID)
+	if query != "" {
+		key += "+" + escapeCacheKeySegment(query)
+	}
+
+	return key
 }
 
 // GenerateKey function helps to generate a unique key based on the request from the client
@@ -215,9 +220,10 @@ func GenerateKey(url *url.URL, contextID string) (string, error) {
 		Kind:      kind,
 		Namespace: namespace,
 		Context:   contextID,
+		Query:     url.Query().Encode(),
 	}
 
-	return buildCacheKey(apiGroup, k.Kind, k.Namespace, k.Context), nil
+	return buildCacheKey(apiGroup, k.Kind, k.Namespace, k.Context, k.Query), nil
 }
 
 // SetHeader function help to serve response from cache to ensure the client
@@ -345,7 +351,7 @@ func redactContextKey(key string) string {
 
 // redactCacheKey returns a redacted version of the cache key (which contains the context key as its last segment).
 func redactCacheKey(key string) string {
-	parts := strings.SplitN(key, "+", 4)
+	parts := strings.SplitN(key, "+", 5)
 
 	if len(parts) >= 4 {
 		parts[3] = redactContextKey(parts[3])
