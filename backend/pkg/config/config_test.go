@@ -132,6 +132,30 @@ func TestParseBasic(t *testing.T) {
 	}
 }
 
+func TestParseCacheWatchResources(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   []string
+		expect string
+	}{
+		{"default_empty", nil, ""},
+		{
+			"custom_list",
+			[]string{"go run ./cmd", "--cache-watch-resources=pods,ingresses,networkpolicies"},
+			"pods,ingresses,networkpolicies",
+		},
+		{"single_resource", []string{"go run ./cmd", "--cache-watch-resources=ingresses"}, "ingresses"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expect, conf.CacheWatchResources)
+		})
+	}
+}
+
 var ParseWithEnvTests = []struct {
 	name   string
 	args   []string

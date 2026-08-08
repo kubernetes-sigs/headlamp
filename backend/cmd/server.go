@@ -78,6 +78,31 @@ func main() {
 	StartHeadlampServer(headlampConfig)
 }
 
+// parseCacheWatchResources splits, trims, lowercases, and deduplicates
+// the comma-separated resource list. Returns nil for empty input so that
+// the caller falls back to the default (watch all resources).
+func parseCacheWatchResources(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+
+	parts := strings.Split(raw, ",")
+	resources := make([]string, 0, len(parts))
+
+	for _, p := range parts {
+		r := strings.ToLower(strings.TrimSpace(p))
+		if r != "" {
+			resources = append(resources, r)
+		}
+	}
+
+	if len(resources) == 0 {
+		return nil
+	}
+
+	return resources
+}
+
 // buildHeadlampCFG maps the parsed config into the struct the backend uses.
 func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextStore) *headlampconfig.HeadlampCFG {
 	return &headlampconfig.HeadlampCFG{
@@ -87,6 +112,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		SkippedKubeContexts:    conf.SkippedKubeContexts,
 		ListenAddr:             conf.ListenAddr,
 		CacheEnabled:           conf.CacheEnabled,
+		CacheWatchResources:    parseCacheWatchResources(conf.CacheWatchResources),
 		Port:                   conf.Port,
 		DevMode:                conf.DevMode,
 		StaticDir:              conf.StaticDir,
@@ -321,7 +347,7 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 		return
 	}
 
-	k8cache.CheckForChanges(k8sResponseCache, contextKey, *kContext)
+	k8cache.CheckForChanges(k8sResponseCache, contextKey, *kContext, c.CacheWatchResources)
 
 	next.ServeHTTP(rcw, r)
 
