@@ -16,6 +16,7 @@
 
 import { Icon } from '@iconify/react';
 import { Tooltip } from '@mui/material';
+import Alert from '@mui/material/Alert';
 import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Checkbox from '@mui/material/Checkbox';
@@ -27,9 +28,13 @@ import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
-import { loadClusterSettings } from '../../helpers/clusterSettings';
 import { useCluster, useClustersConf } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
+import {
+  getEffectiveNamespaces,
+  getNamespaceDiscoveryAlert,
+  useDiscoveredNamespaces,
+} from '../../lib/k8s/useDiscoveredNamespaces';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 
@@ -197,31 +202,71 @@ export function NamespacesAutocomplete() {
   const history = useHistory();
   const location = useLocation();
   const dispatch = useDispatch();
+  const { t } = useTranslation(['translation']);
   const filter = useTypedSelector(state => state.filter);
   const cluster = useCluster();
-  const [namespaceNames, setNamespaceNames] = React.useState<string[]>([]);
+  const {
+    data: discovery,
+    isLoading: discoveryLoading,
+    isFetching: discoveryFetching,
+    isError: discoveryIsError,
+  } = useDiscoveredNamespaces(cluster);
 
-  React.useEffect(() => {
-    const settings = loadClusterSettings(cluster || '');
-    const allowedNamespaces = settings?.allowedNamespaces || [];
-    if (allowedNamespaces.length > 0) {
-      setNamespaceNames(allowedNamespaces);
-    }
-  }, [cluster]);
+  const effectiveNamespaces = useMemo(
+    () => getEffectiveNamespaces(cluster, discovery),
+    [cluster, discovery]
+  );
+
+  const discoveryError = getNamespaceDiscoveryAlert({
+    effectiveNamespaces,
+    discovery,
+    isLoading: discoveryLoading,
+    isFetching: discoveryFetching,
+    isError: discoveryIsError,
+    t,
+  });
 
   const onChange = (event: React.ChangeEvent<{}>, newValue: string[]) => {
     addQuery({ namespace: newValue.join(' ') }, { namespace: '' }, history, location, '');
     dispatch(setNamespaceFilter(newValue));
   };
 
-  return namespaceNames.length > 0 ? (
-    <PureNamespacesAutocomplete
-      namespaceNames={namespaceNames}
-      onChange={onChange}
-      filter={filter}
-    />
-  ) : (
-    <NamespacesFromClusterAutocomplete onChange={onChange} filter={filter} />
+  if (effectiveNamespaces.length > 0) {
+    return (
+      <PureNamespacesAutocomplete
+        namespaceNames={effectiveNamespaces}
+        onChange={onChange}
+        filter={filter}
+      />
+    );
+  }
+
+  if (discoveryLoading || discoveryFetching) {
+    return (
+      <Box width="15rem">
+        <TextField
+          variant="outlined"
+          size="small"
+          label={t('Namespaces')}
+          fullWidth
+          disabled
+          InputLabelProps={{ shrink: true }}
+          placeholder={t('Loading...')}
+        />
+      </Box>
+    );
+  }
+
+  // Legacy: live namespace list from the API (cluster-admin and default path).
+  return (
+    <>
+      {discoveryError && (
+        <Alert severity="warning" sx={{ mb: 1, maxWidth: '15rem' }}>
+          {discoveryError}
+        </Alert>
+      )}
+      <NamespacesFromClusterAutocomplete onChange={onChange} filter={filter} />
+    </>
   );
 }
 

@@ -14,11 +14,17 @@
  * limitations under the License.
  */
 
+import Alert from '@mui/material/Alert';
+import Box from '@mui/material/Box';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { loadClusterSettings } from '../../helpers/clusterSettings';
 import { useCluster } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
+import {
+  getEffectiveNamespaces,
+  getNamespaceDiscoveryAlert,
+  useDiscoveredNamespaces,
+} from '../../lib/k8s/useDiscoveredNamespaces';
 import { StatusLabel } from '../common/Label';
 import Link from '../common/Link';
 import { MetadataDictGrid } from '../common/Resource';
@@ -30,25 +36,27 @@ import {
 import CreateNamespaceButton from './CreateNamespaceButton';
 
 export default function NamespacesList() {
-  const { t } = useTranslation(['glossary', 'translation']);
+  const { t, i18n } = useTranslation(['glossary', 'translation']);
   const cluster = useCluster();
-  // Use the metadata.name field to match the expected format of the ResourceTable component.
-  const [allowedNamespaces, setAllowedNamespaces] = React.useState<
-    { metadata: { name: string } }[]
-  >([]);
+  const {
+    data: discovery,
+    isLoading: discoveryLoading,
+    isFetching: discoveryFetching,
+    isError: discoveryIsError,
+  } = useDiscoveredNamespaces(cluster);
+  const effectiveNamespaces = React.useMemo(
+    () => getEffectiveNamespaces(cluster, discovery),
+    [cluster, discovery]
+  );
+  const useDiscoveredTable = effectiveNamespaces.length > 0;
 
-  React.useEffect(() => {
-    if (cluster) {
-      const namespaces = loadClusterSettings(cluster)?.allowedNamespaces || [];
-      setAllowedNamespaces(
-        namespaces.map(namespace => ({
-          metadata: {
-            name: namespace,
-          },
-        }))
-      );
-    }
-  }, [cluster]);
+  const tableNamespaceItems = React.useMemo(
+    () =>
+      effectiveNamespaces.map(namespace => ({
+        metadata: { name: namespace },
+      })),
+    [effectiveNamespaces]
+  );
 
   function makeStatusLabel(namespace: Namespace) {
     const status = namespace.status.phase;
@@ -58,7 +66,7 @@ export default function NamespacesList() {
   const resourceTableProps:
     | ResourceTableProps<Namespace>
     | ResourceTableFromResourceClassProps<typeof Namespace> = React.useMemo(() => {
-    if (allowedNamespaces.length > 0) {
+    if (useDiscoveredTable) {
       return {
         columns: [
           {
@@ -89,7 +97,7 @@ export default function NamespacesList() {
             getValue: () => 'Unknown',
           },
         ],
-        data: allowedNamespaces as unknown as Namespace[],
+        data: tableNamespaceItems as unknown as Namespace[],
       } satisfies ResourceTableProps<Namespace>;
     }
     return {
@@ -119,17 +127,33 @@ export default function NamespacesList() {
         'age',
       ],
     } satisfies ResourceTableFromResourceClassProps<typeof Namespace>;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allowedNamespaces]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- column labels must refresh on locale change
+  }, [useDiscoveredTable, tableNamespaceItems, i18n.language]);
+
+  const discoveryError = getNamespaceDiscoveryAlert({
+    effectiveNamespaces,
+    discovery,
+    isLoading: discoveryLoading,
+    isFetching: discoveryFetching,
+    isError: discoveryIsError,
+    t,
+  });
 
   return (
-    <ResourceListView
-      title={t('Namespaces')}
-      headerProps={{
-        titleSideActions: [<CreateNamespaceButton />],
-        noNamespaceFilter: true,
-      }}
-      {...(resourceTableProps as ResourceTableProps<Namespace>)}
-    />
+    <>
+      {discoveryError && (
+        <Box mb={2}>
+          <Alert severity="warning">{discoveryError}</Alert>
+        </Box>
+      )}
+      <ResourceListView
+        title={t('Namespaces')}
+        headerProps={{
+          titleSideActions: [<CreateNamespaceButton />],
+          noNamespaceFilter: true,
+        }}
+        {...(resourceTableProps as ResourceTableProps<Namespace>)}
+      />
+    </>
   );
 }

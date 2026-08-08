@@ -919,7 +919,7 @@ describe('apiProxy', () => {
         .reply(404, { message: 'Not Found' });
 
       const userInfo = await apiProxy.getClusterUserInfo(clusterName);
-      expect(userInfo).toEqual({ username: clusterName });
+      expect(userInfo).toEqual({ username: clusterName, isClusterNamePlaceholder: true });
     });
 
     it('Falls back to cluster name when both APIs return no user info', async () => {
@@ -927,7 +927,7 @@ describe('apiProxy', () => {
       nock(baseApiUrl).post(`/clusters/${clusterName}${apiPath}`).reply(200, {});
 
       const userInfo = await apiProxy.getClusterUserInfo(clusterName);
-      expect(userInfo).toEqual({ username: clusterName });
+      expect(userInfo).toEqual({ username: clusterName, isClusterNamePlaceholder: true });
     });
   });
 

@@ -31,7 +31,6 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation, useRouteMatch } from 'react-router';
 import { FixedSizeList } from 'react-window';
-import { loadClusterSettings } from '../../helpers/clusterSettings';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import ConfigMap from '../../lib/k8s/configMap';
 import CronJob from '../../lib/k8s/cronJob';
@@ -50,6 +49,10 @@ import ReplicaSet from '../../lib/k8s/replicaSet';
 import Service from '../../lib/k8s/service';
 import ServiceAccount from '../../lib/k8s/serviceAccount';
 import StatefulSet from '../../lib/k8s/statefulSet';
+import {
+  getEffectiveNamespaces,
+  useDiscoveredNamespacesMap,
+} from '../../lib/k8s/useDiscoveredNamespaces';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getDefaultRoutes } from '../../lib/router/getDefaultRoutes';
 import { getClusterPrefixedPath } from '../../lib/util';
@@ -183,6 +186,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
   const [query, setQuery] = useState(defaultValue ?? '');
   const clusters = useClustersConf() ?? {};
   const selectedClusters = useSelectedClusters();
+  const { map: discoveryMap } = useDiscoveredNamespacesMap(selectedClusters);
   const drawerEnabled = useTypedSelector(state => state?.drawerMode?.isDetailDrawerEnabled);
 
   const [recent, bump] = useRecent('search-recent-items');
@@ -198,7 +202,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
     const knownNamespaces = new Set<string>(
       [
         ...namespaceItems.map(n => n.metadata.name),
-        ...selectedClusters.flatMap(c => loadClusterSettings(c)?.allowedNamespaces ?? []),
+        ...selectedClusters.flatMap(c => getEffectiveNamespaces(c, discoveryMap[c])),
       ].filter(Boolean)
     );
 
@@ -240,7 +244,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
       .forEach(addOption);
 
     return options;
-  }, [query, selectedClusters, namespaceItems, dispatch, t]);
+  }, [query, selectedClusters, namespaceItems, dispatch, t, discoveryMap]);
   const isMap = useRouteMatch(getClusterPrefixedPath(getDefaultRoutes().map?.path));
   const location = useLocation();
   const items = useMemo(
