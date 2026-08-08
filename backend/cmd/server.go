@@ -98,6 +98,8 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		EnableClusterInventory: conf.EnableClusterInventory,
 		AllowKubeconfigChanges: conf.AllowKubeconfigChanges,
 		WatchPluginsChanges:    conf.WatchPluginsChanges,
+		EnablePluginManager:    conf.EnablePluginManager,
+		PluginManagerConfigMap: conf.PluginManagerConfigMap,
 		KubeConfigStore:        kubeConfigStore,
 		BaseURL:                conf.BaseURL,
 		ProxyURLs: func() []string {
