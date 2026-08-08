@@ -22,11 +22,16 @@ import {
   frFR,
   heIL,
   hiIN,
+  huHU,
+  idID,
   itIT,
   jaJP,
   koKR,
+  nlNL,
+  plPL,
   ptPT,
   ruRU,
+  trTR,
   urPK,
   zhCN,
   zhTW,
@@ -47,9 +52,17 @@ function getLocale(locale: string | undefined): typeof enUS {
 
   const LOCALES = {
     en: enUS,
+    cs: enUS, // @todo: material ui needs a translation for this.
+    hu: huHU,
+    id: idID,
+    nl: nlNL,
+    pl: plPL,
     pt: ptPT,
+    'pt-br': ptPT,
     ru: ruRU,
     es: esES,
+    sv: enUS, // @todo: material ui needs a translation for this.
+    tr: trTR,
     de: deDE,
     ta: enUS, // @todo: material ui needs a translation for this.
     hi: hiIN,
@@ -66,7 +79,13 @@ function getLocale(locale: string | undefined): typeof enUS {
 
   type LocalesType =
     | 'en'
+    | 'cs'
+    | 'hu'
+    | 'id'
+    | 'nl'
+    | 'pl'
     | 'pt'
+    | 'pt-br'
     | 'ru'
     | 'es'
     | 'ta'
@@ -80,7 +99,9 @@ function getLocale(locale: string | undefined): typeof enUS {
     | 'zh'
     | 'ar'
     | 'ur'
-    | 'he';
+    | 'he'
+    | 'sv'
+    | 'tr';
 
   return normalizedLocale in LOCALES ? LOCALES[normalizedLocale as LocalesType] : LOCALES['en'];
 }

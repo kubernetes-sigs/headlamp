@@ -17,6 +17,7 @@
 import { error } from 'console';
 import fs from 'fs';
 import * as filesFilter from '../filesFilter/filesFilter';
+import { supportedLanguages } from './config';
 
 const path = require('node:path');
 const allowlist = require('./allowlist.json');
@@ -133,4 +134,29 @@ describe('Test for non-intentional repeating translation keys', () => {
     const result = await checkKeys();
     expect(result).toBe(true);
   });
+});
+
+describe('additional locales', () => {
+  const localeDirectories = {
+    cs: 'cs',
+    hu: 'hu',
+    id: 'id',
+    nl: 'nl',
+    pl: 'pl',
+    'pt-BR': 'pt-br',
+    sv: 'sv',
+    tr: 'tr',
+  };
+
+  test.each(Object.entries(localeDirectories))(
+    'registers %s with complete namespace files',
+    (locale, directory) => {
+      expect(supportedLanguages).toHaveProperty(locale);
+      for (const namespace of ['app', 'glossary', 'translation']) {
+        const filename = path.resolve('src', 'i18n', 'locales', directory, `${namespace}.json`);
+        const translations = JSON.parse(fs.readFileSync(filename, 'utf8'));
+        expect(Object.values(translations).some(value => value !== '')).toBe(true);
+      }
+    }
+  );
 });
