@@ -3,7 +3,6 @@ package serviceproxy //nolint
 import (
 	"context"
 	"errors"
-	"io"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,9 +25,11 @@ func TestHandleServiceProxy(t *testing.T) {
 		proxyService   *proxyService
 		requestURI     string
 		mockResponse   string
+		mockHeader     string
 		mockStatusCode int
 		expectedCode   int
 		expectedBody   string
+		expectedHeader string
 		useMockServer  bool
 	}{
 		// Success cases
@@ -37,9 +38,11 @@ func TestHandleServiceProxy(t *testing.T) {
 			proxyService:   &proxyService{URIPrefix: "http://example.com"},
 			requestURI:     "/test",
 			mockResponse:   "Hello, World!",
+			mockHeader:     "text/plain",
 			mockStatusCode: http.StatusOK,
 			expectedCode:   http.StatusOK,
 			expectedBody:   "Hello, World!",
+			expectedHeader: "text/plain",
 			useMockServer:  true,
 		},
 		{
@@ -47,9 +50,11 @@ func TestHandleServiceProxy(t *testing.T) {
 			proxyService:   &proxyService{URIPrefix: "http://api.example.com"},
 			requestURI:     "/api/v1/data",
 			mockResponse:   `{"status": "success", "data": "test"}`,
+			mockHeader:     "application/json",
 			mockStatusCode: http.StatusOK,
 			expectedCode:   http.StatusOK,
 			expectedBody:   `{"status": "success", "data": "test"}`,
+			expectedHeader: "application/json",
 			useMockServer:  true,
 		},
 		{
@@ -57,9 +62,11 @@ func TestHandleServiceProxy(t *testing.T) {
 			proxyService:   &proxyService{URIPrefix: "https://service.example.com"},
 			requestURI:     "/api?param=value&test=123",
 			mockResponse:   "Query processed",
+			mockHeader:     "text/plain",
 			mockStatusCode: http.StatusOK,
 			expectedCode:   http.StatusOK,
 			expectedBody:   "Query processed",
+			expectedHeader: "text/plain",
 			useMockServer:  true,
 		},
 		{
@@ -67,9 +74,11 @@ func TestHandleServiceProxy(t *testing.T) {
 			proxyService:   &proxyService{URIPrefix: "http://empty.example.com"},
 			requestURI:     "/empty",
 			mockResponse:   "",
+			mockHeader:     "text/plain",
 			mockStatusCode: http.StatusOK,
 			expectedCode:   http.StatusOK,
 			expectedBody:   "",
+			expectedHeader: "text/plain",
 			useMockServer:  true,
 		},
 		// Error cases
@@ -78,9 +87,11 @@ func TestHandleServiceProxy(t *testing.T) {
 			proxyService:   &proxyService{URIPrefix: "http://example.com"},
 			requestURI:     "/notfound",
 			mockResponse:   "error response",
+			mockHeader:     "text/plain",
 			mockStatusCode: http.StatusNotFound,
-			expectedCode:   http.StatusInternalServerError,
-			expectedBody:   "failed HTTP GET, status code 404\n",
+			expectedCode:   http.StatusNotFound,
+			expectedBody:   "error response",
+			expectedHeader: "text/plain",
 			useMockServer:  true,
 		},
 		{
@@ -88,9 +99,11 @@ func TestHandleServiceProxy(t *testing.T) {
 			proxyService:   &proxyService{URIPrefix: "http://example.com"},
 			requestURI:     "/error",
 			mockResponse:   "error response",
+			mockHeader:     "text/plain",
 			mockStatusCode: http.StatusInternalServerError,
 			expectedCode:   http.StatusInternalServerError,
-			expectedBody:   "failed HTTP GET, status code 500\n",
+			expectedBody:   "error response",
+			expectedHeader: "text/plain",
 			useMockServer:  true,
 		},
 		{
@@ -120,6 +133,7 @@ func TestHandleServiceProxy(t *testing.T) {
 			// Create a mock HTTP server for cases that need it
 			if tt.useMockServer {
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.Header().Set("Content-Type", tt.mockHeader)
 					w.WriteHeader(tt.mockStatusCode)
 
 					if _, err := w.Write([]byte(tt.mockResponse)); err != nil {
@@ -139,22 +153,26 @@ func TestHandleServiceProxy(t *testing.T) {
 
 			assert.Equal(t, tt.expectedCode, w.Code)
 			assert.Equal(t, tt.expectedBody, w.Body.String())
+
+			if tt.expectedHeader != "" {
+				assert.Equal(t, tt.expectedHeader, w.Header().Get("Content-Type"))
+			}
 		})
 	}
 }
 
 type mockServiceConnection struct {
-	get func(ctx context.Context, requestURI string, w io.Writer) error
+	get func(ctx context.Context, requestURI string, w http.ResponseWriter) error
 }
 
-func (m mockServiceConnection) Get(ctx context.Context, requestURI string, w io.Writer) error {
+func (m mockServiceConnection) Get(ctx context.Context, requestURI string, w http.ResponseWriter) error {
 	return m.get(ctx, requestURI, w)
 }
 
 func TestHandleServiceProxyDoesNotWriteErrorAfterPartialStream(t *testing.T) {
 	w := httptest.NewRecorder()
 	conn := mockServiceConnection{
-		get: func(ctx context.Context, requestURI string, out io.Writer) error {
+		get: func(ctx context.Context, requestURI string, out http.ResponseWriter) error {
 			if _, err := out.Write([]byte("partial")); err != nil {
 				return err
 			}
@@ -172,7 +190,7 @@ func TestHandleServiceProxyDoesNotWriteErrorAfterPartialStream(t *testing.T) {
 func TestHandleServiceProxyWritesErrorBeforeStreamStarts(t *testing.T) {
 	w := httptest.NewRecorder()
 	conn := mockServiceConnection{
-		get: func(ctx context.Context, requestURI string, out io.Writer) error {
+		get: func(ctx context.Context, requestURI string, out http.ResponseWriter) error {
 			return errors.New("stream aborted")
 		},
 	}
@@ -181,6 +199,23 @@ func TestHandleServiceProxyWritesErrorBeforeStreamStarts(t *testing.T) {
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
 	assert.Equal(t, "stream aborted\n", w.Body.String())
+}
+
+func TestHandleServiceProxyWritesErrorWhenUpstreamBodyFailsBeforeStreamStarts(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/plain")
+		w.Header().Set("Content-Length", "5")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	conn := NewConnection(&proxyService{URIPrefix: server.URL})
+	w := httptest.NewRecorder()
+
+	handleServiceProxy(context.Background(), conn, "/", w)
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "streaming response")
 }
 
 func TestDisableResponseCaching(t *testing.T) {

@@ -16,23 +16,35 @@
 
 import Alert from '@mui/material/Alert';
 import AlertTitle from '@mui/material/AlertTitle';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import CRD from '../../lib/k8s/crd';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import { useNamespaces } from '../../redux/filterSlice';
 import { EmptyContent as Empty, Link, Loader, ResourceListView, ShowHideLabel } from '../common/';
+import { fingerprint, sortKey } from './crInstancesKey';
 
-function CrInstancesView({ crds }: { crds: CRD[]; key: string }) {
+interface ClassifiedCrd {
+  crd: CRD;
+  crdClass: NonNullable<ReturnType<CRD['makeCRClassOrNull']>>;
+  // Computed once per CRD during classification so the O(n log n) sort
+  // comparisons and the remount-key fingerprint share the same cached key
+  // instead of recomputing `sortKey(crd)` over and over. Named distinctly
+  // from the imported helper so reading the field can't be confused with
+  // a function call.
+  crdSortKey: string;
+}
+
+function CrInstancesView({ classified }: { classified: ClassifiedCrd[] }) {
   const { t } = useTranslation(['glossary', 'translation']);
 
   const namespaces = useNamespaces();
-  const dataClassCrds = crds.map(crd => {
-    const crdClass = crd.makeCRClass();
+  const dataClassCrds = classified.map(({ crd, crdClass }) => {
     const data = crdClass.useList({ cluster: crd.cluster, namespace: namespaces });
     return { data, crdClass, crd };
   });
 
+  const crds = classified.map(it => it.crd);
   const queries = dataClassCrds.map(it => it.data);
 
   const [isWarningClosed, setIsWarningClosed] = useState(false);
@@ -154,6 +166,23 @@ export function CrInstanceList() {
     isLoading: isLoadingCRDs,
   } = CRD.useList({ namespace: useNamespaces() });
 
+  // The child calls `useList` per entry, so iteration order must be stable
+  // across fetches, otherwise hook state shuffles. Sort by cluster-qualified
+  // id and derive `remountKey` from the same sorted list so a reorder doesn't
+  // remount and a real membership change does (#4824).
+  const classified = useMemo<ClassifiedCrd[]>(() => {
+    if (!crds) return [];
+    const result: ClassifiedCrd[] = [];
+    for (const crd of crds) {
+      const crdClass = crd.makeCRClassOrNull();
+      if (crdClass) result.push({ crd, crdClass, crdSortKey: sortKey(crd) });
+    }
+    result.sort((a, b) => (a.crdSortKey < b.crdSortKey ? -1 : a.crdSortKey > b.crdSortKey ? 1 : 0));
+    return result;
+  }, [crds]);
+
+  const remountKey = useMemo(() => fingerprint(classified.map(it => it.crdSortKey)), [classified]);
+
   if (crdsError) {
     return (
       <Empty color="error">
@@ -168,5 +197,15 @@ export function CrInstanceList() {
     return <Loader title={t('translation|Loading custom resource definitions')} />;
   }
 
-  return <CrInstancesView key={crds.map(it => it.metadata.name).join(',')} crds={crds} />;
+  // The CRD list request finished (above branches handle the loading/error
+  // cases). If every CRD is unusable, that's a persistent state, not an
+  // in-flight one, so show a non-loading empty message instead of an
+  // indefinite spinner.
+  if (crds.length > 0 && classified.length === 0) {
+    return (
+      <Empty>{t('translation|No CustomResourceDefinitions with usable specs were found.')}</Empty>
+    );
+  }
+
+  return <CrInstancesView key={remountKey} classified={classified} />;
 }

@@ -80,6 +80,7 @@ type HeadlampConfig struct {
 	*headlampconfig.HeadlampConfig
 	proxyURLMu        sync.Mutex
 	compiledProxyURLs []glob.Glob
+	oidcStateReader   io.Reader
 }
 
 func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
@@ -348,7 +349,8 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 	addPluginListRoute(config, r)
 
 	// Serve development plugins
-	pluginHandler := http.StripPrefix(config.BaseURL+"/plugins/", http.FileServer(http.Dir(config.PluginDir)))
+	pluginHandler := http.StripPrefix(config.BaseURL+"/plugins/",
+		spa.BrotliSidecars(config.PluginDir, http.FileServer(http.Dir(config.PluginDir))))
 	// If we're running locally, then do not cache the plugins. This ensures that reloading them (development,
 	// update) will actually get the new content.
 	if !config.UseInCluster {
@@ -360,7 +362,7 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 	// Serve user-installed plugins
 	if config.UserPluginDir != "" {
 		userPluginsHandler := http.StripPrefix(config.BaseURL+"/user-plugins/",
-			http.FileServer(http.Dir(config.UserPluginDir)))
+			spa.BrotliSidecars(config.UserPluginDir, http.FileServer(http.Dir(config.UserPluginDir))))
 		if !config.UseInCluster {
 			userPluginsHandler = serveWithNoCacheHeader(userPluginsHandler)
 		}
@@ -371,7 +373,7 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 	// Serve shipped/static plugins
 	if config.StaticPluginDir != "" {
 		staticPluginsHandler := http.StripPrefix(config.BaseURL+"/static-plugins/",
-			http.FileServer(http.Dir(config.StaticPluginDir)))
+			spa.BrotliSidecars(config.StaticPluginDir, http.FileServer(http.Dir(config.StaticPluginDir))))
 		r.PathPrefix("/static-plugins/").Handler(staticPluginsHandler)
 	}
 }
@@ -963,14 +965,12 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		// state should be unique per request, cryptographically secure random, url safe
-		state, err := func() (string, error) {
-			b := make([]byte, 32)
-			if _, err := rand.Read(b); err != nil {
-				return "", fmt.Errorf("generating OIDC state: %w", err)
-			}
+		stateReader := config.oidcStateReader
+		if stateReader == nil {
+			stateReader = rand.Reader
+		}
 
-			return base64.RawURLEncoding.EncodeToString(b), nil
-		}()
+		state, err := generateOidcState(stateReader)
 		if err != nil {
 			logger.Log(logger.LevelError, map[string]string{logFieldCluster: cluster}, err, "failed to generate OIDC state")
 			http.Error(w, "failed to generate OIDC state", http.StatusInternalServerError)
@@ -1261,6 +1261,16 @@ func isLoopbackAddr(addr string) bool {
 	ip := net.ParseIP(strings.Trim(addr, "[]"))
 
 	return ip != nil && ip.IsLoopback()
+}
+
+func generateOidcState(reader io.Reader) (string, error) {
+	b := make([]byte, 32)
+
+	if _, err := io.ReadFull(reader, b); err != nil {
+		return "", fmt.Errorf("generating OIDC state: %w", err)
+	}
+
+	return base64.RawURLEncoding.EncodeToString(b), nil
 }
 
 // allowedHosts returns the set of normalized host values that are considered
@@ -1763,6 +1773,13 @@ func (c *HeadlampConfig) dispatchHelmRoute(
 func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,
 	span trace.Span, err error, msg string, status int,
 ) {
+	// Guard against a nil error: some callers pass one on a failure path, and
+	// err.Error() below would then panic and take down the request handler.
+	// Fall back to msg so the client still gets a meaningful response.
+	if err == nil {
+		err = errors.New(msg)
+	}
+
 	logger.Log(logger.LevelError, nil, err, msg)
 	c.TelemetryHandler.RecordError(span, err, msg)
 	c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", msg))
@@ -2477,11 +2494,10 @@ func (c *HeadlampConfig) handleStatelessClusterRename(w http.ResponseWriter, r *
 
 // customNameToExtensions writes the custom name to the Extensions map in the kubeconfig.
 func customNameToExtensions(config *api.Config, contextName, newClusterName, path string) error {
-	var err error
-
 	// Get the context with the given cluster name
 	contextConfig, ok := config.Contexts[contextName]
 	if !ok {
+		err := fmt.Errorf("context %q not found in kubeconfig", contextName)
 		logger.Log(logger.LevelError, map[string]string{logFieldCluster: contextName},
 			err, "getting context from kubeconfig")
 
@@ -2913,13 +2929,15 @@ func (c *HeadlampConfig) drainNodePods(
 
 	var deleteErrors []string
 
-	for _, pod := range pods {
+	for i := range pods {
 		if ctx.Err() != nil {
 			return
 		}
 
+		pod := &pods[i]
+
 		// ignore daemonsets
-		if pod.Labels["kubernetes.io/created-by"] == "daemonset-controller" {
+		if isDaemonSetPod(pod) {
 			continue
 		}
 
@@ -2944,6 +2962,15 @@ func (c *HeadlampConfig) drainNodePods(
 	} else {
 		_ = c.Cache.SetWithTTL(ctx, cacheKey, "success", cacheItemTTL)
 	}
+}
+
+func isDaemonSetPod(pod *corev1.Pod) bool {
+	controllerRef := v1.GetControllerOf(pod)
+	if controllerRef == nil {
+		return false
+	}
+
+	return controllerRef.Kind == "DaemonSet"
 }
 
 /*

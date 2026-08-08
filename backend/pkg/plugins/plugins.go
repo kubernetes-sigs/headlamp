@@ -295,8 +295,24 @@ func GeneratePluginPaths(
 
 // isCatalogInstalledPlugin checks if a plugin was installed via the catalog.
 // Catalog-installed plugins have isManagedByHeadlampPlugin: true in their package.json.
+// pluginName may come from a request path, so paths escaping pluginDir are rejected
+// before any file is read.
 func isCatalogInstalledPlugin(pluginDir, pluginName string) bool {
-	packageJSONPath := filepath.Join(pluginDir, pluginName, "package.json")
+	if pluginDir == "" {
+		return false
+	}
+
+	absDir, err := filepath.Abs(pluginDir)
+	if err != nil {
+		return false
+	}
+
+	pluginPath := filepath.Join(absDir, pluginName)
+	if !isSubdirectory(absDir, pluginPath) {
+		return false
+	}
+
+	packageJSONPath := filepath.Join(pluginPath, "package.json")
 
 	content, err := os.ReadFile(packageJSONPath) //nolint:gosec
 	if err != nil {
@@ -594,8 +610,13 @@ func tryDeletePlugin(dir string, filename string) (bool, error) {
 
 // Delete deletes the plugin from the appropriate plugin directory (user or development).
 // Shipped plugins cannot be deleted.
-// If pluginType is specified ("user" or "development"), only that directory is checked.
-// If pluginType is empty, it checks user-plugins first, then development (for backward compatibility).
+// If pluginType is "development", only the development directory is checked.
+// If pluginType is "user", user-plugins is checked first, then development only
+// for catalog-installed plugins still under plugins/ (isManagedByHeadlampPlugin).
+// If pluginType is empty, it checks user-plugins first, then development.
+//
+// Without the type=user catalog fallback, migrated plugins such as
+// headlamp_kubescape fail to delete even though they are listed as user.
 // Returns an error if the plugin is not found or if it's a shipped plugin.
 func Delete(userPluginDir, pluginDir, filename, pluginType string) error {
 	// Validate plugin type if provided
@@ -612,13 +633,18 @@ func Delete(userPluginDir, pluginDir, filename, pluginType string) error {
 		if deleted, err = tryDeletePlugin(userPluginDir, filename); err != nil {
 			return err
 		}
-
-		if pluginType == PluginTypeUser && !deleted {
-			return fmt.Errorf("plugin '%s' not found in user-plugins directory", filename)
-		}
 	}
 
-	if !deleted && (pluginType == "" || pluginType == PluginTypeDevelopment) {
+	// Check development when:
+	// - no type was specified (legacy behavior), or
+	// - type=development, or
+	// - type=user and the plugin is a migrated catalog install under plugins/
+	checkDev := pluginType == "" || pluginType == PluginTypeDevelopment
+	if !deleted && pluginType == PluginTypeUser {
+		checkDev = isCatalogInstalledPlugin(pluginDir, filename)
+	}
+
+	if !deleted && checkDev {
 		if deleted, err = tryDeletePlugin(pluginDir, filename); err != nil {
 			return err
 		}
@@ -626,6 +652,10 @@ func Delete(userPluginDir, pluginDir, filename, pluginType string) error {
 		if pluginType == PluginTypeDevelopment && !deleted {
 			return fmt.Errorf("plugin '%s' not found in development directory", filename)
 		}
+	}
+
+	if pluginType == PluginTypeUser && !deleted {
+		return fmt.Errorf("plugin '%s' not found in user-plugins or development directory", filename)
 	}
 
 	if !deleted {

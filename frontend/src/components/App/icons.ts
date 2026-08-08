@@ -72,6 +72,9 @@ const mdiIcons = {
     'file-download-outline': {
       body: '\u003Cpath fill="currentColor" d="m14 2l6 6v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2zm4 18V9h-5V4H6v16zm-6-1l-4-4h2.5v-3h3v3H16z"/\u003E',
     },
+    'file-alert-outline': {
+      body: '\u003Cpath fill="currentColor" d="M20 17h2v-2h-2v2m0-10v6h2V7M4 2c-1.11 0-2 .89-2 2v16c0 1.11.89 2 2 2h12c1.11 0 2-.89 2-2V8l-6-6M4 4h7v5h5v11H4Z"/\u003E',
+    },
     'checkbox-blank-outline': {
       body: '\u003Cpath fill="currentColor" d="M19 3H5c-1.11 0-2 .89-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2m0 2v14H5V5z"/\u003E',
     },
@@ -110,6 +113,9 @@ const mdiIcons = {
     },
     'chevron-right': {
       body: '\u003Cpath fill="currentColor" d="M8.59 16.58L13.17 12L8.59 7.41L10 6l6 6l-6 6z"/\u003E',
+    },
+    'chevron-up': {
+      body: '\u003Cpath fill="currentColor" d="M7.41 15.41L12 10.83l4.59 4.58L18 14l-6-6l-6 6z"/\u003E',
     },
     'shield-alert': {
       body: '\u003Cpath fill="currentColor" d="M12 1L3 5v6c0 5.55 3.84 10.74 9 12c5.16-1.26 9-6.45 9-12V5M11 7h2v6h-2m0 2h2v2h-2"/\u003E',

@@ -387,7 +387,7 @@ function KubeConfigLoader() {
             setState(Step.Success);
           })
           .catch(e => {
-            console.debug('Error setting up clusters from kubeconfig:', e);
+            console.error('Error setting up clusters from kubeconfig:', e);
             setError(
               t('translation|Error setting up clusters, please load a valid kubeconfig file')
             );

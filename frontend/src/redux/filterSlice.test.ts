@@ -16,6 +16,7 @@
 
 import { getSavedNamespaces } from '../lib/storage';
 import filterReducer, {
+  filterResource,
   FilterState,
   initialState,
   resetFilter,
@@ -86,6 +87,34 @@ describe('filterSlice', () => {
     it('should return empty array if no data exists for the cluster', () => {
       const restored = getSavedNamespaces('non-existent-cluster');
       expect(restored).toEqual([]);
+    });
+  });
+
+  describe('filterResource search', () => {
+    const filter: FilterState = { ...initialState, namespaces: new Set() };
+
+    const makeItem = (metadata: object) => ({ kind: 'Pod', apiVersion: 'v1', metadata } as any);
+
+    it('matches a normal item by name', () => {
+      const item = makeItem({ uid: 'abc', name: 'my-pod', namespace: 'default' });
+      expect(filterResource(item, filter, 'my-pod')).toBe(true);
+    });
+
+    it('does not crash when uid is missing', () => {
+      const item = makeItem({ name: 'my-pod', namespace: 'default' });
+      expect(() => filterResource(item, filter, 'nope')).not.toThrow();
+      expect(filterResource(item, filter, 'nope')).toBe(false);
+    });
+
+    it('does not crash when name is missing', () => {
+      const item = makeItem({ uid: 'abc', namespace: 'default' });
+      expect(() => filterResource(item, filter, 'nope')).not.toThrow();
+      expect(filterResource(item, filter, 'nope')).toBe(false);
+    });
+
+    it('still matches on available fields when uid and name are missing', () => {
+      const item = makeItem({ namespace: 'default', labels: { app: 'nginx' } });
+      expect(filterResource(item, filter, 'nginx')).toBe(true);
     });
   });
 });

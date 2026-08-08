@@ -1,0 +1,15 @@
+<body>
+  <div>
+    <button
+      aria-label="Settings"
+      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-colorInherit MuiIconButton-sizeMedium css-1jcv3fz-MuiButtonBase-root-MuiIconButton-root"
+      data-mui-internal-clone-element="true"
+      tabindex="0"
+      type="button"
+    >
+      <span
+        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+      />
+    </button>
+  </div>
+</body>

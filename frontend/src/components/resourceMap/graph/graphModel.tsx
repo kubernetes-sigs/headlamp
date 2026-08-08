@@ -176,9 +176,18 @@ export type GraphSource = {
 );
 
 export interface Relation {
+  id: string;
   fromSource: string;
   toSource?: string;
   predicate: (from: GraphNode, to: GraphNode) => boolean;
+  /**
+   * Optional index-based edge builder. When provided, this is used instead of the
+   * O(fromNodes × toNodes) nested-loop predicate scan. The function receives the
+   * fromNodes array and a Map<uid, GraphNode> index of all candidate target nodes,
+   * and returns edges in O(fromNodes × avgRefs) time instead of O(fromNodes × allNodes).
+   */
+  buildEdgesWithIndex?: (fromNodes: GraphNode[], nodesByUid: Map<string, GraphNode>) => GraphEdge[];
+  label?: string;
 }
 
 /**
@@ -197,6 +206,7 @@ const DEFAULT_NODE_WEIGHTS = {
   // Tier 3: Job-based Workloads
   CronJob: 960,
   JobSet: 960,
+  LeaderWorkerSet: 960,
   Job: 920,
 
   // Tier 4: Intermediate Controllers
