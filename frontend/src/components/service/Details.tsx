@@ -26,7 +26,7 @@ import Service, { KubeServicePort } from '../../lib/k8s/service';
 import Empty from '../common/EmptyContent';
 import { ValueLabel } from '../common/Label';
 import Link from '../common/Link';
-import { DetailsGrid, MetadataDictGrid } from '../common/Resource';
+import { DetailsGrid, MetadataDictGrid, OwnedPodsSection } from '../common/Resource';
 import PortForward from '../common/Resource/PortForward';
 import { SectionBox } from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
@@ -150,7 +150,17 @@ export default function ServiceDetails(props: {
           return [];
         }
 
+        const sections = [];
+
+        if (item?.spec?.selector && Object.keys(item.spec.selector).length > 0) {
+          sections.push({
+            id: 'headlamp.service-connected-pods',
+            section: <OwnedPodsSection resource={item} />,
+          });
+        }
+
         return [
+          ...sections,
           {
             id: 'headlamp.service-ports',
             section: (
