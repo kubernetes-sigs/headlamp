@@ -606,6 +606,12 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 	m.connections[m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)] = newConn
 	m.mutex.Unlock()
 
+	// Start reading from the new connection. establishClusterConnection only
+	// starts the heartbeat, so without this the reconnected socket stays alive
+	// but nothing forwards its messages and the client silently stops receiving
+	// updates.
+	go m.handleClusterMessages(newConn, newConn.Client)
+
 	return newConn, nil
 }
 
@@ -1060,7 +1066,12 @@ func (m *Multiplexer) cleanupConnection(conn *Connection) {
 
 	m.mutex.Lock()
 	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
-	delete(m.connections, connKey)
+	// Only drop the entry if it still points at this connection. After a
+	// reconnect the key holds the new connection, so cleaning up the old one
+	// must not evict the live entry.
+	if m.connections[connKey] == conn {
+		delete(m.connections, connKey)
+	}
 	m.mutex.Unlock()
 }
 
