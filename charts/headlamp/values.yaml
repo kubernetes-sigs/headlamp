@@ -469,14 +469,23 @@ pluginsManager:
   # env:
   # - name: HTTPS_PROXY
   #   value: "proxy.example.com:8080"
-  # -- Specify resrouces
-  # resources:
-  #   requests:
-  #     cpu: "500m"
-  #     memory: "2048Mi"
-  #   limits:
-  #     cpu: "1000m"
-  #     memory: "4096Mi"
+  # -- CPU/Memory resource requests/limits for the plugin manager sidecar container.
+  # Provides Burstable QoS by default. Set to null (~) to remove all constraints.
+  resources:
+    requests:
+      cpu: "100m"
+      memory: "256Mi"
+    limits:
+      cpu: "500m"
+      memory: "1Gi"
+  # -- Liveness probe configuration for the plugin manager sidecar container.
+  # Set to null (~) to disable the liveness probe entirely.
+  # Note: successThreshold is always 1 (Kubernetes requires this for liveness probes).
+  livenessProbe:
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 1
+    failureThreshold: 3
   # If omitted, the plugin manager will inherit the global securityContext.
   # When readOnlyRootFilesystem: true is active (set here or inherited), the
   # chart automatically adds a writable emptyDir volume named

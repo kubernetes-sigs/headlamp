@@ -478,8 +478,21 @@ spec:
             {{- with .Values.pluginsManager.volumeMounts }}
             {{- toYaml . | nindent 12 }}
             {{- end }}
+          {{- if .Values.pluginsManager.livenessProbe }}
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pgrep -f pluginctl || pgrep -f node
+            initialDelaySeconds: {{ .Values.pluginsManager.livenessProbe.initialDelaySeconds | default 30 }}
+            periodSeconds: {{ .Values.pluginsManager.livenessProbe.periodSeconds | default 30 }}
+            timeoutSeconds: {{ .Values.pluginsManager.livenessProbe.timeoutSeconds | default 1 }}
+            successThreshold: 1
+            failureThreshold: {{ .Values.pluginsManager.livenessProbe.failureThreshold | default 3 }}
+          {{- end }}
           resources:
-            {{- toYaml .Values.pluginsManager.resources | nindent 12 }}
+            {{- toYaml (.Values.pluginsManager.resources | default dict) | nindent 12 }}
           securityContext:
             {{- if .Values.pluginsManager.securityContext }}
               {{- toYaml .Values.pluginsManager.securityContext | nindent 12 }}
