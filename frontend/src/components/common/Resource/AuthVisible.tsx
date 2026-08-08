@@ -56,53 +56,68 @@ export interface AuthVisibleProps extends React.PropsWithChildren<{}> {
 export default function AuthVisible(props: AuthVisibleProps) {
   const { item, authVerb, subresource, namespace, onError, onAuthResult, children } = props;
 
-  const isAuthVerbValid = VALID_AUTH_VERBS.includes(authVerb);
+const isAuthVerbValid = VALID_AUTH_VERBS.includes(authVerb);
 
-  useEffect(() => {
-    if (!isAuthVerbValid) {
-      console.warn(`Invalid authVerb provided: "${authVerb}". Skipping authorization check.`);
-    }
-  }, [isAuthVerbValid, authVerb]);
+useEffect(() => {
+  if (!isAuthVerbValid) {
+    console.warn(`Invalid authVerb provided: "${authVerb}". Skipping authorization check.`);
+  }
+}, [isAuthVerbValid, authVerb]);
 
-  const itemClass: KubeObjectClass | null = (item as KubeObject)?._class?.() ?? item;
-  const itemName = (item as KubeObject)?.getName?.();
+const itemClass: KubeObjectClass | null =
+  (item as KubeObject)?._class?.() ?? (item as KubeObjectClass | null);
 
-  const { data } = useQuery<any>({
-    enabled: !!item && isAuthVerbValid,
+const itemName = (item as KubeObject)?.getName?.();
+
+const isQueryEnabled = !!item && !!itemClass && isAuthVerbValid;
+
+const { data } = useQuery<any>({
+  enabled: isQueryEnabled,
     queryKey: [
       'authVisible',
       itemName,
       itemClass?.apiName,
       itemClass?.apiVersion,
+(itemClass as any)?.apiGroup,
       authVerb,
       subresource,
       namespace,
     ],
     queryFn: async () => {
+      const currentItem: KubeObject | KubeObjectClass = item!;
+
       try {
-        const res = await item!.getAuthorization(
+        const res = await (currentItem as any).getAuthorization(
           authVerb,
           { subresource, namespace },
-          (item as any).cluster
+          (currentItem as any).cluster
         );
         return res;
       } catch (e: any) {
         onError?.(e);
+        throw e; // Re-throw to let react-query handle the error state
       }
     },
   });
 
-  const visible = data?.status?.allowed ?? false;
-
+ 
   useEffect(() => {
     if (data) {
       onAuthResult?.({
-        allowed: visible,
+        allowed: data.status?.allowed ?? false,
         reason: data.status?.reason ?? '',
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data]);
+  }, [data, onAuthResult]);
+
+  if (!isAuthVerbValid || !item || !itemClass) {
+    if (!isAuthVerbValid) {
+      console.warn(`Invalid authVerb provided: "${authVerb}". Skipping authorization check.`);
+    }
+    return null;
+  }
+
+  const visible = data?.status?.allowed ?? false;
 
   if (!isAuthVerbValid) {
     return null;
