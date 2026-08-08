@@ -132,7 +132,7 @@ Default.args = {
       isNamespaced: true,
     },
     {
-      apiVersion: 'v1',
+      apiVersion: 'apps/v1',
       version: 'v1',
       singularName: 'deployment',
       kind: 'Deployment',
