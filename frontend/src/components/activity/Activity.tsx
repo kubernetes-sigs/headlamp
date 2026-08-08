@@ -755,16 +755,16 @@ function ActivityResizer({ activityElementRef }: { activityElementRef: RefObject
           onMoveCallback();
         };
 
-        document.addEventListener('pointermove', handleMove);
+        const finishResize = () => {
+          document.removeEventListener('pointermove', handleMove);
+          document.removeEventListener('pointerup', finishResize);
+          document.removeEventListener('pointercancel', finishResize);
+          activityElement.style.transitionDuration = oldTransitionDuration;
+        };
 
-        document.addEventListener(
-          'pointerup',
-          () => {
-            document.removeEventListener('pointermove', handleMove);
-            activityElement.style.transitionDuration = oldTransitionDuration;
-          },
-          { once: true }
-        );
+        document.addEventListener('pointermove', handleMove);
+        document.addEventListener('pointerup', finishResize, { once: true });
+        document.addEventListener('pointercancel', finishResize, { once: true });
       }}
     >
       <Icon
@@ -932,30 +932,30 @@ function ActivityDragger({
             activityElement.style.borderRadius = '10px';
           };
 
+          const finishDrag = (cancelled: boolean) => {
+            if (!cancelled && newLocation) {
+              onLocationChange(newLocation);
+            }
+
+            if (cancelled || (newLocation !== undefined && newLocation !== 'window')) {
+              activityElement.style.transform = ``;
+            }
+            activityElement.style.boxShadow = '';
+            activityElement.style.borderRadius = '';
+            activityElement.style.transitionDuration = oldTransitionDuration;
+            updatePreview({ opacity: 0 });
+
+            document.removeEventListener('pointermove', handleMove);
+            document.removeEventListener('pointerup', onPointerUp);
+            document.removeEventListener('pointercancel', onPointerCancel);
+          };
+
+          const onPointerUp = () => finishDrag(false);
+          const onPointerCancel = () => finishDrag(true);
+
           document.addEventListener('pointermove', handleMove);
-
-          document.addEventListener(
-            'pointerup',
-            () => {
-              if (newLocation) {
-                // Update location after dragging is finished
-                onLocationChange(newLocation);
-              }
-
-              // Reset all styles
-              if (newLocation !== undefined && newLocation !== 'window') {
-                activityElement.style.transform = ``;
-              }
-              activityElement.style.boxShadow = '';
-              activityElement.style.borderRadius = '';
-              activityElement.style.transitionDuration = oldTransitionDuration;
-              updatePreview({ opacity: 0 });
-
-              // Remove event listener for dragging
-              document.removeEventListener('pointermove', handleMove);
-            },
-            { once: true }
-          );
+          document.addEventListener('pointerup', onPointerUp, { once: true });
+          document.addEventListener('pointercancel', onPointerCancel, { once: true });
         }}
       >
         <Box
