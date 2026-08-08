@@ -107,18 +107,17 @@ test.afterAll(async () => {
   fs.rmSync(ISOLATED_KUBECONFIG, { force: true });
 });
 
+// Requesting the `page` fixture here launches Playwright's own Chromium
+// browser (see app/e2e-tests/README.md); this suite doesn't use it, so
+// close it immediately to avoid it lingering for the rest of the run.
 test.beforeEach(async ({ page }) => {
   await page.close();
 });
 
 // Tests
 test.describe('Cluster rename functionality', () => {
-  test.beforeEach(() => {
-    test.skip(process.env.PLAYWRIGHT_TEST_MODE !== 'app', 'These tests only run in app mode');
-  });
-
-  test('should rename cluster and verify changes', async ({ page: browserPage }) => {
-    const page = process.env.PLAYWRIGHT_TEST_MODE === 'app' ? electronPage : browserPage;
+  test('should rename cluster and verify changes', async () => {
+    const page = electronPage;
     const headlampPage = new HeadlampPage(page);
     await headlampPage.authenticate();
 
