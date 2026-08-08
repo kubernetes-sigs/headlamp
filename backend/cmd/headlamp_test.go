@@ -912,6 +912,44 @@ func TestDrainAndCordonNode(t *testing.T) { //nolint:funlen
 	}
 }
 
+func TestDrainNodeStatusNonStringCacheValue(t *testing.T) {
+	cache := cache.New[interface{}]()
+	kubeConfigStore := kubeconfig.NewContextStore()
+	kubeConfigPath := filepath.Join("headlamp_testdata", "kubeconfig")
+
+	handler := createHeadlampHandler(context.Background(), &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				KubeConfigPath:  kubeConfigPath,
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache,
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	})
+
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte(minikubeName+"\x00"+minikubeName)).String()
+
+	// A non-string value under the drain status key must not panic the handler.
+	if err := cache.SetWithTTL(context.Background(), cacheKey, true, DrainNodeCacheTTL*time.Second); err != nil {
+		t.Fatal(err)
+	}
+
+	url := fmt.Sprintf("/drain-node-status?cluster=%s&nodeName=%s", minikubeName, minikubeName)
+
+	rr, err := getResponse(handler, "GET", url, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if status := rr.Code; status != http.StatusInternalServerError {
+		t.Errorf("handler returned wrong status code: got %v want %v",
+			status, http.StatusInternalServerError)
+	}
+}
+
 func TestDrainNodePodDeletionFailure(t *testing.T) { //nolint:funlen
 	podOk := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
