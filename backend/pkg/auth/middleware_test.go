@@ -78,3 +78,27 @@ func TestSetTokenFromCookie(t *testing.T) {
 	want := "Bearer " + testToken
 	assert.Equal(t, want, got)
 }
+
+func TestStripImpersonationHeadersMiddleware(t *testing.T) {
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Empty(t, r.Header.Get("Impersonate-User"))
+		assert.Empty(t, r.Header.Get("Impersonate-Group"))
+		assert.Empty(t, r.Header.Get("impersonate-custom"))
+		w.WriteHeader(http.StatusOK)
+	})
+
+	middleware := auth.StripImpersonationHeadersMiddleware(handler)
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/", nil)
+	assert.NoError(t, err)
+	req.Header.Set("Impersonate-User", "some-user")
+	req.Header.Set("Impersonate-Group", "some-group")
+	req.Header.Set("impersonate-custom", "value")
+	req.Header.Set("X-Other-Header", "other-value")
+
+	rec := httptest.NewRecorder()
+	middleware.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Equal(t, "other-value", req.Header.Get("X-Other-Header"))
+}
