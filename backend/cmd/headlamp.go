@@ -48,6 +48,7 @@ import (
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/audit"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
@@ -676,6 +677,9 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	}
 
 	addPluginRoutes(config, r)
+
+	// Audit logs stream endpoint
+	r.HandleFunc("/audit", audit.StreamHandler)
 
 	// Setup port forwarding handlers.
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {

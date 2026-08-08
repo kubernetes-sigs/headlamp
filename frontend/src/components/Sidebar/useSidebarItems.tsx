@@ -214,6 +214,11 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'advancedSearch',
             label: t('Advanced Search (Beta)'),
           },
+          {
+            name: 'audit',
+            label: t('Audit Logs'),
+            url: '/audit',
+          },
         ],
       },
       {

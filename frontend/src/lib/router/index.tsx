@@ -26,6 +26,7 @@ import PluginSettingsDetails from '../../components/App/PluginSettings/PluginSet
 import Settings from '../../components/App/Settings';
 import SettingsCluster from '../../components/App/Settings/SettingsCluster';
 import SettingsClusters from '../../components/App/Settings/SettingsClusters';
+import { AuditLogViewer } from '../../components/audit';
 import AuthChooser from '../../components/authchooser';
 import KubeConfigLoader from '../../components/cluster/KubeConfigLoader';
 import Overview from '../../components/cluster/Overview';
@@ -156,6 +157,13 @@ function SettingsClusterRedirect() {
 
 /** @private */
 const defaultRoutes: { [routeName: string]: Route } = {
+  auditLog: {
+    path: '/audit',
+    exact: true,
+    name: 'Audit Logs',
+    sidebar: 'cluster',
+    component: () => <AuditLogViewer />,
+  },
   projectCreateYaml: {
     path: '/project/create-yaml',
     exact: true,
