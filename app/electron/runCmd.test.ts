@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { dialog } from 'electron';
 import { EventEmitter } from 'events';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
@@ -26,6 +27,7 @@ const { getShellEnvironmentMock, spawnMock } = vi.hoisted(() => ({
 vi.mock('child_process', () => ({
   spawn: spawnMock,
 }));
+import { loadSettings, saveSettings } from './settings';
 
 vi.mock('./plugin-management', () => ({
   defaultPluginsDir: vi.fn(() => '/plugins/default'),
@@ -50,8 +52,14 @@ vi.mock('./main', () => ({
   getShellEnvironment: getShellEnvironmentMock,
 }));
 
+vi.mock('electron', () => ({
+  BrowserWindow: vi.fn(),
+  dialog: { showMessageBoxSync: vi.fn() },
+}));
+
 import {
   addRunCmdConsent,
+  checkCommandConsent,
   checkPermissionSecret,
   environmentOverrides,
   handleRunCommand,
@@ -146,6 +154,44 @@ describe('checkPermissionSecret', () => {
       permissionSecrets: { 'runCmd-scriptjs-plugins/minikube/myscript.js': 42 },
     };
     expect(checkPermissionSecret(commandData, permissionSecrets)[0]).toBe(true);
+  });
+});
+
+describe('checkCommandConsent', () => {
+  const fakeMainWindow = { id: 1 } as any;
+
+  afterEach(() => {
+    vi.mocked(loadSettings).mockReturnValue({
+      confirmedCommands: { 'minikube start': true, 'gh auth': true, 'az account': true },
+    } as any);
+    vi.mocked(dialog.showMessageBoxSync).mockClear();
+    vi.mocked(saveSettings).mockClear();
+  });
+
+  it('blocks the command on the first run when the user denies it', () => {
+    vi.mocked(loadSettings).mockReturnValue({ confirmedCommands: {} } as any);
+    vi.mocked(dialog.showMessageBoxSync).mockReturnValue(1); // Deny
+
+    expect(checkCommandConsent('minikube', ['delete'], fakeMainWindow)).toBe(false);
+    expect(saveSettings).toHaveBeenCalledWith('/fake/settings.json', {
+      confirmedCommands: { 'minikube delete': false },
+    });
+  });
+
+  it('allows the command on the first run when the user allows it', () => {
+    vi.mocked(loadSettings).mockReturnValue({ confirmedCommands: {} } as any);
+    vi.mocked(dialog.showMessageBoxSync).mockReturnValue(0); // Allow
+
+    expect(checkCommandConsent('minikube', ['delete'], fakeMainWindow)).toBe(true);
+  });
+
+  it('blocks the command without prompting once denial is saved', () => {
+    vi.mocked(loadSettings).mockReturnValue({
+      confirmedCommands: { 'minikube delete': false },
+    } as any);
+
+    expect(checkCommandConsent('minikube', ['delete'], fakeMainWindow)).toBe(false);
+    expect(dialog.showMessageBoxSync).not.toHaveBeenCalled();
   });
 });
 
