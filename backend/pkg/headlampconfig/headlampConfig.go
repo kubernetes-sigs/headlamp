@@ -86,6 +86,7 @@ type HeadlampCFG struct {
 	EnableClusterInventory                bool
 	ClusterInventoryProviderFile          string
 	ClusterInventoryLabelSelector         string
+	ClusterInventoryNamespaces            string
 	ClusterInventoryRootReconcileInterval time.Duration
 	ClusterInventoryNoCRDCacheTTL         time.Duration
 }

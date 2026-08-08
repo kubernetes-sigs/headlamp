@@ -5,7 +5,5 @@ config:
       providers:
         - name: static-provider
     namespaces:
+      - "*"
       - inventory-e2e
-      - shared-inventory
-    rootReconcileInterval: 10s
-    noCRDCacheTTL: 30s

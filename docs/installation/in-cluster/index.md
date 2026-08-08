@@ -76,7 +76,25 @@ Cluster Inventory access provider. The `plugins` entries are Kubernetes `image`
 volumes that mount provider binaries into the Headlamp container, not Headlamp
 UI plugins. By default, Headlamp watches `ClusterProfile` resources that do not
 have the `headlamp.dev/ignore` label because the chart sets
-`config.clusterInventory.labelSelector` to `!headlamp.dev/ignore`.
+`config.clusterInventory.labelSelector` to `!headlamp.dev/ignore`. Discovery is
+scoped to the Headlamp pod's namespace. This follows the namespaced consumer
+model for ClusterProfile: give each consumer its own namespace and expose only
+the clusters that consumer needs.
+
+To watch specific namespaces, set:
+
+```yaml
+config:
+  clusterInventory:
+    namespaces:
+      - inventory-team-a
+      - inventory-team-b
+```
+
+Each selected namespace requires permission to get, list, and watch
+ClusterProfiles. Set `namespaces` to `["*"]` to watch all namespaces. `*`
+cannot be combined with named namespaces, and all-namespace discovery requires
+equivalent cluster-wide access.
 
 ## Using simple yaml
 

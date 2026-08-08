@@ -68,6 +68,7 @@ type Config struct {
 
 	ClusterInventoryProviderFile          string        `koanf:"cluster-inventory-provider-file"`
 	ClusterInventoryLabelSelector         string        `koanf:"cluster-inventory-label-selector"`
+	ClusterInventoryNamespaces            string        `koanf:"cluster-inventory-namespaces"`
 	ClusterInventoryRootReconcileInterval time.Duration `koanf:"cluster-inventory-root-reconcile-interval"`
 	ClusterInventoryNoCRDCacheTTL         time.Duration `koanf:"cluster-inventory-no-crd-cache-ttl"`
 
@@ -578,6 +579,8 @@ func addGeneralFlags(f *flag.FlagSet) {
 		"Path to the JSON configuration file for experimental/alpha Cluster Inventory access providers")
 	f.String("cluster-inventory-label-selector", "",
 		"Label selector used to filter ClusterProfile resources for experimental/alpha Cluster Inventory")
+	f.String("cluster-inventory-namespaces", "",
+		"Comma-separated namespaces watched for experimental/alpha ClusterProfile resources; \"*\" watches all")
 	f.Duration("cluster-inventory-root-reconcile-interval", clusterinventory.DefaultRootReconcileInterval,
 		"Interval for reconciling experimental/alpha Cluster Inventory roots")
 	f.Duration("cluster-inventory-no-crd-cache-ttl", clusterinventory.DefaultNoCRDCacheTTL,

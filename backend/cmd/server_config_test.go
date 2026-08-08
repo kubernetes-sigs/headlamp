@@ -29,16 +29,17 @@ func TestBuildHeadlampCFG(t *testing.T) {
 
 	t.Run("maps basic fields and splits proxy urls", func(t *testing.T) {
 		conf := &config.Config{
-			Port:                   4444,
-			InCluster:              true,
-			InClusterContextName:   "test-incluster",
-			InsecureSsl:            true,
-			PluginsDir:             "/plugins",
-			UserPluginsDir:         "/user-plugins",
-			AllowKubeconfigChanges: true,
-			WatchPluginsChanges:    false,
-			BaseURL:                "/headlamp",
-			ProxyURLs:              "http://proxy1,http://proxy2",
+			Port:                       4444,
+			InCluster:                  true,
+			InClusterContextName:       "test-incluster",
+			InsecureSsl:                true,
+			PluginsDir:                 "/plugins",
+			UserPluginsDir:             "/user-plugins",
+			AllowKubeconfigChanges:     true,
+			WatchPluginsChanges:        false,
+			BaseURL:                    "/headlamp",
+			ProxyURLs:                  "http://proxy1,http://proxy2",
+			ClusterInventoryNamespaces: "team-a,team-b",
 		}
 
 		headlampCFG := buildHeadlampCFG(conf, store)
@@ -54,6 +55,7 @@ func TestBuildHeadlampCFG(t *testing.T) {
 		assert.Equal(t, "/headlamp", headlampCFG.BaseURL)
 		assert.Equal(t, []string{"http://proxy1", "http://proxy2"}, headlampCFG.ProxyURLs)
 		assert.Equal(t, store, headlampCFG.KubeConfigStore)
+		assert.Equal(t, "team-a,team-b", headlampCFG.ClusterInventoryNamespaces)
 	})
 
 	t.Run("empty proxy urls yields empty slice", func(t *testing.T) {
