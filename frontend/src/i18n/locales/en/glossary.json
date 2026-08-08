@@ -303,6 +303,8 @@
   "Vertical Pod Autoscalers": "Vertical Pod Autoscalers",
   "Checking if Vertical Pod Autoscaler is enabled…": "Checking if Vertical Pod Autoscaler is enabled…",
   "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>": "Vertical Pod Autoscaler is not enabled. <1>Learn More</1>",
+  "Checking if JobSet is enabled…": "Checking if JobSet is enabled…",
+  "JobSet is not enabled. <1>Learn More</1>": "JobSet is not enabled. <1>Learn More</1>",
   "API Version": "API Version",
   "Webhooks": "Webhooks",
   "Client Config: Ca Bundle": "Client Config: Ca Bundle",
