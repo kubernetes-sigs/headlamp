@@ -153,9 +153,14 @@ export function addRunCmdConsent(pluginInfo: { name: string }): void {
     commands = COMMANDS_WITH_CONSENT.headlamp_minikube;
   }
 
+  // Match both hyphen and underscore variants: the ArtifactHub installer may create
+  // the folder as 'headlamp_ai-assistant' or 'headlamp_ai_assistant' depending on
+  // the version of Headlamp and the plugin manager being used.
   const pluginIsAiAssistant =
     pluginInfo.name === 'headlamp_ai-assistant' ||
+    pluginInfo.name === 'headlamp_ai_assistant' ||
     pluginInfo.name === 'headlamp_ai-assistantprerelease' ||
+    pluginInfo.name === 'headlamp_ai_assistantprerelease' ||
     (process.env.NODE_ENV === 'development' && pluginInfo.name === 'ai-assistant');
   if (pluginIsAiAssistant) {
     commands = COMMANDS_WITH_CONSENT.headlamp_ai_assistant;

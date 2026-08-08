@@ -542,4 +542,86 @@ describe('identifyPackages', () => {
     );
     expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
   });
+
+  // Tests for underscore variants (ArtifactHub installer uses underscores)
+  test('should identify ai-assistant package by underscore plugins path', () => {
+    const result = identifyPackages(
+      'plugins/headlamp_ai_assistant',
+      '@headlamp-k8s/ai-assistant',
+      false
+    );
+    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+  });
+
+  test('should identify ai-assistant package by underscore user-plugins path', () => {
+    const result = identifyPackages(
+      'user-plugins/headlamp_ai_assistant',
+      '@headlamp-k8s/ai-assistant',
+      false
+    );
+    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+  });
+
+  test('should identify ai-assistant package by underscore static-plugins path', () => {
+    const result = identifyPackages(
+      'static-plugins/headlamp_ai_assistant',
+      '@headlamp-k8s/ai-assistant',
+      false
+    );
+    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+  });
+
+  test('should identify ai-assistant package by underscore prerelease plugins path', () => {
+    const result = identifyPackages(
+      'plugins/headlamp_ai_assistantprerelease',
+      '@headlamp-k8s/ai-assistantprerelease',
+      false
+    );
+    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+  });
+
+  test('should identify ai-assistant package by underscore prerelease user-plugins path', () => {
+    const result = identifyPackages(
+      'user-plugins/headlamp_ai_assistantprerelease',
+      '@headlamp-k8s/ai-assistantprerelease',
+      false
+    );
+    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+  });
+
+  test('should identify ai-assistant package by underscore prerelease static-plugins path', () => {
+    const result = identifyPackages(
+      'static-plugins/headlamp_ai_assistantprerelease',
+      '@headlamp-k8s/ai-assistantprerelease',
+      false
+    );
+    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+  });
+
+  test('should handle windows paths for ai-assistant underscore variant', () => {
+    const result = identifyPackages(
+      'plugins\\headlamp_ai_assistant',
+      '@headlamp-k8s/ai-assistant',
+      false
+    );
+    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+  });
+
+  test('should handle windows static paths for ai-assistant underscore variant', () => {
+    const result = identifyPackages(
+      'static-plugins\\headlamp_ai_assistant',
+      '@headlamp-k8s/ai-assistant',
+      false
+    );
+    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+  });
+
+  test('should handle windows paths for ai-assistant underscore prerelease variant', () => {
+    const result = identifyPackages(
+      'plugins\\headlamp_ai_assistantprerelease',
+      '@headlamp-k8s/ai-assistantprerelease',
+      false
+    );
+    expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+  });
 });

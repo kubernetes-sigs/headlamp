@@ -23,6 +23,7 @@ import Pod from '../../../../lib/k8s/pod';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
 import { useNamespaces } from '../../../../redux/filterSlice';
+import { TestContext } from '../../../../test';
 import { GraphNode, Relation } from '../../graph/graphModel';
 import { makeKubeSourceId } from './graphDefinitionUtils';
 import { matchesLabels, useGetAllRelations } from './relations';
@@ -48,6 +49,9 @@ const relationFor = (relations: Relation[], from: KubeObjectClass, to?: KubeObje
     relation => relation.fromSource === fromSource && relation.toSource === toSource
   )!;
 };
+
+const renderUseGetAllRelations = () =>
+  renderHook(() => useGetAllRelations(), { wrapper: TestContext });
 
 const pod = (
   metadata: Record<string, any>,
@@ -102,7 +106,7 @@ describe('useGetAllRelations', () => {
 
   it('gates selector relations by cluster and namespace', () => {
     vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
-    const { result } = renderHook(() => useGetAllRelations());
+    const { result } = renderUseGetAllRelations();
     const relation = relationFor(result.current, Service, Pod);
     const matchingService = service(
       { uid: 'service', name: 'service', namespace: 'namespace-a' },
@@ -146,7 +150,7 @@ describe('useGetAllRelations', () => {
     vi.spyOn(CRD, 'useList').mockReturnValue({
       items: [],
     } as unknown as ReturnType<typeof CRD.useList>);
-    const { result } = renderHook(() => useGetAllRelations());
+    const { result } = renderUseGetAllRelations();
     const configMapRelation = relationFor(result.current, Pod, ConfigMap);
     const secretRelation = relationFor(result.current, Pod, Secret);
     const configMap = new ConfigMap(
@@ -214,7 +218,7 @@ describe('useGetAllRelations', () => {
 
   it('matches and rejects Kubernetes owner references', () => {
     vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
-    const { result } = renderHook(() => useGetAllRelations());
+    const { result } = renderUseGetAllRelations();
     const relation = relationFor(result.current, Pod);
     const owner = new KubeObject({ metadata: { uid: 'owner' } } as any, 'cluster-a');
 
@@ -237,11 +241,12 @@ describe('useGetAllRelations', () => {
     }
     const customResourceDefinition = {
       makeCRClass: () => CustomResource,
+      makeCRClassOrNull: () => CustomResource,
     } as unknown as CRD;
     vi.spyOn(CRD, 'useList').mockImplementation(
       () => ({ items: crds } as ReturnType<typeof CRD.useList>)
     );
-    const { result, rerender } = renderHook(() => useGetAllRelations());
+    const { result, rerender } = renderUseGetAllRelations();
 
     expect(result.current.some(relation => relation.fromSource === 'example.io/Widget')).toBe(
       false

@@ -81,7 +81,16 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
 
     const entriesGroup = new Map<string, SidebarItemProps>();
     crds.forEach(item => {
-      const group = item.jsonData.spec.group;
+      // A partially-populated CRD (transient watch update, in-flight refetch)
+      // can arrive with `spec.names` or `spec.group` undefined. Skip those
+      // rather than crash the whole sidebar via `Cannot read properties of
+      // undefined (reading 'kind')`; the CRD will re-render into the sidebar
+      // on a later fetch once the spec is fully populated (#4824).
+      const group = item.jsonData.spec?.group;
+      const kind = item.jsonData.spec?.names?.kind;
+      if (!group || !kind) {
+        return;
+      }
       if (!entriesGroup.has(group)) {
         entriesGroup.set(group, {
           name: `group-${group}`,
@@ -90,7 +99,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
           subList: [
             {
               name: item.jsonData.metadata.name,
-              label: item.jsonData.spec.names.kind,
+              label: kind,
               isCR: true,
             },
           ],
@@ -103,7 +112,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
           if (!entryGroup.subList.some(subItem => subItem.name === crdName)) {
             entryGroup.subList.push({
               name: crdName,
-              label: item.jsonData.spec.names.kind,
+              label: kind,
               isCR: true,
             });
           }

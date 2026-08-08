@@ -62,9 +62,11 @@ API documentation for TypeScript is done with [typedoc](https://typedoc.org/) an
 npm run docs
 ```
 
-The API output markdown is generated in docs/development/api and is not
-committed to Git, but is shown on the website at
-[headlamp/latest/development/api](https://headlamp.dev/docs/latest/development/api/)
+The API output markdown is generated in `docs/development/api/`, committed to
+Git, and shown on the website at
+[headlamp/latest/development/api](https://headlamp.dev/docs/latest/development/api/).
+When API changes affect the generated output, run `npm run docs` and include
+the resulting `docs/development/api/` updates in the same change for review.
 
 ## Storybook
 

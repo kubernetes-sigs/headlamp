@@ -18,36 +18,23 @@ import Button from '@mui/material/Button';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import React from 'react';
 import { TestContext } from '../../../test';
-import EditorDialog from './EditorDialog';
+import EditorDialog, { EditorDialogProps, ViewDialog } from './EditorDialog';
 
-const { mockSetModelMarkers, mockGetModel, mockTextarea, mockEditorInstance, mockOnChangeRef } =
-  vi.hoisted(() => {
-    const textarea = document.createElement('textarea');
-    return {
-      mockSetModelMarkers: vi.fn(),
-      mockGetModel: vi.fn(() => ({})),
-      mockTextarea: textarea,
-      mockEditorInstance: {
-        getDomNode: () => ({
-          querySelector: (selector: string) => {
-            if (selector === 'textarea') {
-              return textarea;
-            }
-            return null;
-          },
-          closest: () => null,
-        }),
-        getScrollTop: vi.fn(() => 123),
-        getPosition: vi.fn(() => ({ lineNumber: 5, column: 10 })),
-        setScrollTop: vi.fn(),
-        setPosition: vi.fn(),
-        addCommand: vi.fn(),
-      },
-      mockOnChangeRef: { current: undefined as ((value: string | undefined) => void) | undefined },
-    };
-  });
-
-vi.mock('js-yaml', () => {
+const {
+  mockApply,
+  mockClusterAction,
+  mockDispatchCreateEvent,
+  mockGetCluster,
+  mockLoadAll,
+  mockSetModelMarkers,
+  mockGetModel,
+  mockTextarea,
+  mockEditorInstance,
+  mockOnChangeRef,
+  MockYAMLException,
+  capturedAction,
+} = vi.hoisted(() => {
+  const textarea = document.createElement('textarea');
   class YAMLException extends Error {
     reason: string;
     mark: any;
@@ -58,18 +45,65 @@ vi.mock('js-yaml', () => {
       this.mark = mark;
     }
   }
-
   return {
-    YAMLException,
-    dump: vi.fn((value: unknown) => JSON.stringify(value, null, 2)),
-    loadAll: vi.fn((value: string) => {
-      if (value.includes('invalid')) {
-        throw new YAMLException('Invalid YAML', { line: 2, column: 5 });
-      }
-      return [{ apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } }];
+    mockApply: vi.fn(),
+    mockClusterAction: vi.fn((action: () => Promise<void>) => {
+      capturedAction.current = action;
+      return { type: 'clusterAction/test' };
     }),
+    mockDispatchCreateEvent: vi.fn(),
+    mockGetCluster: vi.fn(() => 'url-cluster'),
+    mockLoadAll: vi.fn(),
+    mockSetModelMarkers: vi.fn(),
+    mockGetModel: vi.fn(() => ({})),
+    mockTextarea: textarea,
+    mockEditorInstance: {
+      getDomNode: () => ({
+        querySelector: (selector: string) => {
+          if (selector === 'textarea') {
+            return textarea;
+          }
+          return null;
+        },
+        closest: () => null,
+      }),
+      getScrollTop: vi.fn(() => 123),
+      getPosition: vi.fn(() => ({ lineNumber: 5, column: 10 })),
+      setScrollTop: vi.fn(),
+      setPosition: vi.fn(),
+      addCommand: vi.fn(),
+    },
+    mockOnChangeRef: { current: undefined as ((value: string | undefined) => void) | undefined },
+    MockYAMLException: YAMLException,
+    capturedAction: { current: undefined as (() => Promise<void>) | undefined },
   };
 });
+
+vi.mock('js-yaml', () => {
+  return {
+    YAMLException: MockYAMLException,
+    dump: vi.fn((value: unknown) => JSON.stringify(value, null, 2)),
+    loadAll: mockLoadAll,
+  };
+});
+
+vi.mock('../../../lib/cluster', () => ({
+  getCluster: mockGetCluster,
+}));
+
+vi.mock('../../../lib/k8s/api/v1/apply', () => ({
+  apply: mockApply,
+}));
+
+vi.mock('../../../redux/clusterActionSlice', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../redux/clusterActionSlice')>()),
+  clusterAction: mockClusterAction,
+}));
+
+vi.mock('../../../redux/headlampEventSlice', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../../redux/headlampEventSlice')>()),
+  useEventCallback: () => mockDispatchCreateEvent,
+}));
 
 vi.mock('@monaco-editor/react', () => {
   return {
@@ -94,12 +128,19 @@ vi.mock('@monaco-editor/react', () => {
         </div>
       );
     },
-    DiffEditor: () => null,
+    DiffEditor: ({ modified, original }: any) => (
+      <div data-testid="mock-diff-editor">
+        {original}
+        {modified}
+      </div>
+    ),
   };
 });
 
 vi.mock('./DocsViewer', () => ({
-  default: () => null,
+  default: ({ docSpecs }: any) => (
+    <div data-testid="mock-docs-viewer">{JSON.stringify(docSpecs)}</div>
+  ),
 }));
 
 vi.mock('../ConfirmButton', () => ({
@@ -135,6 +176,14 @@ describe('EditorDialog', () => {
   beforeEach(() => {
     vi.useFakeTimers();
     localStorage.setItem('useSimpleEditor', 'true');
+    capturedAction.current = undefined;
+    mockApply.mockResolvedValue({});
+    mockLoadAll.mockImplementation((value: string) => {
+      if (value.includes('invalid')) {
+        throw new MockYAMLException('Invalid YAML', { line: 2, column: 5 });
+      }
+      return [{ apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } }];
+    });
     mockTextarea.id = '';
     // jsdom doesn't implement requestAnimationFrame; run callbacks
     // synchronously so the scroll/cursor restore is deterministic in tests.
@@ -150,8 +199,8 @@ describe('EditorDialog', () => {
     vi.unstubAllGlobals();
   });
 
-  function renderEditorDialog() {
-    render(
+  function renderEditorDialog(props: Partial<EditorDialogProps> = {}) {
+    return render(
       <TestContext>
         <EditorDialog
           open
@@ -159,6 +208,7 @@ describe('EditorDialog', () => {
           noDialog
           item={{ apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } }}
           onClose={vi.fn()}
+          {...props}
         />
       </TestContext>
     );
@@ -260,6 +310,13 @@ describe('EditorDialog', () => {
     expect(saveApplyButton).toHaveAttribute('aria-controls', textareaId);
   });
 
+  it('configures the dialog content to scroll with a minimum height', () => {
+    renderEditorDialog();
+
+    const dialogContent = document.querySelector('.MuiDialogContent-root');
+    expect(dialogContent).toHaveStyle({ minHeight: '400px', overflowY: 'auto' });
+  });
+
   it('correctly sets textarea ID and aria-controls attributes when using Monaco editor onMount', () => {
     localStorage.setItem('useSimpleEditor', 'false');
 
@@ -333,5 +390,246 @@ describe('EditorDialog', () => {
       expect.any(Function),
       '!suggestWidgetVisible && !findWidgetVisible && !renameInputVisible && !parameterHintsVisible && !inSnippetMode && !editorHasMultipleSelections'
     );
+  });
+
+  it('renders loading, empty, and closed states', () => {
+    const { rerender } = renderEditorDialog({ item: null });
+    expect(screen.getByRole('progressbar', { name: /loading editor/i })).toBeInTheDocument();
+
+    rerender(
+      <TestContext>
+        <EditorDialog open keepMounted noDialog item={{}} onClose={vi.fn()} />
+      </TestContext>
+    );
+    expect(screen.getByRole('textbox', { name: /code/i })).toHaveValue(
+      '# Enter your YAML or JSON here'
+    );
+
+    rerender(
+      <TestContext>
+        <EditorDialog open={false} item={{}} onClose={vi.fn()} />
+      </TestContext>
+    );
+    expect(screen.queryByRole('textbox', { name: /code/i })).not.toBeInTheDocument();
+  });
+
+  it('renders a read-only view without edit tabs or actions', () => {
+    render(
+      <TestContext>
+        <ViewDialog
+          open
+          keepMounted
+          noDialog
+          item={{ apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } }}
+          onClose={vi.fn()}
+        />
+      </TestContext>
+    );
+
+    expect(screen.getByRole('textbox', { name: /code/i })).toBeInTheDocument();
+    expect(screen.queryByRole('tab')).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /undo/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /dry run/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /save & apply/i })).not.toBeInTheDocument();
+  });
+
+  it.each([
+    [
+      'object',
+      '{"kind":"Pod","metadata":{"name":"pod-1"}}',
+      [{ kind: 'Pod', metadata: { name: 'pod-1' } }],
+    ],
+    ['array', '[{"kind":"Pod"},{"kind":"Service"}]', [{ kind: 'Pod' }, { kind: 'Service' }]],
+  ])('saves a JSON %s through a custom callback', (_type, value, expected) => {
+    const onSave = vi.fn();
+    const onEditorChanged = vi.fn();
+    renderEditorDialog({ onSave, onEditorChanged, saveLabel: 'Apply Object' });
+
+    fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+      target: { value },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Apply Object' }));
+
+    expect(onEditorChanged).toHaveBeenCalledWith(value);
+    expect(onSave).toHaveBeenCalledWith(expected);
+  });
+
+  it('renders optional content and initializes documentation and diff tabs', () => {
+    renderEditorDialog({
+      actions: [<Button key="action">Extra action</Button>],
+      toolbarActions: [<Button key="toolbar">Toolbar action</Button>],
+      formContent: <div>Form content</div>,
+    });
+
+    expect(screen.getByRole('button', { name: 'Extra action' })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Toolbar action' })).toBeInTheDocument();
+    expect(screen.getByRole('tab', { name: 'Form' })).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Documentation' }));
+    expect(screen.getByTestId('mock-docs-viewer')).toHaveTextContent('node-1');
+
+    expect(screen.queryByTestId('mock-diff-editor')).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole('tab', { name: 'Review Changes' }));
+    expect(screen.getByTestId('mock-diff-editor')).toBeInTheDocument();
+  });
+
+  it('initializes documentation and diff tabs without form content', () => {
+    renderEditorDialog();
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Documentation' }));
+    expect(screen.getByTestId('mock-docs-viewer')).toHaveTextContent('node-1');
+
+    fireEvent.click(screen.getByRole('tab', { name: 'Review Changes' }));
+    expect(screen.getByTestId('mock-diff-editor')).toBeInTheDocument();
+  });
+
+  it('renders string input and an external error', () => {
+    renderEditorDialog({
+      item: 'kind: Pod',
+      errorMessage: 'External error',
+      title: 'Custom title',
+    });
+
+    expect(screen.getByRole('textbox', { name: /code/i })).toHaveValue('"kind: Pod"');
+    expect(screen.getByText('External error')).toBeInTheDocument();
+  });
+
+  it('toggles managed fields in the editor', () => {
+    renderEditorDialog({
+      allowToHideManagedFields: true,
+      item: {
+        apiVersion: 'v1',
+        kind: 'Node',
+        metadata: {
+          name: 'node-1',
+          managedFields: [{ manager: 'test' }],
+        },
+      },
+    });
+
+    const editor = screen.getByRole('textbox', { name: /code/i });
+    expect(editor).not.toHaveValue(expect.stringContaining('managedFields'));
+
+    fireEvent.click(screen.getByRole('checkbox', { name: 'Hide Managed Fields' }));
+    expect((editor as HTMLTextAreaElement).value).toContain('managedFields');
+  });
+
+  it.each([
+    ['the URL cluster', {}, 'url-cluster'],
+    [
+      'the item cluster',
+      { item: { kind: 'Node', metadata: { name: 'node-1' }, cluster: 'item-cluster' } },
+      'item-cluster',
+    ],
+    ['the explicit cluster', { cluster: 'explicit-cluster' }, 'explicit-cluster'],
+  ])('runs a dry run against %s', async (_description, props, expectedCluster) => {
+    renderEditorDialog(props);
+    fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+      target: { value: 'valid yaml' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /dry run/i }));
+
+    expect(mockClusterAction).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({
+        startMessage: expect.stringContaining('Running dry run'),
+        successMessage: expect.stringContaining('Dry run passed'),
+      })
+    );
+
+    await act(async () => capturedAction.current?.());
+    expect(mockApply).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'Node' }),
+      expectedCluster,
+      { dryRun: true }
+    );
+  });
+
+  it('applies valid YAML and records the create event', async () => {
+    const onClose = vi.fn();
+    renderEditorDialog({ onClose });
+    fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+      target: { value: 'valid yaml' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save & apply/i }));
+
+    expect(mockDispatchCreateEvent).toHaveBeenCalledWith({ status: 'confirmed' });
+    await act(async () => capturedAction.current?.());
+    expect(mockApply).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: 'Node' }),
+      'url-cluster',
+      undefined
+    );
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('uses fallback resource labels and an empty cluster for dry runs', async () => {
+    mockLoadAll.mockReturnValueOnce([
+      { apiVersion: 'v1', kind: 'Node', metadata: {} },
+      { apiVersion: 'v1', metadata: {} },
+    ]);
+    mockGetCluster.mockReturnValueOnce('');
+    renderEditorDialog();
+    fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+      target: { value: 'unnamed resources' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /dry run/i }));
+
+    expect(mockClusterAction).toHaveBeenCalledWith(
+      expect.any(Function),
+      expect.objectContaining({ startMessage: expect.stringContaining('Node,resource') })
+    );
+    await act(async () => capturedAction.current?.());
+    expect(mockApply).toHaveBeenCalledWith(expect.any(Object), '', { dryRun: true });
+  });
+
+  it('shows an apply error and reopens the dialog', async () => {
+    const setOpen = vi.fn();
+    mockApply.mockRejectedValueOnce(new Error('API unavailable'));
+    renderEditorDialog({ setOpen });
+    fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+      target: { value: 'valid yaml' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save & apply/i }));
+
+    await act(async () => {
+      await expect(capturedAction.current?.()).rejects.toThrow('Failed to create Node node-1.');
+    });
+    expect(screen.getByText('API unavailable')).toBeInTheDocument();
+    expect(setOpen).toHaveBeenCalledWith(true);
+  });
+
+  it('reports individual failures when applying multiple resources', async () => {
+    mockLoadAll.mockReturnValueOnce([
+      { apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } },
+      { apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-2' } },
+    ]);
+    mockApply.mockRejectedValueOnce({}).mockResolvedValueOnce({});
+    renderEditorDialog();
+    fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+      target: { value: 'multiple resources' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /save & apply/i }));
+
+    await act(async () => {
+      await expect(capturedAction.current?.()).rejects.toThrow(
+        'Failed to create Node node-1 in v1.'
+      );
+    });
+    expect(screen.getByText('Failed to create Node node-1 in v1.')).toBeInTheDocument();
+  });
+
+  it('disables form actions when validation fails and opens the upload dialog', () => {
+    renderEditorDialog({ formContent: <div>Form content</div>, formInvalid: true });
+    fireEvent.change(screen.getByRole('textbox', { name: /code/i }), {
+      target: { value: 'valid yaml' },
+    });
+    fireEvent.click(screen.getByRole('tab', { name: 'Form' }));
+
+    expect(screen.getByRole('button', { name: /dry run/i })).toBeDisabled();
+    expect(screen.getByRole('button', { name: /save & apply/i })).toBeDisabled();
+
+    fireEvent.click(screen.getByRole('button', { name: /upload file\/url/i }));
+    expect(screen.getByRole('dialog')).toBeInTheDocument();
   });
 });

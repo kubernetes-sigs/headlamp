@@ -65,21 +65,25 @@ const findLeaf = (
   return undefined;
 };
 
-const crd = (kind: string, group: string, apiName: string) =>
-  ({
+const crd = (kind: string, group: string, apiName: string) => {
+  const CustomResource = class {
+    static apiName = apiName;
+    static apiVersion = `${group}/v1`;
+    static kind = kind;
+    static get apiGroupName() {
+      return group;
+    }
+    static useList = vi.fn(() => [null]);
+  };
+  const apiGroup: [string, string, string] = [group, 'v1', apiName];
+  return {
     spec: { names: { kind } },
-    getMainAPIGroup: () => [group, 'v1', apiName],
-    makeCRClass: () =>
-      class CustomResource {
-        static apiName = apiName;
-        static apiVersion = `${group}/v1`;
-        static kind = kind;
-        static get apiGroupName() {
-          return group;
-        }
-        static useList = vi.fn(() => [null]);
-      },
-  } as unknown as CRD);
+    getMainAPIGroup: () => apiGroup,
+    getMainAPIGroupOrNull: () => apiGroup,
+    makeCRClass: () => CustomResource,
+    makeCRClassOrNull: () => CustomResource,
+  } as unknown as CRD;
+};
 
 describe('useGetAllSources', () => {
   beforeEach(() => {
