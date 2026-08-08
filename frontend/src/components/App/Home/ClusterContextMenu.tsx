@@ -39,12 +39,16 @@ import ErrorBoundary from '../../common/ErrorBoundary/ErrorBoundary';
 interface ClusterContextMenuProps {
   /** The cluster for the context menu to act on. */
   cluster: Cluster;
+  onClusterRemoved?: () => void;
 }
 
 /**
  * ClusterContextMenu component displays a context menu for a given cluster.
  */
-export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps) {
+export default function ClusterContextMenu({
+  cluster,
+  onClusterRemoved = () => window.location.reload(),
+}: ClusterContextMenuProps) {
   const { t } = useTranslation(['translation']);
   const history = useHistory();
   const dispatch = useDispatch();
@@ -68,6 +72,7 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
     deleteCluster(clusterName, deleteFromKubeconfig, clusterID, kubeconfigOrigin, originalName)
       .then(config => {
         dispatch(setConfig(config));
+        onClusterRemoved();
       })
       .catch((err: Error) => {
         enqueueSnackbar(
@@ -77,9 +82,6 @@ export default function ClusterContextMenu({ cluster }: ClusterContextMenuProps)
             preventDuplicate: true,
           }
         );
-      })
-      .finally(() => {
-        history.push('/');
       });
   }
 
