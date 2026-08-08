@@ -259,7 +259,7 @@ func GetContextKeyAndKContext(w http.ResponseWriter,
 		return nil, nil, "", nil, err
 	}
 
-	kContext, err := c.KubeConfigStore.GetContext(contextKey)
+	contextKey, kContext, err := c.getContextWithWebSocketFallback(r, contextKey)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "failed to get context", http.StatusNotFound)
 		return nil, nil, "", nil, err
