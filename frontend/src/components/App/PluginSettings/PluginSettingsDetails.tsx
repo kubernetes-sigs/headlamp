@@ -20,12 +20,13 @@ import Chip from '@mui/material/Chip';
 import Stack from '@mui/material/Stack';
 import Typography from '@mui/material/Typography';
 import _ from 'lodash';
-import { isValidElement, useMemo, useState } from 'react';
+import { isValidElement, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useHistory, useParams } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
 import { ConfigStore } from '../../../plugin/configStore';
 import { PluginInfo } from '../../../plugin/pluginsSlice';
+import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import NotFoundComponent from '../../404';
 import { SectionHeader } from '../../common';
@@ -71,6 +72,11 @@ const PluginSettingsDetailsInitializer = (props: { plugin: PluginInfo }) => {
   const pluginConf = store.useConfig();
   const config = pluginConf() as { [key: string]: any };
   const deletePluginAction = usePluginDelete();
+  const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.PLUGIN_DETAILS_VIEW);
+
+  useEffect(() => {
+    dispatchHeadlampEvent({ plugin });
+  }, [plugin]);
 
   function handleSave(data: { [key: string]: any }) {
     store.set(data);
