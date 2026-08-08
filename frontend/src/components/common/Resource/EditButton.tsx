@@ -78,7 +78,15 @@ export default function EditButton(props: EditButtonProps) {
       throw new Error('Cannot compute patch: original resource state was not captured');
     }
     try {
-      await editorItemRef.current.patchUpdate(original, newItem);
+      // Issue #4882: a user may have only the 'patch' verb or only the
+      // 'update' verb. Use the JSON Patch save path when patch is granted,
+      // otherwise fall back to a full object update (PUT) for update-only
+      // users.
+      if (authDataRef.current?.patch) {
+        await editorItemRef.current.patchUpdate(original, newItem);
+      } else {
+        await editorItemRef.current.update(newItem);
+      }
       // Use a normalized clone of the modified object (what the editor shows)
       // as the new baseline, not the server response which includes
       // server-managed fields the editor may not display.
@@ -124,8 +132,9 @@ export default function EditButton(props: EditButtonProps) {
   const itemClass: KubeObjectClass | null = (item as any)?._class?.() ?? item;
   const itemName = (item as any)?.getName?.();
 
-  // The save path uses patchUpdate (a JSON Patch request), so gate the edit
-  // action on the 'patch' verb rather than 'update'. See issue #4882.
+  // Issue #4882: show the edit pencil when the user has either the 'patch'
+  // or the 'update' verb. The save path is chosen to match (JSON Patch when
+  // patch is granted, full update otherwise).
   const { data: authData } = useQuery({
     enabled: !!item,
     queryKey: [
@@ -138,25 +147,36 @@ export default function EditButton(props: EditButtonProps) {
     ],
     queryFn: async () => {
       try {
-        const auth = await item!.getAuthorization('patch', {});
-        return { allowed: auth?.status?.allowed ?? false };
+        // Short-circuit on 'patch' (the common least-privilege setup) to
+        // keep the authorization traffic to one request where possible; only
+        // fall back to checking 'update' when patch is not granted.
+        const patchAuth = await item!.getAuthorization('patch', {});
+        if (patchAuth?.status?.allowed) {
+          return { patch: true, update: false };
+        }
+        const updateAuth = await item!.getAuthorization('update', {});
+        return { patch: false, update: updateAuth?.status?.allowed ?? false };
       } catch (e: any) {
         console.error(`Error while getting authorization for edit button in ${item}:`, e);
-        return { allowed: false };
+        return { patch: false, update: false };
       }
     },
   });
+
+  // Mirror the auth result so the (memoized) save function can pick the
+  // right verb without stale closures.
+  const authDataRef = React.useRef<{ patch: boolean; update: boolean } | null>(null);
+  React.useEffect(() => {
+    authDataRef.current = authData ?? null;
+  }, [authData]);
 
   if (!item) {
     return null;
   }
 
-  // While the authorization request is in flight, don't render anything.
-  if (!authData) {
-    return null;
-  }
-
-  if (!authData.allowed) {
+  // While the authorization request is in flight, show the view button
+  // rather than nothing; swap to the edit button once auth resolves.
+  if (!authData || !(authData.patch || authData.update)) {
     return <ViewButton item={item} />;
   }
 

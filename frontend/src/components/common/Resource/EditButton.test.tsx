@@ -33,7 +33,6 @@ function mockItem(allowedVerbs: string[]) {
       Promise.resolve({
         status: {
           allowed: allowedVerbs.includes(verb),
-          reason: allowedVerbs.includes(verb) ? 'OK' : 'Forbidden',
         },
       })
     ),
@@ -50,6 +49,7 @@ function mockItem(allowedVerbs: string[]) {
       metadata: { name: 'test-ns' },
     }),
     patchUpdate: vi.fn(),
+    update: vi.fn(),
   } as any;
 }
 
@@ -72,25 +72,39 @@ describe('EditButton', () => {
       expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
     });
     expect(item.getAuthorization).toHaveBeenCalledWith('patch', {});
+    // Short-circuits: 'update' is never checked when patch is granted.
+    expect(item.getAuthorization).not.toHaveBeenCalledWith('update', {});
   });
 
-  it('does not show edit button when user lacks patch permission', async () => {
-    const item = mockItem([]);
-    renderWithProviders(<EditButton item={item} />);
-    await waitFor(() => {
-      expect(screen.getByRole('button', { name: /view yaml/i })).toBeInTheDocument();
-    });
-    expect(screen.queryByRole('button', { name: /edit/i })).not.toBeInTheDocument();
-    expect(item.getAuthorization).toHaveBeenCalledWith('patch', {});
-  });
-
-  it('does not show edit button when user has only update permission', async () => {
+  it('shows edit button when user has only update permission', async () => {
     const item = mockItem(['update']);
     renderWithProviders(<EditButton item={item} />);
     await waitFor(() => {
-      expect(screen.getByRole('button', { name: /view yaml/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
     });
-    expect(screen.queryByRole('button', { name: /edit/i })).not.toBeInTheDocument();
     expect(item.getAuthorization).toHaveBeenCalledWith('patch', {});
+    expect(item.getAuthorization).toHaveBeenCalledWith('update', {});
+  });
+
+  it('shows edit button when user has both patch and update permission', async () => {
+    const item = mockItem(['patch', 'update']);
+    renderWithProviders(<EditButton item={item} />);
+    await waitFor(() => {
+      expect(screen.getByRole('button', { name: /edit/i })).toBeInTheDocument();
+    });
+    expect(item.getAuthorization).toHaveBeenCalledWith('patch', {});
+  });
+
+  it('does not show edit button when user has neither patch nor update permission', async () => {
+    const item = mockItem([]);
+    renderWithProviders(<EditButton item={item} />);
+    // The view button renders immediately; wait for both auth checks to
+    // complete so this test actually validates the final outcome.
+    await waitFor(() => {
+      expect(item.getAuthorization).toHaveBeenCalledWith('patch', {});
+      expect(item.getAuthorization).toHaveBeenCalledWith('update', {});
+    });
+    expect(screen.getByRole('button', { name: /view yaml/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /edit/i })).not.toBeInTheDocument();
   });
 });
