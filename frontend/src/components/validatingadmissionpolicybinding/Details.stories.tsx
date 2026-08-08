@@ -59,6 +59,7 @@ Item.parameters = {
           'http://localhost:4466/apis/admissionregistration.k8s.io/v1/validatingadmissionpolicybindings/test-binding',
           () => HttpResponse.json(mockBinding)
         ),
+        http.get(`${API_BASE}/api/v1/events`, () => HttpResponse.json({ items: [] })),
       ],
     },
   },
