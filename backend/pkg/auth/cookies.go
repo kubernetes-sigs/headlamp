@@ -65,12 +65,6 @@ func IsSecureContext(r *http.Request) bool {
 		return true
 	}
 
-	// Check if we're in localhost/development (allow insecure for dev)
-	host := r.Host
-	if strings.HasPrefix(host, "localhost") || strings.HasPrefix(host, "127.0.0.1") {
-		return false
-	}
-
 	return false
 }
 
