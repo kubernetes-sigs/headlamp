@@ -889,6 +889,50 @@ var validateTracingTests = []struct {
 		errorContains: "otlp-endpoint must be configured when use-otlp-http is enabled",
 	},
 	{
+		name: "tracing_enabled_without_exporter",
+		args: []string{
+			"go run ./cmd",
+			"--tracing-enabled=true",
+			"--service-name=myapp",
+			"--otlp-endpoint=",
+		},
+		expectError:   true,
+		errorContains: "at least one tracing exporter (otlp or stdout) must be configured",
+	},
+	{
+		name: "stdout_trace_enabled_without_endpoint",
+		args: []string{
+			"go run ./cmd",
+			"--tracing-enabled=true",
+			"--service-name=myapp",
+			"--otlp-endpoint=",
+			"--stdout-trace-enabled=true",
+		},
+		expectError: false,
+	},
+	{
+		name: "jaeger_endpoint_without_stdout",
+		args: []string{
+			"go run ./cmd",
+			"--tracing-enabled=true",
+			"--service-name=myapp",
+			"--jaeger-endpoint=http://jaeger:14268/api/traces",
+		},
+		expectError:   true,
+		errorContains: "jaeger-endpoint is not supported; use otlp-endpoint or stdout tracing",
+	},
+	{
+		name: "jaeger_endpoint_with_stdout_is_valid",
+		args: []string{
+			"go run ./cmd",
+			"--tracing-enabled=true",
+			"--service-name=myapp",
+			"--jaeger-endpoint=http://jaeger:14268/api/traces",
+			"--stdout-trace-enabled=true",
+		},
+		expectError: false,
+	},
+	{
 		name: "tracing_disabled_no_validation",
 		args: []string{
 			"go run ./cmd",
