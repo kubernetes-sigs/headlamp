@@ -344,6 +344,10 @@ export function stream<T>(url: string, cb: StreamResultsCb<T>, args: StreamArgs)
     if (connectCb) connectCb();
     try {
       connection = await connectStream(url, cb, onFail, isJson, additionalProtocols, cluster);
+
+      if (isCancelled) {
+        connection.close();
+      }
     } catch (error) {
       console.error('Error connecting stream:', error);
       onFail();
