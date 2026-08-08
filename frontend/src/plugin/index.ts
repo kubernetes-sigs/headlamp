@@ -282,7 +282,7 @@ export function applyPluginPriority(plugins: PluginInfo[]): PluginInfo[] {
 /**
  * Updates settings packages based on what the backend provides.
  *
- * - For new plugins (not in settings), includes them with isEnabled=true
+ * - For new plugins (not in settings), uses headlamp.enabledByDefault and defaults to true
  * - For existing plugins (in settings), preserves their isEnabled preference
  * - Returns only plugins that exist in the backend list (automatically removing any that are gone)
  * - Treats plugins with the same name but different types as separate entries
@@ -315,10 +315,9 @@ export function updateSettingsPackages(
     const index = settingsPlugins.findIndex(x => x.name === plugin.name && x.type === plugin.type);
 
     if (index === -1) {
-      // It's a new one settings doesn't know about, enable it by default
       return {
         ...plugin,
-        isEnabled: true,
+        isEnabled: plugin.headlamp?.enabledByDefault ?? true,
       };
     }
 

@@ -34,7 +34,7 @@ async function extractArchive(
         console.log('Extracted archive');
         const pluginFolder = path.join(PLUGIN_FOLDER, name);
         if (!fs.existsSync(pluginFolder)) {
-          fs.mkdirSync(pluginFolder);
+          fs.mkdirSync(pluginFolder, { recursive: true });
         }
 
         console.log('Copying plugin to ', pluginFolder);
@@ -134,12 +134,11 @@ async function fetchArchive(name, url) {
   fs.unlinkSync(archivePath);
 }
 
-async function main() {
-  const plugins = manifest.plugins;
+async function main(plugins = manifest.plugins) {
   // Fetch the plugins from the manifest
   if (!!plugins) {
     for (const plugin of plugins) {
-      const { name, archive, file } = plugin;
+      const { name, archive, file, enabledByDefault } = plugin;
 
       console.log('Setting up plugin', name, 'from', archive || file, '...');
 
@@ -148,13 +147,41 @@ async function main() {
       }
 
       if (!!file) {
-        const absPath = path.join(path.dirname(MANIFEST_FILE), file);
+        const absPath = path.resolve(path.dirname(MANIFEST_FILE), file);
         await extractArchive(name, absPath);
+      }
+
+      const pluginFolder = path.join(PLUGIN_FOLDER, name);
+      const packageJsonPath = path.join(pluginFolder, 'package.json');
+
+      if (enabledByDefault !== undefined && fs.existsSync(packageJsonPath)) {
+        try {
+          const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+          packageJson.headlamp = packageJson.headlamp || {};
+          packageJson.headlamp.enabledByDefault = enabledByDefault;
+
+          fs.writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+          console.log(`Plugin ${name} enabledByDefault: ${enabledByDefault}`);
+        } catch (error) {
+          console.error(`Failed to update enabledByDefault for plugin ${name}:`, error);
+        }
       }
     }
   }
-
-  process.exit(0);
 }
 
-main();
+function runCli(setup = main, exit = process.exit) {
+  return setup().then(
+    () => exit(0),
+    error => {
+      console.error('Failed to set up plugins:', error);
+      exit(1);
+    }
+  );
+}
+
+if (require.main === module) {
+  runCli();
+}
+
+module.exports = { main, runCli };

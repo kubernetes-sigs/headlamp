@@ -39,6 +39,36 @@ describe('updateSettingsPackages tests', () => {
     expect(updatedSettingsPlugins[0].isEnabled).toBe(true);
   });
 
+  test('when a new backend plugin explicitly defaults to enabled', () => {
+    const backendPlugins: Array<PluginInfo & { headlamp: { enabledByDefault: boolean } }> = [
+      {
+        name: 'ourplugin1',
+        description: 'package description1',
+        homepage: 'https://example.com/1',
+        headlamp: { enabledByDefault: true },
+      },
+    ];
+
+    const updatedSettingsPlugins = updateSettingsPackages(backendPlugins, []);
+
+    expect(updatedSettingsPlugins[0].isEnabled).toBe(true);
+  });
+
+  test('when a new backend plugin explicitly defaults to disabled', () => {
+    const backendPlugins: Array<PluginInfo & { headlamp: { enabledByDefault: boolean } }> = [
+      {
+        name: 'ourplugin1',
+        description: 'package description1',
+        homepage: 'https://example.com/1',
+        headlamp: { enabledByDefault: false },
+      },
+    ];
+
+    const updatedSettingsPlugins = updateSettingsPackages(backendPlugins, []);
+
+    expect(updatedSettingsPlugins[0].isEnabled).toBe(false);
+  });
+
   test('when there is an existing setting already turned to true by user', () => {
     const backendPlugins: PluginInfo[] = [
       {
@@ -87,5 +117,26 @@ describe('updateSettingsPackages tests', () => {
     ];
     const updatedSettingsPlugins = updateSettingsPackages(backendPlugins, settingsPlugins);
     expect(updatedSettingsPlugins.length).toBe(0);
+  });
+
+  test('when a saved disabled choice differs from the plugin default', () => {
+    const backendPlugins: Array<PluginInfo & { headlamp: { enabledByDefault: boolean } }> = [
+      {
+        name: 'ourplugin1',
+        description: 'package description1',
+        homepage: 'https://example.com/1',
+        headlamp: { enabledByDefault: true },
+      },
+    ];
+    const settingsPlugins: PluginInfo[] = [
+      {
+        ...backendPlugins[0],
+        isEnabled: false,
+      },
+    ];
+
+    const updatedSettingsPlugins = updateSettingsPackages(backendPlugins, settingsPlugins);
+
+    expect(updatedSettingsPlugins[0].isEnabled).toBe(false);
   });
 });
