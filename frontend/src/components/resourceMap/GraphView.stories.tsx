@@ -217,6 +217,33 @@ export const BasicExample = () => (
 );
 BasicExample.args = {};
 
+// Repro for https://github.com/kubernetes-sigs/headlamp/issues/6555:
+// one source resolves normally, the other never settles (simulates a
+// stuck watch/list). Used to capture before/after screenshot evidence
+// of the SOURCE_LOADING_TIMEOUT_MS fix in GraphSources.tsx.
+const settledSource: GraphSource = {
+  id: 'settled-source',
+  label: 'Pods (settles)',
+  useData() {
+    return data;
+  },
+};
+
+const hungSource: GraphSource = {
+  id: 'hung-source',
+  label: 'Workloads (never settles)',
+  useData() {
+    return null;
+  },
+};
+
+export const HungSourceRepro = () => (
+  <TestContext>
+    <GraphView height="600px" defaultSources={[settledSource, hungSource]} />
+  </TestContext>
+);
+HungSourceRepro.args = {};
+
 /**
  * Percentage of pods that should have error status (for testing error filtering)
  */
