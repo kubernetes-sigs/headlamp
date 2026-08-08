@@ -24,6 +24,7 @@ import { storeStatelessClusterKubeconfig } from '../../../../stateless';
 import { deleteClusterKubeconfig } from '../../../../stateless/deleteClusterKubeconfig';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getCluster, getSelectedClusters } from '../../../cluster';
+import { ApiError } from '../v2/ApiError';
 import type { ClusterRequest } from './clusterRequests';
 import { clusterRequest, post, request } from './clusterRequests';
 import { JSON_HEADERS } from './constants';
@@ -31,10 +32,76 @@ import { JSON_HEADERS } from './constants';
 /**
  * Test authentication for the given cluster.
  * Will throw an error if the user is not authenticated.
+ *
+ * For OIDC clusters (auth_type === 'oidc'), this calls the headlamp-server
+ * `/clusters/{cluster}/me` endpoint, which validates the per-cluster auth
+ * cookie. The handler is implemented at backend/pkg/auth/auth.go HandleMe;
+ * it returns 401 with `{"message": "unauthorized"}` (or "token expired")
+ * when the cookie is missing, malformed, or its embedded JWT cannot be
+ * verified, and otherwise returns `{"username": ..., "email": ..., ...}`
+ * with the JMESPath-extracted username from the JWT payload.
+ *
+ * **The HTTP status is the auth signal, not the username.** HandleMe
+ * rejects a missing/invalid/expired token before it ever looks at claims,
+ * so a 2xx already means the cookie was verified. `clusterRequest` rejects
+ * on any non-2xx, so a 401 from /me surfaces as a thrown error and the
+ * caller routes the user to AuthChooser.
+ *
+ * In particular, an **empty username is a valid authenticated session** and
+ * must not be rejected here. The default username path (see
+ * DefaultMeUsernamePath in backend/pkg/config/config.go) is
+ * "preferred_username,upn,username,name" — there is no `sub` or `email`
+ * fallback — so an IdP issuing none of those four claims (Dex without the
+ * `profile` scope, Azure AD v2 access tokens, minimal Keycloak client
+ * scopes) yields a cookie-verified 200 carrying `username: ""`. Turning
+ * that into a synthetic 401 would send the user to login, which sets a
+ * perfectly good cookie, which /me again reports with an empty username —
+ * an infinite redirect loop (RouteSwitcher.tsx sends OIDC errors to
+ * `login`). `getClusterUserInfo` below takes the same stance: an empty
+ * username means "no info", not "unauthenticated".
+ *
+ * The `system:anonymous` check is defense in depth for an operator whose
+ * JMESPath username extraction resolves to the Kubernetes anonymous user.
+ * It is an exact match on purpose: `system:anonymous-reader` and similar
+ * are legitimate usernames, and the anonymous user is exactly
+ * `system:anonymous`.
+ *
+ * This works around the SSRR false-positive reported in #4721: when
+ * `system:basic-user` is granted to `system:unauthenticated`, SSRR
+ * returns HTTP 201 for both anonymous and authenticated callers, so it
+ * cannot be used as the auth signal on those clusters.
+ *
+ * For non-OIDC clusters, behavior is unchanged: SSRR is the auth signal.
  */
 export async function testAuth(cluster = '', namespace = 'default') {
-  const spec = { namespace };
   const clusterName = cluster || getCluster();
+
+  if (clusterName) {
+    const clusterAuthType = store.getState().config?.clusters?.[clusterName]?.auth_type;
+
+    if (clusterAuthType === 'oidc') {
+      const me = await clusterRequest('/me', {
+        timeout: 5 * 1000,
+        cluster: clusterName,
+        // This is an auth *probe*: the caller decides what a 401 means and
+        // where to send the user. Letting clusterRequest log the user out
+        // from underneath it would race that logic. The SSRR call below
+        // passes false for the same reason.
+        autoLogoutOnAuthError: false,
+      });
+
+      const username: string = (me && me.username) || '';
+      // Exact match only — see the note above on why an empty username is
+      // accepted and why this is not a `startsWith`.
+      if (username === 'system:anonymous') {
+        throw new ApiError('not authenticated', { status: 401, cluster: clusterName });
+      }
+
+      return me;
+    }
+  }
+
+  const spec = { namespace };
 
   return post('/apis/authorization.k8s.io/v1/selfsubjectrulesreviews', { spec }, false, {
     timeout: 5 * 1000,
