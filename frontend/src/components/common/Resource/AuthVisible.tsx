@@ -16,6 +16,7 @@
 
 import { useQuery } from '@tanstack/react-query';
 import React, { useEffect } from 'react';
+import { getCluster } from '../../../lib/cluster';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
 
@@ -66,11 +67,13 @@ export default function AuthVisible(props: AuthVisibleProps) {
 
   const itemClass: KubeObjectClass | null = (item as KubeObject)?._class?.() ?? item;
   const itemName = (item as KubeObject)?.getName?.();
+  const cluster = (item as KubeObject)?.cluster ?? getCluster() ?? undefined;
 
   const { data } = useQuery<any>({
     enabled: !!item && isAuthVerbValid,
     queryKey: [
       'authVisible',
+      cluster,
       itemName,
       itemClass?.apiName,
       itemClass?.apiVersion,
@@ -80,27 +83,36 @@ export default function AuthVisible(props: AuthVisibleProps) {
     ],
     queryFn: async () => {
       try {
-        const res = await item!.getAuthorization(
-          authVerb,
-          { subresource, namespace },
-          (item as any).cluster
-        );
-        return res;
+        if (!item) {
+          return null;
+        }
+
+        if (item instanceof KubeObject) {
+          return await item.getAuthorization(authVerb, {
+            subresource,
+            namespace,
+          });
+        }
+
+        return await item.getAuthorization(authVerb, { subresource, namespace }, cluster);
       } catch (e: any) {
         onError?.(e);
+        return null;
       }
     },
   });
 
-  const visible = data?.status?.allowed ?? false;
+  const visible = isAuthVerbValid && (data?.status?.allowed ?? false);
 
   useEffect(() => {
-    if (data) {
-      onAuthResult?.({
-        allowed: visible,
-        reason: data.status?.reason ?? '',
-      });
+    if (!isAuthVerbValid || !data) {
+      return;
     }
+    onAuthResult?.({
+      allowed: visible,
+      reason: data.status?.reason ?? '',
+    });
+
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [data]);
 
