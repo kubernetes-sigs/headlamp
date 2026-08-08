@@ -107,13 +107,6 @@ test.afterAll(async () => {
   fs.rmSync(ISOLATED_KUBECONFIG, { force: true });
 });
 
-// Requesting the `page` fixture here launches Playwright's own Chromium
-// browser (see app/e2e-tests/README.md); this suite doesn't use it, so
-// close it immediately to avoid it lingering for the rest of the run.
-test.beforeEach(async ({ page }) => {
-  await page.close();
-});
-
 // Tests
 test.describe('Cluster rename functionality', () => {
   test('should rename cluster and verify changes', async () => {

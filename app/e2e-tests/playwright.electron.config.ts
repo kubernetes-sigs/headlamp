@@ -17,18 +17,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
 /**
- * Config for the desktop (Electron) app's e2e specs, kept separate from
- * playwright.config.ts (the web-mode config) because the two run against a
- * fundamentally different app: this one launches a real Electron binary
- * against a real minikube cluster via `_electron.launch()`, not a browser
- * page against a running dev server. testMatch scopes this config to just
- * the specs that drive Electron; playwright.config.ts excludes them via
- * testIgnore so the same spec isn't picked up by both configs.
- *
- * The specs listed here still request Playwright's own `page` fixture (see
- * app/e2e-tests/README.md: "Chromium is required even though these are
- * Electron tests"), so the `chromium` project below is still needed even
- * though no test here actually drives a Chromium page directly.
+ * Config for the desktop (Electron) app's e2e specs: this suite launches a
+ * real Electron binary against a real minikube cluster via
+ * `_electron.launch()`, not a browser page against a running dev server.
+ * testMatch scopes this config to just the specs that drive Electron.
  */
 
 export default defineConfig({
