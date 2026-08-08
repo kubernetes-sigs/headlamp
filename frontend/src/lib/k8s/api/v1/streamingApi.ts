@@ -40,7 +40,7 @@ export type StreamUpdate<T = any> = {
 
 export type StreamResultsCb<T = any> = (data: T) => void;
 export type StreamUpdatesCb<T = any> = (data: T | StreamUpdate<T>) => void;
-export type StreamErrCb = (err: Error & { status?: number }, cancelStreamFunc?: () => void) => void;
+export type StreamErrCb = (err: ApiError, cancelStreamFunc?: () => void) => void;
 
 /**
  * Fetches the data and watches for changes to the data.
