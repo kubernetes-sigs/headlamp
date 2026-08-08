@@ -1,0 +1,473 @@
+<body>
+  <div
+    aria-hidden="true"
+  />
+  <div
+    class="MuiDialog-root MuiModal-root css-zw3mfo-MuiModal-root-MuiDialog-root"
+    role="presentation"
+  >
+    <div
+      aria-hidden="true"
+      class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
+      style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+    />
+    <div
+      data-testid="sentinelStart"
+      tabindex="0"
+    />
+    <div
+      class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
+      role="presentation"
+      style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
+      tabindex="-1"
+    >
+      <div
+        aria-labelledby=":mock-test-id:"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthMd MuiDialog-paperFullWidth css-1uqdd3t-MuiPaper-root-MuiDialog-paper"
+        role="dialog"
+      >
+        <h2
+          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
+          id=":mock-test-id:"
+        >
+          Rollback Deployment
+        </h2>
+        <div
+          class="MuiDialogContent-root css-ypiqx9-MuiDialogContent-root"
+        >
+          <p
+            class="MuiTypography-root MuiTypography-body2 css-i6y5kq-MuiTypography-root"
+          >
+            Select a revision to rollback "nginx-deployment" to. This will replace the current pod template with the one from the selected revision.
+          </p>
+          <ul
+            class="MuiList-root MuiList-padding css-1tmg5zb-MuiList-root"
+          >
+            <div
+              aria-disabled="true"
+              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-disabled Mui-disabled MuiListItemButton-root MuiListItemButton-gutters Mui-disabled css-jvjlif-MuiButtonBase-root-MuiListItemButton-root"
+              role="button"
+              tabindex="-1"
+            >
+              <span
+                aria-disabled="true"
+                class="MuiButtonBase-root MuiRadio-root MuiRadio-colorPrimary MuiRadio-sizeSmall Mui-disabled PrivateSwitchBase-root MuiRadio-root MuiRadio-colorPrimary MuiRadio-sizeSmall Mui-disabled MuiRadio-root MuiRadio-colorPrimary MuiRadio-sizeSmall css-1inluhi-MuiButtonBase-root-MuiSwitchBase-root-MuiRadio-root"
+                tabindex="-1"
+              >
+                <input
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  disabled=""
+                  type="radio"
+                  value=""
+                />
+                <span
+                  class="css-19y5vkv-MuiRadioButtonIcon-root"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-q6smfc-MuiSvgIcon-root-MuiRadioButtonIcon-root"
+                    data-testid="RadioButtonUncheckedIcon"
+                    focusable="false"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"
+                    />
+                  </svg>
+                  <svg
+                    aria-hidden="true"
+                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-145qo40-MuiSvgIcon-root-MuiRadioButtonIcon-root"
+                    data-testid="RadioButtonCheckedIcon"
+                    focusable="false"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M8.465 8.465C9.37 7.56 10.62 7 12 7C14.76 7 17 9.24 17 12C17 13.38 16.44 14.63 15.535 15.535C14.63 16.44 13.38 17 12 17C9.24 17 7 14.76 7 12C7 10.62 7.56 9.37 8.465 8.465Z"
+                    />
+                  </svg>
+                </span>
+              </span>
+              <div
+                class="MuiListItemText-root MuiListItemText-multiline css-konndc-MuiListItemText-root"
+              >
+                <div
+                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                >
+                  <div
+                    class="MuiBox-root css-axw7ok"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-18k2gby-MuiTypography-root"
+                    >
+                      Revision 4
+                    </p>
+                    <div
+                      class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorPrimary MuiChip-outlinedPrimary css-t4xq4n-MuiChip-root"
+                    >
+                      <span
+                        class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
+                      >
+                        Current
+                      </span>
+                    </div>
+                  </div>
+                </div>
+                <div
+                  class="MuiTypography-root MuiTypography-body2 MuiListItemText-secondary css-pglae5-MuiTypography-root"
+                >
+                  <span
+                    class="MuiBox-root css-0"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-70yeff-MuiTypography-root"
+                    >
+                      <p
+                        aria-label="2023-01-04T11:00:00.000Z"
+                        class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                        data-mui-internal-clone-element="true"
+                      >
+                        90d
+                      </p>
+                    </span>
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                    >
+                      <span
+                        class="MuiBox-root css-13o7eu2"
+                      >
+                        registry.k8s.io/nginx:1.25.4
+                      </span>
+                    </span>
+                  </span>
+                </div>
+              </div>
+            </div>
+            <div
+              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-et6oqk-MuiButtonBase-root-MuiListItemButton-root"
+              role="button"
+              tabindex="0"
+            >
+              <span
+                class="MuiButtonBase-root MuiRadio-root MuiRadio-colorPrimary MuiRadio-sizeSmall PrivateSwitchBase-root MuiRadio-root MuiRadio-colorPrimary MuiRadio-sizeSmall Mui-checked MuiRadio-root MuiRadio-colorPrimary MuiRadio-sizeSmall css-1inluhi-MuiButtonBase-root-MuiSwitchBase-root-MuiRadio-root"
+              >
+                <input
+                  checked=""
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  type="radio"
+                  value=""
+                />
+                <span
+                  class="css-19y5vkv-MuiRadioButtonIcon-root"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-q6smfc-MuiSvgIcon-root-MuiRadioButtonIcon-root"
+                    data-testid="RadioButtonUncheckedIcon"
+                    focusable="false"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"
+                    />
+                  </svg>
+                  <svg
+                    aria-hidden="true"
+                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-majg0n-MuiSvgIcon-root-MuiRadioButtonIcon-root"
+                    data-testid="RadioButtonCheckedIcon"
+                    focusable="false"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M8.465 8.465C9.37 7.56 10.62 7 12 7C14.76 7 17 9.24 17 12C17 13.38 16.44 14.63 15.535 15.535C14.63 16.44 13.38 17 12 17C9.24 17 7 14.76 7 12C7 10.62 7.56 9.37 8.465 8.465Z"
+                    />
+                  </svg>
+                </span>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+              <div
+                class="MuiListItemText-root MuiListItemText-multiline css-konndc-MuiListItemText-root"
+              >
+                <div
+                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                >
+                  <div
+                    class="MuiBox-root css-axw7ok"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-18k2gby-MuiTypography-root"
+                    >
+                      Revision 3
+                    </p>
+                  </div>
+                </div>
+                <div
+                  class="MuiTypography-root MuiTypography-body2 MuiListItemText-secondary css-pglae5-MuiTypography-root"
+                >
+                  <span
+                    class="MuiBox-root css-0"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-70yeff-MuiTypography-root"
+                    >
+                      <p
+                        aria-label="2023-01-03T09:30:00.000Z"
+                        class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                        data-mui-internal-clone-element="true"
+                      >
+                        90d
+                      </p>
+                    </span>
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                    >
+                      <span
+                        class="MuiBox-root css-13o7eu2"
+                      >
+                        registry.k8s.io/nginx:1.25.3
+                      </span>
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </div>
+            <div
+              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-jvjlif-MuiButtonBase-root-MuiListItemButton-root"
+              role="button"
+              tabindex="0"
+            >
+              <span
+                class="MuiButtonBase-root MuiRadio-root MuiRadio-colorPrimary MuiRadio-sizeSmall PrivateSwitchBase-root MuiRadio-root MuiRadio-colorPrimary MuiRadio-sizeSmall MuiRadio-root MuiRadio-colorPrimary MuiRadio-sizeSmall css-1inluhi-MuiButtonBase-root-MuiSwitchBase-root-MuiRadio-root"
+              >
+                <input
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  type="radio"
+                  value=""
+                />
+                <span
+                  class="css-19y5vkv-MuiRadioButtonIcon-root"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-q6smfc-MuiSvgIcon-root-MuiRadioButtonIcon-root"
+                    data-testid="RadioButtonUncheckedIcon"
+                    focusable="false"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"
+                    />
+                  </svg>
+                  <svg
+                    aria-hidden="true"
+                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-145qo40-MuiSvgIcon-root-MuiRadioButtonIcon-root"
+                    data-testid="RadioButtonCheckedIcon"
+                    focusable="false"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M8.465 8.465C9.37 7.56 10.62 7 12 7C14.76 7 17 9.24 17 12C17 13.38 16.44 14.63 15.535 15.535C14.63 16.44 13.38 17 12 17C9.24 17 7 14.76 7 12C7 10.62 7.56 9.37 8.465 8.465Z"
+                    />
+                  </svg>
+                </span>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+              <div
+                class="MuiListItemText-root MuiListItemText-multiline css-konndc-MuiListItemText-root"
+              >
+                <div
+                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                >
+                  <div
+                    class="MuiBox-root css-axw7ok"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-18k2gby-MuiTypography-root"
+                    >
+                      Revision 2
+                    </p>
+                  </div>
+                </div>
+                <div
+                  class="MuiTypography-root MuiTypography-body2 MuiListItemText-secondary css-pglae5-MuiTypography-root"
+                >
+                  <span
+                    class="MuiBox-root css-0"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-70yeff-MuiTypography-root"
+                    >
+                      <p
+                        aria-label="2023-01-02T14:10:00.000Z"
+                        class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                        data-mui-internal-clone-element="true"
+                      >
+                        90d
+                      </p>
+                    </span>
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                    >
+                      <span
+                        class="MuiBox-root css-13o7eu2"
+                      >
+                        registry.k8s.io/nginx:1.25.2
+                      </span>
+                      <span
+                        class="MuiBox-root css-13o7eu2"
+                      >
+                        registry.k8s.io/sidecar:0.4.0
+                      </span>
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </div>
+            <div
+              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-jvjlif-MuiButtonBase-root-MuiListItemButton-root"
+              role="button"
+              tabindex="0"
+            >
+              <span
+                class="MuiButtonBase-root MuiRadio-root MuiRadio-colorPrimary MuiRadio-sizeSmall PrivateSwitchBase-root MuiRadio-root MuiRadio-colorPrimary MuiRadio-sizeSmall MuiRadio-root MuiRadio-colorPrimary MuiRadio-sizeSmall css-1inluhi-MuiButtonBase-root-MuiSwitchBase-root-MuiRadio-root"
+              >
+                <input
+                  class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
+                  type="radio"
+                  value=""
+                />
+                <span
+                  class="css-19y5vkv-MuiRadioButtonIcon-root"
+                >
+                  <svg
+                    aria-hidden="true"
+                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-q6smfc-MuiSvgIcon-root-MuiRadioButtonIcon-root"
+                    data-testid="RadioButtonUncheckedIcon"
+                    focusable="false"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm0 18c-4.42 0-8-3.58-8-8s3.58-8 8-8 8 3.58 8 8-3.58 8-8 8z"
+                    />
+                  </svg>
+                  <svg
+                    aria-hidden="true"
+                    class="MuiSvgIcon-root MuiSvgIcon-fontSizeSmall css-145qo40-MuiSvgIcon-root-MuiRadioButtonIcon-root"
+                    data-testid="RadioButtonCheckedIcon"
+                    focusable="false"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      d="M8.465 8.465C9.37 7.56 10.62 7 12 7C14.76 7 17 9.24 17 12C17 13.38 16.44 14.63 15.535 15.535C14.63 16.44 13.38 17 12 17C9.24 17 7 14.76 7 12C7 10.62 7.56 9.37 8.465 8.465Z"
+                    />
+                  </svg>
+                </span>
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+              <div
+                class="MuiListItemText-root MuiListItemText-multiline css-konndc-MuiListItemText-root"
+              >
+                <div
+                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
+                >
+                  <div
+                    class="MuiBox-root css-axw7ok"
+                  >
+                    <p
+                      class="MuiTypography-root MuiTypography-body2 css-18k2gby-MuiTypography-root"
+                    >
+                      Revision 1
+                    </p>
+                  </div>
+                </div>
+                <div
+                  class="MuiTypography-root MuiTypography-body2 MuiListItemText-secondary css-pglae5-MuiTypography-root"
+                >
+                  <span
+                    class="MuiBox-root css-0"
+                  >
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-70yeff-MuiTypography-root"
+                    >
+                      <p
+                        aria-label="2023-01-01T08:00:00.000Z"
+                        class="MuiTypography-root MuiTypography-body1 css-1d0cpfm-MuiTypography-root"
+                        data-mui-internal-clone-element="true"
+                      >
+                        90d
+                      </p>
+                    </span>
+                    <span
+                      class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
+                    >
+                      <span
+                        class="MuiBox-root css-13o7eu2"
+                      >
+                        registry.k8s.io/nginx:1.25.1
+                      </span>
+                    </span>
+                  </span>
+                </div>
+              </div>
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </div>
+          </ul>
+        </div>
+        <div
+          class="MuiDialogActions-root MuiDialogActions-spacing css-knqc4i-MuiDialogActions-root"
+        >
+          <button
+            aria-label="cancel-button"
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-14f6w6s-MuiButtonBase-root-MuiButton-root"
+            tabindex="0"
+            type="button"
+          >
+            Cancel
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+          <button
+            aria-label="preview-button"
+            class="MuiButtonBase-root MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeMedium MuiButton-outlinedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeMedium MuiButton-outlinedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-1ftyvt9-MuiButtonBase-root-MuiButton-root"
+            tabindex="0"
+            type="button"
+          >
+            Preview
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+          <button
+            aria-label="confirm-button"
+            class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
+            tabindex="0"
+            type="button"
+          >
+            Rollback
+            <span
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+            />
+          </button>
+        </div>
+      </div>
+    </div>
+    <div
+      data-testid="sentinelEnd"
+      tabindex="0"
+    />
+  </div>
+</body>
