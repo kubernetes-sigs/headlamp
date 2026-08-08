@@ -260,6 +260,8 @@ is configured, the command must be under one of the absolute
 | fullnameOverride | string | `""` | Override the full name of the chart |
 | namespaceOverride | string | `""` | Override the deployment namespace; defaults to .Release.Namespace |
 | initContainers | list | `[]` | Init containers to run before main container |
+| deploymentLabels | object | `{}` | Labels to add to the deployment |
+| deploymentAnnotations | object | `{}` | Annotations to add to the deployment |
 
 ### Security Configuration
 
@@ -360,6 +362,29 @@ ingress:
     - secretName: headlamp-tls
       hosts:
         - headlamp.example.com
+```
+
+The Ingress annotations and host name can use templated values; for example:
+
+Example ingress configuration:
+```yaml
+ingress:
+  enabled: true
+  annotations:
+    kubernetes.io/tls-acme: "true"
+    example.com/alias: '{{ .Values.global.ingress.hostAlias }}'
+  labels:
+    app.kubernetes.io/part-of: traefik
+    environment: prod
+  hosts:
+    - host: '{{ .Values.global.ingress.host }}'
+      paths:
+        - path: /
+          type: ImplementationSpecific
+  tls:
+    - secretName: headlamp-tls
+      hosts:
+        - '{{ .Values.global.ingress.host }}'
 ```
 
 Each path under `ingress.hosts[].paths[]` may optionally specify

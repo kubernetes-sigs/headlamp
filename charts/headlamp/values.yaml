@@ -204,6 +204,9 @@ clusterRoleBinding:
   # -- Annotations to add to the cluster role binding
   annotations: {}
 
+# -- Labels to add to the deployment
+deploymentLabels: {}
+
 # -- Annotations to add to the deployment
 deploymentAnnotations: {}
 

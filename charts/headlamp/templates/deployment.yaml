@@ -75,6 +75,9 @@ metadata:
   namespace: {{ include "headlamp.namespace" . }}
   labels:
     {{- include "headlamp.labels" . | nindent 4 }}
+    {{- with .Values.deploymentLabels }}
+      {{- tpl (toYaml .) $ | nindent 4 }}
+    {{- end }}
   {{- with .Values.deploymentAnnotations }}
   annotations:
     {{- toYaml . | nindent 4 }}
