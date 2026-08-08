@@ -127,6 +127,96 @@ export function getInfoForRunningPlugins({
   ];
 }
 
+const BASE64_DIGITS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+/**
+ * Checks whether source-map mappings contain valid Base64-VLQ segments.
+ * Empty generated lines are valid; nonempty segments must contain 1, 4, or 5 values.
+ *
+ * @param mappings source-map `mappings` field to validate
+ * @returns whether every generated line and segment has valid syntax
+ */
+function isValidSourceMapMappings(mappings: string): boolean {
+  if (mappings === '') {
+    return true;
+  }
+
+  return mappings.split(';').every(line => {
+    if (line === '') {
+      return true;
+    }
+
+    return line.split(',').every(segment => {
+      if (segment === '') {
+        return false;
+      }
+
+      let valueCount = 0;
+      let hasContinuation = false;
+
+      for (const character of segment) {
+        const digit = BASE64_DIGITS.indexOf(character);
+        if (digit === -1) {
+          return false;
+        }
+
+        hasContinuation = (digit & 32) !== 0;
+        if (!hasContinuation) {
+          valueCount++;
+        }
+      }
+
+      return !hasContinuation && [1, 4, 5].includes(valueCount);
+    });
+  });
+}
+
+/**
+ * Adjusts inline source maps for code that will be executed via `new Function()`.
+ *
+ * When using `new Function(args, body)`, the browser wraps the code in a function declaration,
+ * adding 2 extra lines (function header and closing brace). This causes source map line numbers
+ * to be off by 2. We fix this by prepending semicolons to the mappings field - each semicolon
+ * represents an empty generated line, effectively shifting all mappings down.
+ */
+export function adjustSourceMapOffsetForFunction(jsSource: string) {
+  try {
+    const marker = '//# sourceMappingURL=data:application/json;charset=utf-8;base64,';
+    const markerIndex = jsSource.lastIndexOf(marker);
+
+    if (markerIndex === -1) {
+      return jsSource;
+    }
+
+    const base64Start = markerIndex + marker.length;
+    const base64Data = jsSource.slice(base64Start).split(/[\s\n]/)[0];
+
+    const sourceMap = JSON.parse(atob(base64Data));
+
+    if (typeof sourceMap.mappings !== 'string') {
+      return jsSource;
+    }
+
+    if (!isValidSourceMapMappings(sourceMap.mappings)) {
+      return jsSource;
+    }
+
+    const wrapperLineCount = 2;
+    sourceMap.mappings = ';'.repeat(wrapperLineCount) + sourceMap.mappings;
+
+    const newBase64 = btoa(JSON.stringify(sourceMap));
+    const newSourceMapComment = `//# sourceMappingURL=data:application/json;charset=utf-8;base64,${newBase64}`;
+
+    const before = jsSource.slice(0, markerIndex);
+    const after = jsSource.slice(base64Start + base64Data.length);
+
+    return before + newSourceMapComment + after;
+  } catch (error) {
+    console.error('Failed to adjust source map offset', error);
+    return jsSource;
+  }
+}
+
 /**
  * Runs a plugin by executing the source code in the global scope.
  *
@@ -153,7 +243,7 @@ export function runPlugin(
 ): void {
   // We use PrivateFunction here instead of global Function so people can't
   //   override Function and snoop on it.
-  const executePlugin = new PrivateFunction(...args, source);
+  const executePlugin = new PrivateFunction(...args, adjustSourceMapOffsetForFunction(source));
 
   try {
     // This executes in the global scope,
