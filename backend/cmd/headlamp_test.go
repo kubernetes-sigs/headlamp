@@ -60,6 +60,7 @@ import (
 	k8stesting "k8s.io/client-go/testing"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
+	"k8s.io/utils/ptr"
 )
 
 const (
@@ -926,7 +927,14 @@ func TestDrainNodePodDeletionFailure(t *testing.T) { //nolint:funlen
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "pod-daemonset",
 			Namespace: "default",
-			Labels:    map[string]string{"kubernetes.io/created-by": "daemonset-controller"},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					APIVersion: "apps/v1",
+					Kind:       "DaemonSet",
+					Name:       "node-agent",
+					Controller: ptr.To(true),
+				},
+			},
 		},
 		Spec: corev1.PodSpec{
 			NodeName: "test-node",
@@ -992,6 +1000,7 @@ func TestDrainNodePodDeletionFailure(t *testing.T) { //nolint:funlen
 	assert.True(t, strings.HasPrefix(status, "error:"),
 		"expected error status, got: %s", status)
 	assert.Contains(t, status, "failed to delete")
+	assert.ElementsMatch(t, []string{"pod-ok", "pod-fail"}, deletedPodNames(fakeClient.Actions()))
 }
 
 func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
@@ -1053,6 +1062,28 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 	require.True(t, ok)
 
 	assert.Equal(t, "success", status)
+
+	assert.ElementsMatch(t, []string{"pod-1"}, deletedPodNames(fakeClient.Actions()))
+}
+
+// deletedPodNames returns the pod names from delete actions recorded by the fake client.
+func deletedPodNames(actions []k8stesting.Action) []string {
+	deletedPods := []string{}
+
+	for _, action := range actions {
+		if action.GetVerb() != "delete" || action.GetResource().Resource != "pods" {
+			continue
+		}
+
+		deleteAction, ok := action.(k8stesting.DeleteAction)
+		if !ok {
+			continue
+		}
+
+		deletedPods = append(deletedPods, deleteAction.GetName())
+	}
+
+	return deletedPods
 }
 
 func TestHandleNodeDrainUsesRequestedClusterCookieForCustomNamedContext(t *testing.T) { //nolint:funlen
