@@ -1,49 +1,49 @@
 <body>
   <div>
     <div
-      class="MuiBox css-hash"
+      class="MuiBox-root css-1n7m0yu"
     >
       <div
         aria-label="Resource form"
-        class="MuiBox css-hash"
+        class="MuiBox-root css-13qs1rf"
       >
         <fieldset
-          class="MuiBox css-hash"
+          class="MuiBox-root css-jh9hvo"
         >
           <legend
-            class="MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
           >
             Metadata
           </legend>
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-1u8z8t1"
           >
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-0"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography MuiTypography css-hash"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Name
                      *
                   </span>
                 </div>
                 <div
-                  class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                  class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                 >
                   <div
-                    class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
                   >
                     <input
                       aria-invalid="false"
                       aria-label="Name"
-                      class="MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                      class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                       id=":mock-test-id:"
                       required=""
                       type="text"
@@ -51,10 +51,10 @@
                     />
                     <fieldset
                       aria-hidden="true"
-                      class="MuiOutlinedInput css-hash"
+                      class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                     >
                       <legend
-                        class="css-hash"
+                        class="css-1whs34k-MuiNotchedOutlined-root"
                       >
                         <span
                           class="notranslate"
@@ -68,28 +68,28 @@
               </div>
             </div>
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-0"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography MuiTypography css-hash"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Namespace
                   </span>
                 </div>
                 <div
-                  class="MuiAutocomplete MuiAutocomplete css-hash"
+                  class="MuiAutocomplete-root MuiAutocomplete-hasClearIcon css-ka7ti6-MuiAutocomplete-root"
                 >
                   <div
-                    class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                    class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                   >
                     <div
-                      class="MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                      class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1qswgw4-MuiInputBase-root-MuiOutlinedInput-root"
                     >
                       <input
                         aria-autocomplete="list"
@@ -97,7 +97,7 @@
                         aria-invalid="false"
                         autocapitalize="none"
                         autocomplete="off"
-                        class="MuiAutocomplete MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                        class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
                         id=":mock-test-id:"
                         role="combobox"
                         spellcheck="false"
@@ -105,11 +105,11 @@
                         value=""
                       />
                       <div
-                        class="MuiAutocomplete css-hash"
+                        class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
                       >
                         <button
                           aria-label="Clear"
-                          class="MuiAutocomplete MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-clearIndicator css-1ihl7t8-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-clearIndicator"
                           tabindex="-1"
                           title="Clear"
                           type="button"
@@ -126,16 +126,16 @@
                             />
                           </svg>
                           <span
-                            class="MuiTouchRipple css-hash"
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                           />
                         </button>
                       </div>
                       <fieldset
                         aria-hidden="true"
-                        class="MuiOutlinedInput css-hash"
+                        class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                       >
                         <legend
-                          class="css-hash"
+                          class="css-1whs34k-MuiNotchedOutlined-root"
                         >
                           <span
                             class="notranslate"
@@ -150,41 +150,41 @@
               </div>
             </div>
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-0"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography MuiTypography css-hash"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Labels
                   </span>
                 </div>
                 <div
                   aria-labelledby="label-group-id"
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-0"
                   role="group"
                 >
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1yuhvjn"
                   >
                     <button
                       aria-label="Add label"
-                      class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+                      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
                       tabindex="0"
                       type="button"
                     >
                       <p
-                        class="MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-body2 css-38mgk-MuiTypography-root"
                       >
                         New Label
                       </p>
                       <span
-                        class="MuiTouchRipple css-hash"
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
                   </div>
@@ -194,47 +194,47 @@
           </div>
         </fieldset>
         <fieldset
-          class="MuiBox css-hash"
+          class="MuiBox-root css-jh9hvo"
         >
           <legend
-            class="MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
           >
             Spec
           </legend>
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-1u8z8t1"
           >
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-0"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography MuiTypography css-hash"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Update Strategy
                   </span>
                   <button
                     aria-label="Strategy used to replace old pods with new ones."
-                    class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ew19cs-MuiButtonBase-root-MuiIconButton-root"
                     data-mui-internal-clone-element="true"
                     tabindex="0"
                     type="button"
                   >
                     <span
-                      class="MuiTouchRipple css-hash"
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                     />
                   </button>
                 </div>
                 <div
-                  class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                  class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                 >
                   <div
-                    class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
                   >
                     <div
                       aria-controls=":mock-test-id:"
@@ -242,7 +242,7 @@
                       aria-haspopup="listbox"
                       aria-label="Update Strategy"
                       aria-labelledby=":mock-test-id:"
-                      class="MuiInputBase MuiInputBase MuiOutlinedInput MuiSelect MuiSelect css-hash"
+                      class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-oswssk-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
                       id=":mock-test-id:"
                       role="combobox"
                       tabindex="0"
@@ -252,7 +252,7 @@
                     <input
                       aria-hidden="true"
                       aria-invalid="false"
-                      class="MuiSelect css-hash"
+                      class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
                       tabindex="-1"
                       value="RollingUpdate"
                     />
@@ -269,10 +269,10 @@
                     </svg>
                     <fieldset
                       aria-hidden="true"
-                      class="MuiOutlinedInput css-hash"
+                      class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                     >
                       <legend
-                        class="css-hash"
+                        class="css-1whs34k-MuiNotchedOutlined-root"
                       >
                         <span
                           class="notranslate"
@@ -286,31 +286,31 @@
               </div>
             </div>
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-0"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography MuiTypography css-hash"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Service Name
                      *
                   </span>
                 </div>
                 <div
-                  class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                  class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                 >
                   <div
-                    class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
                   >
                     <input
                       aria-invalid="false"
                       aria-label="Service Name"
-                      class="MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                      class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                       id=":mock-test-id:"
                       required=""
                       type="text"
@@ -318,10 +318,10 @@
                     />
                     <fieldset
                       aria-hidden="true"
-                      class="MuiOutlinedInput css-hash"
+                      class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                     >
                       <legend
-                        class="css-hash"
+                        class="css-1whs34k-MuiNotchedOutlined-root"
                       >
                         <span
                           class="notranslate"
@@ -335,44 +335,44 @@
               </div>
             </div>
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-0"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-j0ozid"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-xrxduh"
                 >
                   <span
-                    class="MuiTypography MuiTypography css-hash"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Partition
                   </span>
                   <button
                     aria-label="Ordinal at which the StatefulSet should be partitioned for updates. Pods with an ordinal >= partition will be updated."
-                    class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ew19cs-MuiButtonBase-root-MuiIconButton-root"
                     data-mui-internal-clone-element="true"
                     tabindex="0"
                     type="button"
                   >
                     <span
-                      class="MuiTouchRipple css-hash"
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                     />
                   </button>
                 </div>
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-1gtfl7l"
                 >
                   <div
-                    class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                    class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                   >
                     <div
-                      class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                      class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
                     >
                       <input
                         aria-invalid="false"
                         aria-label="Partition"
-                        class="MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                        class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                         id=":mock-test-id:"
                         min="0"
                         step="1"
@@ -381,10 +381,10 @@
                       />
                       <fieldset
                         aria-hidden="true"
-                        class="MuiOutlinedInput css-hash"
+                        class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                       >
                         <legend
-                          class="css-hash"
+                          class="css-1whs34k-MuiNotchedOutlined-root"
                         >
                           <span
                             class="notranslate"
@@ -399,44 +399,44 @@
               </div>
             </div>
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-0"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography MuiTypography css-hash"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Selector
                   </span>
                   <button
                     aria-label="Selects which pods belong to this StatefulSet. Entries are mirrored read-only into the pod template labels below; extra pod-template-only labels can be added there."
-                    class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ew19cs-MuiButtonBase-root-MuiIconButton-root"
                     data-mui-internal-clone-element="true"
                     tabindex="0"
                     type="button"
                   >
                     <span
-                      class="MuiTouchRipple css-hash"
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                     />
                   </button>
                 </div>
                 <div
                   aria-labelledby="label-group-id"
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-0"
                   role="group"
                 >
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-bqqf5i"
                   >
                     <div
-                      class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                      class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                     >
                       <label
-                        class="MuiFormLabel MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
+                        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
                         data-shrink="true"
                         for=":mock-test-id:"
                         id=":mock-test-id:"
@@ -444,22 +444,22 @@
                         Key
                       </label>
                       <div
-                        class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
                       >
                         <input
                           aria-invalid="false"
                           aria-label="Label key"
-                          class="MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                          class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                           id=":mock-test-id:"
                           type="text"
                           value="app"
                         />
                         <fieldset
                           aria-hidden="true"
-                          class="MuiOutlinedInput css-hash"
+                          class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                         >
                           <legend
-                            class="css-hash"
+                            class="css-sl37lx-MuiNotchedOutlined-root"
                           >
                             <span>
                               Key
@@ -469,10 +469,10 @@
                       </div>
                     </div>
                     <div
-                      class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                      class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                     >
                       <label
-                        class="MuiFormLabel MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
+                        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
                         data-shrink="true"
                         for=":mock-test-id:"
                         id=":mock-test-id:"
@@ -480,22 +480,22 @@
                         Value
                       </label>
                       <div
-                        class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
                       >
                         <input
                           aria-invalid="false"
                           aria-label="Label value"
-                          class="MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                          class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                           id=":mock-test-id:"
                           type="text"
                           value="headlamp"
                         />
                         <fieldset
                           aria-hidden="true"
-                          class="MuiOutlinedInput css-hash"
+                          class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                         >
                           <legend
-                            class="css-hash"
+                            class="css-sl37lx-MuiNotchedOutlined-root"
                           >
                             <span>
                               Value
@@ -506,31 +506,31 @@
                     </div>
                     <button
                       aria-label="Remove label app=headlamp"
-                      class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
                       tabindex="0"
                       type="button"
                     >
                       <span
-                        class="MuiTouchRipple css-hash"
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
                   </div>
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1yuhvjn"
                   >
                     <button
                       aria-label="Add label"
-                      class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+                      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
                       tabindex="0"
                       type="button"
                     >
                       <p
-                        class="MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-body2 css-38mgk-MuiTypography-root"
                       >
                         New Label
                       </p>
                       <span
-                        class="MuiTouchRipple css-hash"
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
                   </div>
@@ -540,53 +540,53 @@
           </div>
         </fieldset>
         <fieldset
-          class="MuiBox css-hash"
+          class="MuiBox-root css-jh9hvo"
         >
           <legend
-            class="MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
           >
             Pod Template
           </legend>
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-1u8z8t1"
           >
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-0"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography MuiTypography css-hash"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Labels
                   </span>
                   <button
                     aria-label="Selector entries appear here read-only. Use New Label to add extra pod-template-only labels."
-                    class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ew19cs-MuiButtonBase-root-MuiIconButton-root"
                     data-mui-internal-clone-element="true"
                     tabindex="0"
                     type="button"
                   >
                     <span
-                      class="MuiTouchRipple css-hash"
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                     />
                   </button>
                 </div>
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-0"
                 >
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-bqqf5i"
                   >
                     <div
-                      class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                      class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                     >
                       <label
-                        class="Mui-disabled MuiFormLabel MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
+                        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary Mui-disabled MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
                         data-shrink="true"
                         for=":mock-test-id:"
                         id=":mock-test-id:"
@@ -594,12 +594,12 @@
                         Key
                       </label>
                       <div
-                        class="Mui-disabled MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary Mui-disabled MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
                       >
                         <input
                           aria-invalid="false"
                           aria-label="Label key"
-                          class="Mui-disabled MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                          class="MuiInputBase-input MuiOutlinedInput-input Mui-disabled MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                           disabled=""
                           id=":mock-test-id:"
                           readonly=""
@@ -608,10 +608,10 @@
                         />
                         <fieldset
                           aria-hidden="true"
-                          class="MuiOutlinedInput css-hash"
+                          class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                         >
                           <legend
-                            class="css-hash"
+                            class="css-sl37lx-MuiNotchedOutlined-root"
                           >
                             <span>
                               Key
@@ -621,10 +621,10 @@
                       </div>
                     </div>
                     <div
-                      class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                      class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                     >
                       <label
-                        class="Mui-disabled MuiFormLabel MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
+                        class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary Mui-disabled MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
                         data-shrink="true"
                         for=":mock-test-id:"
                         id=":mock-test-id:"
@@ -632,12 +632,12 @@
                         Value
                       </label>
                       <div
-                        class="Mui-disabled MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary Mui-disabled MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
                       >
                         <input
                           aria-invalid="false"
                           aria-label="Label value"
-                          class="Mui-disabled MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                          class="MuiInputBase-input MuiOutlinedInput-input Mui-disabled MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                           disabled=""
                           id=":mock-test-id:"
                           readonly=""
@@ -646,10 +646,10 @@
                         />
                         <fieldset
                           aria-hidden="true"
-                          class="MuiOutlinedInput css-hash"
+                          class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                         >
                           <legend
-                            class="css-hash"
+                            class="css-sl37lx-MuiNotchedOutlined-root"
                           >
                             <span>
                               Value
@@ -660,21 +660,21 @@
                     </div>
                   </div>
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1yuhvjn"
                   >
                     <button
                       aria-label="Add label"
-                      class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+                      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
                       tabindex="0"
                       type="button"
                     >
                       <p
-                        class="MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-body2 css-38mgk-MuiTypography-root"
                       >
                         New Label
                       </p>
                       <span
-                        class="MuiTouchRipple css-hash"
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
                   </div>
@@ -682,16 +682,16 @@
               </div>
             </div>
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-0"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography MuiTypography css-hash"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Containers
                      *
@@ -699,20 +699,20 @@
                 </div>
                 <div
                   aria-labelledby="container-group-id"
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-0"
                   role="group"
                 >
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-rbp10b"
                   >
                     <div
-                      class="MuiBox css-hash"
+                      class="MuiBox-root css-1c1kq07"
                     >
                       <div
-                        class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                        class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                       >
                         <label
-                          class="MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
+                          class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined css-10fydcw-MuiFormLabel-root-MuiInputLabel-root"
                           data-shrink="false"
                           for=":mock-test-id:"
                           id=":mock-test-id:"
@@ -720,22 +720,22 @@
                           Name *
                         </label>
                         <div
-                          class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                          class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
                         >
                           <input
                             aria-invalid="false"
                             aria-label="Container name"
-                            class="MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                            class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                             id=":mock-test-id:"
                             type="text"
                             value=""
                           />
                           <fieldset
                             aria-hidden="true"
-                            class="MuiOutlinedInput css-hash"
+                            class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                           >
                             <legend
-                              class="css-hash"
+                              class="css-njhac4-MuiNotchedOutlined-root"
                             >
                               <span>
                                 Name *
@@ -745,10 +745,10 @@
                         </div>
                       </div>
                       <div
-                        class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                        class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                       >
                         <label
-                          class="MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
+                          class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined css-10fydcw-MuiFormLabel-root-MuiInputLabel-root"
                           data-shrink="false"
                           for=":mock-test-id:"
                           id=":mock-test-id:"
@@ -756,22 +756,22 @@
                           Image *
                         </label>
                         <div
-                          class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                          class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
                         >
                           <input
                             aria-invalid="false"
                             aria-label="Container image"
-                            class="MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                            class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                             id=":mock-test-id:"
                             type="text"
                             value=""
                           />
                           <fieldset
                             aria-hidden="true"
-                            class="MuiOutlinedInput css-hash"
+                            class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                           >
                             <legend
-                              class="css-hash"
+                              class="css-njhac4-MuiNotchedOutlined-root"
                             >
                               <span>
                                 Image *
@@ -781,10 +781,10 @@
                         </div>
                       </div>
                       <div
-                        class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                        class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                       >
                         <label
-                          class="MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
+                          class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined css-10fydcw-MuiFormLabel-root-MuiInputLabel-root"
                           data-shrink="false"
                           for=":mock-test-id:"
                           id=":mock-test-id:"
@@ -792,22 +792,22 @@
                           Container Port
                         </label>
                         <div
-                          class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                          class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
                         >
                           <input
                             aria-invalid="false"
                             aria-label="Container port"
-                            class="MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                            class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                             id=":mock-test-id:"
                             type="number"
                             value=""
                           />
                           <fieldset
                             aria-hidden="true"
-                            class="MuiOutlinedInput css-hash"
+                            class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                           >
                             <legend
-                              class="css-hash"
+                              class="css-njhac4-MuiNotchedOutlined-root"
                             >
                               <span>
                                 Container Port
@@ -817,24 +817,24 @@
                         </div>
                       </div>
                       <button
-                        aria-label="Remove container"
-                        class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                        aria-label="Remove container "
+                        class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
                         tabindex="0"
                         type="button"
                       >
                         <span
-                          class="MuiTouchRipple css-hash"
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                         />
                       </button>
                     </div>
                     <div
-                      class="MuiBox css-hash"
+                      class="MuiBox-root css-mjkpzk"
                     >
                       <div
-                        class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                        class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                       >
                         <label
-                          class="MuiFormLabel MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
+                          class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
                           data-shrink="true"
                           for=":mock-test-id:"
                           id=":mock-test-id:"
@@ -842,7 +842,7 @@
                           Pull Policy
                         </label>
                         <div
-                          class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                          class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
                         >
                           <div
                             aria-controls=":mock-test-id:"
@@ -850,7 +850,7 @@
                             aria-haspopup="listbox"
                             aria-label="Image pull policy"
                             aria-labelledby=":mock-test-id:"
-                            class="MuiInputBase MuiInputBase MuiOutlinedInput MuiSelect MuiSelect css-hash"
+                            class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-oswssk-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
                             id=":mock-test-id:"
                             role="combobox"
                             tabindex="0"
@@ -860,7 +860,7 @@
                           <input
                             aria-hidden="true"
                             aria-invalid="false"
-                            class="MuiSelect css-hash"
+                            class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
                             tabindex="-1"
                             value="Always"
                           />
@@ -877,10 +877,10 @@
                           </svg>
                           <fieldset
                             aria-hidden="true"
-                            class="MuiOutlinedInput css-hash"
+                            class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                           >
                             <legend
-                              class="css-hash"
+                              class="css-sl37lx-MuiNotchedOutlined-root"
                             >
                               <span>
                                 Pull Policy
@@ -892,21 +892,21 @@
                     </div>
                   </div>
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1yuhvjn"
                   >
                     <button
                       aria-label="Add container"
-                      class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+                      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
                       tabindex="0"
                       type="button"
                     >
                       <p
-                        class="MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-body2 css-38mgk-MuiTypography-root"
                       >
                         New Container
                       </p>
                       <span
-                        class="MuiTouchRipple css-hash"
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
                   </div>
@@ -914,51 +914,51 @@
               </div>
             </div>
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-0"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography MuiTypography css-hash"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Node Name
                   </span>
                   <button
                     aria-label="Optional: schedule the pod on a specific node."
-                    class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                    class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ew19cs-MuiButtonBase-root-MuiIconButton-root"
                     data-mui-internal-clone-element="true"
                     tabindex="0"
                     type="button"
                   >
                     <span
-                      class="MuiTouchRipple css-hash"
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                     />
                   </button>
                 </div>
                 <div
-                  class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                  class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                 >
                   <div
-                    class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
                   >
                     <input
                       aria-invalid="false"
                       aria-label="Node Name"
-                      class="MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                      class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                       id=":mock-test-id:"
                       type="text"
                       value=""
                     />
                     <fieldset
                       aria-hidden="true"
-                      class="MuiOutlinedInput css-hash"
+                      class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                     >
                       <legend
-                        class="css-hash"
+                        class="css-1whs34k-MuiNotchedOutlined-root"
                       >
                         <span
                           class="notranslate"

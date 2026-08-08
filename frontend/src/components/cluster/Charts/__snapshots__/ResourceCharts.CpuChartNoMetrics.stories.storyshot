@@ -1,34 +1,34 @@
 <body>
   <div>
     <div
-      class="MuiPaper MuiPaper MuiPaper css-hash"
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
     >
       <div
-        class="MuiBox css-hash"
+        class="MuiBox-root css-qrw4x1"
       >
         <div
-          class="MuiBox css-hash"
+          class="MuiBox-root css-1sl8dhm"
         >
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-0"
           >
             <p
-              class="MuiTypography MuiTypography MuiTypography css-hash"
+              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
             >
               CPU
             </p>
             <div
-              class="MuiContainer MuiContainer css-hash"
+              class="MuiContainer-root MuiContainer-maxWidthLg css-64uahr-MuiContainer-root"
             />
           </div>
           <p
-            class="MuiTypography MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
           >
             2 units
           </p>
         </div>
         <div
-          class="MuiBox css-hash"
+          class="MuiBox-root css-0"
         />
       </div>
     </div>

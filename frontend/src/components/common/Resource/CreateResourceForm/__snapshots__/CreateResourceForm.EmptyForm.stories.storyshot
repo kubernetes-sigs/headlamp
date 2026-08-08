@@ -1,49 +1,49 @@
 <body>
   <div>
     <div
-      class="MuiBox css-hash"
+      class="MuiBox-root css-1n7m0yu"
     >
       <div
         aria-label="Resource form"
-        class="MuiBox css-hash"
+        class="MuiBox-root css-13qs1rf"
       >
         <fieldset
-          class="MuiBox css-hash"
+          class="MuiBox-root css-jh9hvo"
         >
           <legend
-            class="MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
           >
             Metadata
           </legend>
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-1u8z8t1"
           >
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-0"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography MuiTypography css-hash"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Name
                      *
                   </span>
                 </div>
                 <div
-                  class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                  class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                 >
                   <div
-                    class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
                   >
                     <input
                       aria-invalid="false"
                       aria-label="Name"
-                      class="MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                      class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                       id=":mock-test-id:"
                       required=""
                       type="text"
@@ -51,10 +51,10 @@
                     />
                     <fieldset
                       aria-hidden="true"
-                      class="MuiOutlinedInput css-hash"
+                      class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                     >
                       <legend
-                        class="css-hash"
+                        class="css-1whs34k-MuiNotchedOutlined-root"
                       >
                         <span
                           class="notranslate"

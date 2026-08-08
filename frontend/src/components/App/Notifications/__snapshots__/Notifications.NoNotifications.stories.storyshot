@@ -4,12 +4,12 @@
       aria-controls=""
       aria-haspopup="true"
       aria-label="Show notifications"
-      class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
       tabindex="0"
       type="button"
     >
       <span
-        class="MuiTouchRipple css-hash"
+        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
       />
     </button>
   </div>

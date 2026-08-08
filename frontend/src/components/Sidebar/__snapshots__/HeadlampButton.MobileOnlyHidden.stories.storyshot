@@ -1,7 +1,7 @@
 <body>
   <div>
     <div
-      class="MuiPaper MuiPaper MuiPaper css-hash"
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1if9c89-MuiPaper-root"
     />
   </div>
 </body>

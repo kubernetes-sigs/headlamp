@@ -1,96 +1,96 @@
 <body>
   <div>
     <button
-      class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
       tabindex="0"
       type="button"
     >
       <span
-        class="MuiButton MuiButton MuiButton css-hash"
+        class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
       />
       <p
-        class="MuiTypography MuiTypography css-hash"
+        class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
         style="padding-top: 3px;"
       >
         Back
       </p>
       <span
-        class="MuiTouchRipple css-hash"
+        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
       />
     </button>
     <div
-      class="MuiBox css-hash"
+      class="MuiBox-root css-j1fy4m"
     >
       <div
-        class="MuiGrid MuiGrid MuiGrid css-hash"
+        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
       >
         <div
-          class="MuiGrid MuiGrid css-hash"
+          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
         >
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-70qvj9"
           >
             <h1
-              class="MuiTypography MuiTypography MuiTypography css-hash"
+              class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
             >
               Simple Resource
             </h1>
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-ldp2l3"
             >
               <button
                 aria-label="Copy to clipboard"
-                class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
                 data-mui-internal-clone-element="true"
                 tabindex="0"
                 type="button"
               >
                 <span
-                  class="MuiTouchRipple css-hash"
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
               </button>
             </div>
           </div>
         </div>
         <div
-          class="MuiGrid MuiGrid css-hash"
+          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
         >
           <div
-            class="MuiGrid MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-container MuiGrid-item css-ztq4zc-MuiGrid-root"
           >
             <div
-              class="MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             />
             <div
-              class="MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             />
             <div
-              class="MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
               <button
                 aria-label="Edit"
-                class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
                 data-mui-internal-clone-element="true"
                 tabindex="0"
                 type="button"
               >
                 <span
-                  class="MuiTouchRipple css-hash"
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
               </button>
             </div>
             <div
-              class="MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
               <button
                 aria-label="Evict"
-                class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
                 data-mui-internal-clone-element="true"
                 tabindex="0"
                 type="button"
               >
                 <span
-                  class="MuiTouchRipple css-hash"
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
               </button>
               <div />
@@ -101,53 +101,53 @@
       <div
         aria-busy="false"
         aria-live="polite"
-        class="MuiBox css-hash"
+        class="MuiBox-root css-1txv3mw"
       >
         <div
-          class="MuiBox css-hash"
+          class="MuiBox-root css-0"
         >
           <dl
-            class="MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
           >
             <dt
-              class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
             >
               Name
             </dt>
             <dd
-              class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
             >
               <span
-                class="MuiTypography MuiTypography css-hash"
+                class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
               >
                 imagepullbackoff
               </span>
             </dd>
             <dt
-              class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
             >
               Namespace
             </dt>
             <dd
-              class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
             >
               <a
-                class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
+                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                 href="/"
               >
                 default
               </a>
             </dd>
             <dt
-              class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
             >
               Creation
             </dt>
             <dd
-              class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
             >
               <span
-                class="MuiTypography MuiTypography css-hash"
+                class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
               >
                 2022-01-01T00:00:00.000Z
               </span>

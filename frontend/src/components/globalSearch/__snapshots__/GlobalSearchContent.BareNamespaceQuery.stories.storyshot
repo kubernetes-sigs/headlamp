@@ -2,10 +2,10 @@
   <div>
     <div
       aria-owns=":mock-test-id:"
-      class="MuiBox css-hash"
+      class="MuiBox-root css-0"
     >
       <div
-        class="MuiFormControl MuiFormControl MuiTextField css-hash"
+        class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
       >
         <div
           aria-activedescendant=""
@@ -13,7 +13,7 @@
           aria-controls=":mock-test-id:"
           aria-expanded="true"
           autocapitalize="none"
-          class="Mui-focused MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+          class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth Mui-focused MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd css-1qswgw4-MuiInputBase-root-MuiOutlinedInput-root"
           role="combobox"
           spellcheck="false"
         >
@@ -21,7 +21,7 @@
             aria-activedescendant=":mock-test-id:"
             aria-invalid="false"
             autocomplete="off"
-            class="MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+            class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
             id=":mock-test-id:"
             placeholder="Search resources, pages, clusters by name"
             type="text"
@@ -29,21 +29,21 @@
           />
           <button
             aria-label="Clear"
-            class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+            class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-1oql5kp-MuiButtonBase-root-MuiIconButton-root"
             data-mui-internal-clone-element="true"
             tabindex="0"
             type="button"
           >
             <span
-              class="MuiTouchRipple css-hash"
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
             />
           </button>
           <fieldset
             aria-hidden="true"
-            class="MuiOutlinedInput css-hash"
+            class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
           >
             <legend
-              class="css-hash"
+              class="css-1whs34k-MuiNotchedOutlined-root"
             >
               <span
                 class="notranslate"
@@ -57,7 +57,7 @@
     </div>
   </div>
   <div
-    class="MuiPopper css-hash"
+    class="MuiPopper-root css-5vmmeo-MuiPopper-root"
     data-popper-escaped=""
     data-popper-placement="bottom"
     data-popper-reference-hidden=""
@@ -66,7 +66,7 @@
   >
     <ul
       aria-labelledby=":mock-test-id:"
-      class="MuiPaper MuiPaper MuiPaper css-hash"
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-atm94b-MuiPaper-root"
       id=":mock-test-id:"
       role="listbox"
     >
@@ -79,7 +79,7 @@
           <li
             aria-disabled="false"
             aria-selected="false"
-            class="Mui-focused MuiBox css-hash"
+            class="MuiBox-root css-iuk3p6 Mui-focused"
             data-option-index="0"
             id=":mock-test-id:"
             role="option"
@@ -87,18 +87,18 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-hj9wmn"
             />
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-kznbd2"
             >
               <span
-                class="MuiTypography MuiTypography css-hash"
+                class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
               >
                 Advanced Search (Beta)
               </span>
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-72rvq0"
               >
                 <span
                   style="font-weight: bold;"
@@ -118,7 +118,7 @@
           <li
             aria-disabled="false"
             aria-selected="false"
-            class="MuiBox css-hash"
+            class="MuiBox-root css-iuk3p6"
             data-option-index="1"
             id=":mock-test-id:"
             role="option"
@@ -126,10 +126,10 @@
             tabindex="-1"
           >
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-hj9wmn"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-wjpmq5"
               >
                 <svg
                   height="17.500378mm"
@@ -229,15 +229,15 @@
               </div>
             </div>
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-kznbd2"
             >
               <span
-                class="MuiTypography MuiTypography css-hash"
+                class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
               >
                 Current Namespace
               </span>
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-72rvq0"
               >
                 <span
                   style="font-weight: bold;"

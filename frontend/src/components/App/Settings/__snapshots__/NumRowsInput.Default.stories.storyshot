@@ -1,17 +1,17 @@
 <body>
   <div>
     <div
-      class="MuiFormControl css-hash"
+      class="MuiFormControl-root css-1nrlq1o-MuiFormControl-root"
     >
       <div
-        class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+        class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall css-uwmwwo-MuiInputBase-root-MuiOutlinedInput-root-MuiSelect-root"
         style="width: 100px;"
       >
         <div
           aria-controls=":mock-test-id:"
           aria-expanded="false"
           aria-haspopup="listbox"
-          class="MuiInputBase MuiInputBase MuiOutlinedInput MuiSelect MuiSelect css-hash"
+          class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-oswssk-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
           role="combobox"
           tabindex="0"
         >
@@ -20,7 +20,7 @@
         <input
           aria-hidden="true"
           aria-invalid="false"
-          class="MuiSelect css-hash"
+          class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
           tabindex="-1"
           value="15"
         />
@@ -37,10 +37,10 @@
         </svg>
         <fieldset
           aria-hidden="true"
-          class="MuiOutlinedInput css-hash"
+          class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
         >
           <legend
-            class="css-hash"
+            class="css-1whs34k-MuiNotchedOutlined-root"
           >
             <span
               class="notranslate"

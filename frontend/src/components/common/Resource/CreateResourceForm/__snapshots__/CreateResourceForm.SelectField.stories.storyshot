@@ -1,43 +1,43 @@
 <body>
   <div>
     <div
-      class="MuiBox css-hash"
+      class="MuiBox-root css-1n7m0yu"
     >
       <div
         aria-label="Resource form"
-        class="MuiBox css-hash"
+        class="MuiBox-root css-13qs1rf"
       >
         <fieldset
-          class="MuiBox css-hash"
+          class="MuiBox-root css-jh9hvo"
         >
           <legend
-            class="MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
           >
             Spec
           </legend>
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-1u8z8t1"
           >
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-0"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography MuiTypography css-hash"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Restart Policy
                   </span>
                 </div>
                 <div
-                  class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                  class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                 >
                   <div
-                    class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall css-1pq0x4p-MuiInputBase-root-MuiOutlinedInput-root"
                   >
                     <div
                       aria-controls=":mock-test-id:"
@@ -45,7 +45,7 @@
                       aria-haspopup="listbox"
                       aria-label="Restart Policy"
                       aria-labelledby=":mock-test-id:"
-                      class="MuiInputBase MuiInputBase MuiOutlinedInput MuiSelect MuiSelect css-hash"
+                      class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-oswssk-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
                       id=":mock-test-id:"
                       role="combobox"
                       tabindex="0"
@@ -55,7 +55,7 @@
                     <input
                       aria-hidden="true"
                       aria-invalid="false"
-                      class="MuiSelect css-hash"
+                      class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
                       tabindex="-1"
                       value="Always"
                     />
@@ -72,10 +72,10 @@
                     </svg>
                     <fieldset
                       aria-hidden="true"
-                      class="MuiOutlinedInput css-hash"
+                      class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                     >
                       <legend
-                        class="css-hash"
+                        class="css-1whs34k-MuiNotchedOutlined-root"
                       >
                         <span
                           class="notranslate"

@@ -1,19 +1,19 @@
 <body>
   <div>
     <button
-      class="MuiButtonBase css-hash"
+      class="MuiButtonBase-root css-10d1a0h-MuiButtonBase-root"
       tabindex="0"
       type="button"
     >
       <div
-        class="MuiCard MuiPaper MuiPaper MuiPaper css-hash"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-18nhd06-MuiPaper-root-MuiCard-root"
       >
         <div
-          class="MuiCardContent css-hash"
+          class="MuiCardContent-root css-d64700-MuiCardContent-root"
         >
           <p
             aria-label="Some label"
-            class="MuiTypography MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-qscjxq-MuiTypography-root"
             data-mui-internal-clone-element="true"
           >
             Some label
@@ -21,7 +21,7 @@
         </div>
       </div>
       <span
-        class="MuiTouchRipple css-hash"
+        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
       />
     </button>
   </div>

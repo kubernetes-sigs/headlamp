@@ -1,27 +1,27 @@
 <body>
   <div>
     <div
-      class="MuiBox css-hash"
+      class="MuiBox-root css-0"
     >
       <div
-        class="MuiBox css-hash"
+        class="MuiBox-root css-yi3mkw"
       >
         <span
-          class="MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
         >
           NODE_ENV
           : 
           production
         </span>
         <span
-          class="MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
         >
           DEBUG
           : 
           true
         </span>
         <span
-          class="MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
         >
           PLAINTEXT
           : 

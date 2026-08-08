@@ -1,7 +1,7 @@
 <body>
   <div>
     <p
-      class="MuiTypography MuiTypography css-hash"
+      class="MuiTypography-root MuiTypography-body2 css-1qbbu4b-MuiTypography-root"
       data-mui-internal-clone-element="true"
     >
       Some label

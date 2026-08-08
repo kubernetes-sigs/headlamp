@@ -2,61 +2,61 @@
   <div>
      
     <div
-      class="MuiGrid MuiGrid MuiGrid css-hash"
+      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
     >
       <div
-        class="MuiGrid MuiGrid css-hash"
+        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
       >
         <div
-          class="MuiBox css-hash"
+          class="MuiBox-root css-70qvj9"
         >
           <h3
-            class="MuiTypography MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiTypography-h3 MuiTypography-noWrap css-omosr2-MuiTypography-root"
           >
             Section with Title-Side Info
           </h3>
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-ldp2l3"
           >
             <div
-              class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+              class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorSecondary MuiChip-filledSecondary css-ce6uou-MuiChip-root"
             >
               <span
-                class="MuiChip MuiChip css-hash"
+                class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
               >
                 Beta
               </span>
             </div>
             <button
               aria-label="info"
-              class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-qsifm6-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
               type="button"
             >
               <span
-                class="MuiTouchRipple css-hash"
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
               />
             </button>
           </div>
         </div>
       </div>
       <div
-        class="MuiGrid MuiGrid css-hash"
+        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
       >
         <div
-          class="MuiGrid MuiGrid MuiGrid css-hash"
+          class="MuiGrid-root MuiGrid-container MuiGrid-item css-ztq4zc-MuiGrid-root"
         >
           <div
-            class="MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
           >
             <button
-              class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+              class="MuiButtonBase-root MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-outlined MuiButton-outlinedPrimary MuiButton-sizeSmall MuiButton-outlinedSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-irzb5y-MuiButtonBase-root-MuiButton-root"
               tabindex="0"
               type="button"
             >
               Configure
               <span
-                class="MuiTouchRipple css-hash"
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
               />
             </button>
           </div>

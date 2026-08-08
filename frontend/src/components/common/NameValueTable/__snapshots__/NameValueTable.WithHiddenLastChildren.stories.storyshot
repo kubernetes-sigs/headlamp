@@ -1,32 +1,32 @@
 <body>
   <div>
     <dl
-      class="MuiGrid MuiGrid css-hash"
+      class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
     >
       <dt
-        class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
       >
         MyName0
       </dt>
       <dd
-        class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
       >
         <span
-          class="MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
         >
           MyValue0
         </span>
       </dd>
       <dt
-        class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
       >
         MyName1
       </dt>
       <dd
-        class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
       >
         <span
-          class="MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
         >
           MyValue1
         </span>

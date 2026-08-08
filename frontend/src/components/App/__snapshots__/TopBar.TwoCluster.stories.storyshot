@@ -2,10 +2,10 @@
   <div>
     <nav
       aria-label="Appbar Tools"
-      class="MuiAppBar MuiAppBar MuiAppBar MuiPaper MuiPaper css-hash"
+      class="MuiPaper-root MuiPaper-outlined MuiAppBar-root MuiAppBar-colorPrimary MuiAppBar-positionStatic css-1sf61jf-MuiPaper-root-MuiAppBar-root"
     >
       <div
-        class="MuiToolbar MuiToolbar MuiToolbar css-hash"
+        class="MuiToolbar-root MuiToolbar-gutters MuiToolbar-regular css-1g5gxk7-MuiToolbar-root"
       >
         <svg
           fill="none"
@@ -62,12 +62,12 @@
           aria-controls="primary-user-menu"
           aria-haspopup="true"
           aria-label="Account of current user"
-          class="MuiButtonBase MuiIconButton MuiIconButton MuiIconButton css-hash"
+          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-colorInherit MuiIconButton-sizeMedium css-1jcv3fz-MuiButtonBase-root-MuiIconButton-root"
           tabindex="0"
           type="button"
         >
           <span
-            class="MuiTouchRipple css-hash"
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
           />
         </button>
       </div>

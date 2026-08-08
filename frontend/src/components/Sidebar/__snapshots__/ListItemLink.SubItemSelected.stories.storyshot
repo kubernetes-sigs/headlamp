@@ -1,35 +1,35 @@
 <body>
   <div>
     <div
-      class="MuiPaper MuiPaper MuiPaper css-hash"
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1ic9gem-MuiPaper-root"
     >
       <nav>
         <ul
-          class="MuiList MuiList css-hash"
+          class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
         >
           <li
-            class="css-hash"
+            class="css-1tmipa6"
           >
             <a
-              class="Mui-selected Mui-selected MuiButtonBase MuiListItemButton MuiListItemButton MuiListItemButton MuiListItemButton css-hash"
+              class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-eekue5-MuiButtonBase-root-MuiListItemButton-root"
               href="/pods"
               role="button"
               tabindex="0"
             >
               <div
-                class="MuiListItemIcon css-hash"
+                class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
               />
               <div
-                class="MuiListItemText css-hash"
+                class="MuiListItemText-root css-tlelie-MuiListItemText-root"
               >
                 <span
-                  class="MuiListItemText MuiTypography MuiTypography css-hash"
+                  class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
                 >
                   Pods
                 </span>
               </div>
               <span
-                class="MuiTouchRipple css-hash"
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
               />
             </a>
           </li>

@@ -2,7 +2,7 @@
   <div>
     <div
       aria-labelledby="recent-clusters-label"
-      class="MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+      class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-2 css-1vj4bu4-MuiGrid-root"
       role="group"
     />
   </div>

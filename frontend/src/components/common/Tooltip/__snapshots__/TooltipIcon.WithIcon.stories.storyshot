@@ -1,7 +1,7 @@
 <body>
   <div>
     <div
-      class="MuiContainer MuiContainer css-hash"
+      class="MuiContainer-root MuiContainer-maxWidthLg css-64uahr-MuiContainer-root"
     />
   </div>
 </body>

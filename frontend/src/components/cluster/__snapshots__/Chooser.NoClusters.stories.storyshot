@@ -3,17 +3,17 @@
     aria-hidden="true"
   >
     <main
-      class="MuiBox css-hash"
+      class="MuiBox-root css-0"
     />
   </div>
   <div
     aria-busy="false"
-    class="MuiDialog MuiModal css-hash"
+    class="MuiDialog-root MuiModal-root css-zw3mfo-MuiModal-root-MuiDialog-root"
     role="presentation"
   >
     <div
       aria-hidden="true"
-      class="MuiBackdrop MuiModal css-hash"
+      class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
       style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
     />
     <div
@@ -21,26 +21,26 @@
       tabindex="0"
     />
     <div
-      class="MuiDialog MuiDialog css-hash"
+      class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
       role="presentation"
       style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
       tabindex="-1"
     >
       <div
         aria-labelledby="chooser-dialog-title"
-        class="MuiDialog MuiDialog MuiDialog MuiPaper MuiPaper MuiPaper css-hash"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm css-1708vl9-MuiPaper-root-MuiDialog-paper"
         role="dialog"
       >
         <h2
-          class="MuiDialogTitle MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-wlr4ab-MuiTypography-root-MuiDialogTitle-root"
           id="chooser-dialog-title"
           style="display: flex;"
         >
           <div
-            class="MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
           >
             <div
-              class="MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
               <div>
                 <svg
@@ -95,26 +95,26 @@
                   />
                 </svg>
                 <span
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-ty8jgw"
                 >
                   Headlamp
                 </span>
               </div>
             </div>
             <div
-              class="MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-0"
               >
                 <button
                   aria-label="Show build information"
-                  class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
                   tabindex="0"
                   type="button"
                 >
                   <span
-                    class="MuiTouchRipple css-hash"
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                   />
                 </button>
               </div>
@@ -122,21 +122,21 @@
           </div>
         </h2>
         <div
-          class="MuiDialogContent MuiDialogContent css-hash"
+          class="MuiDialogContent-root MuiDialogContent-dividers css-gl9hfx-MuiDialogContent-root"
         >
           <h2
-            class="MuiDialogTitle MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
             id="chooser-dialog-title"
             style="display: flex;"
           >
             <div
-              class="MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
             >
               <div
-                class="MuiGrid MuiGrid css-hash"
+                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
               >
                 <h1
-                  class="MuiTypography MuiTypography css-hash"
+                  class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
                   id="chooser-dialog-title"
                   style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
                   tabindex="-1"
@@ -147,12 +147,12 @@
             </div>
           </h2>
           <p
-            class="MuiDialogContentText MuiDialogContentText MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiDialogContentText-root MuiTypography-body1 MuiDialogContentText-root css-1tmyuhs-MuiTypography-root-MuiDialogContentText-root"
           >
             There seems to be no clusters configured…
           </p>
           <p
-            class="MuiDialogContentText MuiDialogContentText MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiDialogContentText-root MuiTypography-body1 MuiDialogContentText-root css-1tmyuhs-MuiTypography-root-MuiDialogContentText-root"
           >
             Please make sure you have at least one cluster configured.
           </p>

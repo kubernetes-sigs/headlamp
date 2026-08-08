@@ -144,26 +144,26 @@
         style="flex: 1 1 0%;"
       >
         <div
-          class="MuiBox css-hash"
+          class="MuiBox-root css-g0s7c9"
         >
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-2gjmrx"
           >
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-pb8oes"
             >
               <div
-                class="MuiAutocomplete MuiAutocomplete css-hash"
+                class="MuiAutocomplete-root MuiAutocomplete-hasPopupIcon css-1x6bjyf-MuiAutocomplete-root"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-1dipl1t"
                 >
                   <div
-                    class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                    class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                     style="margin-top: 0px;"
                   >
                     <label
-                      class="MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
+                      class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-81cxhg-MuiFormLabel-root-MuiInputLabel-root"
                       data-shrink="true"
                       for="namespaces-filter"
                       id="namespaces-filter-label"
@@ -171,7 +171,7 @@
                       Namespaces
                     </label>
                     <div
-                      class="MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                      class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-b1xigt-MuiInputBase-root-MuiOutlinedInput-root"
                     >
                       <input
                         aria-autocomplete="both"
@@ -179,7 +179,7 @@
                         aria-invalid="false"
                         autocapitalize="none"
                         autocomplete="off"
-                        class="MuiAutocomplete MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                        class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
                         id="namespaces-filter"
                         placeholder="Filter"
                         role="combobox"
@@ -188,11 +188,11 @@
                         value=""
                       />
                       <div
-                        class="MuiAutocomplete css-hash"
+                        class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
                       >
                         <button
                           aria-label="Open"
-                          class="MuiAutocomplete MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-qzbt6i-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
                           tabindex="-1"
                           title="Open"
                           type="button"
@@ -209,16 +209,16 @@
                             />
                           </svg>
                           <span
-                            class="MuiTouchRipple css-hash"
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                           />
                         </button>
                       </div>
                       <fieldset
                         aria-hidden="true"
-                        class="MuiOutlinedInput css-hash"
+                        class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                       >
                         <legend
-                          class="css-hash"
+                          class="css-sl37lx-MuiNotchedOutlined-root"
                         >
                           <span>
                             Namespaces
@@ -230,13 +230,13 @@
                 </div>
               </div>
               <div
-                class="MuiAutocomplete MuiAutocomplete css-hash"
+                class="MuiAutocomplete-root MuiAutocomplete-hasPopupIcon css-cpgymc-MuiAutocomplete-root"
               >
                 <div
-                  class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                  class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                 >
                   <div
-                    class="MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-b1xigt-MuiInputBase-root-MuiOutlinedInput-root"
                   >
                     <input
                       aria-autocomplete="list"
@@ -244,7 +244,7 @@
                       aria-invalid="false"
                       autocapitalize="none"
                       autocomplete="off"
-                      class="MuiAutocomplete MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                      class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
                       id=":mock-test-id:"
                       placeholder="Resource Types"
                       role="combobox"
@@ -253,11 +253,11 @@
                       value=""
                     />
                     <div
-                      class="MuiAutocomplete css-hash"
+                      class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
                     >
                       <button
                         aria-label="Open"
-                        class="MuiAutocomplete MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                        class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-qzbt6i-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
                         tabindex="-1"
                         title="Open"
                         type="button"
@@ -274,16 +274,16 @@
                           />
                         </svg>
                         <span
-                          class="MuiTouchRipple css-hash"
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                         />
                       </button>
                     </div>
                     <fieldset
                       aria-hidden="true"
-                      class="MuiOutlinedInput css-hash"
+                      class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                     >
                       <legend
-                        class="css-hash"
+                        class="css-1whs34k-MuiNotchedOutlined-root"
                       >
                         <span
                           class="notranslate"
@@ -296,14 +296,14 @@
                 </div>
               </div>
               <div
-                class="MuiFormControl MuiTextField css-hash"
+                class="MuiFormControl-root MuiTextField-root css-rnp6uc-MuiFormControl-root-MuiTextField-root"
               >
                 <div
-                  class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                  class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall css-ephwvu-MuiInputBase-root-MuiOutlinedInput-root"
                 >
                   <input
                     aria-invalid="false"
-                    class="MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                    class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                     id=":mock-test-id:"
                     placeholder="Labels (e.g. app=nginx)"
                     type="text"
@@ -311,10 +311,10 @@
                   />
                   <fieldset
                     aria-hidden="true"
-                    class="MuiOutlinedInput css-hash"
+                    class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                   >
                     <legend
-                      class="css-hash"
+                      class="css-1whs34k-MuiNotchedOutlined-root"
                     >
                       <span
                         class="notranslate"
@@ -326,15 +326,15 @@
                 </div>
               </div>
               <div
-                class="MuiButtonBase MuiChip MuiChip MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorPrimary MuiChip-clickable MuiChip-clickableColorPrimary MuiChip-filledPrimary css-qsy4j-MuiButtonBase-root-MuiChip-root"
                 role="button"
                 tabindex="0"
               >
                 <span
-                  class="MuiChip MuiChip css-hash"
+                  class="MuiChip-label MuiChip-labelMedium css-6od3lo-MuiChip-label"
                 >
                   <div
-                    class="MuiStack css-hash"
+                    class="MuiStack-root css-1qxw92a-MuiStack-root"
                   >
                      
                     Resources (34350)
@@ -342,93 +342,93 @@
                   </div>
                 </span>
                 <span
-                  class="MuiTouchRipple css-hash"
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
               </div>
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-19ideir"
               >
                 Group By
               </div>
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-esugir"
               >
                 <div
-                  class="MuiButtonBase MuiChip MuiChip MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                  class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorPrimary MuiChip-clickable MuiChip-clickableColorPrimary MuiChip-filledPrimary css-661vdt-MuiButtonBase-root-MuiChip-root"
                   role="button"
                   tabindex="0"
                 >
                   <span
-                    class="MuiChip MuiChip css-hash"
+                    class="MuiChip-label MuiChip-labelMedium css-6od3lo-MuiChip-label"
                   >
                     Namespace
                   </span>
                   <span
-                    class="MuiTouchRipple css-hash"
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                   />
                 </div>
                 <div
-                  class="MuiButtonBase MuiChip MuiChip MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-1b73nf-MuiButtonBase-root-MuiChip-root"
                   role="button"
                   tabindex="0"
                 >
                   <span
-                    class="MuiChip MuiChip css-hash"
+                    class="MuiChip-label MuiChip-labelMedium css-1jzq0dw-MuiChip-label"
                   >
                     Instance
                   </span>
                   <span
-                    class="MuiTouchRipple css-hash"
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                   />
                 </div>
                 <div
-                  class="MuiButtonBase MuiChip MuiChip MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                  class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-1b73nf-MuiButtonBase-root-MuiChip-root"
                   role="button"
                   tabindex="0"
                 >
                   <span
-                    class="MuiChip MuiChip css-hash"
+                    class="MuiChip-label MuiChip-labelMedium css-1jzq0dw-MuiChip-label"
                   >
                     Node
                   </span>
                   <span
-                    class="MuiTouchRipple css-hash"
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                   />
                 </div>
               </div>
               <div
-                class="MuiButtonBase MuiChip MuiChip MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                class="MuiButtonBase-root MuiChip-root MuiChip-outlined MuiChip-sizeMedium MuiChip-colorDefault MuiChip-clickable MuiChip-clickableColorDefault MuiChip-outlinedDefault css-1b73nf-MuiButtonBase-root-MuiChip-root"
                 role="button"
                 tabindex="0"
               >
                 <span
-                  class="MuiChip MuiChip css-hash"
+                  class="MuiChip-label MuiChip-labelMedium css-1jzq0dw-MuiChip-label"
                 >
                   Status: Error or Warning
                 </span>
                 <span
-                  class="MuiTouchRipple css-hash"
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
               </div>
               <div
-                class="MuiButtonBase MuiChip MuiChip MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                class="MuiButtonBase-root MuiChip-root MuiChip-filled MuiChip-sizeMedium MuiChip-colorPrimary MuiChip-clickable MuiChip-clickableColorPrimary MuiChip-filledPrimary css-661vdt-MuiButtonBase-root-MuiChip-root"
                 role="button"
                 tabindex="0"
               >
                 <span
-                  class="MuiChip MuiChip css-hash"
+                  class="MuiChip-label MuiChip-labelMedium css-6od3lo-MuiChip-label"
                 >
                   Simplify (300 most important)
                 </span>
                 <span
-                  class="MuiTouchRipple css-hash"
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
               </div>
               <div
-                class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorWarning MuiChip-outlinedWarning css-1s6vxc4-MuiChip-root"
               >
                 <span
-                  class="MuiChip MuiChip css-hash"
+                  class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
                 >
                   Showing 300 of 34350 nodes
                 </span>
@@ -438,7 +438,7 @@
               style="flex-grow: 1;"
             >
               <div
-                class="light react-flow"
+                class="react-flow light"
                 data-testid="rf__wrapper"
                 role="application"
                 style="width: 100%; height: 100%; overflow: hidden; position: relative; z-index: 0;"
@@ -448,11 +448,11 @@
                   style="position: absolute; width: 100%; height: 100%; top: 0px; left: 0px; -webkit-tap-highlight-color: rgba(0, 0, 0, 0);"
                 >
                   <div
-                    class="draggable react-flow__pane"
+                    class="react-flow__pane draggable"
                     style="position: absolute; width: 100%; height: 100%; top: 0px; left: 0px;"
                   >
                     <div
-                      class="react-flow__container react-flow__viewport xyflow__viewport"
+                      class="react-flow__viewport xyflow__viewport react-flow__container"
                       style="transform: translate(0px,0px) scale(1);"
                     >
                       <div
@@ -502,71 +502,71 @@
                 </svg>
                 <div
                   aria-label="Control Panel"
-                  class="bottom left react-flow__controls react-flow__panel vertical"
+                  class="react-flow__panel react-flow__controls vertical bottom left"
                   data-testid="rf__controls"
                 >
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1u72um6"
                   >
                     <div
                       aria-label="Graph controls"
-                      class="MuiButtonGroup MuiButtonGroup MuiButtonGroup css-hash"
+                      class="MuiButtonGroup-root MuiButtonGroup-contained MuiButtonGroup-vertical css-126jwi2-MuiButtonGroup-root"
                       role="group"
                     >
                       <button
-                        class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase MuiButtonGroup MuiButtonGroup MuiButtonGroup MuiButtonGroup MuiButtonGroup MuiButtonGroup MuiButtonGroup MuiButtonGroup MuiButtonGroup MuiButtonGroup MuiButtonGroup css-hash"
+                        class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButtonGroup-grouped MuiButtonGroup-groupedVertical MuiButtonGroup-groupedContained MuiButtonGroup-groupedContainedVertical MuiButtonGroup-groupedContainedPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButtonGroup-grouped MuiButtonGroup-groupedVertical MuiButtonGroup-groupedContained MuiButtonGroup-groupedContainedVertical MuiButtonGroup-groupedContainedPrimary MuiButtonGroup-firstButton css-14951ov-MuiButtonBase-root-MuiButton-root"
                         tabindex="0"
                         title="Zoom in"
                         type="button"
                       >
                         <span
-                          class="MuiTouchRipple css-hash"
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                         />
                       </button>
                       <button
-                        class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase MuiButtonGroup MuiButtonGroup MuiButtonGroup MuiButtonGroup MuiButtonGroup MuiButtonGroup MuiButtonGroup MuiButtonGroup MuiButtonGroup MuiButtonGroup MuiButtonGroup css-hash"
+                        class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButtonGroup-grouped MuiButtonGroup-groupedVertical MuiButtonGroup-groupedContained MuiButtonGroup-groupedContainedVertical MuiButtonGroup-groupedContainedPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButtonGroup-grouped MuiButtonGroup-groupedVertical MuiButtonGroup-groupedContained MuiButtonGroup-groupedContainedVertical MuiButtonGroup-groupedContainedPrimary MuiButtonGroup-lastButton css-14951ov-MuiButtonBase-root-MuiButton-root"
                         tabindex="0"
                         title="Zoom out"
                         type="button"
                       >
                         <span
-                          class="MuiTouchRipple css-hash"
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                         />
                       </button>
                     </div>
                     <button
-                      class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+                      class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary css-14951ov-MuiButtonBase-root-MuiButton-root"
                       tabindex="0"
                       title="Fit to screen"
                       type="button"
                     >
                       <span
-                        class="MuiTouchRipple css-hash"
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
                     <button
-                      class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+                      class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary css-14951ov-MuiButtonBase-root-MuiButton-root"
                       tabindex="0"
                       title="Zoom to 100%"
                       type="button"
                     >
                       100%
                       <span
-                        class="MuiTouchRipple css-hash"
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
                   </div>
                 </div>
                 <p
-                  class="MuiTypography MuiTypography css-hash"
+                  class="MuiTypography-root MuiTypography-body1 css-17ewocx-MuiTypography-root"
                 >
                   No data to be shown. Try to change filters or select a different namespace.
                 </p>
                 <div
-                  class="left react-flow__panel top"
+                  class="react-flow__panel top left"
                 />
                 <div
-                  class="bottom react-flow__attribution react-flow__panel right"
+                  class="react-flow__panel react-flow__attribution bottom right"
                   data-message="Please only hide this attribution when you are subscribed to React Flow Pro: https://pro.reactflow.dev"
                 >
                   <a

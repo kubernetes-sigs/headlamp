@@ -1,13 +1,13 @@
 <body>
   <div>
     <div
-      class="MuiBox css-hash"
+      class="MuiBox-root css-j1fy4m"
     >
       <h1>
         custom title
       </h1>
       <div
-        class="MuiBox css-hash"
+        class="MuiBox-root css-1txv3mw"
       />
     </div>
   </div>

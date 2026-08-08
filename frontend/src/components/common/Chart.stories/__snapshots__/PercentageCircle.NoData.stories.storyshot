@@ -3,19 +3,19 @@
     <div
       aria-busy="true"
       aria-live="polite"
-      class="MuiBox css-hash"
+      class="MuiBox-root css-2esbmj"
     >
       <p
-        class="MuiTypography MuiTypography css-hash"
+        class="MuiTypography-root MuiTypography-body1 css-b7twky-MuiTypography-root"
       >
         CPU usage
       </p>
       <div
-        class="MuiBox css-hash"
+        class="MuiBox-root css-5cned0"
       >
         <span
           aria-label="Loading data for CPU usage"
-          class="MuiCircularProgress MuiCircularProgress MuiCircularProgress css-hash"
+          class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
           role="progressbar"
           style="width: 40px; height: 40px;"
           title="Loading data for CPU usage"

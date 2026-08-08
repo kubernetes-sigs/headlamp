@@ -4,65 +4,65 @@
       aria-label="Plugin Settings Test Page"
     >
       <div
-        class="MuiBox css-hash"
+        class="MuiBox-root css-j1fy4m"
       >
         <div
-          class="MuiGrid MuiGrid MuiGrid css-hash"
+          class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
         >
           <div
-            class="MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
           >
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-70qvj9"
             >
               <h1
-                class="MuiTypography MuiTypography MuiTypography css-hash"
+                class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
               >
                 Plugins
               </h1>
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-ldp2l3"
               />
             </div>
           </div>
         </div>
         <div
-          class="MuiBox css-hash"
+          class="MuiBox-root css-1txv3mw"
         >
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-8atqhb"
           >
             <div
               aria-atomic="true"
               aria-live="polite"
-              class="MuiBox css-hash"
+              class="MuiBox-root css-ty8jgw"
               role="status"
             />
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-1ipmh7v"
             >
               <div
-                class="MuiCollapse MuiCollapse MuiCollapse css-hash"
+                class="MuiCollapse-root MuiCollapse-vertical MuiCollapse-hidden css-bz4dnt-MuiCollapse-root"
                 style="min-height: 0px;"
               >
                 <div
-                  class="MuiCollapse MuiCollapse css-hash"
+                  class="MuiCollapse-wrapper MuiCollapse-vertical css-smkl36-MuiCollapse-wrapper"
                 >
                   <div
-                    class="MuiCollapse MuiCollapse css-hash"
+                    class="MuiCollapse-wrapperInner MuiCollapse-vertical css-9l5vo-MuiCollapse-wrapperInner"
                   >
                     <div
-                      class="MuiAlert MuiAlert MuiAlert MuiAlert MuiPaper MuiPaper MuiPaper css-hash"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorInfo MuiAlert-standardInfo MuiAlert-standard css-s0ueq2-MuiPaper-root-MuiAlert-root"
                       role="alert"
                     >
                       <div
-                        class="MuiAlert css-hash"
+                        class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
                       >
                         <div
-                          class="MuiStack css-hash"
+                          class="MuiStack-root css-5kul5x-MuiStack-root"
                         >
                           <div
-                            class="MuiBox css-hash"
+                            class="MuiBox-root css-k008qs"
                           >
                              
                           </div>
@@ -73,28 +73,28 @@
                 </div>
               </div>
               <div
-                class="Mui-ToolbarDropZone MuiBox css-hash"
+                class="Mui-ToolbarDropZone MuiBox-root css-1fwjva3"
                 style="opacity: 0; visibility: hidden;"
               >
                 <p
-                  class="MuiTypography MuiTypography css-hash"
+                  class="MuiTypography-root MuiTypography-body1 css-18b7jph-MuiTypography-root"
                 >
                   Drop to group by 
                 </p>
               </div>
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-zrlv9q"
               >
                 <span />
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-1p0wbhh"
                 >
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-di3982"
                   >
                     <button
                       aria-label="Show/Hide search"
-                      class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
                       data-mui-internal-clone-element="true"
                       tabindex="0"
                       type="button"
@@ -111,12 +111,12 @@
                         />
                       </svg>
                       <span
-                        class="MuiTouchRipple css-hash"
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
                     <button
                       aria-label="Show/Hide filters"
-                      class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
                       data-mui-internal-clone-element="true"
                       tabindex="0"
                       type="button"
@@ -133,12 +133,12 @@
                         />
                       </svg>
                       <span
-                        class="MuiTouchRipple css-hash"
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
                     <button
                       aria-label="Show/Hide columns"
-                      class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
                       data-mui-internal-clone-element="true"
                       tabindex="0"
                       type="button"
@@ -155,7 +155,7 @@
                         />
                       </svg>
                       <span
-                        class="MuiTouchRipple css-hash"
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
                   </div>
@@ -163,41 +163,41 @@
               </div>
             </div>
             <table
-              class="MuiTable css-hash"
+              class="MuiTable-root css-j5wd0t-MuiTable-root"
             >
               <thead
-                class="MuiTableHead css-hash"
+                class="MuiTableHead-root css-1tmrira-MuiTableHead-root"
               >
                 <tr
-                  class="css-hash"
+                  class="css-1lqh5un"
                 >
                   <th
                     aria-sort="none"
-                    class="MuiTableCell MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-542uyz-MuiTableCell-root"
                     colspan="1"
                     data-can-sort="true"
                     data-index="-1"
                     scope="col"
                   >
                     <div
-                      class="Mui-TableHeadCell-Content MuiBox css-hash"
+                      class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
                     >
                       <div
-                        class="Mui-TableHeadCell-Content-Labels MuiBox css-hash"
+                        class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
                       >
                         <div
-                          class="Mui-TableHeadCell-Content-Wrapper MuiBox css-hash"
+                          class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
                         >
                           Name
                         </div>
                         <span
                           aria-label="Sort by Name ascending"
-                          class="MuiBadge css-hash"
+                          class="MuiBadge-root css-1c32n2y-MuiBadge-root"
                           data-mui-internal-clone-element="true"
                         >
                           <span
                             aria-label="Sort by Name ascending"
-                            class="Mui-active MuiButtonBase MuiTableSortLabel css-hash"
+                            class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                             role="button"
                             tabindex="0"
                           >
@@ -215,44 +215,44 @@
                             </svg>
                           </span>
                           <span
-                            class="MuiBadge MuiBadge MuiBadge MuiBadge MuiBadge MuiBadge css-hash"
+                            class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
                           >
                             0
                           </span>
                         </span>
                       </div>
                       <div
-                        class="Mui-TableHeadCell-Content-Actions MuiBox css-hash"
+                        class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
                       />
                     </div>
                   </th>
                   <th
                     aria-sort="none"
-                    class="MuiTableCell MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-11ihby4-MuiTableCell-root"
                     colspan="1"
                     data-can-sort="true"
                     data-index="-1"
                     scope="col"
                   >
                     <div
-                      class="Mui-TableHeadCell-Content MuiBox css-hash"
+                      class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
                     >
                       <div
-                        class="Mui-TableHeadCell-Content-Labels MuiBox css-hash"
+                        class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
                       >
                         <div
-                          class="Mui-TableHeadCell-Content-Wrapper MuiBox css-hash"
+                          class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
                         >
                           Description
                         </div>
                         <span
                           aria-label="Sort by Description ascending"
-                          class="MuiBadge css-hash"
+                          class="MuiBadge-root css-1c32n2y-MuiBadge-root"
                           data-mui-internal-clone-element="true"
                         >
                           <span
                             aria-label="Sort by Description ascending"
-                            class="Mui-active MuiButtonBase MuiTableSortLabel css-hash"
+                            class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                             role="button"
                             tabindex="0"
                           >
@@ -270,44 +270,44 @@
                             </svg>
                           </span>
                           <span
-                            class="MuiBadge MuiBadge MuiBadge MuiBadge MuiBadge MuiBadge css-hash"
+                            class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
                           >
                             0
                           </span>
                         </span>
                       </div>
                       <div
-                        class="Mui-TableHeadCell-Content-Actions MuiBox css-hash"
+                        class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
                       />
                     </div>
                   </th>
                   <th
                     aria-sort="none"
-                    class="MuiTableCell MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-9s5e2s-MuiTableCell-root"
                     colspan="1"
                     data-can-sort="true"
                     data-index="-1"
                     scope="col"
                   >
                     <div
-                      class="Mui-TableHeadCell-Content MuiBox css-hash"
+                      class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
                     >
                       <div
-                        class="Mui-TableHeadCell-Content-Labels MuiBox css-hash"
+                        class="Mui-TableHeadCell-Content-Labels MuiBox-root css-68rqdf"
                       >
                         <div
-                          class="Mui-TableHeadCell-Content-Wrapper MuiBox css-hash"
+                          class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
                         >
                           Type
                         </div>
                         <span
                           aria-label="Sort by Type ascending"
-                          class="MuiBadge css-hash"
+                          class="MuiBadge-root css-1c32n2y-MuiBadge-root"
                           data-mui-internal-clone-element="true"
                         >
                           <span
                             aria-label="Sort by Type ascending"
-                            class="Mui-active MuiButtonBase MuiTableSortLabel css-hash"
+                            class="MuiButtonBase-root MuiTableSortLabel-root Mui-active css-542clt-MuiButtonBase-root-MuiTableSortLabel-root"
                             role="button"
                             tabindex="0"
                           >
@@ -325,136 +325,136 @@
                             </svg>
                           </span>
                           <span
-                            class="MuiBadge MuiBadge MuiBadge MuiBadge MuiBadge MuiBadge css-hash"
+                            class="MuiBadge-badge MuiBadge-standard MuiBadge-invisible MuiBadge-anchorOriginTopRight MuiBadge-anchorOriginTopRightCircular MuiBadge-overlapCircular css-dniquu-MuiBadge-badge"
                           >
                             0
                           </span>
                         </span>
                       </div>
                       <div
-                        class="Mui-TableHeadCell-Content-Actions MuiBox css-hash"
+                        class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
                       />
                     </div>
                   </th>
                   <th
                     aria-sort="none"
-                    class="MuiTableCell MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1os7eds-MuiTableCell-root"
                     colspan="1"
                     data-index="-1"
                     scope="col"
                   >
                     <div
-                      class="Mui-TableHeadCell-Content MuiBox css-hash"
+                      class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
                     >
                       <div
-                        class="Mui-TableHeadCell-Content-Labels MuiBox css-hash"
+                        class="Mui-TableHeadCell-Content-Labels MuiBox-root css-1byo2ey"
                       >
                         <div
-                          class="Mui-TableHeadCell-Content-Wrapper MuiBox css-hash"
+                          class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
                         >
                           Origin
                         </div>
                       </div>
                       <div
-                        class="Mui-TableHeadCell-Content-Actions MuiBox css-hash"
+                        class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
                       />
                     </div>
                   </th>
                   <th
                     aria-sort="none"
-                    class="MuiTableCell MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-head MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1m1rn7x-MuiTableCell-root"
                     colspan="1"
                     data-index="-1"
                     scope="col"
                   >
                     <div
-                      class="Mui-TableHeadCell-Content MuiBox css-hash"
+                      class="Mui-TableHeadCell-Content MuiBox-root css-1w86f15"
                     >
                       <div
-                        class="Mui-TableHeadCell-Content-Labels MuiBox css-hash"
+                        class="Mui-TableHeadCell-Content-Labels MuiBox-root css-1byo2ey"
                       >
                         <div
-                          class="Mui-TableHeadCell-Content-Wrapper MuiBox css-hash"
+                          class="Mui-TableHeadCell-Content-Wrapper MuiBox-root css-lapokc"
                         >
                           Status
                         </div>
                       </div>
                       <div
-                        class="Mui-TableHeadCell-Content-Actions MuiBox css-hash"
+                        class="Mui-TableHeadCell-Content-Actions MuiBox-root css-epvm6"
                       />
                     </div>
                   </th>
                 </tr>
               </thead>
               <tbody
-                class="css-hash"
+                class="css-1obf64m"
               >
                 <tr
-                  class="css-hash"
+                  class="css-1ospngb"
                   data-selected="false"
                 >
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                   >
                     <div
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                     >
                       <a
-                        class="MuiLink MuiLink MuiTypography MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                         href="/settings/plugins/awesome-plugin/development"
                       >
                         awesome-plugin
                       </a>
                       <div
-                        class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                        class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorWarning MuiChip-outlinedWarning css-1v9zz3v-MuiChip-root"
                       >
                         <span
-                          class="MuiChip MuiChip css-hash"
+                          class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
                         >
                           Multiple versions
                         </span>
                       </div>
                     </div>
                     <span
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                     />
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
                   >
                     An awesome plugin installed in development folder
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorPrimary MuiChip-filledPrimary css-zjbtey-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                       >
                         Development
                       </span>
                     </div>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
                   >
                     <a
-                      class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="https://example.com/awesome-plugin"
                     >
                       Unknown
                     </a>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-filledSuccess css-xfrc9u-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                       >
                         Loaded
                       </span>
@@ -462,73 +462,73 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-hash"
+                  class="css-1ospngb"
                   data-selected="false"
                 >
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                   >
                     <div
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                     >
                       <a
-                        class="MuiLink MuiLink MuiTypography MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                         href="/settings/plugins/awesome-plugin/user"
                       >
                         awesome-plugin
                       </a>
                       <div
-                        class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                        class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorWarning MuiChip-outlinedWarning css-1v9zz3v-MuiChip-root"
                       >
                         <span
-                          class="MuiChip MuiChip css-hash"
+                          class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
                         >
                           Multiple versions
                         </span>
                       </div>
                     </div>
                     <span
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                     />
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
                   >
                     An awesome plugin installed in user folder
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-17z0rci-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                       >
                         User-installed
                       </span>
                     </div>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
                   >
                     <a
-                      class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="https://example.com/awesome-plugin"
                     >
                       Unknown
                     </a>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
                   >
                     <div
                       aria-label="Overridden by Development version"
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorWarning MuiChip-outlinedWarning css-1cm3poo-MuiChip-root"
                       data-mui-internal-clone-element="true"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
                       >
                         Not Loaded
                       </span>
@@ -536,73 +536,73 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-hash"
+                  class="css-1ospngb"
                   data-selected="false"
                 >
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                   >
                     <div
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                     >
                       <a
-                        class="MuiLink MuiLink MuiTypography MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                         href="/settings/plugins/awesome-plugin/shipped"
                       >
                         awesome-plugin
                       </a>
                       <div
-                        class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                        class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorWarning MuiChip-outlinedWarning css-1v9zz3v-MuiChip-root"
                       >
                         <span
-                          class="MuiChip MuiChip css-hash"
+                          class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
                         >
                           Multiple versions
                         </span>
                       </div>
                     </div>
                     <span
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                     />
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
                   >
                     An awesome plugin shipped with Headlamp
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                       >
                         Shipped
                       </span>
                     </div>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
                   >
                     <a
-                      class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="https://example.com/awesome-plugin"
                     >
                       Unknown
                     </a>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
                   >
                     <div
                       aria-label="Overridden by Development version"
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorWarning MuiChip-outlinedWarning css-1cm3poo-MuiChip-root"
                       data-mui-internal-clone-element="true"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
                       >
                         Not Loaded
                       </span>
@@ -610,71 +610,71 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-hash"
+                  class="css-1ospngb"
                   data-selected="false"
                 >
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                   >
                     <div
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                     >
                       <a
-                        class="MuiLink MuiLink MuiTypography MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                         href="/settings/plugins/monitoring-plugin/user"
                       >
                         monitoring-plugin
                       </a>
                       <div
-                        class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                        class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorWarning MuiChip-outlinedWarning css-1v9zz3v-MuiChip-root"
                       >
                         <span
-                          class="MuiChip MuiChip css-hash"
+                          class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
                         >
                           Multiple versions
                         </span>
                       </div>
                     </div>
                     <span
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                     />
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
                   >
                     Monitoring plugin installed by user
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-17z0rci-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                       >
                         User-installed
                       </span>
                     </div>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
                   >
                     <a
-                      class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="https://example.com/monitoring-plugin"
                     >
                       Unknown
                     </a>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-filledSuccess css-xfrc9u-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                       >
                         Loaded
                       </span>
@@ -682,73 +682,73 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-hash"
+                  class="css-1ospngb"
                   data-selected="false"
                 >
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                   >
                     <div
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                     >
                       <a
-                        class="MuiLink MuiLink MuiTypography MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                         href="/settings/plugins/monitoring-plugin/shipped"
                       >
                         monitoring-plugin
                       </a>
                       <div
-                        class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                        class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorWarning MuiChip-outlinedWarning css-1v9zz3v-MuiChip-root"
                       >
                         <span
-                          class="MuiChip MuiChip css-hash"
+                          class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
                         >
                           Multiple versions
                         </span>
                       </div>
                     </div>
                     <span
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                     />
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
                   >
                     Monitoring plugin shipped with Headlamp
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                       >
                         Shipped
                       </span>
                     </div>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
                   >
                     <a
-                      class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="https://example.com/monitoring-plugin"
                     >
                       Unknown
                     </a>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
                   >
                     <div
                       aria-label="Overridden by User-installed version"
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorWarning MuiChip-outlinedWarning css-1cm3poo-MuiChip-root"
                       data-mui-internal-clone-element="true"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
                       >
                         Not Loaded
                       </span>
@@ -756,62 +756,62 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-hash"
+                  class="css-1ospngb"
                   data-selected="false"
                 >
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                   >
                     <div
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                     >
                       <a
-                        class="MuiLink MuiLink MuiTypography MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                         href="/settings/plugins/dev-only-plugin/development"
                       >
                         dev-only-plugin
                       </a>
                     </div>
                     <span
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                     />
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
                   >
                     A plugin only in development folder
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorPrimary MuiChip-filledPrimary css-zjbtey-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                       >
                         Development
                       </span>
                     </div>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
                   >
                     <a
-                      class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="https://example.com/dev-only"
                     >
                       Unknown
                     </a>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-filledSuccess css-xfrc9u-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                       >
                         Loaded
                       </span>
@@ -819,62 +819,62 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-hash"
+                  class="css-1ospngb"
                   data-selected="false"
                 >
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                   >
                     <div
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                     >
                       <a
-                        class="MuiLink MuiLink MuiTypography MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                         href="/settings/plugins/custom-plugin/user"
                       >
                         custom-plugin
                       </a>
                     </div>
                     <span
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                     />
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
                   >
                     A custom plugin installed by user
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-17z0rci-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                       >
                         User-installed
                       </span>
                     </div>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
                   >
                     <a
-                      class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="https://example.com/custom-plugin"
                     >
                       Unknown
                     </a>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-filledSuccess css-xfrc9u-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                       >
                         Loaded
                       </span>
@@ -882,62 +882,62 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-hash"
+                  class="css-1ospngb"
                   data-selected="false"
                 >
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                   >
                     <div
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                     >
                       <a
-                        class="MuiLink MuiLink MuiTypography MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                         href="/settings/plugins/default-plugin/shipped"
                       >
                         default-plugin
                       </a>
                     </div>
                     <span
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                     />
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
                   >
                     A default plugin shipped with Headlamp
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                       >
                         Shipped
                       </span>
                     </div>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
                   >
                     <a
-                      class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="https://headlamp.dev/plugins/default"
                     >
                       Unknown
                     </a>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-filledSuccess css-xfrc9u-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                       >
                         Loaded
                       </span>
@@ -945,71 +945,71 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-hash"
+                  class="css-1ospngb"
                   data-selected="false"
                 >
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                   >
                     <div
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                     >
                       <a
-                        class="MuiLink MuiLink MuiTypography MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                         href="/settings/plugins/flexible-plugin/development"
                       >
                         flexible-plugin
                       </a>
                       <div
-                        class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                        class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorWarning MuiChip-outlinedWarning css-1v9zz3v-MuiChip-root"
                       >
                         <span
-                          class="MuiChip MuiChip css-hash"
+                          class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
                         >
                           Multiple versions
                         </span>
                       </div>
                     </div>
                     <span
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                     />
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
                   >
                     Flexible plugin in development (disabled)
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorPrimary MuiChip-filledPrimary css-zjbtey-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                       >
                         Development
                       </span>
                     </div>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
                   >
                     <a
-                      class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="https://example.com/flexible-plugin"
                     >
                       Unknown
                     </a>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorDefault MuiChip-outlinedDefault css-p0ts6b-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
                       >
                         Disabled
                       </span>
@@ -1017,71 +1017,71 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-hash"
+                  class="css-1ospngb"
                   data-selected="false"
                 >
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                   >
                     <div
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                     >
                       <a
-                        class="MuiLink MuiLink MuiTypography MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                         href="/settings/plugins/flexible-plugin/user"
                       >
                         flexible-plugin
                       </a>
                       <div
-                        class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                        class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorWarning MuiChip-outlinedWarning css-1v9zz3v-MuiChip-root"
                       >
                         <span
-                          class="MuiChip MuiChip css-hash"
+                          class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
                         >
                           Multiple versions
                         </span>
                       </div>
                     </div>
                     <span
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                     />
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
                   >
                     Flexible plugin installed by user
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorInfo MuiChip-filledInfo css-17z0rci-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                       >
                         User-installed
                       </span>
                     </div>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
                   >
                     <a
-                      class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="https://example.com/flexible-plugin"
                     >
                       Unknown
                     </a>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorSuccess MuiChip-filledSuccess css-xfrc9u-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                       >
                         Loaded
                       </span>
@@ -1089,73 +1089,73 @@
                   </td>
                 </tr>
                 <tr
-                  class="css-hash"
+                  class="css-1ospngb"
                   data-selected="false"
                 >
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16gecr3-MuiTableCell-root"
                   >
                     <div
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-subtitle1 css-1t3dwd5-MuiTypography-root"
                     >
                       <a
-                        class="MuiLink MuiLink MuiTypography MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-inherit MuiTypography-alignRight MuiLink-root MuiLink-underlineHover css-12snkzy-MuiTypography-root-MuiLink-root"
                         href="/settings/plugins/flexible-plugin/shipped"
                       >
                         flexible-plugin
                       </a>
                       <div
-                        class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                        class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorWarning MuiChip-outlinedWarning css-1v9zz3v-MuiChip-root"
                       >
                         <span
-                          class="MuiChip MuiChip css-hash"
+                          class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
                         >
                           Multiple versions
                         </span>
                       </div>
                     </div>
                     <span
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-caption css-1yjsbnr-MuiTypography-root"
                     />
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-2wxm0s-MuiTableCell-root"
                   >
                     Flexible plugin shipped with Headlamp
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1qzqemr-MuiTableCell-root"
                   >
                     <div
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-filled MuiChip-sizeSmall MuiChip-colorDefault MuiChip-filledDefault css-148jm2l-MuiChip-root"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-wjsjww-MuiChip-label"
                       >
                         Shipped
                       </span>
                     </div>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1yl63d8-MuiTableCell-root"
                   >
                     <a
-                      class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="https://example.com/flexible-plugin"
                     >
                       Unknown
                     </a>
                   </td>
                   <td
-                    class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                    class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-i01a7i-MuiTableCell-root"
                   >
                     <div
                       aria-label="Overridden by User-installed version"
-                      class="MuiChip MuiChip MuiChip MuiChip MuiChip css-hash"
+                      class="MuiChip-root MuiChip-outlined MuiChip-sizeSmall MuiChip-colorWarning MuiChip-outlinedWarning css-1cm3poo-MuiChip-root"
                       data-mui-internal-clone-element="true"
                     >
                       <span
-                        class="MuiChip MuiChip css-hash"
+                        class="MuiChip-label MuiChip-labelSmall css-rrn746-MuiChip-label"
                       >
                         Not Loaded
                       </span>
@@ -1165,14 +1165,14 @@
               </tbody>
             </table>
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-1bxknjp"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-1llu0od"
               >
                 <span />
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-qpxlqp"
                 />
               </div>
             </div>

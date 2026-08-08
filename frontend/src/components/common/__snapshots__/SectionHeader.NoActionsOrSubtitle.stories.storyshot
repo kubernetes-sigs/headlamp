@@ -2,21 +2,21 @@
   <div>
      
     <div
-      class="MuiGrid MuiGrid MuiGrid css-hash"
+      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
     >
       <div
-        class="MuiGrid MuiGrid css-hash"
+        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
       >
         <div
-          class="MuiBox css-hash"
+          class="MuiBox-root css-70qvj9"
         >
           <h3
-            class="MuiTypography MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiTypography-h3 MuiTypography-noWrap css-omosr2-MuiTypography-root"
           >
             Just a Title
           </h3>
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-ldp2l3"
           />
         </div>
       </div>

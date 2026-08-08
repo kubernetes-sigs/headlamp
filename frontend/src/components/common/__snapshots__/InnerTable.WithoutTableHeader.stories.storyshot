@@ -1,73 +1,73 @@
 <body>
   <div>
     <div
-      class="MuiPaper MuiPaper MuiPaper css-hash"
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-e1wsad-MuiPaper-root"
     >
       <h6
-        class="MuiTypography MuiTypography MuiTypography css-hash"
+        class="MuiTypography-root MuiTypography-h6 MuiTypography-gutterBottom css-r34k9t-MuiTypography-root"
       >
         Outer Container Title
       </h6>
       <div
         aria-atomic="true"
         aria-live="polite"
-        class="MuiBox css-hash"
+        class="MuiBox-root css-ty8jgw"
         role="status"
       />
       <div
-        class="MuiPaper MuiPaper MuiPaper MuiTableContainer css-hash"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiTableContainer-root css-1sjkwtf-MuiPaper-root-MuiTableContainer-root"
         tabindex="0"
       >
         <table
-          class="MuiTable css-hash"
+          class="MuiTable-root css-qzmaqi-MuiTable-root"
         >
           <tbody
-            class="MuiTableBody css-hash"
+            class="MuiTableBody-root css-apqrd9-MuiTableBody-root"
           >
             <tr
-              class="MuiTableRow css-hash"
+              class="MuiTableRow-root css-13jktim-MuiTableRow-root"
             >
               <td
-                class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
               >
                 1
               </td>
               <td
-                class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
               >
                 Feature A
               </td>
               <td
-                class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
               >
                 Enabled
               </td>
               <td
-                class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
               >
                 High
               </td>
             </tr>
             <tr
-              class="MuiTableRow css-hash"
+              class="MuiTableRow-root css-13jktim-MuiTableRow-root"
             >
               <td
-                class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
               >
                 2
               </td>
               <td
-                class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
               >
                 Feature B
               </td>
               <td
-                class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
               >
                 Disabled
               </td>
               <td
-                class="MuiTableCell MuiTableCell MuiTableCell css-hash"
+                class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
               >
                 Medium
               </td>

@@ -1,63 +1,63 @@
 <body>
   <div>
     <button
-      class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-1j11y9k-MuiButtonBase-root-MuiButton-root"
       tabindex="0"
       type="button"
     >
       <span
-        class="MuiButton MuiButton MuiButton css-hash"
+        class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeSmall css-y6rp3m-MuiButton-startIcon"
       />
       <p
-        class="MuiTypography MuiTypography css-hash"
+        class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
         style="padding-top: 3px;"
       >
         Back
       </p>
       <span
-        class="MuiTouchRipple css-hash"
+        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
       />
     </button>
     <div
-      class="MuiBox css-hash"
+      class="MuiBox-root css-j1fy4m"
     >
       <div
-        class="MuiGrid MuiGrid MuiGrid css-hash"
+        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
       >
         <div
-          class="MuiGrid MuiGrid css-hash"
+          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
         >
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-70qvj9"
           >
             <h1
-              class="MuiTypography MuiTypography MuiTypography css-hash"
+              class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
             >
               General Settings
             </h1>
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-ldp2l3"
             />
           </div>
         </div>
         <div
-          class="MuiGrid MuiGrid css-hash"
+          class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
         >
           <div
-            class="MuiGrid MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-container MuiGrid-item css-ztq4zc-MuiGrid-root"
           >
             <div
-              class="MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
               <button
                 aria-label="Version"
-                class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
                 data-mui-internal-clone-element="true"
                 tabindex="0"
                 type="button"
               >
                 <span
-                  class="MuiTouchRipple css-hash"
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
               </button>
             </div>
@@ -65,31 +65,31 @@
         </div>
       </div>
       <div
-        class="MuiBox css-hash"
+        class="MuiBox-root css-1txv3mw"
       >
         <dl
-          class="MuiGrid MuiGrid css-hash"
+          class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
         >
           <dt
-            class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
           >
             Language
           </dt>
           <dd
-            class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
           >
             <div
-              class="MuiFormControl css-hash"
+              class="MuiFormControl-root css-1nrlq1o-MuiFormControl-root"
             >
               <div
-                class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall css-uwmwwo-MuiInputBase-root-MuiOutlinedInput-root-MuiSelect-root"
               >
                 <div
                   aria-controls="under-test"
                   aria-expanded="false"
                   aria-haspopup="listbox"
                   aria-label="Select locale"
-                  class="MuiInputBase MuiInputBase MuiOutlinedInput MuiSelect MuiSelect css-hash"
+                  class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-oswssk-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
                   role="combobox"
                   tabindex="0"
                 >
@@ -99,7 +99,7 @@
                   aria-controls="under-test"
                   aria-hidden="true"
                   aria-invalid="false"
-                  class="MuiSelect css-hash"
+                  class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
                   tabindex="-1"
                   value="en"
                 />
@@ -116,10 +116,10 @@
                 </svg>
                 <fieldset
                   aria-hidden="true"
-                  class="MuiOutlinedInput css-hash"
+                  class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                 >
                   <legend
-                    class="css-hash"
+                    class="css-1whs34k-MuiNotchedOutlined-root"
                   >
                     <span
                       class="notranslate"
@@ -132,88 +132,88 @@
             </div>
           </dd>
           <dt
-            class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
           >
             Resource details view
           </dt>
           <dd
-            class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
           >
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-k008qs"
             >
               <button
                 aria-pressed="true"
-                class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-17o2rvr-MuiButtonBase-root-MuiButton-root"
                 tabindex="0"
                 type="button"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-q5uj3p"
                 >
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-10tc75p"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1tuh5dl"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1wsar2n"
                   >
                     <div
-                      class="MuiBox css-hash"
+                      class="MuiBox-root css-flohcj"
                     />
                   </div>
                 </div>
                 Window
                 <span
-                  class="MuiTouchRipple css-hash"
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
               </button>
               <button
                 aria-pressed="false"
-                class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gl7zuq-MuiButtonBase-root-MuiButton-root"
                 tabindex="0"
                 type="button"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-q5uj3p"
                 >
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-10tc75p"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1tuh5dl"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-b95qjn"
                   >
                     <div
-                      class="MuiBox css-hash"
+                      class="MuiBox-root css-y7640i"
                     />
                   </div>
                 </div>
                 Full page
                 <span
-                  class="MuiTouchRipple css-hash"
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
               </button>
             </div>
           </dd>
           <dt
-            class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
             id="rows-per-page-label"
           >
             Number of rows for tables
           </dt>
           <dd
-            class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
           >
             <div
-              class="MuiFormControl css-hash"
+              class="MuiFormControl-root css-1nrlq1o-MuiFormControl-root"
             >
               <div
-                class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall css-uwmwwo-MuiInputBase-root-MuiOutlinedInput-root-MuiSelect-root"
                 style="width: 100px;"
               >
                 <div
@@ -221,7 +221,7 @@
                   aria-expanded="false"
                   aria-haspopup="listbox"
                   aria-labelledby="rows-per-page-label"
-                  class="MuiInputBase MuiInputBase MuiOutlinedInput MuiSelect MuiSelect css-hash"
+                  class="MuiSelect-select MuiSelect-outlined MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-oswssk-MuiSelect-select-MuiInputBase-input-MuiOutlinedInput-input"
                   role="combobox"
                   tabindex="0"
                 >
@@ -230,7 +230,7 @@
                 <input
                   aria-hidden="true"
                   aria-invalid="false"
-                  class="MuiSelect css-hash"
+                  class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
                   tabindex="-1"
                   value="15"
                 />
@@ -247,10 +247,10 @@
                 </svg>
                 <fieldset
                   aria-hidden="true"
-                  class="MuiOutlinedInput css-hash"
+                  class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                 >
                   <legend
-                    class="css-hash"
+                    class="css-1whs34k-MuiNotchedOutlined-root"
                   >
                     <span
                       class="notranslate"
@@ -263,25 +263,25 @@
             </div>
           </dd>
           <dt
-            class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
             id="timezone-label"
           >
             Timezone to display for dates
           </dt>
           <dd
-            class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
           >
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-10rqxfs"
             >
               <div
-                class="MuiAutocomplete MuiAutocomplete css-hash"
+                class="MuiAutocomplete-root MuiAutocomplete-hasPopupIcon css-ka7ti6-MuiAutocomplete-root"
               >
                 <div
-                  class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                  class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                 >
                   <div
-                    class="MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
                   >
                     <input
                       aria-autocomplete="both"
@@ -291,7 +291,7 @@
                       aria-labelledby="timezone-label"
                       autocapitalize="none"
                       autocomplete="off"
-                      class="MuiAutocomplete MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                      class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
                       id="timezone-selector-autocomplete"
                       role="combobox"
                       spellcheck="false"
@@ -299,11 +299,11 @@
                       value="(UTC+0) UTC"
                     />
                     <div
-                      class="MuiAutocomplete css-hash"
+                      class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
                     >
                       <button
                         aria-label="Open"
-                        class="MuiAutocomplete MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                        class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-1aav1nn-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
                         tabindex="-1"
                         title="Open"
                         type="button"
@@ -320,16 +320,16 @@
                           />
                         </svg>
                         <span
-                          class="MuiTouchRipple css-hash"
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                         />
                       </button>
                     </div>
                     <fieldset
                       aria-hidden="true"
-                      class="MuiOutlinedInput css-hash"
+                      class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                     >
                       <legend
-                        class="css-hash"
+                        class="css-1whs34k-MuiNotchedOutlined-root"
                       >
                         <span
                           class="notranslate"
@@ -340,7 +340,7 @@
                     </fieldset>
                   </div>
                   <p
-                    class="MuiFormHelperText MuiFormHelperText MuiFormHelperText MuiFormHelperText css-hash"
+                    class="MuiFormHelperText-root MuiFormHelperText-sizeSmall MuiFormHelperText-contained MuiFormHelperText-filled css-153yz37-MuiFormHelperText-root"
                     id="timezone-selector-autocomplete-helper-text"
                   >
                     Timezone
@@ -350,250 +350,250 @@
             </div>
           </dd>
           <dt
-            class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
             id="sort-sidebar-label"
           >
             Sort sidebar items alphabetically
           </dt>
           <dd
-            class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
           >
             <span
-              class="MuiSwitch MuiSwitch css-hash"
+              class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
             >
               <span
-                class="MuiButtonBase MuiSwitch MuiSwitch MuiSwitch MuiSwitch PrivateSwitchBase-root css-hash"
+                class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-po6g13-MuiButtonBase-root-MuiSwitchBase-root-MuiSwitch-switchBase"
               >
                 <input
                   aria-labelledby="sort-sidebar-label"
-                  class="MuiSwitch PrivateSwitchBase-input css-hash"
+                  class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
                   type="checkbox"
                 />
                 <span
-                  class="MuiSwitch css-hash"
+                  class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
                 />
                 <span
-                  class="MuiTouchRipple css-hash"
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
               </span>
               <span
-                class="MuiSwitch css-hash"
+                class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
               />
             </span>
           </dd>
           <dt
-            class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
             id="use-evict-label"
           >
             Use evict for pod deletion
           </dt>
           <dd
-            class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
           >
             <span
-              class="MuiSwitch MuiSwitch css-hash"
+              class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
             >
               <span
-                class="Mui-checked Mui-checked Mui-checked MuiButtonBase MuiSwitch MuiSwitch MuiSwitch MuiSwitch PrivateSwitchBase-root css-hash"
+                class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-po6g13-MuiButtonBase-root-MuiSwitchBase-root-MuiSwitch-switchBase"
               >
                 <input
                   aria-labelledby="use-evict-label"
                   checked=""
-                  class="MuiSwitch PrivateSwitchBase-input css-hash"
+                  class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
                   type="checkbox"
                 />
                 <span
-                  class="MuiSwitch css-hash"
+                  class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
                 />
                 <span
-                  class="MuiTouchRipple css-hash"
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                 />
               </span>
               <span
-                class="MuiSwitch css-hash"
+                class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
               />
             </span>
           </dd>
         </dl>
         <div
-          class="MuiBox css-hash"
+          class="MuiBox-root css-1k57ox4"
         >
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-xonqoi"
           >
             <p
-              class="MuiTypography MuiTypography css-hash"
+              class="MuiTypography-root MuiTypography-body1 css-k2ogvs-MuiTypography-root"
             >
               Theme
             </p>
           </div>
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-exrnj3"
           >
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-1smd7c5"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-1yhz2ch"
                 role="button"
                 tabindex="0"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-h3uu27"
                 >
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1f1uc6a"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1z0uf79"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-5zxu0k"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1oxk0si"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-jkymop"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-n01h7b"
                   />
                 </div>
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-164r41r"
                 >
                   Light
                 </div>
               </div>
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-ba9uxd"
                 role="button"
                 tabindex="0"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-1giqewv"
                 >
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-ni9bm1"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1z0uf79"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-3dcp9m"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1coq5wc"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-ew82rx"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1ep3rs4"
                   />
                 </div>
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-164r41r"
                 >
                   Dark
                 </div>
               </div>
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-ba9uxd"
                 role="button"
                 tabindex="0"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-h3uu27"
                 >
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1aoxae"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1xqumfe"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-19czym2"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1swhc7p"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-c8sfqn"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-8jmga1"
                   />
                 </div>
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-164r41r"
                 >
                   Headlamp Classic
                 </div>
               </div>
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-ba9uxd"
                 role="button"
                 tabindex="0"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-161eg9d"
                 >
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1uehyk8"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1xynfpy"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-okkunh"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1fzrvd"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-4usmf5"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-44mj8i"
                   />
                 </div>
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-164r41r"
                 >
                   Lights Out
                 </div>
               </div>
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-ba9uxd"
                 role="button"
                 tabindex="0"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-1y7ghyx"
                 >
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-zbyu3o"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1ajpcw4"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1c66u4w"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-1o70p9j"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-iszuoz"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-8mvqu"
                   />
                 </div>
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-164r41r"
                 >
                   Monochrome Light
                 </div>
@@ -602,212 +602,212 @@
           </div>
         </div>
         <div
-          class="MuiBox css-hash"
+          class="MuiBox-root css-h5fkc8"
         >
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-j1fy4m"
           >
             <div
-              class="MuiGrid MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
             >
               <div
-                class="MuiGrid MuiGrid css-hash"
+                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-70qvj9"
                 >
                   <h2
-                    class="MuiTypography MuiTypography MuiTypography css-hash"
+                    class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
                   >
                     Keyboard Shortcuts
                   </h2>
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-ldp2l3"
                   />
                 </div>
               </div>
             </div>
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-1txv3mw"
             >
               <p
-                class="MuiTypography MuiTypography css-hash"
+                class="MuiTypography-root MuiTypography-body2 css-1wgus3-MuiTypography-root"
               >
                 Configure keyboard shortcuts for quick access to various parts of the application.
               </p>
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-1yuhvjn"
               >
                 <dl
-                  class="MuiGrid MuiGrid css-hash"
+                  class="MuiGrid-root MuiGrid-container css-kxuems-MuiGrid-root"
                 >
                   <dt
-                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 MuiGrid-grid-md-12 css-gvwr1e-MuiGrid-root"
                   >
                     <span
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-button css-jwury-MuiTypography-root"
                     >
                       Search
                     </span>
                   </dt>
                   <dt
-                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
                   >
                     <div
-                      class="MuiBox css-hash"
+                      class="MuiBox-root css-0"
                     >
                       <p
-                        class="MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-body2 css-1k32pko-MuiTypography-root"
                       >
                         Global Search
                       </p>
                       <span
-                        class="MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
                       >
                         Open the global search dialog
                       </span>
                     </div>
                   </dt>
                   <dd
-                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
                   >
                     <div
-                      class="MuiBox css-hash"
+                      class="MuiBox-root css-42kczj"
                     >
                       <button
-                        class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+                        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-14ebh8n-MuiButtonBase-root-MuiButton-root"
                         tabindex="0"
                         type="button"
                       >
                         /
                         <span
-                          class="MuiTouchRipple css-hash"
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                         />
                       </button>
                     </div>
                   </dd>
                   <dt
-                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
                   >
                     <div
-                      class="MuiBox css-hash"
+                      class="MuiBox-root css-0"
                     >
                       <p
-                        class="MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-body2 css-1k32pko-MuiTypography-root"
                       >
                         Log Viewer Search
                       </p>
                       <span
-                        class="MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
                       >
                         Toggle search in log viewer
                       </span>
                     </div>
                   </dt>
                   <dd
-                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
                   >
                     <div
-                      class="MuiBox css-hash"
+                      class="MuiBox-root css-42kczj"
                     >
                       <button
-                        class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+                        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-14ebh8n-MuiButtonBase-root-MuiButton-root"
                         tabindex="0"
                         type="button"
                       >
                         Ctrl + Shift + F
                         <span
-                          class="MuiTouchRipple css-hash"
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                         />
                       </button>
                     </div>
                   </dd>
                   <dt
-                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 MuiGrid-grid-md-12 css-gvwr1e-MuiGrid-root"
                   >
                     <span
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-button css-jwury-MuiTypography-root"
                     >
                       Navigation
                     </span>
                   </dt>
                   <dt
-                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
                   >
                     <div
-                      class="MuiBox css-hash"
+                      class="MuiBox-root css-0"
                     >
                       <p
-                        class="MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-body2 css-1k32pko-MuiTypography-root"
                       >
                         Cluster Chooser
                       </p>
                       <span
-                        class="MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
                       >
                         Open the cluster chooser popup
                       </span>
                     </div>
                   </dt>
                   <dd
-                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
                   >
                     <div
-                      class="MuiBox css-hash"
+                      class="MuiBox-root css-42kczj"
                     >
                       <button
-                        class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+                        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-14ebh8n-MuiButtonBase-root-MuiButton-root"
                         tabindex="0"
                         type="button"
                       >
                         Ctrl + Shift + L
                         <span
-                          class="MuiTouchRipple css-hash"
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                         />
                       </button>
                     </div>
                   </dd>
                   <dt
-                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-12 MuiGrid-grid-md-12 css-gvwr1e-MuiGrid-root"
                   >
                     <span
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-button css-jwury-MuiTypography-root"
                     >
                       General
                     </span>
                   </dt>
                   <dt
-                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
                   >
                     <div
-                      class="MuiBox css-hash"
+                      class="MuiBox-root css-0"
                     >
                       <p
-                        class="MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-body2 css-1k32pko-MuiTypography-root"
                       >
                         Toggle Table Filters
                       </p>
                       <span
-                        class="MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-caption css-1imddaz-MuiTypography-root"
                       >
                         Toggle column filters in tables
                       </span>
                     </div>
                   </dt>
                   <dd
-                    class="MuiGrid MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
                   >
                     <div
-                      class="MuiBox css-hash"
+                      class="MuiBox-root css-42kczj"
                     >
                       <button
-                        class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+                        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-14ebh8n-MuiButtonBase-root-MuiButton-root"
                         tabindex="0"
                         type="button"
                       >
                         Alt + Shift + T
                         <span
-                          class="MuiTouchRipple css-hash"
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                         />
                       </button>
                     </div>

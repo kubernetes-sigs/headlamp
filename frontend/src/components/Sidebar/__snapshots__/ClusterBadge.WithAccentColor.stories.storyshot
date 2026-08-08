@@ -1,13 +1,13 @@
 <body>
   <div>
     <div
-      class="MuiBox css-hash"
+      class="MuiBox-root css-172hjuw"
     >
       <div
-        class="MuiBox css-hash"
+        class="MuiBox-root css-1txjpyk"
       />
       <span
-        class="MuiTypography MuiTypography css-hash"
+        class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
       >
         production
       </span>

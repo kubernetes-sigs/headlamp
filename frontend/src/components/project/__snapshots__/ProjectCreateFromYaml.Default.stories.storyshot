@@ -4,39 +4,39 @@
       style="height: 800px;"
     >
       <div
-        class="MuiDialogContent css-hash"
+        class="MuiDialogContent-root css-ypiqx9-MuiDialogContent-root"
       >
         <form>
           <h1
-            class="MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiTypography-h1 css-ahbwv5-MuiTypography-root"
           >
             Create new Project from YAML
           </h1>
           <div
-            class="MuiGrid MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-4 css-480o17-MuiGrid-root"
           >
             <div
-              class="MuiGrid MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-3 css-15dcrri-MuiGrid-root"
             >
               <p
-                class="MuiTypography MuiTypography css-hash"
+                class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
               >
                 Project name
               </p>
               <p
-                class="MuiTypography MuiTypography css-hash"
+                class="MuiTypography-root MuiTypography-body2 css-vm2751-MuiTypography-root"
               >
                 Give your project a descriptive name
               </p>
             </div>
             <div
-              class="MuiGrid MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-9 css-3vdko4-MuiGrid-root"
             >
               <div
-                class="MuiFormControl MuiTextField css-hash"
+                class="MuiFormControl-root MuiTextField-root css-xbp7s-MuiFormControl-root-MuiTextField-root"
               >
                 <label
-                  class="Mui-required MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
+                  class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary Mui-required MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined css-10fydcw-MuiFormLabel-root-MuiInputLabel-root"
                   data-shrink="false"
                   for=":mock-test-id:"
                   id=":mock-test-id:"
@@ -44,18 +44,18 @@
                   Project Name
                   <span
                     aria-hidden="true"
-                    class="MuiFormLabel MuiInputLabel css-hash"
+                    class="MuiFormLabel-asterisk MuiInputLabel-asterisk css-1u4szfp-MuiFormLabel-asterisk"
                   >
                      
                     *
                   </span>
                 </label>
                 <div
-                  class="MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                  class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-formControl MuiInputBase-sizeSmall css-bx3nlw-MuiInputBase-root-MuiOutlinedInput-root"
                 >
                   <input
                     aria-invalid="false"
-                    class="MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                    class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                     id=":mock-test-id:"
                     placeholder="Enter a name"
                     required=""
@@ -64,10 +64,10 @@
                   />
                   <fieldset
                     aria-hidden="true"
-                    class="MuiOutlinedInput css-hash"
+                    class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                   >
                     <legend
-                      class="css-hash"
+                      class="css-njhac4-MuiNotchedOutlined-root"
                     >
                       <span>
                         Project Name
@@ -80,30 +80,30 @@
               </div>
             </div>
             <div
-              class="MuiGrid MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-3 css-15dcrri-MuiGrid-root"
             >
               <p
-                class="MuiTypography MuiTypography css-hash"
+                class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
               >
                 Cluster
               </p>
               <p
-                class="MuiTypography MuiTypography css-hash"
+                class="MuiTypography-root MuiTypography-body2 css-vm2751-MuiTypography-root"
               >
                 Select cluster for this project
               </p>
             </div>
             <div
-              class="MuiGrid MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-9 css-3vdko4-MuiGrid-root"
             >
               <div
-                class="MuiAutocomplete MuiAutocomplete css-hash"
+                class="MuiAutocomplete-root MuiAutocomplete-hasPopupIcon css-ka7ti6-MuiAutocomplete-root"
               >
                 <div
-                  class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                  class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-19r8nsp-MuiFormControl-root-MuiTextField-root"
                 >
                   <label
-                    class="Mui-disabled Mui-required MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
+                    class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary Mui-disabled Mui-required MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeSmall MuiInputLabel-outlined css-10fydcw-MuiFormLabel-root-MuiInputLabel-root"
                     data-shrink="false"
                     for=":mock-test-id:"
                     id=":mock-test-id:"
@@ -111,14 +111,14 @@
                     Clusters
                     <span
                       aria-hidden="true"
-                      class="MuiFormLabel MuiInputLabel css-hash"
+                      class="MuiFormLabel-asterisk MuiInputLabel-asterisk css-1u4szfp-MuiFormLabel-asterisk"
                     >
                        
                       *
                     </span>
                   </label>
                   <div
-                    class="Mui-disabled MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary Mui-disabled MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
                   >
                     <input
                       aria-autocomplete="list"
@@ -126,7 +126,7 @@
                       aria-invalid="false"
                       autocapitalize="none"
                       autocomplete="off"
-                      class="Mui-disabled MuiAutocomplete MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                      class="MuiInputBase-input MuiOutlinedInput-input Mui-disabled MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
                       disabled=""
                       id=":mock-test-id:"
                       required=""
@@ -136,11 +136,11 @@
                       value=""
                     />
                     <div
-                      class="MuiAutocomplete css-hash"
+                      class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
                     >
                       <button
                         aria-label="Open"
-                        class="Mui-disabled Mui-disabled MuiAutocomplete MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                        class="MuiButtonBase-root Mui-disabled MuiIconButton-root Mui-disabled MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-1aav1nn-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
                         disabled=""
                         tabindex="-1"
                         title="Open"
@@ -161,10 +161,10 @@
                     </div>
                     <fieldset
                       aria-hidden="true"
-                      class="MuiOutlinedInput css-hash"
+                      class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                     >
                       <legend
-                        class="css-hash"
+                        class="css-njhac4-MuiNotchedOutlined-root"
                       >
                         <span>
                           Clusters
@@ -178,81 +178,81 @@
               </div>
             </div>
             <div
-              class="MuiGrid MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-3 css-15dcrri-MuiGrid-root"
             >
               <p
-                class="MuiTypography MuiTypography css-hash"
+                class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
               >
                 Load resources
               </p>
               <p
-                class="MuiTypography MuiTypography css-hash"
+                class="MuiTypography-root MuiTypography-body2 css-vm2751-MuiTypography-root"
               >
                 Upload files or load from URL
               </p>
             </div>
             <div
-              class="MuiGrid MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-9 css-3vdko4-MuiGrid-root"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-8atqhb"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-1gsv261"
                 >
                   <div
-                    class="MuiTabs css-hash"
+                    class="MuiTabs-root css-1ujnqem-MuiTabs-root"
                   >
                     <div
-                      class="MuiTabs MuiTabs css-hash"
+                      class="MuiTabs-scroller MuiTabs-fixed css-jpln7h-MuiTabs-scroller"
                       style="overflow: hidden; margin-bottom: 0px;"
                     >
                       <div
-                        class="MuiTabs css-hash"
+                        class="MuiTabs-flexContainer css-heg063-MuiTabs-flexContainer"
                         role="tablist"
                       >
                         <button
                           aria-selected="true"
-                          class="Mui-selected MuiButtonBase MuiTab MuiTab css-hash"
+                          class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary Mui-selected css-f00lt7-MuiButtonBase-root-MuiTab-root"
                           role="tab"
                           tabindex="0"
                           type="button"
                         >
                           Upload Files
                           <span
-                            class="MuiTouchRipple css-hash"
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                           />
                         </button>
                         <button
                           aria-selected="false"
-                          class="MuiButtonBase MuiTab MuiTab css-hash"
+                          class="MuiButtonBase-root MuiTab-root MuiTab-textColorPrimary css-f00lt7-MuiButtonBase-root-MuiTab-root"
                           role="tab"
                           tabindex="-1"
                           type="button"
                         >
                           Load from URL
                           <span
-                            class="MuiTouchRipple css-hash"
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                           />
                         </button>
                       </div>
                       <span
-                        class="MuiTabs css-hash"
+                        class="MuiTabs-indicator css-1s2zz1g-MuiTabs-indicator"
                         style="left: 0px; width: 0px;"
                       />
                     </div>
                   </div>
                 </div>
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-1v3caum"
                 >
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-uqrnao"
                     role="presentation"
                     tabindex="0"
                   >
                     <div
-                      class="MuiFormControl css-hash"
+                      class="MuiFormControl-root css-1nrlq1o-MuiFormControl-root"
                     >
                       <input
                         accept="application/x-yaml,.yaml,.yml,text/yaml,.yaml,.yml,text/plain,.yaml,.yml"
@@ -264,22 +264,22 @@
                       />
                       <button
                         aria-label="Drag & drop YAML files here or click to choose files"
-                        class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+                        class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
                         data-mui-internal-clone-element="true"
                         tabindex="0"
                         type="button"
                       >
                         <span
-                          class="MuiButton MuiButton MuiButton css-hash"
+                          class="MuiButton-icon MuiButton-startIcon MuiButton-iconSizeMedium css-1d6wzja-MuiButton-startIcon"
                         />
                         Choose Files
                         <span
-                          class="MuiTouchRipple css-hash"
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                         />
                       </button>
                     </div>
                     <p
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-body2 css-tn1jak-MuiTypography-root"
                     >
                       Supports .yaml and .yml files
                     </p>
@@ -289,26 +289,26 @@
             </div>
           </div>
           <div
-            class="MuiDialogActions MuiDialogActions css-hash"
+            class="MuiDialogActions-root MuiDialogActions-spacing css-knqc4i-MuiDialogActions-root"
           >
             <button
-              class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+              class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-14f6w6s-MuiButtonBase-root-MuiButton-root"
               tabindex="0"
               type="button"
             >
               Cancel
               <span
-                class="MuiTouchRipple css-hash"
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
               />
             </button>
             <button
-              class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+              class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedPrimary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gn8fa3-MuiButtonBase-root-MuiButton-root"
               tabindex="0"
               type="submit"
             >
               Create
               <span
-                class="MuiTouchRipple css-hash"
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
               />
             </button>
           </div>

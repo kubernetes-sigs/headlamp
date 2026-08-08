@@ -1,21 +1,21 @@
 <body>
   <div>
     <button
-      class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+      class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textSecondary MuiButton-sizeLarge MuiButton-textSizeLarge MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textSecondary MuiButton-sizeLarge MuiButton-textSizeLarge MuiButton-colorSecondary MuiButton-disableElevation css-11jr3ot-MuiButtonBase-root-MuiButton-root"
       tabindex="0"
       type="button"
     >
       <div
-        class="MuiBox css-hash"
+        class="MuiBox-root css-172hjuw"
       >
         <span
-          class="MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-caption css-chqac-MuiTypography-root"
         >
           my-cluster
         </span>
       </div>
       <span
-        class="MuiTouchRipple css-hash"
+        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
       />
     </button>
   </div>

@@ -2,7 +2,7 @@
   <div>
     <a
       aria-label="A tooltip"
-      class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
+      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
       data-mui-internal-clone-element="true"
       href="/"
     >

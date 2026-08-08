@@ -2,112 +2,112 @@
   <div>
     <nav
       aria-label="Navigation"
-      class="MuiBox css-hash"
+      class="MuiBox-root css-qnyptn"
     >
       <div
-        class="MuiDrawer MuiDrawer css-hash"
+        class="MuiDrawer-root MuiDrawer-docked css-184654t-MuiDrawer-docked"
       >
         <div
-          class="MuiDrawer MuiDrawer MuiDrawer MuiPaper MuiPaper css-hash"
+          class="MuiPaper-root MuiPaper-outlined MuiDrawer-paper MuiDrawer-paperAnchorLeft MuiDrawer-paperAnchorDockedLeft css-2vc5z5-MuiPaper-root-MuiDrawer-paper"
         >
           <div
-            class="MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-container MuiGrid-direction-xs-column MuiGrid-wrap-xs-nowrap css-opqjvv-MuiGrid-root"
           >
             <div
-              class="MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
               <ul
-                class="MuiList MuiList css-hash"
+                class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
               >
                 <li
-                  class="css-hash"
+                  class="css-3knmzx"
                 >
                   <a
                     aria-label="Home"
-                    class="MuiButtonBase MuiListItemButton MuiListItemButton MuiListItemButton MuiListItemButton css-hash"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1bad0xa-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"
                     role="button"
                     tabindex="-1"
                   >
                     <div
                       aria-label="Home"
-                      class="MuiListItemIcon css-hash"
+                      class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
                       data-mui-internal-clone-element="true"
                     />
                     <span
-                      class="MuiTouchRipple css-hash"
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                     />
                   </a>
                 </li>
                 <li
-                  class="css-hash"
+                  class="css-3knmzx"
                 >
                   <a
                     aria-label="Notifications"
-                    class="MuiButtonBase MuiListItemButton MuiListItemButton MuiListItemButton MuiListItemButton css-hash"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1bad0xa-MuiButtonBase-root-MuiListItemButton-root"
                     href="/notifications"
                     role="button"
                     tabindex="-1"
                   >
                     <div
                       aria-label="Notifications"
-                      class="MuiListItemIcon css-hash"
+                      class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
                       data-mui-internal-clone-element="true"
                     />
                     <span
-                      class="MuiTouchRipple css-hash"
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                     />
                   </a>
                 </li>
                 <li
-                  class="css-hash"
+                  class="css-3knmzx"
                 >
                   <a
                     aria-label="Settings"
-                    class="Mui-selected Mui-selected MuiButtonBase MuiListItemButton MuiListItemButton MuiListItemButton MuiListItemButton css-hash"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters Mui-selected MuiListItemButton-root MuiListItemButton-gutters Mui-selected css-1bad0xa-MuiButtonBase-root-MuiListItemButton-root"
                     href="/settings/general"
                     role="button"
                     tabindex="-1"
                   >
                     <div
                       aria-label="Settings"
-                      class="MuiListItemIcon css-hash"
+                      class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
                       data-mui-internal-clone-element="true"
                     />
                     <span
-                      class="MuiTouchRipple css-hash"
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                     />
                   </a>
                 </li>
               </ul>
             </div>
             <div
-              class="MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-xi606m"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-1h413jj"
                 >
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-0"
                   />
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-0"
                   >
                     <div
-                      class="MuiBox css-hash"
+                      class="MuiBox-root css-xi606m"
                     >
                       <button
                         aria-label="Expand sidebar"
-                        class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                        class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-lr7sro-MuiButtonBase-root-MuiIconButton-root"
                         data-mui-internal-clone-element="true"
                         tabindex="0"
                         type="button"
                       >
                         <span
-                          class="MuiTouchRipple css-hash"
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                         />
                       </button>
                     </div>

@@ -2,13 +2,13 @@
   <div>
     <button
       aria-label="Create / Apply"
-      class="MuiButtonBase MuiIconButton MuiIconButton MuiIconButton css-hash"
+      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-colorPrimary MuiIconButton-sizeMedium css-1xtrv90-MuiButtonBase-root-MuiIconButton-root"
       data-mui-internal-clone-element="true"
       tabindex="0"
       type="button"
     >
       <span
-        class="MuiTouchRipple css-hash"
+        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
       />
     </button>
   </div>

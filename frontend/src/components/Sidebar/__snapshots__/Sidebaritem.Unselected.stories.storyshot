@@ -1,35 +1,35 @@
 <body>
   <div>
     <div
-      class="MuiGrid MuiGrid css-hash"
+      class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
       style="background-color: rgba(0, 0, 0, 0.87);"
     >
       <ul
-        class="MuiList MuiList css-hash"
+        class="MuiList-root MuiList-padding css-h4y409-MuiList-root"
       >
         <li
-          class="css-hash"
+          class="css-3knmzx"
         >
           <a
-            class="MuiButtonBase MuiListItemButton MuiListItemButton MuiListItemButton MuiListItemButton css-hash"
+            class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1gdjf7n-MuiButtonBase-root-MuiListItemButton-root"
             href="/"
             role="button"
             tabindex="0"
           >
             <div
-              class="MuiListItemIcon css-hash"
+              class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
             />
             <div
-              class="MuiListItemText css-hash"
+              class="MuiListItemText-root css-tlelie-MuiListItemText-root"
             >
               <span
-                class="MuiListItemText MuiTypography MuiTypography css-hash"
+                class="MuiTypography-root MuiTypography-body1 MuiListItemText-primary css-nqgwvn-MuiTypography-root"
               >
                 Cluster
               </span>
             </div>
             <span
-              class="MuiTouchRipple css-hash"
+              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
             />
           </a>
         </li>

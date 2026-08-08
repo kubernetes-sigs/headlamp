@@ -1,11 +1,11 @@
 <body>
   <div>
     <div
-      class="MuiBox css-hash"
+      class="MuiBox-root css-0"
       style="display: flex; margin-bottom: 5px;"
     >
       <a
-        class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
+        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
         href="http://exampleurl.com/pathA"
         style="margin-right: 5px;"
       >

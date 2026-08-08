@@ -1,78 +1,78 @@
 <body>
   <div>
     <div
-      class="MuiContainer MuiContainer css-hash"
+      class="MuiContainer-root MuiContainer-maxWidthXl css-4hqp1a-MuiContainer-root"
     >
       <div
-        class="MuiGrid MuiGrid MuiGrid css-hash"
+        class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-1 css-1ub3t8b-MuiGrid-root"
       >
         <div
-          class="MuiGrid MuiGrid MuiGrid css-hash"
+          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
         >
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-p0cik4"
           >
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-j1fy4m"
             >
               <div
-                class="MuiGrid MuiGrid MuiGrid css-hash"
+                class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
               >
                 <div
-                  class="MuiGrid MuiGrid css-hash"
+                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                 >
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-70qvj9"
                   >
                     <h2
-                      class="MuiTypography MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
                     >
                       Overview
                     </h2>
                     <div
-                      class="MuiBox css-hash"
+                      class="MuiBox-root css-ldp2l3"
                     />
                   </div>
                 </div>
               </div>
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-lpikod"
               >
                 <div
-                  class="MuiGrid MuiGrid MuiGrid css-hash"
+                  class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-4 css-13cu5dn-MuiGrid-root"
                 >
                   <div
-                    class="MuiGrid MuiGrid MuiGrid css-hash"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-18ph6tx-MuiGrid-root"
                   >
                     <div
-                      class="MuiPaper MuiPaper MuiPaper css-hash"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
                     >
                       <div
-                        class="MuiBox css-hash"
+                        class="MuiBox-root css-qrw4x1"
                       >
                         <div
-                          class="MuiBox css-hash"
+                          class="MuiBox-root css-1sl8dhm"
                         >
                           <div
-                            class="MuiBox css-hash"
+                            class="MuiBox-root css-0"
                           >
                             <p
-                              class="MuiTypography MuiTypography MuiTypography css-hash"
+                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
                             >
                               CPU Usage
                             </p>
                           </div>
                           <p
-                            class="MuiTypography MuiTypography MuiTypography css-hash"
+                            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
                           />
                         </div>
                         <div
-                          class="MuiBox css-hash"
+                          class="MuiBox-root css-0"
                         >
                           <div
                             aria-busy="false"
                             aria-live="polite"
-                            class="MuiBox css-hash"
+                            class="MuiBox-root css-2esbmj"
                           >
                             <div
                               class="recharts-wrapper"
@@ -118,7 +118,14 @@
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
-                                      d="M 61,16.199999999999996 A 44.800000000000004,44.800000000000004,0, 1,1, 60.99921809249515,16.20000000682343 L 60.999410078712856,27.200000005148027 A 33.800000000000004,33.800000000000004,0, 1,0, 61,27.199999999999996 Z"
+                                      d="M 61,16.199999999999996
+    A 44.800000000000004,44.800000000000004,0,
+    1,1,
+    60.99921809249515,16.20000000682343
+  L 60.999410078712856,27.200000005148027
+            A 33.800000000000004,33.800000000000004,0,
+            1,0,
+            61,27.199999999999996 Z"
                                       fill="#e0e0e0"
                                       name="total"
                                       role="img"
@@ -151,37 +158,37 @@
                     </div>
                   </div>
                   <div
-                    class="MuiGrid MuiGrid MuiGrid css-hash"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-18ph6tx-MuiGrid-root"
                   >
                     <div
-                      class="MuiPaper MuiPaper MuiPaper css-hash"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
                     >
                       <div
-                        class="MuiBox css-hash"
+                        class="MuiBox-root css-qrw4x1"
                       >
                         <div
-                          class="MuiBox css-hash"
+                          class="MuiBox-root css-1sl8dhm"
                         >
                           <div
-                            class="MuiBox css-hash"
+                            class="MuiBox-root css-0"
                           >
                             <p
-                              class="MuiTypography MuiTypography MuiTypography css-hash"
+                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
                             >
                               Memory Usage
                             </p>
                           </div>
                           <p
-                            class="MuiTypography MuiTypography MuiTypography css-hash"
+                            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
                           />
                         </div>
                         <div
-                          class="MuiBox css-hash"
+                          class="MuiBox-root css-0"
                         >
                           <div
                             aria-busy="false"
                             aria-live="polite"
-                            class="MuiBox css-hash"
+                            class="MuiBox-root css-2esbmj"
                           >
                             <div
                               class="recharts-wrapper"
@@ -227,7 +234,14 @@
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
-                                      d="M 61,16.199999999999996 A 44.800000000000004,44.800000000000004,0, 1,1, 60.99921809249515,16.20000000682343 L 60.999410078712856,27.200000005148027 A 33.800000000000004,33.800000000000004,0, 1,0, 61,27.199999999999996 Z"
+                                      d="M 61,16.199999999999996
+    A 44.800000000000004,44.800000000000004,0,
+    1,1,
+    60.99921809249515,16.20000000682343
+  L 60.999410078712856,27.200000005148027
+            A 33.800000000000004,33.800000000000004,0,
+            1,0,
+            61,27.199999999999996 Z"
                                       fill="#e0e0e0"
                                       name="total"
                                       role="img"
@@ -260,39 +274,39 @@
                     </div>
                   </div>
                   <div
-                    class="MuiGrid MuiGrid MuiGrid css-hash"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-18ph6tx-MuiGrid-root"
                   >
                     <div
-                      class="MuiPaper MuiPaper MuiPaper css-hash"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
                     >
                       <div
-                        class="MuiBox css-hash"
+                        class="MuiBox-root css-qrw4x1"
                       >
                         <div
-                          class="MuiBox css-hash"
+                          class="MuiBox-root css-1sl8dhm"
                         >
                           <div
-                            class="MuiBox css-hash"
+                            class="MuiBox-root css-0"
                           >
                             <p
-                              class="MuiTypography MuiTypography MuiTypography css-hash"
+                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
                             >
                               Pods
                             </p>
                           </div>
                           <p
-                            class="MuiTypography MuiTypography MuiTypography css-hash"
+                            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
                           >
                             0 / 0 Requested
                           </p>
                         </div>
                         <div
-                          class="MuiBox css-hash"
+                          class="MuiBox-root css-0"
                         >
                           <div
                             aria-busy="false"
                             aria-live="polite"
-                            class="MuiBox css-hash"
+                            class="MuiBox-root css-2esbmj"
                           >
                             <div
                               class="recharts-wrapper"
@@ -342,7 +356,14 @@
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
-                                      d="M 61,16.199999999999996 A 44.800000000000004,44.800000000000004,0, 1,1, 60.99921809249515,16.20000000682343 L 60.999410078712856,27.200000005148027 A 33.800000000000004,33.800000000000004,0, 1,0, 61,27.199999999999996 Z"
+                                      d="M 61,16.199999999999996
+    A 44.800000000000004,44.800000000000004,0,
+    1,1,
+    60.99921809249515,16.20000000682343
+  L 60.999410078712856,27.200000005148027
+            A 33.800000000000004,33.800000000000004,0,
+            1,0,
+            61,27.199999999999996 Z"
                                       fill="#e0e0e0"
                                       name="total"
                                       role="img"
@@ -375,39 +396,39 @@
                     </div>
                   </div>
                   <div
-                    class="MuiGrid MuiGrid MuiGrid css-hash"
+                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-18ph6tx-MuiGrid-root"
                   >
                     <div
-                      class="MuiPaper MuiPaper MuiPaper css-hash"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-u96y7l-MuiPaper-root"
                     >
                       <div
-                        class="MuiBox css-hash"
+                        class="MuiBox-root css-qrw4x1"
                       >
                         <div
-                          class="MuiBox css-hash"
+                          class="MuiBox-root css-1sl8dhm"
                         >
                           <div
-                            class="MuiBox css-hash"
+                            class="MuiBox-root css-0"
                           >
                             <p
-                              class="MuiTypography MuiTypography MuiTypography css-hash"
+                              class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
                             >
                               Nodes
                             </p>
                           </div>
                           <p
-                            class="MuiTypography MuiTypography MuiTypography css-hash"
+                            class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
                           >
                             0 / 2 Ready
                           </p>
                         </div>
                         <div
-                          class="MuiBox css-hash"
+                          class="MuiBox-root css-0"
                         >
                           <div
                             aria-busy="false"
                             aria-live="polite"
-                            class="MuiBox css-hash"
+                            class="MuiBox-root css-2esbmj"
                           >
                             <div
                               class="recharts-wrapper"
@@ -453,7 +474,14 @@
                                       class="recharts-sector"
                                       cx="61"
                                       cy="61"
-                                      d="M 61,16.199999999999996 A 44.800000000000004,44.800000000000004,0, 1,1, 60.99921809249515,16.20000000682343 L 60.999410078712856,27.200000005148027 A 33.800000000000004,33.800000000000004,0, 1,0, 61,27.199999999999996 Z"
+                                      d="M 61,16.199999999999996
+    A 44.800000000000004,44.800000000000004,0,
+    1,1,
+    60.99921809249515,16.20000000682343
+  L 60.999410078712856,27.200000005148027
+            A 33.800000000000004,33.800000000000004,0,
+            1,0,
+            61,27.199999999999996 Z"
                                       fill="#c62828"
                                       name="notReady"
                                       role="img"
@@ -495,69 +523,69 @@
           </div>
         </div>
         <div
-          class="MuiGrid MuiGrid MuiGrid css-hash"
+          class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
         >
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-p0cik4"
           >
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-j1fy4m"
             >
               <div
-                class="MuiGrid MuiGrid MuiGrid css-hash"
+                class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
               >
                 <div
-                  class="MuiGrid MuiGrid css-hash"
+                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                 >
                   <div
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-70qvj9"
                   >
                     <h1
-                      class="MuiTypography MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
                     >
                       Events
                     </h1>
                     <div
-                      class="MuiBox css-hash"
+                      class="MuiBox-root css-ldp2l3"
                     >
                       <button
                         aria-label="Events lifetime information"
-                        class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                        class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-ai5t7w-MuiButtonBase-root-MuiIconButton-root"
                         data-mui-internal-clone-element="true"
                         tabindex="0"
                         type="button"
                       >
                         <span
-                          class="MuiTouchRipple css-hash"
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                         />
                       </button>
                       <label
-                        class="MuiFormControlLabel MuiFormControlLabel css-hash"
+                        class="MuiFormControlLabel-root MuiFormControlLabel-labelPlacementEnd css-j204z7-MuiFormControlLabel-root"
                       >
                         <span
-                          class="MuiSwitch MuiSwitch css-hash"
+                          class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
                         >
                           <span
-                            class="Mui-checked Mui-checked Mui-checked MuiButtonBase MuiSwitch MuiSwitch MuiSwitch MuiSwitch PrivateSwitchBase-root css-hash"
+                            class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary Mui-checked Mui-checked css-po6g13-MuiButtonBase-root-MuiSwitchBase-root-MuiSwitch-switchBase"
                           >
                             <input
                               checked=""
-                              class="MuiSwitch PrivateSwitchBase-input css-hash"
+                              class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
                               type="checkbox"
                             />
                             <span
-                              class="MuiSwitch css-hash"
+                              class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
                             />
                             <span
-                              class="MuiTouchRipple css-hash"
+                              class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                             />
                           </span>
                           <span
-                            class="MuiSwitch css-hash"
+                            class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
                           />
                         </span>
                         <span
-                          class="MuiFormControlLabel MuiTypography MuiTypography css-hash"
+                          class="MuiTypography-root MuiTypography-body1 MuiFormControlLabel-label css-1ezega9-MuiTypography-root"
                         >
                           Only warnings (0)
                         </span>
@@ -566,26 +594,26 @@
                   </div>
                 </div>
                 <div
-                  class="MuiGrid MuiGrid css-hash"
+                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                 >
                   <div
-                    class="MuiGrid MuiGrid MuiGrid css-hash"
+                    class="MuiGrid-root MuiGrid-container MuiGrid-item css-ztq4zc-MuiGrid-root"
                   >
                     <div
-                      class="MuiGrid MuiGrid css-hash"
+                      class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                     >
                       <div
-                        class="MuiAutocomplete MuiAutocomplete css-hash"
+                        class="MuiAutocomplete-root MuiAutocomplete-hasPopupIcon css-1x6bjyf-MuiAutocomplete-root"
                       >
                         <div
-                          class="MuiBox css-hash"
+                          class="MuiBox-root css-1dipl1t"
                         >
                           <div
-                            class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                            class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                             style="margin-top: 0px;"
                           >
                             <label
-                              class="MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
+                              class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
                               data-shrink="true"
                               for="namespaces-filter"
                               id="namespaces-filter-label"
@@ -593,7 +621,7 @@
                               Namespaces
                             </label>
                             <div
-                              class="MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                              class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
                             >
                               <input
                                 aria-autocomplete="both"
@@ -601,7 +629,7 @@
                                 aria-invalid="false"
                                 autocapitalize="none"
                                 autocomplete="off"
-                                class="MuiAutocomplete MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                                class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
                                 id="namespaces-filter"
                                 placeholder="Filter"
                                 role="combobox"
@@ -610,11 +638,11 @@
                                 value=""
                               />
                               <div
-                                class="MuiAutocomplete css-hash"
+                                class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
                               >
                                 <button
                                   aria-label="Open"
-                                  class="MuiAutocomplete MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-1aav1nn-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
                                   tabindex="-1"
                                   title="Open"
                                   type="button"
@@ -631,16 +659,16 @@
                                     />
                                   </svg>
                                   <span
-                                    class="MuiTouchRipple css-hash"
+                                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                                   />
                                 </button>
                               </div>
                               <fieldset
                                 aria-hidden="true"
-                                class="MuiOutlinedInput css-hash"
+                                class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                               >
                                 <legend
-                                  class="css-hash"
+                                  class="css-sl37lx-MuiNotchedOutlined-root"
                                 >
                                   <span>
                                     Namespaces
@@ -656,27 +684,27 @@
                 </div>
               </div>
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-1txv3mw"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-8atqhb"
                 >
                   <div
                     aria-atomic="true"
                     aria-live="polite"
-                    class="MuiBox css-hash"
+                    class="MuiBox-root css-ty8jgw"
                     role="status"
                   >
                     No data to be shown.
                   </div>
                   <div
-                    class="MuiPaper MuiPaper MuiPaper css-hash"
+                    class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded css-1guobrs-MuiPaper-root"
                   >
                     <div
-                      class="MuiBox css-hash"
+                      class="MuiBox-root css-19midj6"
                     >
                       <p
-                        class="MuiTypography MuiTypography MuiTypography css-hash"
+                        class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-18lkse1-MuiTypography-root"
                       >
                         No data to be shown.
                       </p>

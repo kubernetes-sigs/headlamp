@@ -1,7 +1,7 @@
 <body>
   <div>
     <span
-      class="MuiTypography MuiTypography css-hash"
+      class="MuiTypography-root MuiTypography-body1 css-1aajmzw-MuiTypography-root"
     >
       success
     </span>

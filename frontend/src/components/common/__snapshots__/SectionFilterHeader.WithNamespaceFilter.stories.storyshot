@@ -1,45 +1,45 @@
 <body>
   <div>
     <div
-      class="MuiGrid MuiGrid MuiGrid css-hash"
+      class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-2 css-1ts0dnm-MuiGrid-root"
     >
       <div
-        class="MuiGrid MuiGrid css-hash"
+        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
       >
         <div
-          class="MuiBox css-hash"
+          class="MuiBox-root css-70qvj9"
         >
           <h1
-            class="MuiTypography MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
           >
             Pods
           </h1>
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-ldp2l3"
           />
         </div>
       </div>
       <div
-        class="MuiGrid MuiGrid css-hash"
+        class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
       >
         <div
-          class="MuiGrid MuiGrid MuiGrid css-hash"
+          class="MuiGrid-root MuiGrid-container MuiGrid-item css-ztq4zc-MuiGrid-root"
         >
           <div
-            class="MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
           >
             <div
-              class="MuiAutocomplete MuiAutocomplete MuiAutocomplete css-hash"
+              class="MuiAutocomplete-root MuiAutocomplete-hasClearIcon MuiAutocomplete-hasPopupIcon css-1x6bjyf-MuiAutocomplete-root"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-1dipl1t"
               >
                 <div
-                  class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                  class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                   style="margin-top: 0px;"
                 >
                   <label
-                    class="MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
+                    class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeSmall MuiInputLabel-outlined css-1f7ywh2-MuiFormLabel-root-MuiInputLabel-root"
                     data-shrink="true"
                     for="namespaces-filter"
                     id="namespaces-filter-label"
@@ -47,10 +47,10 @@
                     Namespaces
                   </label>
                   <div
-                    class="MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                    class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedStart MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1gohie-MuiInputBase-root-MuiOutlinedInput-root"
                   >
                     <p
-                      class="MuiTypography MuiTypography css-hash"
+                      class="MuiTypography-root MuiTypography-body1 css-19qhv5g-MuiTypography-root"
                       style="overflow-wrap: anywhere;"
                     >
                       default
@@ -61,7 +61,7 @@
                       aria-invalid="false"
                       autocapitalize="none"
                       autocomplete="off"
-                      class="MuiAutocomplete MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                      class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedStart MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-12yjm75-MuiInputBase-input-MuiOutlinedInput-input"
                       id="namespaces-filter"
                       placeholder=""
                       role="combobox"
@@ -70,11 +70,11 @@
                       value=""
                     />
                     <div
-                      class="MuiAutocomplete css-hash"
+                      class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
                     >
                       <button
                         aria-label="Clear"
-                        class="MuiAutocomplete MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                        class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-clearIndicator css-1ihl7t8-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-clearIndicator"
                         tabindex="-1"
                         title="Clear"
                         type="button"
@@ -91,12 +91,12 @@
                           />
                         </svg>
                         <span
-                          class="MuiTouchRipple css-hash"
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                         />
                       </button>
                       <button
                         aria-label="Open"
-                        class="MuiAutocomplete MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                        class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-1aav1nn-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
                         tabindex="-1"
                         title="Open"
                         type="button"
@@ -113,16 +113,16 @@
                           />
                         </svg>
                         <span
-                          class="MuiTouchRipple css-hash"
+                          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                         />
                       </button>
                     </div>
                     <fieldset
                       aria-hidden="true"
-                      class="MuiOutlinedInput css-hash"
+                      class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                     >
                       <legend
-                        class="css-hash"
+                        class="css-sl37lx-MuiNotchedOutlined-root"
                       >
                         <span>
                           Namespaces

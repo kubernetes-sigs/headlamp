@@ -3,17 +3,17 @@
     aria-hidden="true"
   >
     <main
-      class="MuiBox css-hash"
+      class="MuiBox-root css-0"
     />
   </div>
   <div
     aria-busy="false"
-    class="MuiDialog MuiModal css-hash"
+    class="MuiDialog-root MuiModal-root css-zw3mfo-MuiModal-root-MuiDialog-root"
     role="presentation"
   >
     <div
       aria-hidden="true"
-      class="MuiBackdrop MuiModal css-hash"
+      class="MuiBackdrop-root MuiModal-backdrop css-yiavyu-MuiBackdrop-root-MuiDialog-backdrop"
       style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
     />
     <div
@@ -21,26 +21,26 @@
       tabindex="0"
     />
     <div
-      class="MuiDialog MuiDialog css-hash"
+      class="MuiDialog-container MuiDialog-scrollPaper css-hz1bth-MuiDialog-container"
       role="presentation"
       style="opacity: 1; transition: opacity 225ms cubic-bezier(0.4, 0, 0.2, 1) 0ms;"
       tabindex="-1"
     >
       <div
         aria-labelledby="chooser-dialog-title"
-        class="MuiDialog MuiDialog MuiDialog MuiPaper MuiPaper MuiPaper css-hash"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthSm css-1708vl9-MuiPaper-root-MuiDialog-paper"
         role="dialog"
       >
         <h2
-          class="MuiDialogTitle MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-wlr4ab-MuiTypography-root-MuiDialogTitle-root"
           id="chooser-dialog-title"
           style="display: flex;"
         >
           <div
-            class="MuiGrid MuiGrid css-hash"
+            class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
           >
             <div
-              class="MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
               <div>
                 <svg
@@ -95,26 +95,26 @@
                   />
                 </svg>
                 <span
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-ty8jgw"
                 >
                   Headlamp
                 </span>
               </div>
             </div>
             <div
-              class="MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-0"
               >
                 <button
                   aria-label="Show build information"
-                  class="MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                  class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
                   tabindex="0"
                   type="button"
                 >
                   <span
-                    class="MuiTouchRipple css-hash"
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                   />
                 </button>
               </div>
@@ -122,21 +122,21 @@
           </div>
         </h2>
         <div
-          class="MuiDialogContent MuiDialogContent css-hash"
+          class="MuiDialogContent-root MuiDialogContent-dividers css-gl9hfx-MuiDialogContent-root"
         >
           <h2
-            class="MuiDialogTitle MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiTypography-h6 MuiDialogTitle-root css-8yphvn-MuiTypography-root-MuiDialogTitle-root"
             id="chooser-dialog-title"
             style="display: flex;"
           >
             <div
-              class="MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-container css-9cyib4-MuiGrid-root"
             >
               <div
-                class="MuiGrid MuiGrid css-hash"
+                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
               >
                 <h1
-                  class="MuiTypography MuiTypography css-hash"
+                  class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
                   id="chooser-dialog-title"
                   style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
                   tabindex="-1"
@@ -147,17 +147,17 @@
             </div>
           </h2>
           <div
-            class="MuiContainer MuiContainer css-hash"
+            class="MuiContainer-root MuiContainer-maxWidthLg css-cnms5y-MuiContainer-root"
             style="max-width: 500px; padding-bottom: 16px;"
           >
             <div
-              class="MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+              class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-4 MuiGrid-direction-xs-column css-1w41v25-MuiGrid-root"
             >
               <div
-                class="MuiGrid MuiGrid css-hash"
+                class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
               >
                 <p
-                  class="MuiTypography MuiTypography MuiTypography css-hash"
+                  class="MuiTypography-root MuiTypography-body1 MuiTypography-alignCenter css-e6ghke-MuiTypography-root"
                   id="recent-clusters-label"
                 >
                   Recent clusters
@@ -165,25 +165,25 @@
               </div>
               <div
                 aria-labelledby="recent-clusters-label"
-                class="MuiGrid MuiGrid MuiGrid MuiGrid css-hash"
+                class="MuiGrid-root MuiGrid-container MuiGrid-item MuiGrid-spacing-xs-2 css-e7s3o7-MuiGrid-root"
               >
                 <div
-                  class="MuiGrid MuiGrid css-hash"
+                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                 >
                   <button
-                    class="Mui-focusVisible MuiButtonBase css-hash"
+                    class="MuiButtonBase-root Mui-focusVisible css-10d1a0h-MuiButtonBase-root"
                     tabindex="0"
                     type="button"
                   >
                     <div
-                      class="MuiCard MuiPaper MuiPaper MuiPaper css-hash"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-jxx1xv-MuiPaper-root-MuiCard-root"
                     >
                       <div
-                        class="MuiCardContent css-hash"
+                        class="MuiCardContent-root css-d64700-MuiCardContent-root"
                       >
                         <p
                           aria-label="cluster-1"
-                          class="MuiTypography MuiTypography MuiTypography css-hash"
+                          class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-18vfeyy-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
                           cluster-1
@@ -191,36 +191,36 @@
                       </div>
                     </div>
                     <span
-                      class="MuiTouchRipple css-hash"
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                     >
                       <span
-                        class="MuiTouchRipple MuiTouchRipple MuiTouchRipple css-hash"
+                        class="css-y4cjyz-MuiTouchRipple-ripple MuiTouchRipple-ripple MuiTouchRipple-rippleVisible MuiTouchRipple-ripplePulsate"
                         style="width: 1px; height: 1px; top: -0.5px; left: -0.5px;"
                       >
                         <span
-                          class="MuiTouchRipple MuiTouchRipple"
+                          class="MuiTouchRipple-child MuiTouchRipple-childPulsate"
                         />
                       </span>
                     </span>
                   </button>
                 </div>
                 <div
-                  class="MuiGrid MuiGrid css-hash"
+                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                 >
                   <button
-                    class="MuiButtonBase css-hash"
+                    class="MuiButtonBase-root css-10d1a0h-MuiButtonBase-root"
                     tabindex="0"
                     type="button"
                   >
                     <div
-                      class="MuiCard MuiPaper MuiPaper MuiPaper css-hash"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-jxx1xv-MuiPaper-root-MuiCard-root"
                     >
                       <div
-                        class="MuiCardContent css-hash"
+                        class="MuiCardContent-root css-d64700-MuiCardContent-root"
                       >
                         <p
                           aria-label="cluster-2"
-                          class="MuiTypography MuiTypography MuiTypography css-hash"
+                          class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-18vfeyy-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
                           cluster-2
@@ -228,27 +228,27 @@
                       </div>
                     </div>
                     <span
-                      class="MuiTouchRipple css-hash"
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                     />
                   </button>
                 </div>
                 <div
-                  class="MuiGrid MuiGrid css-hash"
+                  class="MuiGrid-root MuiGrid-item css-13i4rnv-MuiGrid-root"
                 >
                   <button
-                    class="MuiButtonBase css-hash"
+                    class="MuiButtonBase-root css-10d1a0h-MuiButtonBase-root"
                     tabindex="0"
                     type="button"
                   >
                     <div
-                      class="MuiCard MuiPaper MuiPaper MuiPaper css-hash"
+                      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiCard-root css-jxx1xv-MuiPaper-root-MuiCard-root"
                     >
                       <div
-                        class="MuiCardContent css-hash"
+                        class="MuiCardContent-root css-d64700-MuiCardContent-root"
                       >
                         <p
                           aria-label="cluster-3"
-                          class="MuiTypography MuiTypography MuiTypography css-hash"
+                          class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-18vfeyy-MuiTypography-root"
                           data-mui-internal-clone-element="true"
                         >
                           cluster-3
@@ -256,23 +256,23 @@
                       </div>
                     </div>
                     <span
-                      class="MuiTouchRipple css-hash"
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                     />
                   </button>
                 </div>
               </div>
               <div
-                class="MuiGrid MuiGrid MuiGrid css-hash"
+                class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
               >
                 <div
-                  class="MuiAutocomplete MuiAutocomplete css-hash"
+                  class="MuiAutocomplete-root MuiAutocomplete-hasPopupIcon css-ka7ti6-MuiAutocomplete-root"
                   style="width: 100%;"
                 >
                   <div
-                    class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                    class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                   >
                     <label
-                      class="MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
+                      class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeMedium MuiInputLabel-outlined MuiFormLabel-colorPrimary MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-sizeMedium MuiInputLabel-outlined css-1213p86-MuiFormLabel-root-MuiInputLabel-root"
                       data-shrink="false"
                       for="cluster-selector-autocomplete"
                       id="cluster-selector-autocomplete-label"
@@ -280,7 +280,7 @@
                       All clusters
                     </label>
                     <div
-                      class="MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                      class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1xjtaff-MuiInputBase-root-MuiOutlinedInput-root"
                     >
                       <input
                         aria-autocomplete="both"
@@ -288,7 +288,7 @@
                         aria-invalid="false"
                         autocapitalize="none"
                         autocomplete="off"
-                        class="MuiAutocomplete MuiAutocomplete MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                        class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-nxo287-MuiInputBase-input-MuiOutlinedInput-input"
                         id="cluster-selector-autocomplete"
                         role="combobox"
                         spellcheck="false"
@@ -296,11 +296,11 @@
                         value=""
                       />
                       <div
-                        class="MuiAutocomplete css-hash"
+                        class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
                       >
                         <button
                           aria-label="Open"
-                          class="MuiAutocomplete MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-popupIndicator css-1aav1nn-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-popupIndicator"
                           tabindex="-1"
                           title="Open"
                           type="button"
@@ -317,16 +317,16 @@
                             />
                           </svg>
                           <span
-                            class="MuiTouchRipple css-hash"
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                           />
                         </button>
                       </div>
                       <fieldset
                         aria-hidden="true"
-                        class="MuiOutlinedInput css-hash"
+                        class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                       >
                         <legend
-                          class="css-hash"
+                          class="css-njhac4-MuiNotchedOutlined-root"
                         >
                           <span>
                             All clusters

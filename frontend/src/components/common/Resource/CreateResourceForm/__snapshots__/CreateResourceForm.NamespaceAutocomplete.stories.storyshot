@@ -1,46 +1,46 @@
 <body>
   <div>
     <div
-      class="MuiBox css-hash"
+      class="MuiBox-root css-1n7m0yu"
     >
       <div
         aria-label="Resource form"
-        class="MuiBox css-hash"
+        class="MuiBox-root css-13qs1rf"
       >
         <fieldset
-          class="MuiBox css-hash"
+          class="MuiBox-root css-jh9hvo"
         >
           <legend
-            class="MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
           >
             Metadata
           </legend>
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-1u8z8t1"
           >
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-0"
             >
               <div
-                class="MuiBox css-hash"
+                class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox css-hash"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography MuiTypography css-hash"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Namespace
                   </span>
                 </div>
                 <div
-                  class="MuiAutocomplete MuiAutocomplete css-hash"
+                  class="MuiAutocomplete-root MuiAutocomplete-hasClearIcon css-ka7ti6-MuiAutocomplete-root"
                 >
                   <div
-                    class="MuiFormControl MuiFormControl MuiTextField css-hash"
+                    class="MuiFormControl-root MuiFormControl-fullWidth MuiTextField-root css-wb57ya-MuiFormControl-root-MuiTextField-root"
                   >
                     <div
-                      class="MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                      class="MuiInputBase-root MuiOutlinedInput-root MuiInputBase-colorPrimary MuiInputBase-fullWidth MuiInputBase-formControl MuiInputBase-sizeSmall MuiInputBase-adornedEnd MuiAutocomplete-inputRoot css-1qswgw4-MuiInputBase-root-MuiOutlinedInput-root"
                     >
                       <input
                         aria-autocomplete="list"
@@ -48,7 +48,7 @@
                         aria-invalid="false"
                         autocapitalize="none"
                         autocomplete="off"
-                        class="MuiAutocomplete MuiAutocomplete MuiInputBase MuiInputBase MuiInputBase MuiOutlinedInput css-hash"
+                        class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd MuiAutocomplete-input MuiAutocomplete-inputFocused css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
                         id=":mock-test-id:"
                         role="combobox"
                         spellcheck="false"
@@ -56,11 +56,11 @@
                         value="default"
                       />
                       <div
-                        class="MuiAutocomplete css-hash"
+                        class="MuiAutocomplete-endAdornment css-p1olib-MuiAutocomplete-endAdornment"
                       >
                         <button
                           aria-label="Clear"
-                          class="MuiAutocomplete MuiButtonBase MuiIconButton MuiIconButton css-hash"
+                          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium MuiAutocomplete-clearIndicator css-1ihl7t8-MuiButtonBase-root-MuiIconButton-root-MuiAutocomplete-clearIndicator"
                           tabindex="-1"
                           title="Clear"
                           type="button"
@@ -77,16 +77,16 @@
                             />
                           </svg>
                           <span
-                            class="MuiTouchRipple css-hash"
+                            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                           />
                         </button>
                       </div>
                       <fieldset
                         aria-hidden="true"
-                        class="MuiOutlinedInput css-hash"
+                        class="MuiOutlinedInput-notchedOutline css-r01yff-MuiNotchedOutlined-root-MuiOutlinedInput-notchedOutline"
                       >
                         <legend
-                          class="css-hash"
+                          class="css-1whs34k-MuiNotchedOutlined-root"
                         >
                           <span
                             class="notranslate"

@@ -1,33 +1,33 @@
 <body>
   <div>
     <div
-      class="MuiBox css-hash"
+      class="MuiBox-root css-0"
     >
       <div
-        class="MuiBox css-hash"
+        class="MuiBox-root css-yi3mkw"
       >
         <span
-          class="MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
         >
           MISSING_SECRET_NAME
           : 
           Invalid Secret Reference
         </span>
         <span
-          class="MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
         >
           MISSING_CONFIG_MAP
           : 
           Invalid Config Map Reference
         </span>
         <span
-          class="MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
         >
           EMPTY_VALUE_FROM
           : 
         </span>
         <span
-          class="MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
         >
           MALFORMED_FIELD_REF
           : FieldRef 

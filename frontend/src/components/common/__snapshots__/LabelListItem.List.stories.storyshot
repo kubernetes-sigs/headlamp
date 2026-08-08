@@ -1,7 +1,9 @@
 <body>
   <div>
     <span
-      aria-label="a label another label yet another label"
+      aria-label="a label
+another label
+yet another label"
       class=""
       data-mui-internal-clone-element="true"
     >

@@ -1,26 +1,26 @@
 <body>
   <div>
     <div
-      class="MuiBox css-hash"
+      class="MuiBox-root css-1mlbdbs"
     >
       <p
-        class="MuiTypography MuiTypography css-hash"
+        class="MuiTypography-root MuiTypography-body1 css-wvae53-MuiTypography-root"
       >
         Examples
       </p>
       <div
-        class="MuiBox css-hash"
+        class="MuiBox-root css-1es6tj9"
       >
         <button
-          class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+          class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-1l63ozk-MuiButtonBase-root-MuiButton-root"
           tabindex="0"
           type="button"
         >
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-171onha"
           >
             <div
-              class="MuiBox css-hash"
+              class="MuiBox-root css-72qomf"
             >
               <svg
                 height="17.500378mm"
@@ -144,54 +144,54 @@
              
           </div>
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-0"
           >
             <pre
-              class="css-hash"
+              class="css-1uk1gs8"
             >
               status.phase !== "Running"
             </pre>
           </div>
           <span
-            class="MuiTouchRipple css-hash"
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
           />
         </button>
         <button
-          class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+          class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-1l63ozk-MuiButtonBase-root-MuiButton-root"
           tabindex="0"
           type="button"
         >
           All Resources
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-0"
           >
             <pre
-              class="css-hash"
+              class="css-1uk1gs8"
             >
               metadata.labels["kubernetes.io/cluster-service"] === "true"
             </pre>
           </div>
           <span
-            class="MuiTouchRipple css-hash"
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
           />
         </button>
         <button
-          class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+          class="MuiButtonBase-root MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation MuiButton-root MuiButton-contained MuiButton-containedSecondary MuiButton-sizeMedium MuiButton-containedSizeMedium MuiButton-colorSecondary MuiButton-disableElevation css-1l63ozk-MuiButtonBase-root-MuiButton-root"
           tabindex="0"
           type="button"
         >
           All Resources
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-0"
           >
             <pre
-              class="css-hash"
+              class="css-1uk1gs8"
             >
               metadata.annotations["deployment.kubernetes.io/revision"] &gt; 10
             </pre>
           </div>
           <span
-            class="MuiTouchRipple css-hash"
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
           />
         </button>
       </div>

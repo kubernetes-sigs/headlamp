@@ -1,27 +1,27 @@
 <body>
   <div>
     <div
-      class="MuiBox css-hash"
+      class="MuiBox-root css-yncjbp"
     >
       <button
-        class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+        class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorPrimary MuiButton-disableElevation css-751h87-MuiButtonBase-root-MuiButton-root"
         tabindex="0"
         type="button"
       >
         <div
-          class="MuiBox css-hash"
+          class="MuiBox-root css-70qvj9"
         >
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-0"
           />
           <div
-            class="MuiBox css-hash"
+            class="MuiBox-root css-0"
           >
             v1.2.3
           </div>
         </div>
         <span
-          class="MuiTouchRipple css-hash"
+          class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
         />
       </button>
     </div>

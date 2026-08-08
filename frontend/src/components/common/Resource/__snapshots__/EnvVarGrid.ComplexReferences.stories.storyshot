@@ -1,19 +1,19 @@
 <body>
   <div>
     <div
-      class="MuiBox css-hash"
+      class="MuiBox-root css-0"
     >
       <div
-        class="MuiBox css-hash"
+        class="MuiBox-root css-yi3mkw"
       >
         <span
-          class="MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
         >
           API_KEY
           :
            
           <a
-            class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
             href="/c/minikube/secrets/default/my-secret"
             style="text-decoration: underline; font-weight: bold;"
           >
@@ -24,13 +24,13 @@
           </a>
         </span>
         <span
-          class="MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
         >
           APP_CONFIG
           :
            
           <a
-            class="MuiLink MuiLink MuiTypography MuiTypography css-hash"
+            class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
             href="/c/minikube/configmaps/default/app-config"
             style="text-decoration: underline; font-weight: bold;"
           >
@@ -41,14 +41,14 @@
           </a>
         </span>
         <span
-          class="MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
         >
           MY_POD_IP
           : FieldRef 
           (status.podIP)
         </span>
         <span
-          class="MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-body1 css-yecqev-MuiTypography-root"
         >
           CPU_LIMIT
           : ResourceField

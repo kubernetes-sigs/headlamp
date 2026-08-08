@@ -1,11 +1,11 @@
 <body>
   <div>
     <div
-      class="MuiAlert MuiAlert MuiAlert MuiAlert MuiPaper MuiPaper MuiPaper css-hash"
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorWarning MuiAlert-standardWarning MuiAlert-standard css-rme5zz-MuiPaper-root-MuiAlert-root"
       role="alert"
     >
       <div
-        class="MuiAlert css-hash"
+        class="MuiAlert-icon css-1ytlwq5-MuiAlert-icon"
       >
         <svg
           aria-hidden="true"
@@ -20,35 +20,35 @@
         </svg>
       </div>
       <div
-        class="MuiAlert css-hash"
+        class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
       >
         <div
-          class="MuiAlertTitle MuiTypography MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom MuiAlertTitle-root css-1mny8mx-MuiTypography-root-MuiAlertTitle-root"
         >
           Failed to load resources
         </div>
       </div>
       <div
-        class="MuiAlert css-hash"
+        class="MuiAlert-action css-ki1hdl-MuiAlert-action"
       >
         <button
-          class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+          class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textWarning MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorWarning MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textWarning MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorWarning MuiButton-disableElevation css-1s9cj53-MuiButtonBase-root-MuiButton-root"
           tabindex="0"
           type="button"
         >
           Show details
           <span
-            class="MuiTouchRipple css-hash"
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
           />
         </button>
       </div>
     </div>
     <div
-      class="MuiAlert MuiAlert MuiAlert MuiAlert MuiPaper MuiPaper MuiPaper css-hash"
+      class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiAlert-root MuiAlert-colorWarning MuiAlert-standardWarning MuiAlert-standard css-rme5zz-MuiPaper-root-MuiAlert-root"
       role="alert"
     >
       <div
-        class="MuiAlert css-hash"
+        class="MuiAlert-icon css-1ytlwq5-MuiAlert-icon"
       >
         <svg
           aria-hidden="true"
@@ -63,25 +63,25 @@
         </svg>
       </div>
       <div
-        class="MuiAlert css-hash"
+        class="MuiAlert-message css-1pxa9xg-MuiAlert-message"
       >
         <div
-          class="MuiAlertTitle MuiTypography MuiTypography MuiTypography css-hash"
+          class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom MuiAlertTitle-root css-1mny8mx-MuiTypography-root-MuiAlertTitle-root"
         >
           Failed to load resources
         </div>
       </div>
       <div
-        class="MuiAlert css-hash"
+        class="MuiAlert-action css-ki1hdl-MuiAlert-action"
       >
         <button
-          class="MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButton MuiButtonBase css-hash"
+          class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textWarning MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorWarning MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textWarning MuiButton-sizeSmall MuiButton-textSizeSmall MuiButton-colorWarning MuiButton-disableElevation css-1s9cj53-MuiButtonBase-root-MuiButton-root"
           tabindex="0"
           type="button"
         >
           Show details
           <span
-            class="MuiTouchRipple css-hash"
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
           />
         </button>
       </div>

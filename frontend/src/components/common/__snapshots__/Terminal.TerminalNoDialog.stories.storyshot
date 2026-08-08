@@ -1,30 +1,30 @@
 <body>
   <div>
     <div
-      class="MuiDialogContent css-hash"
+      class="MuiDialogContent-root css-1ydrgiv-MuiDialogContent-root"
     >
       <div
-        class="MuiBox css-hash"
+        class="MuiBox-root css-0"
       >
         <div
-          class="MuiFormControl css-hash"
+          class="MuiFormControl-root css-1rb4qd1-MuiFormControl-root"
         >
           <label
-            class="MuiFormLabel MuiFormLabel MuiFormLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel MuiInputLabel css-hash"
+            class="MuiFormLabel-root MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeMedium MuiInputLabel-standard MuiFormLabel-colorPrimary MuiFormLabel-filled MuiInputLabel-root MuiInputLabel-formControl MuiInputLabel-animated MuiInputLabel-shrink MuiInputLabel-sizeMedium MuiInputLabel-standard css-1xqhkuv-MuiFormLabel-root-MuiInputLabel-root"
             data-shrink="true"
             id="container-name-chooser-label"
           >
             Container
           </label>
           <div
-            class="MuiInput MuiInput MuiInputBase MuiInputBase MuiInputBase css-hash"
+            class="MuiInputBase-root MuiInput-root MuiInput-underline MuiInputBase-colorPrimary MuiInputBase-formControl css-m7fptp-MuiInputBase-root-MuiInput-root-MuiSelect-root"
           >
             <div
               aria-controls=":mock-test-id:"
               aria-expanded="false"
               aria-haspopup="listbox"
               aria-labelledby="container-name-chooser-label container-name-chooser"
-              class="MuiInput MuiInputBase MuiSelect MuiSelect css-hash"
+              class="MuiSelect-select MuiSelect-standard MuiInputBase-input MuiInput-input css-9t3t1q-MuiSelect-select-MuiInputBase-input-MuiInput-input"
               id="container-name-chooser"
               role="combobox"
               tabindex="0"
@@ -34,7 +34,7 @@
             <input
               aria-hidden="true"
               aria-invalid="false"
-              class="MuiSelect css-hash"
+              class="MuiSelect-nativeInput css-yf8vq0-MuiSelect-nativeInput"
               tabindex="-1"
               value="main"
             />
@@ -53,14 +53,14 @@
         </div>
       </div>
       <div
-        class="MuiBox css-hash"
+        class="MuiBox-root css-ffkpbp"
       >
         <div
           id="xterm-container"
           style="flex: 1 1 0%; display: flex; flex-direction: column-reverse;"
         >
           <div
-            class="focus terminal xterm xterm-dom-renderer-owner"
+            class="terminal xterm xterm-dom-renderer-owner focus"
             dir="ltr"
           >
             <div
@@ -131,7 +131,7 @@
               </style>
               <div
                 aria-hidden="true"
-                class="xterm-focus xterm-rows"
+                class="xterm-rows xterm-focus"
                 style="line-height: normal; letter-spacing: 0px;"
               >
                 <div
