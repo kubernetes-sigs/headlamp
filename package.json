@@ -33,10 +33,10 @@
     "backend:coverage": "cd backend && go test -v -p 1 -coverprofile=coverage.out ./... && go tool cover -func=coverage.out",
     "backend:coverage:html": "cd backend && go test -v -p 1 -coverprofile=coverage.out ./... && go tool cover -html=coverage.out",
     "backend:format": "cd backend && go fmt ./cmd/ ./pkg/**",
-    "backend:start": "echo 'Warning: Running with Helm and dynamic-clusters endpoints enabled.' && HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost",
+    "backend:start": "echo 'Warning: Running with Helm and dynamic-clusters endpoints enabled.' && cross-env HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost",
     "backend:dev": "echo 'Starting Headlamp backend in dev mode with Air...' && cd backend && air",
-    "backend:start:metrics": "echo 'Running backend with Prometheus metrics enabled' && HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_METRICS_ENABLED=true HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost",
-    "backend:start:traces": "echo 'Running backend with distributed tracing enabled' && HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_TRACING_ENABLED=true HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost",
+    "backend:start:metrics": "echo 'Running backend with Prometheus metrics enabled' && cross-env HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_METRICS_ENABLED=true HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost",
+    "backend:start:traces": "echo 'Running backend with distributed tracing enabled' && cross-env HEADLAMP_BACKEND_TOKEN=headlamp HEADLAMP_CONFIG_TRACING_ENABLED=true HEADLAMP_CONFIG_ENABLE_HELM=true HEADLAMP_CONFIG_ENABLE_DYNAMIC_CLUSTERS=true ./backend/headlamp-server -dev -proxy-urls https://artifacthub.io/* -listen-addr=localhost",
     "frontend:install": "cd frontend && npm install",
     "frontend:install:ci": "cd frontend && npm ci",
     "frontend:build": "cd frontend && npm run build",
@@ -88,7 +88,8 @@
     "image:verify-image-digests": "node tools/verify-image-digests.js"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2"
+    "concurrently": "^8.2.2",
+    "cross-env": "^7.0.3"
   },
   "keywords": [
     "kubernetes",
