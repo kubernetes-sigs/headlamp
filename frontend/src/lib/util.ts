@@ -583,7 +583,7 @@ export function normalizeUnit(resourceType: string, quantity: string) {
         const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB', 'PB', 'EB', 'ZB', 'YB'];
         const k = 1000;
         const dm = 2;
-        const i = Math.floor(Math.log(bytes) / Math.log(k));
+        const i = Math.max(0, Math.floor(Math.log(Math.abs(bytes)) / Math.log(k)));
         normalizedQuantity = parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
       }
       break;
