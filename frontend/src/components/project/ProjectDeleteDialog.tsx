@@ -32,7 +32,6 @@ import { clusterAction } from '../../redux/clusterActionSlice';
 import { ProjectDefinition } from '../../redux/projectsSlice';
 import { AppDispatch } from '../../redux/stores/store';
 import { DialogTitle } from '../common/Dialog';
-import AuthVisible from '../common/Resource/AuthVisible';
 import { PROJECT_ID_LABEL } from './projectUtils';
 
 interface ProjectDeleteDialogProps {
@@ -40,6 +39,7 @@ interface ProjectDeleteDialogProps {
   project: ProjectDefinition;
   onClose: () => void;
   namespaces: Namespace[];
+  canDeleteNamespaces: boolean;
 }
 
 export function ProjectDeleteDialog({
@@ -47,6 +47,7 @@ export function ProjectDeleteDialog({
   project,
   onClose,
   namespaces,
+  canDeleteNamespaces,
 }: ProjectDeleteDialogProps) {
   const { t } = useTranslation();
   const dispatch: AppDispatch = useDispatch();
@@ -60,7 +61,7 @@ export function ProjectDeleteDialog({
     dispatch(
       clusterAction(
         async () => {
-          if (deleteNamespaces) {
+          if (deleteNamespaces && canDeleteNamespaces) {
             // Delete the entire namespaces
             await Promise.all(projectNamespaces.map(namespace => namespace.delete()));
           } else {
@@ -127,31 +128,33 @@ export function ProjectDeleteDialog({
             ))}
           </ul>
 
-          <AuthVisible item={namespaces[0]} authVerb="delete">
-            <FormControlLabel
-              control={
-                <Checkbox
-                  checked={deleteNamespaces}
-                  onChange={e => setDeleteNamespaces(e.target.checked)}
-                  name="deleteNamespaces"
-                  color="primary"
-                />
-              }
-              label={
-                <Typography variant="body2">
-                  {t('Also delete the namespaces (this will remove all resources within them)')}
-                </Typography>
-              }
-            />
+          {canDeleteNamespaces && (
+            <>
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={deleteNamespaces}
+                    onChange={e => setDeleteNamespaces(e.target.checked)}
+                    name="deleteNamespaces"
+                    color="primary"
+                  />
+                }
+                label={
+                  <Typography variant="body2">
+                    {t('Also delete the namespaces (this will remove all resources within them)')}
+                  </Typography>
+                }
+              />
 
-            {deleteNamespaces && (
-              <Typography variant="body2" color="error" sx={{ mt: 1, fontWeight: 'bold' }}>
-                {t(
-                  'Warning: This action cannot be undone. All resources in these namespaces will be permanently deleted.'
-                )}
-              </Typography>
-            )}
-          </AuthVisible>
+              {deleteNamespaces && (
+                <Typography variant="body2" color="error" sx={{ mt: 1, fontWeight: 'bold' }}>
+                  {t(
+                    'Warning: This action cannot be undone. All resources in these namespaces will be permanently deleted.'
+                  )}
+                </Typography>
+              )}
+            </>
+          )}
         </DialogContentText>
       </DialogContent>
       <DialogActions>
@@ -164,7 +167,9 @@ export function ProjectDeleteDialog({
           variant="contained"
           sx={{ minWidth: '200px' }} // Fixed width to prevent button resize
         >
-          {deleteNamespaces ? t('Delete Project & Namespaces') : t('Delete Project')}
+          {deleteNamespaces && canDeleteNamespaces
+            ? t('Delete Project & Namespaces')
+            : t('Delete Project')}
         </Button>
       </DialogActions>
     </Dialog>
