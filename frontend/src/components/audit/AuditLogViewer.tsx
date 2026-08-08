@@ -24,7 +24,7 @@ import {
   Select,
   TextField,
 } from '@mui/material';
-import React, { useEffect, useRef,useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import VirtualizedTable, { AuditEvent } from './VirtualizedTable';
 
 export default function AuditLogViewer() {
@@ -37,13 +37,6 @@ export default function AuditLogViewer() {
   const [userFilter, setUserFilter] = useState('');
 
   const wsRef = useRef<WebSocket | null>(null);
-
-  useEffect(() => {
-    connectWebSocket();
-    return () => {
-      if (wsRef.current) wsRef.current.close();
-    };
-  }, [verbFilter, userFilter]);
 
   const connectWebSocket = () => {
     if (wsRef.current) {
@@ -72,6 +65,14 @@ export default function AuditLogViewer() {
       }
     };
   };
+
+  useEffect(() => {
+    connectWebSocket();
+    return () => {
+      if (wsRef.current) wsRef.current.close();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [verbFilter, userFilter]);
 
   return (
     <Box sx={{ p: 2, height: 'calc(100vh - 100px)', display: 'flex', flexDirection: 'column' }}>

@@ -23,15 +23,19 @@ func (f Filter) Match(event AuditEvent) bool {
 	if f.User != "" && f.User != event.User {
 		return false
 	}
+
 	if f.Verb != "" && f.Verb != event.Verb {
 		return false
 	}
+
 	if f.Resource != "" && f.Resource != event.Resource {
 		return false
 	}
+
 	if f.StatusCode != 0 && f.StatusCode != event.StatusCode {
 		return false
 	}
+
 	return true
 }
 

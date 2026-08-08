@@ -34,14 +34,16 @@ func (m *MockStreamer) Stream(filter Filter, ch chan<- AuditEvent) error {
 			Timestamp:  time.Now().Format(time.RFC3339Nano),
 			Message:    "Mock audit event",
 		}
-		
+
 		if filter.Match(event) {
 			ch <- event
 		}
-		
+
 		time.Sleep(10 * time.Millisecond) // Simulate stream delay
 	}
+
 	close(ch)
+
 	return nil
 }
 
@@ -52,7 +54,9 @@ func StreamHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Failed to upgrade connection", http.StatusInternalServerError)
 		return
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	// Parse query parameters for initial filters
 	q := r.URL.Query()
@@ -76,6 +80,7 @@ func StreamHandler(w http.ResponseWriter, r *http.Request) {
 		if err != nil {
 			continue
 		}
+
 		if err := conn.WriteMessage(websocket.TextMessage, data); err != nil {
 			break // Connection closed or error
 		}

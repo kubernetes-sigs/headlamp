@@ -933,6 +933,7 @@
   "Expand sidebar": "سائیڈ بار پھیلائیں",
   "Main Navigation": "مرکزی نیویگیشن",
   "Navigation Tabs": "نیویگیشن ٹیبز",
+  "Audit Logs": "",
   "Instances": "انسٹینسز",
   "Cluster version upgraded to {{ gitVersion }}": "کلسٹر ورژن {{ gitVersion }} تک اپ گریڈ ہو گیا",
   "Cluster version downgraded to {{ gitVersion }}": "کلسٹر ورژن {{ gitVersion }} تک ڈاؤن گریڈ ہو گیا",
