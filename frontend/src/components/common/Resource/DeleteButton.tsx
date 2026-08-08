@@ -18,6 +18,8 @@ import Alert from '@mui/material/Alert';
 import Checkbox from '@mui/material/Checkbox';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import Grid from '@mui/material/Grid';
+import Menu from '@mui/material/Menu';
+import MenuItem from '@mui/material/MenuItem';
 import TextField from '@mui/material/TextField';
 import Typography from '@mui/material/Typography';
 import React from 'react';
@@ -59,14 +61,23 @@ export default function DeleteButton(props: DeleteButtonProps) {
   const { t } = useTranslation(['translation']);
   const dispatchDeleteEvent = useEventCallback(HeadlampEventType.DELETE_RESOURCE);
 
+  // Pods offer both delete and evict; other resources only delete. `action` is
+  // the one currently being confirmed, defaulting to the useEvict setting.
+  const isPod = item?.kind === 'Pod';
+  const [action, setAction] = React.useState<'delete' | 'evict'>(
+    settingsObj.useEvict && isPod ? 'evict' : 'delete'
+  );
+  const [menuAnchorEl, setMenuAnchorEl] = React.useState<HTMLElement | null>(null);
+
   const deleteFunc = React.useCallback(
     () => {
       if (!item) {
         return;
       }
 
+      const isEvict = action === 'evict' && item.kind === 'Pod';
       let callback = item!.delete;
-      if (settingsObj.useEvict && item.kind === 'Pod') {
+      if (isEvict) {
         const pod = item as Pod;
         callback = pod.evict;
       }
@@ -77,10 +88,18 @@ export default function DeleteButton(props: DeleteButtonProps) {
         dispatch(
           clusterAction(callback.bind(item), {
             callbackArgs: [forceDelete],
-            startMessage: t('Deleting item {{ itemName }}…', { itemName }),
-            cancelledMessage: t('Cancelled deletion of {{ itemName }}.', { itemName }),
-            successMessage: t('Deleted item {{ itemName }}.', { itemName }),
-            errorMessage: t('Error deleting item {{ itemName }}.', { itemName }),
+            startMessage: isEvict
+              ? t('Evicting pod {{ itemName }}…', { itemName })
+              : t('Deleting item {{ itemName }}…', { itemName }),
+            cancelledMessage: isEvict
+              ? t('Cancelled eviction of {{ itemName }}.', { itemName })
+              : t('Cancelled deletion of {{ itemName }}.', { itemName }),
+            successMessage: isEvict
+              ? t('Evicted pod {{ itemName }}.', { itemName })
+              : t('Deleted item {{ itemName }}.', { itemName }),
+            errorMessage: isEvict
+              ? t('Error evicting pod {{ itemName }}.', { itemName })
+              : t('Error deleting item {{ itemName }}.', { itemName }),
             cancelUrl: location.pathname,
             startUrl: item!.getListLink(),
             errorUrl: item!.getListLink(),
@@ -89,7 +108,7 @@ export default function DeleteButton(props: DeleteButtonProps) {
         );
     },
     // eslint-disable-next-line
-    [item, forceDelete]
+    [item, forceDelete, action]
   );
 
   if (!item) {
@@ -101,6 +120,16 @@ export default function DeleteButton(props: DeleteButtonProps) {
   // Use the same label-or-name value that isProtected() checks so the confirmation prompt matches.
   const namespaceName = item.metadata.labels?.['kubernetes.io/metadata.name'] || item.metadata.name;
 
+  const openDialogFor = (nextAction: 'delete' | 'evict') => {
+    setAction(nextAction);
+    setConfirmInput('');
+    setForceDelete(false);
+    setMenuAnchorEl(null);
+    setOpenAlert(true);
+  };
+
+  const defaultAction = settingsObj.useEvict ? 'evict' : 'delete';
+
   return (
     <AuthVisible
       item={item}
@@ -109,31 +138,66 @@ export default function DeleteButton(props: DeleteButtonProps) {
         console.error(`Error while getting authorization for delete button in ${item}:`, err);
       }}
     >
-      <ActionButton
-        description={
-          settingsObj.useEvict && item.kind === 'Pod'
-            ? t('translation|Evict')
-            : t('translation|Delete')
-        }
-        buttonStyle={buttonStyle}
-        onClick={() => {
-          setConfirmInput('');
-          setOpenAlert(true);
-        }}
-        icon="mdi:delete"
-      />
+      {isPod && buttonStyle === 'menu' ? (
+        // Inside a row's overflow menu a split button can't nest, so offer both
+        // actions as separate menu items.
+        <>
+          <ActionButton
+            description={t('translation|Delete')}
+            buttonStyle="menu"
+            onClick={() => openDialogFor('delete')}
+            icon="mdi:delete"
+          />
+          <ActionButton
+            description={t('translation|Evict')}
+            buttonStyle="menu"
+            onClick={() => openDialogFor('evict')}
+            icon="mdi:logout"
+          />
+        </>
+      ) : isPod ? (
+        // Split button: the default action from the useEvict setting, with the
+        // other option available in the dropdown.
+        <>
+          <ActionButton
+            description={
+              defaultAction === 'evict' ? t('translation|Evict') : t('translation|Delete')
+            }
+            buttonStyle={buttonStyle}
+            onClick={() => openDialogFor(defaultAction)}
+            icon="mdi:delete"
+          />
+          <ActionButton
+            description={t('translation|More delete options')}
+            buttonStyle={buttonStyle}
+            onClick={(event: React.MouseEvent<HTMLElement>) => setMenuAnchorEl(event.currentTarget)}
+            icon="mdi:menu-down"
+          />
+          <Menu
+            anchorEl={menuAnchorEl}
+            open={Boolean(menuAnchorEl)}
+            onClose={() => setMenuAnchorEl(null)}
+          >
+            <MenuItem onClick={() => openDialogFor('delete')}>{t('translation|Delete')}</MenuItem>
+            <MenuItem onClick={() => openDialogFor('evict')}>{t('translation|Evict')}</MenuItem>
+          </Menu>
+        </>
+      ) : (
+        <ActionButton
+          description={t('translation|Delete')}
+          buttonStyle={buttonStyle}
+          onClick={() => openDialogFor('delete')}
+          icon="mdi:delete"
+        />
+      )}
 
       <ConfirmDialog
         open={openAlert}
-        title={
-          settingsObj.useEvict && item.kind === 'Pod'
-            ? t('translation|Evict Pod')
-            : t('translation|Delete item')
-        }
+        title={action === 'evict' ? t('translation|Evict Pod') : t('translation|Delete item')}
         description={
           <Grid container direction="column">
             <Grid item>
-              {settingsObj.useEvict && item.kind === 'Pod'
+              {action === 'evict'
                 ? t('translation|Are you sure you want to evict pod {{ itemName }}?', {
                     itemName: item.metadata.name,
                   })
@@ -141,7 +205,7 @@ export default function DeleteButton(props: DeleteButtonProps) {
                     itemName: item.metadata.name,
                   })}
             </Grid>
-            {(!settingsObj.useEvict || item.kind !== 'Pod') && (
+            {action !== 'evict' && (
               <Grid item sx={{ mt: 1 }}>
                 <FormControlLabel
                   control={
@@ -196,7 +260,7 @@ export default function DeleteButton(props: DeleteButtonProps) {
         handleClose={() => setOpenAlert(false)}
         confirmButtonDisabled={isProtectedNamespace && confirmInput.trim() !== namespaceName}
         cancelLabel={t('Cancel')}
-        confirmLabel={settingsObj.useEvict && item.kind === 'Pod' ? t('Evict') : t('Delete')}
+        confirmLabel={action === 'evict' ? t('Evict') : t('Delete')}
         onConfirm={() => {
           deleteFunc();
           dispatchDeleteEvent({

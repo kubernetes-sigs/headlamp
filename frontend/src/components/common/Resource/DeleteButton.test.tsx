@@ -90,6 +90,7 @@ vi.mock('./AuthVisible', () => ({
   default: ({ children }: any) => <>{children}</>,
 }));
 
+import Pod from '../../../lib/k8s/pod';
 import { TestContext } from '../../../test';
 import DeleteButton from './DeleteButton';
 
@@ -99,6 +100,14 @@ function makeNamespace(metadata: Record<string, any>) {
     apiVersion: 'v1',
     metadata: { uid: `uid-${metadata.name}`, ...metadata },
     status: { phase: 'Active' },
+  });
+}
+
+function makePod(metadata: Record<string, any>) {
+  return new (Pod as any)({
+    kind: 'Pod',
+    apiVersion: 'v1',
+    metadata: { uid: `uid-${metadata.name}`, ...metadata },
   });
 }
 
@@ -120,6 +129,36 @@ describe('DeleteButton', () => {
   it('renders nothing when no item is provided', () => {
     const { container } = renderButton(undefined);
     expect(container).toBeEmptyDOMElement();
+  });
+
+  it('offers both delete and evict for a pod', async () => {
+    renderButton(makePod({ name: 'my-pod' }));
+
+    fireEvent.click(await screen.findByLabelText('translation|More delete options'));
+
+    expect(await screen.findByRole('menuitem', { name: 'translation|Delete' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'translation|Evict' })).toBeInTheDocument();
+  });
+
+  it('opens the evict confirmation when Evict is chosen for a pod', async () => {
+    renderButton(makePod({ name: 'my-pod' }));
+
+    fireEvent.click(await screen.findByLabelText('translation|More delete options'));
+    fireEvent.click(await screen.findByRole('menuitem', { name: 'translation|Evict' }));
+
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText('translation|Evict Pod')).toBeInTheDocument();
+  });
+
+  it('offers delete and evict as separate menu items for a pod in menu buttonStyle', async () => {
+    render(
+      <TestContext>
+        <DeleteButton item={makePod({ name: 'my-pod' })} buttonStyle="menu" />
+      </TestContext>
+    );
+
+    expect(await screen.findByRole('menuitem', { name: 'translation|Delete' })).toBeInTheDocument();
+    expect(screen.getByRole('menuitem', { name: 'translation|Evict' })).toBeInTheDocument();
   });
 
   it('shows the warning and type-to-confirm field for a protected namespace', async () => {
