@@ -15,7 +15,7 @@
  */
 
 import { useSelector } from 'react-redux';
-import store from '../redux/stores/store';
+import store, { type RootState } from '../redux/stores/store';
 import { setPluginConfig, updatePluginConfig } from './pluginConfigSlice';
 
 /**
@@ -68,7 +68,7 @@ export class ConfigStore<T> {
    * @returns The current configuration object.
    */
   public get(): T {
-    const state: any = store.getState();
+    const state: RootState = store.getState();
     return state?.pluginConfigs?.[this.configKey] as T;
   }
 
@@ -82,7 +82,7 @@ export class ConfigStore<T> {
   public useConfig() {
     const configKey = this.configKey; // Capture the configKey for closure
     return function useConfigHook(): T {
-      return useSelector((state: any) => state?.pluginConfigs?.[configKey] as T);
+      return useSelector((state: RootState) => state?.pluginConfigs?.[configKey] as T);
     };
   }
 }

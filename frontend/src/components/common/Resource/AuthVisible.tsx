@@ -86,8 +86,8 @@ export default function AuthVisible(props: AuthVisibleProps) {
           (item as any).cluster
         );
         return res;
-      } catch (e: any) {
-        onError?.(e);
+      } catch (e: unknown) {
+        onError?.(e instanceof Error ? e : new Error(String(e)));
       }
     },
   });
