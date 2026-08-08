@@ -978,5 +978,19 @@
   "Toggle Table Filters": "Toggle Table Filters",
   "Toggle column filters in tables": "Toggle column filters in tables",
   "Log Viewer Search": "Log Viewer Search",
-  "Toggle search in log viewer": "Toggle search in log viewer"
+  "Toggle search in log viewer": "Toggle search in log viewer",
+  "Devices": "Devices",
+  "Device Classes": "Device Classes",
+  "Resource Slices": "Resource Slices",
+  "Resource Claims": "Resource Claims",
+  "Resource Claim Templates": "Resource Claim Templates",
+  "Driver": "Driver",
+  "Pool Name": "Pool Name",
+  "Slice Count": "Slice Count",
+  "Capacity": "Capacity",
+  "Allocation Mode": "Allocation Mode",
+  "Admin Access": "Admin Access",
+  "Allocation Results": "Allocation Results",
+  "Pool": "Pool",
+  "Device": "Device"
 }
