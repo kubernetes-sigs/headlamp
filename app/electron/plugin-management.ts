@@ -88,13 +88,13 @@ type ProgressCallback = (progress: ProgressResp) => void;
 
 interface PluginData {
   pluginName: string;
-  pluginTitle: string;
-  pluginVersion: string;
+  pluginTitle: string | null;
+  pluginVersion: string | null;
   folderName: string;
-  artifacthubURL: string;
-  repoName: string;
-  author: string;
-  artifacthubVersion: string;
+  artifacthubURL: string | null;
+  repoName: string | null;
+  author: string | null;
+  artifacthubVersion: string | null;
 }
 
 /**
@@ -284,14 +284,17 @@ export class PluginManager {
       }
 
       const pluginDir = path.join(destinationFolder, plugin.folderName);
-      // read the package.json of the plugin
-      const packageJsonPath = path.join(pluginDir, 'package.json');
-      const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
 
+      if (!plugin.artifacthubURL) {
+        throw new Error('No artifacthub URL found for plugin');
+      }
+      if (!plugin.artifacthubVersion) {
+        throw new Error('No artifacthub version found for plugin');
+      }
       const pluginData = await fetchPluginInfo(plugin.artifacthubURL, progressCallback, signal);
 
       const latestVersion = pluginData.version;
-      const currentVersion = packageJson.artifacthub.version;
+      const currentVersion = plugin.artifacthubVersion;
 
       if (semver.lte(latestVersion, currentVersion)) {
         throw new Error('No updates available');
@@ -402,7 +405,7 @@ export class PluginManager {
           const packageJsonPath = path.join(pluginDir, 'package.json');
           const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
           const pluginName = packageJson.name || pluginFolder.name;
-          const pluginTitle = packageJson.artifacthub.title;
+          const pluginTitle = packageJson.artifacthub ? packageJson.artifacthub.title : null;
           const pluginVersion = packageJson.version || null;
           const artifacthubURL = packageJson.artifacthub ? packageJson.artifacthub.url : null;
           const repoName = packageJson.artifacthub ? packageJson.artifacthub.repoName : null;

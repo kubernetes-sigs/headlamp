@@ -89,6 +89,36 @@ describe('PluginManager Test Cases', () => {
       });
     });
 
+    test('List Plugins when package.json has no artifacthub', () => {
+      // Regression test: a plugin without an artifacthub key used to throw
+      // TypeError inside list(), hiding all other plugins as well.
+      const noArtifactHubDir = path.join(workDir, 'no-artifacthub-plugin');
+      fs.mkdirSync(noArtifactHubDir);
+      fs.writeFileSync(path.join(noArtifactHubDir, 'main.js'), '');
+      fs.writeFileSync(
+        path.join(noArtifactHubDir, 'package.json'),
+        JSON.stringify({
+          name: 'no-artifacthub-plugin',
+          version: '1.0.0',
+          isManagedByHeadlampPlugin: true,
+        })
+      );
+
+      PluginManager.list(workDir, mockProgressCallback);
+      expect(mockProgressCallback).toHaveBeenCalledWith({
+        type: 'success',
+        message: 'Plugins Listed',
+        data: expect.any(Array),
+      });
+
+      const plugins = mockProgressCallback.mock.calls[0][0].data;
+      const noArtifactHub = plugins.find(p => p.pluginName === 'no-artifacthub-plugin');
+      expect(noArtifactHub).toBeDefined();
+      expect(noArtifactHub.pluginTitle).toBeNull();
+      // The pre-installed flux plugin must still be listed alongside it.
+      expect(plugins.some(p => p.pluginName === '@headlamp-k8s/flux')).toBe(true);
+    });
+
     test('No Update available for Plugin', async () => {
       const packageJSONPath = `${workDir}/headlamp_flux/package.json`;
       const packageJSON = JSON.parse(fs.readFileSync(packageJSONPath));

@@ -249,7 +249,7 @@ class PluginManager {
           const packageJsonPath = path.join(pluginDir, 'package.json');
           const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
           const pluginName = packageJson.name || pluginFolder.name;
-          const pluginTitle = packageJson.artifacthub.title;
+          const pluginTitle = packageJson.artifacthub ? packageJson.artifacthub.title : null;
           const pluginVersion = packageJson.version || null;
           const artifacthubURL = packageJson.artifacthub ? packageJson.artifacthub.url : null;
           const repoName = packageJson.artifacthub ? packageJson.artifacthub.repoName : null;
