@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -53,6 +54,69 @@ func TestNewMultiplexer(t *testing.T) {
 	assert.Equal(t, store, m.kubeConfigStore)
 	assert.NotNil(t, m.connections)
 	assert.NotNil(t, m.upgrader)
+}
+
+// TestMakeCheckOrigin covers the three-tier WebSocket origin policy introduced to
+// fix the Electron desktop-app CSWSH regression (the same-origin default blocked
+// file:// origins because they have no matching host).
+func TestMakeCheckOrigin(t *testing.T) {
+	makeRequest := func(origin, host string) *http.Request {
+		req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "http://"+host+"/", nil)
+		req.Host = host
+
+		if origin != "" {
+			req.Header.Set("Origin", origin)
+		}
+
+		return req
+	}
+
+	t.Run("devMode allows any origin", func(t *testing.T) {
+		fn := makeCheckOrigin(true)
+		assert.True(t, fn(makeRequest("http://evil.example.com", "localhost:4466")),
+			"devMode must bypass same-origin check")
+	})
+
+	t.Run("file:// origin allowed when HEADLAMP_BACKEND_TOKEN is set (Electron desktop)", func(t *testing.T) {
+		t.Setenv("HEADLAMP_BACKEND_TOKEN", "test-desktop-token")
+
+		fn := makeCheckOrigin(false)
+		assert.True(t, fn(makeRequest("file:///app/index.html", "localhost:4466")),
+			"file:// origin must be accepted when backend token is present")
+	})
+
+	t.Run("file:// origin rejected without HEADLAMP_BACKEND_TOKEN (web deployment)", func(t *testing.T) {
+		// Ensure the env var is absent.
+		t.Setenv("HEADLAMP_BACKEND_TOKEN", "")
+
+		fn := makeCheckOrigin(false)
+		assert.False(t, fn(makeRequest("file:///app/index.html", "localhost:4466")),
+			"file:// origin must be rejected when backend token is absent")
+	})
+
+	t.Run("same-origin web request allowed in production (no token, no devMode)", func(t *testing.T) {
+		t.Setenv("HEADLAMP_BACKEND_TOKEN", "")
+
+		fn := makeCheckOrigin(false)
+		assert.True(t, fn(makeRequest("http://localhost:4466", "localhost:4466")),
+			"same-origin request must be accepted")
+	})
+
+	t.Run("cross-origin web request rejected in production", func(t *testing.T) {
+		t.Setenv("HEADLAMP_BACKEND_TOKEN", "")
+
+		fn := makeCheckOrigin(false)
+		assert.False(t, fn(makeRequest("http://evil.example.com", "localhost:4466")),
+			"cross-origin request must be rejected in production mode")
+	})
+
+	t.Run("no Origin header always allowed (non-browser client)", func(t *testing.T) {
+		t.Setenv("HEADLAMP_BACKEND_TOKEN", "")
+
+		fn := makeCheckOrigin(false)
+		assert.True(t, fn(makeRequest("", "localhost:4466")),
+			"requests without an Origin header must be allowed")
+	})
 }
 
 func TestHandleClientWebSocket(t *testing.T) {
