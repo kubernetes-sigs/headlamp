@@ -25,7 +25,7 @@ import { useTranslation } from 'react-i18next';
 import { useHistory, useParams } from 'react-router-dom';
 import { isElectron } from '../../../helpers/isElectron';
 import { ConfigStore } from '../../../plugin/configStore';
-import { PluginInfo } from '../../../plugin/pluginsSlice';
+import { getPluginFolderName, PluginInfo } from '../../../plugin/pluginsSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import NotFoundComponent from '../../404';
 import { SectionHeader } from '../../common';
@@ -41,7 +41,7 @@ function openPluginFolder(plugin: PluginInfo) {
     return;
   }
 
-  const folderName = plugin.folderName || plugin.name.split('/').pop();
+  const folderName = getPluginFolderName(plugin);
   if (!folderName || !plugin.type) {
     return;
   }
@@ -61,7 +61,7 @@ function canOpenPluginFolder(plugin: PluginInfo): boolean {
     return false;
   }
 
-  const folderName = plugin.folderName || plugin.name.split('/').pop();
+  const folderName = getPluginFolderName(plugin);
   return !!(folderName && plugin.type);
 }
 

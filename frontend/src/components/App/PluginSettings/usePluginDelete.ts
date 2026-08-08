@@ -19,7 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import { deletePlugin } from '../../../lib/k8s/api/v1/pluginsApi';
-import { PluginInfo, reloadPage } from '../../../plugin/pluginsSlice';
+import { getPluginFolderName, PluginInfo, reloadPage } from '../../../plugin/pluginsSlice';
 import { clusterAction } from '../../../redux/clusterActionSlice';
 import type { AppDispatch } from '../../../redux/stores/store';
 
@@ -49,7 +49,7 @@ export function usePluginDelete() {
     (plugin: PluginInfo): Promise<void> => {
       // Use folderName when present (the actual folder name on disk),
       // otherwise fall back to extracting from the name.
-      const pluginFolderName = plugin.folderName || plugin.name.split('/').splice(-1)[0];
+      const pluginFolderName = getPluginFolderName(plugin);
 
       // Only user and development plugins can be deleted.
       const pluginType =
