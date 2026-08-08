@@ -15,12 +15,13 @@
  */
 
 import { Icon } from '@iconify/react';
+import { useQuery } from '@tanstack/react-query';
 import { useSnackbar } from 'notistack';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
-import { KubeObject } from '../../../lib/k8s/KubeObject';
+import { KubeObject, KubeObjectClass } from '../../../lib/k8s/KubeObject';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { normalizeBaselineForPatch } from '../../../lib/k8s/patchUtils';
 import { CallbackActionOptions, clusterAction } from '../../../redux/clusterActionSlice';
@@ -32,7 +33,6 @@ import {
 import { AppDispatch } from '../../../redux/stores/store';
 import { Activity } from '../../activity/Activity';
 import ActionButton, { ButtonStyle } from '../ActionButton';
-import AuthVisible from './AuthVisible';
 import EditorDialog from './EditorDialog';
 import { fetchLatestKubeObject } from './fetchLatestKubeObject';
 import ViewButton from './ViewButton';
@@ -47,7 +47,6 @@ interface EditButtonProps {
 export default function EditButton(props: EditButtonProps) {
   const dispatch: AppDispatch = useDispatch();
   const { item, options = {}, buttonStyle, afterConfirm } = props;
-  const [isReadOnly, setIsReadOnly] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState<string>('');
   const location = useLocation();
   const { t } = useTranslation(['translation', 'resource']);
@@ -79,7 +78,15 @@ export default function EditButton(props: EditButtonProps) {
       throw new Error('Cannot compute patch: original resource state was not captured');
     }
     try {
-      await editorItemRef.current.patchUpdate(original, newItem);
+      // Issue #4882: a user may have only the 'patch' verb or only the
+      // 'update' verb. Use the JSON Patch save path when patch is granted,
+      // otherwise fall back to a full object update (PUT) for update-only
+      // users.
+      if (authDataRef.current?.patch) {
+        await editorItemRef.current.patchUpdate(original, newItem);
+      } else {
+        await editorItemRef.current.update(newItem);
+      }
       // Use a normalized clone of the modified object (what the editor shows)
       // as the new baseline, not the server response which includes
       // server-managed fields the editor may not display.
@@ -121,26 +128,59 @@ export default function EditButton(props: EditButtonProps) {
     }
   }
 
+  const itemClass: KubeObjectClass | null = (item as any)?._class?.() ?? item;
+  const itemName = (item as any)?.getName?.();
+
+  // Issue #4882: show the edit pencil when the user has either the 'patch'
+  // or the 'update' verb. The save path is chosen to match (JSON Patch when
+  // patch is granted, full update otherwise).
+  const { data: authData } = useQuery({
+    enabled: !!item,
+    queryKey: [
+      'authEdit',
+      itemName,
+      item?.metadata?.namespace,
+      item?.cluster,
+      itemClass?.apiName,
+      itemClass?.apiVersion,
+    ],
+    queryFn: async () => {
+      try {
+        // Short-circuit on 'patch' (the common least-privilege setup) to
+        // keep the authorization traffic to one request where possible; only
+        // fall back to checking 'update' when patch is not granted.
+        const patchAuth = await item!.getAuthorization('patch', {});
+        if (patchAuth?.status?.allowed) {
+          return { patch: true, update: false };
+        }
+        const updateAuth = await item!.getAuthorization('update', {});
+        return { patch: false, update: updateAuth?.status?.allowed ?? false };
+      } catch (e: any) {
+        console.error(`Error while getting authorization for edit button in ${item}:`, e);
+        return { patch: false, update: false };
+      }
+    },
+  });
+
+  // Mirror the auth result so the (memoized) save function can pick the
+  // right verb without stale closures.
+  const authDataRef = React.useRef<{ patch: boolean; update: boolean } | null>(null);
+  React.useEffect(() => {
+    authDataRef.current = authData ?? null;
+  }, [authData]);
+
   if (!item) {
     return null;
   }
 
-  if (isReadOnly) {
+  // While the authorization request is in flight, show the view button
+  // rather than nothing; swap to the edit button once auth resolves.
+  if (!authData || !(authData.patch || authData.update)) {
     return <ViewButton item={item} />;
   }
 
   return (
-    <AuthVisible
-      item={item}
-      authVerb="update"
-      onError={(err: Error) => {
-        console.error(`Error while getting authorization for edit button in ${item}:`, err);
-        setIsReadOnly(true);
-      }}
-      onAuthResult={({ allowed }) => {
-        setIsReadOnly(!allowed);
-      }}
-    >
+    <>
       <ActionButton
         description={t('translation|Edit')}
         buttonStyle={buttonStyle}
@@ -218,6 +258,6 @@ export default function EditButton(props: EditButtonProps) {
         }}
         icon="mdi:pencil"
       />
-    </AuthVisible>
+    </>
   );
 }
