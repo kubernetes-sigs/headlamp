@@ -51,6 +51,7 @@ const ourState = {
   },
   drawerMode: {
     isDetailDrawerEnabled: false,
+    detailDrawerSide: 'right' as const,
   },
   shortcuts: { ...shortcutsReducer(undefined, { type: '' }) },
 };

@@ -140,64 +140,162 @@
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
           >
             <div
-              class="MuiBox-root css-k008qs"
+              class="MuiBox-root css-yd8sa2"
             >
-              <button
-                aria-pressed="true"
-                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-17o2rvr-MuiButtonBase-root-MuiButton-root"
-                tabindex="0"
-                type="button"
+              <div
+                class="MuiBox-root css-k008qs"
               >
-                <div
-                  class="MuiBox-root css-q5uj3p"
+                <button
+                  aria-pressed="true"
+                  class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-17o2rvr-MuiButtonBase-root-MuiButton-root"
+                  tabindex="0"
+                  type="button"
                 >
                   <div
-                    class="MuiBox-root css-10tc75p"
-                  />
-                  <div
-                    class="MuiBox-root css-1tuh5dl"
-                  />
-                  <div
-                    class="MuiBox-root css-1wsar2n"
+                    class="MuiBox-root css-q5uj3p"
                   >
                     <div
-                      class="MuiBox-root css-flohcj"
+                      class="MuiBox-root css-10tc75p"
                     />
+                    <div
+                      class="MuiBox-root css-1tuh5dl"
+                    />
+                    <div
+                      class="MuiBox-root css-1wsar2n"
+                    >
+                      <div
+                        class="MuiBox-root css-flohcj"
+                      />
+                    </div>
                   </div>
-                </div>
-                Window
-                <span
-                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                />
-              </button>
-              <button
-                aria-pressed="false"
-                class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gl7zuq-MuiButtonBase-root-MuiButton-root"
-                tabindex="0"
-                type="button"
-              >
-                <div
-                  class="MuiBox-root css-q5uj3p"
+                  Window
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </button>
+                <button
+                  aria-pressed="false"
+                  class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-gl7zuq-MuiButtonBase-root-MuiButton-root"
+                  tabindex="0"
+                  type="button"
                 >
                   <div
-                    class="MuiBox-root css-10tc75p"
-                  />
-                  <div
-                    class="MuiBox-root css-1tuh5dl"
-                  />
-                  <div
-                    class="MuiBox-root css-b95qjn"
+                    class="MuiBox-root css-q5uj3p"
                   >
                     <div
-                      class="MuiBox-root css-y7640i"
+                      class="MuiBox-root css-10tc75p"
                     />
+                    <div
+                      class="MuiBox-root css-1tuh5dl"
+                    />
+                    <div
+                      class="MuiBox-root css-b95qjn"
+                    >
+                      <div
+                        class="MuiBox-root css-y7640i"
+                      />
+                    </div>
                   </div>
+                  Full page
+                  <span
+                    class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                  />
+                </button>
+              </div>
+              <div
+                class="MuiBox-root css-axw7ok"
+              >
+                <div
+                  class="MuiBox-root css-1kcfmlt"
+                  id=":mock-test-id:"
+                >
+                  Drawer position
                 </div>
-                Full page
-                <span
-                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
-                />
-              </button>
+                <div
+                  aria-labelledby=":mock-test-id:"
+                  class="MuiToggleButtonGroup-root css-1hyxo80-MuiToggleButtonGroup-root"
+                  role="group"
+                >
+                  <button
+                    aria-label="Drawer position: Left"
+                    aria-pressed="false"
+                    class="MuiButtonBase-root MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButtonGroup-firstButton css-1e93mbp-MuiButtonBase-root-MuiToggleButton-root"
+                    tabindex="0"
+                    type="button"
+                    value="left"
+                  >
+                    <div
+                      class="MuiBox-root css-5s7h8c"
+                    >
+                      <div
+                        class="MuiBox-root css-10tc75p"
+                      />
+                      <div
+                        class="MuiBox-root css-1tuh5dl"
+                      />
+                      <div
+                        class="MuiBox-root css-ysirhz"
+                      />
+                    </div>
+                    Left
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                  <button
+                    aria-label="Drawer position: Right"
+                    aria-pressed="true"
+                    class="MuiButtonBase-root MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButton-root Mui-selected MuiToggleButton-sizeMedium MuiToggleButton-standard MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButtonGroup-middleButton css-1e93mbp-MuiButtonBase-root-MuiToggleButton-root"
+                    tabindex="0"
+                    type="button"
+                    value="right"
+                  >
+                    <div
+                      class="MuiBox-root css-5s7h8c"
+                    >
+                      <div
+                        class="MuiBox-root css-10tc75p"
+                      />
+                      <div
+                        class="MuiBox-root css-1tuh5dl"
+                      />
+                      <div
+                        class="MuiBox-root css-1pj2y5y"
+                      />
+                    </div>
+                    Right
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                  <button
+                    aria-label="Drawer position: Bottom"
+                    aria-pressed="false"
+                    class="MuiButtonBase-root MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButtonGroup-lastButton css-1e93mbp-MuiButtonBase-root-MuiToggleButton-root"
+                    tabindex="0"
+                    type="button"
+                    value="bottom"
+                  >
+                    <div
+                      class="MuiBox-root css-5s7h8c"
+                    >
+                      <div
+                        class="MuiBox-root css-10tc75p"
+                      />
+                      <div
+                        class="MuiBox-root css-1tuh5dl"
+                      />
+                      <div
+                        class="MuiBox-root css-5mvk8g"
+                      />
+                    </div>
+                    Bottom
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </button>
+                </div>
+              </div>
             </div>
           </dd>
           <dt

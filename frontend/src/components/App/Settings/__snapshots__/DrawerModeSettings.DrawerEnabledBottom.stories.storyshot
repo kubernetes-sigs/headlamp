@@ -105,8 +105,8 @@
           </button>
           <button
             aria-label="Drawer position: Right"
-            aria-pressed="true"
-            class="MuiButtonBase-root MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButton-root Mui-selected MuiToggleButton-sizeMedium MuiToggleButton-standard MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButtonGroup-middleButton css-1e93mbp-MuiButtonBase-root-MuiToggleButton-root"
+            aria-pressed="false"
+            class="MuiButtonBase-root MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButtonGroup-middleButton css-1e93mbp-MuiButtonBase-root-MuiToggleButton-root"
             tabindex="0"
             type="button"
             value="right"
@@ -131,8 +131,8 @@
           </button>
           <button
             aria-label="Drawer position: Bottom"
-            aria-pressed="false"
-            class="MuiButtonBase-root MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButton-root MuiToggleButton-sizeMedium MuiToggleButton-standard MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButtonGroup-lastButton css-1e93mbp-MuiButtonBase-root-MuiToggleButton-root"
+            aria-pressed="true"
+            class="MuiButtonBase-root MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButton-root Mui-selected MuiToggleButton-sizeMedium MuiToggleButton-standard MuiToggleButtonGroup-grouped MuiToggleButtonGroup-groupedHorizontal MuiToggleButtonGroup-lastButton css-1e93mbp-MuiButtonBase-root-MuiToggleButton-root"
             tabindex="0"
             type="button"
             value="bottom"

@@ -16,8 +16,18 @@
 
 import { createSlice, type PayloadAction } from '@reduxjs/toolkit';
 
+/**
+ * Where the resource details drawer snaps within the main content area.
+ * The chosen value is persisted to `localStorage['detailDrawerSide']`.
+ */
+export type DetailDrawerSide = 'left' | 'right' | 'bottom';
+
+/** All valid values of {@link DetailDrawerSide}, in the order shown in Settings. */
+export const DETAIL_DRAWER_SIDES: readonly DetailDrawerSide[] = ['left', 'right', 'bottom'];
+
 export interface DrawerModeState {
   isDetailDrawerEnabled: boolean;
+  detailDrawerSide: DetailDrawerSide;
   selectedResource?: {
     kind: string;
     metadata: { name: string; namespace?: string };
@@ -30,12 +40,41 @@ export interface DrawerModeState {
   };
 }
 
-const getLocalDrawerStatus = (key: string) => localStorage.getItem(key) !== 'false';
+const localStorageEnabledKey = 'detailDrawerEnabled';
+const localStorageSideKey = 'detailDrawerSide';
 
-const localStorageName = 'detailDrawerEnabled';
+// localStorage can throw at module load in privacy modes, when the origin has
+// no storage access, or when the browser quota is exceeded. Wrap every access
+// so a broken storage backend cannot crash the Redux store bootstrap or a
+// later dispatch.
+function safeReadStorage(key: string): string | null {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+
+function safeWriteStorage(key: string, value: string) {
+  try {
+    localStorage.setItem(key, value);
+  } catch {
+    /* ignore: storage unavailable or full; state stays in memory only */
+  }
+}
+
+const getLocalDrawerStatus = (key: string) => safeReadStorage(key) !== 'false';
+
+const getLocalDrawerSide = (key: string): DetailDrawerSide => {
+  const stored = safeReadStorage(key);
+  return (DETAIL_DRAWER_SIDES as readonly string[]).includes(stored ?? '')
+    ? (stored as DetailDrawerSide)
+    : 'right';
+};
 
 const initialState: DrawerModeState = {
-  isDetailDrawerEnabled: getLocalDrawerStatus(localStorageName),
+  isDetailDrawerEnabled: getLocalDrawerStatus(localStorageEnabledKey),
+  detailDrawerSide: getLocalDrawerSide(localStorageSideKey),
   selectedResource: undefined,
 };
 
@@ -45,7 +84,15 @@ export const drawerModeSlice = createSlice({
   reducers: {
     setDetailDrawerEnabled: (state, action: PayloadAction<boolean>) => {
       state.isDetailDrawerEnabled = action.payload;
-      localStorage.setItem(localStorageName, `${action.payload}`);
+      safeWriteStorage(localStorageEnabledKey, `${action.payload}`);
+    },
+    /**
+     * Set which edge the resource details drawer snaps to, and persist the
+     * choice for future sessions.
+     */
+    setDetailDrawerSide: (state, action: PayloadAction<DetailDrawerSide>) => {
+      state.detailDrawerSide = action.payload;
+      safeWriteStorage(localStorageSideKey, action.payload);
     },
     setSelectedResource: (state, action: PayloadAction<DrawerModeState['selectedResource']>) => {
       state.selectedResource = action.payload;
@@ -53,5 +100,6 @@ export const drawerModeSlice = createSlice({
   },
 });
 
-export const { setDetailDrawerEnabled, setSelectedResource } = drawerModeSlice.actions;
+export const { setDetailDrawerEnabled, setDetailDrawerSide, setSelectedResource } =
+  drawerModeSlice.actions;
 export default drawerModeSlice.reducer;
