@@ -689,12 +689,6 @@ function CustomThemeProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * Renders Map of Kubernetes resources
- *
- * @param params - Map parameters
- * @returns
- */
 function GraphViewWithDefinitions({
   props,
   sources: propsSources,
@@ -723,6 +717,21 @@ function GraphViewWithDefinitions({
   );
 }
 
+/**
+ * Renders a map of Kubernetes resources and their relationships.
+ *
+ * Sources and relations are discovered only when their corresponding default
+ * is omitted. Passing an explicit array, including an empty array, skips that
+ * definition's discovery hooks.
+ *
+ * @param props - Graph display options and optional definition overrides.
+ * @param props.height - CSS height of the map container.
+ * @param props.defaultNodeSelection - ID of the node selected on first render.
+ * @param props.defaultSources - Sources to use instead of built-in discovery.
+ * @param props.defaultRelations - Relations to use instead of built-in discovery.
+ * @param props.defaultFilters - Filters applied before user-selected filters.
+ * @returns The rendered Kubernetes resource map.
+ */
 export function GraphView(props: GraphViewProps) {
   return (
     <GraphViewDefinitions

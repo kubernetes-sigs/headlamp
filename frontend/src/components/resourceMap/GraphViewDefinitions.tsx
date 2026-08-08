@@ -19,14 +19,18 @@ import { GraphSource, Relation } from './graph/graphModel';
 import { useGetAllRelations } from './sources/definitions/relations';
 import { useGetAllSources } from './sources/definitions/sources';
 
+/** Sources and relations resolved for a GraphView. */
 interface GraphDefinitions {
   sources: GraphSource[];
   relations: Relation[];
 }
 
 interface GraphViewDefinitionsProps {
+  /** Sources to use instead of discovering the built-in sources. */
   defaultSources?: GraphSource[];
+  /** Relations to use instead of discovering the built-in relations. */
   defaultRelations?: Relation[];
+  /** Renders content with the explicit or discovered graph definitions. */
   children: (definitions: GraphDefinitions) => ReactNode;
 }
 
@@ -68,6 +72,18 @@ function getDefinitionsMode(
   return defaultRelations !== undefined ? 'default-sources' : 'defaults';
 }
 
+/**
+ * Resolves the sources and relations used by a GraphView.
+ *
+ * Explicit arrays, including empty arrays, are used as provided. A discovery
+ * hook is invoked only for a definition that the caller omits.
+ *
+ * @param props - Definition overrides and the render callback.
+ * @param props.defaultSources - Sources to use without source discovery.
+ * @param props.defaultRelations - Relations to use without relation discovery.
+ * @param props.children - Renders with the resolved sources and relations.
+ * @returns The content rendered by `children` with the resolved definitions.
+ */
 export function GraphViewDefinitions({
   defaultSources,
   defaultRelations,
