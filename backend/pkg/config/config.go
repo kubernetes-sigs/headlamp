@@ -159,6 +159,10 @@ func (c *Config) Validate() error {
 		return errors.New("session-ttl cannot be greater than 1 year")
 	}
 
+	if err := c.validatePortLogLevelAndTLS(); err != nil {
+		return err
+	}
+
 	if c.TracingEnabled != nil && *c.TracingEnabled {
 		if c.ServiceName == "" {
 			return errors.New("service-name is required when tracing is enabled")
@@ -244,6 +248,63 @@ func (c *Config) validateServiceAccountTokenFlags() error {
 	if c.ServiceAccountTokenPath != "" && !c.UnsafeUseServiceAccountToken {
 		return errors.New("--service-account-token-path requires " +
 			"--unsafe-use-service-account-token to be enabled")
+	}
+
+	return nil
+}
+
+func (c *Config) validatePortLogLevelAndTLS() error {
+	if c.Port < 1 || c.Port > 65535 {
+		return errors.New("port must be between 1 and 65535")
+	}
+
+	validLogLevels := map[string]bool{
+		"debug":    true,
+		"info":     true,
+		"warn":     true,
+		"error":    true,
+	}
+
+	if c.LogLevel != "" && !validLogLevels[c.LogLevel] {
+		return fmt.Errorf("invalid log-level %q: "+
+			"must be one of debug, info, warn, error", c.LogLevel)
+	}
+
+	if c.TLSCertPath != "" && c.TLSKeyPath == "" {
+		return errors.New("tls-cert-path and tls-key-path must be provided together")
+	}
+	if c.TLSKeyPath != "" && c.TLSCertPath == "" {
+		return errors.New("tls-cert-path and tls-key-path must be provided together")
+	}
+
+	if c.TLSCertPath != "" {
+		info, err := os.Stat(c.TLSCertPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("tls-cert-path %q does not exist", c.TLSCertPath)
+			}
+
+			return fmt.Errorf("tls-cert-path %q: %w", c.TLSCertPath, err)
+		}
+
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("tls-cert-path %q is not a regular file", c.TLSCertPath)
+		}
+	}
+
+	if c.TLSKeyPath != "" {
+		info, err := os.Stat(c.TLSKeyPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				return fmt.Errorf("tls-key-path %q does not exist", c.TLSKeyPath)
+			}
+
+			return fmt.Errorf("tls-key-path %q: %w", c.TLSKeyPath, err)
+		}
+
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("tls-key-path %q is not a regular file", c.TLSKeyPath)
+		}
 	}
 
 	return nil
@@ -398,6 +459,11 @@ func setMeDefaults(config *Config) {
 	)
 }
 
+// normalizeLogLevel ensures the log level is lowercased and trimmed.
+func normalizeLogLevel(config *Config) {
+	config.LogLevel = strings.ToLower(strings.TrimSpace(config.LogLevel))
+}
+
 // Parse Loads the config from flags and env.
 // env vars should start with HEADLAMP_CONFIG_ and use _ as separator
 // If a value is set both in flags and env then flag takes priority.
@@ -453,6 +519,7 @@ func Parse(args []string) (*Config, error) {
 	}
 
 	setMeDefaults(&config)
+	normalizeLogLevel(&config)
 
 	// 8. Validate flags that depend on build-time behaviour.
 	if err := validateOpenBrowser(&config, explicitFlags); err != nil {
