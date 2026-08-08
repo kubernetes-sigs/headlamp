@@ -17,9 +17,9 @@
 /**
  * Tests for the CONNECT_ON_CLUSTER_LINK feature.
  *
- * Run with: PLAYWRIGHT_TEST_MODE=app npx playwright test clusterAutoConnect.spec.ts
+ * Run with: npx playwright test --config=playwright.electron.config.ts clusterAutoConnect.spec.ts
  *
- * Requires: PLAYWRIGHT_TEST_MODE=app, minikube, and kubectl on PATH.
+ * Requires: minikube and kubectl on PATH.
  *
  * beforeAll starts a dedicated minikube profile and exports its cert-based
  * kubeconfig to a standalone file, then launches Electron with KUBECONFIG
@@ -39,6 +39,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { _electron, Page } from 'playwright';
+import { dismissReleaseNotes } from './releaseNotesTestUtils';
 
 const CLUSTER_NAME = 'headlamp-e2e-connect';
 const EXEC_KUBECONFIG = path.join(os.tmpdir(), `${CLUSTER_NAME}.kubeconfig`);
@@ -51,6 +52,18 @@ const appPath = path.resolve(__dirname, '../../');
 let electronApp: Awaited<ReturnType<typeof _electron.launch>>;
 let electronPage: Page;
 let appBaseUrl = ''; // set after Electron launch
+
+// Electron's default userData directory persists across launches. Reusing
+// it (by omitting --user-data-dir) accumulates real browser state — cache,
+// IndexedDB, etc. — across every Electron launch that came before this one,
+// including from other spec files in the same run. That leftover state
+// reproducibly caused a phantom element to intercept clicks in this suite
+// (confirmed by bisecting: identical launch args except for
+// --user-data-dir turned a 100%-reproducible click-interception failure
+// into a 100% pass). A throwaway profile per run sidesteps it entirely.
+const PROFILE_DIR = fs.mkdtempSync(
+  path.join(os.tmpdir(), 'headlamp-e2e-cluster-auto-connect-profile-')
+);
 
 function shell(cmd: string): string {
   return execSync(cmd, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'] }).trim();
@@ -111,45 +124,42 @@ function teardownExecCluster(): void {
   }
 }
 
-if (process.env.PLAYWRIGHT_TEST_MODE === 'app') {
-  test.beforeAll(async () => {
-    test.setTimeout(3 * 60 * 1000); // cluster creation takes ~60s
-    setupExecCluster();
+test.beforeAll(async () => {
+  test.setTimeout(3 * 60 * 1000); // cluster creation takes ~60s
+  setupExecCluster();
 
-    // Launch Electron with the merged kubeconfig so it sees the new cluster.
-    electronApp = await _electron.launch({
-      cwd: appPath,
-      executablePath: electronPath,
-      args: ['.'],
-      env: {
-        ...process.env,
-        NODE_ENV: 'development',
-        ELECTRON_DEV: 'true',
-        KUBECONFIG: MERGED_KUBECONFIG,
-      },
-    });
-    electronPage = await electronApp.firstWindow();
-    await electronPage.waitForLoadState('load');
-    // The app uses file:// with hash routing: file:///...index.html#/
-    // Capture the base file URL (without hash) for navigation.
-    const rawUrl = electronPage.url();
-    if (rawUrl.startsWith('file://')) {
-      appBaseUrl = rawUrl.split('#')[0]; // e.g., file:///path/to/index.html
-    } else if (rawUrl.startsWith('http')) {
-      const u = new URL(rawUrl);
-      appBaseUrl = `${u.protocol}//${u.host}`;
-    }
+  // Launch Electron with the merged kubeconfig so it sees the new cluster.
+  electronApp = await _electron.launch({
+    cwd: appPath,
+    executablePath: electronPath,
+    args: ['.', `--user-data-dir=${PROFILE_DIR}`],
+    env: {
+      ...process.env,
+      NODE_ENV: 'development',
+      ELECTRON_DEV: 'true',
+      KUBECONFIG: MERGED_KUBECONFIG,
+    },
   });
+  // Otherwise the Release Notes modal can open (see #6966) and its
+  // backdrop blocks clicks on the page underneath.
+  electronPage = await dismissReleaseNotes(electronApp);
+  await electronPage.waitForLoadState('load');
+  // The app uses file:// with hash routing: file:///...index.html#/
+  // Capture the base file URL (without hash) for navigation.
+  const rawUrl = electronPage.url();
+  if (rawUrl.startsWith('file://')) {
+    appBaseUrl = rawUrl.split('#')[0]; // e.g., file:///path/to/index.html
+  } else if (rawUrl.startsWith('http')) {
+    const u = new URL(rawUrl);
+    appBaseUrl = `${u.protocol}//${u.host}`;
+  }
+});
 
-  test.afterAll(async () => {
-    await electronApp?.close();
-    teardownExecCluster();
-  });
-}
-
-function getPage(browserPage: Page): Page {
-  return process.env.PLAYWRIGHT_TEST_MODE === 'app' ? electronPage : browserPage;
-}
+test.afterAll(async () => {
+  await electronApp?.close();
+  teardownExecCluster();
+  fs.rmSync(PROFILE_DIR, { recursive: true, force: true });
+});
 
 async function goToHomeClean(page: Page) {
   // Clear storage first while the page is still in its current state.
@@ -179,15 +189,8 @@ async function goToHomeClean(page: Page) {
 }
 
 test.describe('cluster auto-connect via link click (app)', () => {
-  test.beforeEach(() => {
-    // These tests require the Electron app mode and the minikube cluster above.
-    test.skip(
-      process.env.PLAYWRIGHT_TEST_MODE !== 'app',
-      'Requires PLAYWRIGHT_TEST_MODE=app and minikube on PATH'
-    );
-  });
-  test('clicking a cluster link writes it to sessionStorage', async ({ page: browserPage }) => {
-    const page = getPage(browserPage);
+  test('clicking a cluster link writes it to sessionStorage', async () => {
+    const page = electronPage;
     await goToHomeClean(page);
 
     // No session connects before the click.
@@ -209,10 +212,8 @@ test.describe('cluster auto-connect via link click (app)', () => {
     expect(JSON.parse(after!)).toContain(CLUSTER_NAME);
   });
 
-  test('cluster is not Active before click, becomes Active after click (exec plugin runs)', async ({
-    page: browserPage,
-  }) => {
-    const page = getPage(browserPage);
+  test('cluster is not Active before click, becomes Active after click (exec plugin runs)', async () => {
+    const page = electronPage;
     await goToHomeClean(page);
 
     const clusterRow = () =>

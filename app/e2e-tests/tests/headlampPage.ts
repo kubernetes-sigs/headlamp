@@ -22,7 +22,15 @@ export class HeadlampPage {
   constructor(private page: Page) {}
 
   async a11y() {
-    const accessibilityResults = await new AxeBuilder({ page: this.page }).analyze();
+    // Legacy mode runs axe.run() directly on this page instead of the default
+    // runPartial/finishRun flow, which needs to open a blank page via
+    // context.newPage(). Electron's CDP implementation does not support
+    // Target.createTarget, so that call fails with
+    // "Protocol error (Target.createTarget): Not supported" when this page
+    // belongs to an Electron BrowserWindow.
+    const accessibilityResults = await new AxeBuilder({ page: this.page })
+      .setLegacyMode(true)
+      .analyze();
     const violations = accessibilityResults.violations.filter(
       v => v.impact === 'critical' || v.impact === 'serious'
     );
@@ -34,31 +42,7 @@ export class HeadlampPage {
   }
 
   async authenticate() {
-    // If we are running in cluster, we need to authenticate
-    if (process.env.PLAYWRIGHT_TEST_MODE === 'app' || process.env.PLAYWRIGHT_TEST_MODE === 'web') {
-      await this.startFromMainPage();
-      return;
-    }
-
-    // Go to the authentication page
-    const url = process.env.HEADLAMP_TEST_URL;
-    await this.page.goto(url || '/');
-    await this.page.waitForSelector('h1:has-text("Authentication")');
-
-    // Check to see if already authenticated
-    if (await this.page.isVisible('button:has-text("Authenticate")')) {
-      const token = process.env.HEADLAMP_TOKEN || '';
-      this.hasToken(token);
-
-      // Fill in the token
-      await this.page.locator('#token').fill(token);
-
-      // Click on the "Authenticate" button and wait for navigation
-      await Promise.all([
-        this.page.waitForNavigation(),
-        this.page.click('button:has-text("Authenticate")'),
-      ]);
-    }
+    await this.startFromMainPage();
   }
 
   async hasURLContaining(pattern: RegExp) {
@@ -67,10 +51,6 @@ export class HeadlampPage {
 
   async hasTitleContaining(pattern: RegExp) {
     await expect(this.page).toHaveTitle(pattern);
-  }
-
-  async hasToken(token: string) {
-    expect(token).not.toBe('');
   }
 
   async hasNetworkTab() {
@@ -97,11 +77,6 @@ export class HeadlampPage {
   // note: must have minikube started before running these
   async startFromMainPage() {
     await this.page.waitForLoadState('load');
-
-    // note: backend must be running with connected frontend for web mode
-    if (process.env.PLAYWRIGHT_TEST_MODE === 'web') {
-      await this.page.goto('localhost:3000');
-    }
 
     await this.page.waitForTimeout(5000);
     const currentURL = this.page.url();

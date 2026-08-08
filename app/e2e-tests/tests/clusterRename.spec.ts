@@ -21,6 +21,7 @@ import os from 'os';
 import path from 'path';
 import { _electron, Page } from 'playwright';
 import { HeadlampPage } from './headlampPage';
+import { dismissReleaseNotes } from './releaseNotesTestUtils';
 
 // Electron setup
 const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'electron';
@@ -31,6 +32,16 @@ const appPath = path.resolve(__dirname, '../../');
 // kubeconfig. Run against a throwaway copy so the developer's real kubeconfig
 // is never modified and the suite stays repeatable.
 const ISOLATED_KUBECONFIG = path.join(os.tmpdir(), `headlamp-e2e-rename-${process.pid}.kubeconfig`);
+
+// Electron's default userData directory persists across launches. Reusing it
+// (by omitting --user-data-dir) accumulates real browser state — cache,
+// IndexedDB, etc. — across every Electron launch that came before this one,
+// including from other spec files in the same run. That leftover state
+// reproducibly caused a phantom element to intercept clicks aimed at the
+// cluster link below (confirmed by bisecting: identical launch args except
+// for --user-data-dir turned a 100%-reproducible failure into a 100% pass).
+// A throwaway profile per run sidesteps it entirely.
+const PROFILE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-e2e-rename-profile-'));
 
 function writeIsolatedKubeconfig(context: string, target: string): void {
   fs.writeFileSync(
@@ -74,9 +85,15 @@ async function renameCluster(
 ) {
   await page.fill(`input[placeholder="${fromName}"]`, toName);
   await page.getByRole('button', { name: 'Apply' }).click();
-  // ConfirmDialog sets aria-label="confirm-button"/"cancel-button", which becomes
-  // the accessible name and overrides the visible "Yes"/"No" text.
-  await page.getByRole('button', { name: confirm ? 'confirm-button' : 'cancel-button' }).click();
+  // ConfirmDialog (frontend/src/components/common/ConfirmDialog.tsx) only
+  // sets data-testid="confirm-button"/"cancel-button", not aria-label —
+  // data-testid never affects the accessible name, so this previously
+  // waited on a role+name pair that could never match, and only worked at
+  // all because of a since-fixed profile flake masking the real failure.
+  // The "Change name" confirm dialog (ClusterNameEditor.tsx) doesn't
+  // override confirmLabel/cancelLabel, so the accessible names are the
+  // ConfirmDialog defaults: "Yes" and "No".
+  await page.getByRole('button', { name: confirm ? 'Yes' : 'No' }).click();
   await page.waitForLoadState('load');
   await page.locator(`a[href="#/c/${toName}/"]`).click();
 }
@@ -88,7 +105,7 @@ test.beforeAll(async () => {
   electronApp = await _electron.launch({
     cwd: appPath,
     executablePath: electronPath,
-    args: ['.'],
+    args: ['.', `--user-data-dir=${PROFILE_DIR}`],
     env: {
       ...process.env,
       NODE_ENV: 'development',
@@ -97,7 +114,9 @@ test.beforeAll(async () => {
     },
   });
 
-  electronPage = await electronApp.firstWindow();
+  // Otherwise the Release Notes modal can open (see #6966) and its backdrop
+  // blocks clicks on the page underneath.
+  electronPage = await dismissReleaseNotes(electronApp);
 });
 
 // The app holds a single-instance lock, so it must be closed or the next spec
@@ -105,20 +124,13 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await electronApp?.close();
   fs.rmSync(ISOLATED_KUBECONFIG, { force: true });
-});
-
-test.beforeEach(async ({ page }) => {
-  await page.close();
+  fs.rmSync(PROFILE_DIR, { recursive: true, force: true });
 });
 
 // Tests
 test.describe('Cluster rename functionality', () => {
-  test.beforeEach(() => {
-    test.skip(process.env.PLAYWRIGHT_TEST_MODE !== 'app', 'These tests only run in app mode');
-  });
-
-  test('should rename cluster and verify changes', async ({ page: browserPage }) => {
-    const page = process.env.PLAYWRIGHT_TEST_MODE === 'app' ? electronPage : browserPage;
+  test('should rename cluster and verify changes', async () => {
+    const page = electronPage;
     const headlampPage = new HeadlampPage(page);
     await headlampPage.authenticate();
 
