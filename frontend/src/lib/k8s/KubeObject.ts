@@ -433,6 +433,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     opts?: {
       queryParams?: QueryParameters;
       cluster?: string;
+      initialData?: K;
     }
   ) {
     // eslint-disable-next-line react-hooks/rules-of-hooks
@@ -442,6 +443,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       namespace: namespace,
       cluster: opts?.cluster,
       queryParams: opts?.queryParams,
+      initialData: opts?.initialData,
     });
   }
 
