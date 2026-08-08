@@ -39,7 +39,7 @@ func BenchmarkStoreK8sResponseInCache(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		b.StopTimer()
 
 		rw := httptest.NewRecorder()
@@ -72,7 +72,7 @@ func BenchmarkStoreK8sResponseInCache_FailureSkip(b *testing.B) {
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		b.StopTimer()
 
 		rw := httptest.NewRecorder()
@@ -108,7 +108,7 @@ func BenchmarkGenerateKey(b *testing.B) {
 
 	var err error
 
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		benchBuildCacheKeySink, err = k8cache.GenerateKey(
 			targetURL, contextID,
 		)
