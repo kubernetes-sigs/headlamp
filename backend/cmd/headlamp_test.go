@@ -1187,6 +1187,63 @@ func TestDrainNodeCancelledContextDoesNotWriteCache(t *testing.T) {
 	}, 100*time.Millisecond, 10*time.Millisecond, "cache should not be written when context is already cancelled")
 }
 
+// TestPluginStaticCacheControl verifies that plugin bundles are served with a
+// "Cache-Control: no-cache" header whenever the server is configured to pick up
+// plugin changes: always when running locally, and in-cluster when
+// --watch-plugins-changes is enabled. Without the header the server picks up a
+// swapped bundle on disk but browsers keep serving the stale main.js they cached
+// earlier. In the default in-cluster case (no watching) the header is omitted,
+// preserving the existing caching behavior.
+func TestPluginStaticCacheControl(t *testing.T) {
+	tests := []struct {
+		name                string
+		useInCluster        bool
+		watchPluginsChanges bool
+		wantNoCache         bool
+	}{
+		{name: "local dev serves no-cache", useInCluster: false, watchPluginsChanges: false, wantNoCache: true},
+		{name: "in-cluster without watching caches", useInCluster: true, watchPluginsChanges: false, wantNoCache: false},
+		{name: "in-cluster with watching serves no-cache", useInCluster: true, watchPluginsChanges: true, wantNoCache: true},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			// Plugin dir containing a single plugin bundle (test-plugin/main.js).
+			pluginDir := t.TempDir()
+			bundleDir := filepath.Join(pluginDir, "test-plugin")
+			require.NoError(t, os.Mkdir(bundleDir, 0o750))
+			require.NoError(t, os.WriteFile(filepath.Join(bundleDir, "main.js"), []byte("export default {};"), 0o600))
+
+			c := HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						UseInCluster:        tc.useInCluster,
+						WatchPluginsChanges: tc.watchPluginsChanges,
+						KubeConfigPath:      filepath.Join("headlamp_testdata", "kubeconfig"),
+						PluginDir:           pluginDir,
+						KubeConfigStore:     kubeconfig.NewContextStore(),
+					},
+					Cache:            cache.New[interface{}](),
+					TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+					TelemetryHandler: &telemetry.RequestHandler{},
+				},
+			}
+
+			handler := createHeadlampHandler(context.Background(), &c)
+
+			rr, err := getResponse(handler, http.MethodGet, "/plugins/test-plugin/main.js", nil)
+			require.NoError(t, err)
+			require.Equal(t, http.StatusOK, rr.Code)
+
+			if tc.wantNoCache {
+				assert.Equal(t, "no-cache", rr.Header().Get("Cache-Control"))
+			} else {
+				assert.Empty(t, rr.Header().Get("Cache-Control"))
+			}
+		})
+	}
+}
+
 func TestDeletePlugin(t *testing.T) {
 	// create temp dir for plugins
 	tempDir, err := os.MkdirTemp("", "plugins")
