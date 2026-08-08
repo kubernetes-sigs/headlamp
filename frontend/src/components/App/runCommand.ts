@@ -64,8 +64,8 @@ export function runCommand(
   ) => void,
   desktopApiReceive?: (
     channel: string,
-    listener: (cmdId: string, data: string | number) => void
-  ) => void
+    listener: (cmdId: string, data: string | number | null) => void
+  ) => (() => void) | void
 ): {
   stdout: { on: (event: string, listener: (chunk: any) => void) => void };
   stderr: { on: (event: string, listener: (chunk: any) => void) => void };
@@ -87,29 +87,44 @@ export function runCommand(
   const id = `${new Date().getTime()}-${Math.random().toString(36)}`;
 
   const stdout = new EventTarget();
-  desktopApiReceive('command-stdout', (cmdId: string, data: string | number) => {
-    if (cmdId === id) {
-      const event = new CustomEvent('data', { detail: data });
-      stdout.dispatchEvent(event);
+  const unsubscribeStdout = desktopApiReceive(
+    'command-stdout',
+    (cmdId: string, data: string | number | null) => {
+      if (cmdId === id) {
+        const event = new CustomEvent('data', { detail: data });
+        stdout.dispatchEvent(event);
+      }
     }
-  });
+  );
 
   const stderr = new EventTarget();
-  desktopApiReceive('command-stderr', (cmdId: string, data: string | number) => {
-    if (cmdId === id) {
-      const event = new CustomEvent('data', { detail: data });
-      stderr.dispatchEvent(event);
+  const unsubscribeStderr = desktopApiReceive(
+    'command-stderr',
+    (cmdId: string, data: string | number | null) => {
+      if (cmdId === id) {
+        const event = new CustomEvent('data', { detail: data });
+        stderr.dispatchEvent(event);
+      }
     }
-  });
+  );
 
   const exit = new EventTarget();
-  desktopApiReceive('command-exit', (cmdId: string, code: string | number) => {
-    if (cmdId === id) {
-      const event = new CustomEvent('exit', { detail: code });
-      exit.dispatchEvent(event);
+  const unsubscribeExit = desktopApiReceive(
+    'command-exit',
+    (cmdId: string, code: string | number | null) => {
+      if (cmdId === id) {
+        const exitCode = typeof code === 'number' || code === null ? code : null;
+        const event = new CustomEvent('exit', { detail: exitCode });
+        try {
+          exit.dispatchEvent(event);
+        } finally {
+          unsubscribeStdout?.();
+          unsubscribeStderr?.();
+          unsubscribeExit?.();
+        }
+      }
     }
-  });
-
+  );
   // We use desktopApiReceive and desktopApiSend to communicate with the main process.
   // Because other plugins may change the global window.desktopApi functions
   // to snoop on the secrets that plugins are sending.
