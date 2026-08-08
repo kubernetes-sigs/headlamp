@@ -1605,7 +1605,7 @@ func TestHandleClusterMessages(t *testing.T) {
 	done := make(chan struct{})
 
 	go func() {
-		m.handleClusterMessages(conn, clientConn)
+		m.handleClusterMessages(conn)
 		close(done)
 	}()
 
@@ -1864,6 +1864,7 @@ var benchWatchEventMsg = []byte(`{
 // BenchmarkSendIfNewResourceVersion measures the allocation overhead of
 // extracting metadata.resourceVersion from a typical Kubernetes watch event.
 // This is the hottest path in the multiplexer.
+
 func BenchmarkSendIfNewResourceVersion(b *testing.B) {
 	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
 	conn := &Connection{
@@ -1932,5 +1933,108 @@ func BenchmarkCreateConnectionKey(b *testing.B) {
 
 	for i := 0; i < b.N; i++ {
 		benchConnectionKeySink = m.createConnectionKey(clusterID, path, userID)
+	}
+}
+
+func TestTerminalReconnectAndBuffering(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+	m := NewMultiplexer(store, false)
+
+	mockServer := createMockKubeAPIServer()
+	defer mockServer.Close()
+
+	err := store.AddContext(&kubeconfig.Context{
+		Name: "test-cluster",
+		Cluster: &api.Cluster{
+			Server:                mockServer.URL,
+			InsecureSkipTLSVerify: true,
+		},
+	})
+	require.NoError(t, err)
+
+	clientConn1, clientServer1 := createTestWebSocketConnection()
+	defer clientServer1.Close()
+
+	msg := Message{
+		ClusterID: "test-cluster",
+		Path:      "/api/v1/namespaces/default/pods/my-pod/exec",
+		Query:     "container=my-container&stdin=true&stdout=true&tty=true",
+		UserID:    "test-user",
+		Type:      "REQUEST",
+	}
+
+	token := "token"
+
+	conn, err := m.getOrCreateConnection(msg, clientConn1, &token)
+	require.NoError(t, err)
+
+	t.Run("Establish initial connection", func(t *testing.T) {
+		assert.NotNil(t, conn)
+		conn.mu.RLock()
+		client := conn.Client
+		state := conn.Status.State
+		conn.mu.RUnlock()
+		assert.Equal(t, clientConn1, client)
+		assert.Equal(t, StateConnected, state)
+	})
+
+	t.Run("Simulate disconnect and buffer", func(t *testing.T) {
+		runSimulateDisconnectAndBufferTest(t, conn)
+	})
+
+	t.Run("Reconnect and flush", func(t *testing.T) {
+		runReconnectAndFlushTest(t, m, conn, msg, token)
+	})
+}
+
+func runSimulateDisconnectAndBufferTest(t *testing.T, conn *Connection) {
+	conn.mu.Lock()
+	conn.Client = nil
+	conn.Status.State = StateClosed
+	conn.mu.Unlock()
+
+	err := conn.WSConn.WriteMessage(websocket.TextMessage, []byte("hello"))
+	require.NoError(t, err)
+
+	assert.Eventually(t, func() bool {
+		conn.mu.RLock()
+		defer conn.mu.RUnlock()
+
+		return len(conn.Buffer) == 1 && string(conn.Buffer[0].Data) == "hello"
+	}, 3*time.Second, 10*time.Millisecond)
+}
+
+func runReconnectAndFlushTest(t *testing.T, m *Multiplexer, conn *Connection, msg Message, token string) {
+	clientConn2, clientServer2 := createTestWebSocketConnection()
+	defer clientServer2.Close()
+
+	flushed := make(chan []byte, 1)
+
+	go func() {
+		_, data, _ := clientConn2.conn.ReadMessage()
+
+		flushed <- data
+	}()
+
+	conn2, err := m.getOrCreateConnection(msg, clientConn2, &token)
+	require.NoError(t, err)
+	assert.Equal(t, conn, conn2)
+	conn.mu.RLock()
+	client := conn.Client
+	state := conn.Status.State
+	conn.mu.RUnlock()
+	assert.Equal(t, clientConn2, client)
+	assert.Equal(t, StateConnected, state)
+
+	conn.mu.RLock()
+	isBufferNil := conn.Buffer == nil
+	conn.mu.RUnlock()
+	assert.True(t, isBufferNil)
+
+	select {
+	case data := <-flushed:
+		assert.Contains(t, string(data), "hello")
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for buffered messages")
 	}
 }

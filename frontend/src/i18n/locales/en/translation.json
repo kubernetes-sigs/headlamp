@@ -785,6 +785,7 @@
   "Debug: {{ itemName }}": "Debug: {{ itemName }}",
   "Pod debug is disabled in settings": "Pod debug is disabled in settings",
   "Attaching to existing debug container...": "Attaching to existing debug container...",
+  "Reattaching to debug container...": "Reattaching to debug container...",
   "Creating ephemeral debug container...": "Creating ephemeral debug container...",
   "Failed to create debug container: {{message}}": "Failed to create debug container: {{message}}",
   "Attaching to debug container...": "Attaching to debug container...",

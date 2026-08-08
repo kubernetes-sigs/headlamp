@@ -178,6 +178,7 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
   const containerCreatedRef = useRef(false);
   const defaultPodDebugImage = useTypedSelector(state => state.config.defaultPodDebugImage);
   const defaultPodDebugImageRef = useRef(defaultPodDebugImage);
+  const debugContainerNameRef = useRef<string | null>(null);
   const onCloseRef = useRef<() => void>(() => {});
   const isSuccessfulExitRef = useRef<(channel: number, text: string) => boolean>(() => false);
   const isShellNotFoundRef = useRef<(channel: number, text: string) => boolean>(() => false);
@@ -214,12 +215,19 @@ export function PodDebugTerminal(props: PodDebugTerminalProps) {
 
       if (runningDebugContainer) {
         containerName = runningDebugContainer.name;
+        debugContainerNameRef.current = containerName;
         containerCreatedRef.current = true;
         terminalRef.current?.current?.xterm.writeln(
           t('translation|Attaching to existing debug container...') + '\r\n'
         );
+      } else if (debugContainerNameRef.current) {
+        containerName = debugContainerNameRef.current;
+        terminalRef.current?.current?.xterm.writeln(
+          t('translation|Reattaching to debug container...') + '\r\n'
+        );
       } else {
         containerName = generateContainerName(item);
+        debugContainerNameRef.current = containerName;
 
         terminalRef.current?.current?.xterm.writeln(
           t('translation|Creating ephemeral debug container...')
