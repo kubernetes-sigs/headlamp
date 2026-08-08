@@ -44,6 +44,7 @@ import {
 import { AppDispatch } from '../../../redux/stores/store';
 import { useCurrentAppTheme } from '../../App/themeSlice';
 import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
+import { applyMonacoSchemaValidation } from '../../monaco/schemaProvider';
 import ConfirmButton from '../ConfirmButton';
 import { Dialog, DialogProps } from '../Dialog';
 import Loader from '../Loader';
@@ -156,6 +157,7 @@ export default function EditorDialog(props: EditorDialogProps) {
   ) {
     editorRef.current = editorInstance;
     monacoRef.current = monacoInstance;
+    applyMonacoSchemaValidation(monacoInstance, editorInstance, codeRef.current.code);
   }
 
   React.useEffect(() => {
@@ -332,6 +334,7 @@ export default function EditorDialog(props: EditorDialogProps) {
           } else {
             monacoRef.current.editor.setModelMarkers(model, 'headlamp-yaml-parse', []);
           }
+          applyMonacoSchemaValidation(monacoRef.current, editorRef.current, value || '');
         }
       }
 
