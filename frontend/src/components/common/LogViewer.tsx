@@ -25,6 +25,7 @@ import { FitAddon } from '@xterm/addon-fit';
 import { ISearchOptions, SearchAddon } from '@xterm/addon-search';
 import { Terminal as XTerminal } from '@xterm/xterm';
 import _ from 'lodash';
+import { useSnackbar } from 'notistack';
 import React, { ReactNode, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useShortcut } from '../../lib/useShortcut';
@@ -66,6 +67,7 @@ export function LogViewer(props: LogViewerProps) {
     ...other
   } = props;
   const { t } = useTranslation();
+  const { enqueueSnackbar } = useSnackbar();
   const muiTheme = useTheme();
   const xtermTheme = React.useMemo(() => getXtermTheme(muiTheme), [muiTheme]);
   const xtermRef = React.useRef<XTerminal | null>(null);
@@ -89,6 +91,17 @@ export function LogViewer(props: LogViewerProps) {
     // Required for FireFox
     document.body.appendChild(element);
     element.click();
+  }
+
+  async function copyLogs() {
+    const text = logs.join('');
+
+    try {
+      await navigator.clipboard.writeText(text);
+      enqueueSnackbar(t('translation|Logs copied to clipboard'), { variant: 'success' });
+    } catch (err) {
+      enqueueSnackbar(t('translation|Failed to copy logs'), { variant: 'error' });
+    }
   }
 
   React.useEffect(() => {
@@ -214,6 +227,13 @@ export function LogViewer(props: LogViewerProps) {
             description={t('Download')}
             onClick={downloadLog}
             icon="mdi:file-download-outline"
+          />
+        </Grid>
+        <Grid item xs>
+          <ActionButton
+            description={t('translation|Copy to clipboard')}
+            onClick={copyLogs}
+            icon="mdi:content-copy"
           />
         </Grid>
       </Grid>
