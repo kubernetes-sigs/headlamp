@@ -164,6 +164,7 @@
   "Pod Debug Settings": "إعدادات تصحيح Pod",
   "Ephemeral debug containers cannot be removed via Kubernetes API. They will remain in the pod specification even after the terminal closes. To remove them, the pod must be recreated.": "لا يمكن إزالة حاويات التصحيح المؤقتة عبر Kubernetes API. ستبقى في مواصفات الـ pod حتى بعد إغلاق الطرفية. لإزالتها، يجب إعادة إنشاء الـ pod",
   "The default image is used for creating ephemeral debug containers.": "تُستخدم الصورة الافتراضية لإنشاء حاويات تصحيح مؤقتة.",
+  "Set by your administrator": "",
   "General Settings": "الإعدادات العامة",
   "Version": "الإصدار",
   "Language": "اللغة",

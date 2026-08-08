@@ -24,6 +24,7 @@ import {
   DEFAULT_NODE_SHELL_LINUX_IMAGE,
   DEFAULT_NODE_SHELL_NAMESPACE,
 } from '../../../helpers/clusterSettings';
+import { useSetting } from '../../../helpers/useAdminSettings';
 import { useTypedSelector } from '../../../redux/hooks';
 import { NameValueTable } from '../../common/NameValueTable';
 import SectionBox from '../../common/SectionBox';
@@ -36,7 +37,7 @@ interface SettingsProps {
 }
 
 export default function NodeShellSettings(props: SettingsProps) {
-  const { clusterSettings, setClusterSettings } = props;
+  const { cluster, clusterSettings, setClusterSettings } = props;
   const { t } = useTranslation(['translation']);
   const defaultNodeShellImage =
     useTypedSelector(state => state.config?.defaultNodeShellImage) ||
@@ -47,9 +48,21 @@ export default function NodeShellSettings(props: SettingsProps) {
 
   const nodeShellLabelID = 'node-shell-enabled-label';
 
+  const adminLinuxImage = useSetting<string>('clusters.*.nodeShellTerminal.linuxImage', cluster);
+  const adminIsEnabled = useSetting<boolean>('clusters.*.nodeShellTerminal.isEnabled', cluster);
+
   const namespace = clusterSettings.nodeShellTerminal?.namespace ?? '';
-  const image = clusterSettings.nodeShellTerminal?.linuxImage ?? '';
-  const isEnabled = clusterSettings.nodeShellTerminal?.isEnabled ?? true;
+  // When a setting is admin-managed (disabled or hidden) the admin value is
+  // forced; otherwise the user's cluster setting wins, falling back to the
+  // admin-provided default.
+  const image =
+    adminLinuxImage.disabled || adminLinuxImage.hidden
+      ? adminLinuxImage.value ?? ''
+      : clusterSettings.nodeShellTerminal?.linuxImage ?? adminLinuxImage.value ?? '';
+  const isEnabled =
+    adminIsEnabled.disabled || adminIsEnabled.hidden
+      ? adminIsEnabled.value ?? true
+      : clusterSettings.nodeShellTerminal?.isEnabled ?? adminIsEnabled.value ?? true;
 
   const [namespaceInput, setNamespaceInput] = React.useState(namespace);
   React.useEffect(() => {
@@ -74,16 +87,19 @@ export default function NodeShellSettings(props: SettingsProps) {
         rows={[
           {
             name: <Typography id={nodeShellLabelID}>Enable Node Shell</Typography>,
+            hide: adminIsEnabled.hidden,
             value: (
               <Switch
                 inputProps={{ 'aria-labelledby': nodeShellLabelID }}
                 checked={isEnabled}
                 onChange={e => updateNodeShell({ isEnabled: e.target.checked })}
+                disabled={adminIsEnabled.disabled}
               />
             ),
           },
           {
             name: 'Linux Image',
+            hide: adminLinuxImage.hidden,
             value: (
               <TextField
                 onChange={event => {
@@ -91,6 +107,7 @@ export default function NodeShellSettings(props: SettingsProps) {
                   updateNodeShell({ linuxImage: value });
                 }}
                 value={image}
+                disabled={adminLinuxImage.disabled}
                 placeholder={defaultNodeShellImage}
                 helperText={t(
                   'translation|The default image is used for dropping a shell into a node (when not specified directly).'
