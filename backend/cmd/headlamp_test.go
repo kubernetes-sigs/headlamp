@@ -1256,7 +1256,6 @@ func TestDeletePlugin(t *testing.T) {
 
 // TestRestrictedEndpointsRequireToken is the canary for the backend-token gate:
 // dropping checkHeadlampBackendToken from any listed route would fail here.
-// PUT /cluster/{name} (renameCluster) is omitted because it isn't gated yet.
 func TestRestrictedEndpointsRequireToken(t *testing.T) {
 	const validToken = "valid-token-for-test"
 
@@ -1284,6 +1283,12 @@ func TestRestrictedEndpointsRequireToken(t *testing.T) {
 			method: http.MethodDelete,
 			path:   "/cluster/" + minikubeName,
 			body:   nil,
+		},
+		{
+			name:   "PUT /cluster/{name} (renameCluster)",
+			method: http.MethodPut,
+			path:   "/cluster/" + minikubeName,
+			body:   RenameClusterRequest{NewClusterName: "minikube-renamed", Stateless: true},
 		},
 		{
 			name:   "DELETE /plugins/{name} (deletePlugin)",
