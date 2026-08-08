@@ -196,6 +196,27 @@ func addRepository(request AddUpdateRepoRequest, settings *cli.EnvSettings) erro
 	return nil
 }
 
+// writeJSONResponse encodes data as JSON and writes it to w with the given
+// HTTP status. Encoding is buffered so errors are caught before headers are
+// sent.
+func writeJSONResponse(w http.ResponseWriter, status int, data interface{}) {
+	var buf bytes.Buffer
+
+	if err := json.NewEncoder(&buf).Encode(data); err != nil {
+		logger.Log(logger.LevelError, nil, err, "encoding response")
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+
+	if _, err := w.Write(buf.Bytes()); err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing response")
+	}
+}
+
 func (h *Handler) AddRepo(w http.ResponseWriter, r *http.Request) {
 	var request AddUpdateRepoRequest
 
@@ -224,21 +245,7 @@ func (h *Handler) AddRepo(w http.ResponseWriter, r *http.Request) {
 		"message": "success",
 	}
 
-	var buf bytes.Buffer
-
-	if err = json.NewEncoder(&buf).Encode(response); err != nil {
-		logger.Log(logger.LevelError, nil, err, "encoding response")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	if _, err = w.Write(buf.Bytes()); err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing response")
-	}
+	writeJSONResponse(w, http.StatusOK, response)
 }
 
 type repositoryInfo struct {
@@ -294,21 +301,7 @@ func (h *Handler) ListRepo(w http.ResponseWriter, r *http.Request) {
 		Repositories: repositories,
 	}
 
-	var buf bytes.Buffer
-
-	if err = json.NewEncoder(&buf).Encode(response); err != nil {
-		logger.Log(logger.LevelError, nil, err, "encoding response")
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusOK)
-
-	if _, err = w.Write(buf.Bytes()); err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing response")
-	}
+	writeJSONResponse(w, http.StatusOK, response)
 }
 
 func RemoveRepository(name string, settings *cli.EnvSettings) error {
