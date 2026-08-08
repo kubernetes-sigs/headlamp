@@ -2378,7 +2378,7 @@ func TestStartHeadlampServer(t *testing.T) {
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
 				// port comes from net.TCPAddr.Port and is always in [0, 65535], so uint conversion is safe.
-				Port:            uint(port), //nolint:gosec // G115: port is bounded to [0, 65535] by net.TCPAddr
+				Port:            uint(port),
 				PluginDir:       tempDir,
 				KubeConfigStore: kubeconfig.NewContextStore(),
 			},
