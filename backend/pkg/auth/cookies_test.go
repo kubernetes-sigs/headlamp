@@ -294,3 +294,163 @@ func TestClearAuthCookie(t *testing.T) {
 		t.Errorf("Expected MaxAge to be -1, got %d", cookie.MaxAge)
 	}
 }
+
+func TestSetAndGetIDTokenCookie(t *testing.T) {
+	req := httptest.NewRequestWithContext(context.Background(), "GET", localhost, nil)
+	req.Host = localhost
+	w := httptest.NewRecorder()
+
+	testTTL := 100
+	auth.SetIDTokenCookie(w, req, "test-cluster", "test-id-token", "", testTTL)
+
+	cookies := w.Result().Cookies()
+	if len(cookies) < 1 {
+		t.Fatalf("Expected at least 1 cookie, got %d", len(cookies))
+	}
+
+	cookie := cookies[0]
+	if cookie.Name != "headlamp-id-token-test-cluster.0" {
+		t.Errorf("Expected cookie name 'headlamp-id-token-test-cluster.0', got %q", cookie.Name)
+	}
+
+	if cookie.Value != "test-id-token" {
+		t.Errorf("Expected cookie value 'test-id-token', got %q", cookie.Value)
+	}
+
+	if !cookie.HttpOnly {
+		t.Error("Expected HttpOnly to be true")
+	}
+
+	if cookie.MaxAge != testTTL {
+		t.Errorf("Expected MaxAge to be %d, got %d", testTTL, cookie.MaxAge)
+	}
+
+	if cookie.Path != "/clusters/test-cluster" {
+		t.Errorf("Expected cookie path '/clusters/test-cluster', got %q", cookie.Path)
+	}
+
+	req.AddCookie(cookie)
+
+	idToken, err := auth.GetIDTokenFromCookie(req, "test-cluster")
+	if err != nil {
+		t.Fatalf("GetIDTokenFromCookie failed: %v", err)
+	}
+
+	if idToken != "test-id-token" {
+		t.Errorf("Expected ID token 'test-id-token', got %q", idToken)
+	}
+}
+
+func TestGetIDTokenCookieChunked(t *testing.T) {
+	req := httptest.NewRequestWithContext(context.Background(), "GET", localhostOrigin, nil)
+	req.Host = localhost
+	w := httptest.NewRecorder()
+
+	longIDToken := strings.Repeat("a", 5000)
+
+	auth.SetIDTokenCookie(w, req, "test-cluster", longIDToken, "", 86400)
+
+	cookies := w.Result().Cookies()
+	if len(cookies) < 2 {
+		t.Fatalf("Expected at least 2 cookies for a chunked ID token, got %d", len(cookies))
+	}
+
+	for _, cookie := range cookies {
+		req.AddCookie(cookie)
+	}
+
+	idToken, err := auth.GetIDTokenFromCookie(req, "test-cluster")
+	if err != nil {
+		t.Fatalf("GetIDTokenFromCookie failed: %v", err)
+	}
+
+	if idToken != longIDToken {
+		t.Errorf("Expected ID token to be %d characters, got %d", len(longIDToken), len(idToken))
+	}
+}
+
+func TestClearIDTokenCookie(t *testing.T) {
+	req := httptest.NewRequestWithContext(context.Background(), "GET", localhostOrigin, nil)
+	req.Host = localhost
+	w := httptest.NewRecorder()
+
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-id-token-test-cluster.0",
+		Value:    "test-id-token",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/clusters/test-cluster",
+		MaxAge:   86400,
+	})
+
+	auth.ClearIDTokenCookie(w, req, "test-cluster", "")
+
+	cookies := w.Result().Cookies()
+	if len(cookies) != 1 {
+		t.Fatalf("Expected 1 cookie, got %d", len(cookies))
+	}
+
+	cookie := cookies[0]
+	if cookie.Name != "headlamp-id-token-test-cluster.0" {
+		t.Errorf("Expected cookie name 'headlamp-id-token-test-cluster.0', got %q", cookie.Name)
+	}
+
+	if cookie.Value != "" {
+		t.Errorf("Expected cookie value to be empty, got %q", cookie.Value)
+	}
+
+	if cookie.MaxAge != -1 {
+		t.Errorf("Expected MaxAge to be -1, got %d", cookie.MaxAge)
+	}
+
+	if cookie.Path != "/clusters/test-cluster" {
+		t.Errorf("Expected cookie path '/clusters/test-cluster', got %q", cookie.Path)
+	}
+}
+
+func TestClearIDTokenCookieChunked(t *testing.T) {
+	req := httptest.NewRequestWithContext(context.Background(), "GET", localhostOrigin, nil)
+	req.Host = localhost
+	w := httptest.NewRecorder()
+
+	//nolint:gosec
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-id-token-test-cluster.0",
+		Value:    "chunk0",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/clusters/test-cluster",
+		MaxAge:   86400,
+	})
+	//nolint:gosec
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-id-token-test-cluster.1",
+		Value:    "chunk1",
+		HttpOnly: true,
+		SameSite: http.SameSiteStrictMode,
+		Path:     "/clusters/test-cluster",
+		MaxAge:   86400,
+	})
+
+	auth.ClearIDTokenCookie(w, req, "test-cluster", "")
+
+	cookies := w.Result().Cookies()
+	if len(cookies) != 2 {
+		t.Fatalf("Expected 2 cookies, got %d", len(cookies))
+	}
+
+	for _, cookie := range cookies {
+		if cookie.Value != "" {
+			t.Errorf("Expected cookie value to be empty, got %q", cookie.Value)
+		}
+
+		if cookie.MaxAge != -1 {
+			t.Errorf("Expected MaxAge to be -1, got %d", cookie.MaxAge)
+		}
+
+		if cookie.Path != "/clusters/test-cluster" {
+			t.Errorf("Expected cookie path '/clusters/test-cluster', got %q", cookie.Path)
+		}
+	}
+}
