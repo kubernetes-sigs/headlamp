@@ -39,6 +39,7 @@ import { Activity } from '../components/activity/Activity';
 import { runCommand } from '../components/App/runCommand';
 import { applyBackendThemeConfig, ensureValidThemeName } from '../components/App/themeSlice';
 import * as CommonComponents from '../components/common';
+import * as ResourceMap from '../components/resourceMap';
 import { addBackstageAuthHeaders } from '../helpers/addBackstageAuthHeaders';
 import { getAppUrl } from '../helpers/getAppUrl';
 import { isElectron } from '../helpers/isElectron';
@@ -74,6 +75,7 @@ window.pluginLib = {
     __esModule: true,
   },
   CommonComponents,
+  ResourceMap,
   MuiMaterial: {
     ...MuiMaterial,
     styles: MuiMaterialStyles,
