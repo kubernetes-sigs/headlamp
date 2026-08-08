@@ -107,15 +107,6 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
     setDismissed(false);
   }, [error]);
 
-  React.useEffect(
-    () => {
-      const id = registerSetInterval();
-      return () => clearInterval(id);
-    },
-    // eslint-disable-next-line
-    [networkStatusCheckTimeFactor]
-  );
-
   const showOnRoute = React.useMemo(() => {
     for (const routeName of ROUTES_WITHOUT_ALERT) {
       const maybeRoute = getRoute(routeName);
@@ -130,6 +121,24 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
     }
     return true;
   }, [pathname]);
+
+  React.useEffect(
+    () => {
+      // Routes in ROUTES_WITHOUT_ALERT hide the alert, so they get no health
+      // polling. On the login route the checks fail while the session has no
+      // credentials, and that stale error plus backoff would render as a
+      // "lost connection" banner right after sign-in.
+      if (!showOnRoute) {
+        setError(null);
+        setNetworkStatusCheckTimeFactor(0);
+        return;
+      }
+      const id = registerSetInterval();
+      return () => clearInterval(id);
+    },
+    // eslint-disable-next-line
+    [networkStatusCheckTimeFactor, showOnRoute]
+  );
 
   if (!error || !showOnRoute || dismissed) {
     return null;
