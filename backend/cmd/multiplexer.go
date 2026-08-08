@@ -28,6 +28,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/gorilla/websocket"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -660,6 +661,19 @@ func (m *Multiplexer) processClientMessage(
 	lockClientConn *WSConnLock,
 	msg Message,
 ) {
+	if routeCluster := mux.Vars(r)["clusterName"]; routeCluster != "" && routeCluster != msg.ClusterID {
+		m.sendClientError(
+			lockClientConn,
+			msg.ClusterID,
+			msg.Path,
+			msg.Query,
+			msg.UserID,
+			fmt.Errorf("cluster ID %q does not match WebSocket route cluster %q", msg.ClusterID, routeCluster),
+		)
+
+		return
+	}
+
 	// Check if it's a close message
 	if msg.Type == "CLOSE" {
 		m.CloseConnection(msg.ClusterID, msg.Path, msg.UserID)

@@ -88,8 +88,23 @@ export interface ConfigState {
     timezone: string;
     sidebarSortAlphabetically: boolean;
     useEvict: boolean;
+    /**
+     * websocketModeUserOverride is the user's local override for the WebSocket mode.
+     * 'auto' (or undefined) means the user has not set a preference; the resolver falls back to
+     * the build-time env var (REACT_APP_WEBSOCKET_MODE / legacy REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER),
+     * then the server-configured websocketMode, then the default 'websockets'.
+     */
+    websocketModeUserOverride?: 'websockets' | 'off' | 'multiplexer' | 'auto';
     [key: string]: any;
   };
+  /**
+   * websocketMode controls real-time update behaviour.
+   * 'websockets' (default) uses standard WebSocket connections,
+   * 'multiplexer' uses an experimental multiplexed connection for improved performance,
+   * 'off' disables real-time updates entirely.
+   * Null indicates that the config has not been loaded yet.
+   */
+  websocketMode: 'websockets' | 'off' | 'multiplexer' | null;
 }
 
 export const defaultTableRowsPerPageOptions = [15, 25, 50, 100];
@@ -151,6 +166,17 @@ function loadStoredSettings(): Partial<ConfigState['settings']> {
     if (isBoolean(parsedSettings.useEvict)) {
       sanitizedSettings.useEvict = parsedSettings.useEvict;
     }
+    const validOverrides = new Set(['websockets', 'off', 'multiplexer', 'auto']);
+    if (
+      isString(parsedSettings.websocketModeUserOverride) &&
+      validOverrides.has(parsedSettings.websocketModeUserOverride)
+    ) {
+      sanitizedSettings.websocketModeUserOverride = parsedSettings.websocketModeUserOverride as
+        | 'websockets'
+        | 'off'
+        | 'multiplexer'
+        | 'auto';
+    }
 
     return sanitizedSettings;
   } catch {
@@ -175,7 +201,9 @@ export const initialState: ConfigState = {
     timezone: storedSettings.timezone || defaultTimezone(),
     sidebarSortAlphabetically: storedSettings.sidebarSortAlphabetically ?? false,
     useEvict: storedSettings.useEvict ?? true,
+    websocketModeUserOverride: storedSettings.websocketModeUserOverride,
   },
+  websocketMode: null,
 };
 
 const configSlice = createSlice({
@@ -199,6 +227,7 @@ const configSlice = createSlice({
         defaultLightTheme?: string;
         defaultDarkTheme?: string;
         forceTheme?: string;
+        websocketMode?: string;
       }>
     ) {
       state.clusters = action.payload.clusters;
@@ -220,6 +249,12 @@ const configSlice = createSlice({
       state.defaultLightTheme = action.payload.defaultLightTheme;
       state.defaultDarkTheme = action.payload.defaultDarkTheme;
       state.forceTheme = action.payload.forceTheme;
+      if (action.payload.websocketMode !== undefined) {
+        const validModes = new Set(['websockets', 'off', 'multiplexer']);
+        state.websocketMode = validModes.has(action.payload.websocketMode)
+          ? (action.payload.websocketMode as 'websockets' | 'off' | 'multiplexer')
+          : 'websockets';
+      }
     },
     /**
      * Save the config. To both the store, and localStorage.

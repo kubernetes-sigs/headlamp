@@ -26,7 +26,7 @@ import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
 import { useWebSocket } from './multiplexer';
 import { kubeRequestRetry } from './retry';
-import { getWebsocketMultiplexerEnabled } from './useKubeObjectList';
+import { useWebsocketMode } from './useKubeObjectList';
 import { useWebSockets } from './webSocket';
 
 export type QueryStatus = 'pending' | 'success' | 'error';
@@ -190,8 +190,10 @@ export function useKubeObject<K extends KubeObject>({
     ];
   }, [endpoint, namespace, name, cleanedUpQueryParams, cluster, handleMessage]);
 
-  const multiplexerEnabled = getWebsocketMultiplexerEnabled();
+  const mode = useWebsocketMode();
 
+  // Call both hooks unconditionally to comply with Rules of Hooks,
+  // but only enable the one matching the current websocket mode (websockets/multiplexer/off)
   useWebSocket<KubeListUpdateEvent<K>>({
     url: useCallback(
       () =>
@@ -202,13 +204,13 @@ export function useKubeObject<K extends KubeObject>({
         }),
       [endpoint, namespace, cleanedUpQueryParams, name]
     ),
-    enabled: multiplexerEnabled && !!endpoint && !!data,
+    enabled: mode === 'multiplexer' && !!endpoint && !!data,
     cluster,
     onMessage: handleMessage,
   });
 
   useWebSockets({
-    enabled: !multiplexerEnabled && !!endpoint && !!data,
+    enabled: mode === 'websockets' && !!endpoint && !!data,
     connections: connectionsRequests,
   });
 

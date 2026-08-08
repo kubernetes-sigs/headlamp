@@ -37,6 +37,7 @@ import { useSettings } from './hook';
 import NumRowsInput from './NumRowsInput';
 import { ShortcutsList } from './ShortcutsSettings';
 import { ThemePreview } from './ThemePreview';
+import WebsocketModeSettings from './WebsocketModeSettings';
 
 export default function Settings() {
   const { t } = useTranslation(['translation']);
@@ -107,6 +108,7 @@ export default function Settings() {
   const trayIconLabelID = 'tray-icon-label';
   const tableRowsLabelID = 'rows-per-page-label';
   const timezoneLabelID = 'timezone-label';
+  const websocketModeLabelID = 'websocket-mode-label';
 
   return (
     <SectionBox
@@ -185,6 +187,11 @@ export default function Settings() {
               />
             ),
             nameID: evictLabelID,
+          },
+          {
+            name: t('translation|WebSocket mode'),
+            value: <WebsocketModeSettings nameLabelID={websocketModeLabelID} />,
+            nameID: websocketModeLabelID,
           },
           ...(isElectron()
             ? [

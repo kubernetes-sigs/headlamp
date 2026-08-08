@@ -14,19 +14,25 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { act, renderHook, waitFor } from '@testing-library/react';
 import type { ReactNode } from 'react';
+import { Provider } from 'react-redux';
 import { describe, expect, it, vi } from 'vitest';
+import configReducer from '../../../../redux/configSlice';
+import store, { RootState } from '../../../../redux/stores/store';
 import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
 import {
   DEFAULT_LIST_LIMIT,
+  getWebsocketMode,
   kubeObjectListQuery,
   ListResponse,
   makeListRequests,
   useKubeObjectList,
   useWatchKubeObjectLists,
+  useWebsocketMode,
 } from './useKubeObjectList';
 import * as websocket from './webSocket';
 
@@ -205,8 +211,12 @@ function deferred<T>() {
 
 describe('useWatchKubeObjectLists', () => {
   beforeEach(() => {
-    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', 'websockets');
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('should not be enabled when no endpoint is provided', () => {
@@ -214,7 +224,9 @@ describe('useWatchKubeObjectLists', () => {
     const queryClient = new QueryClient();
     renderHook(() => useWatchKubeObjectLists({ kubeObjectClass: mockClass, lists: [] }), {
       wrapper: ({ children }) => (
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        <Provider store={store}>
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        </Provider>
       ),
     });
     expect(spy).toHaveBeenCalledWith({ enabled: false, connections: [] });
@@ -233,7 +245,9 @@ describe('useWatchKubeObjectLists', () => {
         }),
       {
         wrapper: ({ children }) => (
-          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          <Provider store={store}>
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          </Provider>
         ),
       }
     );
@@ -259,7 +273,9 @@ describe('useWatchKubeObjectLists', () => {
         }),
       {
         wrapper: ({ children }) => (
-          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          <Provider store={store}>
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          </Provider>
         ),
       }
     );
@@ -317,7 +333,9 @@ describe('useWatchKubeObjectLists', () => {
     // When watching lists
     renderHook(() => useWatchKubeObjectLists({ kubeObjectClass, lists, endpoint }), {
       wrapper: ({ children }) => (
-        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        <Provider store={store}>
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        </Provider>
       ),
     });
 
@@ -363,10 +381,48 @@ describe('useWatchKubeObjectLists', () => {
   });
 });
 
+describe('useWatchKubeObjectLists (off mode)', () => {
+  beforeEach(() => {
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', 'off');
+    vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('should disable both legacy and multiplexed watchers when mode is off', () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+
+    renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          lists: [{ cluster: 'cluster-a', namespace: 'namespace-a', resourceVersion: '1' }],
+          endpoint: { version: 'v1', resource: 'pods' },
+        }),
+      {
+        wrapper: ({ children }) => (
+          <Provider store={store}>
+            <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+          </Provider>
+        ),
+      }
+    );
+
+    expect(mockSubscribe).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalledWith({ enabled: false, connections: [] });
+  });
+});
+
 describe('useKubeObjectList', () => {
   beforeEach(() => {
-    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', 'websockets');
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('should not add a list limit unless the caller opts in', async () => {
@@ -876,7 +932,9 @@ describe('useKubeObjectList', () => {
         }),
       {
         wrapper: ({ children }) => (
-          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          <Provider store={store}>
+            <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+          </Provider>
         ),
       }
     );
@@ -927,8 +985,12 @@ describe('useKubeObjectList', () => {
 
 describe('useWatchKubeObjectLists (Multiplexer)', () => {
   beforeEach(() => {
-    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', 'multiplexer');
     vi.clearAllMocks();
+  });
+
+  afterEach(() => {
+    vi.unstubAllEnvs();
   });
 
   it('should subscribe using WebSocketManager when multiplexer is enabled', () => {
@@ -943,7 +1005,9 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
         }),
       {
         wrapper: ({ children }) => (
-          <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+          <Provider store={store}>
+            <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+          </Provider>
         ),
       }
     );
@@ -972,7 +1036,9 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
         }),
       {
         wrapper: ({ children }) => (
-          <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+          <Provider store={store}>
+            <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+          </Provider>
         ),
       }
     );
@@ -1008,7 +1074,9 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
         }),
       {
         wrapper: ({ children }) => (
-          <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+          <Provider store={store}>
+            <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+          </Provider>
         ),
       }
     );
@@ -1093,5 +1161,226 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
         )
       ).toBe(true)
     );
+  });
+});
+
+describe('useWebsocketMode', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('returns "multiplexer" when REACT_APP_WEBSOCKET_MODE is "multiplexer"', () => {
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', 'multiplexer');
+    const { result } = renderHook(() => useWebsocketMode(), {
+      wrapper: ({ children }) => <Provider store={store}>{children}</Provider>,
+    });
+    expect(result.current).toBe('multiplexer');
+  });
+
+  it('returns "off" when REACT_APP_WEBSOCKET_MODE is "off"', () => {
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', 'off');
+    const { result } = renderHook(() => useWebsocketMode(), {
+      wrapper: ({ children }) => <Provider store={store}>{children}</Provider>,
+    });
+    expect(result.current).toBe('off');
+  });
+
+  it('returns "multiplexer" when legacy REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER is "true"', () => {
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', '');
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    const { result } = renderHook(() => useWebsocketMode(), {
+      wrapper: ({ children }) => <Provider store={store}>{children}</Provider>,
+    });
+    expect(result.current).toBe('multiplexer');
+  });
+
+  it('returns "websockets" when legacy REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER is "false" even if runtime config says multiplexer', () => {
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', '');
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+    const testStore = configureStore({
+      reducer: { config: configReducer },
+      preloadedState: {
+        config: { ...store.getState().config, websocketMode: 'multiplexer' as const },
+      },
+    });
+    const { result } = renderHook(() => useWebsocketMode(), {
+      wrapper: ({ children }) => <Provider store={testStore}>{children}</Provider>,
+    });
+    expect(result.current).toBe('websockets');
+  });
+
+  it('returns "off" when legacy REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER is "false" and runtime config is "off"', () => {
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', '');
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+    const testStore = configureStore({
+      reducer: { config: configReducer },
+      preloadedState: {
+        config: { ...store.getState().config, websocketMode: 'off' as const },
+      },
+    });
+    const { result } = renderHook(() => useWebsocketMode(), {
+      wrapper: ({ children }) => <Provider store={testStore}>{children}</Provider>,
+    });
+    expect(result.current).toBe('off');
+  });
+
+  it('returns "multiplexer" when runtime config is "multiplexer"', () => {
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', '');
+    const testStore = configureStore({
+      reducer: {
+        config: configReducer,
+      },
+      preloadedState: {
+        config: {
+          ...store.getState().config,
+          websocketMode: 'multiplexer' as const,
+        },
+      },
+    });
+    const { result } = renderHook(() => useWebsocketMode(), {
+      wrapper: ({ children }) => <Provider store={testStore}>{children}</Provider>,
+    });
+    expect(result.current).toBe('multiplexer');
+  });
+
+  it('returns "websockets" when mode is not set', () => {
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', '');
+    const testStore = configureStore({
+      reducer: {
+        config: configReducer,
+      },
+      preloadedState: {
+        config: {
+          ...store.getState().config,
+          websocketMode: 'websockets' as const,
+        },
+      },
+    });
+    const { result } = renderHook(() => useWebsocketMode(), {
+      wrapper: ({ children }) => <Provider store={testStore}>{children}</Provider>,
+    });
+    expect(result.current).toBe('websockets');
+  });
+});
+
+describe('getWebsocketMode', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it('returns "multiplexer" when REACT_APP_WEBSOCKET_MODE is "multiplexer"', () => {
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', 'multiplexer');
+    expect(getWebsocketMode()).toBe('multiplexer');
+  });
+
+  it('returns "off" when REACT_APP_WEBSOCKET_MODE is "off"', () => {
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', 'off');
+    expect(getWebsocketMode()).toBe('off');
+  });
+
+  it('returns "websockets" when legacy REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER is "false" and runtime config is "multiplexer"', () => {
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', '');
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+    const spy = vi.spyOn(store, 'getState').mockImplementation(
+      configureStore({
+        reducer: { config: configReducer },
+        preloadedState: {
+          config: { ...store.getState().config, websocketMode: 'multiplexer' as const },
+        },
+      }).getState as () => RootState
+    );
+    try {
+      expect(getWebsocketMode()).toBe('websockets');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('returns "off" when legacy REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER is "false" and runtime config is "off"', () => {
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', '');
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+    const spy = vi.spyOn(store, 'getState').mockImplementation(
+      configureStore({
+        reducer: { config: configReducer },
+        preloadedState: { config: { ...store.getState().config, websocketMode: 'off' as const } },
+      }).getState as () => RootState
+    );
+    try {
+      expect(getWebsocketMode()).toBe('off');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('returns "multiplexer" when runtime config is "multiplexer" (env var unset)', () => {
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', '');
+    const testStore = configureStore({
+      reducer: {
+        config: configReducer,
+      },
+      preloadedState: {
+        config: {
+          ...store.getState().config,
+          websocketMode: 'multiplexer' as const,
+        },
+      },
+    });
+    // Replace the global store temporarily
+    const spy = vi
+      .spyOn(store, 'getState')
+      .mockImplementation(testStore.getState as () => RootState);
+    try {
+      expect(getWebsocketMode()).toBe('multiplexer');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('returns "websockets" when runtime config is "websockets" (env var unset)', () => {
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', '');
+    const testStore = configureStore({
+      reducer: {
+        config: configReducer,
+      },
+      preloadedState: {
+        config: {
+          ...store.getState().config,
+          websocketMode: 'websockets' as const,
+        },
+      },
+    });
+    // Replace the global store temporarily
+    const spy = vi
+      .spyOn(store, 'getState')
+      .mockImplementation(testStore.getState as () => RootState);
+    try {
+      expect(getWebsocketMode()).toBe('websockets');
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it('returns "off" when runtime config is null (config not yet loaded, env var unset)', () => {
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', '');
+    const testStore = configureStore({
+      reducer: {
+        config: configReducer,
+      },
+      preloadedState: {
+        config: {
+          ...store.getState().config,
+          websocketMode: null,
+        },
+      },
+    });
+    // Replace the global store temporarily
+    const spy = vi
+      .spyOn(store, 'getState')
+      .mockImplementation(testStore.getState as () => RootState);
+    try {
+      expect(getWebsocketMode()).toBe('off');
+    } finally {
+      spy.mockRestore();
+    }
   });
 });

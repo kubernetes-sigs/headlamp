@@ -51,6 +51,7 @@ type Config struct {
 	EnableDynamicClusters  bool   `koanf:"enable-dynamic-clusters"`
 	EnableClusterInventory bool   `koanf:"enable-cluster-inventory"`
 	AllowKubeconfigChanges bool   `koanf:"allow-kubeconfig-changes"`
+	WebsocketMode          string `koanf:"websocket-mode"`
 	ListenAddr             string `koanf:"listen-addr"`
 	WatchPluginsChanges    bool   `koanf:"watch-plugins-changes"`
 	Port                   uint   `koanf:"port"`
@@ -233,6 +234,31 @@ func (c *Config) validateClusterInventory() error {
 	c.ClusterInventoryLabelSelector = labelSelector
 
 	return nil
+}
+
+// validateWebsocketMode validates the WebsocketMode field and applies a default.
+// An empty value (i.e. the field was not set via any configuration source) is
+// normalised to "websockets". Any other value that is not one of the three
+// supported modes ("websockets", "multiplexer", "off") is rejected with an error.
+//
+// Configuration sources in priority order (highest wins):
+//  1. HEADLAMP_CONFIG_WEBSOCKET_MODE environment variable
+//  2. websocketMode Helm value (injected as the env var above by the chart)
+//  3. Default: "websockets"
+func (c *Config) validateWebsocketMode() error {
+	c.WebsocketMode = strings.ToLower(strings.TrimSpace(c.WebsocketMode))
+
+	if c.WebsocketMode == "" {
+		c.WebsocketMode = "websockets"
+	}
+
+	switch c.WebsocketMode {
+	case "websockets", "multiplexer", "off":
+		return nil
+	default:
+		return fmt.Errorf("invalid websocket-mode value %q: "+
+			"must be one of: websockets, multiplexer, off", c.WebsocketMode)
+	}
 }
 
 func (c *Config) validateServiceAccountTokenFlags() error {
@@ -466,6 +492,12 @@ func Parse(args []string) (*Config, error) {
 		return nil, err
 	}
 
+	// 10. Validate websocket mode separately (kept outside Validate to respect funlen limit).
+	if err := config.validateWebsocketMode(); err != nil {
+		logger.Log(logger.LevelError, nil, err, "validating websocket-mode config value")
+		return nil, err
+	}
+
 	return &config, nil
 }
 
@@ -550,6 +582,7 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.Bool("no-browser", false, "Disable automatically opening the browser when using embedded frontend")
 	f.Bool("insecure-ssl", false, "Accept/Ignore all server SSL certificates")
 	f.String("log-level", "info", "Set backend log verbosity. Options: debug, info (default), warn, error")
+	f.String("websocket-mode", "websockets", "Set real-time update mode. Options: websockets, multiplexer, off")
 	f.Bool("enable-dynamic-clusters", false, "Enable dynamic clusters, which stores stateless clusters in the frontend.")
 	f.Bool("allow-kubeconfig-changes", false,
 		"Allow Headlamp to make changes to the known kubeconfigs when needed. "+
