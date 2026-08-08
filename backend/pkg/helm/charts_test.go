@@ -20,6 +20,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -28,6 +29,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/helmpath"
 )
 
 var settings = cli.New()
@@ -112,4 +114,49 @@ func TestListChartContentType(t *testing.T) {
 
 	// Verify Content-Type header is correctly set.
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+}
+
+func TestListChartSkipsInvalidRepositoryCache(t *testing.T) {
+	ch := cache.New[interface{}]()
+	require.NotNil(t, ch)
+
+	tmpDir := t.TempDir()
+
+	customSettings := cli.New()
+	customSettings.RepositoryConfig = filepath.Join(tmpDir, "repositories.yaml")
+	customSettings.RepositoryCache = tmpDir
+
+	helmHandler, err := helm.NewHandlerWithSettings(ch, customSettings)
+	require.NoError(t, err)
+
+	testAddRepo(t, helmHandler, "valid_repo", "https://kubernetes-sigs.github.io/headlamp/")
+	testAddRepo(t, helmHandler, "broken_repo", "https://kubernetes-sigs.github.io/headlamp/")
+
+	cacheFile := filepath.Join(
+		customSettings.RepositoryCache,
+		helmpath.CacheIndexFile("broken_repo"),
+	)
+
+	err = os.WriteFile(cacheFile, []byte("invalid yaml"), 0o600)
+	require.NoError(t, err)
+
+	req, err := http.NewRequestWithContext(
+		context.Background(),
+		http.MethodGet,
+		"/clusters/minikube/helm/repositories/charts",
+		nil,
+	)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+
+	helmHandler.ListCharts(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	body := rr.Body.String()
+
+	assert.Contains(t, body, `"repository":"valid_repo"`)
+	assert.Contains(t, body, `"name":"valid_repo/headlamp"`)
+	assert.NotContains(t, body, `"repository":"broken_repo"`)
 }
