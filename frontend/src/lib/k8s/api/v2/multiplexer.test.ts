@@ -91,6 +91,11 @@ describe('WebSocket Multiplexer', () => {
     WebSocketManager.activeSubscriptions.clear();
     WebSocketManager.pendingUnsubscribes.forEach(clearTimeout);
     WebSocketManager.pendingUnsubscribes.clear();
+    if (WebSocketManager.reconnectTimer) {
+      clearTimeout(WebSocketManager.reconnectTimer);
+    }
+    WebSocketManager.reconnectTimer = null;
+    WebSocketManager.reconnectAttempts = 0;
   });
 
   describe('WebSocketManager', () => {
@@ -571,6 +576,132 @@ describe('WebSocket Multiplexer', () => {
       expect(WebSocketManager.isReconnecting).toBe(false);
 
       newServer.close();
+    });
+
+    it('should automatically reconnect and resubscribe after a close, with no manual connect() call', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=true';
+
+      // Establish the first connection with real timers.
+      await WebSocketManager.subscribe(clusterName, path, query, onMessage);
+      await mockServer.connected;
+      await mockServer.nextMessage; // Skip initial subscription
+
+      mockServer.close();
+      expect(WebSocketManager.isReconnecting).toBe(true);
+      expect(WebSocketManager.reconnectTimer).not.toBeNull();
+
+      // mock-socket only allows one server per URL, so create the replacement after closing the old one.
+      const newServer = new WS(`${BASE_WS_URL}${MULTIPLEXER_ENDPOINT}`);
+
+      // Real timers throughout: this is an end-to-end check that a real reconnect
+      // handshake happens with no manual connect() call, so there's a genuine ~1s
+      // wait here. Exact backoff timing is verified separately, under fake timers,
+      // by the "back off exponentially" test below (which mocks connect()).
+      await newServer.connected;
+
+      const resubMsg = JSON.parse((await newServer.nextMessage) as string);
+      expect(resubMsg).toEqual({
+        clusterId: clusterName,
+        path,
+        query,
+        userId,
+        type: 'REQUEST',
+      });
+
+      expect(WebSocketManager.isReconnecting).toBe(false);
+      expect(WebSocketManager.reconnectAttempts).toBe(0);
+      expect(WebSocketManager.reconnectTimer).toBeNull();
+
+      WebSocketManager.activeSubscriptions.clear();
+      newServer.close();
+    });
+
+    it('should back off exponentially between reconnect attempts, capped at 30s', async () => {
+      vi.useFakeTimers();
+
+      try {
+        // Seed the expected reconnect state before calling scheduleReconnect() directly.
+        WebSocketManager.activeSubscriptions.set('backoff-test-key', {
+          clusterId: clusterName,
+          path: '/api/v1/pods',
+          query: '',
+        });
+
+        // Verify backoff behaviorally: connect() shouldn't fire before the expected delay, only after.
+        const connectSpy = vi.spyOn(WebSocketManager, 'connect').mockResolvedValue({} as WebSocket);
+
+        const clearPending = () => {
+          if (WebSocketManager.reconnectTimer) {
+            clearTimeout(WebSocketManager.reconnectTimer);
+          }
+          WebSocketManager.reconnectTimer = null;
+          WebSocketManager.reconnectAttempts = 0;
+          connectSpy.mockClear();
+        };
+
+        WebSocketManager.reconnectAttempts = 0;
+        WebSocketManager.scheduleReconnect();
+        await vi.advanceTimersByTimeAsync(1000 - 1);
+        expect(connectSpy).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
+        expect(connectSpy).toHaveBeenCalledTimes(1);
+        clearPending();
+
+        WebSocketManager.reconnectAttempts = 3;
+        WebSocketManager.scheduleReconnect();
+        await vi.advanceTimersByTimeAsync(8000 - 1);
+        expect(connectSpy).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
+        expect(connectSpy).toHaveBeenCalledTimes(1);
+        clearPending();
+
+        // 2 ** 10 * 1000 would be far beyond the 30s cap.
+        WebSocketManager.reconnectAttempts = 10;
+        WebSocketManager.scheduleReconnect();
+        await vi.advanceTimersByTimeAsync(30000 - 1);
+        expect(connectSpy).not.toHaveBeenCalled();
+        await vi.advanceTimersByTimeAsync(1);
+        expect(connectSpy).toHaveBeenCalledTimes(1);
+        clearPending();
+      } finally {
+        vi.useRealTimers();
+        WebSocketManager.activeSubscriptions.clear();
+        WebSocketManager.reconnectAttempts = 0;
+        vi.restoreAllMocks();
+      }
+    });
+
+    it('should cancel a pending reconnect once the last active subscription is removed', async () => {
+      const path = '/api/v1/pods';
+      const query = 'watch=true';
+
+      // Real timers here - the mock server handshake needs real async timing.
+      const cleanup = await WebSocketManager.subscribe(clusterName, path, query, onMessage);
+      await mockServer.connected;
+      await mockServer.nextMessage; // Skip initial subscription
+
+      vi.useFakeTimers();
+      try {
+        // Call handleWebSocketClose() directly instead of mockServer.close() - the mock
+        // server's close event isn't reliably observable once fake timers are active.
+        WebSocketManager.handleWebSocketClose();
+        expect(WebSocketManager.reconnectTimer).not.toBeNull();
+
+        cleanup();
+        // Let the unsubscribe debounce (100ms) run.
+        await vi.advanceTimersByTimeAsync(100);
+
+        expect(WebSocketManager.activeSubscriptions.size).toBe(0);
+        expect(WebSocketManager.reconnectTimer).toBeNull();
+        expect(WebSocketManager.isReconnecting).toBe(false);
+        const connectSpy = vi.spyOn(WebSocketManager, 'connect').mockResolvedValue({} as WebSocket);
+        // Advance well past what would have been the next backoff attempt.
+        await vi.advanceTimersByTimeAsync(30000);
+        expect(connectSpy).not.toHaveBeenCalled();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('should handle WebSocket close event', async () => {
