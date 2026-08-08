@@ -66,7 +66,10 @@ export interface ProjectDeleteButton {
 
 export interface ProjectHeaderAction {
   id: string;
-  component: (props: { project: ProjectDefinition }) => ReactNode;
+  component: (props: {
+    project: ProjectDefinition;
+    setSelectedTab?: (tabId: string) => void;
+  }) => ReactNode;
   /** Function to check if this action should be displayed in the given project. If not provided the action will be enabled. */
   isEnabled?: ({ project }: { project: ProjectDefinition }) => Promise<boolean>;
 }

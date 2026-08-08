@@ -371,7 +371,7 @@ const ProjectDetailsContext = createContext<
 /**
  * Project Details page
  */
-function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
+export function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
   const { t } = useTranslation();
   const registeredTabs = useTypedSelector(state => state.projects.detailsTabs);
   const customDeleteButton = useTypedSelector(state => state.projects.projectDeleteButton);
@@ -382,6 +382,9 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
   >(() => ProjectDeleteButton);
 
   const [headerActions, setHeaderActions] = useState<ReactNode[]>([]);
+  const [selectedTab, setSelectedTab] = useState<string>();
+  const [selectedCategoryName, setSelectedCategoryName] = React.useState<string>();
+  const [allTabs, setAllTabs] = useState<Record<string, ProjectDetailsTab>>(DEFAULT_TABS);
 
   // Load custom delete button
   useEffect(() => {
@@ -416,6 +419,11 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
 
     async function loadHeaderActions() {
       const actionsList = Object.values(registeredHeaderActions);
+      const selectAvailableTab = (tabId: string) => {
+        if (allTabs[tabId]?.component) {
+          setSelectedTab(tabId);
+        }
+      };
 
       // Get a list of enabled header actions
       const enabledActions = (
@@ -436,7 +444,15 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
 
       if (isCurrent) {
         const actions = enabledActions
-          .map(action => (action ? <action.component key={action.id} project={project} /> : null))
+          .map(action =>
+            action ? (
+              <action.component
+                key={action.id}
+                project={project}
+                setSelectedTab={selectAvailableTab}
+              />
+            ) : null
+          )
           .filter(Boolean);
         setHeaderActions(actions);
       }
@@ -447,14 +463,9 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
     return () => {
       isCurrent = false;
     };
-  }, [registeredHeaderActions, project]);
-
-  const [selectedTab, setSelectedTab] = useState<string>();
-  const [selectedCategoryName, setSelectedCategoryName] = React.useState<string>();
+  }, [registeredHeaderActions, project, allTabs]);
 
   const { items, isLoading } = useProjectItems(project);
-
-  const [allTabs, setAllTabs] = useState<Record<string, ProjectDetailsTab>>(DEFAULT_TABS);
 
   useEffect(() => {
     async function loadTabs() {
