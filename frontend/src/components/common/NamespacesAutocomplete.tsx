@@ -204,10 +204,15 @@ export function NamespacesAutocomplete() {
   React.useEffect(() => {
     const settings = loadClusterSettings(cluster || '');
     const allowedNamespaces = settings?.allowedNamespaces || [];
+    setNamespaceNames(allowedNamespaces);
     if (allowedNamespaces.length > 0) {
-      setNamespaceNames(allowedNamespaces);
+      const currentNamespaces = [...filter.namespaces];
+      const valid = currentNamespaces.filter(ns => allowedNamespaces.includes(ns));
+      if (valid.length !== currentNamespaces.length) {
+        dispatch(setNamespaceFilter(valid));
+      }
     }
-  }, [cluster]);
+  }, [cluster, dispatch, filter.namespaces]);
 
   const onChange = (event: React.ChangeEvent<{}>, newValue: string[]) => {
     addQuery({ namespace: newValue.join(' ') }, { namespace: '' }, history, location, '');
@@ -266,7 +271,11 @@ const useDefaultNamespaceFallback = (
 function NamespacesFromClusterAutocomplete(
   props: Omit<PureNamespacesAutocompleteProps, 'namespaceNames'>
 ) {
-  const [namespacesList, error] = Namespace.useList();
+  const { items: namespacesList = null, error = null, isLoading = false } = Namespace.useList();
+  const dispatch = useDispatch();
+  const filter = props.filter;
+  const selectedNamespaces = filter.namespaces;
+
   const namespaceNames = useMemo(
     () =>
       uniq(namespacesList?.map(namespace => namespace.metadata.name) ?? [])
@@ -274,6 +283,16 @@ function NamespacesFromClusterAutocomplete(
         .sort((a, b) => a.localeCompare(b)),
     [namespacesList]
   );
+
+  useEffect(() => {
+    if (!isLoading && namespacesList !== null && !error && selectedNamespaces.size > 0) {
+      const currentNamespaces = [...selectedNamespaces];
+      const validNamespaces = currentNamespaces.filter(ns => namespaceNames.includes(ns));
+      if (validNamespaces.length !== currentNamespaces.length) {
+        dispatch(setNamespaceFilter(validNamespaces));
+      }
+    }
+  }, [isLoading, namespacesList, error, namespaceNames, selectedNamespaces, dispatch]);
 
   useDefaultNamespaceFallback(namespacesList, Boolean(error));
 
