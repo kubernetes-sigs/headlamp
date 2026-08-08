@@ -55,9 +55,10 @@ func TestGetInClusterContextServiceAccountTokenFile(t *testing.T) {
 		expectedTokenFile            string
 	}{
 		{
-			name:                    "unsafe disabled leaves token file empty",
+			name:                    "unsafe disabled preserves cluster bearer token file",
 			clusterBearerTokenFile:  path.Join("/", "cluster", "token"),
 			serviceAccountTokenPath: path.Join("/", "custom", "token"),
+			expectedTokenFile:       path.Join("/", "cluster", "token"),
 		},
 		{
 			name:                         "unsafe enabled uses explicit path",

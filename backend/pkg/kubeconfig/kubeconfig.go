@@ -1144,6 +1144,7 @@ func GetInClusterContext(
 	), nil
 }
 
+//nolint:funlen // was at the 60-line boundary before adding the token-file fix.
 func newInClusterContextFromConfig(
 	clusterConfig *rest.Config,
 	contextName string,
@@ -1172,7 +1173,9 @@ func newInClusterContextFromConfig(
 	}
 	contextName = MakeDNSFriendly(contextName)
 
-	inClusterAuthInfo := &api.AuthInfo{}
+	inClusterAuthInfo := &api.AuthInfo{
+		TokenFile: clusterConfig.BearerTokenFile,
+	}
 
 	if unsafeUseServiceAccountToken {
 		inClusterAuthInfo.TokenFile = resolveServiceAccountTokenPath(clusterConfig, serviceAccountTokenPath)
