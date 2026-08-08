@@ -35,23 +35,25 @@ export function useRecent(
 
   const bump = useCallback((id: string) => {
     setRecent(recent => {
+      if (maxItems <= 0) {
+        return {};
+      }
+
       const entries = Object.entries(recent);
       const newRecent: Record<string, number> = { ...recent };
+      const isNewItem = !(id in recent);
 
-      if (entries.length + 1 > maxItems) {
+      if (isNewItem && entries.length >= maxItems) {
         // Find oldest entry
-        let oldestEntry = entries[0];
-        entries.forEach(entry => {
-          if (entry[1] < oldestEntry[1]) {
-            oldestEntry = entry;
-          }
-        });
+        const oldestEntry = entries.reduce((oldest, entry) =>
+          entry[1] < oldest[1] ? entry : oldest
+        );
 
         // Remove it
         delete newRecent[oldestEntry[0]];
       }
 
-      newRecent[id] = +new Date();
+      newRecent[id] = Date.now();
 
       return newRecent;
     });
