@@ -37,6 +37,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -796,6 +797,171 @@ func TestExternalProxyStreamsLargeBody(t *testing.T) {
 
 	if read != size {
 		t.Errorf("streamed %d bytes, want %d", read, size)
+	}
+}
+
+func TestExternalProxyDoesNotFollowRedirects(t *testing.T) {
+	var secretHits int32
+
+	// A server that must never be reached server-side: it stands in for a
+	// disallowed or internal address a redirect could try to point at.
+	secret := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		atomic.AddInt32(&secretHits, 1)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer secret.Close()
+
+	// The allowed upstream redirects to the secret server.
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		http.Redirect(w, r, secret.URL, http.StatusFound)
+	}))
+	defer upstream.Close()
+
+	handler := newExternalProxyHandler(t, upstream.URL)
+
+	req, err := http.NewRequestWithContext(context.Background(), "GET", "/externalproxy", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req.Header.Set("proxy-to", upstream.URL)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	if rr.Code != http.StatusFound {
+		t.Errorf("status code = %d, want %d (the redirect must be forwarded, not followed)",
+			rr.Code, http.StatusFound)
+	}
+
+	if hits := atomic.LoadInt32(&secretHits); hits != 0 {
+		t.Errorf("redirect target was fetched %d time(s); the allowlist must not be bypassable via redirects",
+			hits)
+	}
+
+	if location := rr.Header().Get("Location"); location != secret.URL {
+		t.Errorf("Location header = %q, want %q (the redirect must stay usable client-side)",
+			location, secret.URL)
+	}
+}
+
+func TestExternalProxyResponseHeaderTimeout(t *testing.T) {
+	originalTransport := externalProxyClient.Transport
+
+	baseTransport, ok := originalTransport.(*http.Transport)
+	if !ok {
+		t.Fatalf("externalProxyClient.Transport = %T, want *http.Transport", originalTransport)
+	}
+
+	clonedTransport := baseTransport.Clone()
+	clonedTransport.ResponseHeaderTimeout = 200 * time.Millisecond
+	externalProxyClient.Transport = clonedTransport
+
+	defer func() {
+		externalProxyClient.CloseIdleConnections()
+		externalProxyClient.Transport = originalTransport
+		externalProxyClient.CloseIdleConnections()
+	}()
+
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		time.Sleep(2 * time.Second)
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer upstream.Close()
+
+	handler := newExternalProxyHandler(t, upstream.URL)
+
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	// A per-request deadline keeps the suite fail-fast: if the handler ever
+	// regresses and blocks, the request errors out instead of hanging until
+	// the overall go test timeout.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	req, err := http.NewRequestWithContext(ctx, "GET", srv.URL+"/externalproxy", nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	req.Header.Set("proxy-to", upstream.URL)
+
+	start := time.Now()
+
+	resp, err := http.DefaultClient.Do(req)
+	elapsed := time.Since(start)
+
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	defer func() { _ = resp.Body.Close() }()
+
+	if resp.StatusCode != http.StatusBadGateway {
+		t.Errorf("status code = %d, want %d (timeout should produce 502)",
+			resp.StatusCode, http.StatusBadGateway)
+	}
+
+	if elapsed > 1*time.Second {
+		t.Errorf("request took %v, expected to fail fast (well under upstream's 2s sleep)", elapsed)
+	}
+}
+
+func TestExternalProxyReusesConnections(t *testing.T) {
+	var connCount int32
+
+	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+
+		_, _ = w.Write([]byte("OK"))
+	}))
+
+	upstream.Config.ConnState = func(c net.Conn, s http.ConnState) {
+		if s == http.StateNew {
+			atomic.AddInt32(&connCount, 1)
+		}
+	}
+
+	upstream.Start()
+	defer upstream.Close()
+
+	handler := newExternalProxyHandler(t, upstream.URL)
+
+	srv := httptest.NewServer(handler)
+	defer srv.Close()
+
+	for i := 0; i < 5; i++ {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+
+		req, err := http.NewRequestWithContext(ctx, "GET", srv.URL+"/externalproxy", nil)
+		if err != nil {
+			cancel()
+			t.Fatal(err)
+		}
+
+		req.Header.Set("proxy-to", upstream.URL)
+
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			cancel()
+			t.Fatal(err)
+		}
+
+		if resp.StatusCode != http.StatusOK {
+			t.Errorf("request %d: status code = %d, want %d", i, resp.StatusCode, http.StatusOK)
+		}
+
+		_, _ = io.Copy(io.Discard, resp.Body)
+		_ = resp.Body.Close()
+
+		cancel()
+	}
+
+	got := atomic.LoadInt32(&connCount)
+	if got > 2 {
+		t.Errorf("upstream saw %d new connections across 5 sequential requests, "+
+			"expected ~1 with Keep-Alive enabled", got)
 	}
 }
 
