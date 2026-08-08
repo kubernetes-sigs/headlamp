@@ -62,6 +62,8 @@ import Service from './service';
 import ServiceAccount from './serviceAccount';
 import StatefulSet from './statefulSet';
 import StorageClass from './storageClass';
+import TCPRoute from './tcpRoute';
+import UDPRoute from './udpRoute';
 import VolumeAttributesClass from './volumeAttributesClass';
 
 export const ResourceClasses = {
@@ -107,6 +109,8 @@ export const ResourceClasses = {
   GatewayClass,
   HTTPRoute,
   GRPCRoute,
+  TCPRoute,
+  UDPRoute,
 };
 
 /** Hook for getting or fetching the clusters configuration.
