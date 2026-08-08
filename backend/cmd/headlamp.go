@@ -74,6 +74,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 
 	"golang.org/x/oauth2"
+	"golang.org/x/time/rate"
 )
 
 type HeadlampConfig struct {
@@ -569,6 +570,41 @@ func setupInClusterContext(config *HeadlampConfig) {
 	}
 }
 
+var (
+	authLimiterMu sync.Mutex
+	authLimiters  = make(map[string]*rate.Limiter)
+)
+
+func getAuthLimiter(ip string) *rate.Limiter {
+	authLimiterMu.Lock()
+	defer authLimiterMu.Unlock()
+
+	limiter, exists := authLimiters[ip]
+	if !exists {
+		limiter = rate.NewLimiter(5, 10)
+		authLimiters[ip] = limiter
+	}
+	return limiter
+}
+
+func authRateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ip, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			ip = r.RemoteAddr
+		}
+		if forwarded := r.Header.Get("X-Forwarded-For"); forwarded != "" {
+			ip = strings.Split(forwarded, ",")[0]
+		}
+		
+		if !getAuthLimiter(strings.TrimSpace(ip)).Allow() {
+			http.Error(w, "Too many requests", http.StatusTooManyRequests)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
+}
+
 //nolint:gocognit,funlen,gocyclo
 func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
@@ -848,7 +884,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	r.HandleFunc("/config", config.getConfig).Methods("GET")
 
 	// Auth token management
-	r.HandleFunc("/auth/set-token", config.handleSetToken).Methods("POST")
+	r.HandleFunc("/auth/set-token", authRateLimitMiddleware(config.handleSetToken)).Methods("POST")
 
 	// Websocket connections
 	if config.Multiplexer != nil {
@@ -879,7 +915,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 	}()
 
-	r.HandleFunc("/oidc", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/oidc", authRateLimitMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
 		cluster := r.URL.Query().Get("cluster")
 
@@ -1007,7 +1043,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	r.HandleFunc("/drain-node-status",
 		config.handleNodeDrainStatus).Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
 
-	r.HandleFunc("/oidc-callback", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/oidc-callback", authRateLimitMiddleware(func(w http.ResponseWriter, r *http.Request) {
 		// Shadow createHeadlampHandler's outer-scope err so any log call in
 		// this handler is guaranteed to reference this closure's err and
 		// never the startup kubeconfig-load error. See issue #4839.
