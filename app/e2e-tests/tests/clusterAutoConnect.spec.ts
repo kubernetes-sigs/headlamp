@@ -189,13 +189,6 @@ async function goToHomeClean(page: Page) {
 }
 
 test.describe('cluster auto-connect via link click (app)', () => {
-  // Requesting the `page` fixture here launches Playwright's own Chromium
-  // browser (see app/e2e-tests/README.md); these tests don't use it, so
-  // close it immediately to avoid it lingering for the rest of the run.
-  test.beforeEach(async ({ page }) => {
-    await page.close();
-  });
-
   test('clicking a cluster link writes it to sessionStorage', async () => {
     const page = electronPage;
     await goToHomeClean(page);

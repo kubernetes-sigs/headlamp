@@ -140,11 +140,13 @@ export default function ReleaseNotes() {
                     releaseNotes = notes;
                   }
                 } catch (err) {
-                  setReleaseFetchFailed(true);
-                  console.error(
-                    `Error getting release notes for version ${currentBuildAppVersion}:`,
-                    err
-                  );
+                  if ((err as Error)?.name !== 'AbortError') {
+                    setReleaseFetchFailed(true);
+                    console.error(
+                      `Error getting release notes for version ${currentBuildAppVersion}:`,
+                      err
+                    );
+                  }
                 }
               }
 
@@ -162,8 +164,10 @@ export default function ReleaseNotes() {
                 setReleaseNotes(releaseNotes);
               }
             } catch (error) {
-              setReleaseFetchFailed(true);
-              console.error('Failed to fetch release:', error);
+              if ((error as Error)?.name !== 'AbortError') {
+                setReleaseFetchFailed(true);
+                console.error('Failed to fetch release:', error);
+              }
               clearTimeout(timeoutID);
               setFetchingRelease(false);
             }

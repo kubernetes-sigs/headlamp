@@ -38,12 +38,7 @@ Then install the test dependencies:
 ```bash
 cd app/e2e-tests
 npm install
-npx playwright install chromium
 ```
-
-Chromium is required even though these are Electron tests. The specs request
-Playwright's `page` fixture before switching to the Electron window, and
-requesting it launches a browser.
 
 ## Running the tests
 

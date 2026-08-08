@@ -83,13 +83,6 @@ test.afterAll(async () => {
   fs.rmSync(PROFILE_DIR, { recursive: true, force: true });
 });
 
-// Requesting the `page` fixture here launches Playwright's own Chromium
-// browser (see app/e2e-tests/README.md); this suite doesn't use it, so
-// close it immediately to avoid it lingering for the rest of the run.
-test.beforeEach(async ({ page }) => {
-  await page.close();
-});
-
 // note: this test is for local app development testing and requires a
 // running minikube cluster named 'minikube'.
 test.describe('create a namespace with the minimal editor', async () => {

@@ -28,6 +28,7 @@ describe('ReleaseNotes', () => {
   afterEach(() => {
     delete (window as any).desktopApi;
     vi.unstubAllGlobals();
+    localStorage.clear();
   });
 
   // Regression test for https://github.com/kubernetes-sigs/headlamp/issues/6966:
@@ -189,7 +190,11 @@ describe('ReleaseNotes', () => {
       let capturedSignal: AbortSignal | undefined;
       const fetchMock = vi.fn().mockImplementation((_url: string, init?: RequestInit) => {
         capturedSignal = init?.signal ?? undefined;
-        return new Promise(() => {}); // never resolves
+        return new Promise((_resolve, reject) => {
+          capturedSignal?.addEventListener('abort', () => {
+            reject(new DOMException('The operation was aborted.', 'AbortError'));
+          });
+        });
       });
       vi.stubGlobal('fetch', fetchMock);
       mockDesktopApi({ appVersion: '1.9.9', checkForUpdates: true });
@@ -206,6 +211,10 @@ describe('ReleaseNotes', () => {
       await vi.advanceTimersByTimeAsync(300);
 
       expect(capturedSignal?.aborted).toBe(true);
+      // Regression: an aborted fetch used to be treated the same as a real
+      // failure, so clicking Skip replaced the progress Snackbar with
+      // "Failed to fetch release information" instead of just dismissing it.
+      expect(screen.queryByText(/Failed to fetch release information/)).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
