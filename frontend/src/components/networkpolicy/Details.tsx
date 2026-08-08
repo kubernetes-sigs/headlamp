@@ -16,19 +16,25 @@
 
 import Box from '@mui/material/Box';
 import Typography from '@mui/material/Typography';
+import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router';
 import { matchExpressionSimplifier, matchLabelsSimplifier } from '../../lib/k8s';
 import { LabelSelector } from '../../lib/k8s/cluster';
+import { matchesLabelSelector } from '../../lib/k8s/labelSelector';
 import NetworkPolicy, {
   NetworkPolicyEgressRule,
   NetworkPolicyIngressRule,
   NetworkPolicyPort,
 } from '../../lib/k8s/networkpolicy';
+import Pod from '../../lib/k8s/pod';
+import Link from '../common/Link';
+import Loader from '../common/Loader';
 import NameValueTable from '../common/NameValueTable';
 import { DetailsGrid } from '../common/Resource';
 import { metadataStyles } from '../common/Resource';
 import SectionBox from '../common/SectionBox';
+import SimpleTable from '../common/SimpleTable';
 
 export function NetworkPolicyDetails(props: {
   name?: string;
@@ -67,6 +73,49 @@ export function NetworkPolicyDetails(props: {
     return prepareMatchLabelsAndExpressions(
       networkPolicy.spec?.podSelector?.matchLabels,
       networkPolicy.spec?.podSelector?.matchExpressions
+    );
+  }
+
+  function SelectedPods(props: { networkPolicy: NetworkPolicy }) {
+    const { networkPolicy } = props;
+    const policyNamespace = networkPolicy.metadata.namespace;
+    const { items: pods } = Pod.useList({
+      namespace: policyNamespace,
+      cluster: networkPolicy.cluster,
+    });
+
+    const podSelector = networkPolicy.spec?.podSelector;
+    const selectedPods = useMemo(
+      () => (pods ?? []).filter(pod => matchesLabelSelector(pod.metadata.labels, podSelector)),
+      [pods, podSelector]
+    );
+
+    return (
+      <SectionBox title={t('Selected Pods')}>
+        {pods === null ? (
+          <Loader title={t('translation|Loading pods')} />
+        ) : selectedPods.length === 0 ? (
+          <Typography color="textSecondary">
+            {t('No pods in the {{ namespace }} namespace are selected by this policy.', {
+              namespace: policyNamespace,
+            })}
+          </Typography>
+        ) : (
+          <SimpleTable
+            columns={[
+              {
+                label: t('translation|Name'),
+                getter: (pod: Pod) => <Link kubeObject={pod}>{pod.getName()}</Link>,
+              },
+              {
+                label: t('translation|Status'),
+                getter: (pod: Pod) => pod.status?.phase ?? '-',
+              },
+            ]}
+            data={selectedPods}
+          />
+        )}
+      </SectionBox>
     );
   }
 
@@ -252,6 +301,10 @@ export function NetworkPolicyDetails(props: {
       }
       extraSections={item =>
         item && [
+          {
+            id: 'networkpolicy-selected-pods',
+            section: <SelectedPods networkPolicy={item} />,
+          },
           {
             id: 'networkpolicy-ingress',
             section: <Ingress ingress={item.spec?.ingress ?? []} />,
