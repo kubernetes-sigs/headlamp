@@ -14,36 +14,85 @@
  * limitations under the License.
  */
 
-import { useTranslation } from 'react-i18next';
+import Link from '@mui/material/Link';
+import Paper from '@mui/material/Paper';
+import Typography from '@mui/material/Typography';
+import { useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { getTopCondition } from '../../lib/k8s/conditions';
 import JobSet from '../../lib/k8s/jobSet';
+import Empty from '../common/EmptyContent';
 import ResourceListView from '../common/Resource/ResourceListView';
+import SectionBox from '../common/SectionBox';
 
 // Explicit priority to make the rendered condition stable and meaningful.
 const conditionPriority = ['Failed', 'Completed', 'Suspended', 'StartupPolicyCompleted'];
 
 export default function JobSetList() {
   const { t } = useTranslation(['glossary', 'translation']);
+  const [jobSetEnabled, setJobSetEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    const jobSetStatus = async () => {
+      const enabled = await JobSet.isEnabled();
+      setJobSetEnabled(enabled);
+    };
+    jobSetStatus();
+  }, []);
 
   return (
-    <ResourceListView
-      title={t('glossary|Job Sets')}
-      resourceClass={JobSet}
-      columns={[
-        'name',
-        'namespace',
-        'cluster',
-        {
-          id: 'conditions',
-          label: t('translation|Conditions'),
-          gridTemplate: 'min-content',
-          getValue: (jobSet: JobSet) =>
-            getTopCondition(jobSet.status?.conditions, conditionPriority) ?? '-',
-        },
-        'age',
-      ]}
-      reflectInURL="jobsets"
-      id="headlamp-jobsets"
-    />
+    <>
+      {jobSetEnabled === null ? (
+        <SectionBox title={t('glossary|Job Sets')}>
+          <Paper variant="outlined">
+            <Empty>
+              <Typography style={{ textAlign: 'center' }}>
+                {t('glossary|Checking if JobSet is enabled…')}
+              </Typography>
+            </Empty>
+          </Paper>
+        </SectionBox>
+      ) : jobSetEnabled ? (
+        <ResourceListView
+          title={t('glossary|Job Sets')}
+          resourceClass={JobSet}
+          columns={[
+            'name',
+            'namespace',
+            'cluster',
+            {
+              id: 'conditions',
+              label: t('translation|Conditions'),
+              gridTemplate: 'min-content',
+              getValue: (jobSet: JobSet) =>
+                getTopCondition(jobSet.status?.conditions, conditionPriority) ?? '-',
+            },
+            'age',
+          ]}
+          reflectInURL="jobsets"
+          id="headlamp-jobsets"
+        />
+      ) : (
+        <SectionBox title={t('glossary|Job Sets')}>
+          <Paper variant="outlined">
+            <Empty>
+              <Typography style={{ textAlign: 'center' }}>
+                <Trans t={t}>
+                  JobSet is not enabled.&nbsp;
+                  <Link
+                    href="https://jobset.sigs.k8s.io/docs/installation/"
+                    target="_blank"
+                    rel="noopener"
+                    sx={{ textDecoration: 'underline' }}
+                  >
+                    Learn More
+                  </Link>
+                </Trans>
+              </Typography>
+            </Empty>
+          </Paper>
+        </SectionBox>
+      )}
+    </>
   );
 }

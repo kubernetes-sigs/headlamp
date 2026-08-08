@@ -14,15 +14,46 @@
  * limitations under the License.
  */
 
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../App';
+import { request } from './api/v1/clusterRequests';
 import JobSet from './jobSet';
 
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
 const _dont_delete_me = App;
 
+vi.mock('./api/v1/clusterRequests', () => ({
+  request: vi.fn(),
+}));
+
+const mockedRequest = vi.mocked(request);
+
 describe('JobSet class', () => {
+  describe('isEnabled', () => {
+    beforeEach(() => {
+      mockedRequest.mockReset();
+    });
+
+    it('returns true when the jobsets resource is listed on the API group', async () => {
+      mockedRequest.mockResolvedValue({
+        resources: [{ name: 'jobsets' }, { name: 'jobsets/status' }],
+      });
+      await expect(JobSet.isEnabled()).resolves.toBe(true);
+      expect(mockedRequest).toHaveBeenCalledWith('/apis/jobset.x-k8s.io/v1alpha2');
+    });
+
+    it('returns false when the jobsets resource is missing', async () => {
+      mockedRequest.mockResolvedValue({ resources: [] });
+      await expect(JobSet.isEnabled()).resolves.toBe(false);
+    });
+
+    it('returns false when the API group request fails', async () => {
+      mockedRequest.mockRejectedValue(new Error('not found'));
+      await expect(JobSet.isEnabled()).resolves.toBe(false);
+    });
+  });
+
   describe('getHealth', () => {
     const makeJobSet = (status: any) =>
       new JobSet({
