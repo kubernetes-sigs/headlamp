@@ -17,8 +17,9 @@
 import { render, screen } from '@testing-library/react';
 import { vi } from 'vitest';
 
-const { mockDetailsGrid } = vi.hoisted(() => ({
+const { mockDetailsGrid, mockMetadataDictGrid } = vi.hoisted(() => ({
   mockDetailsGrid: vi.fn(),
+  mockMetadataDictGrid: vi.fn(),
 }));
 
 vi.mock('../common/Resource', () => ({
@@ -26,7 +27,10 @@ vi.mock('../common/Resource', () => ({
     mockDetailsGrid(props);
     return null;
   },
-  MetadataDictGrid: () => null,
+  MetadataDictGrid: (props: any) => {
+    mockMetadataDictGrid(props);
+    return null;
+  },
 }));
 
 vi.mock('../../lib/k8s/limitRange', () => ({
@@ -37,7 +41,8 @@ vi.mock('../../lib/k8s/limitRange', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string, options?: Record<string, string>) =>
+      options ? key.replace(/{{\s*(\w+)\s*}}/g, (_, name) => options[name] ?? '') : key,
   }),
 }));
 
@@ -47,6 +52,7 @@ import { LimitRangeDetails } from './Details';
 describe('LimitRangeDetails', () => {
   beforeEach(() => {
     mockDetailsGrid.mockReset();
+    mockMetadataDictGrid.mockReset();
   });
 
   it('passes limit range specific configuration to DetailsGrid', () => {
@@ -65,7 +71,7 @@ describe('LimitRangeDetails', () => {
     expect(typeof props.extraInfo).toBe('function');
   });
 
-  it('provides Container Limits section through extraInfo', () => {
+  it('provides a Limits section through extraInfo', () => {
     render(
       <TestContext routerMap={{ namespace: 'default', name: 'limit-range' }}>
         <LimitRangeDetails />
@@ -79,6 +85,7 @@ describe('LimitRangeDetails', () => {
         spec: {
           limits: [
             {
+              type: 'Container',
               default: {
                 cpu: '100m',
                 memory: '128Mi',
@@ -104,8 +111,55 @@ describe('LimitRangeDetails', () => {
     const extraInfo = props.extraInfo(fakeLimitRange);
 
     expect(extraInfo).toHaveLength(1);
-    expect(extraInfo[0].name).toContain('Container Limits');
+    expect(extraInfo[0].name).toBe('translation|Container Limits');
     expect(extraInfo[0].value).toBeDefined();
+  });
+
+  it('shows every entry in spec.limits, not just the first one', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'limit-range' }}>
+        <LimitRangeDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+
+    const fakeLimitRange: any = {
+      jsonData: {
+        spec: {
+          limits: [
+            { type: 'Container', default: { cpu: '100m' }, defaultRequest: {}, max: {}, min: {} },
+            { type: 'Pod', default: { cpu: '2' }, defaultRequest: {}, max: {}, min: {} },
+          ],
+        },
+      },
+    };
+
+    const extraInfo = props.extraInfo(fakeLimitRange);
+
+    expect(extraInfo).toHaveLength(2);
+    expect(extraInfo[0].name).toBe('translation|Container Limits');
+    expect(extraInfo[1].name).toBe('translation|Pod Limits');
+
+    render(<>{extraInfo[0].value}</>);
+    render(<>{extraInfo[1].value}</>);
+
+    const defaultDicts = mockMetadataDictGrid.mock.calls.map(call => call[0].dict);
+    expect(defaultDicts).toContainEqual({ cpu: '100m' });
+    expect(defaultDicts).toContainEqual({ cpu: '2' });
+  });
+
+  it('returns an empty array when spec.limits is empty', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'limit-range' }}>
+        <LimitRangeDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const fakeLimitRange: any = { jsonData: { spec: { limits: [] } } };
+
+    expect(props.extraInfo(fakeLimitRange)).toEqual([]);
   });
 
   it('includes all container limit subsections in the extraInfo content', () => {

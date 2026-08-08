@@ -746,7 +746,7 @@
   "Lease Duration Seconds": "Продолжительность аренды (секунды)",
   "Renew Time": "Время продления",
   "Holder": "Держатель",
-  "Container Limits": "Ограничения контейнера",
+  "{{ type }} Limits": "Ограничения {{ type }}",
   "Default Request": "Запрос по умолчанию",
   "Max": "Макс",
   "Min": "Мин",
