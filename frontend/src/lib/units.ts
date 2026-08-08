@@ -38,6 +38,13 @@ export function parseRam(value: string) {
 function parseUnitsOfBytes(value: string): number {
   if (!value) return 0;
 
+  // Milli-quantity ex. "2687146666666m". Valid Kubernetes quantity syntax
+  // (e.g. emitted by prometheus-adapter for memory usage), but no unit is
+  // matched by the regex below, which would misread it as raw bytes.
+  if (value.endsWith('m')) {
+    return parseFloat(value) / 1000;
+  }
+
   const groups = value.match(/(\d+(?:\.\d+)?)([BKMGTPEe])?(i)?(\d+)?/) || [];
   const number = parseFloat(groups[1]);
 

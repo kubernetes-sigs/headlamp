@@ -53,6 +53,12 @@ describe('parseRam', () => {
     expect(parseRam('0.5G')).toBe(500000000);
   });
 
+  it('should parse milli quantities (e.g. from prometheus-adapter)', () => {
+    expect(parseRam('1000m')).toBe(1);
+    expect(parseRam('2687146666666m')).toBeCloseTo(2687146666.666, 1);
+    expect(parseRam('1.5m')).toBe(0.0015);
+  });
+
   it('should scale binary units by powers of 1024', () => {
     fc.assert(
       fc.property(fc.integer({ min: 1, max: 100 }), num => {
