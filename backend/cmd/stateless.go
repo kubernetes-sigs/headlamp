@@ -31,11 +31,12 @@ import (
 
 const statelessContextKeySep = "\x00"
 
+// statelessContextKey generates a structured context key by joining the cluster name
+// and user ID with a NUL character separator (statelessContextKeySep) to avoid
+// ambiguous concatenation collisions between different (clusterName, userID) pairs.
+// It always appends the separator (even if userID is empty) to prevent collisions
+// with normal (non-stateless) contexts of the same name.
 func statelessContextKey(clusterName, userID string) string {
-	if userID == "" {
-		return clusterName
-	}
-
 	return clusterName + statelessContextKeySep + userID
 }
 
@@ -219,9 +220,14 @@ func websocketConnContextKey(r *http.Request, clusterName string) string {
 	// Expected number of submatches in the regular expression
 	const expectedSubmatches = 2
 
-	var userID string
+	var (
+		userID          string
+		isStatelessConn bool
+	)
+
 	// Define a regular expression pattern for base64url.headlamp.authorization.k8s.io
-	pattern := `base64url\.headlamp\.authorization\.k8s\.io\.([a-zA-Z0-9_-]+)`
+	// Use * instead of + to support matching empty user IDs.
+	pattern := `base64url\.headlamp\.authorization\.k8s\.io\.([a-zA-Z0-9_-]*)`
 
 	// Compile the regular expression
 	re := regexp.MustCompile(pattern)
@@ -232,6 +238,7 @@ func websocketConnContextKey(r *http.Request, clusterName string) string {
 	// Check if a match is found
 	if len(matches) >= expectedSubmatches {
 		userID = matches[1]
+		isStatelessConn = true
 	}
 
 	// Remove the base64url.headlamp.authorization.k8s.io subprotocol from the list
@@ -254,7 +261,7 @@ func websocketConnContextKey(r *http.Request, clusterName string) string {
 	// Add the updated Sec-Websocket-Protocol header
 	r.Header.Add("Sec-Websocket-Protocol", updatedProtocol)
 
-	if userID == "" {
+	if !isStatelessConn {
 		return clusterName
 	}
 
