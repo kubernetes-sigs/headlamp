@@ -29,6 +29,7 @@ import { formatClusterPathParam, getClusterPrefixedPath } from '../../../lib/clu
 import { Cluster } from '../../../lib/k8s/cluster';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { MULTI_HOME_ENABLED } from './config';
+import { getClusterDisplayLabel } from './customClusterNames';
 import SquareButton from './SquareButton';
 const ToggleButton = styled(MuiToggledButton)({
   textTransform: 'none',
@@ -51,7 +52,7 @@ const ClusterButton = React.forwardRef<HTMLButtonElement, ClusterButtonProps>((p
       focusRipple
       icon={icon}
       iconColor={appearance.accentColor}
-      label={cluster.name}
+      label={getClusterDisplayLabel(cluster)}
       ref={ref}
       onClick={onClick}
     />
@@ -165,7 +166,7 @@ export default function RecentClusters(props: RecentClustersProps) {
           >
             {recentClusters.map(cluster => (
               <ToggleButton key={cluster.name} value={cluster}>
-                {cluster.name}
+                {getClusterDisplayLabel(cluster)}
               </ToggleButton>
             ))}
           </ToggleButtonGroup>

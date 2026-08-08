@@ -36,6 +36,7 @@ import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import { Cluster } from '../../lib/k8s/cluster';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getCluster, getClusterPrefixedPath } from '../../lib/util';
+import { getClusterDisplayLabel } from '../App/Home/customClusterNames';
 import ClusterBadge from '../Sidebar/ClusterBadge';
 
 function ClusterListItem(props: { cluster: Cluster; onClick: () => void; selected?: boolean }) {
@@ -56,7 +57,7 @@ function ClusterListItem(props: { cluster: Cluster; onClick: () => void; selecte
       })}
     >
       <ClusterBadge
-        name={cluster.name}
+        name={getClusterDisplayLabel(cluster)}
         icon={appearance.icon}
         accentColor={appearance.accentColor}
       />
@@ -109,8 +110,13 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
   const [recentClusters, clustersToShow] = React.useMemo(() => {
     let allClusters = Object.values(clusters || {});
     if (filter !== '') {
-      allClusters = allClusters.filter(cluster =>
-        cluster.name.toLowerCase().includes(filter.toLowerCase())
+      const needle = filter.toLowerCase();
+      // Match on the rendered display label as well as the real name, so
+      // typing a Cluster Inventory displayName (e.g. "Spoke A") finds it too.
+      allClusters = allClusters.filter(
+        cluster =>
+          getClusterDisplayLabel(cluster).toLowerCase().includes(needle) ||
+          cluster.name.toLowerCase().includes(needle)
       );
     }
 
@@ -149,7 +155,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
         return 1;
       }
 
-      return a.name.localeCompare(b.name);
+      return getClusterDisplayLabel(a).localeCompare(getClusterDisplayLabel(b));
     });
 
     return [recentClusters, clustersToShow];
