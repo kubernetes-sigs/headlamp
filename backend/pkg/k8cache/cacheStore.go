@@ -193,31 +193,48 @@ func unescapeCacheKeySegment(s string) string {
 // Any code that parses or otherwise manipulates the key format (e.g. the
 // namespace stripping in cache invalidation) must stay consistent with this
 // encoding to avoid the two sides silently drifting out of sync.
-func buildCacheKey(apiGroup, kind, namespace, contextID string) string {
-	return escapeCacheKeySegment(apiGroup) + "+" +
+func buildCacheKey(apiGroup, kind, namespace, contextID, query string) string {
+	key := escapeCacheKeySegment(apiGroup) + "+" +
 		escapeCacheKeySegment(kind) + "+" +
 		escapeCacheKeySegment(namespace) + "+" +
 		escapeCacheKeySegment(contextID)
+	if query != "" {
+		key += "+" + escapeCacheKeySegment(query)
+	}
+
+	return key
 }
 
 // GenerateKey function helps to generate a unique key based on the request from the client
 // The function accepts url( which includes all the information of request ) and contextID which
 // helps to differentiate in multiple contexts.
-func GenerateKey(url *url.URL, contextID string) (string, error) {
-	namespace, kind := ExtractNamespace(url.Path)
+func GenerateKey(reqURL *url.URL, contextID string) (string, error) {
+	namespace, kind := ExtractNamespace(reqURL.Path)
 
-	apiGroup, _, err := GetAPIGroup(url.Path)
+	apiGroup, _, err := GetAPIGroup(reqURL.Path)
 	if err != nil {
 		return "", err
+	}
+
+	query := ""
+
+	if reqURL.RawQuery != "" {
+		parsedQuery, err := url.ParseQuery(reqURL.RawQuery)
+		if err != nil {
+			return "", fmt.Errorf("invalid query parameters: %w", err)
+		}
+
+		query = parsedQuery.Encode()
 	}
 
 	k := CacheKey{
 		Kind:      kind,
 		Namespace: namespace,
 		Context:   contextID,
+		Query:     query,
 	}
 
-	return buildCacheKey(apiGroup, k.Kind, k.Namespace, k.Context), nil
+	return buildCacheKey(apiGroup, k.Kind, k.Namespace, k.Context, k.Query), nil
 }
 
 // SetHeader function help to serve response from cache to ensure the client
@@ -345,13 +362,15 @@ func redactContextKey(key string) string {
 
 // redactCacheKey returns a redacted version of the cache key (which contains the context key as its last segment).
 func redactCacheKey(key string) string {
-	parts := strings.SplitN(key, "+", 4)
+	parts := strings.Split(key, "+")
 
 	if len(parts) >= 4 {
 		parts[3] = redactContextKey(parts[3])
-
-		return strings.Join(parts, "+")
 	}
 
-	return key
+	if len(parts) >= 5 {
+		parts[4] = "[redacted]"
+	}
+
+	return strings.Join(parts, "+")
 }

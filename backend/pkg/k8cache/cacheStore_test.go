@@ -98,6 +98,20 @@ func (m *MockCache) GetAll(ctx context.Context, selectFunc cache.Matcher) (map[s
 	return nil, nil
 }
 
+// DeleteAll Mocks deleting all values that match the selectFunc.
+func (m *MockCache) DeleteAll(ctx context.Context, selectFunc cache.Matcher) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	for key := range m.store {
+		if selectFunc != nil && selectFunc(key) {
+			delete(m.store, key)
+		}
+	}
+
+	return nil
+}
+
 // UpdateTTL Mocks updating of time-to-live with the help of its corresponding key string.
 func (m *MockCache) UpdateTTL(ctx context.Context, key string, ttl time.Duration) error {
 	return nil
@@ -512,6 +526,46 @@ func TestGenerateKey(t *testing.T) {
 			urlPath:     url.URL{Path: "/clusters/kind-kind/apis/apps/v1/namespaces/default/deployments"},
 			contextKey:  "prod%2Bcluster",
 			expectedKey: "apps+deployments+default+prod%252Bcluster",
+			expectedErr: nil,
+		},
+		{
+			name: "key with query parameters",
+			urlPath: url.URL{
+				Path:     "/clusters/kind-kind/apis/k8s.metrics.io/v1beta1/namespaces/test-kube/pods",
+				RawQuery: "labelSelector=app=a",
+			},
+			contextKey:  "kind-kind",
+			expectedKey: "k8s.metrics.io+pods+test-kube+kind-kind+labelSelector=app%253Da",
+			expectedErr: nil,
+		},
+		{
+			name: "key with different query parameters produces different key",
+			urlPath: url.URL{
+				Path:     "/clusters/kind-kind/apis/k8s.metrics.io/v1beta1/namespaces/test-kube/pods",
+				RawQuery: "limit=10",
+			},
+			contextKey:  "kind-kind",
+			expectedKey: "k8s.metrics.io+pods+test-kube+kind-kind+limit=10",
+			expectedErr: nil,
+		},
+		{
+			name: "key with unordered query parameters canonicalizes identically",
+			urlPath: url.URL{
+				Path:     "/clusters/kind-kind/apis/k8s.metrics.io/v1beta1/namespaces/test-kube/pods",
+				RawQuery: "limit=10&continue=token",
+			},
+			contextKey:  "kind-kind",
+			expectedKey: "k8s.metrics.io+pods+test-kube+kind-kind+continue=token&limit=10",
+			expectedErr: nil,
+		},
+		{
+			name: "key with reverse unordered query parameters canonicalizes identically",
+			urlPath: url.URL{
+				Path:     "/clusters/kind-kind/apis/k8s.metrics.io/v1beta1/namespaces/test-kube/pods",
+				RawQuery: "continue=token&limit=10",
+			},
+			contextKey:  "kind-kind",
+			expectedKey: "k8s.metrics.io+pods+test-kube+kind-kind+continue=token&limit=10",
 			expectedErr: nil,
 		},
 	}

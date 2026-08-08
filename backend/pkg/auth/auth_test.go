@@ -441,6 +441,10 @@ func (cacheStub) Delete(ctx context.Context, k string) error {
 	return nil
 }
 
+func (cacheStub) DeleteAll(ctx context.Context, _ cache.Matcher) error {
+	return nil
+}
+
 func (cacheStub) Get(ctx context.Context, k string) (interface{}, error) {
 	return nil, nil
 }

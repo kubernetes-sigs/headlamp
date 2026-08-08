@@ -31,6 +31,7 @@ type Cache[T any] interface {
 	Set(ctx context.Context, key string, value T) error
 	SetWithTTL(ctx context.Context, key string, value T, ttl time.Duration) error
 	Delete(ctx context.Context, key string) error
+	DeleteAll(ctx context.Context, selectFunc Matcher) error
 	Get(ctx context.Context, key string) (T, error)
 	GetAll(ctx context.Context, selectFunc Matcher) (map[string]T, error)
 	UpdateTTL(ctx context.Context, key string, ttl time.Duration) error
@@ -100,6 +101,20 @@ func (c *cache[T]) Delete(ctx context.Context, key string) error {
 	defer c.lock.Unlock()
 
 	delete(c.store, key)
+
+	return nil
+}
+
+// DeleteAll removes all values from the cache that match the given matcher function.
+func (c *cache[T]) DeleteAll(ctx context.Context, selectFunc Matcher) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	for key := range c.store {
+		if selectFunc != nil && selectFunc(key) {
+			delete(c.store, key)
+		}
+	}
 
 	return nil
 }
