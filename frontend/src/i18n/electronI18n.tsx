@@ -42,6 +42,5 @@ export function useElectronI18n() {
     return () => {
       i18n.off('languageChanged', tellAppAboutLanguage);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [i18n]);
 }

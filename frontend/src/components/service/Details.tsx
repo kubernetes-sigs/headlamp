@@ -20,13 +20,14 @@ import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import { labelSelectorToQuery } from '../../lib/k8s';
 import Endpoint from '../../lib/k8s/endpoints';
 import EndpointSlice from '../../lib/k8s/endpointSlices';
 import Service, { KubeServicePort } from '../../lib/k8s/service';
 import Empty from '../common/EmptyContent';
 import { ValueLabel } from '../common/Label';
 import Link from '../common/Link';
-import { DetailsGrid, MetadataDictGrid } from '../common/Resource';
+import { DetailsGrid, MetadataDictGrid, TargetedPodsSection } from '../common/Resource';
 import PortForward from '../common/Resource/PortForward';
 import { SectionBox } from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
@@ -151,6 +152,20 @@ export default function ServiceDetails(props: {
         }
 
         return [
+          ...(item.spec.selector && Object.keys(item.spec.selector).length > 0
+            ? [
+                {
+                  id: 'headlamp.service-targeted-pods',
+                  section: (
+                    <TargetedPodsSection
+                      namespace={item.metadata.namespace}
+                      labelSelector={labelSelectorToQuery({ matchLabels: item.spec.selector })}
+                      cluster={item.cluster}
+                    />
+                  ),
+                },
+              ]
+            : []),
           {
             id: 'headlamp.service-ports',
             section: (

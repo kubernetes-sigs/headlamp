@@ -258,6 +258,10 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             name: 'JobSets',
             label: t('glossary|Job Sets'),
           },
+          {
+            name: 'LeaderWorkerSets',
+            label: t('glossary|Leader Worker Sets'),
+          },
         ],
       },
       {

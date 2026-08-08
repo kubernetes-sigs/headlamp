@@ -92,8 +92,7 @@ export default function EditButton(props: EditButtonProps) {
     }
   }
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const applyFunc = React.useCallback(updateFunc, [item]);
+  const applyFunc = (newItem: KubeObjectInterface) => updateFunc(newItem);
 
   function handleSave(items: KubeObjectInterface[]) {
     const newItemDef = Array.isArray(items) ? items[0] : items;

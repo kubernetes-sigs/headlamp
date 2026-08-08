@@ -637,8 +637,9 @@ export default function EditorDialog(props: EditorDialogProps) {
       {uploadFiles ? <UploadDialog setUploadFiles={setUploadFiles} setCode={setCode} /> : ''}
       <DialogContent
         sx={{
+          minHeight: '400px',
           height: '80%',
-          overflowY: 'hidden',
+          overflowY: 'auto',
           display: 'flex',
           flexDirection: 'column',
           px: { xs: 0, sm: 3 },

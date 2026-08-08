@@ -15,34 +15,12 @@
  */
 
 import { useTranslation } from 'react-i18next';
+import { getTopCondition } from '../../lib/k8s/conditions';
 import JobSet from '../../lib/k8s/jobSet';
 import ResourceListView from '../common/Resource/ResourceListView';
 
 // Explicit priority to make the rendered condition stable and meaningful.
 const conditionPriority = ['Failed', 'Completed', 'Suspended', 'StartupPolicyCompleted'];
-
-function getJobSetCondition(jobSet: JobSet): string {
-  const conditions = jobSet.status?.conditions;
-  if (!conditions) return '-';
-
-  const trueConditions = conditions.filter(c => c.status === 'True');
-  if (trueConditions.length === 0) {
-    return '-';
-  }
-
-  let selected = trueConditions[0];
-  let bestPriorityIndex = conditionPriority.length;
-
-  for (const cond of trueConditions) {
-    const idx = conditionPriority.indexOf(cond.type);
-    if (idx !== -1 && idx < bestPriorityIndex) {
-      bestPriorityIndex = idx;
-      selected = cond;
-    }
-  }
-
-  return selected.type ?? '-';
-}
 
 export default function JobSetList() {
   const { t } = useTranslation(['glossary', 'translation']);
@@ -59,7 +37,8 @@ export default function JobSetList() {
           id: 'conditions',
           label: t('translation|Conditions'),
           gridTemplate: 'min-content',
-          getValue: (jobSet: JobSet) => getJobSetCondition(jobSet),
+          getValue: (jobSet: JobSet) =>
+            getTopCondition(jobSet.status?.conditions, conditionPriority) ?? '-',
         },
         'age',
       ]}

@@ -115,6 +115,7 @@
   "Failed": "Échoué",
   "Jobs": "Jobs",
   "Job Sets": "Ensembles de jobs",
+  "Leader Worker Sets": "",
   "Lease": "Bail",
   "LimitRange": "LimitRange",
   "Ingress": "Ingress",

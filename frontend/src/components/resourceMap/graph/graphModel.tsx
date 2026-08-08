@@ -206,6 +206,7 @@ const DEFAULT_NODE_WEIGHTS = {
   // Tier 3: Job-based Workloads
   CronJob: 960,
   JobSet: 960,
+  LeaderWorkerSet: 960,
   Job: 920,
 
   // Tier 4: Intermediate Controllers

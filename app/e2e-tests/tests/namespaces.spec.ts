@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { execSync } from 'child_process';
 import fs from 'fs';
 import os from 'os';
@@ -97,6 +97,50 @@ test.describe('create a namespace with the minimal editor', async () => {
 
     await namespacesPage.navigateToNamespaces();
     await namespacesPage.createNamespace(name);
+    await namespacesPage.deleteNamespace(name);
+  });
+
+  test('keeps the namespace editor usable at 200% zoom', async ({ page: browserPage }) => {
+    test.skip(process.env.PLAYWRIGHT_TEST_MODE !== 'app', 'Electron zoom is desktop-only');
+
+    const page = process.env.PLAYWRIGHT_TEST_MODE === 'app' ? electronPage : browserPage;
+    const name = 'testing-e2e-high-zoom';
+    const yaml = `
+    apiVersion: v1
+    kind: Namespace
+    metadata:
+      name: ${name}
+    `;
+    const headlampPage = new HeadlampPage(page);
+    const namespacesPage = new NamespacesPage(page);
+
+    await headlampPage.authenticate();
+    await namespacesPage.navigateToNamespaces();
+    await page.getByRole('button', { name: 'Create', exact: true }).click();
+    const minimalEditorSwitch = page.getByRole('checkbox', { name: 'Use minimal editor' });
+    await minimalEditorSwitch.check();
+    const editor = page.getByRole('textbox', { name: 'yaml Code' });
+
+    try {
+      await electronApp.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(2);
+      });
+
+      await expect(editor).toBeInViewport();
+      await editor.focus();
+      await expect(editor).toBeFocused();
+      await editor.fill(yaml);
+
+      const applyButton = page.getByRole('button', { name: 'Apply', exact: true });
+      await expect(applyButton).toBeInViewport();
+      await applyButton.click();
+      await page.waitForSelector(`text=Applied ${name}`);
+    } finally {
+      await electronApp.evaluate(({ BrowserWindow }) => {
+        BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(1);
+      });
+    }
+
     await namespacesPage.deleteNamespace(name);
   });
 });
