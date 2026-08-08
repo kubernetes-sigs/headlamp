@@ -17,11 +17,18 @@
 import { Meta, StoryFn } from '@storybook/react';
 import Node from '../../../lib/k8s/node';
 import Pod from '../../../lib/k8s/pod';
+import { TestContext } from '../../../test';
 import { NodesStatusCircleChart, PodsStatusCircleChart } from './StatusCharts';
 
 const meta: Meta = {
   title: 'Cluster/StatusCharts',
-  decorators: [Story => <Story />],
+  decorators: [
+    Story => (
+      <TestContext urlPrefix="/c" routerMap={{ cluster: 'story-cluster' }}>
+        <Story />
+      </TestContext>
+    ),
+  ],
 };
 
 export default meta;

@@ -234,7 +234,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -352,7 +354,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -470,7 +474,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -588,7 +594,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >

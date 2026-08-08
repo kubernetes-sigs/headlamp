@@ -15,7 +15,12 @@
             <p
               class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
             >
-              Pods
+              <a
+                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                href="/"
+              >
+                Pods
+              </a>
             </p>
           </div>
           <p
@@ -41,7 +46,9 @@
                 cx="70"
                 cy="70"
                 height="112"
+                role="application"
                 style="width: 100%; height: 100%;"
+                tabindex="0"
                 viewBox="0 0 112 112"
                 width="112"
               >
@@ -80,7 +87,7 @@
             A 33.800000000000004,33.800000000000004,0,
             1,0,
             61,27.199999999999996 Z"
-                      fill="#000"
+                      fill="#2e7d32"
                       name="ready"
                       role="img"
                       stroke="#e0e0e0"

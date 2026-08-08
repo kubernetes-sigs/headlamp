@@ -83,7 +83,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -199,7 +201,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -291,7 +295,12 @@
                             <p
                               class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
                             >
-                              Pods
+                              <a
+                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                                href="/"
+                              >
+                                Pods
+                              </a>
                             </p>
                           </div>
                           <p
@@ -317,7 +326,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -413,7 +424,12 @@
                             <p
                               class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
                             >
-                              Nodes
+                              <a
+                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                                href="/"
+                              >
+                                Nodes
+                              </a>
                             </p>
                           </div>
                           <p
@@ -439,7 +455,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
