@@ -16,6 +16,7 @@
 
 import { ThemeProvider } from '@mui/material/styles';
 import { render, screen } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import React from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
@@ -202,5 +203,42 @@ describe('MetadataDisplay', () => {
         writable: true,
       });
     }
+  });
+  it('copies multiple labels and annotations in the expected key=value format when the copy button is clicked', async () => {
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: vi.fn(),
+      },
+    });
+
+    const resourceWithLabelsAndAnnotations = {
+      ...mockResource,
+      metadata: {
+        ...mockResource.metadata,
+        labels: {
+          'app.kubernetes.io/name': 'my-app',
+          environment: 'production',
+        },
+        annotations: {
+          foo: 'bar',
+          baz: 'qux',
+        },
+      },
+    } as unknown as KubeObject;
+
+    renderWithTheme(<MetadataDisplay resource={resourceWithLabelsAndAnnotations} />);
+
+    const copyButtons = screen.getAllByRole('button', { name: /Copy to clipboard/i });
+    expect(copyButtons).toHaveLength(2);
+
+    // Click the Labels copy button
+    await userEvent.click(copyButtons[0]);
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
+      'app.kubernetes.io/name=my-app,environment=production'
+    );
+
+    // Click the Annotations copy button
+    await userEvent.click(copyButtons[1]);
+    expect(navigator.clipboard.writeText).toHaveBeenCalledWith('foo=bar,baz=qux');
   });
 });

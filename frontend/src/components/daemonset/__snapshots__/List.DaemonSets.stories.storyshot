@@ -989,6 +989,9 @@
                           kubernetes.io/os: linux
                         </p>
                       </div>
+                      <div
+                        class="MuiBox-root css-axw7ok"
+                      />
                     </div>
                   </td>
                   <td
