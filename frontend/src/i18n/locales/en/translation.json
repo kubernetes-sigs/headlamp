@@ -731,6 +731,7 @@
   "Duration": "Duration",
   "Active Deadline": "Active Deadline",
   "TTL After Finished": "TTL After Finished",
+  "Group Size": "Group Size",
   "Holder Identity": "Holder Identity",
   "Lease Duration Seconds": "Lease Duration Seconds",
   "Renew Time": "Renew Time",

@@ -38,6 +38,7 @@ import IngressClass from '../../../../lib/k8s/ingressClass';
 import Job from '../../../../lib/k8s/job';
 import JobSet from '../../../../lib/k8s/jobSet';
 import { KubeObjectClass } from '../../../../lib/k8s/KubeObject';
+import LeaderWorkerSet from '../../../../lib/k8s/leaderWorkerSet';
 import { Lease } from '../../../../lib/k8s/lease';
 import { LimitRange } from '../../../../lib/k8s/limitRange';
 import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookConfiguration';
@@ -188,6 +189,7 @@ export function useGetAllSources(): GraphSource[] {
           makeKubeSource(Job),
           makeKubeSource(CronJob),
           makeKubeSource(JobSet),
+          makeKubeSource(LeaderWorkerSet),
         ],
       },
       {

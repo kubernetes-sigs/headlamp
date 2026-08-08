@@ -68,6 +68,7 @@ import IngressList from '../../components/ingress/List';
 import JobDetails from '../../components/job/Details';
 import JobsList from '../../components/job/List';
 import JobSetList from '../../components/jobset/List';
+import LeaderWorkerSetList from '../../components/leaderworkerset/List';
 import { LeaseDetails } from '../../components/lease/Details';
 import { LeaseList } from '../../components/lease/List';
 import { LimitRangeDetails } from '../../components/limitRange/Details';
@@ -125,6 +126,7 @@ import { useCluster } from '..//k8s';
 import DaemonSet from '../k8s/daemonSet';
 import Deployment from '../k8s/deployment';
 import JobSet from '../k8s/jobSet';
+import LeaderWorkerSet from '../k8s/leaderWorkerSet';
 import ReplicaSet from '../k8s/replicaSet';
 import StatefulSet from '../k8s/statefulSet';
 import type { RouteURLProps } from './createRouteURL';
@@ -548,6 +550,19 @@ const defaultRoutes: { [routeName: string]: Route } = {
     exact: true,
     sidebar: 'JobSets',
     component: () => <WorkloadDetails workloadKind={JobSet} />,
+  },
+  LeaderWorkerSets: {
+    path: '/leaderworkersets',
+    exact: true,
+    sidebar: 'LeaderWorkerSets',
+    name: 'LeaderWorkerSets',
+    component: () => <LeaderWorkerSetList />,
+  },
+  LeaderWorkerSet: {
+    path: '/leaderworkersets/:namespace/:name',
+    exact: true,
+    sidebar: 'LeaderWorkerSets',
+    component: () => <WorkloadDetails workloadKind={LeaderWorkerSet} />,
   },
   Deployments: {
     path: '/deployments',

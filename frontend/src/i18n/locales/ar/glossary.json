@@ -115,6 +115,7 @@
   "Failed": "فشل",
   "Jobs": "المهام",
   "Job Sets": "مجموعات المهام",
+  "Leader Worker Sets": "",
   "Lease": "الإيجار",
   "LimitRange": "نطاق الحدود",
   "Ingress": "Ingress",

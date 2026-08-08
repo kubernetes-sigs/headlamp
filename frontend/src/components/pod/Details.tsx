@@ -102,7 +102,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
   const { t } = useTranslation();
   const [selectedSeverities, setSelectedSeverities] = useLocalStorageState<LogSeverity[]>(
     'headlamp.logs.severityFilter',
-    [...ALL_SEVERITIES]
+    ALL_SEVERITIES
   );
   const selectedSeveritiesRef = React.useRef(selectedSeverities);
 

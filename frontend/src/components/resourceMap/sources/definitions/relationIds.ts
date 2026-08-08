@@ -36,6 +36,7 @@ export const BUILT_IN_RELATION_IDS = [
   'pvc-pod',
   'job-cronjob',
   'job-jobset',
+  'statefulset-leaderworkerset',
   'gateway-gatewayclass',
   'httproute-gateway',
   'httproute-service',
