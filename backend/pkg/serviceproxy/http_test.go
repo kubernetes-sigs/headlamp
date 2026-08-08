@@ -117,21 +117,40 @@ func TestHTTPGetStreamContextCancellation(t *testing.T) {
 }
 
 func TestHTTPGetStreamTimeout(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		time.Sleep(15 * time.Second)
+	requestStarted := make(chan struct{})
+	requestFinished := make(chan struct{})
 
-		if _, err := w.Write([]byte("Hello, World!")); err != nil {
-			t.Fatalf("write test: %v", err)
-		}
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		close(requestStarted)
+		<-r.Context().Done()
+		close(requestFinished)
 	}))
 	defer ts.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 
+	start := time.Now()
+
 	err := serviceproxy.HTTPGetStream(ctx, ts.URL, &countingResponseWriter{})
 	if err == nil {
 		t.Errorf("HTTPGetStream() error = nil, want error")
+	}
+
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Fatalf("HTTPGetStream() took %v, want under %v", elapsed, 5*time.Second)
+	}
+
+	select {
+	case <-requestStarted:
+	case <-time.After(time.Second):
+		t.Fatal("HTTPGetStream() did not reach the test server")
+	}
+
+	select {
+	case <-requestFinished:
+	case <-time.After(2 * time.Second):
+		t.Fatal("test server handler did not exit after context cancellation")
 	}
 }
 
