@@ -254,7 +254,7 @@ export default function CronJobDetails(props: {
           {
             name: t('Starting deadline'),
             value: `${item.spec.startingDeadlineSeconds}s`,
-            hide: !item.spec.startingDeadlineSeconds,
+            hide: item.spec.startingDeadlineSeconds === undefined,
           },
           {
             name: t('Successful Jobs History Limit'),

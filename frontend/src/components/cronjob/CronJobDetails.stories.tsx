@@ -100,3 +100,23 @@ EveryAst.parameters = {
     },
   },
 };
+
+// Regression test: startingDeadlineSeconds: 0 is a valid, explicit value and
+// the "Starting deadline" row must still render (previously hidden by a falsy check).
+export const StartingDeadlineZero = Template.bind({});
+StartingDeadlineZero.args = {
+  cronJobName: 'starting-deadline-zero',
+};
+StartingDeadlineZero.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(
+          `${API_BASE}/apis/batch/v1/namespaces/default/cronjobs/starting-deadline-zero`,
+          () =>
+            HttpResponse.json(cronJobList.find(it => it.metadata.name === 'starting-deadline-zero'))
+        ),
+      ],
+    },
+  },
+};
