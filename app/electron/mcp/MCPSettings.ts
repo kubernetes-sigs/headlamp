@@ -33,7 +33,33 @@ export interface MCPSettings {
   servers: MCPServer[];
 }
 
-interface MCPServer {
+export interface MCPServerRestartPolicy {
+  enabled: boolean;
+  maxAttempts: number;
+  delayMs: number;
+}
+
+export interface MCPServerPermissions {
+  command: string;
+  args: string[];
+  envKeys: string[];
+  clusterDependent: boolean;
+  restart: MCPServerRestartPolicy;
+  approvedAt?: string;
+}
+
+export interface MCPServerPermissionView extends MCPServerPermissions {
+  serverName: string;
+  enabled: boolean;
+  approved: boolean;
+  recentToolUsage: Array<{
+    toolName: string;
+    lastUsed?: string;
+    usageCount: number;
+  }>;
+}
+
+export interface MCPServer {
   /**
    * Server name
    */
@@ -54,7 +80,17 @@ interface MCPServer {
    * Environment variables for the MCP tool command
    */
   env?: Record<string, string>;
+  /**
+   * Last user-approved effective permissions for this server.
+   */
+  permissions?: MCPServerPermissions;
 }
+
+const DEFAULT_RESTART_POLICY: MCPServerRestartPolicy = {
+  enabled: true,
+  maxAttempts: 3,
+  delayMs: 2000,
+};
 
 /**
  * Load MCP server configuration from settings
@@ -69,7 +105,57 @@ export function loadMCPSettings(settingsPath: string): MCPSettings | null {
   }
 
   const mcp = (settings as any).mcp;
-  return mcp ? (mcp as MCPSettings) : null;
+  if (!mcp) {
+    return null;
+  }
+
+  return migrateLegacyMCPServerPermissions(settingsPath, settings, mcp as MCPSettings);
+}
+
+/**
+ * One-time migration for settings.json files written before the MCP permissions center
+ * existed. Servers configured back then have no `permissions` field, and
+ * hasApprovedMCPServerPermissions() treats a missing field as "not approved", which would
+ * silently skip every previously working server after upgrading.
+ *
+ * For any server missing `permissions`, this stamps its current effective permissions as
+ * already approved (the user already trusted this command by having configured it) and
+ * persists the result, so the migration only runs once per server.
+ *
+ * @param settingsPath - path to settings file
+ * @param settings - the raw settings object as loaded from disk
+ * @param mcpSettings - the mcp settings parsed from `settings`
+ *
+ * @returns mcpSettings, with legacy servers migrated to have approved permissions
+ */
+function migrateLegacyMCPServerPermissions(
+  settingsPath: string,
+  settings: Record<string, any>,
+  mcpSettings: MCPSettings
+): MCPSettings {
+  let migrated = false;
+  const servers = (mcpSettings.servers || []).map(server => {
+    if (server.permissions) {
+      return server;
+    }
+    migrated = true;
+    return {
+      ...server,
+      permissions: {
+        ...getMCPServerPermissions(server),
+        approvedAt: new Date().toISOString(),
+      },
+    };
+  });
+
+  if (!migrated) {
+    return mcpSettings;
+  }
+
+  const migratedSettings: MCPSettings = { ...mcpSettings, servers };
+  settings.mcp = migratedSettings;
+  saveSettings(settingsPath, settings);
+  return migratedSettings;
 }
 
 /**
@@ -80,8 +166,133 @@ export function loadMCPSettings(settingsPath: string): MCPSettings | null {
  */
 export function saveMCPSettings(settingsPath: string, mcpSettings: MCPSettings): void {
   const settings = loadSettings(settingsPath);
-  settings.mcp = mcpSettings;
+  settings.mcp = withApprovedMCPPermissions(mcpSettings);
   saveSettings(settingsPath, settings);
+}
+
+function usesCurrentCluster(args: string[] = []): boolean {
+  return args.some(arg => arg.includes('HEADLAMP_CURRENT_CLUSTER'));
+}
+
+function sortedEnvKeys(env?: Record<string, string>): string[] {
+  return Object.keys(env || {}).sort();
+}
+
+/**
+ * Environment variable keys that MCP servers need inherited from the host in order to
+ * resolve bare commands (e.g. `k8sgpt`) via PATH, and to spawn correctly on Windows.
+ * These are included explicitly (rather than passing through the whole process env)
+ * so the permissions center can still accurately report what a server can read.
+ */
+const BASELINE_ENV_KEYS =
+  process.platform === 'win32' ? ['PATH', 'SystemRoot', 'ComSpec', 'PATHEXT'] : ['PATH'];
+
+function baselineEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const key of BASELINE_ENV_KEYS) {
+    const value = process.env[key];
+    if (value !== undefined) {
+      env[key] = value;
+    }
+  }
+  return env;
+}
+
+function buildMcpServerEnv(server: MCPServer): Record<string, string> {
+  return { ...baselineEnv(), ...(server.env || {}) };
+}
+
+export function getMCPServerPermissions(server: MCPServer): MCPServerPermissions {
+  return {
+    command: server.command,
+    args: [...(server.args || [])],
+    envKeys: sortedEnvKeys(buildMcpServerEnv(server)),
+    clusterDependent: usesCurrentCluster(server.args),
+    restart: { ...DEFAULT_RESTART_POLICY },
+  };
+}
+
+function permissionArraysEqual(left: string[], right: string[]): boolean {
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function permissionArrayIncludes(approved: string[], effective: string[]): boolean {
+  return effective.every(value => approved.includes(value));
+}
+
+function restartPermissionIncludes(
+  approved?: MCPServerRestartPolicy,
+  effective?: MCPServerRestartPolicy
+): boolean {
+  if (!approved || !effective) {
+    return false;
+  }
+
+  if (!effective.enabled) {
+    return true;
+  }
+
+  return (
+    approved.enabled === effective.enabled &&
+    approved.maxAttempts >= effective.maxAttempts &&
+    approved.delayMs <= effective.delayMs
+  );
+}
+
+export function hasApprovedMCPServerPermissions(server: MCPServer): boolean {
+  if (!server.permissions) {
+    return false;
+  }
+
+  const effective = getMCPServerPermissions(server);
+  return (
+    server.permissions.command === effective.command &&
+    permissionArraysEqual(server.permissions.args || [], effective.args) &&
+    permissionArrayIncludes(server.permissions.envKeys || [], effective.envKeys) &&
+    (!effective.clusterDependent ||
+      server.permissions.clusterDependent === effective.clusterDependent) &&
+    restartPermissionIncludes(server.permissions.restart, effective.restart)
+  );
+}
+
+function permissionSnapshotsEqual(
+  left: MCPServerPermissions,
+  right: MCPServerPermissions
+): boolean {
+  return (
+    left.command === right.command &&
+    permissionArraysEqual(left.args || [], right.args || []) &&
+    permissionArraysEqual(left.envKeys || [], right.envKeys || []) &&
+    left.clusterDependent === right.clusterDependent &&
+    restartPermissionIncludes(left.restart, right.restart) &&
+    restartPermissionIncludes(right.restart, left.restart)
+  );
+}
+
+export function withApprovedMCPPermissions(mcpSettings: MCPSettings): MCPSettings {
+  return {
+    ...mcpSettings,
+    servers: (mcpSettings.servers || []).map(server => {
+      const effective = getMCPServerPermissions(server);
+      const previous = server.permissions;
+
+      // Preserve the original approval timestamp when the effective permissions
+      // for this server haven't actually changed, so unrelated saves (e.g. editing
+      // another server) don't reset it or mask when it was really approved.
+      const approvedAt =
+        previous?.approvedAt && permissionSnapshotsEqual(previous, effective)
+          ? previous.approvedAt
+          : new Date().toISOString();
+
+      return {
+        ...server,
+        permissions: {
+          ...effective,
+          approvedAt,
+        },
+      };
+    }),
+  };
 }
 
 /**
@@ -175,24 +386,23 @@ export function makeMcpServersFromSettings(
       continue;
     }
 
+    if (!hasApprovedMCPServerPermissions(server)) {
+      console.warn(`Skipping MCP server "${server.name}" because its permissions are not approved`);
+      continue;
+    }
+
     const expandedArgs = expandEnvAndResolvePaths(server.args || [], clusters[0] || null);
 
     if (DEBUG) {
       console.log(`Expanded args for ${server.name}:`, expandedArgs);
     }
 
-    const serverEnv = server.env ? { ...process.env, ...server.env } : process.env;
-
     mcpServers[server.name] = {
       transport: 'stdio',
       command: server.command,
       args: expandedArgs,
-      env: serverEnv as Record<string, string>,
-      restart: {
-        enabled: true,
-        maxAttempts: 3,
-        delayMs: 2000,
-      },
+      env: buildMcpServerEnv(server),
+      restart: { ...DEFAULT_RESTART_POLICY },
     };
   }
 
@@ -273,6 +483,19 @@ export function settingsChanges(
         serverChanges.push(`change environment variables`);
       }
 
+      const currentApproved = hasApprovedMCPServerPermissions(currentServer);
+      const nextPermissions = getMCPServerPermissions(nextServer);
+      const currentPermissions = currentServer.permissions;
+      if (
+        !currentPermissions ||
+        !currentApproved ||
+        currentPermissions.command !== nextPermissions.command ||
+        JSON.stringify(currentPermissions.args || []) !== JSON.stringify(nextPermissions.args) ||
+        JSON.stringify(currentPermissions.envKeys || []) !== JSON.stringify(nextPermissions.envKeys)
+      ) {
+        serverChanges.push(`request permission approval`);
+      }
+
       if (serverChanges.length > 0) {
         changes.push(`• MODIFY server "${nextServer.name}": ${serverChanges.join(', ')}`);
       }
@@ -280,6 +503,62 @@ export function settingsChanges(
   }
 
   return changes;
+}
+
+export function mcpPermissionsCenter(
+  mcpSettings: MCPSettings | null,
+  toolsConfig: Record<
+    string,
+    Record<string, { enabled?: boolean; lastUsed?: Date | string; usageCount?: number }>
+  > = {}
+): MCPServerPermissionView[] {
+  function normalizeLastUsed(lastUsed?: Date | string): string | undefined {
+    if (!lastUsed) {
+      return undefined;
+    }
+
+    const date = new Date(lastUsed);
+    if (Number.isNaN(date.getTime())) {
+      return undefined;
+    }
+
+    return date.toISOString();
+  }
+
+  return (mcpSettings?.servers || []).map(server => {
+    const permissions = getMCPServerPermissions(server);
+    const toolUsage = toolsConfig[server.name] || {};
+
+    return {
+      serverName: server.name,
+      enabled: server.enabled,
+      approved: hasApprovedMCPServerPermissions(server),
+      ...permissions,
+      approvedAt: server.permissions?.approvedAt,
+      recentToolUsage: Object.entries(toolUsage)
+        .filter(([, state]) => state.lastUsed || state.usageCount)
+        .map(([toolName, state]) => ({
+          toolName,
+          lastUsed: normalizeLastUsed(state.lastUsed),
+          usageCount: state.usageCount || 0,
+        }))
+        .sort((left, right) => {
+          const leftTime = left.lastUsed ? new Date(left.lastUsed).getTime() : 0;
+          const rightTime = right.lastUsed ? new Date(right.lastUsed).getTime() : 0;
+          return rightTime - leftTime;
+        }),
+    };
+  });
+}
+
+function permissionSummary(mcpSettings: MCPSettings | null): string[] {
+  return mcpPermissionsCenter(mcpSettings).map(server => {
+    const argsText = server.args.length > 0 ? server.args.join(' ') : 'none';
+    const envText = server.envKeys.length > 0 ? server.envKeys.join(', ') : 'none';
+    const clusterText = server.clusterDependent ? 'yes' : 'no';
+    const approvalText = server.approved ? 'approved' : 'needs approval';
+    return `• ${server.serverName}: command "${server.command}", args: ${argsText}, env: ${envText}, cluster-dependent: ${clusterText}, restart: ${server.restart.maxAttempts} attempt(s) after ${server.restart.delayMs}ms, ${approvalText}`;
+  });
 }
 
 /**
@@ -299,6 +578,7 @@ export async function showSettingsChangeDialog(
   nextSettings: MCPSettings
 ): Promise<boolean> {
   const changes = settingsChanges(currentSettings, nextSettings);
+  const permissions = permissionSummary(nextSettings);
   const result = await dialog.showMessageBox(mainWindow, {
     type: 'question',
     buttons: ['Apply Changes', 'Cancel'],
@@ -309,8 +589,12 @@ export async function showSettingsChangeDialog(
       changes.length > 0
         ? `The following changes will be applied:\n\n${changes.join(
             '\n'
+          )}\n\nEffective permissions:\n\n${permissions.join(
+            '\n'
           )}\n\nDo you want to apply these changes?`
-        : 'No changes detected in the MCP settings.\n\nDo you want to proceed anyway?',
+        : `No changes detected in the MCP settings.\n\nEffective permissions:\n\n${permissions.join(
+            '\n'
+          )}\n\nDo you want to proceed anyway?`,
   });
   return result.response === 0; // 0 is "Apply Changes"
 }
