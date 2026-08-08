@@ -271,10 +271,7 @@ const useDefaultNamespaceFallback = (
 function NamespacesFromClusterAutocomplete(
   props: Omit<PureNamespacesAutocompleteProps, 'namespaceNames'>
 ) {
-  const res = Namespace.useList();
-  const namespacesList = (Array.isArray(res) ? res[0] : res?.items) ?? null;
-  const error = (Array.isArray(res) ? res[1] : res?.error) ?? null;
-  const isLoading = Array.isArray(res) ? false : Boolean(res?.isLoading);
+  const { items: namespacesList = null, error = null, isLoading = false } = Namespace.useList();
   const dispatch = useDispatch();
   const filter = props.filter;
   const selectedNamespaces = filter.namespaces;

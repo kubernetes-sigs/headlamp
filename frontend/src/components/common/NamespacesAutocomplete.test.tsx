@@ -43,9 +43,11 @@ vi.mock('../../helpers/clusterSettings', () => ({
 describe('NamespacesAutocomplete', () => {
   beforeEach(() => {
     mockLoadClusterSettings.mockReturnValue({});
-    vi.mocked(Namespace.useList).mockReturnValue([[], null] as unknown as ReturnType<
-      typeof Namespace.useList
-    >);
+    vi.mocked(Namespace.useList).mockReturnValue({
+      items: [],
+      error: null,
+      isLoading: false,
+    } as unknown as ReturnType<typeof Namespace.useList>);
   });
 
   it('renders PureNamespacesAutocomplete when allowedNamespaces are set in cluster settings', async () => {
@@ -94,10 +96,11 @@ describe('NamespacesAutocomplete', () => {
     store.dispatch(setNamespaceFilter(['stale-namespace', 'default']));
 
     // Mock Namespace.useList to return only 'default' namespace
-    vi.mocked(Namespace.useList).mockReturnValue([
-      [{ metadata: { name: 'default' } }],
-      null,
-    ] as unknown as ReturnType<typeof Namespace.useList>);
+    vi.mocked(Namespace.useList).mockReturnValue({
+      items: [{ metadata: { name: 'default' } }],
+      error: null,
+      isLoading: false,
+    } as unknown as ReturnType<typeof Namespace.useList>);
 
     render(
       <Provider store={store}>
@@ -124,9 +127,11 @@ describe('NamespacesAutocomplete', () => {
     store.dispatch(setNamespaceFilter(['stale-namespace']));
 
     // Mock Namespace.useList to return an empty array with no error
-    vi.mocked(Namespace.useList).mockReturnValue([[], null] as unknown as ReturnType<
-      typeof Namespace.useList
-    >);
+    vi.mocked(Namespace.useList).mockReturnValue({
+      items: [],
+      error: null,
+      isLoading: false,
+    } as unknown as ReturnType<typeof Namespace.useList>);
 
     render(
       <Provider store={store}>
@@ -155,10 +160,6 @@ describe('NamespacesAutocomplete', () => {
       items: [],
       error: null,
       isLoading: true,
-      *[Symbol.iterator]() {
-        yield [];
-        yield null;
-      },
     } as unknown as ReturnType<typeof Namespace.useList>);
 
     render(
