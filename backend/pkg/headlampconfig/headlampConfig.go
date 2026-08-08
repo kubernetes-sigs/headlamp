@@ -77,6 +77,7 @@ type HeadlampCFG struct {
 	NodeShellImage               string
 	NodeShellNamespace           string
 	OidcUseCookie                bool
+	OidcUseTokenBroadcast        bool
 	DefaultLightTheme            string
 	DefaultDarkTheme             string
 	ForceTheme                   string
