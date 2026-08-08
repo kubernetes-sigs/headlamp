@@ -17,12 +17,32 @@
 import Box from '@mui/material/Box';
 import Typography, { TypographyProps } from '@mui/material/Typography';
 import React from 'react';
+import { useTranslation } from 'react-i18next';
 
 type EmptyProps = React.PropsWithChildren<{
   color?: TypographyProps['color'];
+  /**
+   * Optional row of quick-action controls (e.g. "Refresh", "Create <Kind>")
+   * rendered below the message so users have a next step from the empty
+   * state. Pass `null` to explicitly render nothing.
+   */
+  actions?: React.ReactNode;
+  /**
+   * Accessible label for the actions row. Defaults to a generic
+   * "Empty state actions" so screen readers relate the buttons to the
+   * empty state; callers should override with something more specific
+   * (e.g. "Empty pod list actions") when possible.
+   */
+  actionsAriaLabel?: string;
 }>;
 
-export default function Empty({ color = 'textSecondary', children }: EmptyProps) {
+export default function Empty({
+  color = 'textSecondary',
+  children,
+  actions,
+  actionsAriaLabel,
+}: EmptyProps) {
+  const { t } = useTranslation();
   return (
     <Box padding={2}>
       {React.Children.map(children, child => {
@@ -35,6 +55,15 @@ export default function Empty({ color = 'textSecondary', children }: EmptyProps)
         }
         return child;
       })}
+      {actions !== null && actions !== undefined && (
+        <Box
+          role="group"
+          aria-label={actionsAriaLabel ?? t('translation|Empty state actions')}
+          sx={{ display: 'flex', justifyContent: 'center', gap: 1, mt: 2 }}
+        >
+          {actions}
+        </Box>
+      )}
     </Box>
   );
 }
