@@ -477,6 +477,8 @@
       "ServiceAccount": [Function],
       "StatefulSet": [Function],
       "StorageClass": [Function],
+      "ValidatingAdmissionPolicy": [Function],
+      "ValidatingAdmissionPolicyBinding": [Function],
       "VolumeAttributesClass": [Function],
     },
     "cluster": {
@@ -607,6 +609,12 @@
     "useClustersVersion": [Function],
     "useConnectApi": [Function],
     "useSelectedClusters": [Function],
+    "validatingAdmissionPolicy": {
+      "default": [Function],
+    },
+    "validatingAdmissionPolicyBinding": {
+      "default": [Function],
+    },
     "volumeAttributesClass": {
       "default": [Function],
     },
