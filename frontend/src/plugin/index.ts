@@ -617,6 +617,7 @@ export async function fetchAndExecutePlugins(
           if (isPackage['@headlamp-k8s/ai-assistant']) {
             secretsToReturn['runCmd-gh'] = secrets['runCmd-gh'];
             secretsToReturn['runCmd-az'] = secrets['runCmd-az'];
+            secretsToReturn['runCmd-aws'] = secrets['runCmd-aws'];
           }
 
           return secretsToReturn;
@@ -650,7 +651,7 @@ export async function fetchAndExecutePlugins(
 
           if (isPackage['@headlamp-k8s/ai-assistant']) {
             function pluginRunCommand(
-              command: 'gh' | 'az',
+              command: 'gh' | 'az' | 'aws',
               args: string[],
               options: {}
             ): ReturnType<typeof internalRunCommand> {

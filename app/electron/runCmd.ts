@@ -85,32 +85,55 @@ function confirmCommandDialog(command: string, mainWindow: BrowserWindow): boole
  * @param args - The arguments to the command.
  * @returns true if the user has consented to running the command, false otherwise.
  */
-function checkCommandConsent(command: string, args: string[], mainWindow: BrowserWindow): boolean {
+export function checkCommandConsent(
+  command: string,
+  args: string[],
+  mainWindow: BrowserWindow
+): boolean {
   const settings = loadSettings(SETTINGS_PATH);
-  const confirmedCommands = settings?.confirmedCommands;
+  const confirmedCommands =
+    settings?.confirmedCommands &&
+    typeof settings.confirmedCommands === 'object' &&
+    !Array.isArray(settings.confirmedCommands)
+      ? settings.confirmedCommands
+      : undefined;
 
-  // Build the consent key: command + (first arg if present)
+  // Build the consent key: command + (first arg if present).
+  // For 'aws', also include the second arg (e.g. "aws sso login") so that
+  // pre-consent can be scoped to a specific subcommand rather than every
+  // "aws sso" call, keeping the allowlist as narrow as intended.
   let consentKey = command;
   if (args && args.length > 0) {
     consentKey += ' ' + args[0];
+    if (command === 'aws' && args.length > 1) {
+      consentKey += ' ' + args[1];
+    }
   }
 
   const savedCommand: boolean | undefined = confirmedCommands
     ? confirmedCommands[consentKey]
     : undefined;
 
-  if (savedCommand === false) {
-    console.error(`Invalid command: ${consentKey}, command not allowed by users choice`);
+  if (savedCommand === true) {
+    return true;
+  } else if (savedCommand === false) {
+    console.error(`Command denied by user: ${consentKey}`);
     return false;
-  } else if (savedCommand === undefined) {
-    const commandChoice = confirmCommandDialog(consentKey, mainWindow);
-    if (settings?.confirmedCommands === undefined) {
-      settings.confirmedCommands = {};
-    }
-    settings.confirmedCommands[consentKey] = commandChoice;
-    saveSettings(SETTINGS_PATH, settings);
   }
-  return true;
+
+  const commandChoice = confirmCommandDialog(consentKey, mainWindow);
+  if (
+    !settings.confirmedCommands ||
+    typeof settings.confirmedCommands !== 'object' ||
+    Array.isArray(settings.confirmedCommands)
+  ) {
+    settings.confirmedCommands = {};
+  }
+  settings.confirmedCommands[consentKey] = commandChoice;
+  saveSettings(SETTINGS_PATH, settings);
+  // Return the choice the user just made: denying at the prompt has to block this
+  // run, not only the ones after it.
+  return commandChoice;
 }
 
 const COMMANDS_WITH_CONSENT = {
@@ -127,7 +150,7 @@ const COMMANDS_WITH_CONSENT = {
     'scriptjs headlamp_minikube/manage-minikube.js',
     'scriptjs minikube/manage-minikube.js',
   ],
-  headlamp_ai_assistant: ['gh auth', 'az account', 'az cognitiveservices'],
+  headlamp_ai_assistant: ['gh auth', 'az account', 'az cognitiveservices', 'aws sso login'],
 };
 
 /**
@@ -140,7 +163,11 @@ const COMMANDS_WITH_CONSENT = {
  */
 export function addRunCmdConsent(pluginInfo: { name: string }): void {
   const settings = loadSettings(SETTINGS_PATH);
-  if (!settings.confirmedCommands) {
+  if (
+    !settings.confirmedCommands ||
+    typeof settings.confirmedCommands !== 'object' ||
+    Array.isArray(settings.confirmedCommands)
+  ) {
     settings.confirmedCommands = {};
   }
   let commands: string[] = [];
@@ -167,7 +194,7 @@ export function addRunCmdConsent(pluginInfo: { name: string }): void {
   }
 
   for (const command of commands) {
-    if (!settings.confirmedCommands[command]) {
+    if (settings.confirmedCommands[command] === undefined) {
       settings.confirmedCommands[command] = true;
     }
   }
@@ -182,7 +209,11 @@ export function addRunCmdConsent(pluginInfo: { name: string }): void {
  */
 export function removeRunCmdConsent(pluginName: string): void {
   const settings = loadSettings(SETTINGS_PATH);
-  if (!settings.confirmedCommands) {
+  if (
+    !settings.confirmedCommands ||
+    typeof settings.confirmedCommands !== 'object' ||
+    Array.isArray(settings.confirmedCommands)
+  ) {
     return;
   }
   let commands: string[] = [];
@@ -405,6 +436,7 @@ export function setupRunCmdHandlers(mainWindow: BrowserWindow | null, ipcMain: E
     'runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js': cryptoRandom(),
     'runCmd-gh': cryptoRandom(),
     'runCmd-az': cryptoRandom(),
+    'runCmd-aws': cryptoRandom(),
   };
 
   ipcMain.on('request-plugin-permission-secrets', function giveSecrets() {
@@ -438,16 +470,27 @@ export function validateCommandData(eventData: CommandDataPartial): [boolean, st
   if (!eventData || typeof eventData !== 'object' || eventData === null) {
     return [false, `Invalid eventData data received: ${eventData}`];
   }
+  if (typeof eventData.id !== 'string' || !eventData.id) {
+    return [false, `Invalid eventData.id: ${eventData.id}`];
+  }
   if (typeof eventData.command !== 'string' || !eventData.command) {
     return [false, `Invalid eventData.command: ${eventData.command}`];
   }
-  if (!Array.isArray(eventData.args)) {
+  if (!Array.isArray(eventData.args) || eventData.args.some(arg => typeof arg !== 'string')) {
     return [false, `Invalid eventData.args: ${eventData.args}`];
   }
-  if (typeof eventData.options !== 'object' || eventData.options === null) {
+  if (
+    typeof eventData.options !== 'object' ||
+    eventData.options === null ||
+    Array.isArray(eventData.options)
+  ) {
     return [false, `Invalid eventData.options: ${eventData.options}`];
   }
-  if (typeof eventData.permissionSecrets !== 'object' || eventData.permissionSecrets === null) {
+  if (
+    typeof eventData.permissionSecrets !== 'object' ||
+    eventData.permissionSecrets === null ||
+    Array.isArray(eventData.permissionSecrets)
+  ) {
     return [
       false,
       `Invalid permission secrets, it is not an object: ${typeof eventData.permissionSecrets}`,
@@ -459,7 +502,7 @@ export function validateCommandData(eventData: CommandDataPartial): [boolean, st
     }
   }
 
-  const validCommands = ['minikube', 'az', 'scriptjs', 'gh'];
+  const validCommands = ['minikube', 'az', 'aws', 'scriptjs', 'gh'];
 
   if (!validCommands.includes(eventData.command)) {
     return [
