@@ -2,6 +2,7 @@ GO111MODULE=on
 export GO111MODULE
 
 SERVER_EXE_EXT ?=
+EXE_EXT ?=
 DOCKER_CMD ?= docker
 DOCKER_BUILDX_CMD ?= buildx
 DOCKER_REPO ?= ghcr.io/headlamp-k8s
@@ -41,7 +42,12 @@ EMBED_BUILD_FLAGS := -trimpath -ldflags="-s -w -X github.com/kubernetes-sigs/hea
 
 ifeq ($(OS), Windows_NT)
 	SERVER_EXE_EXT = .exe
+	EXE_EXT = .exe
 endif
+
+# Installed as a prebuilt release binary by tools/install-golangci-lint.js,
+# which also holds the pinned version.
+GOLANGCI_LINT := backend/tools/golangci-lint$(EXE_EXT)
 
 ifeq ($(OS), Windows_NT)
 	UNIXSHELL = false
@@ -57,21 +63,17 @@ endif
 
 all: backend frontend
 
-tools/golangci-lint: backend/go.mod backend/go.sum
-ifeq ($(UNIXSHELL), true)
-	GOBIN=`pwd`/backend/tools go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
-else
-	powershell -Command "$$env:GOBIN='$(CURDIR)/backend/tools'; go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2"
-endif
+$(GOLANGCI_LINT): tools/install-golangci-lint.js
+	node tools/install-golangci-lint.js
 
-backend-lint: tools/golangci-lint
+backend-lint: $(GOLANGCI_LINT)
 ifeq ($(UNIXSHELL), true)
 	cd backend && ./tools/golangci-lint run
 else
 	cd backend && tools\golangci-lint.exe run
 endif
 
-backend-lint-fix: tools/golangci-lint
+backend-lint-fix: $(GOLANGCI_LINT)
 ifeq ($(UNIXSHELL), true)
 	cd backend && ./tools/golangci-lint run --fix
 else

@@ -27,7 +27,7 @@
     "backend:build": "cd backend && go build -o ./headlamp-server ./cmd",
     "backend:lint": "npm run backend:install:linter && cd backend && ./tools/golangci-lint run",
     "backend:lint:fix": "npm run backend:install:linter && cd backend && ./tools/golangci-lint run --fix",
-    "backend:install:linter": "GOBIN=`pwd`/backend/tools go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2",
+    "backend:install:linter": "node tools/install-golangci-lint.js",
     "backend:test": "cd backend && go test -v -p 1 ./...",
     "backend:fuzz": "cd backend && go test -run=FuzzSanitizeClusterName -fuzz=FuzzSanitizeClusterName -fuzztime=10s ./pkg/auth/ && go test -run=FuzzDecodeBase64JSON -fuzz=FuzzDecodeBase64JSON -fuzztime=10s ./pkg/auth/ && go test -run=FuzzUnmarshalKubeconfig -fuzz=FuzzUnmarshalKubeconfig -fuzztime=10s ./pkg/kubeconfig/ && go test -run=FuzzNormalizeServerURL -fuzz=FuzzNormalizeServerURL -fuzztime=10s ./pkg/clusterinventory/",
     "backend:coverage": "cd backend && go test -v -p 1 -coverprofile=coverage.out ./... && go tool cover -func=coverage.out",
