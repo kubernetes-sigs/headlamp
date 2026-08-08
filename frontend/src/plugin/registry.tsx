@@ -1148,13 +1148,16 @@ export function registerProjectDetailsTab(projectDetailsTab: ProjectDetailsTab) 
  *
  * @param projectOverviewSection - The section configuration to register
  * @param projectOverviewSection.id - Unique identifier for the section
- * @param projectOverviewSection.component - React component to render in the section
+ * @param projectOverviewSection.component - React component receiving the current project and its loaded resources
+ * @param projectOverviewSection.isEnabled - Optional asynchronous predicate receiving the project being evaluated
+ * @returns void
  *
  * @example
  * ```tsx
  * registerProjectOverviewSection({
  *   id: 'resource-usage',
- *   component: ({ project }) => <ResourceUsageChart project={project} />
+ *   component: ({ project }) => <ResourceUsageChart project={project} />,
+ *   isEnabled: async ({ project }) => project.clusters.length > 1,
  * });
  * ```
  */
