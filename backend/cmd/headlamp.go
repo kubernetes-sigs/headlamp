@@ -1988,6 +1988,26 @@ func (c *HeadlampConfig) handleClusterRequests(router *mux.Router) {
 	handleClusterAPI(c, router)
 }
 
+// clusterMetadata builds the metadata the frontend receives for a context.
+func clusterMetadata(context *kubeconfig.Context) map[string]interface{} {
+	metadata := map[string]interface{}{
+		"source":     context.SourceStr(),
+		"namespace":  context.KubeContext.Namespace,
+		"extensions": context.KubeContext.Extensions,
+		"origin": map[string]interface{}{
+			"kubeconfig": context.KubeConfigPath,
+		},
+		"originalName":    context.Name,
+		logFieldClusterID: context.ClusterID,
+	}
+
+	if context.Source == kubeconfig.ClusterInventory && context.ClusterInventory != nil {
+		metadata["clusterInventory"] = context.ClusterInventory
+	}
+
+	return metadata
+}
+
 func (c *HeadlampConfig) getClusters() []Cluster {
 	clusters := []Cluster{}
 
@@ -2021,32 +2041,14 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 			continue
 		}
 
-		kubeconfigPath := context.KubeConfigPath
-
-		source := context.SourceStr()
-
-		clusterID := context.ClusterID
-
-		metadata := map[string]interface{}{
-			"source":     source,
-			"namespace":  context.KubeContext.Namespace,
-			"extensions": context.KubeContext.Extensions,
-			"origin": map[string]interface{}{
-				"kubeconfig": kubeconfigPath,
-			},
-			"originalName":    context.Name,
-			logFieldClusterID: clusterID,
-		}
-
-		if context.Source == kubeconfig.ClusterInventory && context.ClusterInventory != nil {
-			metadata["clusterInventory"] = context.ClusterInventory
-		}
+		metadata := clusterMetadata(context)
 
 		clusters = append(clusters, Cluster{
-			Name:     context.Name,
-			Server:   context.Cluster.Server,
-			AuthType: context.AuthType(),
-			Metadata: metadata,
+			Name:                    context.Name,
+			Server:                  context.Cluster.Server,
+			AuthType:                context.AuthType(),
+			Metadata:                metadata,
+			UsesServiceAccountToken: c.shouldUseUnsafeServiceAccountTokenForContext(context),
 		})
 	}
 
