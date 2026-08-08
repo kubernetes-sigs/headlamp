@@ -19,6 +19,7 @@ import Autocomplete from '@mui/material/Autocomplete';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
 import Checkbox from '@mui/material/Checkbox';
+import Chip from '@mui/material/Chip';
 import FormControlLabel from '@mui/material/FormControlLabel';
 import IconButton from '@mui/material/IconButton';
 import MenuItem from '@mui/material/MenuItem';
@@ -76,6 +77,11 @@ export interface FormField {
     onChange: (value: any) => void;
     resource: Record<string, any>;
   }) => React.ReactNode;
+  multiple?: boolean;
+  /** Store an empty string at `path` instead of unsetting it. For fields
+   *  where '' is semantically meaningful, e.g. `spec.storageClassName: ""`
+   *  disables default StorageClass selection on a PVC. */
+  allowEmptyString?: boolean;
 }
 
 /** A labelled group of fields. */
@@ -144,7 +150,18 @@ function isFieldValid(field: FormField, value: any): boolean {
       );
     case 'boolean':
       return true;
+    case 'select':
+      if (field.multiple) {
+        return (
+          (Array.isArray(value) && value.length > 0) || (typeof value === 'string' && value !== '')
+        );
+      }
+      return typeof value === 'string' && value !== '';
     default:
+      // Array-typed values (e.g. set via the YAML editor) must be non-empty.
+      if (Array.isArray(value)) {
+        return value.length > 0;
+      }
       return value !== undefined && value !== null && value !== '';
   }
 }
@@ -168,9 +185,9 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
     }
   }, [isValid, onValidChange]);
 
-  function handleFieldChange(path: string, value: any) {
+  function handleFieldChange(path: string, value: any, allowEmptyString?: boolean) {
     const updated = _.cloneDeep(resource);
-    if (value === undefined || value === '') {
+    if (value === undefined || (value === '' && !allowEmptyString)) {
       _.unset(updated, path);
     } else {
       _.set(updated, path, value);
@@ -203,7 +220,7 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
         <FieldWrapper field={field}>
           {field.render({
             value,
-            onChange: v => handleFieldChange(field.path, v),
+            onChange: v => handleFieldChange(field.path, v, field.allowEmptyString),
             resource,
           })}
         </FieldWrapper>
@@ -281,15 +298,60 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
             />
           </FieldWrapper>
         );
-      case 'select':
+      case 'select': {
+        const multiple = field.multiple ?? false;
+        const selectValue = multiple
+          ? Array.isArray(value)
+            ? value
+            : typeof value === 'string' && value !== ''
+            ? [value]
+            : []
+          : Array.isArray(value)
+          ? typeof value[0] === 'string'
+            ? value[0]
+            : ''
+          : value ?? '';
         return (
           <FieldWrapper field={field}>
             <FormTextField
-              value={value ?? ''}
-              onChange={e => handleFieldChange(field.path, e.target.value)}
+              value={selectValue}
+              onChange={e => {
+                const v = e.target.value;
+                if (multiple) {
+                  const arr = Array.isArray(v)
+                    ? v
+                    : String(v)
+                        .split(',')
+                        .map(s => s.trim())
+                        .filter(Boolean);
+
+                  handleFieldChange(field.path, arr.length > 0 ? arr : undefined);
+                } else {
+                  handleFieldChange(field.path, v);
+                }
+              }}
               required={field.required}
               select
               inputProps={{ 'aria-label': field.label }}
+              SelectProps={
+                multiple
+                  ? {
+                      multiple: true,
+                      renderValue: (selected: unknown) => {
+                        const labelsByValue = new Map(
+                          (field.options ?? []).map(o => [o.value, o.label])
+                        );
+                        return (
+                          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5 }}>
+                            {(selected as string[]).map(val => (
+                              <Chip key={val} label={labelsByValue.get(val) ?? val} size="small" />
+                            ))}
+                          </Box>
+                        );
+                      },
+                    }
+                  : { multiple: false }
+              }
             >
               {(field.options ?? []).map(opt => (
                 <MenuItem key={opt.value} value={opt.value}>
@@ -299,6 +361,7 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
             </FormTextField>
           </FieldWrapper>
         );
+      }
       case 'boolean':
         return (
           <FieldWrapper field={{ ...field, helperText: undefined }} hideLabel>
@@ -322,7 +385,7 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
           <FieldWrapper field={field}>
             <FormTextField
               value={value ?? ''}
-              onChange={e => handleFieldChange(field.path, e.target.value)}
+              onChange={e => handleFieldChange(field.path, e.target.value, field.allowEmptyString)}
               required={field.required}
               inputProps={{ 'aria-label': field.label }}
             />
