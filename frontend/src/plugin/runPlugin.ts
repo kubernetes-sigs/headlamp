@@ -151,17 +151,32 @@ export function runPlugin(
   args: string[],
   values: unknown[]
 ): void {
+  // Shadow global scope identifiers to restrict direct global object access
+  const shadowArgs = ['window', 'globalThis', 'self', 'document'];
+  const finalArgs = [...args];
+  const finalValues = [...values];
+
+  for (const shadowArg of shadowArgs) {
+    if (!finalArgs.includes(shadowArg)) {
+      finalArgs.push(shadowArg);
+      finalValues.push(undefined);
+    }
+  }
+
+  // Ensure strict mode execution so 'this' does not default to the global window
+  const strictSource =
+    source.startsWith("'use strict'") || source.startsWith('"use strict"')
+      ? source
+      : `'use strict';\n${source}`;
+
   // We use PrivateFunction here instead of global Function so people can't
   //   override Function and snoop on it.
-  const executePlugin = new PrivateFunction(...args, source);
+  const executePlugin = new PrivateFunction(...finalArgs, strictSource);
 
   try {
-    // This executes in the global scope,
-    //   so the plugin can't access variables in this scope.
-    // Meaning, it can NOT access "permissionSecrets".
-    // Each plugin gets its own "pluginPermissionSecrets" which contains only the secrets
-    //   that it is allowed to access.
-    executePlugin(...values);
+    // This executes in the bound function scope,
+    //   so the plugin can't access variables in the outer scope or global window.
+    executePlugin(...finalValues);
   } catch (e) {
     handleError(e, packageName, packageVersion);
   }
