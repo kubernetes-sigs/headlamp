@@ -83,7 +83,7 @@ frontend/build:
 
 .PHONY: app
 app-build: frontend/build
-	cd app && npm install && node ./scripts/setup-plugins.js && npm run build
+	cd app && npm ci && node ./scripts/setup-plugins.js && npm run build
 app: app-build
 	cd app && npm run package -- --win --linux --mac
 app-win: app-build

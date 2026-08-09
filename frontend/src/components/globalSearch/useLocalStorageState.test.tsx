@@ -133,6 +133,17 @@ describe('useLocalStorageState', () => {
       expect(JSON.parse(localStorage.getItem(storageKey) || '""')).toBe('updated');
     });
 
+    it('accepts a direct value instead of an updater function', () => {
+      const { result } = renderHook(() => useLocalStorageState(storageKey, 'initial'));
+
+      act(() => {
+        result.current[1]('direct-update');
+      });
+
+      expect(result.current[0]).toBe('direct-update');
+      expect(JSON.parse(localStorage.getItem(storageKey) || '""')).toBe('direct-update');
+    });
+
     it('composes consecutive updates using a retained setter', () => {
       const { result } = renderHook(() => useLocalStorageState(storageKey, 0));
       const set = result.current[1];
@@ -261,6 +272,74 @@ describe('useLocalStorageState', () => {
 
       expect(JSON.parse(localStorage.getItem(firstKey)!)).toBe('first');
       expect(JSON.parse(localStorage.getItem(secondKey)!)).toBe('updated');
+    });
+  });
+
+  describe('cross-tab synchronization', () => {
+    it('updates state when another tab modifies localStorage', () => {
+      const { result } = renderHook(() => useLocalStorageState(storageKey, 'initial'));
+
+      act(() => {
+        localStorage.setItem(storageKey, JSON.stringify('from-another-tab'));
+        const event = new Event('storage') as any;
+        event.key = storageKey;
+        event.newValue = JSON.stringify('from-another-tab');
+        event.storageArea = window.localStorage;
+        window.dispatchEvent(event);
+      });
+
+      expect(result.current[0]).toBe('from-another-tab');
+    });
+
+    it('ignores sessionStorage events', () => {
+      const { result } = renderHook(() => useLocalStorageState(storageKey, 'initial'));
+
+      act(() => {
+        const event = new Event('storage') as any;
+        event.key = storageKey;
+        event.newValue = JSON.stringify('from-session-storage');
+        event.storageArea = window.sessionStorage;
+        window.dispatchEvent(event);
+      });
+
+      expect(result.current[0]).toBe('initial');
+    });
+
+    it('falls back to default value on localStorage.clear()', () => {
+      const { result } = renderHook(() => useLocalStorageState(storageKey, 'initial'));
+
+      act(() => {
+        result.current[1]('changed');
+      });
+      expect(result.current[0]).toBe('changed');
+
+      act(() => {
+        const event = new Event('storage') as any;
+        event.key = null;
+        event.storageArea = window.localStorage;
+        window.dispatchEvent(event);
+      });
+
+      expect(result.current[0]).toBe('initial');
+    });
+
+    it('falls back to default value on localStorage.removeItem()', () => {
+      const { result } = renderHook(() => useLocalStorageState(storageKey, 'initial'));
+
+      act(() => {
+        result.current[1]('changed');
+      });
+      expect(result.current[0]).toBe('changed');
+
+      act(() => {
+        const event = new Event('storage') as any;
+        event.key = storageKey;
+        event.newValue = null;
+        event.storageArea = window.localStorage;
+        window.dispatchEvent(event);
+      });
+
+      expect(result.current[0]).toBe('initial');
     });
   });
 });
