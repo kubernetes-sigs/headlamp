@@ -522,6 +522,7 @@ export function SingleActivityRenderer({
                   <IconButton
                     size="small"
                     title={t('Window')}
+                    aria-label={t('Window')}
                     aria-haspopup="menu"
                     aria-expanded={isSnapMenuOpen}
                     aria-controls={isSnapMenuOpen ? 'snap-menu' : undefined}
@@ -724,18 +725,26 @@ export function SingleActivityRenderer({
                       </Paper>
                     </ClickAwayListener>
                   </Popper>
-                  <IconButton
-                    onClick={() => {
-                      Activity.update(id, { minimized: true });
-                    }}
-                    size="small"
-                    title={t('Minimize')}
-                  >
-                    <Icon icon="mdi:minimize" />
-                  </IconButton>
-                  <IconButton onClick={() => Activity.close(id)} size="small" title={t('Close')}>
-                    <Icon icon="mdi:close" />
-                  </IconButton>
+                  <Tooltip title={t('Minimize')}>
+                    <IconButton
+                      onClick={() => {
+                        Activity.update(id, { minimized: true });
+                      }}
+                      size="small"
+                      aria-label={t('Minimize')}
+                    >
+                      <Icon icon="mdi:minimize" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={t('Close')}>
+                    <IconButton
+                      onClick={() => Activity.close(id)}
+                      size="small"
+                      aria-label={t('Close')}
+                    >
+                      <Icon icon="mdi:close" />
+                    </IconButton>
+                  </Tooltip>
                 </>
               )}
             </Box>

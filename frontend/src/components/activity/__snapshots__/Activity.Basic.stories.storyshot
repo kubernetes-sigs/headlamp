@@ -32,6 +32,7 @@
             <button
               aria-expanded="false"
               aria-haspopup="menu"
+              aria-label="Window"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
               title="Window"
@@ -42,9 +43,10 @@
               />
             </button>
             <button
+              aria-label="Minimize"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              data-mui-internal-clone-element="true"
               tabindex="0"
-              title="Minimize"
               type="button"
             >
               <span
@@ -52,9 +54,10 @@
               />
             </button>
             <button
+              aria-label="Close"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              data-mui-internal-clone-element="true"
               tabindex="0"
-              title="Close"
               type="button"
             >
               <span
@@ -91,6 +94,7 @@
             <button
               aria-expanded="false"
               aria-haspopup="menu"
+              aria-label="Window"
               class="MuiButtonBase-root Mui-focusVisible MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
               title="Window"
@@ -110,9 +114,10 @@
               </span>
             </button>
             <button
+              aria-label="Minimize"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              data-mui-internal-clone-element="true"
               tabindex="0"
-              title="Minimize"
               type="button"
             >
               <span
@@ -120,9 +125,10 @@
               />
             </button>
             <button
+              aria-label="Close"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
+              data-mui-internal-clone-element="true"
               tabindex="0"
-              title="Close"
               type="button"
             >
               <span
