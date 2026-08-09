@@ -435,4 +435,93 @@ describe('useKubeObject watch wiring', () => {
       expect(lastCall.connections[0]?.url).not.toContain('metadata.name%3Dpod-a');
     });
   });
+
+  it('preserves the cluster association on WebSocket update', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns' },
+      })
+    );
+
+    const { result, rerender } = renderHook(
+      ({ cluster }) =>
+        useKubeObject({
+          kubeObjectClass: MockPod,
+          name: 'my-pod',
+          namespace: 'my-ns',
+          cluster,
+        }),
+      { wrapper: createWrapper(), initialProps: { cluster: 'test-cluster-a' } }
+    );
+
+    // Wait until multiplexer becomes enabled
+    let lastCall: any;
+    await waitFor(() => {
+      expect(mockUseWebSocket).toHaveBeenCalled();
+      const calls = mockUseWebSocket.mock.calls;
+      lastCall = calls[calls.length - 1][0];
+      expect(lastCall.enabled).toBe(true);
+    });
+
+    // Trigger websocket message
+    const onMessage = lastCall.onMessage;
+    expect(onMessage).toBeDefined();
+
+    onMessage({
+      type: 'MODIFIED',
+      object: {
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: '2' },
+      },
+    });
+
+    // Check that the returned data is updated, and has the correct cluster
+    await waitFor(() => {
+      expect(result.current.data).toBeDefined();
+      expect(result.current.data?.cluster).toBe('test-cluster-a');
+    });
+
+    // Since queryKey changes when cluster changes, a new fetch happens.
+    // We mock that next fetch response before rerendering to avoid a race condition:
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: '3' },
+      })
+    );
+
+    // Rerender with a different cluster to verify the new callback dependency
+    rerender({ cluster: 'test-cluster-b' });
+
+    let lastCallAfter: any;
+    await waitFor(() => {
+      const callsAfter = mockUseWebSocket.mock.calls;
+      lastCallAfter = callsAfter[callsAfter.length - 1][0];
+      expect(lastCallAfter.cluster).toBe('test-cluster-b');
+      expect(lastCallAfter.enabled).toBe(true);
+      expect(lastCallAfter.onMessage).toBeDefined();
+    });
+
+    // Fire the onMessage callback of the new render
+    lastCallAfter.onMessage({
+      type: 'MODIFIED',
+      object: {
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: '4' },
+      },
+    });
+
+    // Check that the returned data is updated, and has the new cluster!
+    await waitFor(() => {
+      expect(result.current.data).toBeDefined();
+      expect(result.current.data?.cluster).toBe('test-cluster-b');
+      expect(result.current.data?.jsonData.metadata.resourceVersion).toBe('4');
+    });
+  });
 });
