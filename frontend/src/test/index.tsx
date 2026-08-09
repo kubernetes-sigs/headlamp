@@ -20,6 +20,10 @@ import { PropsWithChildren } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route } from 'react-router-dom';
 import defaultStore from '../redux/stores/store';
+import { ThemeProvider } from '@mui/material/styles';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { lightTheme } from '../components/App/defaultAppThemes';
+import { createMuiTheme } from '../lib/themes';
 
 /**
  * Origin (scheme/host/port) of the dev/test backend that MSW handlers intercept
@@ -27,6 +31,18 @@ import defaultStore from '../redux/stores/store';
  * (4466) but intentionally omits any baseUrl/trailing slash.
  */
 export const API_BASE = 'http://localhost:4466';
+
+export const testQueryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnMount: 'always',
+      staleTime: 0,
+      retry: false,
+      gcTime: 0,
+    },
+  },
+});
+
 
 export type TestContextProps = PropsWithChildren<{
   store?: ReturnType<typeof configureStore>;
@@ -60,11 +76,15 @@ export function TestContext(props: TestContextProps) {
 
   return (
     <Provider store={store || defaultStore}>
-      <SnackbarProvider>
-        <MemoryRouter initialEntries={url ? [url] : undefined}>
-          {routePath ? <Route path={routePath}>{children}</Route> : children}
-        </MemoryRouter>
-      </SnackbarProvider>
+      <QueryClientProvider client={testQueryClient}>
+        <ThemeProvider theme={createMuiTheme(lightTheme)}>
+          <SnackbarProvider>
+            <MemoryRouter initialEntries={url ? [url] : undefined}>
+              {routePath ? <Route path={routePath}>{children}</Route> : children}
+            </MemoryRouter>
+          </SnackbarProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
     </Provider>
   );
 }

@@ -18,6 +18,9 @@
 import '@testing-library/jest-dom/vitest';
 import 'vitest-canvas-mock';
 import indexeddb from 'fake-indexeddb';
+import { setupWarningBudget, assertWarningBudget } from './warningBudget';
+
+setupWarningBudget();
 
 // xterm initializes canvas APIs during module setup, so install the canvas mock
 // here once for the entire Vitest environment instead of per test file.
@@ -115,4 +118,8 @@ beforeEach(() => {
   // Clears the database and adds some testing data.
   // Jest will wait for this promise to resolve before running tests.
   localStorage.clear();
+});
+
+afterAll(() => {
+  assertWarningBudget();
 });
