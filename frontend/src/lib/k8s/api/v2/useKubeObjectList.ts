@@ -645,47 +645,43 @@ export function useKubeObjectList<K extends KubeObject>({
     { cluster: string; namespace?: string; resourceVersion: string }[]
   >([]);
 
-  useEffect(() => {
-    setListsToWatch(currentListsToWatch => {
-      const keptListsToWatch = currentListsToWatch.filter(
-        watching =>
-          requests.find(request => {
-            if (watching.cluster !== request?.cluster) return false;
-            return !request.namespaces?.length
-              ? !watching.namespace
-              : !!watching.namespace && request.namespaces.includes(watching.namespace);
-          }) !== undefined
-      );
+  // Render-phase update: https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes
+  if (shouldWatch) {
+    const nextListsToWatch = query.data.filter(Boolean).map(data => ({
+      cluster: data!.cluster,
+      namespace: data!.namespace,
+      resourceVersion: data!.list.metadata.resourceVersion,
+    }));
 
-      if (!shouldWatch) {
-        return keptListsToWatch.length === currentListsToWatch.length
-          ? currentListsToWatch
-          : keptListsToWatch;
-      }
+    const listsToWatchChanged =
+      nextListsToWatch.length !== listsToWatch.length ||
+      nextListsToWatch.some((next, i) => {
+        const cur = listsToWatch[i];
+        return (
+          cur.cluster !== next.cluster ||
+          cur.namespace !== next.namespace ||
+          cur.resourceVersion !== next.resourceVersion
+        );
+      });
 
-      const nextListsToWatch = query.data.filter(Boolean).map(data => ({
-        cluster: data!.cluster,
-        namespace: data!.namespace,
-        resourceVersion: data!.list.metadata.resourceVersion,
-      }));
+    if (listsToWatchChanged) {
+      setListsToWatch(nextListsToWatch);
+    }
+  } else {
+    const keptListsToWatch = listsToWatch.filter(
+      watching =>
+        requests.find(request => {
+          if (watching.cluster !== request?.cluster) return false;
+          return !request.namespaces?.length
+            ? !watching.namespace
+            : !!watching.namespace && request.namespaces.includes(watching.namespace);
+        }) !== undefined
+    );
 
-      if (
-        nextListsToWatch.length === currentListsToWatch.length &&
-        nextListsToWatch.every((nextList, index) => {
-          const currentList = currentListsToWatch[index];
-          return (
-            currentList.cluster === nextList.cluster &&
-            currentList.namespace === nextList.namespace &&
-            currentList.resourceVersion === nextList.resourceVersion
-          );
-        })
-      ) {
-        return currentListsToWatch;
-      }
-
-      return nextListsToWatch;
-    });
-  }, [query.data, requests, shouldWatch]);
+    if (keptListsToWatch.length !== listsToWatch.length) {
+      setListsToWatch(keptListsToWatch);
+    }
+  }
 
   useWatchKubeObjectLists({
     lists: shouldWatch ? listsToWatch : [],

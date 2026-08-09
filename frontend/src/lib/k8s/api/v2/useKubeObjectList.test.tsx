@@ -923,6 +923,95 @@ describe('useKubeObjectList', () => {
     expect(spy.mock.calls[3][0].connections.length).toBe(1);
     expect(spy.mock.calls[3][0].connections[0].cluster).toBe('cluster-1');
   });
+
+  it('should watch newly discovered lists', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const queryClient = new QueryClient();
+
+    try {
+      // No data is seeded into the cache before mounting, so the list starts
+      // out unresolved; the query below only resolves after the hook mounts,
+      // exercising the case where a list is discovered after the initial render.
+      mockClusterFetch.mockResolvedValueOnce({
+        json: () => Promise.resolve(makeListResponse({ items: [], resourceVersion: '0' })),
+      } as Response);
+
+      renderHook(
+        () =>
+          useKubeObjectList({
+            kubeObjectClass: mockClass,
+            requests: [{ cluster: 'default', namespaces: ['a'] }],
+          }),
+        {
+          wrapper: queryClientWrapper(queryClient),
+        }
+      );
+
+      expect(mockUseWebSockets.mock.calls.at(-1)?.[0].connections).toEqual([]);
+
+      await waitFor(() => {
+        expect(mockUseWebSockets.mock.calls.at(-1)?.[0].connections.length).toBe(1);
+        expect(mockUseWebSockets.mock.calls.at(-1)?.[0].connections[0].cluster).toBe('default');
+      });
+
+      // No unexpected React warning about updating component state should be emitted.
+      const unexpectedStateUpdateWarnings = consoleErrorSpy.mock.calls.filter(args =>
+        args.some(arg => typeof arg === 'string' && arg.includes('Cannot update a component'))
+      );
+      expect(unexpectedStateUpdateWarnings).toHaveLength(0);
+    } finally {
+      consoleErrorSpy.mockRestore();
+    }
+  });
+
+  it('should update watched lists when clusters are added and removed together', async () => {
+    const spy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+
+    queryClient.setQueryData(['kubeObject', 'list', 'v1', 'nodes', 'cluster-a', '', {}], {
+      list: { items: [], metadata: { resourceVersion: '0' } },
+      cluster: 'cluster-a',
+    });
+    queryClient.setQueryData(['kubeObject', 'list', 'v1', 'nodes', 'cluster-b', '', {}], {
+      list: { items: [], metadata: { resourceVersion: '0' } },
+      cluster: 'cluster-b',
+    });
+    queryClient.setQueryData(['kubeObject', 'list', 'v1', 'nodes', 'cluster-c', '', {}], {
+      list: { items: [], metadata: { resourceVersion: '0' } },
+      cluster: 'cluster-c',
+    });
+
+    const result = renderHook(
+      (props: { requests: Array<{ cluster: string; namespaces?: string[] }> }) =>
+        useKubeObjectList({
+          kubeObjectClass: mockNodeClass,
+          requests: props.requests,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+        initialProps: {
+          requests: [{ cluster: 'cluster-a' }, { cluster: 'cluster-b' }],
+        },
+      }
+    );
+
+    await waitFor(() => expect(spy.mock.calls.at(-1)?.[0].connections.length).toBe(2));
+
+    // Drop cluster-a and add cluster-c in the same update, while cluster-b
+    // stays watched throughout, so neither a stale-state overwrite drops
+    // cluster-b nor does cluster-a linger after being removed.
+    result.rerender({ requests: [{ cluster: 'cluster-b' }, { cluster: 'cluster-c' }] });
+
+    await waitFor(() => {
+      const connections = spy.mock.calls.at(-1)?.[0].connections ?? [];
+      expect(connections.map((connection: any) => connection.cluster).sort()).toEqual([
+        'cluster-b',
+        'cluster-c',
+      ]);
+    });
+  });
 });
 
 describe('useWatchKubeObjectLists (Multiplexer)', () => {
