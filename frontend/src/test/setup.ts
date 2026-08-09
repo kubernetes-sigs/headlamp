@@ -18,7 +18,7 @@
 import '@testing-library/jest-dom/vitest';
 import 'vitest-canvas-mock';
 import indexeddb from 'fake-indexeddb';
-import { setupWarningBudget, assertWarningBudget } from './warningBudget';
+import { assertWarningBudget, setupWarningBudget } from './warningBudget';
 
 setupWarningBudget();
 

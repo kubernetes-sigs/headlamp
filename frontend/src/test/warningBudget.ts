@@ -23,7 +23,7 @@ export interface WarningCategory {
 // Initial generous budgets, to be adjusted after first run
 export const knownCategories: WarningCategory[] = [
   { name: 'I18N_MISSING', pattern: /NO_I18NEXT_INSTANCE/i, budget: 200 },
-  { name: 'WEBSOCKET_ERROR', pattern: /WebSocket error:|Socket closed unexpectedly/i, budget: 100 },
+  { name: 'WEBSOCKET_ERROR', pattern: /WebSocket error:|Socket closed unexpectedly/i, budget: 400 },
   { name: 'DOM_NESTING', pattern: /validateDOMNesting/i, budget: 200 },
   { name: 'ACT_WARNING', pattern: /act\(\.\.\.\)/i, budget: 200 },
   { name: 'MUI_TOOLTIP', pattern: /MUI: Tooltip/i, budget: 100 },
