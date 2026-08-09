@@ -35,19 +35,21 @@ export function setupWarningBudget() {
   const originalConsoleWarn = console.warn;
   const originalConsoleError = console.error;
 
-  const intercept = (originalFn: (...args: any[]) => void) => (...args: any[]) => {
-    const message = args.map(arg => (typeof arg === 'string' ? arg : String(arg))).join(' ');
-    
-    for (const category of knownCategories) {
-      if (category.pattern.test(message)) {
-        warningCounts[category.name] = (warningCounts[category.name] || 0) + 1;
-        break;
-      }
-    }
+  const intercept =
+    (originalFn: (...args: any[]) => void) =>
+    (...args: any[]) => {
+      const message = args.map(arg => (typeof arg === 'string' ? arg : String(arg))).join(' ');
 
-    // Always log it to the console as usual so we don't hide information
-    originalFn(...args);
-  };
+      for (const category of knownCategories) {
+        if (category.pattern.test(message)) {
+          warningCounts[category.name] = (warningCounts[category.name] || 0) + 1;
+          break;
+        }
+      }
+
+      // Always log it to the console as usual so we don't hide information
+      originalFn(...args);
+    };
 
   console.warn = intercept(originalConsoleWarn);
   console.error = intercept(originalConsoleError);
@@ -67,6 +69,8 @@ export function assertWarningBudget() {
   }
 
   if (overBudget.length > 0) {
-    throw new Error(`Warning budget exceeded for the following categories:\n${overBudget.join('\n')}`);
+    throw new Error(
+      `Warning budget exceeded for the following categories:\n${overBudget.join('\n')}`
+    );
   }
 }

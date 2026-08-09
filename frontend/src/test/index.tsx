@@ -14,16 +14,16 @@
  * limitations under the License.
  */
 
+import { ThemeProvider } from '@mui/material/styles';
 import { configureStore } from '@reduxjs/toolkit';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarProvider } from 'notistack';
 import { PropsWithChildren } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route } from 'react-router-dom';
-import defaultStore from '../redux/stores/store';
-import { ThemeProvider } from '@mui/material/styles';
-import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { lightTheme } from '../components/App/defaultAppThemes';
 import { createMuiTheme } from '../lib/themes';
+import defaultStore from '../redux/stores/store';
 
 /**
  * Origin (scheme/host/port) of the dev/test backend that MSW handlers intercept
@@ -42,7 +42,6 @@ export const testQueryClient = new QueryClient({
     },
   },
 });
-
 
 export type TestContextProps = PropsWithChildren<{
   store?: ReturnType<typeof configureStore>;
