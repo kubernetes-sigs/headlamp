@@ -33,11 +33,19 @@ export default function JobSetList() {
   const [jobSetEnabled, setJobSetEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+
     const jobSetStatus = async () => {
       const enabled = await JobSet.isEnabled();
-      setJobSetEnabled(enabled);
+      if (!cancelled) {
+        setJobSetEnabled(enabled);
+      }
     };
     jobSetStatus();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
@@ -77,17 +85,21 @@ export default function JobSetList() {
           <Paper variant="outlined">
             <Empty>
               <Typography style={{ textAlign: 'center' }}>
-                <Trans t={t}>
-                  JobSet is not enabled.&nbsp;
-                  <Link
-                    href="https://jobset.sigs.k8s.io/docs/installation/"
-                    target="_blank"
-                    rel="noopener"
-                    sx={{ textDecoration: 'underline' }}
-                  >
-                    Learn More
-                  </Link>
-                </Trans>
+                <Trans
+                  t={t}
+                  ns="glossary"
+                  i18nKey="JobSet is not enabled. <1>Learn More</1>"
+                  components={{
+                    1: (
+                      <Link
+                        href="https://jobset.sigs.k8s.io/docs/installation/"
+                        target="_blank"
+                        rel="noopener"
+                        sx={{ textDecoration: 'underline' }}
+                      />
+                    ),
+                  }}
+                />
               </Typography>
             </Empty>
           </Paper>

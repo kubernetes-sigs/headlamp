@@ -36,7 +36,7 @@
               class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
               style="text-align: center;"
             >
-              JobSet is not enabled. 
+              JobSet is not enabled. 
               <a
                 class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-147kpcx-MuiTypography-root-MuiLink-root"
                 href="https://jobset.sigs.k8s.io/docs/installation/"

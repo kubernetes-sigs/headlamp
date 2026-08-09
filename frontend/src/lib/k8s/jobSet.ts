@@ -46,16 +46,13 @@ class JobSet extends KubeObject<KubeJobSet> {
    * resource means JobSet is not installed.
    */
   static async isEnabled(): Promise<boolean> {
-    let res;
     try {
-      res = await request('/apis/jobset.x-k8s.io/v1alpha2');
+      const res = await request('/apis/jobset.x-k8s.io/v1alpha2');
+      const resources = (res as { resources?: Array<{ name: string }> } | undefined)?.resources;
+      return !!resources?.some(r => r.name === 'jobsets');
     } catch (e) {
       return false;
     }
-    if (res?.resources?.find((r: { name: string; [key: string]: any }) => r?.name === 'jobsets')) {
-      return true;
-    }
-    return false;
   }
 
   get spec() {

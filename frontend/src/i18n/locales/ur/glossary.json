@@ -117,6 +117,8 @@
   "Failed": "ناکام",
   "Jobs": "جابز",
   "Job Sets": "جاب سیٹس",
+  "Checking if JobSet is enabled…": "",
+  "JobSet is not enabled. <1>Learn More</1>": "",
   "Leader Worker Sets": "",
   "Lease": "لیز",
   "LimitRange": "لمٹ رینج",
