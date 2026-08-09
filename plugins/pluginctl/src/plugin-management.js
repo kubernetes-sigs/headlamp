@@ -34,6 +34,50 @@ const stream = require('stream');
 const semver = require('semver');
 const envPaths = require('env-paths');
 
+async function fetchWithRetry(url, options, maxRetries = 3) {
+  for (let i = 0; i <= maxRetries; i++) {
+    try {
+      const response = await fetch(url, options);
+      if (response.ok) {
+        return response;
+      }
+      const isTransient = response.status === 408 || response.status === 429 || response.status >= 500;
+      if (!isTransient || i === maxRetries) return response;
+      
+      if (response.body && typeof response.body.cancel === 'function') {
+        response.body.cancel().catch(() => {});
+      }
+    } catch (error) {
+      if (error.name === 'AbortError') throw error;
+      if (i === maxRetries) throw error;
+    }
+    
+    await new Promise((resolve, reject) => {
+      let timeout;
+      const abortHandler = () => {
+        clearTimeout(timeout);
+        const err = new Error('The operation was aborted');
+        err.name = 'AbortError';
+        reject(err);
+      };
+
+      if (options && options.signal) {
+        if (options.signal.aborted) {
+          return abortHandler();
+        }
+        options.signal.addEventListener('abort', abortHandler, { once: true });
+      }
+
+      timeout = setTimeout(() => {
+        if (options && options.signal) {
+          options.signal.removeEventListener('abort', abortHandler);
+        }
+        resolve();
+      }, Math.pow(2, i) * 1000);
+    });
+  }
+}
+
 // comment out for testing
 // function sleep(ms) {
 //   // console.log(ms)
@@ -400,7 +444,7 @@ async function downloadExtractPlugin(
   }
 
   // await sleep(4000); // comment out for testing
-  const archResponse = await fetch(archiveURL, { redirect: 'follow', follow: 10 }, { signal });
+  const archResponse = await fetchWithRetry(archiveURL, { redirect: 'follow', follow: 10, signal });
   if (!archResponse.ok) {
     throw new Error(`Failed to download tarball. Status code: ${archResponse.status}`);
   }
@@ -500,7 +544,7 @@ async function fetchPluginInfo(URL, progressCallback, signal, pluginVersion) {
     if (progressCallback) {
       progressCallback({ type: 'info', message: 'Fetching Plugin Metadata' });
     }
-    let response = await fetch(apiURL, { redirect: 'follow', follow: 10 }, { signal });
+    let response = await fetchWithRetry(apiURL, { redirect: 'follow', follow: 10, signal });
     if (!response.ok) {
       throw new Error(`HTTP error! status: ${response.status}`);
     }
@@ -513,10 +557,9 @@ async function fetchPluginInfo(URL, progressCallback, signal, pluginVersion) {
       }
       // Remove trailing slash if present to avoid double slashes
       const baseURL = apiURL.endsWith('/') ? apiURL.slice(0, -1) : apiURL;
-      response = await fetch(
+      response = await fetchWithRetry(
         `${baseURL}/${pluginVersion}`,
-        { redirect: 'follow', follow: 10 },
-        { signal }
+        { redirect: 'follow', follow: 10, signal }
       );
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -574,4 +617,4 @@ function defaultPluginsDir() {
   return path.join(configDir, 'user-plugins');
 }
 
-module.exports = { PluginManager, validateArchiveURL };
+module.exports = { PluginManager, validateArchiveURL, fetchWithRetry };
