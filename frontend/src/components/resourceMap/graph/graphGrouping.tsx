@@ -22,7 +22,7 @@ import { addPerformanceMetric } from '../PerformanceStats';
 import { makeGraphLookup } from './graphLookup';
 import { forEachNode, getNodeWeight, GraphEdge, GraphNode } from './graphModel';
 
-export type GroupBy = 'node' | 'namespace' | 'instance';
+export type GroupBy = 'node' | 'namespace' | 'instance' | 'cluster';
 
 /**
  * Returns the amount of nodes in the graph
@@ -356,6 +356,20 @@ export function groupGraph(
         return node.kubeObject?.metadata?.labels?.['app.kubernetes.io/instance'];
       },
       { label: 'Instance' }
+    );
+  }
+
+  if (groupBy === 'cluster') {
+    // Create groups based on the cluster
+    components = groupByProperty(
+      components,
+      node => {
+        if (node.nodes) {
+          return node.nodes.find(n => n.kubeObject)?.kubeObject?.cluster;
+        }
+        return node.kubeObject?.cluster;
+      },
+      { label: 'Cluster', allowSingleMemberGroup: true }
     );
   }
 
