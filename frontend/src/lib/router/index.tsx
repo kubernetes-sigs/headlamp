@@ -41,6 +41,14 @@ import CronJobDetails from '../../components/cronjob/Details';
 import CronJobList from '../../components/cronjob/List';
 import DaemonSetList from '../../components/daemonset/List';
 import DeploymentsList from '../../components/deployments/List';
+import DeviceClassDetails from '../../components/device/DeviceClassDetails';
+import DeviceClassList from '../../components/device/DeviceClassList';
+import ResourceClaimDetails from '../../components/device/ResourceClaimDetails';
+import ResourceClaimList from '../../components/device/ResourceClaimList';
+import ResourceClaimTemplateDetails from '../../components/device/ResourceClaimTemplateDetails';
+import ResourceClaimTemplateList from '../../components/device/ResourceClaimTemplateList';
+import ResourceSliceDetails from '../../components/device/ResourceSliceDetails';
+import ResourceSliceList from '../../components/device/ResourceSliceList';
 import EndpointDetails from '../../components/endpoints/Details';
 import EndpointList from '../../components/endpoints/List';
 import EndpointSliceDetails from '../../components/endpointSlices/Details';
@@ -1086,6 +1094,58 @@ const defaultRoutes: { [routeName: string]: Route } = {
     sidebar: 'map',
     isFullWidth: true,
     component: () => <LazyGraphView height="100%" />,
+  },
+  deviceClasses: {
+    path: '/deviceclasses',
+    name: 'Device Classes',
+    sidebar: 'deviceClasses',
+    exact: true,
+    component: () => <DeviceClassList />,
+  },
+  deviceClass: {
+    path: '/deviceclasses/:name',
+    sidebar: 'deviceClasses',
+    exact: true,
+    component: () => <DeviceClassDetails />,
+  },
+  resourceSlices: {
+    path: '/resourceslices',
+    name: 'Resource Slices',
+    sidebar: 'resourceSlices',
+    exact: true,
+    component: () => <ResourceSliceList />,
+  },
+  resourceSlice: {
+    path: '/resourceslices/:name',
+    sidebar: 'resourceSlices',
+    exact: true,
+    component: () => <ResourceSliceDetails />,
+  },
+  resourceClaims: {
+    path: '/resourceclaims',
+    name: 'Resource Claims',
+    sidebar: 'resourceClaims',
+    exact: true,
+    component: () => <ResourceClaimList />,
+  },
+  resourceClaim: {
+    path: '/namespaces/:namespace/resourceclaims/:name',
+    sidebar: 'resourceClaims',
+    exact: true,
+    component: () => <ResourceClaimDetails />,
+  },
+  resourceClaimTemplates: {
+    path: '/resourceclaimtemplates',
+    name: 'Resource Claim Templates',
+    sidebar: 'resourceClaimTemplates',
+    exact: true,
+    component: () => <ResourceClaimTemplateList />,
+  },
+  resourceClaimTemplate: {
+    path: '/namespaces/:namespace/resourceclaimtemplates/:name',
+    sidebar: 'resourceClaimTemplates',
+    exact: true,
+    component: () => <ResourceClaimTemplateDetails />,
   },
 };
 

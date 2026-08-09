@@ -123,6 +123,26 @@
                   class="css-3knmzx"
                 >
                   <a
+                    aria-label="Devices"
+                    class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1bad0xa-MuiButtonBase-root-MuiListItemButton-root"
+                    href="/"
+                    role="button"
+                    tabindex="-1"
+                  >
+                    <div
+                      aria-label="Devices"
+                      class="MuiListItemIcon-root css-1blhdvq-MuiListItemIcon-root"
+                      data-mui-internal-clone-element="true"
+                    />
+                    <span
+                      class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                    />
+                  </a>
+                </li>
+                <li
+                  class="css-3knmzx"
+                >
+                  <a
                     aria-label="Network"
                     class="MuiButtonBase-root MuiListItemButton-root MuiListItemButton-gutters MuiListItemButton-root MuiListItemButton-gutters css-1bad0xa-MuiButtonBase-root-MuiListItemButton-root"
                     href="/"

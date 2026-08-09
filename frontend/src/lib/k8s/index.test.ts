@@ -235,6 +235,8 @@ const notNamespacedClasses = [
   'RuntimeClass',
   'StorageClass',
   'VolumeAttributesClass',
+  'DeviceClass',
+  'ResourceSlice',
 ];
 
 const namespacedClasses = [
@@ -272,6 +274,8 @@ const namespacedClasses = [
   'PodDisruptionBudget',
   'PersistentVolumeClaim',
   'Workload',
+  'ResourceClaim',
+  'ResourceClaimTemplate',
 ];
 
 describe('Test class namespaces', () => {

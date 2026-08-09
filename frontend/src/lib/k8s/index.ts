@@ -30,6 +30,7 @@ import CustomResourceDefinition from './crd';
 import CronJob from './cronJob';
 import DaemonSet from './daemonSet';
 import Deployment from './deployment';
+import DeviceClass from './deviceClass';
 import Endpoints from './endpoints';
 import EndpointSlice from './endpointSlices';
 import Gateway from './gateway';
@@ -54,7 +55,10 @@ import PodDisruptionBudget from './podDisruptionBudget';
 import PodGroup from './podGroup';
 import PriorityClass from './priorityClass';
 import ReplicaSet from './replicaSet';
+import ResourceClaim from './resourceClaim';
+import ResourceClaimTemplate from './resourceClaimTemplate';
 import ResourceQuota from './resourceQuota';
+import ResourceSlice from './resourceSlice';
 import Role from './role';
 import RoleBinding from './roleBinding';
 import { RuntimeClass } from './runtime';
@@ -116,6 +120,10 @@ export const ResourceClasses = {
   UDPRoute,
   // Keyed by kind, so the scheduling.k8s.io Workload is registered as 'Workload'.
   Workload: SchedulingWorkload,
+  DeviceClass,
+  ResourceSlice,
+  ResourceClaim,
+  ResourceClaimTemplate,
 };
 
 /** Hook for getting or fetching the clusters configuration.
