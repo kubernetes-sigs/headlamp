@@ -47,6 +47,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/audit"
 	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
@@ -677,6 +678,32 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	addPluginRoutes(config, r)
 
+	// Audit logs stream endpoint (Cluster-scoped with authentication)
+	r.HandleFunc("/clusters/{clusterName}/audit", func(w http.ResponseWriter, r *http.Request) {
+		requestClusterName := mux.Vars(r)["clusterName"]
+
+		kContext, err := config.KubeConfigStore.GetContext(requestClusterName)
+		if err != nil {
+			logger.Log(logger.LevelError, map[string]string{"cluster": requestClusterName},
+				err, "getting kubeconfig context for audit stream")
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		if !config.shouldUseUnsafeServiceAccountToken() || !kContext.UsesInClusterServiceAccountToken() {
+			token, err := auth.GetTokenFromCookie(r, requestClusterName)
+			if err != nil || token == "" {
+				logger.Log(logger.LevelError, map[string]string{"cluster": requestClusterName},
+					err, "unauthorized access to audit stream")
+				http.Error(w, "Unauthorized", http.StatusUnauthorized)
+
+				return
+			}
+		}
+
+		audit.StreamHandler(w, r)
+	})
 	// Setup port forwarding handlers.
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
 		portforward.StartPortForward(
