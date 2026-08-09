@@ -2761,10 +2761,11 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 		metadata := clusterMetadata(context)
 
 		clusters = append(clusters, Cluster{
-			Name:     context.Name,
-			Server:   context.Cluster.Server,
-			AuthType: context.AuthType(),
-			Metadata: metadata,
+			Name:                    context.Name,
+			Server:                  context.Cluster.Server,
+			AuthType:                context.AuthType(),
+			Metadata:                metadata,
+			UsesServiceAccountToken: c.shouldUseUnsafeServiceAccountTokenForContext(context),
 		})
 	}
 
