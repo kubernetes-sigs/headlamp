@@ -81,6 +81,7 @@ function MyPodsPage() {
   return (
     <ResourceListView
       title="My Pods"
+      id="my-plugin-pods"
       resourceClass={MyPod}
       columns={[
         'name',
@@ -165,6 +166,10 @@ Now that you've seen it in action, let's look at what `ResourceListView` gave yo
 |------|-------------|
 | `resourceClass={MyPod}` | Let the component fetch data — the standard approach |
 | `data={items}` | Pass pre-fetched or transformed data yourself |
+
+### The `id` prop
+
+Plugins target tables by `id`, which is how the column processors in [Tutorial 7](../extending-existing-resource-views/) find the table they want. Always pass one with your own prefix: without it, `ResourceListView` derives `headlamp-<pluralName>` from the resource class — the same ID Headlamp's own table for that resource uses — so processors aimed at the built-in table would hit yours too.
 
 ### Built-in column shortcuts
 
@@ -686,6 +691,7 @@ function MyPodsPage() {
   return (
     <ResourceListView
       title="My Pods"
+      id="my-plugin-pods"
       resourceClass={MyPod}
       columns={[
         {
@@ -835,6 +841,7 @@ function MyPodsPage() {
   return (
     <ResourceListView
       title="My Pods"
+      id="my-plugin-pods"
       resourceClass={MyPod}
       columns={[
         {
@@ -1097,6 +1104,7 @@ You've learned how to build professional list and detail pages:
   title="My Resources"              // Page title (required)
   resourceClass={MyResource}        // Resource class — required unless using `data`
   columns={[...]}                   // Column definitions (required)
+  id="my-plugin-resources"          // Table ID for plugin processors — use your own prefix (optional)
   hideColumns={['column-id']}       // Columns to hide (optional)
   actions={[...]}                   // Row context-menu actions — plain array, not a function (optional)
   data={items}                      // Pre-fetched data — use instead of resourceClass (optional)
