@@ -163,6 +163,14 @@ function GraphViewContent({
   const [hasErrorsFilter, setHasErrorsFilter] = useState(false);
   const [selectedKinds, setSelectedKinds] = useState<string[]>([]);
   const [labelInput, setLabelInput] = useState('');
+  const [draftLabelInput, setDraftLabelInput] = useState('');
+
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      setLabelInput(draftLabelInput);
+    }, 500);
+    return () => clearTimeout(timeoutId);
+  }, [draftLabelInput]);
 
   // Incremental update toggle - allows comparing performance
   const [useIncrementalUpdates, setUseIncrementalUpdates] = useState(true);
@@ -214,7 +222,7 @@ function GraphViewContent({
 
   // Parsed label selector entries from search input
   const parsedLabels = useMemo(() => {
-    const labels: Record<string, string> = {};
+    const labels: Record<string, string | null> = {};
     if (!labelInput.trim()) return labels;
 
     const parts = labelInput.split(/[\s,]+/);
@@ -230,7 +238,7 @@ function GraphViewContent({
       } else {
         const k = part.trim();
         if (k) {
-          labels[k] = '';
+          labels[k] = null;
         }
       }
     }
@@ -292,7 +300,7 @@ function GraphViewContent({
               .reduce((acc, key) => {
                 acc[key] = filter.labels[key];
                 return acc;
-              }, {} as Record<string, string>);
+              }, {} as Record<string, string | null>);
             return { type: 'labelSelector', labels: sortedLabels };
           }
           return filter;
@@ -573,8 +581,8 @@ function GraphViewContent({
                 <TextField
                   size="small"
                   placeholder={t('Labels (e.g. app=nginx)')}
-                  value={labelInput}
-                  onChange={e => setLabelInput(e.target.value)}
+                  value={draftLabelInput}
+                  onChange={e => setDraftLabelInput(e.target.value)}
                   sx={{ minWidth: 180 }}
                 />
 

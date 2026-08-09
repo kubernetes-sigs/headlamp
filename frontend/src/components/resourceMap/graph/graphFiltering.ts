@@ -33,7 +33,7 @@ export type GraphFilter =
     }
   | {
       type: 'labelSelector';
-      labels: Record<string, string>;
+      labels: Record<string, string | null>;
     };
 
 /**
@@ -59,8 +59,8 @@ export function matchesAllFilters(node: GraphNode, filters: GraphFilter[]): bool
       const nodeLabels = node.kubeObject?.metadata?.labels;
       if (!nodeLabels) return false;
       return Object.entries(filter.labels).every(([key, value]) => {
-        if (!value) {
-          return key in nodeLabels;
+        if (value === null) {
+          return Object.prototype.hasOwnProperty.call(nodeLabels, key);
         }
         return nodeLabels[key] === value;
       });
