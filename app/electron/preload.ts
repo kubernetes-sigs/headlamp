@@ -95,7 +95,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
 
   // @todo: move these to the send receive pattern above, restricted to ai-assistant only.
   // @todo: do not enable if environment variable disabling mcp is set.
-  // MCP client APIs
+  // MCP client APIs (Facade for compatibility)
   mcp: {
     executeTool: (toolName: string, args: Record<string, any>, toolCallId?: string) =>
       ipcRenderer.invoke('mcp-execute-tool', { toolName, args, toolCallId }),
@@ -111,6 +111,25 @@ contextBridge.exposeInMainWorld('desktopApi', {
       ipcRenderer.invoke('mcp-get-tool-stats', { serverName, toolName }),
     clusterChange: (cluster: string | null) =>
       ipcRenderer.invoke('mcp-cluster-change', { cluster }),
+  },
+
+  invoke: (channel: string, ...args: unknown[]) => {
+    const validChannels = [
+      'mcp-execute-tool',
+      'mcp-get-status',
+      'mcp-reset-client',
+      'mcp-get-config',
+      'mcp-update-config',
+      'mcp-get-tools-config',
+      'mcp-update-tools-config',
+      'mcp-set-tool-enabled',
+      'mcp-get-tool-stats',
+      'mcp-cluster-change',
+    ];
+    if (validChannels.includes(channel)) {
+      return ipcRenderer.invoke(channel, ...args);
+    }
+    return Promise.reject(new Error(`Unauthorized IPC invoke on channel: ${channel}`));
   },
 
   // Notify cluster change (for MCP server restart)
