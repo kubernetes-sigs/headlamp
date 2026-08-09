@@ -230,10 +230,7 @@ Add a new component to your `src/index.tsx`:
 
 ```tsx
 import { useParams } from 'react-router-dom';
-import {
-  registerRoute,
-  registerSidebarEntry,
-} from '@kinvolk/headlamp-plugin/lib';
+import { registerRoute, registerSidebarEntry } from '@kinvolk/headlamp-plugin/lib';
 import { getCluster } from '@kinvolk/headlamp-plugin/lib/Utils';
 import {
   DetailsGrid,
@@ -244,75 +241,75 @@ import { Chip } from '@mui/material';
 import { MyPod } from './resources/pod';
 
 function MyPodDetailPage() {
-    const params = useParams<{ name: string; namespace?: string }>();
-    const { name, namespace } = params;
-    const cluster = getCluster();
+  const params = useParams<{ name: string; namespace?: string }>();
+  const { name, namespace } = params;
+  const cluster = getCluster();
 
-    return (
-        <DetailsGrid
-            resourceType={MyPod}
-            name={name}
-            namespace={namespace}
-            backLink={`/c/${cluster}/my-plugin/pods`}
-            extraInfo={pod => {
-                if (!pod) return [];
+  return (
+    <DetailsGrid
+      resourceType={MyPod}
+      name={name}
+      namespace={namespace}
+      backLink={`/c/${cluster}/my-plugin/pods`}
+      extraInfo={pod => {
+        if (!pod) return [];
 
-                return [
-                    {
-                        name: 'Phase',
-                        value: (
-                            <Chip
-                                label={pod.jsonData.status?.phase || 'Unknown'}
-                                color={
-                                    pod.jsonData.status?.phase === 'Running'
-                                        ? 'success'
-                                        : pod.jsonData.status?.phase === 'Failed'
-                                            ? 'error'
-                                            : pod.jsonData.status?.phase === 'Pending'
-                                                ? 'warning'
-                                                : 'default'
-                                }
-                                size="small"
-                            />
-                        ),
-                    },
-                    {
-                        name: 'Node',
-                        value: pod.jsonData.spec.nodeName || 'Not assigned',
-                    },
-                    {
-                        name: 'Pod IP',
-                        value: pod.jsonData.status?.podIP || 'Not assigned',
-                    },
-                ];
-            }}
-            extraSections={pod => {
-                if (!pod) return [];
+        return [
+          {
+            name: 'Phase',
+            value: (
+              <Chip
+                label={pod.jsonData.status?.phase || 'Unknown'}
+                color={
+                  pod.jsonData.status?.phase === 'Running'
+                    ? 'success'
+                    : pod.jsonData.status?.phase === 'Failed'
+                    ? 'error'
+                    : pod.jsonData.status?.phase === 'Pending'
+                    ? 'warning'
+                    : 'default'
+                }
+                size="small"
+              />
+            ),
+          },
+          {
+            name: 'Node',
+            value: pod.jsonData.spec.nodeName || 'Not assigned',
+          },
+          {
+            name: 'Pod IP',
+            value: pod.jsonData.status?.podIP || 'Not assigned',
+          },
+        ];
+      }}
+      extraSections={pod => {
+        if (!pod) return [];
 
-                return [
+        return [
+          {
+            id: 'my-plugin-pod-containers',
+            section: (
+              <SectionBox title="Containers">
+                <SimpleTable
+                  data={pod.jsonData.spec.containers}
+                  columns={[
+                    { label: 'Name', getter: container => container.name },
+                    { label: 'Image', getter: container => container.image },
                     {
-                        id: 'my-plugin-pod-containers',
-                        section: (
-                            <SectionBox title="Containers">
-                                <SimpleTable
-                                    data={pod.jsonData.spec.containers}
-                                    columns={[
-                                        { label: 'Name', getter: container => container.name },
-                                        { label: 'Image', getter: container => container.image },
-                                        {
-                                            label: 'Ports',
-                                            getter: container =>
-                                                container.ports?.map(p => p.containerPort).join(', ') || '-',
-                                        },
-                                    ]}
-                                />
-                            </SectionBox>
-                        ),
+                      label: 'Ports',
+                      getter: container =>
+                        container.ports?.map(p => p.containerPort).join(', ') || '-',
                     },
-                ];
-            }}
-        />
-    );
+                  ]}
+                />
+              </SectionBox>
+            ),
+          },
+        ];
+      }}
+    />
+  );
 }
 ```
 
@@ -330,15 +327,18 @@ registerRoute({
 
 ### Step 3: Test It
 
+Nothing links to your detail page yet, so open it directly in the browser.
+
 1. Save the file
-2. Navigate to the Pods list page
-3. Click on a pod name (or use the context menu → View)
-4. You should see the detail page with:
+2. Append `/c/<cluster>/my-plugin/<namespace>/pods/<pod-name>` to your Headlamp URL
+3. You should see the detail page with:
    - Standard metadata (name, namespace, labels, etc.)
    - Your custom fields (Phase, Node, Pod IP)
    - Your custom Containers section
 
 ![Screenshot of the pod detail page showing DetailsGrid with standard metadata, custom Phase, Node, and Pod IP fields, and the Containers section](./pod-detail-page.png)
+
+> **Note:** Registering a route only tells Headlamp which component to render for a URL — it doesn't create a link to it. Your list page still uses the `'name'` column shortcut, which points at Headlamp's built-in Pod details (shown in a drawer by default), not at your page. You'll point it at your own detail page in [Navigation Between List and Detail](#navigation-between-list-and-detail).
 
 ---
 
