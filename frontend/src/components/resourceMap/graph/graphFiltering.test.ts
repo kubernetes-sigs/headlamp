@@ -1649,8 +1649,8 @@ describe('filterGraphIncremental', () => {
       expect(filteredNodes.map(it => it.id)).toEqual(['n1']);
     });
 
-    it('filters nodes by label key existence when value is empty string', () => {
-      const filters: GraphFilter[] = [{ type: 'labelSelector', labels: { env: '' } }];
+    it('filters nodes by label key existence', () => {
+      const filters: GraphFilter[] = [{ type: 'labelSelector', labels: { env: null } }];
       const { nodes: filteredNodes } = filterGraph([node1, node2, node3], [], filters);
 
       expect(filteredNodes.map(it => it.id)).toEqual(['n1', 'n2']);
