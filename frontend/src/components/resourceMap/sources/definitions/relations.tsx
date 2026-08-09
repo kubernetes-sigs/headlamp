@@ -86,7 +86,11 @@ const makeRelation = <From extends KubeObjectClass, To extends KubeObjectClass>(
         ? true
         : fromObject.metadata.namespace === toObject.metadata.namespace;
 
-    return hasSameNamespace && Boolean(selector(fromObject, toObject));
+    return (
+      fromObject.cluster === toObject.cluster &&
+      hasSameNamespace &&
+      Boolean(selector(fromObject, toObject))
+    );
   },
 });
 
@@ -108,7 +112,10 @@ const makeOwnerRelation = (cl: KubeObjectClass): Relation => ({
       const refs = obj.metadata.ownerReferences;
       if (!refs) continue;
       for (const owner of refs) {
-        const to = nodesByUid.get(owner.uid);
+        const toId = from.kubeObject?.cluster
+          ? `${from.kubeObject.cluster}_${owner.uid}`
+          : owner.uid;
+        const to = nodesByUid.get(toId);
         if (to) {
           edges.push({
             id: from.id + '-' + to.id,

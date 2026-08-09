@@ -95,7 +95,10 @@ const makeKubeSource = (cl: KubeObjectClass): GraphSource => ({
   icon: <KubeIcon kind={cl.kind as any} />,
   useData() {
     const selectedClusters = useSelectedClusters();
-    const [items] = cl.useList({ namespace: useNamespaces(), clusters: selectedClusters });
+    const [items] = cl.useList({
+      namespace: useNamespaces(),
+      clusters: selectedClusters?.length > 0 ? selectedClusters : undefined,
+    });
 
     return useMemo(() => (items ? { nodes: items?.map(makeKubeObjectNode) } : null), [items]);
   },
