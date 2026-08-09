@@ -33,15 +33,18 @@ export default function ValidatingAdmissionPolicyBindingList() {
           label: t('Policy Name'),
           gridTemplate: 'min-content',
           getValue: binding => binding.spec?.policyName || '',
-          render: binding => (
-            <Link
-              routeName="validatingadmissionpolicy"
-              params={{ name: binding.spec?.policyName || '' }}
-              activeCluster={binding.cluster}
-            >
-              {binding.spec?.policyName}
-            </Link>
-          ),
+          render: binding =>
+            binding.spec?.policyName ? (
+              <Link
+                routeName="validatingAdmissionPolicy"
+                params={{ name: binding.spec.policyName }}
+                activeCluster={binding.cluster}
+              >
+                {binding.spec.policyName}
+              </Link>
+            ) : (
+              ''
+            ),
         },
         {
           id: 'validationActions',

@@ -43,15 +43,18 @@ export default function ValidatingAdmissionPolicyBindingDetails(props: {
           {
             name: t('Policy Name'),
             value: item.spec?.policyName,
-            render: () => (
-              <Link
-                routeName="validatingadmissionpolicy"
-                params={{ name: item.spec?.policyName || '' }}
-                activeCluster={item.cluster}
-              >
-                {item.spec?.policyName}
-              </Link>
-            ),
+            render: () =>
+              item.spec?.policyName ? (
+                <Link
+                  routeName="validatingAdmissionPolicy"
+                  params={{ name: item.spec.policyName }}
+                  activeCluster={item.cluster}
+                >
+                  {item.spec.policyName}
+                </Link>
+              ) : (
+                ''
+              ),
           },
           {
             name: t('Validation Actions'),
