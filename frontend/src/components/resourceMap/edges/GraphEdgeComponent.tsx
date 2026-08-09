@@ -54,8 +54,8 @@ export const GraphEdgeComponent = memo((props: EdgeProps & { data: GraphEdge['da
     0.375 * (bendPoints[1].y + dy) +
     0.125 * (endPoint.y + dy);
 
-  const label = data?.label;
-  const isCrossCluster = data?.isCrossCluster;
+  const label = data?.data?.label;
+  const isCrossCluster = data?.data?.isCrossCluster;
   const strokeColor = isCrossCluster
     ? theme.palette.secondary.main
     : alpha(theme.palette.action.active, 0.8);
@@ -86,9 +86,9 @@ export const GraphEdgeComponent = memo((props: EdgeProps & { data: GraphEdge['da
               border: `1px solid ${
                 isCrossCluster ? theme.palette.secondary.main : alpha(theme.palette.divider, 0.6)
               }`,
-              pointerEvents: 'auto',
+              pointerEvents: isCrossCluster ? 'auto' : undefined,
             }}
-            className="nodrag nopan"
+            className={isCrossCluster ? 'nodrag nopan' : ''}
           >
             {label}
           </div>
