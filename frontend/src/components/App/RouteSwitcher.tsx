@@ -22,7 +22,6 @@ import { Redirect, Route, RouteProps, Switch, useHistory } from 'react-router-do
 import { getProductName } from '../../helpers/getProductInfo';
 import { getCluster, getSelectedClusters } from '../../lib/cluster';
 import { useCluster, useClustersConf } from '../../lib/k8s';
-import { testAuth } from '../../lib/k8s/api/v1/clusterApi';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getDefaultRoutes } from '../../lib/router/getDefaultRoutes';
 import { getRoutePath } from '../../lib/router/getRoutePath';
@@ -31,6 +30,7 @@ import { NotFoundRoute } from '../../lib/router/notFoundRoute';
 import { Route as RouteType } from '../../lib/router/Route';
 import { useTypedSelector } from '../../redux/hooks';
 import { uiSlice } from '../../redux/uiSlice';
+import { testAuthWithRetry } from '../authchooser/testAuthWithRetry';
 import ErrorBoundary from '../common/ErrorBoundary';
 import ErrorComponent from '../common/ErrorPage';
 import { useSidebarItem } from '../Sidebar';
@@ -148,7 +148,25 @@ interface AuthRouteProps {
   [otherProps: string]: any;
 }
 
-function AuthRoute(props: AuthRouteProps) {
+export function getAuthRedirectRoute(
+  currentCluster: string | null,
+  clusterConf: { auth_type?: string; uses_service_account_token?: boolean } | null,
+  isError: boolean,
+  isExplicitAuthError: boolean
+) {
+  if (!currentCluster) {
+    return 'chooser';
+  }
+  if (clusterConf?.auth_type === 'oidc') {
+    return 'login';
+  }
+  if (isError && isExplicitAuthError && !clusterConf?.uses_service_account_token) {
+    return 'token';
+  }
+  return 'login';
+}
+
+export function AuthRoute(props: AuthRouteProps) {
   const {
     children,
     sidebar,
@@ -162,7 +180,7 @@ function AuthRoute(props: AuthRouteProps) {
   const cluster = useCluster();
   const query = useQuery({
     queryKey: ['auth', cluster],
-    queryFn: () => testAuth(cluster!),
+    queryFn: () => testAuthWithRetry(cluster!),
     enabled: !!cluster && requiresAuth,
     retry: 0,
   });
@@ -185,17 +203,12 @@ function AuthRoute(props: AuthRouteProps) {
     }
   }, [cluster, clusters, query.isSuccess]);
 
-  let redirectRoute: string;
-
-  if (!currentCluster) {
-    redirectRoute = 'chooser';
-  } else if (clusterConf?.auth_type === 'oidc') {
-    redirectRoute = 'login';
-  } else if (query.isError && isExplicitAuthError) {
-    redirectRoute = 'token';
-  } else {
-    redirectRoute = 'login';
-  }
+  const redirectRoute = getAuthRedirectRoute(
+    currentCluster,
+    clusterConf,
+    query.isError,
+    isExplicitAuthError
+  );
 
   function getRenderer({ location }: RouteProps) {
     if (!requiresAuth) {

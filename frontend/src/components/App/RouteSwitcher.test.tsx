@@ -15,8 +15,11 @@
  */
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, waitFor } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
+import { Provider } from 'react-redux';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import store from '../../redux/stores/store';
 import { TestContext } from '../../test';
 
 vi.mock('../../lib/k8s', () => ({
@@ -27,6 +30,16 @@ vi.mock('../../lib/k8s', () => ({
   useSelectedClusters: vi.fn(() => []),
 }));
 
+vi.mock('../../lib/cluster', async importOriginal => ({
+  ...(await importOriginal<typeof import('../../lib/cluster')>()),
+  getCluster: vi.fn(() => null),
+  getSelectedClusters: vi.fn(() => []),
+}));
+
+vi.mock('../authchooser/testAuthWithRetry', () => ({
+  testAuthWithRetry: vi.fn(),
+}));
+
 vi.mock('../../lib/k8s/event', () => ({
   default: class Event {},
   useEventWarningList: vi.fn(() => ({})),
@@ -35,15 +48,25 @@ vi.mock('../common/ObjectEventList', () => ({ default: () => null }));
 vi.mock('./Home', () => ({ default: () => null }));
 
 import '../../lib/router/index';
-import { useCluster } from '../../lib/k8s';
-import RouteSwitcher from './RouteSwitcher';
+import { getCluster } from '../../lib/cluster';
+import { useCluster, useClustersConf } from '../../lib/k8s';
+import { testAuthWithRetry } from '../authchooser/testAuthWithRetry';
+import RouteSwitcher, { AuthRoute, getAuthRedirectRoute } from './RouteSwitcher';
 
 // Verify RouteSwitcher renders stable route keys and handles an unset cluster.
+
+function CurrentPath() {
+  return <div data-testid="current-route">{useLocation().pathname}</div>;
+}
 
 describe('RouteSwitcher', () => {
   afterEach(() => {
     vi.mocked(useCluster).mockReturnValue(null);
+    vi.mocked(useClustersConf).mockReturnValue({});
+    vi.mocked(getCluster).mockReturnValue(null);
+    vi.mocked(testAuthWithRetry).mockReset();
     vi.unstubAllEnvs();
+    window.history.pushState({}, '', '/');
   });
 
   it('assigns unique keys to all rendered AuthRoute components', () => {
@@ -120,4 +143,69 @@ describe('RouteSwitcher', () => {
 
     await waitFor(() => expect(document.title).toBe('cluster-a - Choose a cluster - Headlamp'));
   });
+
+  it.each(['', 'oidc'])(
+    'does not send service-account %s auth failures to the token route',
+    authType => {
+      expect(
+        getAuthRedirectRoute(
+          'cluster-a',
+          { auth_type: authType, uses_service_account_token: true },
+          true,
+          true
+        )
+      ).toBe('login');
+    }
+  );
+
+  it.each([
+    [401, true, '/login'],
+    [401, false, '/token'],
+    [403, true, '/login'],
+    [403, false, '/token'],
+  ])(
+    'routes %i with service-account mode %s to %s',
+    async (status, usesServiceAccountToken, expectedSuffix) => {
+      const error: any = new Error(`HTTP ${status}`);
+      error.status = status;
+      vi.mocked(useCluster).mockReturnValue('cluster-a');
+      vi.mocked(getCluster).mockReturnValue('cluster-a');
+      vi.mocked(useClustersConf).mockReturnValue({
+        'cluster-a': {
+          auth_type: '',
+          uses_service_account_token: usesServiceAccountToken,
+        } as any,
+      });
+      vi.mocked(testAuthWithRetry).mockRejectedValue(error);
+      window.history.pushState({}, '', '/c/cluster-a/workloads');
+      const queryClient = new QueryClient({
+        defaultOptions: { queries: { retry: false } },
+      });
+
+      render(
+        <Provider store={store}>
+          <QueryClientProvider client={queryClient}>
+            <MemoryRouter initialEntries={['/c/cluster-a/workloads']}>
+              <CurrentPath />
+              <AuthRoute
+                path="/c/:cluster/workloads"
+                sidebar={null}
+                requiresAuth
+                requiresCluster={false}
+                requiresToken={() => true}
+              >
+                <div>Protected content</div>
+              </AuthRoute>
+            </MemoryRouter>
+          </QueryClientProvider>
+        </Provider>
+      );
+
+      await waitFor(() => {
+        expect(screen.getByTestId('current-route')).toHaveTextContent(
+          new RegExp(`${expectedSuffix}$`)
+        );
+      });
+    }
+  );
 });
