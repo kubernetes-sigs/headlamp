@@ -27,7 +27,7 @@ import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLo
 import { logout } from '../../../auth';
 import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface } from '../../KubeObject';
-import type { ApiError } from '../v2/ApiError';
+import { ApiError } from '../v2/ApiError';
 import { CLUSTERS_PREFIX, DEFAULT_TIMEOUT, JSON_HEADERS } from './constants';
 import { asQuery, combinePath } from './formatUrl';
 import type { QueryParameters } from './queryParameters';
@@ -224,8 +224,7 @@ export async function clusterRequest(
       );
     }
 
-    const error = new Error(message) as ApiError;
-    error.status = status;
+    const error = new ApiError(message, { status });
     return Promise.reject(error);
   }
 

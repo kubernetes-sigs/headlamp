@@ -20,7 +20,7 @@ import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfi
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface } from '../../KubeObject';
-import type { ApiError } from '../v2/ApiError';
+import { ApiError } from '../v2/ApiError';
 import { clusterRequest } from './clusterRequests';
 import { CLUSTERS_PREFIX } from './constants';
 import { asQuery, combinePath } from './formatUrl';
@@ -40,7 +40,7 @@ export type StreamUpdate<T = any> = {
 
 export type StreamResultsCb<T = any> = (data: T) => void;
 export type StreamUpdatesCb<T = any> = (data: T | StreamUpdate<T>) => void;
-export type StreamErrCb = (err: Error & { status?: number }, cancelStreamFunc?: () => void) => void;
+export type StreamErrCb = (err: ApiError, cancelStreamFunc?: () => void) => void;
 
 /**
  * Fetches the data and watches for changes to the data.
@@ -94,9 +94,17 @@ export function streamResult<T extends KubeObjectInterface>(
       socket = stream(watchUrl, (x: any) => cb(x.object), { isJson: true, cluster: clusterName });
     } catch (err) {
       console.error('Error in api request', { err, url });
-      // @todo: sometimes errCb is {}, the typing for apiProxy needs improving.
-      //        See https://github.com/kinvolk/headlamp/pull/833
-      if (errCb && typeof errCb === 'function') errCb(err as ApiError, cancel);
+      if (errCb && typeof errCb === 'function') {
+        let apiError: ApiError;
+        if (err instanceof ApiError) {
+          apiError = err;
+        } else if (err instanceof Error) {
+          apiError = new ApiError(err.message);
+        } else {
+          apiError = new ApiError(String(err));
+        }
+        errCb(apiError, cancel);
+      }
     }
   }
 
@@ -191,7 +199,15 @@ export function streamResultsForCluster(
     } catch (err) {
       console.error('Error in api request', { err, url });
       if (errCb && typeof errCb === 'function') {
-        errCb(err as ApiError, cancel);
+        let apiError: ApiError;
+        if (err instanceof ApiError) {
+          apiError = err;
+        } else if (err instanceof Error) {
+          apiError = new ApiError(err.message);
+        } else {
+          apiError = new ApiError(String(err));
+        }
+        errCb(apiError, cancel);
       }
     }
   }

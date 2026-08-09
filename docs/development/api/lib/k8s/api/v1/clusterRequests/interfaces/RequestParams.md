@@ -1,0 +1,61 @@
+# Interface: RequestParams
+
+Defined in: [lib/k8s/api/v1/clusterRequests.ts:38](https://github.com/kehach07/headlamp/blob/7b4a853c98ea719589ddb64289f86ea94e08b877/frontend/src/lib/k8s/api/v1/clusterRequests.ts#L38)
+
+Options for the request.
+
+## Extends
+
+- `RequestInit`
+
+## Extended by
+
+- [`ClusterRequestParams`](ClusterRequestParams.md)
+
+## Properties
+
+### autoLogoutOnAuthError?
+
+```ts
+optional autoLogoutOnAuthError?: boolean;
+```
+
+Defined in: [lib/k8s/api/v1/clusterRequests.ts:46](https://github.com/kehach07/headlamp/blob/7b4a853c98ea719589ddb64289f86ea94e08b877/frontend/src/lib/k8s/api/v1/clusterRequests.ts#L46)
+
+Whether to automatically log out the user if there is an authentication error.
+
+***
+
+### cluster?
+
+```ts
+optional cluster?: string | null;
+```
+
+Defined in: [lib/k8s/api/v1/clusterRequests.ts:44](https://github.com/kehach07/headlamp/blob/7b4a853c98ea719589ddb64289f86ea94e08b877/frontend/src/lib/k8s/api/v1/clusterRequests.ts#L44)
+
+Cluster context name.
+
+***
+
+### isJSON?
+
+```ts
+optional isJSON?: boolean;
+```
+
+Defined in: [lib/k8s/api/v1/clusterRequests.ts:42](https://github.com/kehach07/headlamp/blob/7b4a853c98ea719589ddb64289f86ea94e08b877/frontend/src/lib/k8s/api/v1/clusterRequests.ts#L42)
+
+Is the request expected to receive JSON data?
+
+***
+
+### timeout?
+
+```ts
+optional timeout?: number;
+```
+
+Defined in: [lib/k8s/api/v1/clusterRequests.ts:40](https://github.com/kehach07/headlamp/blob/7b4a853c98ea719589ddb64289f86ea94e08b877/frontend/src/lib/k8s/api/v1/clusterRequests.ts#L40)
+
+Number of milliseconds to wait for a response.
