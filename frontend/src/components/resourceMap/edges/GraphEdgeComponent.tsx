@@ -54,7 +54,7 @@ export const GraphEdgeComponent = memo((props: EdgeProps & { data: GraphEdge['da
     0.375 * (bendPoints[1].y + dy) +
     0.125 * (endPoint.y + dy);
 
-  const label = data?.data?.label;
+  const label = data?.label;
   const isCrossCluster = data?.data?.isCrossCluster;
   const strokeColor = isCrossCluster
     ? theme.palette.secondary.main
