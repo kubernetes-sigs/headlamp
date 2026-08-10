@@ -114,6 +114,20 @@ describe('makeListRequests', () => {
       expect(requests).toEqual([{ cluster: 'cluster-a', namespaces: ['namespace-a'] }]);
     });
 
+    it('should omit cluster when finite allowed set intersects requested namespaces to empty', () => {
+      const requests = makeListRequests(['default'], () => withNamespaces(['namespace-a']), true, [
+        'namespace-b',
+      ]);
+      expect(requests).toEqual([]);
+    });
+
+    it('should preserve empty namespaces as cluster-wide only when no finite allowed set is active', () => {
+      const requests = makeListRequests(['default'], () => withNamespaces([]), true, [
+        'namespace-b',
+      ]);
+      expect(requests).toEqual([{ cluster: 'default', namespaces: ['namespace-b'] }]);
+    });
+
     it('should make requests for allowed namespaces per cluster', () => {
       const requests = makeListRequests(
         ['cluster-a', 'cluster-b'],
