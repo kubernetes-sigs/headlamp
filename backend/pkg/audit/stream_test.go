@@ -1,12 +1,15 @@
-package audit
+package audit_test
 
 import (
 	"encoding/json"
 	"testing"
+
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/audit"
 )
 
+//nolint:funlen
 func TestMatchFilter(t *testing.T) {
-	event := AuditEvent{
+	event := audit.AuditEvent{
 		Verb: "create",
 		User: struct {
 			Username string `json:"username,omitempty"`
@@ -24,7 +27,7 @@ func TestMatchFilter(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		filter   *Filter
+		filter   *audit.Filter
 		expected bool
 	}{
 		{
@@ -34,39 +37,39 @@ func TestMatchFilter(t *testing.T) {
 		},
 		{
 			name:     "Empty filter",
-			filter:   &Filter{},
+			filter:   &audit.Filter{},
 			expected: true,
 		},
 		{
 			name:     "Match user",
-			filter:   &Filter{User: "admin"},
+			filter:   &audit.Filter{User: "admin"},
 			expected: true,
 		},
 		{
 			name:     "Mismatch user",
-			filter:   &Filter{User: "user1"},
+			filter:   &audit.Filter{User: "user1"},
 			expected: false,
 		},
 		{
 			name:     "Match verb and kind",
-			filter:   &Filter{Verb: "create", Kind: "pods"},
+			filter:   &audit.Filter{Verb: "create", Kind: "pods"},
 			expected: true,
 		},
 		{
 			name:     "Mismatch verb",
-			filter:   &Filter{Verb: "delete", Kind: "pods"},
+			filter:   &audit.Filter{Verb: "delete", Kind: "pods"},
 			expected: false,
 		},
 		{
 			name:     "Match status code",
-			filter:   &Filter{StatusCode: 201},
+			filter:   &audit.Filter{StatusCode: 201},
 			expected: true,
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := MatchFilter(eventBytes, tt.filter)
+			result := audit.MatchFilter(eventBytes, tt.filter)
 			if result != tt.expected {
 				t.Errorf("expected %v, got %v", tt.expected, result)
 			}
