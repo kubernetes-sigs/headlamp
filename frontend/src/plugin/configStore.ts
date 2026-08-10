@@ -14,9 +14,21 @@
  * limitations under the License.
  */
 
-import { useSelector } from 'react-redux';
+import { shallowEqual, useSelector } from 'react-redux';
 import store from '../redux/stores/store';
 import { setPluginConfig, updatePluginConfig } from './pluginConfigSlice';
+
+/** Merges backend-provided plugin defaults with the user's own settings*/
+function mergeWithServerDefaults<T>(state: any, configKey: string): T {
+  const serverDefaults = state?.config?.plugins?.[configKey];
+  const userConfig = state?.pluginConfigs?.[configKey];
+
+  if (serverDefaults === undefined) {
+    return userConfig as T;
+  }
+
+  return { ...serverDefaults, ...userConfig } as T;
+}
 
 /**
  * A class to manage the configuration state for plugins in a Redux store.
@@ -69,7 +81,7 @@ export class ConfigStore<T> {
    */
   public get(): T {
     const state: any = store.getState();
-    return state?.pluginConfigs?.[this.configKey] as T;
+    return mergeWithServerDefaults(state, this.configKey);
   }
 
   /**
@@ -82,7 +94,10 @@ export class ConfigStore<T> {
   public useConfig() {
     const configKey = this.configKey; // Capture the configKey for closure
     return function useConfigHook(): T {
-      return useSelector((state: any) => state?.pluginConfigs?.[configKey] as T);
+      return useSelector(
+        (state: any) => mergeWithServerDefaults<T>(state, configKey),
+        shallowEqual
+      );
     };
   }
 }
