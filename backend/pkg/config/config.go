@@ -2,6 +2,7 @@ package config
 
 import (
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -111,6 +112,7 @@ type Config struct {
 	DefaultLightTheme string `koanf:"default-light-theme"`
 	DefaultDarkTheme  string `koanf:"default-dark-theme"`
 	ForceTheme        string `koanf:"force-theme"`
+	PluginsConfig     string `koanf:"plugins-config"`
 }
 
 func (c *Config) warnRedundantThemeDefaults() {
@@ -178,6 +180,19 @@ func (c *Config) Validate() error {
 
 	if err := c.validateClusterInventory(); err != nil {
 		return err
+	}
+
+	return c.validatePluginsConfig()
+}
+
+func (c *Config) validatePluginsConfig() error {
+	if c.PluginsConfig == "" {
+		return nil
+	}
+
+	var plugins map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(c.PluginsConfig), &plugins); err != nil {
+		return fmt.Errorf("plugins-config must be a JSON object keyed by plugin name: %w", err)
 	}
 
 	return nil
@@ -585,6 +600,8 @@ func addGeneralFlags(f *flag.FlagSet) {
 	f.String("default-light-theme", "", "Default theme to use when user prefers light mode")
 	f.String("default-dark-theme", "", "Default theme to use when user prefers dark mode")
 	f.String("force-theme", "", "Force a specific theme, overriding user preferences")
+	f.String("plugins-config", "",
+		"JSON object of default settings for plugins, keyed by plugin name. Users can override these in the UI")
 	f.Bool("unsafe-use-service-account-token", false,
 		"UNSAFE: use the pod's service account token to authenticate all users in-cluster. "+
 			"Disables per-user auth; only safe behind an auth proxy")

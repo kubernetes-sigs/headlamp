@@ -1006,3 +1006,54 @@ func TestGetDefaultKubeConfigPath(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(tmpDir, ".kube", "config"), path)
 }
+
+func TestValidatePluginsConfig(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          []string
+		expectError   bool
+		expectedValue string
+	}{
+		{
+			name:          "unset",
+			args:          []string{"go run ./cmd"},
+			expectError:   false,
+			expectedValue: "",
+		},
+		{
+			name:          "valid object",
+			args:          []string{"go run ./cmd", `--plugins-config={"prometheus":{"autoDetect":false}}`},
+			expectError:   false,
+			expectedValue: `{"prometheus":{"autoDetect":false}}`,
+		},
+		{
+			name:          "malformed json",
+			args:          []string{"go run ./cmd", `--plugins-config={"prometheus":`},
+			expectError:   true,
+			expectedValue: "",
+		},
+		{
+			name:          "json but not an object",
+			args:          []string{"go run ./cmd", `--plugins-config=["prometheus"]`},
+			expectError:   true,
+			expectedValue: "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "plugins-config must be a JSON object keyed by plugin name")
+
+				return
+			}
+
+			require.NoError(t, err)
+			require.NotNil(t, conf)
+			assert.Equal(t, tt.expectedValue, conf.PluginsConfig)
+		})
+	}
+}

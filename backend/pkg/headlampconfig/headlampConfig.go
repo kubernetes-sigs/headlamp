@@ -80,6 +80,7 @@ type HeadlampCFG struct {
 	DefaultLightTheme            string
 	DefaultDarkTheme             string
 	ForceTheme                   string
+	PluginsConfig                string
 	UnsafeUseServiceAccountToken bool
 	ServiceAccountTokenPath      string
 

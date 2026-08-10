@@ -192,6 +192,10 @@
           "type": "string",
           "description": "Default namespace to use when creating node shell pods"
         },
+        "pluginsConfig": {
+          "type": "object",
+          "description": "Default settings for plugins, keyed by the plugin's config key. Each plugin defines its own keys; users can override them in the UI"
+        },
         "unsafeUseServiceAccountToken": {
           "type": "boolean",
           "description": "UNSAFE: authenticate every user as the pod's service account in-cluster mode"

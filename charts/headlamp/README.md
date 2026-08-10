@@ -138,6 +138,7 @@ config:
 | config.podDebugImage | string | `""`                | Default image to use when creating pod debug containers                    |
 | config.nodeShellImage | string | `""`               | Default image to use when creating node shell pods                         |
 | config.nodeShellNamespace | string | `""`            | Default namespace to use when creating node shell pods                      |
+| config.pluginsConfig | object | `{}`                 | Default settings for plugins, keyed by the plugin's config key. Each plugin defines its own keys and users can override them in the UI. Served unauthenticated at `/config`, so should not put secrets here                         |
 | config.clusterInventory.enabled | bool | `false` | Enable experimental/alpha Cluster Inventory discovery |
 | config.clusterInventory.accessProvidersConfig | object | `{}` | Experimental/alpha Cluster Inventory access providers config. Required when Cluster Inventory is enabled |
 | config.clusterInventory.plugins | list | `[]` | Kubernetes image volumes that provide experimental/alpha Cluster Inventory access provider binaries |
