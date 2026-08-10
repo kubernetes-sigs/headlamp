@@ -37,6 +37,9 @@ const pods = Array.from({ length: 1001 }, (_, index) => ({
     uid: `resize-test-pod-${index}`,
     resourceVersion: String(index + 1),
   },
+  spec: {
+    nodeName: 'worker-1',
+  },
   status: {
     phase: 'Running',
     conditions: [{ type: 'Ready', status: 'True' }],
@@ -54,6 +57,7 @@ const emptyCollections: Record<string, string> = {
   jobs: 'Job',
   jobsets: 'JobSet',
   networkpolicies: 'NetworkPolicy',
+  nodes: 'Node',
   persistentvolumeclaims: 'PersistentVolumeClaim',
   replicasets: 'ReplicaSet',
   services: 'Service',
@@ -141,4 +145,19 @@ test('keeps a simplified namespace expanded while resizing', async ({ page }) =>
     await page.setViewportSize(viewport);
     await assertExpandedTopology();
   }
+});
+
+test('groups scheduled pods by node', async ({ page }) => {
+  test.setTimeout(60_000);
+  const cluster = process.env.HEADLAMP_TEST_CLUSTER || 'test';
+  const headlampPage = new HeadlampPage(page);
+  const mockedResources = await mockResourceMapCollections(page, cluster);
+  await headlampPage.navigateToCluster(cluster, process.env.HEADLAMP_TEST_TOKEN);
+
+  await headlampPage.navigateTopage(`/c/${cluster}/map`);
+
+  await expect.poll(() => [...mockedResources].sort()).toEqual(['namespaces', 'pods']);
+  await page.getByRole('button', { name: 'Node', exact: true }).click();
+
+  await expect(page.locator('[data-id="Node-worker-1"]')).toBeVisible({ timeout: 30_000 });
 });
