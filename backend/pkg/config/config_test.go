@@ -970,6 +970,22 @@ func TestMakeKubeConfigsDir(t *testing.T) {
 		assert.Contains(t, dir, filepath.Join("Headlamp", "kubeconfigs"))
 	})
 
+	t.Run("falls back to the executable directory", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("UserConfigDir uses a Windows API instead of an environment variable")
+		}
+
+		setUserConfigDir(t, "")
+		t.Setenv("HOME", "")
+
+		dir, err := config.MakeKubeConfigsDir("")
+		require.NoError(t, err)
+
+		executable, err := os.Executable()
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Dir(executable), dir)
+	})
+
 	t.Run("reports configured directory creation errors", func(t *testing.T) {
 		parentFile := filepath.Join(t.TempDir(), "file")
 		require.NoError(t, os.WriteFile(parentFile, []byte("not a directory"), 0o600))
@@ -1003,11 +1019,21 @@ func TestDefaultHeadlampKubeConfigFile(t *testing.T) {
 }
 
 func TestDefaultKubeConfigFile(t *testing.T) {
-	dir := filepath.Join(t.TempDir(), "custom", "kubeconfigs")
+	t.Run("returns the config file in the configured directory", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "custom", "kubeconfigs")
 
-	path, err := config.DefaultKubeConfigFile(dir)
-	require.NoError(t, err)
-	assert.Equal(t, filepath.Join(dir, "config"), path)
+		path, err := config.DefaultKubeConfigFile(dir)
+		require.NoError(t, err)
+		assert.Equal(t, filepath.Join(dir, "config"), path)
+	})
+
+	t.Run("reports directory creation errors", func(t *testing.T) {
+		parentFile := filepath.Join(t.TempDir(), "file")
+		require.NoError(t, os.WriteFile(parentFile, []byte("not a directory"), 0o600))
+
+		_, err := config.DefaultKubeConfigFile(filepath.Join(parentFile, "kubeconfigs"))
+		require.Error(t, err)
+	})
 }
 
 func TestKubeConfigDirParsing(t *testing.T) {
