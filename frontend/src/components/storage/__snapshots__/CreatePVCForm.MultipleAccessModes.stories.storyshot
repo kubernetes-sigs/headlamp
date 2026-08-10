@@ -377,7 +377,7 @@
                       >
                         <input
                           class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
-                          name=":r3kv:"
+                          name=":r3lp:"
                           type="radio"
                           value="default"
                         />
@@ -425,7 +425,7 @@
                       >
                         <input
                           class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
-                          name=":r3kv:"
+                          name=":r3lp:"
                           type="radio"
                           value="none"
                         />
@@ -474,7 +474,7 @@
                         <input
                           checked=""
                           class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
-                          name=":r3kv:"
+                          name=":r3lp:"
                           type="radio"
                           value="specify"
                         />
