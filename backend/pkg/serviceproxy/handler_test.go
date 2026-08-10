@@ -489,7 +489,7 @@ func TestGetServiceFromCluster(t *testing.T) {
 				cs = fake.NewClientset()
 			}
 
-			ps, status, err := getServiceFromCluster(context.Background(), cs, tt.namespace, tt.serviceName)
+			ps, status, err := getServiceFromCluster(context.Background(), cs, tt.namespace, tt.serviceName, "")
 
 			assert.Equal(t, tt.expectedStatus, status)
 
@@ -661,11 +661,12 @@ func TestParseInfoFromRequest(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req := tt.setupRequest()
-			clusterName, namespace, name, requestURI := parseInfoFromRequest(req)
+			clusterName, namespace, name, requestURI, portSelector := parseInfoFromRequest(req)
 			assert.Equal(t, tt.expectedClusterName, clusterName)
 			assert.Equal(t, tt.expectedNamespace, namespace)
 			assert.Equal(t, tt.expectedName, name)
 			assert.Equal(t, tt.expectedRequestURI, requestURI)
+			assert.Equal(t, "", portSelector)
 		})
 	}
 }
