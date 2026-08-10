@@ -17,7 +17,7 @@
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
 import { useHistory } from 'react-router-dom';
-import { beforeEach,describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as useShortcutMod from '../../lib/useShortcut';
 import { TestContext } from '../../test';
 import Layout from './Layout';
@@ -74,9 +74,13 @@ describe('Layout namespace shortcuts', () => {
 
   beforeEach(() => {
     shortcuts = {};
-    vi.spyOn(useShortcutMod, 'useShortcut').mockImplementation((id, cb) => {
+    vi.spyOn(useShortcutMod, 'useShortcut').mockImplementation(((
+      id: string,
+      cb: (e: any) => void
+    ) => {
       shortcuts[id] = cb;
-    });
+      return () => {};
+    }) as any);
   });
 
   it('navigates to pods with namespace extracted from query params', () => {
@@ -84,6 +88,7 @@ describe('Layout namespace shortcuts', () => {
     let currentHistory: any;
 
     const ExtractHistory = () => {
+      // eslint-disable-next-line
       currentHistory = useHistory();
       return null;
     };
@@ -109,6 +114,7 @@ describe('Layout namespace shortcuts', () => {
     let currentHistory: any;
 
     const ExtractHistory = () => {
+      // eslint-disable-next-line
       currentHistory = useHistory();
       return null;
     };
