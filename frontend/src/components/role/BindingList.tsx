@@ -22,6 +22,7 @@ import { useNamespaces } from '../../redux/filterSlice';
 import LabelListItem from '../common/LabelListItem';
 import Link from '../common/Link';
 import ResourceListView from '../common/Resource/ResourceListView';
+import { LightTooltip } from '../common/Tooltip';
 
 function RoleLink(props: { role: string; namespace?: string; cluster: string }) {
   const { role, namespace, cluster } = props;
@@ -38,6 +39,42 @@ function RoleLink(props: { role: string; namespace?: string; cluster: string }) 
     <Link routeName="clusterrole" params={{ name: role }} activeCluster={cluster} tooltip>
       {role}
     </Link>
+  );
+}
+
+function ServiceAccountList(props: { binding: RoleBinding }) {
+  const { binding } = props;
+  const subjects = binding.subjects?.filter(subject => subject.kind === 'ServiceAccount') ?? [];
+
+  if (subjects.length === 0) {
+    return null;
+  }
+
+  return (
+    <LightTooltip title={subjects.map(subject => subject.name).join('\n')} interactive>
+      <span>
+        {subjects.map((subject, index) => {
+          const namespace = subject.namespace || binding.getNamespace();
+
+          return (
+            <React.Fragment key={`${subject.name}__${index}`}>
+              {index > 0 && ', '}
+              {namespace ? (
+                <Link
+                  routeName="serviceAccount"
+                  params={{ name: subject.name, namespace }}
+                  activeCluster={binding.cluster}
+                >
+                  {subject.name}
+                </Link>
+              ) : (
+                subject.name
+              )}
+            </React.Fragment>
+          );
+        })}
+      </span>
+    </LightTooltip>
   );
 }
 
@@ -167,15 +204,7 @@ export default function RoleBindingList() {
               ?.filter(subject => subject.kind === 'ServiceAccount')
               ?.map(subject => subject.name)
               ?.join(' '),
-          render: item => (
-            <LabelListItem
-              labels={
-                item?.subjects
-                  ?.filter(subject => subject.kind === 'ServiceAccount')
-                  .map(subject => subject.name) || []
-              }
-            />
-          ),
+          render: item => <ServiceAccountList binding={item} />,
           sort: sortBindings('ServiceAccount'),
         },
         'labels',

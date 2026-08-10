@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { KubeRoleBinding } from '../../lib/k8s/roleBinding';
 import { TestContext } from '../../test';
@@ -62,6 +62,77 @@ describe('RoleBindingList service accounts column', () => {
     mockListView.mockReset();
   });
 
+  it('links a service account to its details page', () => {
+    const column = serviceAccountColumn();
+    const binding = makeBinding([{ kind: 'ServiceAccount', name: 'default' }], 'team-a');
+
+    render(<TestContext>{column.render(binding)}</TestContext>);
+
+    const link = screen.getByRole('link', { name: 'default' });
+    expect(link.getAttribute('href')).toContain('/serviceaccounts/team-a/default');
+    expect(link.getAttribute('href')).toContain('my-cluster');
+  });
+
+  it('prefers the namespace of the subject over the one of the binding', () => {
+    const column = serviceAccountColumn();
+    const binding = makeBinding(
+      [{ kind: 'ServiceAccount', name: 'node-viewer', namespace: 'kube-system' }],
+      'team-a'
+    );
+
+    render(<TestContext>{column.render(binding)}</TestContext>);
+
+    expect(screen.getByRole('link', { name: 'node-viewer' }).getAttribute('href')).toContain(
+      '/serviceaccounts/kube-system/node-viewer'
+    );
+  });
+
+  it('leaves a subject without any namespace as plain text', () => {
+    const column = serviceAccountColumn();
+    const binding = makeBinding([{ kind: 'ServiceAccount', name: 'orphan' }]);
+
+    render(<TestContext>{column.render(binding)}</TestContext>);
+
+    expect(screen.getByText('orphan')).toBeInTheDocument();
+    expect(screen.queryByRole('link', { name: 'orphan' })).not.toBeInTheDocument();
+  });
+
+  it('links every service account and leaves other kinds out', () => {
+    const column = serviceAccountColumn();
+    const binding = makeBinding(
+      [
+        { apiGroup: 'rbac.authorization.k8s.io', kind: 'User', name: 'jane' },
+        { kind: 'ServiceAccount', name: 'builder', namespace: 'ci' },
+        { kind: 'ServiceAccount', name: 'deployer', namespace: 'ci' },
+      ],
+      'ci'
+    );
+
+    render(<TestContext>{column.render(binding)}</TestContext>);
+
+    expect(screen.getAllByRole('link')).toHaveLength(2);
+    expect(screen.queryByText('jane')).not.toBeInTheDocument();
+  });
+
+  it('renders a subject that is listed twice without colliding keys', () => {
+    const column = serviceAccountColumn();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const binding = makeBinding(
+      [
+        { kind: 'ServiceAccount', name: 'builder', namespace: 'ci' },
+        { kind: 'ServiceAccount', name: 'builder', namespace: 'ci' },
+      ],
+      'ci'
+    );
+
+    render(<TestContext>{column.render(binding)}</TestContext>);
+
+    expect(screen.getAllByRole('link', { name: 'builder' })).toHaveLength(2);
+    expect(consoleError.mock.calls.some(call => String(call[0]).includes('same key'))).toBe(false);
+
+    consoleError.mockRestore();
+  });
+
   it('sorts on the service account subjects and ignores the other kinds', () => {
     const column = serviceAccountColumn();
     const alpha = makeBinding(
@@ -82,5 +153,18 @@ describe('RoleBindingList service accounts column', () => {
     expect(column.sort(alpha, beta)).toBeLessThan(0);
     expect(column.sort(beta, alpha)).toBeGreaterThan(0);
     expect(column.sort(alpha, alpha)).toBe(0);
+  });
+
+  it('keeps the column value as plain names for search and export', () => {
+    const column = serviceAccountColumn();
+    const binding = makeBinding(
+      [
+        { apiGroup: 'rbac.authorization.k8s.io', kind: 'User', name: 'jane' },
+        { kind: 'ServiceAccount', name: 'builder', namespace: 'ci' },
+      ],
+      'ci'
+    );
+
+    expect(column.getValue(binding)).toBe('builder');
   });
 });

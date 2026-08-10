@@ -892,7 +892,12 @@
                       class=""
                       data-mui-internal-clone-element="true"
                     >
-                      default
+                      <a
+                        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                        href="/"
+                      >
+                        default
+                      </a>
                     </span>
                   </td>
                   <td
