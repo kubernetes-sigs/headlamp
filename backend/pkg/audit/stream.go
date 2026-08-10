@@ -16,7 +16,7 @@ var upgrader = websocket.Upgrader{
 	},
 }
 
-// AuditEvent represents a Kubernetes audit event
+// AuditEvent represents a Kubernetes audit event.
 type AuditEvent struct {
 	Level     string `json:"level,omitempty"`
 	Timestamp string `json:"stageTimestamp,omitempty"`
@@ -34,14 +34,14 @@ type AuditEvent struct {
 	} `json:"responseStatus,omitempty"`
 }
 
-// EventList is the payload sent by Kubernetes audit webhook
+// EventList is the payload sent by Kubernetes audit webhook.
 type EventList struct {
 	Kind       string            `json:"kind"`
 	APIVersion string            `json:"apiVersion"`
 	Items      []json.RawMessage `json:"items"`
 }
 
-// Filter defines criteria to filter audit logs
+// Filter defines criteria to filter audit logs.
 type Filter struct {
 	User       string
 	Verb       string
@@ -49,11 +49,12 @@ type Filter struct {
 	StatusCode int
 }
 
-// MatchFilter checks if an event matches the filter
+// MatchFilter checks if an event matches the filter.
 func MatchFilter(eventBytes []byte, filter *Filter) bool {
 	if filter == nil || (filter.User == "" && filter.Verb == "" && filter.Kind == "" && filter.StatusCode == 0) {
 		return true
 	}
+
 	var event AuditEvent
 	if err := json.Unmarshal(eventBytes, &event); err != nil {
 		return true // skip filter if we can't parse
@@ -62,15 +63,19 @@ func MatchFilter(eventBytes []byte, filter *Filter) bool {
 	if filter.User != "" && event.User.Username != filter.User {
 		return false
 	}
+
 	if filter.Verb != "" && event.Verb != filter.Verb {
 		return false
 	}
+
 	if filter.Kind != "" && event.ObjectRef.Resource != filter.Kind {
 		return false
 	}
+
 	if filter.StatusCode != 0 && event.ResponseStatus.Code != filter.StatusCode {
 		return false
 	}
+
 	return true
 }
 
@@ -79,20 +84,20 @@ type clientConn struct {
 	filter *Filter
 }
 
-// Streamer manages websocket connections for audit logs
+// Streamer manages websocket connections for audit logs.
 type Streamer struct {
 	clients   map[*clientConn]bool
 	clientsMu sync.Mutex
 }
 
-// NewStreamer creates a new Audit Log Streamer
+// NewStreamer creates a new Audit Log Streamer.
 func NewStreamer() *Streamer {
 	return &Streamer{
 		clients: make(map[*clientConn]bool),
 	}
 }
 
-// HandleWebhook receives EventList from Kubernetes Audit webhook
+// HandleWebhook receives EventList from Kubernetes Audit webhook.
 func (s *Streamer) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -104,7 +109,10 @@ func (s *Streamer) HandleWebhook(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, "Error reading body", http.StatusBadRequest)
 		return
 	}
-	defer r.Body.Close()
+
+	defer func() {
+		_ = r.Body.Close()
+	}()
 
 	var eventList EventList
 	if err := json.Unmarshal(body, &eventList); err != nil {
@@ -131,8 +139,9 @@ func (s *Streamer) broadcast(events []json.RawMessage) {
 			if MatchFilter(event, client.filter) {
 				err := client.conn.WriteMessage(websocket.TextMessage, event)
 				if err != nil {
-					client.conn.Close()
+					_ = client.conn.Close()
 					delete(s.clients, client)
+
 					break // break inner loop, move to next client
 				}
 			}
@@ -140,7 +149,7 @@ func (s *Streamer) broadcast(events []json.RawMessage) {
 	}
 }
 
-// HandleWebSocket accepts WS connections for the frontend to receive stream
+// HandleWebSocket accepts WS connections for the frontend to receive stream.
 func (s *Streamer) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
@@ -149,6 +158,7 @@ func (s *Streamer) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 
 	// Parse filters from query string
 	q := r.URL.Query()
+
 	filter := &Filter{
 		User: q.Get("user"),
 		Verb: q.Get("verb"),
@@ -172,8 +182,10 @@ func (s *Streamer) HandleWebSocket(w http.ResponseWriter, r *http.Request) {
 			s.clientsMu.Lock()
 			delete(s.clients, c)
 			s.clientsMu.Unlock()
-			conn.Close()
+
+			_ = conn.Close()
 		}()
+
 		for {
 			if _, _, err := conn.ReadMessage(); err != nil {
 				break
