@@ -255,6 +255,57 @@ func TestLoadDynamicClustersLogging(t *testing.T) {
 	}
 }
 
+func TestCreateHeadlampHandlerLoadsDynamicClustersFromKubeConfigDir(t *testing.T) {
+	kubeConfigDir := t.TempDir()
+	kubeConfigFile := filepath.Join(kubeConfigDir, "config")
+	primaryKubeConfigFile := filepath.Join(t.TempDir(), "config")
+
+	dynamicKubeConfig, err := clientcmd.LoadFromFile("./headlamp_testdata/kubeconfig")
+	require.NoError(t, err)
+	require.NoError(t, clientcmd.WriteToFile(*dynamicKubeConfig, kubeConfigFile))
+	require.NoError(t, clientcmd.WriteToFile(api.Config{
+		Clusters: map[string]*api.Cluster{
+			"primary": {Server: "https://primary.example"},
+		},
+		Contexts: map[string]*api.Context{
+			"primary": {Cluster: "primary", AuthInfo: "primary"},
+		},
+		AuthInfos: map[string]*api.AuthInfo{
+			"primary": {Token: "token"},
+		},
+		CurrentContext: "primary",
+	}, primaryKubeConfigFile))
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigPath:  primaryKubeConfigFile,
+				KubeConfigDir:   kubeConfigDir,
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	handler := createHeadlampHandler(ctx, cfg)
+	require.NotNil(t, handler)
+
+	primaryContext, err := kubeConfigStore.GetContext("primary")
+	require.NoError(t, err)
+	assert.Equal(t, kubeconfig.KubeConfig, primaryContext.Source)
+
+	loadedContext, err := kubeConfigStore.GetContext(minikubeName)
+	require.NoError(t, err)
+	assert.Equal(t, kubeconfig.DynamicCluster, loadedContext.Source)
+	assert.Equal(t, kubeConfigFile, loadedContext.KubeConfigPath)
+}
+
 func getResponse(handler http.Handler, method, url string, body interface{}) (*httptest.ResponseRecorder, error) {
 	req, err := makeJSONReq(method, url, body)
 	if err != nil {
