@@ -83,13 +83,20 @@ test('service page should have headlamp service', async () => {
   await servicesPage.a11y();
 });
 
-test('headlamp service page should contain port', async () => {
+test('headlamp service page should contain port', async ({ page }) => {
   await servicesPage.navigateToServices();
   await servicesPage.clickOnServicesSection();
   await servicesPage.goToParticularService('headlamp');
 
   // Check if there is text "TCP" on the page
   await headlampPage.checkPageContent('TCP');
+  const portsTable = page
+    .getByRole('table')
+    .filter({ has: page.getByRole('columnheader', { name: 'Protocol', exact: true }) });
+  await expect(portsTable.getByRole('cell', { name: 'TCP', exact: true })).toHaveCSS(
+    'overflow',
+    'hidden'
+  );
   await headlampPage.a11y();
 });
 
