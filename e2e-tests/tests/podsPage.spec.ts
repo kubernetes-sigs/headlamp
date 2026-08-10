@@ -277,11 +277,14 @@ test('warns and preserves edits when a pod is modified externally', async ({ pag
   }
 });
 
-test('opens resource YAML beside the current content', async ({ page }) => {
-  test.setTimeout(60000);
+test('positions the resource YAML viewer for each viewport size', async ({ page }) => {
+  test.setTimeout(90000);
   const name = `headlamp-view-yaml-${Date.now()}`;
+  const hundredColumnValue = '1234567890'.repeat(9) + '123456';
   const tempDirectory = await mkdtemp(join(tmpdir(), 'headlamp-e2e-'));
   const kubeconfig = join(tempDirectory, 'kubeconfig');
+
+  expect(`    ${hundredColumnValue}`).toHaveLength(100);
 
   try {
     const { stdout } = await execFileAsync('kind', ['get', 'kubeconfig', '--name', 'test']);
@@ -292,7 +295,8 @@ test('opens resource YAML beside the current content', async ({ page }) => {
       'create',
       'configmap',
       name,
-      '--from-literal=example=value'
+      '--from-literal=example=value',
+      `--from-literal=line100=${hundredColumnValue}`
     );
 
     await page.goto('/c/test', { waitUntil: 'domcontentloaded' });
@@ -317,35 +321,78 @@ test('opens resource YAML beside the current content', async ({ page }) => {
       await page.getByRole('button', { name: 'Authenticate' }).click();
       await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
     }
-    await page.goto('/c/test/configmaps', { waitUntil: 'domcontentloaded' });
-    await expect(page).toHaveURL(/\/c\/test\/configmaps$/);
-    await expect(page.getByRole('heading', { name: 'Config Maps' })).toBeVisible();
-    const resourceRow = page.getByRole('row').filter({ has: page.getByRole('link', { name }) });
-    await expect(resourceRow).toBeVisible();
     await page.route(`**/clusters/test/api/v1/namespaces/default/configmaps/${name}`, route =>
       route.abort('failed')
     );
-    await resourceRow.getByRole('button', { name: 'Row Actions' }).click();
-    await page.getByRole('menuitem', { name: 'View YAML' }).click();
 
-    const activity = page.locator(`[role="complementary"][aria-label="${name}"]`);
-    const viewer = activity.locator(':scope > div');
-    const main = page.locator('#main');
-    await expect(activity).toBeVisible({ timeout: 15000 });
-    await expect
-      .poll(async () => {
-        const [mainBox, viewerBox] = await Promise.all([main.boundingBox(), viewer.boundingBox()]);
-        if (!mainBox || !viewerBox) {
-          return false;
-        }
+    for (const viewport of [
+      { name: 'phone', width: 390, height: 844 },
+      { name: 'medium', width: 1024, height: 900 },
+      { name: 'large', width: 1440, height: 900 },
+      { name: 'extra-large', width: 2560, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/c/test/configmaps', { waitUntil: 'domcontentloaded' });
+      await expect(page).toHaveURL(/\/c\/test\/configmaps$/);
+      await expect(page.getByRole('heading', { name: 'Config Maps' })).toBeVisible();
+      const resourceRow = page.getByRole('row').filter({ has: page.getByRole('link', { name }) });
+      await expect(resourceRow).toBeVisible();
+      await resourceRow.locator('td').last().getByRole('button').click();
+      await page.getByRole('menuitem', { name: 'View YAML' }).click();
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('menu')).toHaveCount(0);
 
-        return (
-          Math.abs(viewerBox.width - mainBox.width / 2) < 2 &&
-          Math.abs(viewerBox.height - mainBox.height) < 2 &&
-          Math.abs(viewerBox.x + viewerBox.width - (mainBox.x + mainBox.width)) < 2
-        );
-      })
-      .toBe(true);
+      const activity = page.locator(`[role="complementary"][aria-label="${name}"]`);
+      const viewer = activity.locator(':scope > div');
+      const main = page.locator('#main');
+      await expect(activity, `${viewport.name} activity`).toBeVisible({ timeout: 15000 });
+      await expect
+        .poll(
+          async () => {
+            const [mainBox, viewerBox] = await Promise.all([
+              main.boundingBox(),
+              viewer.boundingBox(),
+            ]);
+            if (!mainBox || !viewerBox) {
+              return false;
+            }
+
+            if (viewport.name === 'phone') {
+              return (
+                Math.abs(viewerBox.x - mainBox.x) < 2 &&
+                Math.abs(viewerBox.y - mainBox.y) < 2 &&
+                Math.abs(viewerBox.width - mainBox.width) < 2 &&
+                Math.abs(viewerBox.height - mainBox.height) < 2
+              );
+            }
+
+            if (viewport.name === 'medium') {
+              return (
+                Math.abs(viewerBox.x - 8) < 2 &&
+                Math.abs(viewerBox.y - 72) < 2 &&
+                Math.abs(viewerBox.width - (viewport.width - 16)) < 2 &&
+                Math.abs(viewerBox.height - (viewport.height - 80)) < 2
+              );
+            }
+
+            const expectedWidth = Math.min(mainBox.width, Math.max(mainBox.width / 2, 1024));
+            return (
+              Math.abs(viewerBox.width - expectedWidth) < 2 &&
+              Math.abs(viewerBox.height - mainBox.height) < 2 &&
+              Math.abs(viewerBox.x + viewerBox.width - (mainBox.x + mainBox.width)) < 2
+            );
+          },
+          { message: `${viewport.name} viewer placement` }
+        )
+        .toBe(true);
+
+      if (viewport.name === 'large' || viewport.name === 'extra-large') {
+        await expect(activity.locator('.monaco-editor')).toContainText(hundredColumnValue);
+      }
+
+      await activity.locator('button[title="Close"]').evaluate(button => button.click());
+      await expect(activity).toHaveCount(0);
+    }
   } finally {
     await kubectl(
       kubeconfig,

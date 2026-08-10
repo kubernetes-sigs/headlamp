@@ -74,6 +74,7 @@ describe('ViewButton', () => {
     mockActivityClose.mockReset();
     mockActivityLaunch.mockReset();
     mockFetchLatestKubeObject.mockReset();
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 1440 });
   });
 
   it('opens the latest resource beside the current content when clicked', async () => {
@@ -88,11 +89,37 @@ describe('ViewButton', () => {
         expect.objectContaining({
           cluster: 'test-cluster',
           id: 'yaml-test-uid',
-          location: 'split-right',
+          location: 'split-right-wide',
           title: 'test-pod',
         })
       );
     });
+  });
+
+  it('opens the resource in a centered window on medium screens', async () => {
+    mockFetchLatestKubeObject.mockResolvedValue(latestItem);
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 900 });
+
+    render(<ViewButton item={item} />);
+    fireEvent.click(screen.getByRole('button', { name: 'View' }));
+
+    await waitFor(() =>
+      expect(mockActivityLaunch).toHaveBeenCalledWith(
+        expect.objectContaining({ location: 'window-medium' })
+      )
+    );
+  });
+
+  it('opens the resource fullscreen on phones', async () => {
+    mockFetchLatestKubeObject.mockResolvedValue(latestItem);
+    Object.defineProperty(window, 'innerWidth', { configurable: true, value: 390 });
+
+    render(<ViewButton item={item} />);
+    fireEvent.click(screen.getByRole('button', { name: 'View' }));
+
+    await waitFor(() =>
+      expect(mockActivityLaunch).toHaveBeenCalledWith(expect.objectContaining({ location: 'full' }))
+    );
   });
 
   it('opens automatically when initially toggled', async () => {

@@ -31,6 +31,19 @@ export interface ViewButtonProps {
   buttonStyle?: ButtonStyle;
 }
 
+/** Returns a YAML viewer placement suitable for the current viewport width. */
+function getActivityLocation() {
+  if (window.innerWidth >= 1280) {
+    return 'split-right-wide' as const;
+  }
+
+  if (window.innerWidth >= 600) {
+    return 'window-medium' as const;
+  }
+
+  return 'full' as const;
+}
+
 function ViewButton({ item, buttonStyle, initialToggle }: ViewButtonProps) {
   const { t } = useTranslation();
   const activityId = 'yaml-' + item.metadata.uid;
@@ -68,7 +81,7 @@ function ViewButton({ item, buttonStyle, initialToggle }: ViewButtonProps) {
       title: editorItem.metadata.name,
       cluster: editorItem.cluster,
       icon: <Icon icon="mdi:eye" />,
-      location: 'split-right',
+      location: getActivityLocation(),
       content: (
         <EditorDialog
           noDialog
