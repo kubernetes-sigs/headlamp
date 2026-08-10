@@ -340,7 +340,7 @@ export function createMuiTheme(currentTheme: AppTheme) {
       },
     },
     shape: {
-      borderRadius: Number(currentTheme.radius) ?? 4,
+      borderRadius: Number(currentTheme.radius ?? 4),
     },
     components: {
       MuiPaper: {
