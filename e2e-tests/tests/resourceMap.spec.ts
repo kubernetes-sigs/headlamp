@@ -118,7 +118,7 @@ test('keeps a simplified namespace expanded while resizing', async ({ page }) =>
 
   await expect.poll(() => [...mockedResources].sort()).toEqual(['namespaces', 'pods']);
 
-  const namespaceNode = page.locator(`[data-id*="${namespace.metadata.uid}"]`);
+  const namespaceNode = page.locator(`.react-flow__node[data-id*="${namespace.metadata.uid}"]`);
   await expect(namespaceNode).toBeVisible({ timeout: 30_000 });
   await namespaceNode.getByRole('button').click();
 
