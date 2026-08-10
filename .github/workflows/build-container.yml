@@ -201,7 +201,7 @@ jobs:
         kubectl get services --all-namespaces
         kubectl get deployments -n kube-system
         echo "------------------Waiting for headlamp deployment to be available...------------------"
-        kubectl wait deployment -n kube-system headlamp --for condition=Available=True --timeout=30s
+        kubectl wait deployment -n kube-system headlamp --for condition=Available=True --timeout=120s
         echo "----------------------------------Opening the service----------------------------------"
         IP_ADDRESS=$(kubectl get nodes -o=jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}')
         SERVICE_PORT=$(kubectl get services headlamp -n kube-system -o=jsonpath='{.spec.ports[0].nodePort}')
