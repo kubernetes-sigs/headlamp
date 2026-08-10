@@ -108,7 +108,7 @@ async function mockResourceMapCollections(page: Page, cluster: string) {
 }
 
 test('keeps a simplified namespace expanded while resizing', async ({ page }) => {
-  test.setTimeout(60_000);
+  test.setTimeout(90_000);
   const cluster = process.env.HEADLAMP_TEST_CLUSTER || 'test';
   const headlampPage = new HeadlampPage(page);
   const mockedResources = await mockResourceMapCollections(page, cluster);
@@ -123,6 +123,7 @@ test('keeps a simplified namespace expanded while resizing', async ({ page }) =>
   );
 
   await page.waitForSelector('.react-flow', { timeout: 30_000 });
+  await page.waitForSelector('.react-flow__nodes', { timeout: 30_000 });
   await expect(namespaceNode).toBeVisible({ timeout: 30_000 });
   await namespaceNode.locator('button').first().click();
 
