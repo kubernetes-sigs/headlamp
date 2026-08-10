@@ -130,7 +130,7 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
   /**
    * pluginChanges state is the array of plugin data and any current changes made by the user to a plugin's "Enable" field via toggler.
    * The name and origin fields are split for consistency.
-   * Plugins that are not loaded (isLoaded === false) are initialized with isEnabled = false.
+   * isEnabled is the stored user preference, kept independent of the runtime isLoaded state.
    */
   const [pluginChanges, setPluginChanges] = useState(() =>
     pluginArr.map((plugin: PluginInfo) => {
@@ -142,8 +142,7 @@ export function PluginSettingsPure(props: PluginSettingsPureProps) {
         ...plugin,
         displayName: name ?? plugin.name,
         origin: plugin.origin ?? author?.substring(1) ?? t('translation|Unknown'),
-        // If the plugin is not loaded, ensure it's disabled
-        isEnabled: plugin.isLoaded === false ? false : plugin.isEnabled,
+        isEnabled: plugin.isEnabled,
       };
     })
   );

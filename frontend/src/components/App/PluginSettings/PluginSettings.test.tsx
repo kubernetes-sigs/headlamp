@@ -15,7 +15,7 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
-import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMuiTheme } from '../../../lib/themes';
 import { PluginInfo, setPluginSettings } from '../../../plugin/pluginsSlice';
@@ -200,6 +200,57 @@ describe('PluginSettingsPure', () => {
     await waitFor(() => {
       expect(screen.getAllByLabelText('Delete Plugin')).toHaveLength(2);
     });
+  });
+});
+
+describe('PluginSettingsPure with an overridden plugin', () => {
+  /** A plugin renamed into the official scope, next to the old unscoped copy it overrides. */
+  function createRenamedPlugins(): PluginInfo[] {
+    return [
+      {
+        name: '@headlamp-k8s/app-catalog',
+        description: 'The renamed plugin',
+        isEnabled: true,
+        isCompatible: true,
+        isLoaded: true,
+        type: 'shipped' as const,
+        homepage: '',
+      },
+      {
+        name: 'app-catalog',
+        description: 'The old unscoped copy',
+        isEnabled: true,
+        isCompatible: true,
+        isLoaded: false,
+        overriddenBy: 'shipped' as const,
+        type: 'user' as const,
+        homepage: '',
+      },
+    ];
+  }
+
+  it('does not offer to save when nothing has been changed', () => {
+    renderPluginSettings({ plugins: createRenamedPlugins() });
+
+    expect(screen.getByText('Not Loaded')).toBeInTheDocument();
+    expect(screen.queryByText('Save & Apply')).not.toBeInTheDocument();
+  });
+
+  it('keeps the overridden plugin enabled when the settings are saved', () => {
+    const onSave = vi.fn();
+
+    renderPluginSettings({ plugins: createRenamedPlugins(), onSave });
+
+    // Turn the loaded plugin off, so there is something to save.
+    const toggle = screen.getByLabelText('Toggle @headlamp-k8s/app-catalog');
+    fireEvent.click(within(toggle).getByRole('checkbox'));
+    fireEvent.click(screen.getByText('Save & Apply'));
+
+    const saved = onSave.mock.calls[0][0] as PluginInfo[];
+    expect(saved.find(plugin => plugin.name === '@headlamp-k8s/app-catalog')?.isEnabled).toBe(
+      false
+    );
+    expect(saved.find(plugin => plugin.name === 'app-catalog')?.isEnabled).toBe(true);
   });
 });
 

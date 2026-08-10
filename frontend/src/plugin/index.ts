@@ -201,26 +201,53 @@ export function filterSources(
   };
 }
 
+/** The npm scope Headlamp controls, see https://github.com/kubernetes-sigs/headlamp/issues/2597 */
+const OFFICIAL_PLUGIN_SCOPE = '@headlamp-k8s';
+
+/**
+ * Strips the official scope, so that a renamed plugin and its old unscoped name, like
+ * "@headlamp-k8s/app-catalog" and "app-catalog", are treated as one plugin. Other scopes
+ * are returned unchanged.
+ *
+ * @param name the plugin name, as found in its package.json.
+ * @returns the name without the official scope prefix.
+ */
+function getPluginBaseName(name: string): string {
+  const scopePrefix = `${OFFICIAL_PLUGIN_SCOPE}/`;
+  return name.startsWith(scopePrefix) ? name.slice(scopePrefix.length) : name;
+}
+
+/**
+ * @param plugin the plugin to check.
+ * @returns true if the plugin is published under the scope Headlamp controls.
+ */
+function isOfficiallyScoped(plugin: PluginInfo): boolean {
+  return plugin.name.startsWith(`${OFFICIAL_PLUGIN_SCOPE}/`);
+}
+
 /**
  * Apply priority-based plugin loading logic.
  *
  * When multiple versions of the same plugin exist across different locations:
+ * - Plugins renamed into the official scope take priority over their old unscoped name
  * - Priority order: development > user > shipped
  * - Only the highest priority ENABLED version is loaded
- * - If a higher priority version is disabled, the next enabled version is loaded
+ * - If a higher priority version is disabled, the next enabled version is loaded, without
+ *   falling back to a name outside the official scope
  * - Lower priority versions are marked with isLoaded=false and overriddenBy info
  *
  * @param plugins List of all plugins from all locations
  * @returns Plugins with isLoaded and overriddenBy fields set appropriately
  */
 export function applyPluginPriority(plugins: PluginInfo[]): PluginInfo[] {
-  // Group plugins by name
+  // Group plugins by name, ignoring the official scope
   const pluginsByName = new Map<string, PluginInfo[]>();
 
   plugins.forEach(plugin => {
-    const existing = pluginsByName.get(plugin.name) || [];
+    const name = getPluginBaseName(plugin.name);
+    const existing = pluginsByName.get(name) || [];
     existing.push(plugin);
-    pluginsByName.set(plugin.name, existing);
+    pluginsByName.set(name, existing);
   });
 
   const result: PluginInfo[] = [];
@@ -250,10 +277,15 @@ export function applyPluginPriority(plugins: PluginInfo[]): PluginInfo[] {
       return aPriority - bPriority;
     });
 
+    // A name we do not control must not run while the scoped package is installed, even if that
+    // package is disabled
+    const officialVersions = sortedVersions.filter(isOfficiallyScoped);
+    const candidates = officialVersions.length > 0 ? officialVersions : sortedVersions;
+
     // Find the highest priority enabled version
     let loadedVersion: PluginInfo | null = null;
 
-    for (const version of sortedVersions) {
+    for (const version of candidates) {
       if (version.isEnabled !== false) {
         loadedVersion = version;
         break;
@@ -269,11 +301,13 @@ export function applyPluginPriority(plugins: PluginInfo[]): PluginInfo[] {
           isLoaded: true,
         });
       } else {
-        // This version is overridden by a higher priority version
+        // This version is overridden by a higher priority version, or by a disabled scoped one
         result.push({
           ...version,
           isLoaded: false,
-          overriddenBy: loadedVersion?.type,
+          overriddenBy:
+            loadedVersion?.type ??
+            (isOfficiallyScoped(version) ? undefined : officialVersions[0]?.type),
         });
       }
     });
