@@ -171,10 +171,6 @@ export const KubeObjectDetails = memo(
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [kind, kindComponentMap]);
 
-    return (
-      <Box>
-        <Box sx={{ marginTop: '-70px' }}>{content}</Box>
-      </Box>
-    );
+    return <Box>{content}</Box>;
   }
 );
