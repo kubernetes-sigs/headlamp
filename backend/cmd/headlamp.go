@@ -366,6 +366,7 @@ func checkAuditStreamPermission(clientset *kubernetes.Clientset) error {
 		if result.Status.Reason != "" {
 			reason = result.Status.Reason
 		}
+
 		return fmt.Errorf("permission denied: %s", reason)
 	}
 
@@ -738,6 +739,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 				logger.Log(logger.LevelError, map[string]string{"cluster": requestClusterName},
 					err, "getting clientset for audit stream")
 				http.Error(w, err.Error(), http.StatusInternalServerError)
+
 				return
 			}
 
@@ -745,6 +747,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 				logger.Log(logger.LevelError, map[string]string{"cluster": requestClusterName},
 					err, "permission denied to access audit stream")
 				http.Error(w, "Forbidden", http.StatusForbidden)
+
 				return
 			}
 		}
