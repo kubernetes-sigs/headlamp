@@ -68,6 +68,19 @@ func writeClusterInventoryProviderFile(t *testing.T) string {
 	return path
 }
 
+func setUserConfigDir(t *testing.T, dir string) {
+	t.Helper()
+
+	switch runtime.GOOS {
+	case "windows":
+		t.Setenv("APPDATA", dir)
+	case "darwin":
+		t.Setenv("HOME", dir)
+	default:
+		t.Setenv("XDG_CONFIG_HOME", dir)
+	}
+}
+
 func TestParseBasic(t *testing.T) {
 	tests := []struct {
 		name   string
@@ -936,6 +949,36 @@ func TestMakeHeadlampKubeConfigsDir(t *testing.T) {
 	assert.True(t, strings.HasPrefix(dir, tmpDir))
 }
 
+func TestMakeKubeConfigsDir(t *testing.T) {
+	t.Run("creates configured directory", func(t *testing.T) {
+		dir := filepath.Join(t.TempDir(), "custom", "kubeconfigs")
+
+		actual, err := config.MakeKubeConfigsDir(dir)
+		require.NoError(t, err)
+		assert.Equal(t, dir, actual)
+
+		info, err := os.Stat(actual)
+		require.NoError(t, err)
+		assert.True(t, info.IsDir())
+	})
+
+	t.Run("uses Headlamp default when unset", func(t *testing.T) {
+		setUserConfigDir(t, t.TempDir())
+
+		dir, err := config.MakeKubeConfigsDir("")
+		require.NoError(t, err)
+		assert.Contains(t, dir, filepath.Join("Headlamp", "kubeconfigs"))
+	})
+
+	t.Run("reports configured directory creation errors", func(t *testing.T) {
+		parentFile := filepath.Join(t.TempDir(), "file")
+		require.NoError(t, os.WriteFile(parentFile, []byte("not a directory"), 0o600))
+
+		_, err := config.MakeKubeConfigsDir(filepath.Join(parentFile, "kubeconfigs"))
+		require.Error(t, err)
+	})
+}
+
 func TestDefaultHeadlampKubeConfigFile(t *testing.T) {
 	tmpDir := t.TempDir()
 
@@ -957,6 +1000,30 @@ func TestDefaultHeadlampKubeConfigFile(t *testing.T) {
 	info, err := os.Stat(filepath.Dir(path))
 	require.NoError(t, err)
 	assert.True(t, info.IsDir())
+}
+
+func TestDefaultKubeConfigFile(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "custom", "kubeconfigs")
+
+	path, err := config.DefaultKubeConfigFile(dir)
+	require.NoError(t, err)
+	assert.Equal(t, filepath.Join(dir, "config"), path)
+}
+
+func TestKubeConfigDirParsing(t *testing.T) {
+	t.Run("defaults to empty", func(t *testing.T) {
+		conf, err := config.Parse([]string{"go run ./cmd"})
+		require.NoError(t, err)
+		assert.Empty(t, conf.KubeConfigDir)
+	})
+
+	t.Run("flag overrides environment", func(t *testing.T) {
+		t.Setenv("HEADLAMP_CONFIG_KUBECONFIG_DIR", "/env/kubeconfigs")
+
+		conf, err := config.Parse([]string{"go run ./cmd", "--kubeconfig-dir=/flag/kubeconfigs"})
+		require.NoError(t, err)
+		assert.Equal(t, "/flag/kubeconfigs", conf.KubeConfigDir)
+	})
 }
 
 func TestProxyAuthFlagOverridesEnv(t *testing.T) {
