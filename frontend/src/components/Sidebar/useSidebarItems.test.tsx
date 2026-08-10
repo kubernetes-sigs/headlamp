@@ -22,8 +22,14 @@ import { Provider } from 'react-redux';
 import App from '../../App';
 import reducers from '../../redux/reducers/reducers';
 import { TestContext } from '../../test';
+import { usePluginManagerInfo } from '../App/PluginManagerPage';
 import { DefaultSidebars, SidebarEntry } from './sidebarSlice';
 import { useSidebarItems } from './useSidebarItems';
+
+vi.mock('../App/PluginManagerPage', async importOriginal => ({
+  ...(await importOriginal<object>()),
+  usePluginManagerInfo: vi.fn(() => ({ info: undefined, isLoading: false, refetch: () => {} })),
+}));
 
 // Fix for a circular dependency issue
 // App import will load the whole app dependency tree
@@ -251,5 +257,50 @@ describe('useSidebarItems', () => {
 
     // Check that home is still present
     expect(result.current.find(it => it.name === 'home')).toBeDefined();
+  });
+
+  it('should show the Plugin Manager entry when the backend reports it enabled', () => {
+    vi.mocked(usePluginManagerInfo).mockReturnValue({
+      info: {
+        enabled: true,
+        namespace: 'headlamp',
+        configMapName: 'cm',
+        state: {},
+        status: { configMapFound: true, plugins: {} },
+      },
+      isLoading: false,
+      refetch: () => {},
+    } as ReturnType<typeof usePluginManagerInfo>);
+
+    const store = mockStore({}, []);
+    const { result } = renderHook(() => useSidebarItems(), {
+      wrapper: wrapper(store),
+    });
+
+    expect(result.current.find(it => it.name === 'pluginManager')).toBeDefined();
+  });
+
+  it('should hide the Plugin Manager entry when the manager is not enabled', () => {
+    vi.mocked(usePluginManagerInfo).mockReturnValue({
+      info: undefined,
+      isLoading: false,
+      refetch: () => {},
+    } as unknown as ReturnType<typeof usePluginManagerInfo>);
+
+    const store = mockStore({}, []);
+    const { result } = renderHook(() => useSidebarItems(), {
+      wrapper: wrapper(store),
+    });
+
+    expect(result.current.find(it => it.name === 'pluginManager')).toBeUndefined();
+  });
+
+  it('should not poll the plugin manager for non in-cluster sidebars', () => {
+    const store = mockStore({}, []);
+    renderHook(() => useSidebarItems(DefaultSidebars.HOME), {
+      wrapper: wrapper(store),
+    });
+
+    expect(vi.mocked(usePluginManagerInfo)).toHaveBeenLastCalledWith(60000, false);
   });
 });
