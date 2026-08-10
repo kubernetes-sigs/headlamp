@@ -33,6 +33,7 @@ func TestBuildHeadlampCFG(t *testing.T) {
 			InCluster:              true,
 			InClusterContextName:   "test-incluster",
 			InsecureSsl:            true,
+			KubeConfigDir:          "/kubeconfigs",
 			PluginsDir:             "/plugins",
 			UserPluginsDir:         "/user-plugins",
 			AllowKubeconfigChanges: true,
@@ -47,6 +48,7 @@ func TestBuildHeadlampCFG(t *testing.T) {
 		assert.True(t, headlampCFG.UseInCluster)
 		assert.Equal(t, "test-incluster", headlampCFG.InClusterContextName)
 		assert.True(t, headlampCFG.Insecure)
+		assert.Equal(t, "/kubeconfigs", headlampCFG.KubeConfigDir)
 		assert.Equal(t, "/plugins", headlampCFG.PluginDir)
 		assert.Equal(t, "/user-plugins", headlampCFG.UserPluginDir)
 		assert.True(t, headlampCFG.AllowKubeconfigChanges)
