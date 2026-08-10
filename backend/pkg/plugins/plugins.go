@@ -493,6 +493,10 @@ func HandlePluginEvents(staticPluginDir, userPluginDir, pluginDir string,
 		}
 
 		sep := strings.LastIndexByte(event, ':')
+		if sep == -1 {
+			continue
+		}
+
 		if filepath.Base(event[:sep]) != "package.json" {
 			continue
 		}

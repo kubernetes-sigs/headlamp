@@ -482,17 +482,23 @@ func TestHandlePluginEventsIgnoresIntermediateCopyEvents(t *testing.T) {
 
 	mainJSPath := filepath.Join(pluginDir, "main.js")
 	packageJSONPath := filepath.Join(pluginDir, "package.json")
+
 	require.NoError(t, os.WriteFile(mainJSPath, nil, 0o600))
 
 	events := make(chan string)
 	pluginCache := cache.New[interface{}]()
+
 	go plugins.HandlePluginEvents("", "", tempDir, events, pluginCache)
 
+	events <- "test"
+
 	events <- mainJSPath + ":CREATE"
+
 	_, err := pluginCache.Get(context.Background(), plugins.PluginListKey)
 	require.EqualError(t, err, cache.ErrNotFound.Error())
 
 	require.NoError(t, os.WriteFile(packageJSONPath, nil, 0o600))
+
 	events <- packageJSONPath + ":CREATE"
 
 	require.Eventually(t, func() bool {

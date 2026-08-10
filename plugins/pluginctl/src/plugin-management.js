@@ -51,6 +51,12 @@ function moveDirs(currentPath, newPath) {
   try {
     fs.mkdirSync(newPath, { recursive: true });
 
+    for (const entry of fs.readdirSync(newPath, { withFileTypes: true })) {
+      if (entry.name !== 'package.json') {
+        fs.rmSync(path.join(newPath, entry.name), { recursive: true, force: true });
+      }
+    }
+
     const entries = fs.readdirSync(currentPath, { withFileTypes: true });
     for (const entry of entries) {
       if (entry.name === 'package.json') {
