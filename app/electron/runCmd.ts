@@ -35,7 +35,13 @@ import {
 } from './plugin-management';
 import { isRunCommandAllowed, RunCommandGrant } from './runCommandPolicy';
 import { isTrustedDocumentUrl } from './secureStorage';
-import { loadSettings, saveSettings, SETTINGS_PATH } from './settings';
+import {
+  asSettingsObject,
+  isPlainObject,
+  loadSettings,
+  saveSettings,
+  SETTINGS_PATH,
+} from './settings';
 
 /**
  * Data sent from the renderer process when a 'run-command' event is emitted.
@@ -427,11 +433,13 @@ export function checkCommandConsent(
   args: string[],
   mainWindow: BrowserWindow,
   pluginIdentity?: PluginConsentIdentity,
-  consentArgs: string[] = args.slice(0, 1),
+  consentArgs: string[] = args.slice(0, command === 'aws' ? 2 : 1),
   preapproved = false
 ): boolean {
-  const settings = loadSettings(SETTINGS_PATH);
-  const confirmedCommands = settings?.confirmedCommands;
+  const settings = asSettingsObject(loadSettings(SETTINGS_PATH));
+  const confirmedCommands = isPlainObject(settings.confirmedCommands)
+    ? settings.confirmedCommands
+    : undefined;
 
   // Product grants use their reviewed argument prefix so saved consent cannot
   // become broader when a request adds trailing arguments.
@@ -455,7 +463,7 @@ export function checkCommandConsent(
   const previousPluginConsentKey = pluginLabel
     ? `run-command-consent:v1:${JSON.stringify([pluginLabel, command, consentArgs])}`
     : undefined;
-  const legacyConsentKey = [command, ...args.slice(0, 1)].join(' ');
+  const legacyConsentKey = [command, ...args.slice(0, command === 'aws' ? 2 : 1)].join(' ');
   const legacyPluginCommands = pluginIdentity
     ? LEGACY_CONSENT_PLUGIN_COMMANDS.get(
         `${pluginIdentity.source}\0${pluginIdentity.packageName}\0${pluginIdentity.bundleName}`
@@ -465,14 +473,18 @@ export function checkCommandConsent(
   const mayUseSourceLessLegacyConsent =
     !pluginIdentity || legacyPluginCommands?.has(legacyConsentKey) === true;
 
-  const currentProductDecision: boolean | undefined = confirmedCommands?.[consentKey];
+  const savedDecision = (key: string): boolean | undefined => {
+    const value = confirmedCommands?.[key];
+    return typeof value === 'boolean' ? value : undefined;
+  };
+  const currentProductDecision = savedDecision(consentKey);
   const savedCommand: boolean | undefined = confirmedCommands
     ? currentProductDecision ??
       (mayUseScopedLegacyConsent && previousPluginConsentKey
-        ? confirmedCommands[previousPluginConsentKey]
+        ? savedDecision(previousPluginConsentKey)
         : undefined) ??
-      (mayUseScopedLegacyConsent ? confirmedCommands[displayCommand] : undefined) ??
-      (mayUseSourceLessLegacyConsent ? confirmedCommands[legacyConsentKey] : undefined)
+      (mayUseScopedLegacyConsent ? savedDecision(displayCommand) : undefined) ??
+      (mayUseSourceLessLegacyConsent ? savedDecision(legacyConsentKey) : undefined)
     : undefined;
 
   const deniedPreviousProductApproval =
@@ -484,8 +496,12 @@ export function checkCommandConsent(
     return false;
   } else if (savedCommand === undefined) {
     if (preapproved) return true;
+    if (mainWindow === null) {
+      console.error(`Cannot prompt for consent to run command: ${consentKey}, no window available`);
+      return false;
+    }
     const commandChoice = confirmCommandDialog(displayCommand, mainWindow);
-    if (settings?.confirmedCommands === undefined) {
+    if (!isPlainObject(settings.confirmedCommands)) {
       settings.confirmedCommands = {};
     }
     settings.confirmedCommands[consentKey] = commandChoice;
@@ -495,6 +511,7 @@ export function checkCommandConsent(
     }
     return commandChoice;
   }
+
   return true;
 }
 
@@ -629,7 +646,7 @@ const COMMANDS_WITH_CONSENT = {
     'scriptjs headlamp_minikube/manage-minikube.js',
     'scriptjs minikube/manage-minikube.js',
   ],
-  headlamp_ai_assistant: ['gh auth', 'az account', 'az cognitiveservices'],
+  headlamp_ai_assistant: ['gh auth', 'az account', 'az cognitiveservices', 'aws sso login'],
   azure_aks: ['scriptjs azure-aks/azure-api.js'],
 };
 
@@ -670,8 +687,8 @@ const LEGACY_CONSENT_PLUGIN_COMMANDS = new Map<string, ReadonlySet<string>>([
  * @param pluginInfo artifacthub plugin info
  */
 export function addRunCmdConsent(pluginInfo: { name: string }): void {
-  const settings = loadSettings(SETTINGS_PATH);
-  if (!settings.confirmedCommands) {
+  const settings = asSettingsObject(loadSettings(SETTINGS_PATH));
+  if (!isPlainObject(settings.confirmedCommands)) {
     settings.confirmedCommands = {};
   }
   let commands: string[] = [];
@@ -702,7 +719,7 @@ export function addRunCmdConsent(pluginInfo: { name: string }): void {
   }
 
   for (const command of commands) {
-    if (!settings.confirmedCommands[command]) {
+    if (settings.confirmedCommands[command] === undefined) {
       settings.confirmedCommands[command] = true;
     }
   }
@@ -717,8 +734,8 @@ export function addRunCmdConsent(pluginInfo: { name: string }): void {
  * @param bundleName The installed bundle folder being removed.
  */
 export function removeRunCmdConsent(pluginName: string, bundleName?: string): void {
-  const settings = loadSettings(SETTINGS_PATH);
-  if (!settings.confirmedCommands) {
+  const settings = asSettingsObject(loadSettings(SETTINGS_PATH));
+  if (!isPlainObject(settings.confirmedCommands)) {
     return;
   }
   let commands: string[] = [];
@@ -1179,6 +1196,11 @@ export async function handleRunCommand(
       // starts would open a new, visible console window.
       windowsHide: true,
       ...commandData.options,
+      // Force piped stdio regardless of what commandData.options requested:
+      // handleRunCommand always attaches .on('data', ...) to child.stdout/stderr
+      // below, which are null unless stdio is piped (e.g. 'ignore' or 'inherit'
+      // would otherwise crash the main process here).
+      stdio: ['pipe', 'pipe', 'pipe'],
       shell: false,
       env: {
         ...(registeredCapability && commandData.command !== 'scriptjs'
@@ -1330,6 +1352,7 @@ export function setupRunCmdHandlers(
     'runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js': cryptoRandom(),
     'runCmd-gh': cryptoRandom(),
     'runCmd-az': cryptoRandom(),
+    'runCmd-aws': cryptoRandom(),
     'runCmd-scriptjs-azure-aks/azure-api.js': cryptoRandom(),
   };
 
@@ -1431,25 +1454,33 @@ type CommandDataPartial = Partial<CommandData>;
  */
 export function validateCommandData(eventData: CommandDataPartial): [boolean, string] {
   if (!eventData || typeof eventData !== 'object' || eventData === null) {
-    return [false, `Invalid eventData data received: ${eventData}`];
+    return [false, 'Invalid eventData data received'];
   }
   if (typeof eventData.id !== 'string' || !eventData.id) {
-    return [false, `Invalid eventData.id: ${eventData.id}`];
+    return [false, 'Invalid eventData.id'];
   }
   if (typeof eventData.command !== 'string' || !eventData.command) {
-    return [false, `Invalid eventData.command: ${eventData.command}`];
+    return [false, 'Invalid eventData.command'];
   }
-  if (!Array.isArray(eventData.args)) {
-    return [false, `Invalid eventData.args: ${eventData.args}`];
+  if (!Array.isArray(eventData.args) || eventData.args.some(arg => typeof arg !== 'string')) {
+    return [false, 'Invalid eventData.args: arguments must be an array of strings'];
   }
-  if (typeof eventData.options !== 'object' || eventData.options === null) {
-    return [false, `Invalid eventData.options: ${eventData.options}`];
+  if (
+    typeof eventData.options !== 'object' ||
+    eventData.options === null ||
+    Array.isArray(eventData.options)
+  ) {
+    return [false, 'Invalid eventData.options'];
   }
-  if (typeof eventData.permissionSecrets !== 'object' || eventData.permissionSecrets === null) {
-    return [
-      false,
-      `Invalid permission secrets, it is not an object: ${typeof eventData.permissionSecrets}`,
-    ];
+  if (!isPlainObject(eventData.permissionSecrets)) {
+    // typeof [] === 'object', so report the actual shape rather than typeof
+    // alone, which would misleadingly claim an array "is not an object".
+    const actualShape = Array.isArray(eventData.permissionSecrets)
+      ? 'an array'
+      : eventData.permissionSecrets === null
+      ? 'null'
+      : typeof eventData.permissionSecrets;
+    return [false, `Invalid permission secrets, expected an object but got ${actualShape}`];
   }
   for (const [key, value] of Object.entries(eventData.permissionSecrets)) {
     if (typeof value !== 'number') {
@@ -1457,9 +1488,6 @@ export function validateCommandData(eventData: CommandDataPartial): [boolean, st
     }
   }
 
-  if (eventData.args.some(argument => typeof argument !== 'string')) {
-    return [false, 'Invalid eventData.args: arguments must be strings'];
-  }
   if (
     eventData.capability !== undefined &&
     (typeof eventData.capability !== 'string' || !/^[a-f0-9]{64}$/.test(eventData.capability))
@@ -1474,7 +1502,7 @@ export function validateCommandData(eventData: CommandDataPartial): [boolean, st
     return [false, 'Command capabilities do not allow spawn options'];
   }
 
-  const validCommands = ['minikube', 'az', 'scriptjs', 'gh'];
+  const validCommands = ['minikube', 'az', 'aws', 'scriptjs', 'gh'];
 
   if (eventData.capability === undefined && !validCommands.includes(eventData.command)) {
     return [
@@ -1483,6 +1511,13 @@ export function validateCommandData(eventData: CommandDataPartial): [boolean, st
         validCommands
       )}`,
     ];
+  }
+  if (
+    eventData.command === 'aws' &&
+    eventData.capability === undefined &&
+    (eventData.args[0] !== 'sso' || eventData.args[1] !== 'login')
+  ) {
+    return [false, 'Invalid aws command: only "aws sso login" is allowed without a capability'];
   }
 
   return [true, ''];

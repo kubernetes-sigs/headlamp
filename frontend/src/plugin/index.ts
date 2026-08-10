@@ -71,7 +71,12 @@ import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
 import { PluginInfo } from './pluginsSlice';
 import Registry, * as registryToExport from './registry';
-import { getInfoForRunningPlugins, identifyPackages, runPlugin, runPluginProps } from './runPlugin';
+import {
+  getAllowedRunCmdPermissions,
+  getInfoForRunningPlugins,
+  runPlugin,
+  runPluginProps,
+} from './runPlugin';
 import { createPluginSecureStorage, getPluginSecureStorageNamespace } from './secureStorage';
 
 window.pluginLib = {
@@ -690,37 +695,11 @@ export async function fetchAndExecutePlugins(
         packageVersion: packageInfosToExecute[index].version || '',
         permissionSecrets,
         handleError: handlePluginRunError,
-        getAllowedPermissions: (pluginName, pluginPath, secrets): Record<string, number> => {
-          const secretsToReturn: Record<string, number> = {};
-          const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
-          if (isPackage['az-auth']) {
-            secretsToReturn['runCmd-scriptjs-az-auth/azure-api.js'] =
-              +secrets['runCmd-scriptjs-az-auth/azure-api.js'];
-          }
-          if (isPackage['@headlamp-k8s/minikube']) {
-            secretsToReturn['runCmd-minikube'] = secrets['runCmd-minikube'];
-            if (isDevelopmentMode) {
-              secretsToReturn['runCmd-scriptjs-minikube/manage-minikube.js'] =
-                secrets['runCmd-scriptjs-minikube/manage-minikube.js'];
-            }
-            secretsToReturn['runCmd-scriptjs-headlamp_minikube/manage-minikube.js'] =
-              secrets['runCmd-scriptjs-headlamp_minikube/manage-minikube.js'];
-            secretsToReturn['runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js'] =
-              secrets['runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js'];
-          }
-
-          if (isPackage['@headlamp-k8s/ai-assistant']) {
-            secretsToReturn['runCmd-gh'] = secrets['runCmd-gh'];
-            secretsToReturn['runCmd-az'] = secrets['runCmd-az'];
-          }
-
-          if (isPackage['azure-aks']) {
-            secretsToReturn['runCmd-scriptjs-azure-aks/azure-api.js'] =
-              secrets['runCmd-scriptjs-azure-aks/azure-api.js'];
-          }
-
-          return secretsToReturn;
-        },
+        getAllowedPermissions: (pluginName, pluginPath, secrets): Record<string, number> =>
+          getAllowedRunCmdPermissions(pluginPath, pluginName, secrets, isDevelopmentMode, {
+            type: packageInfosToExecute[index].source ?? packageInfosToExecute[index].type,
+            artifacthubRepoName: packageInfosToExecute[index].artifacthub?.repoName,
+          }),
         getArgValues: (pluginName, pluginPath, allowedPermissions) => {
           const argumentNames: string[] = [];
           const argumentValues: unknown[] = [];
