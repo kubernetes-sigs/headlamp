@@ -84,6 +84,18 @@ export default defineConfig({
           return fileURLToPath(resolved);
         },
       },
+      // Runtime resolution for plugin sources that import `lib/K8s/*` or
+      // `lib/k8s/*` values (not just types) at test time. Build treats these
+      // as externals via `rollupOptions.external`, and the type checker
+      // resolves them via `plugins-tsconfig.json` paths. Vitest and any
+      // other runner that actually loads the module needs an alias to find
+      // the on-disk file, since the published tree has an extra `lib/`
+      // prefix (src/lib/k8s/* is emitted at lib/lib/k8s/*).
+      // See kubernetes-sigs/headlamp#7036.
+      {
+        find: /^@kinvolk\/headlamp-plugin\/lib\/[Kk]8s(\/.+)?$/,
+        replacement: fileURLToPath(new URL('../lib/lib/k8s', import.meta.url)) + '$1',
+      },
     ],
   },
   optimizeDeps: {

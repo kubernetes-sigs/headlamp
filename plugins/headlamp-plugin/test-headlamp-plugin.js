@@ -136,6 +136,49 @@ function testHeadlampPlugin() {
   run('npm', ['run', 'lint']);
   run('npm', ['run', 'lint-fix']);
 
+  // Regression test for #7036: plugin modules that import a *value* (not just
+  // a type) from `@kinvolk/headlamp-plugin/lib/[Kk]8s/*` must resolve at test
+  // time. The published tree has an extra `lib/` prefix (source at
+  // `src/lib/**` emits to `lib/lib/**`), so without a resolve alias in the
+  // plugin's vite config, vitest can't load the module and fails at
+  // transform time. The test imports from `lib/[Kk]8s/patchUtils`, a leaf
+  // module whose only runtime dependencies are external (`lodash`,
+  // `fast-json-patch`). Importing from a file that transitively loads the
+  // whole k8s class hierarchy surfaces an unrelated pre-existing
+  // class-extends ordering issue in the compiled plugin lib; using a leaf
+  // keeps the test scoped to what this PR actually fixes: resolvability.
+  const libImportTestPath = join(curDir, 'src', '__lib-import.test.ts');
+  fs.writeFileSync(
+    libImportTestPath,
+    `import { describe, expect, it } from 'vitest';
+import { computePatchOperations as fnLower } from '@kinvolk/headlamp-plugin/lib/k8s/patchUtils';
+import { computePatchOperations as fnUpper } from '@kinvolk/headlamp-plugin/lib/K8s/patchUtils';
+
+describe('plugin lib/[Kk]8s value imports', () => {
+  it('resolves a value via the lowercase path at test time', () => {
+    expect(fnLower).toBeDefined();
+    expect(typeof fnLower).toBe('function');
+  });
+  it('resolves a value via the uppercase path at test time', () => {
+    expect(fnUpper).toBeDefined();
+    expect(typeof fnUpper).toBe('function');
+  });
+  it('reaches the same underlying binding through both casings', () => {
+    expect(fnLower).toBe(fnUpper);
+  });
+});
+`
+  );
+  try {
+    run('npm', ['run', 'test']);
+  } finally {
+    // Remove the fixture whether the test passed or failed, so a failed run
+    // doesn't leak the test file into the working tree.
+    if (fs.existsSync(libImportTestPath)) {
+      fs.rmSync(libImportTestPath);
+    }
+  }
+
   // test type script error checks
   run('npm', ['run', 'tsc']);
 
