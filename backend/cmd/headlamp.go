@@ -1181,6 +1181,8 @@ func (c *HeadlampConfig) shouldUseUnsafeServiceAccountTokenForContext(kContext *
 	return c.shouldUseUnsafeServiceAccountToken() && kContext.UsesInClusterServiceAccountToken()
 }
 
+// getContextWithWebSocketFallback returns the requested context, falling back to the cluster
+// context when a WebSocket request references a missing user-specific context.
 func (c *HeadlampConfig) getContextWithWebSocketFallback(
 	r *http.Request,
 	contextKey string,
