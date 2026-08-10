@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
+import { expect, test } from '@playwright/test';
 import { execFile } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { expect, test } from '@playwright/test';
 import { HeadlampPage } from './headlampPage';
 import { podsPage } from './podsPage';
 
@@ -269,6 +269,88 @@ test('warns and preserves edits when a pod is modified externally', async ({ pag
       '--namespace=default',
       'delete',
       'pod',
+      name,
+      '--ignore-not-found=true'
+    )
+      .catch(() => undefined)
+      .finally(() => rm(tempDirectory, { recursive: true, force: true }));
+  }
+});
+
+test('opens resource YAML in a floating window', async ({ page }) => {
+  test.setTimeout(60000);
+  const name = `headlamp-view-yaml-${Date.now()}`;
+  const tempDirectory = await mkdtemp(join(tmpdir(), 'headlamp-e2e-'));
+  const kubeconfig = join(tempDirectory, 'kubeconfig');
+
+  try {
+    const { stdout } = await execFileAsync('kind', ['get', 'kubeconfig', '--name', 'test']);
+    await writeFile(kubeconfig, stdout);
+    await kubectl(
+      kubeconfig,
+      '--namespace=default',
+      'create',
+      'configmap',
+      name,
+      '--from-literal=example=value'
+    );
+
+    await page.goto('/c/test', { waitUntil: 'domcontentloaded' });
+    const needsAuthentication = await Promise.race([
+      page
+        .getByRole('heading', { level: 1, name: 'Authentication' })
+        .waitFor({ state: 'visible' })
+        .then(() => true),
+      page
+        .getByRole('heading', { name: 'Overview' })
+        .waitFor({ state: 'visible' })
+        .then(() => false),
+    ]);
+    if (needsAuthentication) {
+      const useTokenButton = page.getByRole('button', { name: 'Use A Token' });
+      if (await useTokenButton.isVisible()) {
+        await useTokenButton.click();
+      }
+      const token = process.env.HEADLAMP_TEST_TOKEN;
+      expect(token).toBeTruthy();
+      await page.getByRole('textbox', { name: 'ID token' }).fill(token!);
+      await page.getByRole('button', { name: 'Authenticate' }).click();
+      await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
+    }
+    await page.goto('/c/test/configmaps', { waitUntil: 'domcontentloaded' });
+    await expect(page).toHaveURL(/\/c\/test\/configmaps$/);
+    await expect(page.getByRole('heading', { name: 'Config Maps' })).toBeVisible();
+    const resourceRow = page.getByRole('row').filter({ has: page.getByRole('link', { name }) });
+    await expect(resourceRow).toBeVisible();
+    await page.route(`**/clusters/test/api/v1/namespaces/default/configmaps/${name}`, route =>
+      route.abort('failed')
+    );
+    await resourceRow.getByRole('button', { name: 'Row Actions' }).click();
+    await page.getByRole('menuitem', { name: 'View YAML' }).click();
+
+    const activity = page.locator(`[role="complementary"][aria-label="${name}"]`);
+    const viewer = activity.locator(':scope > div');
+    const main = page.locator('#main');
+    await expect(activity).toBeVisible({ timeout: 15000 });
+    await expect
+      .poll(async () => {
+        const [mainBox, viewerBox, borderRadius] = await Promise.all([
+          main.boundingBox(),
+          viewer.boundingBox(),
+          viewer.evaluate(element => getComputedStyle(element).borderRadius),
+        ]);
+        return {
+          isFloating: Boolean(mainBox && viewerBox && viewerBox.height < mainBox.height * 0.9),
+          borderRadius,
+        };
+      })
+      .toEqual({ isFloating: true, borderRadius: '10px' });
+  } finally {
+    await kubectl(
+      kubeconfig,
+      '--namespace=default',
+      'delete',
+      'configmap',
       name,
       '--ignore-not-found=true'
     )
