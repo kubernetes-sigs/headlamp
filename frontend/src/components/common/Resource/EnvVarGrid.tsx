@@ -17,11 +17,15 @@
 import { Icon } from '@iconify/react';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
+import CircularProgress from '@mui/material/CircularProgress';
+import IconButton from '@mui/material/IconButton';
 import Typography, { TypographyProps } from '@mui/material/Typography';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { KubeContainer } from '../../../lib/k8s/cluster';
+import Secret from '../../../lib/k8s/secret';
 import Link from '../Link';
+import { SecretField } from './Resource';
 
 interface EnvVarGridProps {
   envVars: NonNullable<KubeContainer['env']>;
@@ -34,6 +38,65 @@ export function EnvVarGrid(props: EnvVarGridProps) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = React.useState(false);
   const defaultNumShown = 20;
+
+  const [loadedSecrets, setLoadedSecrets] = React.useState<Record<string, Record<string, string>>>(
+    {}
+  );
+  const [loadingSecrets, setLoadingSecrets] = React.useState<Record<string, boolean>>({});
+  const [secretErrors, setSecretErrors] = React.useState<Record<string, string>>({});
+  const [visibleSecrets, setVisibleSecrets] = React.useState<Record<string, boolean>>({});
+
+  const toggleSecret = (secretName: string, envVarName: string) => {
+    if (visibleSecrets[envVarName]) {
+      setVisibleSecrets(prev => ({ ...prev, [envVarName]: false }));
+      return;
+    }
+
+    setVisibleSecrets(prev => ({ ...prev, [envVarName]: true }));
+
+    if (loadedSecrets[secretName] || loadingSecrets[secretName]) {
+      return;
+    }
+
+    setLoadingSecrets(prev => ({ ...prev, [secretName]: true }));
+    setSecretErrors(prev => {
+      const copy = { ...prev };
+      delete copy[secretName];
+      return copy;
+    });
+
+    const request = Secret.apiGet(
+      secret => {
+        if (secret && secret.data) {
+          setLoadedSecrets(prev => ({ ...prev, [secretName]: secret.data }));
+        } else {
+          setSecretErrors(prev => ({ ...prev, [secretName]: t('translation|No data') }));
+        }
+        setLoadingSecrets(prev => ({ ...prev, [secretName]: false }));
+      },
+      secretName,
+      namespace,
+      err => {
+        const errMsg =
+          err?.status === 401
+            ? t('translation|Unauthorized')
+            : err?.status === 403
+            ? t('translation|Forbidden')
+            : err?.message || t('translation|Failed to load');
+        setSecretErrors(prev => ({ ...prev, [secretName]: errMsg }));
+        setLoadingSecrets(prev => ({ ...prev, [secretName]: false }));
+      },
+      { cluster }
+    );
+
+    request().catch(err => {
+      setSecretErrors(prev => ({
+        ...prev,
+        [secretName]: err?.message || t('translation|Failed to load'),
+      }));
+      setLoadingSecrets(prev => ({ ...prev, [secretName]: false }));
+    });
+  };
 
   const validEnvVars = envVars.filter(
     env => !!env && typeof env.name === 'string' && env.name.trim() !== ''
@@ -85,12 +148,56 @@ export function EnvVarGrid(props: EnvVarGridProps) {
         namespace
       )}/${encodeURIComponent(secretName)}`;
 
+      const isVisible = !!visibleSecrets[envVar.name];
+      const isLoading = !!loadingSecrets[secretName];
+      const err = secretErrors[secretName];
+      const secretData = loadedSecrets[secretName];
+      const hasValue = secretData && secretKey && secretData[secretKey] !== undefined;
+
       return (
-        <EnvEntry component="span" key={envVar.name}>
-          {envVar.name}:{' '}
-          <Link to={secretUrl} style={{ textDecoration: 'underline', fontWeight: 'bold' }}>
-            Secret: {secretName} {secretKey ? `(Key: ${secretKey})` : ''}
-          </Link>
+        <EnvEntry
+          component="span"
+          key={envVar.name}
+          sx={{ display: 'inline-flex', alignItems: 'center' }}
+        >
+          <Box
+            display="inline-flex"
+            alignItems="center"
+            sx={{ verticalAlign: 'middle', width: '100%' }}
+          >
+            <Typography component="span" sx={{ mr: 0.5, fontWeight: 'medium' }}>
+              {envVar.name}:
+            </Typography>
+            {isVisible && hasValue ? (
+              <SecretField
+                disableUnderline
+                value={secretData[secretKey]}
+                sx={{ fontFamily: 'monospace', display: 'inline-flex' }}
+              />
+            ) : (
+              <Box display="inline-flex" alignItems="center">
+                <Link to={secretUrl} style={{ textDecoration: 'underline', fontWeight: 'bold' }}>
+                  Secret: {secretName} {secretKey ? `(Key: ${secretKey})` : ''}
+                </Link>
+                {isLoading && <CircularProgress size={16} sx={{ ml: 1 }} />}
+                {err && (
+                  <Typography color="error" variant="caption" sx={{ ml: 1 }}>
+                    ({err})
+                  </Typography>
+                )}
+              </Box>
+            )}
+            {!isLoading && (
+              <IconButton
+                size="small"
+                onClick={() => toggleSecret(secretName, envVar.name)}
+                sx={{ ml: 0.5 }}
+                aria-label={isVisible ? t('translation|Hide') : t('translation|Show')}
+              >
+                <Icon icon={isVisible ? 'mdi:eye-off' : 'mdi:eye'} />
+              </IconButton>
+            )}
+          </Box>
         </EnvEntry>
       );
     }
