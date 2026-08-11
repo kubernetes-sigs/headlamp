@@ -186,6 +186,9 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
   const clusters = useClustersConf() ?? {};
   const selectedClusters = useSelectedClusters();
   const drawerEnabled = useTypedSelector(state => state?.drawerMode?.isDetailDrawerEnabled);
+  const drawerLocation = useTypedSelector(
+    state => state?.drawerMode?.detailsDrawerLocation ?? 'split-right'
+  );
 
   const [recent, bump] = useRecent('search-recent-items');
 
@@ -260,10 +263,11 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
         if (drawerEnabled) {
           Activity.launch({
             id: item.metadata.uid,
+            kind: 'details',
             content: <KubeObjectDetails resource={item} />,
             hideTitleInHeader: true,
             cluster: item.cluster,
-            location: 'split-right',
+            location: drawerLocation,
             title: item.kind + ': ' + item.metadata.name,
             icon: <KubeIcon kind={item.kind} width="100%" height="100%" />,
           });
@@ -272,7 +276,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
         }
       }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [resources, isMap, location.search]
+    [resources, isMap, location.search, drawerLocation]
   );
 
   // Cluster items
