@@ -294,7 +294,8 @@ func StoreK8sResponseInCache(k8scache cache.Cache[string],
 	rcw *ResponseCapture,
 	key string,
 ) error {
-	if rcw.StatusCode >= 500 {
+	// Do not cache any error responses (4xx or 5xx)
+	if rcw.StatusCode >= 400 {
 		return nil
 	}
 
@@ -310,13 +311,6 @@ func StoreK8sResponseInCache(k8scache cache.Cache[string],
 	headersToCache := FilterHeaderForCache(capturedHeaders, encoding)
 
 	if !strings.Contains(url.Path, "selfsubjectrulesreviews") {
-		// Check the decompressed body for Kubernetes error status before
-		// marshalling the full CachedResponseData. This avoids allocating
-		// the JSON envelope for responses that will be discarded anyway.
-		if strings.Contains(dcmpBody, "Failure") {
-			return nil
-		}
-
 		cachedData := CachedResponseData{
 			StatusCode: rcw.StatusCode,
 			Headers:    headersToCache,
