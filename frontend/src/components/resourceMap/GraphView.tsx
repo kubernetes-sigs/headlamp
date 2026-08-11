@@ -37,10 +37,12 @@ import {
 } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
+import { useHistory } from 'react-router';
 import Namespace from '../../lib/k8s/namespace';
 import K8sNode from '../../lib/k8s/node';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
+import { Activity } from '../activity/Activity';
 import { NamespacesAutocomplete } from '../common/NamespacesAutocomplete';
 import { filterGraph, filterGraphIncremental, GraphFilter } from './graph/graphFiltering';
 import { getGraphForNamespaceSelection } from './graph/graphForNamespaceSelection';
@@ -179,14 +181,42 @@ function GraphViewContent({
   );
   const setSelectedNodeId = useCallback(
     (id: string | undefined) => {
-      if (id === 'root') {
-        _setSelectedNodeId(undefined);
-        return;
-      }
-      _setSelectedNodeId(id);
+      _setSelectedNodeId(id === 'root' ? undefined : id);
     },
     [_setSelectedNodeId]
   );
+
+  // The details panel and the ?node= history entry are two views of the same selection,
+  // so keep them in sync: closing the panel pops the entry that opened it, and popping it
+  // (Back) closes the panel. Without this, Back only cleared the highlight of an
+  // already-closed panel and looked like a no-op.
+  const history = useHistory();
+  const isPanelOpen = useTypedSelector(
+    state => !!selectedNodeId && !!state.activity.activities[selectedNodeId]
+  );
+  const panelNodeId = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (isPanelOpen) {
+      panelNodeId.current = selectedNodeId;
+      return;
+    }
+    const closedId = panelNodeId.current;
+    panelNodeId.current = undefined;
+    // Panel closed while its node is still selected: undo the entry the click pushed.
+    // A different selection means history already moved, so leave it alone.
+    if (closedId && closedId === selectedNodeId) {
+      history.goBack();
+    }
+  }, [isPanelOpen, selectedNodeId, history]);
+
+  const prevSelectedNodeId = useRef(selectedNodeId);
+  useEffect(() => {
+    const prevId = prevSelectedNodeId.current;
+    prevSelectedNodeId.current = selectedNodeId;
+    if (prevId && prevId !== selectedNodeId) {
+      Activity.close(prevId);
+    }
+  }, [selectedNodeId]);
 
   // Expand all groups state
   const [expandAll, setExpandAll] = useState(false);
