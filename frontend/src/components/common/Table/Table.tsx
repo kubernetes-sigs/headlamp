@@ -59,7 +59,6 @@ import { useSettings } from '../../App/Settings/hook';
 import { useQueryParamsState } from '../../resourceMap/useQueryParamsState';
 import Empty from '../EmptyContent';
 import Loader from '../Loader';
-import { useScrollPreservationOnDataChange } from './useScrollPreservation';
 
 /**
  * Column definition
@@ -299,11 +298,6 @@ export default function Table<RowItem extends Record<string, any>>({
     return (tableProps.data ?? []).filter(it => filterFunction(it));
   }, [tableProps.data, filterFunction]);
 
-  // Preserve scroll position across auto-refresh re-renders where React Query
-  // hands us a fresh array reference (kubernetes-sigs/headlamp#5701).
-  const { ref: scrollContainerRef, onScroll: onScrollContainer } =
-    useScrollPreservationOnDataChange(tableData);
-
   const paginationSelectProps = import.meta.env.UNDER_TEST
     ? {
         inputProps: {
@@ -464,10 +458,6 @@ export default function Table<RowItem extends Record<string, any>>({
       showFirstButton: false,
       showLastButton: false,
       SelectProps: paginationSelectProps,
-    },
-    muiTableContainerProps: {
-      ref: scrollContainerRef,
-      onScroll: onScrollContainer,
     },
     muiTableBodyCellProps: {
       sx: {

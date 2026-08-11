@@ -40,6 +40,10 @@ export const BUILT_IN_RELATION_IDS = [
   'gateway-gatewayclass',
   'httproute-gateway',
   'httproute-service',
+  'tcproute-gateway',
+  'tcproute-service',
+  'udproute-gateway',
+  'udproute-service',
   'backendtlspolicy-service',
   'backendtrafficpolicy-service',
 ];

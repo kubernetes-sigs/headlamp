@@ -26,6 +26,10 @@ import Endpoints from '../../../../lib/k8s/endpoints';
 import EndpointSlice from '../../../../lib/k8s/endpointSlices';
 import Gateway from '../../../../lib/k8s/gateway';
 import GatewayClass from '../../../../lib/k8s/gatewayClass';
+import {
+  resolveGatewayBackendReference,
+  resolveGatewayParentReference,
+} from '../../../../lib/k8s/gatewayReferences';
 import HPA from '../../../../lib/k8s/hpa';
 import HTTPRoute from '../../../../lib/k8s/httpRoute';
 import Ingress from '../../../../lib/k8s/ingress';
@@ -44,6 +48,8 @@ import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
 import ServiceAccount from '../../../../lib/k8s/serviceAccount';
 import StatefulSet from '../../../../lib/k8s/statefulSet';
+import TCPRoute from '../../../../lib/k8s/tcpRoute';
+import UDPRoute from '../../../../lib/k8s/udpRoute';
 import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhookConfiguration';
 import { useNamespaces } from '../../../../redux/filterSlice';
 import { useTypedSelector } from '../../../../redux/hooks';
@@ -362,6 +368,66 @@ const httpRouteToService = makeRelation(
     )
 );
 
+type L4Route = TCPRoute | UDPRoute;
+type L4RouteClass = typeof TCPRoute | typeof UDPRoute;
+
+const makeL4RouteToGatewayRelation = (id: string, RouteClass: L4RouteClass): Relation => ({
+  id,
+  fromSource: makeKubeSourceId(RouteClass),
+  toSource: makeKubeSourceId(Gateway),
+  predicate(fromNode, toNode) {
+    const route = fromNode.kubeObject as L4Route;
+    const gateway = toNode.kubeObject as Gateway;
+
+    return (
+      route.cluster === gateway.cluster &&
+      Boolean(
+        route.spec.parentRefs?.some(parentRef => {
+          const reference = resolveGatewayParentReference(parentRef, route.metadata.namespace);
+          return (
+            reference.group === Gateway.apiGroupName &&
+            reference.kind === Gateway.kind &&
+            reference.name === gateway.metadata.name &&
+            reference.namespace === gateway.metadata.namespace
+          );
+        })
+      )
+    );
+  },
+});
+
+const makeL4RouteToServiceRelation = (id: string, RouteClass: L4RouteClass): Relation => ({
+  id,
+  fromSource: makeKubeSourceId(RouteClass),
+  toSource: makeKubeSourceId(Service),
+  predicate(fromNode, toNode) {
+    const route = fromNode.kubeObject as L4Route;
+    const service = toNode.kubeObject as Service;
+
+    return (
+      route.cluster === service.cluster &&
+      Boolean(
+        route.spec.rules?.some(rule =>
+          rule.backendRefs?.some(backendRef => {
+            const reference = resolveGatewayBackendReference(backendRef, route.metadata.namespace);
+            return (
+              reference.group === (Service.apiGroupName ?? '') &&
+              reference.kind === Service.kind &&
+              reference.name === service.metadata.name &&
+              reference.namespace === service.metadata.namespace
+            );
+          })
+        )
+      )
+    );
+  },
+});
+
+const tcpRouteToGateway = makeL4RouteToGatewayRelation('tcproute-gateway', TCPRoute);
+const tcpRouteToService = makeL4RouteToServiceRelation('tcproute-service', TCPRoute);
+const udpRouteToGateway = makeL4RouteToGatewayRelation('udproute-gateway', UDPRoute);
+const udpRouteToService = makeL4RouteToServiceRelation('udproute-service', UDPRoute);
+
 const backendTLSPolicyToService = makeRelation(
   'backendtlspolicy-service',
   BackendTLSPolicy,
@@ -408,6 +474,10 @@ const staticRelations = [
   gatewayToGatewayClass,
   httpRouteToGateway,
   httpRouteToService,
+  tcpRouteToGateway,
+  tcpRouteToService,
+  udpRouteToGateway,
+  udpRouteToService,
   backendTLSPolicyToService,
   backendTrafficPolicyToService,
 ];

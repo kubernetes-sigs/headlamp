@@ -30,6 +30,7 @@ import CronJob from '../../../lib/k8s/cronJob';
 import DaemonSet from '../../../lib/k8s/daemonSet';
 import Deployment from '../../../lib/k8s/deployment';
 import Job from '../../../lib/k8s/job';
+import PersistentVolumeClaim from '../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
 import StatefulSet from '../../../lib/k8s/statefulSet';
@@ -41,6 +42,7 @@ import CreateJobForm from '../../job/CreateJobForm';
 import CreatePodForm from '../../pod/CreatePodForm';
 import CreateReplicaSetForm from '../../replicaset/CreateReplicaSetForm';
 import CreateStatefulSetForm from '../../statefulset/CreateStatefulSetForm';
+import CreatePVCForm from '../../storage/CreatePVCForm';
 import ActionButton from '../ActionButton';
 import EditorDialog from './EditorDialog';
 
@@ -52,6 +54,7 @@ export const RESOURCE_DEFINITIONS = {
   Job: { class: Job, form: CreateJobForm },
   CronJob: { class: CronJob, form: CreateCronJobForm },
   StatefulSet: { class: StatefulSet, form: CreateStatefulSetForm },
+  PersistentVolumeClaim: { class: PersistentVolumeClaim, form: CreatePVCForm },
 };
 
 export type ResourceType = keyof typeof RESOURCE_DEFINITIONS;
