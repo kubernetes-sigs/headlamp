@@ -58,6 +58,12 @@ vi.mock('../../ingress/Details', () => ({ default: makeDetails('Ingress') }));
 vi.mock('../../job/Details', () => ({ default: makeDetails('Job') }));
 vi.mock('../../lease/Details', () => ({ LeaseDetails: makeDetails('Lease') }));
 vi.mock('../../limitRange/Details', () => ({ LimitRangeDetails: makeDetails('LimitRange') }));
+vi.mock('../../mutatingAdmissionPolicy/Details', () => ({
+  default: makeDetails('MutatingAdmissionPolicy'),
+}));
+vi.mock('../../mutatingAdmissionPolicyBinding/Details', () => ({
+  default: makeDetails('MutatingAdmissionPolicyBinding'),
+}));
 vi.mock('../../namespace/Details', () => ({ default: makeDetails('Namespace') }));
 vi.mock('../../networkpolicy/Details', () => ({
   NetworkPolicyDetails: makeDetails('NetworkPolicy'),
@@ -130,6 +136,8 @@ const dispatchCases = [
   ['VolumeAttributesClass', 'VolumeAttributesClass'],
   ['PersistentVolume', 'PersistentVolume'],
   ['VerticalPodAutoscaler', 'VerticalPodAutoscaler'],
+  ['MutatingAdmissionPolicy', 'MutatingAdmissionPolicy'],
+  ['MutatingAdmissionPolicyBinding', 'MutatingAdmissionPolicyBinding'],
   ['MutatingWebhookConfiguration', 'MutatingWebhookConfiguration'],
   ['ValidatingWebhookConfiguration', 'ValidatingWebhookConfiguration'],
   ['IngressClass', 'IngressClass'],

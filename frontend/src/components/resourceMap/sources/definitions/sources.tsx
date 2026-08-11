@@ -43,6 +43,8 @@ import { KubeObjectClass } from '../../../../lib/k8s/KubeObject';
 import LeaderWorkerSet from '../../../../lib/k8s/leaderWorkerSet';
 import { Lease } from '../../../../lib/k8s/lease';
 import { LimitRange } from '../../../../lib/k8s/limitRange';
+import MutatingAdmissionPolicy from '../../../../lib/k8s/mutatingAdmissionPolicy';
+import MutatingAdmissionPolicyBinding from '../../../../lib/k8s/mutatingAdmissionPolicyBinding';
 import MutatingWebhookConfiguration from '../../../../lib/k8s/mutatingWebhookConfiguration';
 import NetworkPolicy from '../../../../lib/k8s/networkpolicy';
 import Node from '../../../../lib/k8s/node';
@@ -278,6 +280,8 @@ export function useGetAllSources(): GraphSource[] {
         sources: [
           makeKubeSource(ConfigMap),
           makeKubeSource(Secret),
+          makeKubeSource(MutatingAdmissionPolicy),
+          makeKubeSource(MutatingAdmissionPolicyBinding),
           makeKubeSource(MutatingWebhookConfiguration),
           makeKubeSource(ValidatingWebhookConfiguration),
           makeKubeSource(HPA),

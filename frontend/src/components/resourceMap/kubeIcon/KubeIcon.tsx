@@ -139,6 +139,8 @@ const kindGroups = {
     'Lease',
     'ResourceQuota',
     'LimitRange',
+    'MutatingAdmissionPolicy',
+    'MutatingAdmissionPolicyBinding',
     'MutatingWebhookConfiguration',
     'ValidatingWebhookConfiguration',
   ]),
