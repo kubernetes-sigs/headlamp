@@ -44,11 +44,13 @@ export default function Settings() {
   const storedTimezone = settingsObj.timezone;
   const storedRowsPerPageOptions = settingsObj.tableRowsPerPageOptions;
   const storedSortSidebar = settingsObj.sidebarSortAlphabetically;
+  const expandLargeGraph = settingsObj.expandLargeGraph;
   const storedUseEvict = settingsObj.useEvict;
   const [selectedTimezone, setSelectedTimezone] = useState<string>(
     storedTimezone || Intl.DateTimeFormat().resolvedOptions().timeZone
   );
   const [sortSidebar, setSortSidebar] = useState<boolean>(storedSortSidebar);
+  const [expandGraph, setExpandGraph] = useState<boolean>(expandLargeGraph);
   const [useEvict, setUseEvict] = useState<boolean>(storedUseEvict);
   const [trayIcon, setTrayIcon] = useState<boolean>(true);
   const dispatch = useDispatch();
@@ -84,6 +86,14 @@ export default function Settings() {
   }, [useEvict]);
 
   useEffect(() => {
+    dispatch(
+      setAppSettings({
+        expandLargeGraph: expandGraph,
+      })
+    );
+  }, [expandGraph, dispatch]);
+
+  useEffect(() => {
     if (!isElectron()) {
       return;
     }
@@ -107,6 +117,7 @@ export default function Settings() {
   const trayIconLabelID = 'tray-icon-label';
   const tableRowsLabelID = 'rows-per-page-label';
   const timezoneLabelID = 'timezone-label';
+  const expandGraphID = 'expand-graph-label';
 
   return (
     <SectionBox
@@ -204,6 +215,20 @@ export default function Settings() {
                 },
               ]
             : []),
+          {
+            name: t('translation|Keep Large Graph Groups Expanded'),
+            value: (
+              <Switch
+                color="primary"
+                checked={expandGraph}
+                onChange={e => setExpandGraph(e.target.checked)}
+                inputProps={{
+                  'aria-labelledby': expandGraphID,
+                }}
+              />
+            ),
+            nameID: expandGraphID,
+          },
         ]}
       />
       <Box

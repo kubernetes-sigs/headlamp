@@ -193,6 +193,8 @@ function GraphViewContent({
 
   // Performance stats visibility
   const [showPerformanceStats, setShowPerformanceStats] = useState(false);
+  // Expand by Default
+  const expandLargeGraph = useTypedSelector(state => state.config.settings.expandLargeGraph);
 
   // Load source data
   const { nodes, edges, selectedSources, sourceData, isLoading, toggleSelection } = useSources();
@@ -369,7 +371,7 @@ function GraphViewContent({
     });
 
     const collapseStart = performance.now();
-    const visibleGraph = collapseGraph(graph, { selectedNodeId, expandAll });
+    const visibleGraph = collapseGraph(graph, { selectedNodeId, expandAll, expandLargeGraph });
     const collapseTime = performance.now() - collapseStart;
 
     const totalTime = performance.now() - perfStart;
@@ -384,7 +386,15 @@ function GraphViewContent({
     }
 
     return { visibleGraph, fullGraph: graph };
-  }, [graphForGrouping, groupBy, selectedNodeId, expandAll, activeNamespaces, activeNodes]);
+  }, [
+    graphForGrouping,
+    groupBy,
+    selectedNodeId,
+    expandAll,
+    activeNamespaces,
+    expandLargeGraph,
+    activeNodes,
+  ]);
 
   const viewport = useGraphViewport();
 
@@ -409,7 +419,7 @@ function GraphViewContent({
   // Reset after view change
   useLayoutEffect(() => {
     viewportMovedRef.current = false;
-  }, [selectedNodeId, groupBy, expandAll]);
+  }, [selectedNodeId, groupBy, expandAll, expandLargeGraph]);
 
   const selectedGroup = useMemo(() => {
     if (selectedNodeId) {
