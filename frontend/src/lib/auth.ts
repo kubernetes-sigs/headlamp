@@ -136,6 +136,19 @@ export function setToken(cluster: string, token: string | null) {
   });
 }
 
+function clearClusterQueries(cluster: string) {
+  queryClient.removeQueries({ queryKey: ['auth'], exact: false });
+  queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
+  queryClient.removeQueries({
+    predicate: query => {
+      const key = query.queryKey;
+      if (key[0] === 'kubeObject' && key[4] === cluster) return true;
+      if (key[0] === 'object' && key[1] === cluster) return true;
+      return false;
+    },
+  });
+}
+
 /**
  * Logs out the user by clearing the authentication token for the specified cluster.
  * For OIDC clusters, redirects to the IdP logout endpoint to properly end the session.
@@ -150,8 +163,7 @@ export async function logout(cluster: string, skipRedirect = false): Promise<voi
   // redirect to the IdP's end_session_endpoint to properly terminate the session.
   if (canLogoutFromProvider(cluster)) {
     // Clear local state first
-    queryClient.removeQueries({ queryKey: ['auth'], exact: false });
-    queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
+    clearClusterQueries(cluster);
 
     // Clear the cluster auth cookie before redirecting (cookie path is cluster-scoped).
     try {
@@ -171,8 +183,7 @@ export async function logout(cluster: string, skipRedirect = false): Promise<voi
   }
 
   await setToken(cluster, null);
-  queryClient.removeQueries({ queryKey: ['auth'], exact: false });
-  queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
+  clearClusterQueries(cluster);
 }
 
 /**
