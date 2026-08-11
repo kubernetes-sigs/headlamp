@@ -342,7 +342,7 @@ describe('useKubeObject watch wiring', () => {
   });
 
   it('disables multiplexer WebSocket when feature flag is off', async () => {
-    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', 'websockets');
     mockClusterFetch.mockResolvedValue(
       mockJsonResponse({
         apiVersion: 'v1',
@@ -375,7 +375,7 @@ describe('useKubeObject watch wiring', () => {
   });
 
   it('disables legacy WebSockets when feature flag is on', async () => {
-    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', 'multiplexer');
     mockClusterFetch.mockResolvedValue(
       mockJsonResponse({
         apiVersion: 'v1',
@@ -408,7 +408,7 @@ describe('useKubeObject watch wiring', () => {
   });
 
   it('includes namespace in multiplexer watch URL when data is loaded', async () => {
-    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    vi.stubEnv('REACT_APP_WEBSOCKET_MODE', 'multiplexer');
     mockClusterFetch.mockResolvedValue(
       mockJsonResponse({
         apiVersion: 'v1',

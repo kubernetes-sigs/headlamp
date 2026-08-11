@@ -75,6 +75,7 @@ export default defineConfig({
         ],
         target: backendTarget,
         changeOrigin: true,
+        ws: true,
       },
       {
         pathFilter: ['/wsMultiplexer'],

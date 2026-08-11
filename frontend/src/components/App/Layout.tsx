@@ -38,13 +38,14 @@ import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import store from '../../redux/stores/store';
 import { useUIPanelsGroupedBySide } from '../../redux/uiSlice';
-import { fetchStatelessClusterKubeConfigs, isEqualClusterConfigs } from '../../stateless/';
+import { fetchStatelessClusterKubeConfigs } from '../../stateless/';
 import { ActivitiesRenderer } from '../activity/Activity';
 import { ErrorPage, Loader } from '../common';
 import ActionsNotifier from '../common/ActionsNotifier';
 import AlertNotification from '../common/AlertNotification';
 import DetailsDrawer from '../common/Resource/DetailsDrawer';
 import Sidebar, { NavigationTabs } from '../Sidebar';
+import { shouldRefreshConfig } from './configRefresh';
 import RouteSwitcher from './RouteSwitcher';
 import ShortcutsSettings from './Settings/ShortcutsSettings';
 import { applyBackendThemeConfig } from './themeSlice';
@@ -135,8 +136,9 @@ declare global {
  * if the present stored config is different from the fetched one.
  */
 const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
-  const clusters = store.getState().config.clusters;
-  const statelessClusters = store.getState().config.statelessClusters;
+  const currentConfig = store.getState().config;
+  const clusters = currentConfig.clusters;
+  const statelessClusters = currentConfig.statelessClusters;
 
   return request('/config', {}, false, false).then(config => {
     const clustersToConfig: ConfigState['clusters'] = {};
@@ -147,28 +149,30 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
       clustersToConfig[cluster.name] = cluster;
     });
 
-    const configToStore = { ...config, clusters: clustersToConfig };
+    const configToStore = {
+      ...config,
+      clusters: clustersToConfig,
+      websocketMode: config?.websocketMode ?? 'websockets',
+    };
 
-    if (clusters === null) {
-      dispatch(setConfig(configToStore));
-    } else {
-      // Check if the config is different
-      const configDifferent = isEqualClusterConfigs(clusters, clustersToConfig);
-
-      if (configDifferent) {
-        // Merge the new config with the current config
-        const mergedClusters = mergeClusterConfigs(
-          configToStore.clusters,
-          clusters,
-          statelessClusters
-        );
-        dispatch(
-          setConfig({
-            ...configToStore,
-            clusters: mergedClusters,
-          })
-        );
-      }
+    if (
+      shouldRefreshConfig(
+        clusters,
+        clustersToConfig,
+        currentConfig.websocketMode,
+        configToStore.websocketMode
+      )
+    ) {
+      const mergedClusters =
+        clusters === null
+          ? configToStore.clusters
+          : mergeClusterConfigs(configToStore.clusters, clusters, statelessClusters);
+      dispatch(
+        setConfig({
+          ...configToStore,
+          clusters: mergedClusters,
+        })
+      );
     }
 
     // Apply backend theme configuration if provided

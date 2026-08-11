@@ -51,6 +51,7 @@ const makeStore = () => {
           sidebarSortAlphabetically: false,
           useEvict: true,
         },
+        websocketMode: null,
       },
       projects: {
         headerActions: {},
