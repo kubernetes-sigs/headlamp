@@ -111,9 +111,9 @@ window.pluginLib = {
 // backwards compat.
 window.pluginLib.MuiCore = window.pluginLib.MuiMaterial;
 
-// @todo: should window.plugins be private?
-// @todo: Should all the plugin objects be in a single window.Headlamp object?
-window.plugins = {};
+// @todo: should window.Headlamp.plugins be private?
+window.Headlamp = window.Headlamp || {};
+window.Headlamp.plugins = {};
 
 /**
  * Load external, then local plugins. Then initialize() them in order with a Registry.
@@ -121,8 +121,8 @@ window.plugins = {};
 export async function initializePlugins() {
   // Initialize every plugin in the order they were loaded.
   return new Promise(resolve => {
-    for (const pluginName of Object.keys(window.plugins)) {
-      const plugin = window.plugins[pluginName];
+    for (const pluginName of Object.keys(window.Headlamp.plugins)) {
+      const plugin = window.Headlamp.plugins[pluginName];
       try {
         // @todo: what should happen if this fails?
         plugin.initialize(new Registry());
