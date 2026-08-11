@@ -23,6 +23,9 @@ i18next.use(i18nextBackend).init({
   debug: process.env.NODE_ENV === 'development',
   fallbackLng: 'en',
   supportedLngs: CURRENT_LOCALES,
+  // CURRENT_LOCALES comes from the lowercase locale directory names, so region codes
+  // like pt-BR have to be lowercased to match them and to resolve the load path.
+  lowerCaseLng: true,
   ns: ['app'],
   defaultNS: 'app',
   backend: {
