@@ -86,6 +86,13 @@ export interface Activity {
   temporary?: boolean;
   /** Cluster of the launched activity */
   cluster?: string;
+  /**
+   * Optional tag identifying the kind of activity. `'details'` marks a
+   * resource-details drawer so that navigation-driven minimize and the
+   * skip of click-outside close only apply to that flow, not to unrelated
+   * temporary or split-right activities launched by plugins.
+   */
+  kind?: 'details';
 }
 
 export const Activity = {
@@ -299,6 +306,11 @@ export function SingleActivityRenderer({
     !!selectedResource && isDetailDrawerEnabled && !isDetailsDrawerSmallScreen;
 
   useEffect(() => {
+    // Details drawers use the navigation-driven minimize flow instead of
+    // click-outside close, so a sidebar click doesn't destroy them and the
+    // user always gets a taskbar entry regardless of the drawer position.
+    const isDetailsActivity = activity.kind === 'details';
+
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node;
       const isClickInside = activityElementRef.current?.contains(target);
@@ -315,14 +327,14 @@ export function SingleActivityRenderer({
       }
     }
 
-    if (activity.temporary && !minimized && !isOverview) {
+    if (activity.temporary && !minimized && !isOverview && !isDetailsActivity) {
       document.addEventListener('mousedown', handleClickOutside);
 
       return () => {
         document.removeEventListener('mousedown', handleClickOutside);
       };
     }
-  }, [activity.temporary, minimized, isOverview, id, location, isDetailsDrawerOpen]);
+  }, [activity.temporary, activity.kind, minimized, isOverview, id, location, isDetailsDrawerOpen]);
 
   return (
     <ActivityContext.Provider value={activity}>
@@ -987,9 +999,11 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
   const location = useLocation();
   const locationRef = useRef(location.pathname);
 
-  // Minimize activities that block the main content on route change.
-  // Activities in 'split-right' location are kept visible since they
-  // allow the user to see most of the main content.
+  // Route-change minimize: give resource-details drawers a taskbar entry
+  // instead of letting them silently vanish. Applies to any drawer position
+  // (right/left/bottom) for consistency. Unrelated activities that block
+  // the main content still minimize as before; ordinary split-right plugin
+  // activities are left visible.
   useEffect(() => {
     activities.forEach(activity => {
       // If we were triggered just because of the activities changing but the
@@ -998,7 +1012,9 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
         return;
       }
 
-      if (activity.location !== 'split-right' && !activity.minimized) {
+      const isDetails = activity.kind === 'details';
+      const blocksMainContent = activity.location !== 'split-right';
+      if ((isDetails || blocksMainContent) && !activity.minimized) {
         Activity.update(activity.id, { minimized: true });
       }
     });

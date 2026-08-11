@@ -24,6 +24,7 @@ const mocks = vi.hoisted(() => ({
   node: undefined as GraphNode | undefined,
   nodeSelection: undefined as string | undefined,
   setNodeSelection: vi.fn(),
+  drawerLocation: 'split-right' as string,
 }));
 
 vi.mock('../GraphView', () => ({
@@ -36,6 +37,11 @@ vi.mock('../GraphView', () => ({
 
 vi.mock('../../activity/Activity', () => ({
   Activity: { launch: (...args: any[]) => mocks.activityLaunch(...args) },
+}));
+
+vi.mock('../../../redux/hooks', () => ({
+  useTypedSelector: (selector: any) =>
+    selector({ drawerMode: { detailsDrawerLocation: mocks.drawerLocation } }),
 }));
 
 vi.mock('../../../lib/k8s/cluster', () => ({}));
@@ -135,6 +141,7 @@ describe('KubeObjectNodeComponent', () => {
     mocks.node = undefined;
     mocks.nodeSelection = undefined;
     mocks.setNodeSelection.mockReset();
+    mocks.drawerLocation = 'split-right';
   });
 
   afterEach(() => {
@@ -265,6 +272,7 @@ describe('KubeObjectNodeComponent', () => {
       cluster: 'test-cluster',
       hideTitleInHeader: true,
       id: 'pod',
+      kind: 'details',
       location: 'split-right',
       temporary: true,
       title: 'frontend-pod',
@@ -277,6 +285,23 @@ describe('KubeObjectNodeComponent', () => {
     });
     expect(payload.content.props.node).toBe(mocks.node);
   });
+
+  it.each([['split-left'], ['split-bottom']])(
+    'forwards the selected drawer location (%s) to Activity.launch',
+    location => {
+      mocks.drawerLocation = location;
+      mocks.node = {
+        id: 'pod',
+        kubeObject: makeKubeObject({ name: 'frontend-pod' }),
+      };
+
+      render(<KubeObjectNodeComponent {...nodeProps('pod')} />);
+      fireEvent.click(screen.getByRole('button'));
+
+      expect(mocks.activityLaunch).toHaveBeenCalledTimes(1);
+      expect(mocks.activityLaunch.mock.calls[0][0]).toMatchObject({ location });
+    }
+  );
 
   it('launches custom details without an activity icon or cluster', () => {
     const Details = () => <span>Custom details</span>;
