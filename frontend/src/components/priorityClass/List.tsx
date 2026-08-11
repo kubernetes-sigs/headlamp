@@ -38,7 +38,7 @@ export default function PriorityClassList() {
           id: 'globalDefault',
           label: t('translation|Global Default'),
           gridTemplate: 'min-content',
-          getValue: item => String(item.globalDefault || 'False'),
+          getValue: item => (item.globalDefault ? t('translation|Yes') : t('translation|No')),
         },
         'labels',
         'age',
