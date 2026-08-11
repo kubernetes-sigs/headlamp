@@ -46,14 +46,39 @@ import (
 	helmtime "helm.sh/helm/v3/pkg/time"
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/discovery"
 	k8sfake "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"k8s.io/client-go/tools/clientcmd/api"
 )
+
+// unauthorizedRESTGetter mirrors the staticRESTGetter fake used by TestVerifyUser
+// in release_test.go: its empty host makes the whoami check performed by
+// VerifyUser fail, simulating an unauthorized/anonymous user.
+type unauthorizedRESTGetter struct{}
+
+var _ genericclioptions.RESTClientGetter = (*unauthorizedRESTGetter)(nil)
+
+func (u *unauthorizedRESTGetter) ToRESTConfig() (*rest.Config, error) {
+	return &rest.Config{Host: ""}, nil
+}
+
+func (u *unauthorizedRESTGetter) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
+	return nil, nil
+}
+
+func (u *unauthorizedRESTGetter) ToRESTMapper() (meta.RESTMapper, error) {
+	return nil, nil
+}
+
+func (u *unauthorizedRESTGetter) ToRawKubeConfigLoader() clientcmd.ClientConfig {
+	return nil
+}
 
 func TestGetActionStatus_NilErr(t *testing.T) {
 	h := &Handler{
@@ -1327,4 +1352,47 @@ func TestInstallAndUpgradeWorkerErrors(t *testing.T) {
 	st, err = h.getReleaseStatus("upgrade", "not-installed")
 	require.NoError(t, err)
 	assert.Equal(t, failed, st.Status)
+}
+
+// TestUpgradeRelease_UnauthorizedUser_DoesNotFetchChart verifies that upgradeRelease
+// performs the same VerifyUser authorization check as installRelease, rejecting an
+// unauthorized user before getChart is ever invoked.
+func TestUpgradeRelease_UnauthorizedUser_DoesNotFetchChart(t *testing.T) {
+	h := &Handler{
+		Cache:       cache.New[interface{}](),
+		EnvSettings: cli.New(),
+	}
+
+	// A loadable library chart is a sentinel: getChart must reject it and record
+	// a chart-type failure if it runs before authorization.
+	chartDir := t.TempDir()
+	chartYaml := filepath.Join(chartDir, "Chart.yaml")
+	chartContent := []byte("apiVersion: v2\nname: test-chart\nversion: 1.0.0\ntype: library\n")
+	require.NoError(t, os.WriteFile(chartYaml, chartContent, 0o600))
+
+	// RESTClientGetter with an empty host: the whoami check inside VerifyUser
+	// fails against it, simulating an unauthorized/anonymous user.
+	actionConfig := &action.Configuration{
+		RESTClientGetter: &unauthorizedRESTGetter{},
+	}
+
+	req := UpgradeReleaseRequest{
+		CommonInstallUpdateRequest: CommonInstallUpdateRequest{
+			Name:        "test-upgrade-release",
+			Namespace:   "default",
+			Description: "upgrade",
+			Chart:       chartDir,
+			Values:      base64.StdEncoding.EncodeToString([]byte("{}")),
+			Version:     "1.0.0",
+		},
+	}
+
+	require.NoError(t, h.setReleaseStatus("upgrade", req.Name, processing, nil))
+	h.upgradeRelease(req, actionConfig)
+
+	status, err := h.getReleaseStatus("upgrade", req.Name)
+	require.NoError(t, err)
+	assert.Equal(t, failed, status.Status)
+	require.NotNil(t, status.Err)
+	assert.Equal(t, "insufficient privileges", *status.Err)
 }

@@ -913,6 +913,20 @@ func (h *Handler) upgradeRelease(req UpgradeReleaseRequest, actionConfig *action
 	upgradeClient.Description = req.Description
 	upgradeClient.Version = req.Version
 
+	if !VerifyUser(actionConfig, InstallRequest{CommonInstallUpdateRequest: req.CommonInstallUpdateRequest}) {
+		h.logActionState(
+			zlog.Error(),
+			errors.New("insufficient privileges"),
+			"upgrade",
+			req.Chart,
+			req.Name,
+			failed,
+			"user authorization failed",
+		)
+
+		return
+	}
+
 	chart, err := h.getChart("upgrade", req.Chart, req.Name, upgradeClient.ChartPathOptions, true, h.EnvSettings)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldChart: req.Chart, logFieldReleaseName: req.Name},
