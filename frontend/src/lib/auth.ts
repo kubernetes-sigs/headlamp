@@ -141,6 +141,14 @@ export async function logout(cluster: string) {
   return setToken(cluster, null).then(() => {
     queryClient.removeQueries({ queryKey: ['auth'], exact: false });
     queryClient.removeQueries({ queryKey: ['clusterMe', cluster], exact: true });
+    queryClient.removeQueries({
+      predicate: query => {
+        const key = query.queryKey;
+        if (key[0] === 'kubeObject' && key[4] === cluster) return true;
+        if (key[0] === 'object' && key[1] === cluster) return true;
+        return false;
+      },
+    });
   });
 }
 
