@@ -467,6 +467,11 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     opts?: {
       queryParams?: QueryParameters;
       cluster?: string;
+      /**
+       * Seed data to use before the query resolves. Must be reference-stable across
+       * renders (memoize it or capture it once) — an object rebuilt on every render
+       * will cause repeated re-renders.
+       */
       initialData?: K;
     }
   ) {
