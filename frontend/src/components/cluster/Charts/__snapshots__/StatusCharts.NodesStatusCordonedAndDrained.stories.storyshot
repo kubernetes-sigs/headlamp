@@ -21,7 +21,11 @@
           <p
             class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-7142su-MuiTypography-root"
           >
-            0 / 0 Ready
+            3 / 3 Ready
+            <br />
+            1 Cordoned
+            <br />
+            1 Drained
           </p>
         </div>
         <div
@@ -66,43 +70,83 @@
                   <g
                     class="recharts-layer recharts-pie-sector"
                     tabindex="-1"
-                  />
-                  <g
-                    class="recharts-layer recharts-pie-sector"
-                    tabindex="-1"
-                  />
-                  <g
-                    class="recharts-layer recharts-pie-sector"
-                    tabindex="-1"
-                  />
-                  <g
-                    class="recharts-layer recharts-pie-sector"
-                    tabindex="-1"
-                  />
-                  <g
-                    class="recharts-layer recharts-pie-sector"
-                    tabindex="-1"
                   >
                     <path
-                      aria-label="0 %"
+                      aria-label="100.0 %"
                       class="recharts-sector"
                       cx="61"
                       cy="61"
                       d="M 61,16.199999999999996
     A 44.800000000000004,44.800000000000004,0,
-    1,1,
-    60.99921809249515,16.20000000682343
-  L 60.999410078712856,27.200000005148027
+    0,1,
+    99.79793808954287,83.4
+  L 90.27165864791402,77.9
             A 33.800000000000004,33.800000000000004,0,
-            1,0,
+            0,0,
             61,27.199999999999996 Z"
-                      fill="#e0e0e0"
-                      name="total"
+                      fill="#000"
+                      name="ready"
                       role="img"
                       stroke="#e0e0e0"
                       tabindex="-1"
                     />
                   </g>
+                  <g
+                    class="recharts-layer recharts-pie-sector"
+                    tabindex="-1"
+                  >
+                    <path
+                      aria-label="100.0 %"
+                      class="recharts-sector"
+                      cx="61"
+                      cy="61"
+                      d="M 99.79793808954287,83.4
+    A 44.800000000000004,44.800000000000004,0,
+    0,1,
+    22.20206191045714,83.4
+  L 31.72834135208597,77.9
+            A 33.800000000000004,33.800000000000004,0,
+            0,0,
+            90.27165864791402,77.9 Z"
+                      fill="rgb(196, 69, 0)"
+                      name="cordoned"
+                      role="img"
+                      stroke="#e0e0e0"
+                      tabindex="-1"
+                    />
+                  </g>
+                  <g
+                    class="recharts-layer recharts-pie-sector"
+                    tabindex="-1"
+                  >
+                    <path
+                      aria-label="100.0 %"
+                      class="recharts-sector"
+                      cx="61"
+                      cy="61"
+                      d="M 22.20206191045714,83.4
+    A 44.800000000000004,44.800000000000004,0,
+    0,1,
+    60.99999999999999,16.199999999999996
+  L 60.99999999999999,27.199999999999996
+            A 33.800000000000004,33.800000000000004,0,
+            0,0,
+            31.72834135208597,77.9 Z"
+                      fill="#f57c00"
+                      name="drained"
+                      role="img"
+                      stroke="#e0e0e0"
+                      tabindex="-1"
+                    />
+                  </g>
+                  <g
+                    class="recharts-layer recharts-pie-sector"
+                    tabindex="-1"
+                  />
+                  <g
+                    class="recharts-layer recharts-pie-sector"
+                    tabindex="-1"
+                  />
                   <text
                     class="recharts-text recharts-label"
                     fill="#808080"
@@ -116,7 +160,7 @@
                       dy="0.355em"
                       x="61"
                     >
-                      0 %
+                      100.0 %
                     </tspan>
                   </text>
                 </g>
