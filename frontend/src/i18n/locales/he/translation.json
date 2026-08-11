@@ -744,7 +744,7 @@
   "Lease Duration Seconds": "Lease Duration Seconds",
   "Renew Time": "Renew Time",
   "Holder": "Holder",
-  "Container Limits": "Container Limits",
+  "{{ type }} Limits": "",
   "Default Request": "Default Request",
   "Max": "Max",
   "Min": "Min",

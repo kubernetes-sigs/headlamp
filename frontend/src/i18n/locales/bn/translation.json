@@ -739,7 +739,7 @@
   "Lease Duration Seconds": "ইজারা সময়কাল সেকেন্ড",
   "Renew Time": "সময় পুনর্নবীকরণ",
   "Holder": "Container",
-  "Container Limits": "Container Limits",
+  "{{ type }} Limits": "",
   "Default Request": "Default অনুরোধ",
   "Max": "সর্বোচ্চ",
   "Min": "সর্বনিম্ন",

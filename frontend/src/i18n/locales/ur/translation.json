@@ -739,7 +739,7 @@
   "Lease Duration Seconds": "لیز کی مدت سیکنڈز میں",
   "Renew Time": "تجدید کا وقت",
   "Holder": "ہولڈر",
-  "Container Limits": "کنٹینر کی حدود",
+  "{{ type }} Limits": "{{ type }} کی حدود",
   "Default Request": "ڈیفالٹ درخواست",
   "Max": "زیادہ سے زیادہ",
   "Min": "کم سے کم",

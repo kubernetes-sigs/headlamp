@@ -34,39 +34,36 @@ export function LimitRangeDetails(props: { name?: string; namespace?: string; cl
       cluster={cluster}
       withEvents
       extraInfo={item =>
-        item && [
-          {
-            name: t('translation|Container Limits'),
-            value: (
-              <>
+        item &&
+        (item?.jsonData?.spec?.limits ?? []).map(limit => ({
+          name: t('translation|{{ type }} Limits', { type: limit.type }),
+          value: (
+            <>
+              <Box m={1}>
+                <Typography variant="h6">{t('translation|Default')}</Typography>
+                <MetadataDictGrid dict={limit.default} />
+              </Box>
+              <Box m={1}>
+                <Typography variant="h6">{t('translation|Default Request')}</Typography>
+                <MetadataDictGrid dict={limit.defaultRequest} />
+              </Box>
+              <Box m={1}>
+                <Typography variant="h6">{t('translation|Max')}</Typography>
+                <MetadataDictGrid dict={limit.max} />
+              </Box>
+              <Box m={1}>
+                <Typography variant="h6">{t('translation|Min')}</Typography>
+                <MetadataDictGrid dict={limit.min} />
+              </Box>
+              {limit.maxLimitRequestRatio && (
                 <Box m={1}>
-                  <Typography variant="h6">{t('translation|Default')}</Typography>
-                  <MetadataDictGrid dict={item?.jsonData?.spec?.limits?.[0]?.default} />
+                  <Typography variant="h6">{t('translation|Max Limit/Request Ratio')}</Typography>
+                  <MetadataDictGrid dict={limit.maxLimitRequestRatio} />
                 </Box>
-                <Box m={1}>
-                  <Typography variant="h6">{t('translation|Default Request')}</Typography>
-                  <MetadataDictGrid dict={item?.jsonData?.spec?.limits?.[0]?.defaultRequest} />
-                </Box>
-                <Box m={1}>
-                  <Typography variant="h6">{t('translation|Max')}</Typography>
-                  <MetadataDictGrid dict={item?.jsonData?.spec?.limits?.[0]?.max} />
-                </Box>
-                <Box m={1}>
-                  <Typography variant="h6">{t('translation|Min')}</Typography>
-                  <MetadataDictGrid dict={item?.jsonData?.spec?.limits?.[0]?.min} />
-                </Box>
-                {item?.jsonData?.spec?.limits?.[0]?.maxLimitRequestRatio && (
-                  <Box m={1}>
-                    <Typography variant="h6">{t('translation|Max Limit/Request Ratio')}</Typography>
-                    <MetadataDictGrid
-                      dict={item?.jsonData?.spec?.limits?.[0]?.maxLimitRequestRatio}
-                    />
-                  </Box>
-                )}
-              </>
-            ),
-          },
-        ]
+              )}
+            </>
+          ),
+        }))
       }
     />
   );
