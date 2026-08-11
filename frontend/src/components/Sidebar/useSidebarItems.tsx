@@ -595,6 +595,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     allClustersConf,
     crdsSidebarEntries,
     gatewayKinds,
+    isGatewayAPIAvailable,
     t,
   ]);
 
