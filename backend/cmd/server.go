@@ -209,6 +209,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcClientID:              conf.OidcClientID,
 		OidcValidatorClientID:     conf.OidcValidatorClientID,
 		OidcClientSecret:          conf.OidcClientSecret,
+		OidcClientAssertionFile:   conf.OidcClientAssertionFile,
 		OidcIdpIssuerURL:          conf.OidcIdpIssuerURL,
 		OidcCallbackURL:           conf.OidcCallbackURL,
 		OidcValidatorIdpIssuerURL: conf.OidcValidatorIdpIssuerURL,

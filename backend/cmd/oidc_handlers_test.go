@@ -68,9 +68,13 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -146,18 +150,47 @@ func failingTokenHandler() http.HandlerFunc {
 	}
 }
 
-// oidcTestOption customizes the HeadlampConfig built by newOIDCTestHandler.
-type oidcTestOption func(*HeadlampConfig)
+// oidcTestSetup holds what newOIDCTestHandler builds and its options may
+// customize.
+type oidcTestSetup struct {
+	config   *HeadlampConfig
+	oidcConf *kubeconfig.OidcConfig
+	// authProviderConfig, when set, stores the OIDC settings as a kubeconfig
+	// oidc auth-provider stanza of source instead of a prebuilt OidcConf.
+	authProviderConfig map[string]string
+	source             int
+}
+
+// oidcTestOption customizes what newOIDCTestHandler builds.
+type oidcTestOption func(*oidcTestSetup)
 
 // withPKCE enables the OidcUsePKCE code path on the handler under test.
 func withPKCE() oidcTestOption {
-	return func(c *HeadlampConfig) { c.OidcUsePKCE = true }
+	return func(s *oidcTestSetup) { s.config.OidcUsePKCE = true }
 }
 
 // withStateReader replaces the reader backing OIDC state generation, so a
 // test can force the state-generation failure path.
 func withStateReader(r io.Reader) oidcTestOption {
-	return func(c *HeadlampConfig) { c.oidcStateReader = r }
+	return func(s *oidcTestSetup) { s.config.oidcStateReader = r }
+}
+
+// withClientAssertionFile makes the cluster context authenticate to the token
+// endpoint with a JWT client assertion instead of a client secret.
+func withClientAssertionFile(path string) oidcTestOption {
+	return func(s *oidcTestSetup) {
+		s.oidcConf.ClientAssertionFile = path
+	}
+}
+
+// withKubeconfigAuthProvider stores the OIDC settings the way a kubeconfig
+// carries them, so the handler resolves them and the checks on caller-supplied
+// values are part of the path under test.
+func withKubeconfigAuthProvider(source int, config map[string]string) oidcTestOption {
+	return func(s *oidcTestSetup) {
+		s.source = source
+		s.authProviderConfig = config
+	}
 }
 
 // newOIDCTestHandler builds a Headlamp handler with one OIDC-configured
@@ -170,21 +203,12 @@ func newOIDCTestHandler(t *testing.T, oidcSrv *oidcTestServer, opts ...oidcTestO
 
 	kubeConfigStore := kubeconfig.NewContextStore()
 
-	err := kubeConfigStore.AddContext(&kubeconfig.Context{
-		Name: clusterName,
-		Cluster: &api.Cluster{
-			Server: "https://test-cluster.example.com",
-		},
-		AuthInfo: &api.AuthInfo{},
-		OidcConf: &kubeconfig.OidcConfig{
-			ClientID:     "test-client-id",
-			ClientSecret: "test-client-secret",
-			IdpIssuerURL: oidcSrv.URL(),
-			Scopes:       []string{"profile", "email"},
-		},
-		Source: kubeconfig.KubeConfig,
-	})
-	require.NoError(t, err)
+	oidcConf := &kubeconfig.OidcConfig{
+		ClientID:     "test-client-id",
+		ClientSecret: "test-client-secret",
+		IdpIssuerURL: oidcSrv.URL(),
+		Scopes:       []string{"profile", "email"},
+	}
 
 	c := &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
@@ -198,11 +222,59 @@ func newOIDCTestHandler(t *testing.T, oidcSrv *oidcTestServer, opts ...oidcTestO
 		},
 	}
 
+	setup := &oidcTestSetup{config: c, oidcConf: oidcConf, source: kubeconfig.KubeConfig}
 	for _, opt := range opts {
-		opt(c)
+		opt(setup)
 	}
 
+	storedContext := &kubeconfig.Context{
+		Name: clusterName,
+		Cluster: &api.Cluster{
+			Server: "https://test-cluster.example.com",
+		},
+		AuthInfo: &api.AuthInfo{},
+		OidcConf: oidcConf,
+		Source:   setup.source,
+	}
+
+	if setup.authProviderConfig != nil {
+		storedContext.OidcConf = nil
+		storedContext.AuthInfo.AuthProvider = &api.AuthProviderConfig{
+			Name:   "oidc",
+			Config: setup.authProviderConfig,
+		}
+	}
+
+	err := kubeConfigStore.AddContext(storedContext)
+	require.NoError(t, err)
+
 	return createHeadlampHandler(context.Background(), c), clusterName
+}
+
+// statelessOIDCKubeconfig returns the kubeconfig a caller would hand over in the
+// KUBECONFIG header to have Headlamp read assertionFile and send it to issuerURL.
+func statelessOIDCKubeconfig(issuerURL, assertionFile string) string {
+	return fmt.Sprintf(`apiVersion: v1
+clusters:
+- cluster:
+    server: https://test-cluster.example.com
+  name: stateless-oidc
+contexts:
+- context:
+    cluster: stateless-oidc
+    user: stateless-user
+  name: stateless-oidc
+current-context: stateless-oidc
+kind: Config
+users:
+- name: stateless-user
+  user:
+    auth-provider:
+      config:
+        client-id: "test-client-id"
+        client-assertion-file: %q
+        idp-issuer-url: %q
+      name: oidc`, assertionFile, issuerURL)
 }
 
 // driveOIDCStart calls /oidc?cluster=<cluster> against the supplied handler
@@ -527,4 +599,295 @@ func TestOIDCCallback_PKCEVerifierSentOnExchange(t *testing.T) {
 		assert.Empty(t, form.Get("code_verifier"),
 			"no code_verifier should be sent when PKCE is off")
 	})
+}
+
+// TestOIDCCallback_ClientAssertionSentOnExchange covers JWT bearer client
+// authentication (RFC 7523). With an assertion file configured, /oidc-callback
+// authenticates the code exchange with client_assertion instead of a client
+// secret, and the assertion is read from disk at exchange time.
+func TestOIDCCallback_ClientAssertionSentOnExchange(t *testing.T) {
+	const assertion = "header.payload.signature"
+
+	assertionFile := filepath.Join(t.TempDir(), "assertion.jwt")
+	require.NoError(t, os.WriteFile(assertionFile, []byte(assertion+"\n"), 0o600))
+
+	// The exchange form is recorded and then rejected, so the test observes the
+	// request without needing to mint a signed ID token.
+	var forms []url.Values
+
+	oidcSrv := newOIDCTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err == nil {
+			forms = append(forms, r.PostForm)
+		}
+
+		failingTokenHandler()(w, r)
+	})
+
+	handler, cluster := newOIDCTestHandler(t, oidcSrv, withClientAssertionFile(assertionFile))
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+
+	rr := callOIDCCallback(t, handler, fmt.Sprintf("state=%s&code=fake", state))
+	require.Equal(t, http.StatusInternalServerError, rr.Code,
+		"sanity: the exchange ran and failed at the mock /token")
+
+	// The pinned AuthStyleInParams puts the credentials in the body right away,
+	// so the endpoint is called once.
+	require.Len(t, forms, 1)
+
+	form := forms[0]
+	assert.Equal(t, "test-client-id", form.Get("client_id"))
+	assert.Equal(t, auth.ClientAssertionTypeJWTBearer, form.Get("client_assertion_type"))
+	assert.Equal(t, assertion, form.Get("client_assertion"))
+	assert.Empty(t, form.Get("client_secret"))
+}
+
+// TestOIDCCallback_UnreadableClientAssertionFails checks the callback reports a
+// failure instead of falling back to an unauthenticated exchange when the
+// configured assertion cannot be read.
+func TestOIDCCallback_UnreadableClientAssertionFails(t *testing.T) {
+	exchanges := 0
+
+	oidcSrv := newOIDCTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		exchanges++
+
+		failingTokenHandler()(w, r)
+	})
+
+	handler, cluster := newOIDCTestHandler(t, oidcSrv,
+		withClientAssertionFile(filepath.Join(t.TempDir(), "absent.jwt")))
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+
+	rr := callOIDCCallback(t, handler, fmt.Sprintf("state=%s&code=fake", state))
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Failed to read client assertion")
+	assert.Zero(t, exchanges, "no code should be exchanged without the client assertion")
+}
+
+// TestOIDCCallback_ClientSecretUnaffected checks the default client secret path
+// keeps sending client_secret and no assertion parameters.
+func TestOIDCCallback_ClientSecretUnaffected(t *testing.T) {
+	var forms []url.Values
+
+	oidcSrv := newOIDCTestServer(t, func(w http.ResponseWriter, r *http.Request) {
+		if err := r.ParseForm(); err == nil {
+			forms = append(forms, r.PostForm)
+		}
+
+		failingTokenHandler()(w, r)
+	})
+
+	handler, cluster := newOIDCTestHandler(t, oidcSrv)
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+
+	rr := callOIDCCallback(t, handler, fmt.Sprintf("state=%s&code=fake", state))
+	require.Equal(t, http.StatusInternalServerError, rr.Code)
+
+	require.NotEmpty(t, forms)
+
+	for _, form := range forms {
+		assert.Empty(t, form.Get("client_assertion"))
+		assert.Empty(t, form.Get("client_assertion_type"))
+	}
+}
+
+// TestOIDCStart_DynamicClusterClientAssertionRejected checks a kubeconfig
+// supplied by the caller cannot make the server read a local file and post it
+// to an identity provider of the caller's choosing.
+func TestOIDCStart_DynamicClusterClientAssertionRejected(t *testing.T) {
+	assertionFile := filepath.Join(t.TempDir(), "stolen.jwt")
+	require.NoError(t, os.WriteFile(assertionFile, []byte("secret.token.value"), 0o600))
+
+	idpRequests := 0
+
+	idp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		idpRequests++
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(idp.Close)
+
+	handler, cluster := newOIDCTestHandler(t, &oidcTestServer{server: idp},
+		withKubeconfigAuthProvider(kubeconfig.DynamicCluster, map[string]string{
+			"client-id":             "test-client-id",
+			"client-assertion-file": assertionFile,
+			"idp-issuer-url":        idp.URL,
+		}))
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/oidc?cluster="+cluster, nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "client-assertion-file is not allowed in a dynamic cluster kubeconfig")
+	assert.Empty(t, rr.Header().Get("Location"), "no login should start for a rejected context")
+	assert.Zero(t, idpRequests, "the caller-supplied issuer should never be contacted")
+}
+
+// TestOIDCStart_StatelessDynamicClusterClientAssertionRejected walks the whole
+// path a caller would take: a kubeconfig carrying the assertion file is handed
+// over in the KUBECONFIG header of a cluster request, which caches it as a
+// dynamic cluster context, and /oidc is then called for that context.
+func TestOIDCStart_StatelessDynamicClusterClientAssertionRejected(t *testing.T) {
+	const clusterName = "stateless-oidc"
+
+	assertionFile := filepath.Join(t.TempDir(), "stolen.jwt")
+	require.NoError(t, os.WriteFile(assertionFile, []byte("secret.token.value"), 0o600))
+
+	idpRequests := 0
+	idp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		idpRequests++
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(idp.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	config := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				// The deployment mode this is reachable in. The flag itself gates
+				// getContextKeyForRequest, which the test skips by calling
+				// handleStatelessReq directly.
+				EnableDynamicClusters: true,
+				KubeConfigStore:       kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	encodedKubeconfig := base64.StdEncoding.EncodeToString([]byte(statelessOIDCKubeconfig(idp.URL, assertionFile)))
+
+	statelessReq := httptest.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/clusters/"+clusterName+"/api", nil)
+	statelessReq = mux.SetURLVars(statelessReq, map[string]string{"clusterName": clusterName})
+
+	// No X-HEADLAMP-USER-ID, so the cached context is keyed by cluster name alone
+	// and /oidc?cluster=<name> reaches it.
+	contextKey, err := config.handleStatelessReq(statelessReq, encodedKubeconfig)
+	require.NoError(t, err)
+	require.Equal(t, clusterName, contextKey)
+
+	storedContext, err := kubeConfigStore.GetContext(contextKey)
+	require.NoError(t, err)
+	assert.Equal(t, kubeconfig.DynamicCluster, storedContext.Source)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/oidc?cluster="+contextKey, nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	createHeadlampHandler(context.Background(), config).ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "client-assertion-file is not allowed in a dynamic cluster kubeconfig")
+	assert.Empty(t, rr.Header().Get("Location"), "no login should start for a rejected context")
+	assert.Zero(t, idpRequests, "the caller-supplied issuer should never be contacted")
+}
+
+// TestOIDCStart_KubeconfigClientAssertionAccepted checks the same auth-provider
+// key still works for a kubeconfig the server operator supplies.
+func TestOIDCStart_KubeconfigClientAssertionAccepted(t *testing.T) {
+	assertionFile := filepath.Join(t.TempDir(), "assertion.jwt")
+	require.NoError(t, os.WriteFile(assertionFile, []byte("header.payload.signature"), 0o600))
+
+	oidcSrv := newOIDCTestServer(t, nil)
+
+	handler, cluster := newOIDCTestHandler(t, oidcSrv,
+		withKubeconfigAuthProvider(kubeconfig.KubeConfig, map[string]string{
+			"client-id":             "test-client-id",
+			"client-assertion-file": assertionFile,
+			"idp-issuer-url":        oidcSrv.URL(),
+		}))
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	assert.NotEmpty(t, state)
+}
+
+// newDynamicClusterHandler builds a handler that takes dynamic clusters and
+// persists them under the test's own config dirs.
+func newDynamicClusterHandler(t *testing.T, kubeConfigStore kubeconfig.ContextStore) http.Handler {
+	t.Helper()
+
+	t.Setenv("HOME", t.TempDir())
+	t.Setenv("XDG_CONFIG_HOME", t.TempDir())
+	t.Setenv("APPDATA", t.TempDir())
+
+	config := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				EnableDynamicClusters: true,
+				KubeConfigPath:        filepath.Join(t.TempDir(), "missing-kubeconfig"),
+				KubeConfigStore:       kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	return createHeadlampHandler(context.Background(), config)
+}
+
+// TestOIDCStart_RenamedDynamicClusterClientAssertionRejected covers the path a caller would
+// take to launder a dynamic cluster into a trusted one. The caller first
+// issues POST /cluster, then PUT /cluster/{name}, and finally hits /oidc
+// under the new name. Renaming reloads the persisted kubeconfig, and any
+// context that came back with the zero source would slip past the check
+// in OidcConfig.
+func TestOIDCStart_RenamedDynamicClusterClientAssertionRejected(t *testing.T) {
+	const (
+		clusterName = "stateless-oidc"
+		renamedName = "renamed-oidc"
+	)
+
+	assertionFile := filepath.Join(t.TempDir(), "stolen.jwt")
+	require.NoError(t, os.WriteFile(assertionFile, []byte("secret.token.value"), 0o600))
+
+	idpRequests := 0
+	idp := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		idpRequests++
+
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	t.Cleanup(idp.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	handler := newDynamicClusterHandler(t, kubeConfigStore)
+
+	encodedKubeconfig := base64.StdEncoding.EncodeToString([]byte(statelessOIDCKubeconfig(idp.URL, assertionFile)))
+
+	rr, err := getResponseFromRestrictedEndpoint(handler, http.MethodPost, "/cluster",
+		ClusterReq{KubeConfig: &encodedKubeconfig})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, rr.Code, "adding the dynamic cluster failed: %s", rr.Body.String())
+
+	rr, err = getResponseFromRestrictedEndpoint(handler, http.MethodPut, "/cluster/"+clusterName,
+		RenameClusterRequest{NewClusterName: renamedName, Source: "dynamic_cluster"})
+	require.NoError(t, err)
+	require.Equal(t, http.StatusCreated, rr.Code, "renaming the dynamic cluster failed: %s", rr.Body.String())
+
+	storedContext, err := kubeConfigStore.GetContext(renamedName)
+	require.NoError(t, err)
+	assert.Equal(t, kubeconfig.DynamicCluster, storedContext.Source,
+		"the rename must not clear the DynamicCluster mark")
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet,
+		"/oidc?cluster="+renamedName, nil)
+	require.NoError(t, err)
+
+	rr = httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "client-assertion-file is not allowed in a dynamic cluster kubeconfig")
+	assert.Empty(t, rr.Header().Get("Location"), "no login should start for a rejected context")
+	assert.Zero(t, idpRequests, "the caller-supplied issuer should never be contacted")
 }
