@@ -122,10 +122,18 @@ export async function initializePlugins() {
     for (const pluginName of Object.keys(window.plugins)) {
       const plugin = window.plugins[pluginName];
       try {
-        // @todo: what should happen if this fails?
         plugin.initialize(new Registry());
       } catch (e) {
         console.error(`Plugin initialize() error in ${pluginName}:`, e);
+        store.dispatch(
+          eventAction({
+            type: HeadlampEventType.PLUGIN_LOADING_ERROR,
+            data: {
+              pluginInfo: { name: pluginName, version: '' },
+              error: e,
+            },
+          })
+        );
       }
     }
     resolve(undefined);
