@@ -624,4 +624,21 @@ describe('identifyPackages', () => {
     );
     expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
   });
+
+  test.each([
+    'plugins/azure-aks',
+    'static-plugins/azure-aks',
+    'user-plugins/azure-aks',
+    'plugins\\azure-aks',
+  ])('should identify the Azure AKS package at %s', pluginPath => {
+    expect(identifyPackages(pluginPath, 'azure-aks', false)).toEqual({
+      '@headlamp-k8s/minikube': false,
+      '@headlamp-k8s/ai-assistant': false,
+      'azure-aks': true,
+    });
+  });
+
+  test('should not identify the Azure AKS package when its name does not match', () => {
+    expect(identifyPackages('plugins/azure-aks', 'other-plugin', false)['azure-aks']).toBe(false);
+  });
 });

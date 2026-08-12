@@ -1123,7 +1123,11 @@ export function defaultKubeConfigsDir(): string {
  */
 function validPluginBinFolder(folder: string): boolean {
   // For now only allow "headlamp_minikubeprerelease" and "headlamp_minikube"
-  return folder === 'headlamp_minikube' || folder === 'headlamp_minikubeprerelease';
+  return (
+    folder === 'headlamp_minikube' ||
+    folder === 'headlamp_minikubeprerelease' ||
+    folder === 'azure-aks'
+  );
 }
 
 /**

@@ -449,6 +449,23 @@ describe('addRunCmdConsent', () => {
     }
   });
 
+  it('pre-populates the Azure AKS script command', async () => {
+    const { loadSettings, saveSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: {} });
+    vi.mocked(saveSettings).mockClear();
+
+    addRunCmdConsent({ name: 'azure-aks' });
+
+    expect(saveSettings).toHaveBeenCalledWith(
+      '/fake/settings.json',
+      expect.objectContaining({
+        confirmedCommands: {
+          'scriptjs azure-aks/azure-api.js': true,
+        },
+      })
+    );
+  });
+
   it('does not pre-populate AI assistant commands for an unrecognised plugin name', async () => {
     const { loadSettings, saveSettings } = await import('./settings');
     vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: {} });
