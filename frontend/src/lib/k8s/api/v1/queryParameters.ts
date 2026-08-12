@@ -53,6 +53,16 @@ export interface QueryParameters {
    */
   dryRun?: string;
   /**
+   * fieldValidation tells the apiserver how to treat unknown or duplicate fields in the
+   * request body. Can be 'Ignore', 'Warn' (apiserver default) or 'Strict'.
+   *
+   * With anything but 'Strict' those fields are dropped and only reported through response
+   * warning headers, so a typo silently does nothing.
+   *
+   * @see https://kubernetes.io/docs/reference/using-api/api-concepts/#field-validation
+   */
+  fieldValidation?: string;
+  /**
    * fieldSeletor restricts the list of returned objects by their fields. Defaults to everything.
    *
    * @see https://kubernetes.io/docs/concepts/overview/working-with-objects/field-selectors/

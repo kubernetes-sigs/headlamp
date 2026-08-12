@@ -77,7 +77,13 @@ export async function apply<T extends KubeObjectInterface>(
   }
 
   const resourceVersion = bodyToApply.metadata.resourceVersion;
-  const queryParams: QueryParameters = options.dryRun ? { dryRun: 'All' } : {};
+  // Strict makes the apiserver reject unknown or duplicate fields instead of silently
+  // dropping them, which is what kubectl does. Without it a typo like "replics" applies
+  // successfully and does nothing.
+  const queryParams: QueryParameters = { fieldValidation: 'Strict' };
+  if (options.dryRun) {
+    queryParams.dryRun = 'All';
+  }
 
   try {
     delete bodyToApply.metadata.resourceVersion;
