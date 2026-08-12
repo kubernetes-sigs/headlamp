@@ -1,0 +1,10 @@
+# This is a test case for OIDC auto-login configured directly.
+config:
+  oidc:
+    secret:
+      create: false
+    clientID: "testClientId"
+    clientSecret: "testClientSecret"
+    issuerURL: "testIssuerURL"
+    scopes: "testScope"
+    autoLogin: true
