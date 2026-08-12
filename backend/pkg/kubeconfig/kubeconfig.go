@@ -87,10 +87,11 @@ func (c *Context) Copy() *Context {
 	var oidcConf *OidcConfig
 	if c.OidcConf != nil {
 		oidcConf = &OidcConfig{
-			ClientID:     c.OidcConf.ClientID,
-			ClientSecret: c.OidcConf.ClientSecret,
-			IdpIssuerURL: c.OidcConf.IdpIssuerURL,
-			Scopes:       make([]string, len(c.OidcConf.Scopes)),
+			ClientID:            c.OidcConf.ClientID,
+			ClientSecret:        c.OidcConf.ClientSecret,
+			ClientAssertionFile: c.OidcConf.ClientAssertionFile,
+			IdpIssuerURL:        c.OidcConf.IdpIssuerURL,
+			Scopes:              make([]string, len(c.OidcConf.Scopes)),
 		}
 		copy(oidcConf.Scopes, c.OidcConf.Scopes)
 
@@ -150,6 +151,9 @@ type OidcConfig struct {
 	ClientID string
 	// OIDC client secret.
 	ClientSecret string
+	// ClientAssertionFile is the path to a file holding a JWT that is sent as
+	// client_assertion to authenticate at the token endpoint (RFC 7523).
+	ClientAssertionFile string
 	// OIDC issuer URL.
 	IdpIssuerURL string
 	// OIDC scopes.
@@ -349,6 +353,18 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 		return nil, errors.New("authProvider is nil")
 	}
 
+	clientAssertionFile := c.AuthInfo.AuthProvider.Config["client-assertion-file"]
+
+	// client-assertion-file names a path on the Headlamp server's filesystem, and its
+	// contents are sent to the token endpoint discovered from the same kubeconfig.
+	// Dynamic cluster kubeconfigs are supplied by callers through request headers, so
+	// honouring the key for them would let a caller have the server read any file it can
+	// read and post it to an identity provider the caller controls. Only kubeconfigs the
+	// server operator provides are trusted with it.
+	if clientAssertionFile != "" && c.Source == DynamicCluster {
+		return nil, errors.New("client-assertion-file is not allowed in a dynamic cluster kubeconfig")
+	}
+
 	var caCert *string
 
 	// if custom CA is configured in the kubeconfig auth provider use it.
@@ -378,11 +394,12 @@ func (c *Context) OidcConfig() (*OidcConfig, error) {
 	}
 
 	return &OidcConfig{
-		ClientID:     c.AuthInfo.AuthProvider.Config["client-id"],
-		ClientSecret: c.AuthInfo.AuthProvider.Config["client-secret"],
-		Scopes:       strings.Split(c.AuthInfo.AuthProvider.Config["scope"], ","),
-		IdpIssuerURL: c.AuthInfo.AuthProvider.Config["idp-issuer-url"],
-		CACert:       caCert,
+		ClientID:            c.AuthInfo.AuthProvider.Config["client-id"],
+		ClientSecret:        c.AuthInfo.AuthProvider.Config["client-secret"],
+		ClientAssertionFile: clientAssertionFile,
+		Scopes:              strings.Split(c.AuthInfo.AuthProvider.Config["scope"], ","),
+		IdpIssuerURL:        c.AuthInfo.AuthProvider.Config["idp-issuer-url"],
+		CACert:              caCert,
 	}, nil
 }
 
@@ -1073,7 +1090,10 @@ func convertToContext(contextName string, clientConfig *api.Config, source int, 
 }
 
 // LoadContextsFromAPIConfig loads contexts from the given api.Config.
-func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Context, []error) {
+// source must be the one config was originally loaded with: OidcConfig refuses
+// client-assertion-file, which it reads off the Headlamp server, for
+// DynamicCluster contexts.
+func LoadContextsFromAPIConfig(config *api.Config, source int, skipProxySetup bool) ([]Context, []error) {
 	contexts := []Context{}
 	errors := []error{}
 
@@ -1095,6 +1115,7 @@ func LoadContextsFromAPIConfig(config *api.Config, skipProxySetup bool) ([]Conte
 			KubeContext: context,
 			Cluster:     cluster,
 			AuthInfo:    authInfo,
+			Source:      source,
 		}
 
 		if !skipProxySetup {
@@ -1193,6 +1214,7 @@ func GetInClusterContext(
 	contextName string,
 	oidcIssuerURL string,
 	oidcClientID string, oidcClientSecret string,
+	oidcClientAssertionFile string,
 	oidcScopes string,
 	oidcSkipTLSVerify bool,
 	oidcCACert string,
@@ -1214,6 +1236,7 @@ func GetInClusterContext(
 		oidcIssuerURL,
 		oidcClientID,
 		oidcClientSecret,
+		oidcClientAssertionFile,
 		oidcScopes,
 		oidcSkipTLSVerify,
 		oidcCACert,
@@ -1228,6 +1251,7 @@ func newInClusterContextFromConfig(
 	oidcIssuerURL string,
 	oidcClientID string,
 	oidcClientSecret string,
+	oidcClientAssertionFile string,
 	oidcScopes string,
 	oidcSkipTLSVerify bool,
 	oidcCACert string,
@@ -1256,32 +1280,53 @@ func newInClusterContextFromConfig(
 		inClusterAuthInfo.TokenFile = resolveServiceAccountTokenPath(clusterConfig, serviceAccountTokenPath)
 	}
 
-	var oidcConf *OidcConfig
-
-	if oidcClientID != "" && oidcIssuerURL != "" && oidcScopes != "" {
-		var caCert *string
-		if oidcCACert != "" {
-			caCert = &oidcCACert
-		}
-
-		// client secret is optional for in-cluster OIDC configuration
-		oidcConf = &OidcConfig{
-			ClientID:      oidcClientID,
-			ClientSecret:  oidcClientSecret,
-			IdpIssuerURL:  oidcIssuerURL,
-			Scopes:        strings.Split(oidcScopes, ","),
-			SkipTLSVerify: &oidcSkipTLSVerify,
-			CACert:        caCert,
-		}
-	}
-
 	return &Context{
 		Name:        contextName,
 		KubeContext: inClusterContext,
 		Cluster:     cluster,
 		AuthInfo:    inClusterAuthInfo,
 		Source:      InCluster,
-		OidcConf:    oidcConf,
+		OidcConf: newInClusterOidcConfig(
+			oidcIssuerURL,
+			oidcClientID,
+			oidcClientSecret,
+			oidcClientAssertionFile,
+			oidcScopes,
+			oidcSkipTLSVerify,
+			oidcCACert,
+		),
+	}
+}
+
+// newInClusterOidcConfig builds the OIDC config of the in-cluster context, or
+// returns nil when OIDC is not configured.
+func newInClusterOidcConfig(
+	oidcIssuerURL string,
+	oidcClientID string,
+	oidcClientSecret string,
+	oidcClientAssertionFile string,
+	oidcScopes string,
+	oidcSkipTLSVerify bool,
+	oidcCACert string,
+) *OidcConfig {
+	if oidcClientID == "" || oidcIssuerURL == "" || oidcScopes == "" {
+		return nil
+	}
+
+	var caCert *string
+	if oidcCACert != "" {
+		caCert = &oidcCACert
+	}
+
+	// client secret is optional for in-cluster OIDC configuration
+	return &OidcConfig{
+		ClientID:            oidcClientID,
+		ClientSecret:        oidcClientSecret,
+		ClientAssertionFile: oidcClientAssertionFile,
+		IdpIssuerURL:        oidcIssuerURL,
+		Scopes:              strings.Split(oidcScopes, ","),
+		SkipTLSVerify:       &oidcSkipTLSVerify,
+		CACert:              caCert,
 	}
 }
 

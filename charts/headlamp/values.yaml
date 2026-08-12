@@ -79,6 +79,11 @@ config:
     clientID: ""
     # -- OIDC client secret
     clientSecret: ""
+    # -- Path to a JWT sent as client_assertion to authenticate at the OIDC
+    # token endpoint (RFC 7523), instead of a client secret. Cannot be combined
+    # with clientSecret. Mount the JWT at this path through .volumeMounts and
+    # .volumes.
+    clientAssertionFile: ""
     # -- OIDC issuer URL
     issuerURL: ""
     # -- OIDC scopes to be used

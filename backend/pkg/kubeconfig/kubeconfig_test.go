@@ -328,6 +328,94 @@ users:
 	})
 }
 
+// oidcKubeconfig returns a kubeconfig whose oidc auth provider carries the given
+// extra config keys next to the client id and issuer URL.
+func oidcKubeconfig(t *testing.T, extraConfig map[string]string) string {
+	t.Helper()
+
+	var extra string
+	for key, value := range extraConfig {
+		extra += fmt.Sprintf("\n        %s: %q", key, value)
+	}
+
+	return fmt.Sprintf(`apiVersion: v1
+clusters:
+- cluster:
+    server: https://127.0.0.1:6443
+  name: test-cluster
+contexts:
+- context:
+    cluster: test-cluster
+    user: test-user
+  name: test-context
+current-context: test-context
+kind: Config
+users:
+- name: test-user
+  user:
+    auth-provider:
+      config:
+        client-id: "test-client-id"
+        idp-issuer-url: "https://oidc.example.com"%s
+      name: oidc`, extra)
+}
+
+// serviceAccountTokenPath is the file a caller would target to have Headlamp
+// leak its own credential.
+const serviceAccountTokenPath = "/var/run/secrets/headlamp/oidc-client-assertion/token" //nolint:gosec
+
+// loadOneDynamicContext loads the single context of a kubeconfig the way a
+// dynamic cluster request does, from a base64 payload supplied by the caller.
+func loadOneDynamicContext(t *testing.T, kubeConfig string) kubeconfig.Context {
+	t.Helper()
+
+	encoded := base64.StdEncoding.EncodeToString([]byte(kubeConfig))
+
+	contexts, contextErrors, err := kubeconfig.LoadContextsFromBase64String(encoded, kubeconfig.DynamicCluster)
+	require.NoError(t, err)
+	require.Empty(t, contextErrors)
+	require.Len(t, contexts, 1)
+
+	return contexts[0]
+}
+
+func TestOidcConfigClientAssertionFile(t *testing.T) {
+	t.Run("honoured for a kubeconfig the server loads itself", func(t *testing.T) {
+		tempFile := createTempKubeconfig(t, oidcKubeconfig(t,
+			map[string]string{"client-assertion-file": serviceAccountTokenPath}))
+		defer func() { _ = os.Remove(tempFile) }()
+
+		contexts, contextErrors, err := kubeconfig.LoadContextsFromFile(tempFile, kubeconfig.KubeConfig)
+		require.NoError(t, err)
+		require.Empty(t, contextErrors)
+		require.Len(t, contexts, 1)
+
+		oidcConfig, err := contexts[0].OidcConfig()
+		require.NoError(t, err)
+		assert.Equal(t, serviceAccountTokenPath, oidcConfig.ClientAssertionFile)
+	})
+
+	t.Run("rejected for a dynamic cluster kubeconfig", func(t *testing.T) {
+		context := loadOneDynamicContext(t, oidcKubeconfig(t,
+			map[string]string{"client-assertion-file": serviceAccountTokenPath}))
+
+		oidcConfig, err := context.OidcConfig()
+		require.Error(t, err)
+		assert.Nil(t, oidcConfig)
+		assert.EqualError(t, err, "client-assertion-file is not allowed in a dynamic cluster kubeconfig")
+	})
+
+	t.Run("dynamic cluster kubeconfig without an assertion file still works", func(t *testing.T) {
+		context := loadOneDynamicContext(t, oidcKubeconfig(t,
+			map[string]string{"client-secret": "test-client-secret"}))
+
+		oidcConfig, err := context.OidcConfig()
+		require.NoError(t, err)
+		assert.Empty(t, oidcConfig.ClientAssertionFile)
+		assert.Equal(t, "test-client-secret", oidcConfig.ClientSecret)
+	})
+}
+
 func TestOidcConfigWithNilAuthInfo(t *testing.T) {
 	context := &kubeconfig.Context{AuthInfo: nil}
 

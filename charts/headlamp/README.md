@@ -159,6 +159,7 @@ volume or volume mount.
 |-----|------|---------|-------------|
 | config.oidc.clientID | string | `""` | OIDC client ID |
 | config.oidc.clientSecret | string | `""` | OIDC client secret |
+| config.oidc.clientAssertionFile | string | `""` | Path to a JWT sent as `client_assertion` to authenticate at the OIDC token endpoint ([RFC 7523](https://datatracker.ietf.org/doc/html/rfc7523)), instead of a client secret. Cannot be combined with `config.oidc.clientSecret`. Mount the JWT at this path through `.volumeMounts` and `.volumes`. |
 | config.oidc.issuerURL | string | `""` | OIDC issuer URL |
 | config.oidc.scopes | string | `""` | OIDC scopes to be used |
 | config.oidc.usePKCE | bool | `false` | Use PKCE (Proof Key for Code Exchange) for enhanced security in OIDC flow |
