@@ -9,6 +9,7 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
@@ -485,7 +486,7 @@ func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []Conte
 
 	skipProxySetup := source != KubeConfig
 
-	contexts, contextErrors, err := loadContextsFromData(data, source, skipProxySetup)
+	contexts, contextErrors, err := loadContextsFromData(data, source, skipProxySetup, kubeConfigPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error loading contexts from file: %w", err)
 	}
@@ -512,7 +513,9 @@ func LoadContextsFromBase64String(kubeConfig string, source int) ([]Context, []C
 
 	skipProxySetup := source != KubeConfig
 
-	return loadContextsFromData(kubeConfigByte, source, skipProxySetup)
+	// Base64 kubeconfigs have no filesystem origin, so relative certificate
+	// and key paths cannot be resolved against a parent directory.
+	return loadContextsFromData(kubeConfigByte, source, skipProxySetup, "")
 }
 
 // LoadContextsFromMultipleFiles loads contexts from the given kubeconfig files.
@@ -537,8 +540,15 @@ func LoadContextsFromMultipleFiles(kubeConfigs string, source int) ([]Context, [
 
 // loadContextsFromData loads contexts from a kubeconfig data.
 // It unmarshals the kubeconfig data, extracts the contexts, and processes each context.
+// kubeConfigPath is the filesystem path of the source kubeconfig when known; an empty
+// string means the data has no filesystem origin (for example base64 payloads).
 // It returns valid contexts, contextLoadErrors and any errors that occurred during the process.
-func loadContextsFromData(data []byte, source int, skipProxySetup bool) ([]Context, []ContextLoadError, error) {
+func loadContextsFromData(
+	data []byte,
+	source int,
+	skipProxySetup bool,
+	kubeConfigPath string,
+) ([]Context, []ContextLoadError, error) {
 	var contexts []Context
 
 	var contextErrors []ContextLoadError
@@ -557,7 +567,7 @@ func loadContextsFromData(data []byte, source int, skipProxySetup bool) ([]Conte
 
 	// Process each context
 	for _, rawContext := range rawContexts {
-		context, err := ProcessContext(rawContext, kubeconfig, source, skipProxySetup)
+		context, err := processContext(rawContext, kubeconfig, source, skipProxySetup, kubeConfigPath)
 		if err != nil {
 			contextErrors = append(contextErrors, ContextLoadError{
 				ContextName: context.Name,
@@ -604,11 +614,28 @@ func GetContextsFromKubeconfig(kubeconfig map[string]interface{}) ([]interface{}
 // source is the source of the kubeconfig, i.e where the kubeconfig came from.
 // It can be KubeConfig, DynamicCluster, or InCluster.
 // skipProxySetup is a flag to skip proxy setup.
+// Relative certificate and key paths are left unresolved because no filesystem
+// origin is available through this entry point.
 func ProcessContext(
 	rawContext interface{},
 	kubeconfig map[string]interface{},
 	source int,
 	skipProxySetup bool,
+) (Context, error) {
+	return processContext(rawContext, kubeconfig, source, skipProxySetup, "")
+}
+
+// processContext processes a context from the kubeconfig.
+// kubeConfigPath is the source kubeconfig file path when known. Relative PKI
+// paths (certificate-authority, client-certificate, client-key, tokenFile, and
+// path-based exec commands) are resolved against that file's directory, matching
+// kubectl / client-go LoadFromFile behavior. See issue #2413.
+func processContext(
+	rawContext interface{},
+	kubeconfig map[string]interface{},
+	source int,
+	skipProxySetup bool,
+	kubeConfigPath string,
 ) (Context, error) {
 	var errs []error
 
@@ -647,6 +674,19 @@ func ProcessContext(
 		return context, errors.Join(errs...)
 	}
 
+	if err := resolveKubeconfigPaths(singleConfig, kubeConfigPath); err != nil {
+		errs = append(errs, ContextError{
+			ContextName: contextName,
+			Reason:      err.Error(),
+		})
+		context = Context{
+			Name:  contextName,
+			Error: err.Error(),
+		}
+
+		return context, errors.Join(errs...)
+	}
+
 	// Convert the config to a context
 	context, err = convertToContext(contextName, singleConfig, source, skipProxySetup)
 	if err != nil {
@@ -659,6 +699,44 @@ func ProcessContext(
 	}
 
 	return context, errors.Join(errs...)
+}
+
+// resolveKubeconfigPaths makes relative certificate and key paths absolute using
+// the directory of the source kubeconfig file, matching client-go's
+// LoadFromFile + ResolveLocalPaths behavior. kubeConfigPath may be empty when
+// the config has no filesystem origin (for example base64 payloads); in that
+// case paths are left unchanged.
+func resolveKubeconfigPaths(config *api.Config, kubeConfigPath string) error {
+	if config == nil || kubeConfigPath == "" {
+		return nil
+	}
+
+	absPath, err := filepath.Abs(kubeConfigPath)
+	if err != nil {
+		return fmt.Errorf("could not determine absolute path of kubeconfig %q: %w", kubeConfigPath, err)
+	}
+
+	// ResolveLocalPaths resolves each relative path against filepath.Dir of
+	// that stanza's LocationOfOrigin and skips stanzas where it is empty.
+	// clientcmd.Load (used above) never sets LocationOfOrigin, so assign the
+	// source kubeconfig path here first — matching LoadFromFile.
+	for _, cluster := range config.Clusters {
+		cluster.LocationOfOrigin = absPath
+	}
+
+	for _, authInfo := range config.AuthInfos {
+		authInfo.LocationOfOrigin = absPath
+	}
+
+	for _, ctx := range config.Contexts {
+		ctx.LocationOfOrigin = absPath
+	}
+
+	if err := clientcmd.ResolveLocalPaths(config); err != nil {
+		return fmt.Errorf("resolving relative paths in kubeconfig %q: %w", absPath, err)
+	}
+
+	return nil
 }
 
 // extractContextInfo extracts the context information from the raw context.

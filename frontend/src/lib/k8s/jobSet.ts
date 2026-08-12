@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { isConditionTrue } from './conditions';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 import type { WorkloadHealthCategory } from './Workload';
@@ -55,16 +56,15 @@ class JobSet extends KubeObject<KubeJobSet> {
    * transitional.
    */
   getHealth(): WorkloadHealthCategory {
-    const conditions = this.status?.conditions || [];
-    const isTrue = (type: string) => conditions.some(c => c.type === type && c.status === 'True');
+    const conditions = this.status?.conditions;
 
-    if (isTrue('Failed')) {
+    if (isConditionTrue(conditions, 'Failed')) {
       return 'failed';
     }
-    if (isTrue('Completed')) {
+    if (isConditionTrue(conditions, 'Completed')) {
       return 'healthy';
     }
-    if (isTrue('Suspended')) {
+    if (isConditionTrue(conditions, 'Suspended')) {
       return 'degraded';
     }
     return 'transitional';

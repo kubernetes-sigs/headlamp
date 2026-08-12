@@ -62,7 +62,7 @@ export function generateK8sResourceList<
     }
 
     if (json.metadata.namespace !== undefined) {
-      json.metadata.namespace.replace('{{i}}', i.toString());
+      json.metadata.namespace = json.metadata.namespace.replace('{{i}}', i.toString());
       if (!json.metadata.namespace) {
         json.metadata.namespace = 'my-namespace';
       }

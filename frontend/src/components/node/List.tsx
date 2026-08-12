@@ -14,16 +14,17 @@
  * limitations under the License.
  */
 
+import Box from '@mui/material/Box';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import Node from '../../lib/k8s/node';
 import { getResourceMetrics } from '../../lib/util';
-import { HoverInfoLabel } from '../common/Label';
+import { HoverInfoLabel, StatusLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { UsageBarChart } from './Charts';
 import { NodeReadyLabel } from './Details';
 import UpgradeVisualizationPanel from './UpgradeVisualizationPanel';
-import { formatTaint, NodeTaintsLabel } from './utils';
+import { formatTaint, isNodeCordoned, NodeTaintsLabel } from './utils';
 
 export default function NodeList() {
   const [nodeMetrics, metricsError] = Node.useMetrics();
@@ -93,7 +94,14 @@ export default function NodeList() {
               );
               return isReady ? t('translation|Yes') : t('translation|No');
             },
-            render: node => <NodeReadyLabel node={node} />,
+            render: node => (
+              <Box sx={{ display: 'flex', gap: 0.5, alignItems: 'center', flexWrap: 'wrap' }}>
+                <NodeReadyLabel node={node} />
+                {isNodeCordoned(node) && (
+                  <StatusLabel status="warning">{t('translation|Cordoned')}</StatusLabel>
+                )}
+              </Box>
+            ),
           },
           {
             id: 'taints',
