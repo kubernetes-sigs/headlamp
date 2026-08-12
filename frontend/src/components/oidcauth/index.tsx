@@ -15,22 +15,72 @@
  */
 
 import Typography from '@mui/material/Typography';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { useHistory, useLocation } from 'react-router-dom';
+import { createRouteURL } from '../../lib/router/createRouteURL';
+import { setConfig } from '../../redux/configSlice';
+import { useTypedSelector } from '../../redux/hooks';
 import { AUTH_STATUS_KEY } from './constants';
 
-/** Signals OIDC authentication completion via localStorage for the popup handler. */
+/** Signals OIDC authentication completion via localStorage for the popup handler or navigates in full-page mode. */
 function OIDCAuth() {
   const { search } = useLocation();
+  const history = useHistory();
+  const dispatch = useDispatch();
+  const clusters = useTypedSelector(state => state.config.clusters);
   const cluster = new URLSearchParams(search).get('cluster');
   const { t } = useTranslation();
+  const hasHandledRef = useRef(false);
 
   useEffect(() => {
-    if (cluster) {
-      localStorage.setItem(AUTH_STATUS_KEY, 'success');
+    if (!cluster || hasHandledRef.current) {
+      return;
     }
-  }, [cluster]);
+
+    const isPopup = Boolean(window.opener && window.opener !== window);
+    if (isPopup) {
+      localStorage.setItem(AUTH_STATUS_KEY, 'success');
+      hasHandledRef.current = true;
+    } else if (!clusters?.[cluster]) {
+      return;
+    }
+
+    if (clusters?.[cluster] && clusters[cluster].useToken !== false) {
+      const updatedClusters = {
+        ...clusters,
+        [cluster]: {
+          ...clusters[cluster],
+          useToken: false,
+        },
+      };
+      dispatch(setConfig({ clusters: updatedClusters }));
+    }
+
+    if (!isPopup) {
+      hasHandledRef.current = true;
+      let returnUrl = '';
+      try {
+        returnUrl = sessionStorage.getItem('oidc_return_url') || '';
+        if (returnUrl) {
+          sessionStorage.removeItem('oidc_return_url');
+        }
+      } catch (e) {
+        console.error('Failed to get return URL from sessionStorage', e);
+      }
+
+      if (!returnUrl && cluster) {
+        returnUrl = createRouteURL('cluster', { cluster }) || `/c/${cluster}/`;
+      }
+
+      if (!returnUrl) {
+        returnUrl = '/';
+      }
+
+      history.replace(returnUrl);
+    }
+  }, [cluster, clusters, dispatch, history]);
 
   return <Typography color="textPrimary">{t('Redirecting to main page…')}</Typography>;
 }
