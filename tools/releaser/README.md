@@ -35,7 +35,8 @@ releaser <command>
 export GITHUB_TOKEN=your-token-here
 
 # 1. Start the release (creates branch hl-rc-0.42.0, bumps version
-#    in app/package.json, runs npm install, and commits)
+#    in app/package.json and charts/headlamp/Chart.yaml, runs npm install,
+#    regenerates Helm templates, and commits)
 releaser start 0.42.0
 
 # 2. Create the GitHub draft release
@@ -79,7 +80,7 @@ For published releases, this also checks extended assets such as container image
 
 ### `start` — Start a new release
 
-Update `app/package.json` with the new version, run `npm install` in the app directory, and commit the changes. By default, a release branch named `hl-rc-<version>` is created.
+Update `app/package.json` and `charts/headlamp/Chart.yaml` with the new version, run `npm install` in the app directory, regenerate Helm expected templates via `make helm-update-template-version` (requires `make`, `bash`, and `helm` on PATH), and commit the changes. By default, a release branch named `hl-rc-<version>` is created.
 
 ```bash
 releaser start <release-version> [options]

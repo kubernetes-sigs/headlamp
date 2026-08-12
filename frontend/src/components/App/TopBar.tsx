@@ -46,8 +46,8 @@ import {
 } from '../../redux/actionButtonsSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { uiSlice } from '../../redux/uiSlice';
-import { SettingsButton } from '../App/Settings';
-import { ClusterTitle } from '../cluster/Chooser';
+import { navigateToClusterSettings, SettingsButton } from '../App/Settings';
+import { ClusterTitle, useClusterTitleVisible } from '../cluster/Chooser';
 import ErrorBoundary from '../common/ErrorBoundary';
 import { GlobalSearch } from '../globalSearch/GlobalSearch';
 import HeadlampButton from '../Sidebar/HeadlampButton';
@@ -187,7 +187,27 @@ export interface PureTopBarProps {
   onToggleOpen: () => void;
 }
 
-function AppBarActionsMenu({
+/**
+ * Wraps children in a MenuItem only if they render non-empty DOM content.
+ * Uses useLayoutEffect (fires before first paint) so the empty item is never
+ * visible to the user — it is suppressed in the same commit cycle.
+ * This handles plugin actions that are valid React elements or function
+ * components but conditionally render nothing in the mobile menu context.
+ */
+function NullableMenuItem({ children }: { children: React.ReactNode }) {
+  const ref = React.useRef<HTMLLIElement>(null);
+  const [show, setShow] = React.useState(true);
+
+  React.useLayoutEffect(() => {
+    if (ref.current && ref.current.innerHTML.trim() === '') {
+      setShow(false);
+    }
+  }, []);
+
+  return show ? <MenuItem ref={ref}>{children}</MenuItem> : null;
+}
+
+export function AppBarActionsMenu({
   appBarActions,
 }: {
   appBarActions: Array<AppBarAction | AppBarActionType>;
@@ -197,20 +217,24 @@ function AppBarActionsMenu({
       appBarActions.map(action => {
         const Action = has(action, 'action') ? action.action : action;
         if (React.isValidElement(Action)) {
+          // If the action is already a MenuItem, pass it through directly to avoid nesting.
+          if ((Action as React.ReactElement).type === MenuItem) {
+            return <ErrorBoundary>{Action}</ErrorBoundary>;
+          }
           return (
             <ErrorBoundary>
-              <MenuItem>{Action}</MenuItem>
+              <NullableMenuItem>{Action}</NullableMenuItem>
             </ErrorBoundary>
           );
-        } else if (Action === null) {
+        } else if (Action === null || Action === false) {
           return null;
         } else if (typeof Action === 'function') {
           const ActionComponent = Action as React.FC;
           return (
             <ErrorBoundary>
-              <MenuItem>
+              <NullableMenuItem>
                 <ActionComponent />
-              </MenuItem>
+              </NullableMenuItem>
             </ErrorBoundary>
           );
         }
@@ -231,7 +255,7 @@ function AppBarActions({
         const Action = has(action, 'action') ? action.action : action;
         if (React.isValidElement(Action)) {
           return <ErrorBoundary>{Action}</ErrorBoundary>;
-        } else if (Action === null) {
+        } else if (Action === null || Action === false) {
           return null;
         } else if (typeof Action === 'function') {
           const ActionComponent = Action as React.FC;
@@ -271,6 +295,7 @@ export const PureTopBar = memo(
     const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
     const [mobileMoreAnchorEl, setMobileMoreAnchorEl] = React.useState<null | HTMLElement>(null);
     const isClusterContext = !!cluster;
+    const isClusterTitleVisible = useClusterTitleVisible(cluster, clusters);
 
     const isMenuOpen = Boolean(anchorEl);
     const isMobileMenuOpen = Boolean(mobileMoreAnchorEl);
@@ -396,14 +421,14 @@ export const PureTopBar = memo(
     const allAppBarActionsMobile: AppBarAction[] = [
       {
         id: DefaultAppBarAction.CLUSTER,
-        action: isClusterContext && (
+        action: isClusterTitleVisible ? (
           <ClusterTitle
             cluster={cluster}
             clusters={clusters}
             selectedClusters={selectedClusters}
             onClick={() => handleMenuClose()}
           />
-        ),
+        ) : null,
       },
       ...appBarActions,
       {
@@ -412,25 +437,36 @@ export const PureTopBar = memo(
       },
       {
         id: DefaultAppBarAction.SETTINGS,
-        action: isClusterContext ? <SettingsButton onClickExtra={handleMenuClose} /> : null,
+        action: isClusterContext ? (
+          <MenuItem
+            onClick={() => {
+              navigateToClusterSettings(cluster!, history, handleMenuClose);
+            }}
+          >
+            <ListItemIcon>
+              <Icon icon="mdi:cog" />
+            </ListItemIcon>
+            <ListItemText>{t('translation|Settings')}</ListItemText>
+          </MenuItem>
+        ) : null,
       },
       {
         id: DefaultAppBarAction.USER,
-        action: showUserMenu && (
-          <IconButton
-            aria-label={t('Account of current user')}
+        action: showUserMenu ? (
+          <MenuItem
             aria-controls={userMenuId}
             aria-haspopup="true"
-            color="inherit"
             onClick={event => {
               handleMenuClose();
               handleProfileMenuOpen(event);
             }}
-            size="medium"
           >
-            <Icon icon="mdi:account" />
-          </IconButton>
-        ),
+            <ListItemIcon>
+              <Icon icon="mdi:account" />
+            </ListItemIcon>
+            <ListItemText>{t('Account of current user')}</ListItemText>
+          </MenuItem>
+        ) : null,
       },
     ];
     const renderMobileMenu = (
@@ -478,7 +514,7 @@ export const PureTopBar = memo(
       },
       {
         id: DefaultAppBarAction.USER,
-        action: showUserMenu && (
+        action: showUserMenu ? (
           <IconButton
             aria-label={t('Account of current user')}
             aria-controls={userMenuId}
@@ -489,7 +525,7 @@ export const PureTopBar = memo(
           >
             <Icon icon="mdi:account" />
           </IconButton>
-        ),
+        ) : null,
       },
     ];
 

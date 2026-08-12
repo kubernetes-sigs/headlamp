@@ -18,6 +18,7 @@ import { groupBy } from 'lodash';
 import Namespace from '../../../lib/k8s/namespace';
 import Node from '../../../lib/k8s/node';
 import Pod from '../../../lib/k8s/pod';
+import { addPerformanceMetric } from '../PerformanceStats';
 import { makeGraphLookup } from './graphLookup';
 import { forEachNode, getNodeWeight, GraphEdge, GraphNode } from './graphModel';
 
@@ -47,65 +48,96 @@ export const getGraphSize = (graph: GraphNode) => {
  *          or a group node containing multiple nodes and edges
  */
 const getConnectedComponents = (nodes: GraphNode[], edges: GraphEdge[]): GraphNode[] => {
+  const perfStart = performance.now();
   const components: GraphNode[] = [];
 
+  const lookupStart = performance.now();
   const graphLookup = makeGraphLookup(nodes, edges);
+  const lookupTime = performance.now() - lookupStart;
 
   const visitedNodes = new Set<string>();
   const visitedEdges = new Set<string>();
 
   /**
-   * Recursively finds all nodes in the connected component of a given node
-   * This function performs a depth-first search (DFS) to traverse and collect all nodes
+   * Iteratively finds all nodes in the connected component of a given node
+   * This function performs a breadth-first search (BFS) to traverse and collect all nodes
    * that are part of the same connected component as the provided node
    *
-   * @param node - The starting node for the connected component search
+   * PERFORMANCE: Uses an index-based queue instead of Array.shift() to achieve
+   * O(1) amortized dequeue and avoid the O(n²) behavior that shift()-based
+   * queues can exhibit on large components. The resulting BFS traversal runs
+   * in O(n) time with respect to the number of nodes in the component.
+   *
+   * PERFORMANCE: Uses iterative BFS instead of recursive DFS to avoid recursion
+   * depth limits and potential stack overflows on deep or dense graphs. The
+   * iterative approach removes dependence on call stack depth and is suitable
+   * for handling large graphs safely.
+   *
+   * @param startNode - The starting node for the connected component search
    * @param componentNodes - An array to store the nodes that are part of the connected component
    */
   const findConnectedComponent = (
-    node: GraphNode,
+    startNode: GraphNode,
     componentNodes: GraphNode[],
     componentEdges: GraphEdge[]
   ) => {
-    visitedNodes.add(node.id);
-    componentNodes.push(node);
+    const queue: GraphNode[] = [startNode];
+    // PERFORMANCE: Index-based queue for O(1) dequeue instead of O(n) shift()
+    let queueIndex = 0;
+    visitedNodes.add(startNode.id);
+    componentNodes.push(startNode);
 
-    // Outgoing edges
-    graphLookup.getOutgoingEdges(node.id)?.forEach(edge => {
-      // Always collect the edge if we haven't yet
-      if (!visitedEdges.has(edge.id)) {
-        visitedEdges.add(edge.id);
-        componentEdges.push(edge);
-      }
+    while (queueIndex < queue.length) {
+      const node = queue[queueIndex++]; // O(1) operation vs shift() which is O(n)
 
-      // Only recurse further if we haven't visited the target node
-      if (!visitedNodes.has(edge.target)) {
-        const targetNode = graphLookup.getNode(edge.target);
-        if (targetNode) {
-          findConnectedComponent(targetNode, componentNodes, componentEdges);
+      // Outgoing edges
+      const outgoing = graphLookup.getOutgoingEdges(node.id);
+      if (outgoing) {
+        for (const edge of outgoing) {
+          // Always collect the edge if we haven't yet
+          if (!visitedEdges.has(edge.id)) {
+            visitedEdges.add(edge.id);
+            componentEdges.push(edge);
+          }
+
+          // Only add to queue if we haven't visited the target node
+          if (!visitedNodes.has(edge.target)) {
+            const targetNode = graphLookup.getNode(edge.target);
+            if (targetNode) {
+              visitedNodes.add(edge.target);
+              componentNodes.push(targetNode);
+              queue.push(targetNode);
+            }
+          }
         }
       }
-    });
 
-    // Incoming edges
-    graphLookup.getIncomingEdges(node.id)?.forEach(edge => {
-      // Always collect the edge if we haven't yet
-      if (!visitedEdges.has(edge.id)) {
-        visitedEdges.add(edge.id);
-        componentEdges.push(edge);
-      }
+      // Incoming edges
+      const incoming = graphLookup.getIncomingEdges(node.id);
+      if (incoming) {
+        for (const edge of incoming) {
+          // Always collect the edge if we haven't yet
+          if (!visitedEdges.has(edge.id)) {
+            visitedEdges.add(edge.id);
+            componentEdges.push(edge);
+          }
 
-      // Only recurse further if we haven't visited the source node
-      if (!visitedNodes.has(edge.source)) {
-        const sourceNode = graphLookup.getNode(edge.source);
-        if (sourceNode) {
-          findConnectedComponent(sourceNode, componentNodes, componentEdges);
+          // Only add to queue if we haven't visited the source node
+          if (!visitedNodes.has(edge.source)) {
+            const sourceNode = graphLookup.getNode(edge.source);
+            if (sourceNode) {
+              visitedNodes.add(edge.source);
+              componentNodes.push(sourceNode);
+              queue.push(sourceNode);
+            }
+          }
         }
       }
-    });
+    }
   };
 
   // Iterate over each node and find connected components
+  const componentStart = performance.now();
   nodes.forEach(node => {
     if (!visitedNodes.has(node.id)) {
       const componentNodes: GraphNode[] = [];
@@ -120,6 +152,32 @@ const getConnectedComponents = (nodes: GraphNode[], edges: GraphEdge[]): GraphNo
         edges: componentEdges,
       });
     }
+  });
+  const componentTime = performance.now() - componentStart;
+
+  const totalTime = performance.now() - perfStart;
+
+  // Only log to console if debug flag is set
+  if (typeof window !== 'undefined' && (window as any).__HEADLAMP_DEBUG_PERFORMANCE__) {
+    console.log(
+      `[ResourceMap Performance] getConnectedComponents: ${totalTime.toFixed(
+        2
+      )}ms (lookup: ${lookupTime.toFixed(2)}ms, component detection: ${componentTime.toFixed(
+        2
+      )}ms, nodes: ${nodes.length}, components: ${components.length})`
+    );
+  }
+
+  addPerformanceMetric({
+    operation: 'getConnectedComponents',
+    duration: totalTime,
+    timestamp: Date.now(),
+    details: {
+      lookupMs: lookupTime.toFixed(1),
+      componentMs: componentTime.toFixed(1),
+      nodes: nodes.length,
+      components: components.length,
+    },
   });
 
   return components.map(it => (it.nodes?.length === 1 ? it.nodes[0] : it));
@@ -221,6 +279,8 @@ export function groupGraph(
     k8sNodes,
   }: { groupBy?: GroupBy; namespaces: Namespace[]; k8sNodes: Node[] }
 ): GraphNode {
+  const perfStart = performance.now();
+
   const root: GraphNode = {
     id: 'root',
     label: 'root',
@@ -229,6 +289,8 @@ export function groupGraph(
   };
 
   let components: GraphNode[] = getConnectedComponents(nodes, edges);
+
+  const groupingStart = performance.now();
 
   if (groupBy === 'namespace') {
     // Create groups based on the Kube resource namespace
@@ -299,7 +361,10 @@ export function groupGraph(
 
   root.nodes?.push(...components);
 
+  const groupingTime = performance.now() - groupingStart;
+
   // Sort nodes within each group node using weight-based sorting
+  const sortStart = performance.now();
   forEachNode(root, node => {
     /**
      * Sort elements, giving priority to both weight and bigger groups
@@ -327,6 +392,33 @@ export function groupGraph(
     if (node.nodes) {
       node.nodes.sort((a, b) => getNodeSortedWeight(b) - getNodeSortedWeight(a));
     }
+  });
+  const sortTime = performance.now() - sortStart;
+
+  const totalTime = performance.now() - perfStart;
+
+  // Only log to console if debug flag is set
+  if (typeof window !== 'undefined' && (window as any).__HEADLAMP_DEBUG_PERFORMANCE__) {
+    console.log(
+      `[ResourceMap Performance] groupGraph: ${totalTime.toFixed(
+        2
+      )}ms (grouping: ${groupingTime.toFixed(2)}ms, sorting: ${sortTime.toFixed(2)}ms, groupBy: ${
+        groupBy || 'none'
+      })`
+    );
+  }
+
+  addPerformanceMetric({
+    operation: 'groupGraph',
+    duration: totalTime,
+    timestamp: Date.now(),
+    details: {
+      groupingMs: groupingTime.toFixed(1),
+      sortingMs: sortTime.toFixed(1),
+      groupBy: groupBy || 'none',
+      nodes: nodes.length,
+      edges: edges.length,
+    },
   });
 
   return root;

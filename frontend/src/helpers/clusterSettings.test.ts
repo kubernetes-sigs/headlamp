@@ -118,13 +118,37 @@ describe('clusterSettings', () => {
       expect(loadClusterSettings('prod.extra')).toEqual({});
     });
 
-    // Documents current behaviour: corrupted localStorage payloads surface as
-    // a parse error rather than silently falling back to {}. A future change
-    // could add defensive recovery; this test should be updated alongside it.
-    it('throws when the stored payload is not valid JSON', () => {
+    it('returns empty object and logs console warning when the stored payload is not valid JSON', () => {
       localStorage.setItem('cluster_settings.prod', '{not json');
 
-      expect(() => loadClusterSettings('prod')).toThrow(SyntaxError);
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      const result = loadClusterSettings('prod');
+
+      expect(result).toEqual({});
+      expect(consoleWarnSpy).toHaveBeenCalled();
+      consoleWarnSpy.mockRestore();
+    });
+
+    it('returns empty object and logs console warning when the stored payload is not an object', () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+      // Test null
+      localStorage.setItem('cluster_settings.prod', 'null');
+      expect(loadClusterSettings('prod')).toEqual({});
+      expect(consoleWarnSpy).toHaveBeenCalledTimes(1);
+
+      // Test array
+      localStorage.setItem('cluster_settings.prod', '[1, 2, 3]');
+      expect(loadClusterSettings('prod')).toEqual({});
+      expect(consoleWarnSpy).toHaveBeenCalledTimes(2);
+
+      // Test string
+      localStorage.setItem('cluster_settings.prod', '"some string"');
+      expect(loadClusterSettings('prod')).toEqual({});
+      expect(consoleWarnSpy).toHaveBeenCalledTimes(3);
+
+      consoleWarnSpy.mockRestore();
     });
   });
 });

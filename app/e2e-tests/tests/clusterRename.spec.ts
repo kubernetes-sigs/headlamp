@@ -15,6 +15,9 @@
  */
 
 import { expect, test } from '@playwright/test';
+import { execSync } from 'child_process';
+import fs from 'fs';
+import os from 'os';
 import path from 'path';
 import { _electron, Page } from 'playwright';
 import { HeadlampPage } from './headlampPage';
@@ -23,6 +26,21 @@ import { HeadlampPage } from './headlampPage';
 const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'electron';
 const electronPath = path.resolve(__dirname, `../../node_modules/.bin/${electronExecutable}`);
 const appPath = path.resolve(__dirname, '../../');
+
+// Renaming a cluster persists a headlamp_info customName extension into the
+// kubeconfig. Run against a throwaway copy so the developer's real kubeconfig
+// is never modified and the suite stays repeatable.
+const ISOLATED_KUBECONFIG = path.join(os.tmpdir(), `headlamp-e2e-rename-${process.pid}.kubeconfig`);
+
+function writeIsolatedKubeconfig(context: string, target: string): void {
+  fs.writeFileSync(
+    target,
+    execSync(`kubectl --context ${context} config view --minify --raw --flatten`, {
+      encoding: 'utf8',
+    }),
+    { mode: 0o600 }
+  );
+}
 let electronApp;
 let electronPage: Page;
 
@@ -56,13 +74,17 @@ async function renameCluster(
 ) {
   await page.fill(`input[placeholder="${fromName}"]`, toName);
   await page.getByRole('button', { name: 'Apply' }).click();
-  await page.getByRole('button', { name: confirm ? 'Yes' : 'No' }).click();
+  // ConfirmDialog sets aria-label="confirm-button"/"cancel-button", which becomes
+  // the accessible name and overrides the visible "Yes"/"No" text.
+  await page.getByRole('button', { name: confirm ? 'confirm-button' : 'cancel-button' }).click();
   await page.waitForLoadState('load');
   await page.locator(`a[href="#/c/${toName}/"]`).click();
 }
 
 // Setup
 test.beforeAll(async () => {
+  writeIsolatedKubeconfig(TEST_CONFIG.originalName, ISOLATED_KUBECONFIG);
+
   electronApp = await _electron.launch({
     cwd: appPath,
     executablePath: electronPath,
@@ -71,14 +93,22 @@ test.beforeAll(async () => {
       ...process.env,
       NODE_ENV: 'development',
       ELECTRON_DEV: 'true',
+      KUBECONFIG: ISOLATED_KUBECONFIG,
     },
   });
 
   electronPage = await electronApp.firstWindow();
 });
 
+// The app holds a single-instance lock, so it must be closed or the next spec
+// file's launch is denied the lock and quits immediately.
+test.afterAll(async () => {
+  await electronApp?.close();
+  fs.rmSync(ISOLATED_KUBECONFIG, { force: true });
+});
+
 test.beforeEach(async ({ page }) => {
-  page.close();
+  await page.close();
 });
 
 // Tests
@@ -91,6 +121,8 @@ test.describe('Cluster rename functionality', () => {
     const page = process.env.PLAYWRIGHT_TEST_MODE === 'app' ? electronPage : browserPage;
     const headlampPage = new HeadlampPage(page);
     await headlampPage.authenticate();
+
+    await headlampPage.a11y();
 
     await navigateToSettings(page);
     await expect(page.locator('h2')).toContainText('Cluster Settings');
@@ -105,5 +137,7 @@ test.describe('Cluster rename functionality', () => {
     // Test successful rename
     await renameCluster(page, TEST_CONFIG.originalName, TEST_CONFIG.newName);
     await verifyClusterName(page, TEST_CONFIG.newName);
+    // No need to rename back: the rename is written to ISOLATED_KUBECONFIG,
+    // which is discarded in afterAll.
   });
 });

@@ -4,12 +4,10 @@ import (
 	"bytes"
 	"io"
 	"io/fs"
-	"mime"
 	"net/http"
 	"path"
 	"strings"
-
-	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
+	"time"
 )
 
 // embeddedSpaHandler serves the static files embedded in the binary.
@@ -24,11 +22,8 @@ type embeddedSpaHandler struct {
 
 // ServeHTTP serves the static files embedded in the binary.
 func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	rPath := strings.TrimPrefix(r.URL.Path, h.baseURL)
-	rPath = strings.TrimPrefix(rPath, "/")
-	rPath = path.Clean(rPath)
-
-	if rPath == ".." || strings.HasPrefix(rPath, "../") {
+	rPath, ok := sanitizeEmbeddedPath(strings.TrimPrefix(r.URL.Path, h.baseURL))
+	if !ok {
 		http.Error(w, "Invalid path", http.StatusBadRequest)
 		return
 	}
@@ -39,53 +34,131 @@ func (h embeddedSpaHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 	// Prepend "static" to the path as that's the root in our embed.FS
 	fullPath := path.Join("static", rPath)
-	servedPath := fullPath
+
+	// `Vary: Accept-Encoding` must be set on every response so caches keep
+	// per-encoding entries even when we end up serving identity bytes.
+	setEncodingHeaders(w, "")
+
+	// Detect whether this request would resolve to the index.html so we
+	// can decide up front whether the precompressed sidecar is safe to
+	// use. We must skip the sidecar for the index document because the
+	// `__baseUrl__` replacement below mutates the served bytes.
+	isServingIndex := rPath == h.indexPath
+
+	// Try to serve a precompressed sidecar (`.br`) when the client
+	// supports it and the file isn't the index.html (which we rewrite
+	// below).
+	if !isServingIndex && h.tryServePrecompressed(w, r, fullPath) {
+		return
+	}
 
 	content, err := h.serveFile(fullPath)
-	isServingIndex := false
-
 	if err != nil {
-		// If there's any error, serve the index file
-		servedPath = path.Join("static", h.indexPath)
-
-		content, err = h.serveFile(servedPath)
+		// If there's any error, serve the index file.
+		// Use path.Join (not filepath.Join) — embed.FS paths must use forward slashes.
+		content, err = h.serveFile(path.Join("static", h.indexPath))
 		if err != nil {
 			http.Error(w, "Unable to read index file", http.StatusInternalServerError)
 			return
 		}
 
 		isServingIndex = true
-	} else {
-		// Check if we're directly serving the index file
-		isServingIndex = rPath == h.indexPath
 	}
 
-	// if we're serving the index.html file and have a baseURL, replace the headlampBaseUrl with the baseURL
-	if h.baseURL != "" && isServingIndex {
-		// Replace the __baseUrl__ assignment to use the baseURL instead of './'
-		oldPattern := "__baseUrl__ = './<%= BASE_URL %>'.replace('%BASE_' + 'URL%', '').replace('<' + '%= BASE_URL %>', '');"
-		newPattern := "__baseUrl__ = '" + h.baseURL + "';"
-		content = bytes.ReplaceAll(content, []byte(oldPattern), []byte(newPattern))
-		// Replace any remaining './' patterns in the content
-		content = bytes.ReplaceAll(content, []byte("'./'"), []byte(h.baseURL+"/"))
-		// Replace url( patterns for CSS
-		content = bytes.ReplaceAll(content, []byte("url("), []byte("url("+h.baseURL+"/"))
+	content = h.rewriteIndexContent(content, isServingIndex)
+
+	// Set the correct Content-Type header. When we fell back to serving the
+	// index file, use the index path's extension (always .html), not the
+	// originally-requested path (which could be .css, .js, etc.).
+	// Use path.Join (not filepath.Join) — embed.FS paths must use forward
+	// slashes on all platforms, including Windows.
+	contentPath := fullPath
+	if isServingIndex {
+		contentPath = path.Join("static", h.indexPath)
 	}
 
-	// Set the correct Content-Type header
-	ext := path.Ext(servedPath)
-
-	contentType := mime.TypeByExtension(ext)
-	if contentType == "" {
-		contentType = http.DetectContentType(content)
+	ctype := detectContentType(contentPath, func() (io.ReadCloser, error) {
+		return h.staticFS.Open(contentPath)
+	})
+	if ctype != "" {
+		w.Header().Set("Content-Type", ctype)
 	}
 
-	w.Header().Set("Content-Type", contentType)
+	http.ServeContent(w, r, contentPath, time.Time{}, bytes.NewReader(content))
+}
 
-	_, err = w.Write(content) //nolint:gosec
+func sanitizeEmbeddedPath(rPath string) (string, bool) {
+	// Strip the leading "/" so path.Join keeps "static" as the root.
+	// embed.FS paths are always forward-slash-separated, so use path.Join,
+	// not filepath.Join (which emits OS separators on Windows).
+	rPath = strings.TrimLeft(rPath, "/")
+
+	// Reject backslashes — HTTP paths must use '/', and '\\' is a Windows
+	// path separator that could be used for traversal.
+	if strings.ContainsRune(rPath, '\\') {
+		return "", false
+	}
+
+	// Normalise and reject any path that would escape the embedded root.
+	// path.Join cleans ".." segments, but the cleaned result can start with
+	// ".." when there are more ".." components than path components, which
+	// would escape the "static/" prefix we prepend below.
+	rPath = path.Clean(rPath)
+
+	if rPath == ".." || strings.HasPrefix(rPath, "../") {
+		return "", false
+	}
+
+	return rPath, true
+}
+
+func (h embeddedSpaHandler) rewriteIndexContent(content []byte, isServingIndex bool) []byte {
+	if h.baseURL == "" || !isServingIndex {
+		return content
+	}
+
+	// Replace the __baseUrl__ assignment to use the baseURL instead of './'.
+	oldPattern := "__baseUrl__ = './<%= BASE_URL %>'.replace('%BASE_' + 'URL%', '').replace('<' + '%= BASE_URL %>', '');"
+	newPattern := "__baseUrl__ = '" + h.baseURL + "';"
+	content = bytes.ReplaceAll(content, []byte(oldPattern), []byte(newPattern))
+
+	// Replace any remaining './' patterns in the content.
+	content = bytes.ReplaceAll(content, []byte("'./'"), []byte(h.baseURL+"/"))
+
+	// Replace url( patterns for CSS.
+	return bytes.ReplaceAll(content, []byte("url("), []byte("url("+h.baseURL+"/"))
+}
+
+// tryServePrecompressed attempts to serve a precompressed sidecar (e.g.
+// `.br`) for fullPath when the client advertises support for it. It
+// returns true when the response has been written and the caller should
+// stop, or false when the caller should fall back to identity content.
+func (h embeddedSpaHandler) tryServePrecompressed(
+	w http.ResponseWriter, r *http.Request, fullPath string,
+) bool {
+	encoding := pickEncoding(r.Header.Get("Accept-Encoding"))
+	if encoding == "" {
+		return false
+	}
+
+	data, err := h.serveFile(fullPath + encodingExt(encoding))
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing content")
+		return false
 	}
+
+	ctype := detectContentType(fullPath, func() (io.ReadCloser, error) {
+		return h.staticFS.Open(fullPath)
+	})
+
+	if ctype != "" {
+		w.Header().Set("Content-Type", ctype)
+	}
+
+	setEncodingHeaders(w, encoding)
+	sidecarPath := fullPath + encodingExt(encoding)
+	http.ServeContent(w, r, sidecarPath, time.Time{}, bytes.NewReader(data))
+
+	return true
 }
 
 func (h embeddedSpaHandler) serveFile(filePath string) ([]byte, error) {

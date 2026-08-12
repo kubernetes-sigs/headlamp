@@ -266,7 +266,7 @@ export function PluginSettingsDetailsPure(props: PluginSettingsDetailsPureProps)
             }
             subtitle={author ? `${t('translation|By')}: ${author}` : undefined}
             noPadding={false}
-            headerStyle="subsection"
+            headerStyle="main"
           />
         }
         backLink={'/settings/plugins'}
