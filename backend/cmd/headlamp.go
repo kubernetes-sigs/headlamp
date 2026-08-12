@@ -604,6 +604,10 @@ func loadKubeConfigClusters(config *HeadlampConfig, path string, skipFunc func(k
 // loadDynamicClusters loads clusters that Headlamp itself persists when clusters are added at
 // runtime. That file will only exist once such a cluster has been added, so a missing file is normal.
 func loadDynamicClusters(config *HeadlampConfig, path string, skipFunc func(kubeconfig.Context) bool) {
+	if path == "" {
+		return
+	}
+
 	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
 		logger.Log(logger.LevelInfo, map[string]string{"kubeconfig": path}, nil,
 			"No kubeconfig for dynamically added clusters")
@@ -713,9 +717,9 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	kubeConfigPersistenceFile, err := defaultHeadlampKubeConfigFile()
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "getting default kubeconfig persistence file")
+	} else {
+		loadDynamicClusters(config, kubeConfigPersistenceFile, skipFunc)
 	}
-
-	loadDynamicClusters(config, kubeConfigPersistenceFile, skipFunc)
 
 	addPluginRoutes(config, r)
 
