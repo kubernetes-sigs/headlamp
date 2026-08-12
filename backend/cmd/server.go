@@ -74,6 +74,17 @@ func main() {
 		}()
 	}
 
+	if conf.AuthBypassURLs != "" {
+		urls := strings.Split(conf.AuthBypassURLs, ",")
+		var trimmedURLs []string
+		for _, u := range urls {
+			if trimmed := strings.TrimSpace(u); trimmed != "" {
+				trimmedURLs = append(trimmedURLs, trimmed)
+			}
+		}
+		k8cache.ExtraAuthBypassURLs = trimmedURLs
+	}
+
 	headlampConfig := createHeadlampConfig(conf)
 	StartHeadlampServer(headlampConfig)
 }
