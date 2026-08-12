@@ -60,16 +60,21 @@ package main
 
 import (
 	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
+	"math/big"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
@@ -527,4 +532,83 @@ func TestOIDCCallback_PKCEVerifierSentOnExchange(t *testing.T) {
 		assert.Empty(t, form.Get("code_verifier"),
 			"no code_verifier should be sent when PKCE is off")
 	})
+}
+
+// newSigningOIDCTestServer is like newOIDCTestServer but its /token endpoint
+// returns an RS256 id_token that verifies against its /jwks, so
+// /oidc-callback can run to the final redirect.
+func newSigningOIDCTestServer(t *testing.T) *oidcTestServer {
+	t.Helper()
+
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	b64 := base64.RawURLEncoding.EncodeToString
+	mux := http.NewServeMux()
+	srv := httptest.NewServer(mux)
+	t.Cleanup(srv.Close)
+
+	mux.HandleFunc("/.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"issuer":                                srv.URL,
+			"authorization_endpoint":                srv.URL + "/auth",
+			"token_endpoint":                        srv.URL + "/token",
+			"jwks_uri":                              srv.URL + "/jwks",
+			"id_token_signing_alg_values_supported": []string{"RS256"},
+		})
+	})
+
+	mux.HandleFunc("/jwks", func(w http.ResponseWriter, _ *http.Request) {
+		_ = json.NewEncoder(w).Encode(map[string]any{"keys": []map[string]string{{
+			"kty": "RSA", "alg": "RS256", "use": "sig", "kid": "k",
+			"n": b64(key.N.Bytes()), "e": b64(big.NewInt(int64(key.E)).Bytes()),
+		}}})
+	})
+
+	mux.HandleFunc("/token", func(w http.ResponseWriter, _ *http.Request) {
+		header, _ := json.Marshal(map[string]string{"alg": "RS256", "kid": "k", "typ": "JWT"})
+		claims, _ := json.Marshal(map[string]any{
+			"iss": srv.URL, "sub": "user", "aud": "test-client-id",
+			"iat": time.Now().Unix(), "exp": time.Now().Add(time.Hour).Unix(),
+		})
+		signingInput := b64(header) + "." + b64(claims)
+		sum := sha256.Sum256([]byte(signingInput))
+
+		sig, err := rsa.SignPKCS1v15(rand.Reader, key, crypto.SHA256, sum[:])
+		if err != nil {
+			t.Errorf("sign id_token: %v", err)
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{
+			"access_token": "access", "token_type": "Bearer", "expires_in": 3600,
+			"id_token": signingInput + "." + b64(sig),
+		})
+	})
+
+	return &oidcTestServer{server: srv}
+}
+
+// TestOIDCCallback_PopupMarkerRoundTrip checks that /oidc?popup=true is
+// carried through the state entry to the frontend /auth redirect, so the
+// frontend can detect popup mode without relying on window.opener.
+func TestOIDCCallback_PopupMarkerRoundTrip(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		query    string
+		wantAuth string
+	}{
+		{"popup", "&popup=true", "/auth?cluster=oidc-char-test&popup=true"},
+		{"full page", "", "/auth?cluster=oidc-char-test"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			handler, cluster := newOIDCTestHandler(t, newSigningOIDCTestServer(t))
+
+			state := extractState(t, driveOIDCStart(t, handler, cluster+tc.query))
+			rr := callOIDCCallback(t, handler, fmt.Sprintf("state=%s&code=fake", state))
+
+			require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
+			assert.Equal(t, tc.wantAuth, rr.Header().Get("Location"))
+		})
+	}
 }
