@@ -95,6 +95,36 @@ describe('useWebSockets', () => {
     });
   });
 
+  it('drops a malformed frame instead of throwing, and keeps delivering later messages', async () => {
+    const url = 'api/v1/pods?watch=1&resourceVersion=2.5';
+    const server = new WS(`${BASE_WS_URL}${url}`);
+    const onMessageA = vi.fn();
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    renderHook(() =>
+      useWebSockets({
+        connections: [{ cluster: '', url, onMessage: onMessageA }],
+      })
+    );
+
+    await server.connected;
+    await server.send('not valid json');
+
+    await waitFor(() => {
+      expect(consoleError).toHaveBeenCalledWith(
+        'WebSocket message parse error:',
+        expect.any(SyntaxError)
+      );
+    });
+    expect(onMessageA).not.toHaveBeenCalled();
+
+    await server.send(JSON.stringify({ type: 'DELETED', object: { metadata: { uid: 'pod-c' } } }));
+
+    await waitFor(() => {
+      expect(onMessageA).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('keeps a shared websocket alive until the last listener unsubscribes', async () => {
     const url = 'api/v1/pods?watch=1&resourceVersion=3';
     const server = new WS(`${BASE_WS_URL}${url}`);
