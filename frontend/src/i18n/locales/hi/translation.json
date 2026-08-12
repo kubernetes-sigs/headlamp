@@ -793,6 +793,7 @@
   "Upgrading Nodes": "",
   "Surge Nodes": "",
   "Idle Nodes": "",
+  "Unable to access browser storage to complete authentication. Please enable cookies and storage in your browser settings and try again.": "",
   "Redirecting to main page…": "",
   "Node": "",
   "Optional: schedule the pod on a specific node": "",

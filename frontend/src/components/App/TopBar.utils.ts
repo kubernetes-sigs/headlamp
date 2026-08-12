@@ -43,5 +43,5 @@ export function handleLogoutPathUpdate(
     }
   }
 
-  historyPush('/');
+  historyPush('/?logout=true');
 }

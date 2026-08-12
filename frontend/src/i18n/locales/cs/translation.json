@@ -803,6 +803,7 @@
   "Upgrading Nodes": "",
   "Surge Nodes": "",
   "Idle Nodes": "",
+  "Unable to access browser storage to complete authentication. Please enable cookies and storage in your browser settings and try again.": "",
   "Redirecting to main page…": "Přesměrovávání na hlavní stránku...",
   "Node": "Uzel",
   "Optional: schedule the pod on a specific node": "",

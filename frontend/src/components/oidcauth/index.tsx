@@ -15,22 +15,97 @@
  */
 
 import Typography from '@mui/material/Typography';
-import { useEffect } from 'react';
+import { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import { useLocation } from 'react-router-dom';
+import { useDispatch } from 'react-redux';
+import { useHistory, useLocation } from 'react-router-dom';
+import { createRouteURL } from '../../lib/router/createRouteURL';
+import { setConfig } from '../../redux/configSlice';
+import { useTypedSelector } from '../../redux/hooks';
 import { AUTH_STATUS_KEY } from './constants';
 
-/** Signals OIDC authentication completion via localStorage for the popup handler. */
+const handledAuthUrls = new Set<string>();
+
+export function resetHandledAuthUrls() {
+  handledAuthUrls.clear();
+}
+
+/** Signals OIDC authentication completion via localStorage for the popup handler or navigates in full-page mode. */
 function OIDCAuth() {
   const { search } = useLocation();
+  const history = useHistory();
+  const dispatch = useDispatch();
+  const clusters = useTypedSelector(state => state.config.clusters);
   const cluster = new URLSearchParams(search).get('cluster');
   const { t } = useTranslation();
 
+  const isPopup = Boolean(window.opener && window.opener !== window);
+  const storageError = useMemo(() => {
+    if (!cluster || isPopup) {
+      return null;
+    }
+    try {
+      sessionStorage.setItem(`oidc-login-attempted.${cluster}`, 'true');
+      return null;
+    } catch {
+      return t(
+        'Unable to access browser storage to complete authentication. Please enable cookies and storage in your browser settings and try again.'
+      );
+    }
+  }, [cluster, isPopup, t]);
+
   useEffect(() => {
-    if (cluster) {
+    if (storageError || !cluster || handledAuthUrls.has(search)) {
+      return;
+    }
+
+    handledAuthUrls.add(search);
+
+    if (isPopup) {
       localStorage.setItem(AUTH_STATUS_KEY, 'success');
     }
-  }, [cluster]);
+
+    if (clusters?.[cluster] && clusters[cluster].useToken !== false) {
+      const updatedClusters = {
+        ...clusters,
+        [cluster]: {
+          ...clusters[cluster],
+          useToken: false,
+        },
+      };
+      dispatch(setConfig({ clusters: updatedClusters }));
+    }
+
+    if (!isPopup) {
+      let returnUrl = '';
+      try {
+        returnUrl = sessionStorage.getItem('oidc_return_url') || '';
+        if (returnUrl) {
+          sessionStorage.removeItem('oidc_return_url');
+        }
+      } catch (e) {
+        console.error('Failed to get return URL from sessionStorage', e);
+      }
+
+      if (!returnUrl && cluster) {
+        returnUrl = createRouteURL('cluster', { cluster }) || `/c/${cluster}/`;
+      }
+
+      if (!returnUrl) {
+        returnUrl = '/';
+      }
+
+      history.replace(returnUrl);
+    }
+  }, [cluster, clusters, dispatch, history, isPopup, search, storageError]);
+
+  if (storageError) {
+    return (
+      <Typography color="error" role="alert">
+        {storageError}
+      </Typography>
+    );
+  }
 
   return <Typography color="textPrimary">{t('Redirecting to main page…')}</Typography>;
 }
