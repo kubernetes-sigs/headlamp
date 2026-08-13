@@ -28,7 +28,7 @@ import Pod from '../../lib/k8s/pod';
 import { METRIC_REFETCH_INTERVAL_MS, PodMetrics } from '../../lib/k8s/PodMetrics';
 import { parseCpu, parseRam, unparseCpu, unparseRam } from '../../lib/units';
 import { localeDate, timeAgo } from '../../lib/util';
-import { useNamespaces } from '../../redux/filterSlice';
+import { useLabelSelector, useNamespaces } from '../../redux/filterSlice';
 import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { CreateResourceButton } from '../common';
 import { StatusLabel, StatusLabelProps } from '../common/Label';
@@ -306,6 +306,7 @@ export interface PodListProps {
   hasMore?: boolean;
   remainingItemCount?: number;
   onLoadMore?: () => Promise<void>;
+  labelFilterEnabled?: boolean;
 }
 
 export function filterPod(pod: Pod, search: string) {
@@ -337,6 +338,7 @@ export function PodListRenderer(props: PodListProps) {
     hasMore,
     remainingItemCount,
     onLoadMore,
+    labelFilterEnabled = false,
   } = props;
   const [loadingMore, setLoadingMore] = useState(false);
 
@@ -387,6 +389,7 @@ export function PodListRenderer(props: PodListProps) {
       title={t('Pods')}
       searchFilter={filterPod}
       headerProps={{
+        noLabelFilter: !labelFilterEnabled,
         noNamespaceFilter,
         titleSideActions: hideCreateButton
           ? []
@@ -791,13 +794,16 @@ export function PodListRenderer(props: PodListProps) {
 }
 
 export default function PodList() {
+  const labelSelector = useLabelSelector();
   const namespaces = useNamespaces();
   const { items, errors, hasMore, remainingItemCount, loadMore } = Pod.useList({
     namespace: namespaces,
+    labelSelector: labelSelector || undefined,
     limit: DEFAULT_LIST_LIMIT,
   });
   const { items: podMetrics, loadMore: loadMoreMetrics } = PodMetrics.useList({
     namespace: namespaces,
+    labelSelector: labelSelector || undefined,
     limit: DEFAULT_LIST_LIMIT,
     refetchInterval: METRIC_REFETCH_INTERVAL_MS,
   });
@@ -828,6 +834,7 @@ export default function PodList() {
       hasMore={hasMore}
       remainingItemCount={remainingItemCount}
       onLoadMore={loadMore ? loadMorePodsAndMetrics : undefined}
+      labelFilterEnabled
     />
   );
 }

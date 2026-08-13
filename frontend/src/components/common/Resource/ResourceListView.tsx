@@ -15,6 +15,7 @@
  */
 
 import React, { PropsWithChildren, ReactElement, ReactNode } from 'react';
+import { getLabelKeysFromResources } from '../../../lib/getLabelKeysFromResources';
 import { KubeObject, KubeObjectClass } from '../../../lib/k8s/KubeObject';
 import { BackLinkProps } from '../BackLink';
 import { CreateResourceButton, CreateResourceButtonProps } from '../CreateResourceButton';
@@ -59,6 +60,21 @@ export default function ResourceListView<Item extends KubeObject<any>>(
 export default function ResourceListView(
   props: ResourceListViewProps<any> | ResourceListViewWithResourceClassProps<any>
 ) {
+  const visibleData =
+    'data' in props && props.headerProps?.noLabelFilter === false ? props.data : undefined;
+  const dataLabelKeys = React.useMemo(
+    () => (visibleData === undefined ? [] : getLabelKeysFromResources(visibleData)),
+    [visibleData]
+  );
+  const [reportedLabelKeys, setReportedLabelKeys] = React.useState<string[]>([]);
+  const updateLabelKeys = React.useCallback((nextLabelKeys: string[]) => {
+    setReportedLabelKeys(currentLabelKeys =>
+      currentLabelKeys.length === nextLabelKeys.length &&
+      currentLabelKeys.every((key, index) => key === nextLabelKeys[index])
+        ? currentLabelKeys
+        : nextLabelKeys
+    );
+  }, []);
   const { title, children, backLink, headerProps, ...tableProps } = props;
   const withNamespaceFilter = 'resourceClass' in props && props.resourceClass?.isNamespaced;
   const resourceClass = (props as ResourceListViewWithResourceClassProps<any>)
@@ -125,6 +141,8 @@ export default function ResourceListView(
         typeof title === 'string' ? (
           <SectionFilterHeader
             title={title}
+            labelKeys={resourceClass ? reportedLabelKeys : dataLabelKeys}
+            noLabelFilter={!resourceClass}
             titleSideActions={headerProps?.titleSideActions || createActions}
             {...headerProps}
             noNamespaceFilter={noNamespaceFilter}
@@ -140,6 +158,7 @@ export default function ResourceListView(
         noNamespaceFilter={noNamespaceFilter}
         enableRowActions={tableProps.enableRowActions ?? true}
         enableRowSelection={tableProps.enableRowSelection ?? true}
+        onLabelKeysChange={resourceClass ? updateLabelKeys : undefined}
       />
       {children}
     </SectionBox>

@@ -34,9 +34,9 @@ import { isBackstage } from '../../helpers/isBackstage';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
-import { getSavedNamespaces } from '../../lib/storage';
+import { validateLabelSelector } from '../../lib/labelSelectorValidation';
 import { getUserSelectedThemeName } from '../../lib/themes';
-import { setNamespaceFilter } from '../../redux/filterSlice';
+import { restoreFiltersForCluster, setLabelSelectorFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { useUIPanelsGroupedBySide } from '../../redux/uiSlice';
 import { useClusterDefinedSettings } from '../../settings/fetchClusterSettings';
@@ -109,7 +109,6 @@ export default function Layout({}: LayoutProps) {
   const isFullWidth = useTypedSelector(state => state.ui.isFullWidth);
   const { t } = useTranslation();
   const allClusters = useClustersConf();
-  const location = useLocation();
 
   useClusterDefinedSettings();
 
@@ -167,10 +166,11 @@ export default function Layout({}: LayoutProps) {
   }, [dispatch, error, isThemeConfigReady]);
 
   const cluster = useCluster();
+  const { pathname, search } = useLocation();
+  const labelSelectorFromURL = new URLSearchParams(search).get('labelSelector');
   useEffect(() => {
     if (cluster) {
-      const saved = getSavedNamespaces(cluster);
-      dispatch(setNamespaceFilter(saved));
+      dispatch(restoreFiltersForCluster(cluster));
     }
   }, [cluster, dispatch]);
 
@@ -196,7 +196,17 @@ export default function Layout({}: LayoutProps) {
   }, [backstageOrigin]);
 
   const selectedClusters = useSelectedClusters();
-  const { pathname } = location;
+
+  useEffect(() => {
+    if (
+      cluster &&
+      labelSelectorFromURL !== null &&
+      validateLabelSelector(labelSelectorFromURL) === null
+    ) {
+      dispatch(setLabelSelectorFilter(labelSelectorFromURL));
+    }
+  }, [cluster, dispatch, labelSelectorFromURL]);
+
   const configuredClusters = pathname.startsWith('/project/') ? Object.keys(allClusters || {}) : [];
   const clustersToResolve = [
     ...new Set([...configuredClusters, cluster || '', ...selectedClusters].filter(Boolean)),

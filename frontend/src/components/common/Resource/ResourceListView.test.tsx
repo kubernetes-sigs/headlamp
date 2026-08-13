@@ -14,18 +14,25 @@
  * limitations under the License.
  */
 
-import { render } from '@testing-library/react';
+import { act, render } from '@testing-library/react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../../test';
 import { CreateResourceButton } from '../CreateResourceButton';
 import ResourceListView from './ResourceListView';
 
-const { createButtonProps, lastResourceTablePropsHolder, lastSectionFilterHeaderPropsHolder } =
-  vi.hoisted(() => ({
-    createButtonProps: vi.fn(),
-    lastResourceTablePropsHolder: { current: null as any },
-    lastSectionFilterHeaderPropsHolder: { current: null as any },
-  }));
+const {
+  createButtonProps,
+  getLabelKeysFromResources,
+  lastResourceTablePropsHolder,
+  lastSectionFilterHeaderPropsHolder,
+} = vi.hoisted(() => ({
+  createButtonProps: vi.fn(),
+  getLabelKeysFromResources: vi.fn((items: any[] | null) =>
+    [...new Set(items?.flatMap(item => Object.keys(item.metadata.labels ?? {})) ?? [])].sort()
+  ),
+  lastResourceTablePropsHolder: { current: null as any },
+  lastSectionFilterHeaderPropsHolder: { current: null as any },
+}));
 
 vi.mock('../CreateResourceButton', () => ({
   CreateResourceButton: (props: any) => {
@@ -60,6 +67,10 @@ vi.mock('./ResourceTable', () => ({
   },
 }));
 
+vi.mock('../../../lib/getLabelKeysFromResources', () => ({
+  getLabelKeysFromResources,
+}));
+
 // Mark the EmptyStateActions rendering so we can detect the auto-default.
 vi.mock('./EmptyStateActions', () => ({
   EmptyStateActions: ({ resourceClass, cluster }: any) => (
@@ -92,7 +103,10 @@ function renderView(props: any) {
 }
 
 describe('ResourceListView', () => {
-  beforeEach(() => createButtonProps.mockReset());
+  beforeEach(() => {
+    createButtonProps.mockReset();
+    getLabelKeysFromResources.mockClear();
+  });
 
   it('leaves the create action on its default cluster when the list is not limited', () => {
     renderList();
@@ -111,6 +125,61 @@ describe('ResourceListView', () => {
     renderList([]);
 
     expect(createButtonProps).not.toHaveBeenCalled();
+  });
+
+  it('hides label filtering when data is supplied without a resource class', () => {
+    renderView({ title: 'Roles', columns: [], data: [] });
+
+    expect(lastSectionFilterHeaderPropsHolder.current.noLabelFilter).toBe(true);
+    expect(getLabelKeysFromResources).not.toHaveBeenCalled();
+  });
+
+  it('supports an explicitly enabled data-driven list and derives its label keys', () => {
+    renderView({
+      title: 'Pods',
+      columns: [],
+      data: [
+        { metadata: { labels: { tier: 'frontend', app: 'checkout' } } },
+        { metadata: { labels: { app: 'payments', environment: 'production' } } },
+      ],
+      headerProps: { noLabelFilter: false },
+    });
+
+    expect(lastSectionFilterHeaderPropsHolder.current).toMatchObject({
+      labelKeys: ['app', 'environment', 'tier'],
+      noLabelFilter: false,
+    });
+  });
+
+  it('keeps derived label keys stable while the data reference is unchanged', () => {
+    const data = [{ metadata: { labels: { app: 'checkout' } } }];
+    const props = {
+      title: 'Pods',
+      columns: [],
+      data,
+      headerProps: { noLabelFilter: false },
+    };
+    const view = renderView(props);
+    const firstKeys = lastSectionFilterHeaderPropsHolder.current.labelKeys;
+
+    view.rerender(<ResourceListView {...(props as any)} />);
+
+    expect(getLabelKeysFromResources).toHaveBeenCalledTimes(1);
+    expect(lastSectionFilterHeaderPropsHolder.current.labelKeys).toBe(firstKeys);
+  });
+
+  it('shows label filtering when a resource class supplies server-side listing', () => {
+    renderView({ title: 'Pods', columns: [], resourceClass: { isNamespaced: true } });
+
+    expect(lastSectionFilterHeaderPropsHolder.current.noLabelFilter).toBe(false);
+  });
+
+  it('passes label keys reported by the resource table to the filter header', () => {
+    renderView({ title: 'Pods', columns: [], resourceClass: { isNamespaced: true } });
+
+    act(() => lastResourceTablePropsHolder.current.onLabelKeysChange(['app', 'tier']));
+
+    expect(lastSectionFilterHeaderPropsHolder.current.labelKeys).toEqual(['app', 'tier']);
   });
 });
 
