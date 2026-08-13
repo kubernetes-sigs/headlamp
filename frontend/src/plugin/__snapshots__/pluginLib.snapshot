@@ -98,6 +98,7 @@
       "Job",
     },
     "LabelListItem": [Function],
+    "LabelSelectorInput": [Function],
     "LabelTextField": [Function],
     "LightTooltip": [Function],
     "Link": [Function],

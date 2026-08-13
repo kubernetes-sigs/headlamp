@@ -48,7 +48,7 @@ vi.mock('../../../helpers/tablesRowsPerPage', () => ({
   setTablesRowsPerPage: vi.fn(),
 }));
 vi.mock('../../App/Settings/hook', () => ({ useSettings: () => [10] }));
-vi.mock('../../resourceMap/useQueryParamsState', () => ({
+vi.mock('../../../lib/useQueryParamsState', () => ({
   useQueryParamsState: (_key: string, initialValue: unknown) => [initialValue, vi.fn()],
 }));
 
