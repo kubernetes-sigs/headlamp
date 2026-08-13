@@ -19,7 +19,7 @@ import PodGroup from '../../lib/k8s/podGroup';
 import { StatusLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
 
-/** Shows whether the group met its scheduling requirement, from the PodGroupScheduled condition. */
+/** Shows whether the group met its scheduling requirement, from its scheduling condition. */
 function SchedulingStatus({ podGroup }: { podGroup: PodGroup }) {
   const { t } = useTranslation(['translation']);
   const condition = podGroup.schedulingCondition;
