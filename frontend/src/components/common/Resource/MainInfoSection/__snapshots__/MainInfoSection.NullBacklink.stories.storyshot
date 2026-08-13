@@ -76,6 +76,8 @@
                 />
               </button>
               <button
+                aria-expanded="false"
+                aria-haspopup="true"
                 aria-label="More delete options"
                 class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
                 data-mui-internal-clone-element="true"
