@@ -41,6 +41,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { _electron, Page } from 'playwright';
+import { dismissReleaseNotes } from './releaseNotesTestUtils';
 
 const CLUSTER_NAME = 'headlamp-e2e-connect';
 const EXEC_KUBECONFIG = path.join(os.tmpdir(), `${CLUSTER_NAME}.kubeconfig`);
@@ -53,6 +54,19 @@ const appPath = path.resolve(__dirname, '../../');
 let electronApp: Awaited<ReturnType<typeof _electron.launch>>;
 let electronPage: Page;
 let appBaseUrl = ''; // set after Electron launch
+
+// Electron's default userData directory persists across launches. Reusing
+// it (by omitting --user-data-dir) accumulates real browser state — cache,
+// IndexedDB, etc. — across every Electron launch that came before this one,
+// including from other spec files in the same run. That leftover state
+// reproducibly caused a phantom element to intercept clicks in this suite
+// (confirmed by bisecting: identical launch args except for
+// --user-data-dir turned a 100%-reproducible click-interception failure
+// into a 100% pass). A throwaway profile per run sidesteps it entirely.
+// Created in beforeAll, not here at module scope, so collecting this file
+// (e.g. `--list`) never creates a directory that beforeAll/afterAll won't
+// run to clean up.
+let PROFILE_DIR: string;
 
 function shell(cmd: string): string {
   return execSync(cmd, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'] }).trim();
@@ -116,12 +130,15 @@ function teardownExecCluster(): void {
 test.beforeAll(async () => {
   test.setTimeout(3 * 60 * 1000); // cluster creation takes ~60s
   setupExecCluster();
+  PROFILE_DIR = fs.mkdtempSync(
+    path.join(os.tmpdir(), 'headlamp-e2e-cluster-auto-connect-profile-')
+  );
 
   // Launch Electron with the merged kubeconfig so it sees the new cluster.
   electronApp = await _electron.launch({
     cwd: appPath,
     executablePath: electronPath,
-    args: ['.'],
+    args: ['.', `--user-data-dir=${PROFILE_DIR}`],
     env: {
       ...process.env,
       NODE_ENV: 'development',
@@ -129,7 +146,9 @@ test.beforeAll(async () => {
       KUBECONFIG: MERGED_KUBECONFIG,
     },
   });
-  electronPage = await electronApp.firstWindow();
+  // Otherwise the Release Notes modal can open (see #6966) and its
+  // backdrop blocks clicks on the page underneath.
+  electronPage = await dismissReleaseNotes(electronApp);
   await electronPage.waitForLoadState('load');
   // The app uses file:// with hash routing: file:///...index.html#/
   // Capture the base file URL (without hash) for navigation.
@@ -145,6 +164,9 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await electronApp?.close();
   teardownExecCluster();
+  if (PROFILE_DIR) {
+    fs.rmSync(PROFILE_DIR, { recursive: true, force: true });
+  }
 });
 
 async function goToHomeClean(page: Page) {

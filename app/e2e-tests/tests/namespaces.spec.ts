@@ -22,6 +22,7 @@ import path from 'path';
 import { _electron, Page } from 'playwright';
 import { HeadlampPage } from './headlampPage';
 import { NamespacesPage } from './namespacesPage';
+import { dismissReleaseNotes } from './releaseNotesTestUtils';
 
 const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'electron';
 const electronPath = path.resolve(__dirname, `../../node_modules/.bin/${electronExecutable}`);
@@ -38,6 +39,19 @@ const appPath = path.resolve(__dirname, '../../');
 let electronApp;
 let electronPage: Page;
 
+// Electron's default userData directory persists across launches. Reusing
+// it (by omitting --user-data-dir) accumulates real browser state — cache,
+// IndexedDB, etc. — across every Electron launch that came before this one,
+// including from other spec files in the same run. That leftover state
+// reproducibly caused a phantom element to intercept clicks in this suite
+// (confirmed by bisecting: identical launch args except for
+// --user-data-dir turned a 100%-reproducible click-interception failure
+// into a 100% pass). A throwaway profile per run sidesteps it entirely.
+// Created in beforeAll, not here at module scope, so collecting this file
+// (e.g. `--list`) never creates a directory that beforeAll/afterAll won't
+// run to clean up.
+let PROFILE_DIR: string;
+
 test.beforeAll(async () => {
   fs.writeFileSync(
     ISOLATED_KUBECONFIG,
@@ -46,11 +60,12 @@ test.beforeAll(async () => {
     }),
     { mode: 0o600 }
   );
+  PROFILE_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-e2e-namespaces-profile-'));
 
   electronApp = await electron.launch({
     cwd: appPath,
     executablePath: electronPath,
-    args: ['.'],
+    args: ['.', `--user-data-dir=${PROFILE_DIR}`],
     env: {
       ...process.env,
       NODE_ENV: 'development',
@@ -59,7 +74,9 @@ test.beforeAll(async () => {
     },
   });
 
-  electronPage = await electronApp.firstWindow();
+  // Otherwise the Release Notes modal can open (see #6966) and its
+  // backdrop blocks clicks on the page underneath.
+  electronPage = await dismissReleaseNotes(electronApp);
 });
 
 // The app holds a single-instance lock, so it must be closed or a later
@@ -67,6 +84,9 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await electronApp?.close();
   fs.rmSync(ISOLATED_KUBECONFIG, { force: true });
+  if (PROFILE_DIR) {
+    fs.rmSync(PROFILE_DIR, { recursive: true, force: true });
+  }
 });
 
 // note: this test is for local app development testing and requires a

@@ -89,13 +89,18 @@ export class NamespacesPage {
 
     await page.waitForLoadState('load');
 
-    // This is a ConfirmDialog. Its confirm button reads "Delete" here and "Yes"
-    // in other places, so key off the stable aria-label instead of the text.
-    await page.waitForSelector('button[aria-label="confirm-button"]');
+    // This is a ConfirmDialog (frontend/src/components/common/ConfirmDialog.tsx).
+    // It only sets data-testid="confirm-button"/"cancel-button", never
+    // aria-label, so a role+name lookup for "confirm-button" could never
+    // match — data-testid doesn't affect the accessible name. DeleteButton.tsx
+    // passes confirmLabel={t('Delete')} for namespaces (it's "Evict" for pods
+    // that support eviction), so the real accessible name is "Delete".
+    const confirmButton = page.getByRole('button', { name: 'Delete', exact: true });
+    await confirmButton.waitFor();
 
     await page.waitForLoadState('load');
 
-    await page.click('button[aria-label="confirm-button"]');
+    await confirmButton.click();
 
     await page.waitForSelector('h1:has-text("Namespaces")');
     await page.waitForSelector('td:has-text("Terminating")');
