@@ -410,6 +410,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       clusters,
       namespace,
       requests: requestedLists,
+      fetchAllRequests,
       refetchInterval,
       ...queryParams
     }: {
@@ -418,6 +419,8 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       namespace?: string | string[];
       /** Exact cluster and namespace combinations to list instead of building a cross-product. */
       requests?: Array<{ cluster: string; namespaces?: string[] }>;
+      /** Fetch every cluster/namespace request immediately, independently of the API page limit. */
+      fetchAllRequests?: boolean;
       /** How often to refetch the list. Won't refetch by default. Disables watching if set. */
       refetchInterval?: number;
     } & QueryParameters = {}
@@ -481,6 +484,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       kubeObjectClass: this,
       requests,
       emptyWhenNoRequests,
+      fetchAllRequests,
       refetchInterval,
     });
 
