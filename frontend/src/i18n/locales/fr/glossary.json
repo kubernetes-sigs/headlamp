@@ -117,6 +117,8 @@
   "Failed": "Échoué",
   "Jobs": "Jobs",
   "Job Sets": "Ensembles de jobs",
+  "Checking if JobSet is enabled…": "",
+  "JobSet is not enabled. <1>Learn More</1>": "",
   "Leader Worker Sets": "",
   "Lease": "Bail",
   "LimitRange": "LimitRange",

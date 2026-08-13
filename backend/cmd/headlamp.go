@@ -569,6 +569,59 @@ func setupInClusterContext(config *HeadlampConfig) {
 	}
 }
 
+// loadKubeConfigClusters loads clusters from the user-configured kubeconfig file.
+// In-cluster Headlamp builds its context from the pod, so having no kubeconfig
+// is expected behavior, not an error.
+func loadKubeConfigClusters(config *HeadlampConfig, path string, skipFunc func(kubeconfig.Context) bool) {
+	if path == "" {
+		msg := "No kubeconfig set"
+		if config.UseInCluster {
+			msg = "No kubeconfig set, using only the in-cluster context"
+		}
+
+		logger.Log(logger.LevelInfo, nil, nil, msg)
+
+		return
+	}
+
+	err := kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, path, kubeconfig.KubeConfig, skipFunc)
+	if err == nil {
+		return
+	}
+
+	msg := "loading kubeconfig"
+
+	if errors.Is(err, os.ErrNotExist) {
+		msg = "kubeconfig not found, set -kubeconfig or the KUBECONFIG env var"
+		if config.UseInCluster {
+			msg = "kubeconfig not found, set -kubeconfig or HEADLAMP_CONFIG_KUBECONFIG and mount the file into the pod"
+		}
+	}
+
+	logger.Log(logger.LevelError, map[string]string{"kubeconfig": path}, err, msg)
+}
+
+// loadDynamicClusters loads clusters that Headlamp itself persists when clusters are added at
+// runtime. That file will only exist once such a cluster has been added, so a missing file is normal.
+func loadDynamicClusters(config *HeadlampConfig, path string, skipFunc func(kubeconfig.Context) bool) {
+	if path == "" {
+		return
+	}
+
+	if _, err := os.Stat(path); errors.Is(err, os.ErrNotExist) {
+		logger.Log(logger.LevelInfo, map[string]string{"kubeconfig": path}, nil,
+			"No kubeconfig for dynamically added clusters")
+
+		return
+	}
+
+	err := kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, path, kubeconfig.DynamicCluster, skipFunc)
+	if err != nil {
+		logger.Log(logger.LevelError, map[string]string{"kubeconfig": path}, err,
+			"loading the kubeconfig of dynamically added clusters")
+	}
+}
+
 //nolint:gocognit,funlen,gocyclo
 func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
@@ -650,10 +703,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	logger.Log(logger.LevelInfo, nil, nil, "  API Routers:")
 
 	// load kubeConfig clusters
-	err := kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, kubeConfigPath, kubeconfig.KubeConfig, skipFunc)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "loading kubeconfig")
-	}
+	loadKubeConfigClusters(config, kubeConfigPath, skipFunc)
 
 	// Prometheus metrics endpoint
 	// to enable this endpoint, run command run-backend-with-metrics
@@ -667,12 +717,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	kubeConfigPersistenceFile, err := defaultHeadlampKubeConfigFile()
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "getting default kubeconfig persistence file")
-	}
-
-	err = kubeconfig.LoadAndStoreKubeConfigs(config.KubeConfigStore, kubeConfigPersistenceFile,
-		kubeconfig.DynamicCluster, skipFunc)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "loading dynamic kubeconfig")
+	} else {
+		loadDynamicClusters(config, kubeConfigPersistenceFile, skipFunc)
 	}
 
 	addPluginRoutes(config, r)
