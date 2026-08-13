@@ -79,6 +79,7 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-oidc/v3/oidc/oidctest"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -229,6 +230,17 @@ func withAccessToken() oidcTestOption {
 	return func(c *HeadlampConfig) { c.OidcUseAccessToken = true }
 }
 
+// withDevMode enables the DevMode redirect branch of the callback.
+func withDevMode() oidcTestOption {
+	return func(c *HeadlampConfig) { c.DevMode = true }
+}
+
+// withBaseURL sets the server base URL, which the callback prepends to the
+// post-login redirect.
+func withBaseURL(u string) oidcTestOption {
+	return func(c *HeadlampConfig) { c.BaseURL = u }
+}
+
 // newOIDCTestHandler builds a Headlamp handler with one OIDC-configured
 // kubeconfig context whose IdP issuer points at the supplied mock server.
 // Returns the handler and the cluster name registered.
@@ -279,24 +291,7 @@ func newOIDCTestHandler(t *testing.T, oidcSrv *oidcTestServer, opts ...oidcTestO
 func driveOIDCStart(t *testing.T, handler http.Handler, cluster string) *url.URL {
 	t.Helper()
 
-	target := "http://localhost:4466/oidc?cluster=" + url.QueryEscape(cluster)
-
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, target, nil)
-	require.NoError(t, err)
-
-	rr := httptest.NewRecorder()
-	handler.ServeHTTP(rr, req)
-
-	require.Equal(t, http.StatusFound, rr.Code,
-		"GET /oidc should 302 to the IdP; got %d body=%q", rr.Code, rr.Body.String())
-
-	loc := rr.Header().Get("Location")
-	require.NotEmpty(t, loc, "Location header missing on /oidc redirect")
-
-	u, err := url.Parse(loc)
-	require.NoError(t, err)
-
-	return u
+	return driveOIDCStartWithPrefix(t, handler, cluster, "")
 }
 
 // extractState returns the `state` query parameter from a parsed URL,
@@ -335,7 +330,45 @@ const testAuthCode = "auth-code"
 func driveOIDCCallback(t *testing.T, handler http.Handler, state string) *httptest.ResponseRecorder {
 	t.Helper()
 
-	target := "http://localhost:4466/oidc-callback?state=" + url.QueryEscape(state) +
+	return driveOIDCCallbackWithPrefix(t, handler, state, "")
+}
+
+// driveOIDCStartWithPrefix is driveOIDCStart with the request path prefixed
+// by routePrefix, needed because a non-empty config.BaseURL mounts the whole
+// router (including /oidc and /oidc-callback, not just the post-login
+// redirect target) under that prefix (headlamp.go:640-647). An empty
+// routePrefix behaves exactly like driveOIDCStart.
+func driveOIDCStartWithPrefix(t *testing.T, handler http.Handler, cluster, routePrefix string) *url.URL {
+	t.Helper()
+
+	target := "http://localhost:4466" + routePrefix + "/oidc?cluster=" + url.QueryEscape(cluster)
+
+	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, target, nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	handler.ServeHTTP(rr, req)
+
+	require.Equal(t, http.StatusFound, rr.Code,
+		"GET %s/oidc should 302 to the IdP; got %d body=%q", routePrefix, rr.Code, rr.Body.String())
+
+	loc := rr.Header().Get("Location")
+	require.NotEmpty(t, loc, "Location header missing on /oidc redirect")
+
+	u, err := url.Parse(loc)
+	require.NoError(t, err)
+
+	return u
+}
+
+// driveOIDCCallbackWithPrefix is driveOIDCCallback with the request path
+// prefixed by routePrefix; see driveOIDCStartWithPrefix.
+func driveOIDCCallbackWithPrefix(
+	t *testing.T, handler http.Handler, state, routePrefix string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+
+	target := "http://localhost:4466" + routePrefix + "/oidc-callback?state=" + url.QueryEscape(state) +
 		"&code=" + url.QueryEscape(testAuthCode)
 
 	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, target, nil)
@@ -350,10 +383,15 @@ func driveOIDCCallback(t *testing.T, handler http.Handler, state string) *httpte
 // authCookieValue reassembles the chunked auth cookie that SetTokenCookie
 // writes as headlamp-auth-<cluster>.0, .1, ... (see pkg/auth/cookies.go).
 // Reading only chunk .0 would silently truncate any token past chunkSize.
+//
+// SetTokenCookie names cookies from auth.SanitizeClusterName(cluster), not
+// the raw cluster name (cookies.go:84,100), mirrored here as
+// GetTokenFromCookie does (cookies.go:115) — otherwise an awkward cluster
+// name would silently find no cookies.
 func authCookieValue(t *testing.T, rr *httptest.ResponseRecorder, cluster string) string {
 	t.Helper()
 
-	prefix := "headlamp-auth-" + cluster + "."
+	prefix := "headlamp-auth-" + auth.SanitizeClusterName(cluster) + "."
 
 	type chunk struct {
 		idx int
@@ -805,4 +843,63 @@ func TestOIDCCallback_UsesAccessTokenWhenConfigured(t *testing.T) {
 	require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
 	assert.Equal(t, accessToken, authCookieValue(t, rr, cluster),
 		"with OidcUseAccessToken, the access_token — not the id_token — reaches the cookie")
+}
+
+// TestOIDCCallback_RedirectTarget characterizes where a successful login sends
+// the browser, across DevMode and BaseURL. In every case the target ends with
+// auth?cluster=<cluster>; DevMode swaps the origin and BaseURL inserts a path
+// segment ahead of it (headlamp.go:1106-1121).
+func TestOIDCCallback_RedirectTarget(t *testing.T) {
+	tests := []struct {
+		name string
+		opts []oidcTestOption
+		// routePrefix mirrors config.BaseURL: when the router mounts routes
+		// under a base URL (headlamp.go:640-647), /oidc and /oidc-callback
+		// themselves move under that prefix too, not just the post-login
+		// redirect target being asserted below.
+		routePrefix string
+		want        string
+	}{
+		{
+			name: "default",
+			opts: nil,
+			want: "/auth?cluster=oidc-char-test",
+		},
+		{
+			name: "dev mode",
+			opts: []oidcTestOption{withDevMode()},
+			want: "http://localhost:3000/auth?cluster=oidc-char-test",
+		},
+		{
+			name:        "base URL",
+			opts:        []oidcTestOption{withBaseURL("/headlamp")},
+			routePrefix: "/headlamp",
+			want:        "/headlamp/auth?cluster=oidc-char-test",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := newOIDCTestServer(t, nil)
+			handler, cluster := newOIDCTestHandler(t, srv, tc.opts...)
+			require.Equal(t, "oidc-char-test", cluster,
+				"the want values above hardcode the cluster name")
+
+			idToken := srv.signToken(t, nil)
+
+			srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+
+				_, _ = io.WriteString(w, `{"access_token":"opaque-access","token_type":"Bearer",`+
+					`"refresh_token":"refresh-abc","id_token":"`+idToken+`"}`)
+			})
+
+			loc := driveOIDCStartWithPrefix(t, handler, cluster, tc.routePrefix)
+			state := extractState(t, loc)
+			rr := driveOIDCCallbackWithPrefix(t, handler, state, tc.routePrefix)
+
+			require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
+			assert.Equal(t, tc.want, rr.Header().Get("Location"))
+		})
+	}
 }
