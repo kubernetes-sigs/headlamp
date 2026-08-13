@@ -152,7 +152,7 @@ describe('testAuth', () => {
 
   it('OIDC cluster: an empty username is still an authenticated session', async () => {
     // HandleMe writes 200 with username "" when the JWT carries none of
-    // preferred_username/upn/username/name. The cookie was still verified,
+    // preferred_username/upn/username/name. The cookie was still accepted,
     // so rejecting here would loop the user through login forever.
     fakeState.config.clusters[clusterName] = { auth_type: 'oidc' };
 

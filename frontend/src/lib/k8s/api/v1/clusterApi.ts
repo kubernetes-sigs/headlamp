@@ -34,18 +34,29 @@ import { JSON_HEADERS } from './constants';
  * Will throw an error if the user is not authenticated.
  *
  * For OIDC clusters (auth_type === 'oidc'), this calls the headlamp-server
- * `/clusters/{cluster}/me` endpoint, which validates the per-cluster auth
+ * `/clusters/{cluster}/me` endpoint, which checks the per-cluster auth
  * cookie. The handler is implemented at backend/pkg/auth/auth.go HandleMe;
  * it returns 401 with `{"message": "unauthorized"}` (or "token expired")
- * when the cookie is missing, malformed, or its embedded JWT cannot be
- * verified, and otherwise returns `{"username": ..., "email": ..., ...}`
- * with the JMESPath-extracted username from the JWT payload.
+ * when the cookie is missing, malformed, or its embedded JWT has expired,
+ * and otherwise returns `{"username": ..., "email": ..., ...}` with the
+ * JMESPath-extracted username from the JWT payload.
  *
  * **The HTTP status is the auth signal, not the username.** HandleMe
- * rejects a missing/invalid/expired token before it ever looks at claims,
- * so a 2xx already means the cookie was verified. `clusterRequest` rejects
- * on any non-2xx, so a 401 from /me surfaces as a thrown error and the
- * caller routes the user to AuthChooser.
+ * rejects a missing/malformed/expired token before it ever looks at
+ * claims, so a 2xx means a cookie was present and its JWT is well-formed
+ * and unexpired. `clusterRequest` rejects on any non-2xx, so a 401 from
+ * /me surfaces as a thrown error and the caller routes the user to
+ * AuthChooser.
+ *
+ * **Limitation.** HandleMe does *not* verify the JWT signature, issuer, or
+ * audience — parseClaimsFromToken (backend/pkg/auth/auth.go) base64-decodes
+ * the payload and nothing more. A caller who plants a hand-crafted token in
+ * their own cookie therefore gets a 200 here and is routed past
+ * AuthChooser, after which every Kubernetes call fails at the API server.
+ * That is a UX gate, not a security boundary: /me is not consulted for any
+ * authorization decision, and the case #4721 is about — an anonymous
+ * browser with no cookie at all — still 401s on the `token == ""` check.
+ * Real token validation in HandleMe is tracked separately.
  *
  * In particular, an **empty username is a valid authenticated session** and
  * must not be rejected here. The default username path (see
@@ -53,7 +64,7 @@ import { JSON_HEADERS } from './constants';
  * "preferred_username,upn,username,name" — there is no `sub` or `email`
  * fallback — so an IdP issuing none of those four claims (Dex without the
  * `profile` scope, Azure AD v2 access tokens, minimal Keycloak client
- * scopes) yields a cookie-verified 200 carrying `username: ""`. Turning
+ * scopes) yields an accepted-cookie 200 carrying `username: ""`. Turning
  * that into a synthetic 401 would send the user to login, which sets a
  * perfectly good cookie, which /me again reports with an empty username —
  * an infinite redirect loop (RouteSwitcher.tsx sends OIDC errors to
