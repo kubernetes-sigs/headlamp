@@ -119,3 +119,19 @@ export const JOB_RUNNING: KubeObjectInterface = {
     startTime: '2023-07-28T08:00:00Z',
   },
 };
+/**
+ * A completed Job with ttlSecondsAfterFinished explicitly set to 0.
+ * 0 is a valid, documented value (immediate cleanup after the Job finishes)
+ * and the "TTL After Finished" row must still render its value as "0s".
+ */
+export const JOB_TTL_ZERO: KubeObjectInterface = {
+  ...JOB_COMPLETE,
+  metadata: {
+    ...JOB_COMPLETE.metadata,
+    uid: 'job-ttl-zero-uid',
+  },
+  spec: {
+    ...JOB_COMPLETE.spec,
+    ttlSecondsAfterFinished: 0,
+  },
+};

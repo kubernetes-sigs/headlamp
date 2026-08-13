@@ -18,7 +18,7 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { API_BASE, TestContext } from '../../test';
 import Details from './Details';
-import { JOB_COMPLETE, JOB_RUNNING } from './storyHelper';
+import { JOB_COMPLETE, JOB_RUNNING, JOB_TTL_ZERO } from './storyHelper';
 
 const emptyList = (kind: string, apiVersion: string) => ({
   kind,
@@ -90,6 +90,22 @@ Running.parameters = {
       story: [
         http.get(`${API_BASE}/apis/batch/v1/namespaces/default/jobs/hello`, () =>
           HttpResponse.json(JOB_RUNNING)
+        ),
+        ...commonHandlers,
+      ],
+    },
+  },
+};
+// ttlSecondsAfterFinished: 0 is a valid, explicit value and
+// the "TTL After Finished" row must still render its value as "0s"
+// (previously rendered as a blank value due to a falsy check).
+export const TtlAfterFinishedZero = Template.bind({});
+TtlAfterFinishedZero.parameters = {
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${API_BASE}/apis/batch/v1/namespaces/default/jobs/hello`, () =>
+          HttpResponse.json(JOB_TTL_ZERO)
         ),
         ...commonHandlers,
       ],

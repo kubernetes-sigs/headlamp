@@ -137,7 +137,7 @@ export function jobExtraInfo(item: Job, t: TFunction): NameValueTableRow[] {
     },
     {
       name: t('glossary|TTL After Finished'),
-      value: spec.ttlSecondsAfterFinished ? `${spec.ttlSecondsAfterFinished}s` : '',
+      value: spec.ttlSecondsAfterFinished !== undefined ? `${spec.ttlSecondsAfterFinished}s` : '',
       hide: spec.ttlSecondsAfterFinished === undefined,
     },
     {
