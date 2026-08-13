@@ -20,9 +20,9 @@ import _ from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import { labelSelectorToQuery } from '../../lib/k8s';
 import Endpoint from '../../lib/k8s/endpoints';
 import EndpointSlice from '../../lib/k8s/endpointSlices';
+import { labelSelectorToQuery } from '../../lib/k8s/labelSelector';
 import Service, { KubeServicePort } from '../../lib/k8s/service';
 import Empty from '../common/EmptyContent';
 import { ValueLabel } from '../common/Label';
@@ -142,7 +142,15 @@ export default function ServiceDetails(props: {
           },
           {
             name: t('Selector'),
-            value: <MetadataDictGrid dict={item.spec.selector} />,
+            value: (
+              <MetadataDictGrid
+                activeCluster={item.cluster}
+                dict={item.spec.selector}
+                labelFilterNamespace={item.metadata.namespace}
+                labelFilterRoute="pods"
+                labelSelector={labelSelectorToQuery({ matchLabels: item.spec.selector })}
+              />
+            ),
           },
         ]
       }

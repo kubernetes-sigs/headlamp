@@ -185,11 +185,16 @@
                       <div
                         class="MuiBox-root css-yi3mkw"
                       >
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone css-1vqhwzj-MuiTypography-root-MuiLink-root"
+                          href="/?labelSelector=app.kubernetes.io%2Fpart-of%3Ddemo&namespace=default"
                         >
-                          app.kubernetes.io/part-of: demo
-                        </p>
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            app.kubernetes.io/part-of: demo
+                          </span>
+                        </a>
                       </div>
                     </div>
                   </dd>

@@ -170,11 +170,16 @@
                       <div
                         class="MuiBox-root css-yi3mkw"
                       >
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone css-1vqhwzj-MuiTypography-root-MuiLink-root"
+                          href="/?labelSelector=admissions.enforcer%2Fdisabled%3Dtrue"
                         >
-                          admissions.enforcer/disabled: true
-                        </p>
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            admissions.enforcer/disabled: true
+                          </span>
+                        </a>
                       </div>
                     </div>
                   </dd>

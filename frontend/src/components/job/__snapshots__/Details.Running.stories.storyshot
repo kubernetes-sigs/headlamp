@@ -200,11 +200,16 @@
                       <div
                         class="MuiBox-root css-yi3mkw"
                       >
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone css-1vqhwzj-MuiTypography-root-MuiLink-root"
+                          href="/?labelSelector=controller-uid%3Dc1234&namespace=default"
                         >
-                          controller-uid: c1234
-                        </p>
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            controller-uid: c1234
+                          </span>
+                        </a>
                       </div>
                     </div>
                   </dd>
@@ -360,11 +365,16 @@
                       <div
                         class="MuiBox-root css-yi3mkw"
                       >
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone css-1vqhwzj-MuiTypography-root-MuiLink-root"
+                          href="/?labelSelector=controller-uid%3Dc1234&namespace=default"
                         >
-                          controller-uid: c1234
-                        </p>
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            controller-uid: c1234
+                          </span>
+                        </a>
                       </div>
                     </div>
                   </dd>

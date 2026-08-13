@@ -43,6 +43,7 @@ vi.mock('./patchUtils', () => ({
   computeRawPatchCount: vi.fn(),
 }));
 
+import ControllerRevision from './controllerRevision';
 import { KubeObject } from './KubeObject';
 
 describe('KubeObject', () => {
@@ -61,5 +62,22 @@ describe('KubeObject', () => {
         new MyResource({ kind: 'MyResourceKind', metadata: { name: 'my-test-resource' } })
       )
     ).toBe(true);
+  });
+
+  it('returns null list navigation for ControllerRevision', () => {
+    const revision = new ControllerRevision({
+      apiVersion: 'apps/v1',
+      kind: 'ControllerRevision',
+      metadata: {
+        name: 'revision-1',
+        namespace: 'default',
+        creationTimestamp: '2026-08-13T00:00:00Z',
+        uid: 'revision-1-uid',
+      },
+      data: {},
+      revision: 1,
+    });
+
+    expect(revision.getListRouteDescriptor()).toBeNull();
   });
 });
