@@ -23,10 +23,10 @@ import SectionFilterHeader, { SectionFilterHeaderProps } from './SectionFilterHe
 
 // A fresh store per story so the namespace filter state never leaks between
 // stories (the component dispatches setNamespaceFilter and reads it back).
-function makeStore(namespaces: string[] = []) {
+function makeStore(namespaces: string[] = [], labelSelector = '') {
   return configureStore({
     reducer: reducers,
-    preloadedState: { filter: { namespaces: new Set(namespaces), search: '' } } as any,
+    preloadedState: { filter: { namespaces: new Set(namespaces), labelSelector } } as any,
     middleware: getDefaultMiddleware => getDefaultMiddleware({ serializableCheck: false }),
   });
 }
@@ -36,11 +36,10 @@ export default {
   component: SectionFilterHeader,
 } as Meta;
 
-const Template: StoryFn<SectionFilterHeaderProps & { namespaces?: string[] }> = ({
-  namespaces,
-  ...args
-}) => (
-  <TestContext store={makeStore(namespaces)}>
+const Template: StoryFn<
+  SectionFilterHeaderProps & { namespaces?: string[]; labelSelector?: string }
+> = ({ namespaces, labelSelector, ...args }) => (
+  <TestContext store={makeStore(namespaces, labelSelector)}>
     <SectionFilterHeader {...args} />
   </TestContext>
 );
@@ -54,6 +53,13 @@ export const WithNamespaceFilter = Template.bind({});
 WithNamespaceFilter.args = {
   title: 'Pods',
   namespaces: ['default'],
+};
+
+export const WithFilterSubtitles = Template.bind({});
+WithFilterSubtitles.args = {
+  title: 'Pods',
+  namespaces: ['payments-production', 'checkout-production', 'platform-observability'],
+  labelSelector: 'app.kubernetes.io/name=checkout-api,environment=production,tier!=backend',
 };
 
 export const NoNamespaceFilter = Template.bind({});

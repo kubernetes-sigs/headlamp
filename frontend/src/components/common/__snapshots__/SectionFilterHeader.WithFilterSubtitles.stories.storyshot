@@ -43,5 +43,34 @@
         </div>
       </div>
     </div>
+    <div
+      aria-label="Resource filter summary"
+      class="MuiBox-root css-3fgd2a"
+    >
+      <button
+        aria-label="Edit Namespaces"
+        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone MuiLink-button css-mijv9z-MuiTypography-root-MuiLink-root"
+        data-mui-internal-clone-element="true"
+        type="button"
+      >
+        <span
+          class="MuiTypography-root MuiTypography-h2 css-1hqqb5-MuiTypography-root"
+        >
+          payments-production, checkout-production, platform-observability
+        </span>
+      </button>
+      <button
+        aria-label="Edit Label Selector"
+        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone MuiLink-button css-mijv9z-MuiTypography-root-MuiLink-root"
+        data-mui-internal-clone-element="true"
+        type="button"
+      >
+        <span
+          class="MuiTypography-root MuiTypography-h2 css-1hqqb5-MuiTypography-root"
+        >
+          app.kubernetes.io/name=checkout-api,environment=production,tier!=backend
+        </span>
+      </button>
+    </div>
   </div>
 </body>
