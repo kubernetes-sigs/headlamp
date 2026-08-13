@@ -29,6 +29,7 @@ import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface } from '../../KubeObject';
 import type { ApiError } from '../v2/ApiError';
 import { CLUSTERS_PREFIX, DEFAULT_TIMEOUT, JSON_HEADERS } from './constants';
+import type { RecursivePartial } from './factories';
 import { asQuery, combinePath } from './formatUrl';
 import type { QueryParameters } from './queryParameters';
 
@@ -257,7 +258,7 @@ export function post(
 
 export function patch(
   url: string,
-  json: any,
+  json: RecursivePartial<KubeObjectInterface>,
   autoLogoutOnAuthError = true,
   options: ClusterRequestParams = {}
 ) {
