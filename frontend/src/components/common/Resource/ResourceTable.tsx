@@ -415,7 +415,13 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
       return cols.filter(col => clusters.length > 1 || col !== 'cluster');
     }
 
-    const allColumns = removeClusterColIfNeeded(processedColumns)
+    const finalColumns = removeClusterColIfNeeded(processedColumns);
+    // Keep namespace filtering usable when faceted values are disabled for large datasets.
+    const namespaceFilterOptions = finalColumns.includes('namespace')
+      ? Array.from(new Set((data ?? []).map(item => item.getNamespace() ?? '-'))).sort()
+      : undefined;
+
+    const allColumns = finalColumns
       .map((col, index): TableColumn<RowItem> => {
         const indexId = String(index);
 
@@ -535,6 +541,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               responsivePriority: -2,
               accessorFn: (item: RowItem) => item.getNamespace() ?? '-',
               filterVariant: 'multi-select',
+              filterSelectOptions: namespaceFilterOptions,
               Cell: ({ row }: { row: MRT_Row<RowItem> }) =>
                 row.original?.getNamespace() ? (
                   <Link
@@ -580,7 +587,17 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     >;
 
     return [allColumns];
-  }, [columnsWithA8rOwner, clusters, hideColumns, id, noProcessing, tableProcessors, t, theme]);
+  }, [
+    columnsWithA8rOwner,
+    clusters,
+    data,
+    hideColumns,
+    id,
+    noProcessing,
+    tableProcessors,
+    t,
+    theme,
+  ]);
 
   const defaultActions = useMemo<RowAction[]>(
     () => [
