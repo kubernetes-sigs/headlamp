@@ -22,6 +22,7 @@ import {
   hasAllowedNamespacesRestriction,
   loadClusterSettings,
 } from '../../../../helpers/clusterSettings';
+import { matchesLabelSelector } from '../../../labelSelectorValidation';
 import type { KubeObject, KubeObjectClass } from '../../KubeObject';
 import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError } from './ApiError';
@@ -368,7 +369,12 @@ function allowedNamespaceListQuery<K extends KubeObject>(
         kubeObject.cluster = cluster;
         return kubeObject;
       });
-      const items = [...manualItems, ...selectorItems, ...discoveredItems].filter(
+      const filteredManualItems = requestedSelector
+        ? manualItems.filter(item =>
+            matchesLabelSelector(item.jsonData.metadata.labels, requestedSelector)
+          )
+        : manualItems;
+      const items = [...filteredManualItems, ...selectorItems, ...discoveredItems].filter(
         (item, index, allItems) =>
           allItems.findIndex(
             candidate => candidate.jsonData.metadata.name === item.jsonData.metadata.name
@@ -1534,6 +1540,7 @@ export function useKubeObjectList<K extends KubeObject>({
   requests,
   kubeObjectClass,
   queryParams,
+  fetchAllRequests = false,
   watch = true,
   refetchInterval,
   asTable = false,
@@ -1543,6 +1550,8 @@ export function useKubeObjectList<K extends KubeObject>({
   /** Class to instantiate the object with */
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
   queryParams?: QueryParameters;
+  /** Automatically fetch every cluster/namespace request in bounded batches. */
+  fetchAllRequests?: boolean;
   /** Watch for updates @default true */
   watch?: boolean;
   /** How often to refetch the list. Won't refetch by default. Disables watching if set. */
@@ -1593,13 +1602,28 @@ export function useKubeObjectList<K extends KubeObject>({
   }, [queryParamsKey]);
   const listRequests = useMemo(() => flattenListRequests(requests), [requests]);
   const limit = getPositiveLimit(cleanedUpQueryParams);
-  const initialListRequestCount =
-    limit && listRequests.length > limit ? limit : listRequests.length;
-  const [activeListRequestCount, setActiveListRequestCount] = useState(initialListRequestCount);
-  const listRequestInputKey = JSON.stringify([endpointKey, listRequests, cleanedUpQueryParams]);
+  const initialListRequestCount = fetchAllRequests
+    ? Math.min(1, listRequests.length)
+    : limit && listRequests.length > limit
+    ? limit
+    : listRequests.length;
+  const listRequestInputKey = JSON.stringify([
+    endpointKey,
+    listRequests,
+    cleanedUpQueryParams,
+    fetchAllRequests,
+  ]);
+  const [listRequestSchedule, setListRequestSchedule] = useState({
+    count: initialListRequestCount,
+    key: listRequestInputKey,
+  });
+  const activeListRequestCount =
+    listRequestSchedule.key === listRequestInputKey
+      ? listRequestSchedule.count
+      : initialListRequestCount;
 
   useEffect(() => {
-    setActiveListRequestCount(initialListRequestCount);
+    setListRequestSchedule({ count: initialListRequestCount, key: listRequestInputKey });
   }, [initialListRequestCount, listRequestInputKey]);
 
   const activeListRequests = useMemo(
@@ -1719,6 +1743,30 @@ export function useKubeObjectList<K extends KubeObject>({
       };
     },
   });
+
+  useEffect(() => {
+    if (!fetchAllRequests || query.isFetching || !hasPendingListRequests) {
+      return;
+    }
+
+    setListRequestSchedule(currentSchedule => ({
+      count: Math.min(
+        (currentSchedule.key === listRequestInputKey
+          ? currentSchedule.count
+          : initialListRequestCount) + 1,
+        listRequests.length
+      ),
+      key: listRequestInputKey,
+    }));
+  }, [
+    activeListRequestCount,
+    fetchAllRequests,
+    hasPendingListRequests,
+    initialListRequestCount,
+    listRequestInputKey,
+    listRequests.length,
+    query.isFetching,
+  ]);
 
   // Don't watch when results are paginated — the watch stream would deliver events
   // for resources outside our fetched page, causing the list to grow unboundedly.
@@ -2072,7 +2120,7 @@ export function useKubeObjectList<K extends KubeObject>({
           return;
         }
 
-        setActiveListRequestCount(nextListRequestCount);
+        setListRequestSchedule({ count: nextListRequestCount, key: listRequestInputKey });
         return;
       }
 
@@ -2161,6 +2209,7 @@ export function useKubeObjectList<K extends KubeObject>({
     activeListRequestCount,
     hasPendingListRequests,
     limit,
+    listRequestInputKey,
     listRequests,
     queries,
     queryClient,

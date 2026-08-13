@@ -685,6 +685,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       clusters,
       namespace,
       requests: requestedLists,
+      fetchAllRequests,
       refetchInterval,
       asTable,
       ...queryParams
@@ -694,6 +695,8 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       namespace?: string | string[];
       /** Exact cluster and namespace combinations to list instead of building a cross-product. */
       requests?: Array<{ cluster: string; namespaces?: string[] }>;
+      /** Fetch every cluster/namespace request automatically, one at a time. */
+      fetchAllRequests?: boolean;
       /** How often to refetch the list. Won't refetch by default. Disables watching if set. */
       refetchInterval?: number;
       /** Request a compact Kubernetes Table response for this list only. */
@@ -817,6 +820,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       kubeObjectClass: this,
       requests,
       emptyWhenNoRequests,
+      fetchAllRequests,
       refetchInterval,
       asTable,
     });

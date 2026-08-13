@@ -69,7 +69,6 @@
     "Deployments/CreateDeploymentForm/Pod Template Extras": ["label"],
     "Deployments/CreateDeploymentForm/Empty": ["label"],
     "GlobalSearch/GlobalSearchContent/With Empty Input": [
-      "aria-input-field-name",
       "aria-progressbar-name",
       "aria-tooltip-name"
     ],
@@ -101,6 +100,9 @@
     "GlobalSearch/GlobalSearchContent/Bare Namespace Query": [
       "aria-progressbar-name",
       "aria-tooltip-name",
+      "scrollable-region-focusable"
+    ],
+    "GlobalSearch/GlobalSearchContent/Add Namespace To Global Filters": [
       "scrollable-region-focusable"
     ],
     "GlobalSearch/GlobalSearchContent/Combined Namespace Query": [
