@@ -5,7 +5,6 @@
       role="presentation"
     >
       <div
-        aria-describedby="updatePopup"
         class="MuiPaper-root MuiPaper-outlined MuiSnackbarContent-root css-1cboije-MuiPaper-root-MuiSnackbarContent-root"
         direction="up"
         role="alert"
