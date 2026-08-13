@@ -708,3 +708,67 @@ func TestOIDCCallback_CachesRefreshToken(t *testing.T) {
 	require.NoError(t, err, "refresh token should be cached under oidc-token-<raw token>")
 	assert.Equal(t, "refresh-xyz", got)
 }
+
+// TestOIDCCallback_TokenMissingFromResponse characterizes a token endpoint
+// that succeeds but omits id_token entirely.
+func TestOIDCCallback_TokenMissingFromResponse(t *testing.T) {
+	srv := newOIDCTestServer(t, nil)
+	handler, cluster := newOIDCTestHandler(t, srv)
+
+	srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		_, _ = io.WriteString(w, `{"access_token":"opaque-access","token_type":"Bearer"}`)
+	})
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := driveOIDCCallback(t, handler, state)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "No id_token field in oauth2 token")
+}
+
+// TestOIDCCallback_VerificationFailure characterizes a token that is well
+// formed but signed by a key the provider does not advertise.
+//
+// It also pins a partial write: the refresh token is cached BEFORE the
+// signature is verified (headlamp.go:1078-1092), so a token that is then
+// rejected still leaves an oidc-token-<raw> entry behind. This is recorded as
+// current behavior, not endorsed — caching credentials for a token that was
+// subsequently rejected is arguably wrong, and #5401 may want to reorder it.
+// If that happens, this assertion should be UPDATED, not deleted.
+func TestOIDCCallback_VerificationFailure(t *testing.T) {
+	srv := newOIDCTestServer(t, nil)
+	c := cache.New[interface{}]()
+	handler, cluster := newOIDCTestHandler(t, srv, withCache(c))
+
+	otherKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	claims := fmt.Sprintf(
+		`{"iss":%q,"aud":"test-client-id","sub":"test-subject","exp":%s,"iat":%s}`,
+		srv.URL(),
+		strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10),
+		strconv.FormatInt(time.Now().Unix(), 10),
+	)
+	badToken := oidctest.SignIDToken(otherKey, testKeyID, oidc.RS256, claims)
+
+	srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		_, _ = io.WriteString(w, `{"access_token":"opaque-access","token_type":"Bearer",`+
+			`"refresh_token":"refresh-orphan","id_token":"`+badToken+`"}`)
+	})
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := driveOIDCCallback(t, handler, state)
+
+	require.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Failed to verify ID Token")
+
+	got, err := c.Get(context.Background(), "oidc-token-"+badToken)
+	require.NoError(t, err,
+		"current behavior: the refresh token is cached before verification, so a "+
+			"rejected token still leaves an entry")
+	assert.Equal(t, "refresh-orphan", got)
+}
