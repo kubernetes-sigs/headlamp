@@ -715,6 +715,56 @@ func TestOIDCCallback_CachesRefreshToken(t *testing.T) {
 	assert.Equal(t, "refresh-xyz", got)
 }
 
+// TestOIDCCallback_TokenMissingFromResponse characterizes a token endpoint
+// that succeeds but omits id_token entirely.
+func TestOIDCCallback_TokenMissingFromResponse(t *testing.T) {
+	srv := newOIDCTestServer(t, nil)
+	handler, cluster := newOIDCTestHandler(t, srv)
+
+	srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		_, _ = io.WriteString(w, `{"access_token":"opaque-access","token_type":"Bearer"}`)
+	})
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := driveOIDCCallback(t, handler, state)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "No id_token field in oauth2 token")
+}
+
+// TestOIDCCallback_VerificationFailure characterizes a token that is well
+// formed but signed by a key the provider does not advertise.
+func TestOIDCCallback_VerificationFailure(t *testing.T) {
+	srv := newOIDCTestServer(t, nil)
+	handler, cluster := newOIDCTestHandler(t, srv)
+
+	otherKey, err := rsa.GenerateKey(rand.Reader, 2048)
+	require.NoError(t, err)
+
+	claims := fmt.Sprintf(
+		`{"iss":%q,"aud":"test-client-id","sub":"test-subject","exp":%s,"iat":%s}`,
+		srv.URL(),
+		strconv.FormatInt(time.Now().Add(time.Hour).Unix(), 10),
+		strconv.FormatInt(time.Now().Unix(), 10),
+	)
+	badToken := oidctest.SignIDToken(otherKey, testKeyID, oidc.RS256, claims)
+
+	srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		_, _ = io.WriteString(w, `{"access_token":"opaque-access","token_type":"Bearer",`+
+			`"refresh_token":"refresh-abc","id_token":"`+badToken+`"}`)
+	})
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := driveOIDCCallback(t, handler, state)
+
+	require.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "Failed to verify ID Token")
+}
+
 // newSigningOIDCTestServer is like newOIDCTestServer but its /token endpoint
 // returns an RS256 id_token that verifies against its /jwks, so
 // /oidc-callback can run to the final redirect.
