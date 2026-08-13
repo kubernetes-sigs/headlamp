@@ -218,6 +218,12 @@ func withStateReader(r io.Reader) oidcTestOption {
 	return func(c *HeadlampConfig) { c.oidcStateReader = r }
 }
 
+// withCache injects a caller-held cache so a test can inspect what the
+// callback handler wrote. Without it, newOIDCTestHandler's cache is private.
+func withCache(c cache.Cache[interface{}]) oidcTestOption {
+	return func(hc *HeadlampConfig) { hc.Cache = c }
+}
+
 // newOIDCTestHandler builds a Headlamp handler with one OIDC-configured
 // kubeconfig context whose IdP issuer points at the supplied mock server.
 // Returns the handler and the cluster name registered.
@@ -675,4 +681,30 @@ func TestOIDCCallback_Success(t *testing.T) {
 
 	assert.Equal(t, "/auth?cluster="+cluster, rr.Header().Get("Location"),
 		"non-DevMode, empty BaseURL redirects to /auth?cluster=<cluster>")
+}
+
+// TestOIDCCallback_CachesRefreshToken characterizes where the callback stores
+// the refresh token: keyed by the raw user token, so a later refresh can find
+// it (see OIDCTokenRefreshMiddleware).
+func TestOIDCCallback_CachesRefreshToken(t *testing.T) {
+	srv := newOIDCTestServer(t, nil)
+	c := cache.New[interface{}]()
+	handler, cluster := newOIDCTestHandler(t, srv, withCache(c))
+
+	idToken := srv.signToken(t, nil)
+
+	srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		_, _ = io.WriteString(w, `{"access_token":"opaque-access","token_type":"Bearer",`+
+			`"refresh_token":"refresh-xyz","id_token":"`+idToken+`"}`)
+	})
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := driveOIDCCallback(t, handler, state)
+	require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
+
+	got, err := c.Get(context.Background(), "oidc-token-"+idToken)
+	require.NoError(t, err, "refresh token should be cached under oidc-token-<raw token>")
+	assert.Equal(t, "refresh-xyz", got)
 }
