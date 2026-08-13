@@ -20,6 +20,7 @@ import EndpointSlice from '../../lib/k8s/endpointSlices';
 import { LabelListItem } from '../common';
 import { StatusLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
+import { resolveEndpointConditions } from './utils';
 
 function renderEndpoints(endpointSlice: EndpointSlice) {
   const endpoints = endpointSlice.spec.endpoints;
@@ -27,13 +28,15 @@ function renderEndpoints(endpointSlice: EndpointSlice) {
     return null;
   }
 
-  return endpoints.map((endpoint: any) => {
+  return endpoints.map((endpoint: any, index: number) => {
     const { addresses, conditions } = endpoint;
+    const { ready } = resolveEndpointConditions(conditions);
     return (
-      <Box display="inline-block">
-        <StatusLabel status={conditions?.ready ? 'success' : 'error'}>
-          {addresses.join(',')}
-        </StatusLabel>
+      <Box
+        display="inline-block"
+        key={`${endpoint.targetRef?.uid ?? addresses.join(',')}-${index}`}
+      >
+        <StatusLabel status={ready ? 'success' : 'error'}>{addresses.join(',')}</StatusLabel>
       </Box>
     );
   });
