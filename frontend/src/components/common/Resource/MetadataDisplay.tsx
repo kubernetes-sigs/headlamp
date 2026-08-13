@@ -26,7 +26,7 @@ import { KubeOwnerReference } from '../../../lib/k8s/cluster';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { localeDate } from '../../../lib/util';
 import { NameValueTable, NameValueTableRow } from '../../common/SimpleTable';
-import Link from '../Link';
+import Link, { LinkProps } from '../Link';
 import { LightTooltip } from '../Tooltip';
 
 type ExtraRowsFunc<T extends KubeObject> = (resource: T) => NameValueTableRow[] | null;
@@ -156,7 +156,25 @@ export function MetadataDisplay<T extends KubeObject>(props: MetadataDisplayProp
       },
       {
         name: t('Labels'),
-        value: resource.metadata.labels && <MetadataDictGrid dict={resource.metadata.labels} />,
+        value:
+          resource.metadata.labels &&
+          (() => {
+            const listRoute =
+              typeof resource.getListRouteDescriptor === 'function'
+                ? resource.getListRouteDescriptor()
+                : resource.listRoute
+                ? { routeName: resource.listRoute }
+                : null;
+            return (
+              <MetadataDictGrid
+                dict={resource.metadata.labels}
+                labelFilterRoute={listRoute?.routeName}
+                labelFilterParams={listRoute?.params}
+                labelFilterNamespace={resource.metadata.namespace}
+                activeCluster={resource.cluster}
+              />
+            );
+          })(),
         hide: !resource.metadata.labels,
       },
       {
@@ -185,56 +203,84 @@ export function MetadataDisplay<T extends KubeObject>(props: MetadataDisplayProp
 }
 
 interface MetadataDictGridProps {
+  /** Key-value pairs to display. */
   dict: {
     [index: string]: string;
     [index: number]: string;
   };
+  /** Whether to include each key in the displayed text. */
   showKeys?: boolean;
+  /** Additional layout properties for the grid containing the entries. */
   gridProps?: {
     [index: string]: any;
   };
+  /** Resource list route that turns entries into label selector links. */
+  labelFilterRoute?: string;
+  /** Parameters required by the resource list route. */
+  labelFilterParams?: LinkProps['params'];
+  /** Complete selector applied by every link instead of the clicked entry. */
+  labelSelector?: string;
+  /** Namespace to include when linking to a namespaced resource list. */
+  labelFilterNamespace?: string;
+  /** Cluster to preserve when navigating to the resource list. */
+  activeCluster?: string;
 }
 
+const MetadataEntry = React.forwardRef((props: TypographyProps, ref: any) => {
+  return (
+    <Typography
+      {...props}
+      sx={theme => ({
+        color: theme.palette.text.primary,
+        borderRadius: theme.shape.borderRadius + 'px',
+        backgroundColor: theme.palette.background.muted,
+        border: '1px solid',
+        borderColor: theme.palette.divider,
+        fontSize: theme.typography.pxToRem(14),
+        wordBreak: 'break-word',
+        paddingTop: 0.5,
+        paddingBottom: 0.5,
+        paddingLeft: 1,
+        paddingRight: 1,
+        marginRight: theme.spacing(1),
+        overflow: 'hidden',
+        whiteSpace: 'nowrap',
+        overflowWrap: 'anywhere',
+        textOverflow: 'ellipsis',
+      })}
+      ref={ref}
+    />
+  );
+});
+
+/**
+ * Displays metadata key-value pairs, optionally linking them to a filtered resource list.
+ *
+ * @param props - Dictionary display and optional label filter navigation settings.
+ * @returns The metadata entries and expansion control.
+ */
 export function MetadataDictGrid(props: MetadataDictGridProps) {
-  const { dict, showKeys = true, gridProps } = props;
+  const {
+    dict,
+    showKeys = true,
+    gridProps,
+    labelFilterRoute,
+    labelFilterParams,
+    labelSelector: completeLabelSelector,
+    labelFilterNamespace,
+    activeCluster,
+  } = props;
   const { t } = useTranslation();
   const [expanded, setExpanded] = React.useState(false);
   const defaultNumShown = 20;
 
   const keys = Object.keys(dict || []);
 
-  const MetadataEntry = React.forwardRef((props: TypographyProps, ref: any) => {
-    return (
-      <Typography
-        {...props}
-        sx={theme => ({
-          color: theme.palette.text.primary,
-          borderRadius: theme.shape.borderRadius + 'px',
-          backgroundColor: theme.palette.background.muted,
-          border: '1px solid',
-          borderColor: theme.palette.divider,
-          fontSize: theme.typography.pxToRem(14),
-          wordBreak: 'break-word',
-          paddingTop: 0.5,
-          paddingBottom: 0.5,
-          paddingLeft: 1,
-          paddingRight: 1,
-          marginRight: theme.spacing(1),
-          overflow: 'hidden',
-          whiteSpace: 'nowrap',
-          overflowWrap: 'anywhere',
-          textOverflow: 'ellipsis',
-        })}
-        ref={ref}
-      />
-    );
-  });
-
   function makeLabel(key: string | number) {
     let fullText = dict[key];
 
     if (showKeys) {
-      fullText = key + ': ' + fullText;
+      fullText = `${key}:${fullText ? ` ${fullText}` : ''}`;
     }
 
     let shortText = fullText;
@@ -248,6 +294,24 @@ export function MetadataDictGrid(props: MetadataDictGridProps) {
 
     let labelComponent = <MetadataEntry>{shortText}</MetadataEntry>;
 
+    if (labelFilterRoute) {
+      const labelSelector = completeLabelSelector || `${key}=${dict[key]}`;
+      labelComponent = (
+        <Link
+          routeName={labelFilterRoute}
+          params={labelFilterParams}
+          activeCluster={activeCluster}
+          search={{
+            labelSelector,
+            ...(labelFilterNamespace ? { namespace: labelFilterNamespace } : {}),
+          }}
+          underline="none"
+        >
+          <MetadataEntry component="span">{shortText}</MetadataEntry>
+        </Link>
+      );
+    }
+
     // If the full label is not being shown, use a tooltip to show the full text
     // to the user (so they select it, etc.).
     if (fullText.length !== shortText.length) {
@@ -255,6 +319,26 @@ export function MetadataDictGrid(props: MetadataDictGridProps) {
     }
     return labelComponent;
   }
+
+  const completeSelectorFallback =
+    keys.length === 0 &&
+    completeLabelSelector &&
+    (labelFilterRoute ? (
+      <Link
+        routeName={labelFilterRoute}
+        params={labelFilterParams}
+        activeCluster={activeCluster}
+        search={{
+          labelSelector: completeLabelSelector,
+          ...(labelFilterNamespace ? { namespace: labelFilterNamespace } : {}),
+        }}
+        underline="none"
+      >
+        <MetadataEntry component="span">{completeLabelSelector}</MetadataEntry>
+      </Link>
+    ) : (
+      <MetadataEntry>{completeLabelSelector}</MetadataEntry>
+    ));
 
   return (
     <Box>
@@ -266,6 +350,7 @@ export function MetadataDictGrid(props: MetadataDictGridProps) {
         }}
         {...gridProps}
       >
+        {completeSelectorFallback}
         {/* Limit the size to two entries until the user chooses to expand the whole section */}
         {keys.slice(0, expanded ? keys.length : defaultNumShown).map(key => (
           <React.Fragment key={key}>{makeLabel(key)}</React.Fragment>

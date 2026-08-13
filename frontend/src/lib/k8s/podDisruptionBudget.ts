@@ -14,20 +14,14 @@
  * limitations under the License.
  */
 
+import type { LabelSelector } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 
 export interface KubePDB extends KubeObjectInterface {
   spec: {
-    selector: {
-      matchLabels: {
-        [key: string]: string;
-      };
-      matchExpressions?: {
-        key: string;
-        operator: string;
-        values: string[];
-      };
+    selector: LabelSelector & {
+      matchLabels: NonNullable<LabelSelector['matchLabels']>;
     };
     minAvailable?: number;
     maxUnavailable?: number;

@@ -271,21 +271,36 @@
                       <div
                         class="MuiBox-root css-yi3mkw"
                       >
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone css-1vqhwzj-MuiTypography-root-MuiLink-root"
+                          href="/?labelSelector=app%3Dmock-app%2Ctier%3Dbackend%2Cenvironment%3Dproduction&namespace=default"
                         >
-                          app: mock-app
-                        </p>
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            app: mock-app
+                          </span>
+                        </a>
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone css-1vqhwzj-MuiTypography-root-MuiLink-root"
+                          href="/?labelSelector=app%3Dmock-app%2Ctier%3Dbackend%2Cenvironment%3Dproduction&namespace=default"
                         >
-                          tier: backend
-                        </p>
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            tier: backend
+                          </span>
+                        </a>
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone css-1vqhwzj-MuiTypography-root-MuiLink-root"
+                          href="/?labelSelector=app%3Dmock-app%2Ctier%3Dbackend%2Cenvironment%3Dproduction&namespace=default"
                         >
-                          environment: production
-                        </p>
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            environment: production
+                          </span>
+                        </a>
                       </div>
                     </div>
                   </dd>

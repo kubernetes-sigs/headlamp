@@ -32,6 +32,7 @@ class Role extends KubeObject<KubeRole> {
   static apiName = 'roles';
   static apiVersion = 'rbac.authorization.k8s.io/v1';
   static isNamespaced = true;
+  static supportsLabelSelectorList = false;
 
   get rules() {
     return this.jsonData.rules;

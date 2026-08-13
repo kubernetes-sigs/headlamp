@@ -46,6 +46,7 @@ vi.mock('./patchUtils', () => ({
 
 import { useSelectedClusters } from './api/v1/hooks';
 import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
+import ControllerRevision from './controllerRevision';
 import { KubeObject } from './KubeObject';
 
 describe('KubeObject', () => {
@@ -118,5 +119,32 @@ describe('KubeObject', () => {
         requests: [{ cluster: 'cluster-a', namespaces: undefined }],
       })
     );
+  });
+
+  it('returns null list navigation for ControllerRevision', () => {
+    const revision = new ControllerRevision({
+      apiVersion: 'apps/v1',
+      kind: 'ControllerRevision',
+      metadata: {
+        name: 'revision-1',
+        namespace: 'default',
+        creationTimestamp: '2026-08-13T00:00:00Z',
+        uid: 'revision-1-uid',
+      },
+      data: {},
+      revision: 1,
+    });
+
+    expect(revision.getListRouteDescriptor()).toBeNull();
+  });
+
+  it('returns null list navigation when the destination does not consume label selectors', () => {
+    class DataDrivenResource extends KubeObject {
+      static apiName = 'data-driven-resources';
+      static supportsLabelSelectorList = false;
+    }
+    const resource = new DataDrivenResource({ metadata: { name: 'example' } });
+
+    expect(resource.getListRouteDescriptor()).toBeNull();
   });
 });

@@ -23,6 +23,7 @@ import {
   hasAllowedNamespacesRestriction,
 } from '../../helpers/clusterSettings';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../cluster';
+import type { RouteURLProps } from '../router/createRouteURL';
 import { createRouteURL } from '../router/createRouteURL';
 import { timeAgo } from '../util';
 import { AllowedNamespacesResolutionContext } from './allowedNamespacesContext';
@@ -52,6 +53,14 @@ function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
   return getCombinedAllowedNamespaces(cluster);
 }
 
+/** Navigation target for a resource's list page. */
+export interface KubeObjectListRouteDescriptor {
+  /** Registered route name. */
+  routeName: string;
+  /** Parameters required to build the route. */
+  params?: RouteURLProps;
+}
+
 export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
   jsonData: T;
   /** Readonly field defined as JSONPath paths */
@@ -72,6 +81,9 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
   /** Whether the object is scalable, and should have a ScaleButton */
   static readonly isScalable: boolean;
+
+  /** Whether this resource's list route consumes labelSelector URL filters. */
+  static readonly supportsLabelSelectorList: boolean = true;
 
   static _internalApiEndpoint?: ReturnType<typeof apiFactoryWithNamespace | typeof apiFactory>;
 
@@ -180,6 +192,21 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
   get listRoute(): string {
     return this._class().listRoute;
+  }
+
+  /**
+   * Returns the registered list route used for metadata filtering.
+   *
+   * Resources with parameterized list routes should override this method.
+   * Resources without a list page should return `null`.
+   *
+   * @returns The list route descriptor, or `null` when no list page exists.
+   */
+  getListRouteDescriptor(): KubeObjectListRouteDescriptor | null {
+    if (!this._class().supportsLabelSelectorList) {
+      return null;
+    }
+    return { routeName: this.listRoute };
   }
 
   static get listRoute(): string {
