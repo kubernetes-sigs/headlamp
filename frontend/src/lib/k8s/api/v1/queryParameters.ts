@@ -18,6 +18,17 @@
 //        Because some only support some paramaters.
 
 /**
+ * Query parameters making the apiserver reject unknown or duplicate fields in a write
+ * request instead of silently dropping them. Shared by every write path so a typo can
+ * never apply successfully and do nothing.
+ *
+ * Spread it when the caller needs to add more parameters, it is frozen.
+ */
+export const STRICT_FIELD_VALIDATION: Readonly<QueryParameters> = Object.freeze({
+  fieldValidation: 'Strict',
+});
+
+/**
  * QueryParamaters is a map of query parameters for the Kubernetes API.
  */
 export interface QueryParameters {
