@@ -134,6 +134,7 @@ const mockPod = {
   spec: {
     containers: [{ name: 'nginx', image: 'nginx:latest' }],
     nodeName: 'test-node',
+    nodeSelector: { 'kubernetes.io/os': 'linux' },
   },
   status: {
     phase: 'Running',
@@ -182,6 +183,7 @@ describe('PodDetails auto-launch views', () => {
     mockActivityLaunch.mockReset();
     mockDispatchHeadlampEvent.mockReset();
     capturedOnResourceUpdate = undefined;
+    capturedExtraInfo = undefined;
   });
 
   it('does not auto-launch anything when no view param is present', () => {
@@ -196,6 +198,23 @@ describe('PodDetails auto-launch views', () => {
     });
 
     expect(mockActivityLaunch).not.toHaveBeenCalled();
+  });
+
+  it('links Node Selectors to the filtered Nodes list', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'test-pod' }} urlPrefix="/c/main/pods">
+        <PodDetails name="test-pod" namespace="default" />
+      </TestContext>
+    );
+
+    const nodeSelectors = capturedExtraInfo?.(mockPod).find(row => row.name === 'Node Selectors');
+
+    expect(nodeSelectors.value.props).toMatchObject({
+      activeCluster: 'main',
+      dict: { 'kubernetes.io/os': 'linux' },
+      labelFilterRoute: 'nodes',
+      labelSelector: 'kubernetes.io/os=linux',
+    });
   });
 
   it('does not auto-launch when view param is something else', () => {

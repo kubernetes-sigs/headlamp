@@ -14,30 +14,16 @@
  * limitations under the License.
  */
 
-import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import { labelSelectorToQuery } from '../../lib/k8s/labelSelector';
 import PDB from '../../lib/k8s/podDisruptionBudget';
 import { StatusLabel } from '../common/Label';
-import { DetailsGrid } from '../common/Resource';
+import { DetailsGrid, MetadataDictGrid } from '../common/Resource';
 
 export default function PDBDetails(props: { name?: string; namespace?: string; cluster?: string }) {
   const params = useParams<{ namespace: string; name: string }>();
   const { name = params.name, namespace = params.namespace, cluster } = props;
-
-  function selectorsToJSX(selectors: string[]) {
-    const values: ReactNode[] = [];
-
-    selectors.forEach((selector: string) => {
-      values.push(
-        <StatusLabel key={selector} status="">
-          {selector}
-        </StatusLabel>
-      );
-    });
-
-    return values;
-  }
 
   const { t } = useTranslation(['translation', 'glossary']);
   return (
@@ -59,7 +45,15 @@ export default function PDBDetails(props: { name?: string; namespace?: string; c
           },
           {
             name: t('glossary|Selector'),
-            value: <>{selectorsToJSX(item.selectors)}</>,
+            value: item.spec?.selector?.matchLabels && (
+              <MetadataDictGrid
+                activeCluster={item.cluster}
+                dict={item.spec.selector.matchLabels}
+                labelFilterNamespace={item.metadata.namespace}
+                labelFilterRoute="pods"
+                labelSelector={labelSelectorToQuery(item.spec.selector)}
+              />
+            ),
           },
           {
             name: t('translation|Status'),
