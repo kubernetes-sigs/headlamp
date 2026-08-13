@@ -226,6 +226,11 @@ func withCache(c cache.Cache[interface{}]) oidcTestOption {
 	return func(hc *HeadlampConfig) { hc.Cache = c }
 }
 
+// withAccessToken makes the callback read access_token instead of id_token.
+func withAccessToken() oidcTestOption {
+	return func(c *HeadlampConfig) { c.OidcUseAccessToken = true }
+}
+
 // newOIDCTestHandler builds a Headlamp handler with one OIDC-configured
 // kubeconfig context whose IdP issuer points at the supplied mock server.
 // Returns the handler and the cluster name registered.
@@ -763,6 +768,34 @@ func TestOIDCCallback_VerificationFailure(t *testing.T) {
 
 	require.Equal(t, http.StatusInternalServerError, rr.Code)
 	assert.Contains(t, rr.Body.String(), "Failed to verify ID Token")
+}
+
+// TestOIDCCallback_UsesAccessTokenWhenConfigured characterizes OidcUseAccessToken.
+//
+// The callback applies ID-token verification to the selected value, so this
+// fixture uses a second signed JWT. Opaque access-token support is tracked
+// by #6998.
+func TestOIDCCallback_UsesAccessTokenWhenConfigured(t *testing.T) {
+	srv := newOIDCTestServer(t, nil)
+	handler, cluster := newOIDCTestHandler(t, srv, withAccessToken())
+
+	idToken := srv.signToken(t, map[string]any{"sub": "id-token-subject"})
+	accessToken := srv.signToken(t, map[string]any{"sub": "access-token-subject"})
+	require.NotEqual(t, idToken, accessToken, "the two tokens must be distinguishable")
+
+	srv.setTokenHandler(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		_, _ = io.WriteString(w, `{"access_token":"`+accessToken+`","token_type":"Bearer",`+
+			`"refresh_token":"refresh-abc","id_token":"`+idToken+`"}`)
+	})
+
+	state := extractState(t, driveOIDCStart(t, handler, cluster))
+	rr := driveOIDCCallback(t, handler, state)
+
+	require.Equal(t, http.StatusSeeOther, rr.Code, "body=%q", rr.Body.String())
+	assert.Equal(t, accessToken, authCookieValue(t, rr, cluster),
+		"with OidcUseAccessToken, the access_token — not the id_token — reaches the cookie")
 }
 
 // newSigningOIDCTestServer is like newOIDCTestServer but its /token endpoint
