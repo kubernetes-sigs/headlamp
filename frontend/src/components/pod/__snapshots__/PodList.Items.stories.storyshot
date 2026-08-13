@@ -1011,6 +1011,12 @@
                         class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
+                    <div
+                      aria-atomic="true"
+                      aria-live="polite"
+                      class="MuiBox-root css-ty8jgw"
+                      role="status"
+                    />
                   </div>
                 </td>
                 <td
@@ -1320,6 +1326,12 @@
                         class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
+                    <div
+                      aria-atomic="true"
+                      aria-live="polite"
+                      class="MuiBox-root css-ty8jgw"
+                      role="status"
+                    />
                   </div>
                 </td>
                 <td
@@ -1475,6 +1487,12 @@
                         class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
+                    <div
+                      aria-atomic="true"
+                      aria-live="polite"
+                      class="MuiBox-root css-ty8jgw"
+                      role="status"
+                    />
                   </div>
                 </td>
                 <td
@@ -1630,6 +1648,12 @@
                         class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
+                    <div
+                      aria-atomic="true"
+                      aria-live="polite"
+                      class="MuiBox-root css-ty8jgw"
+                      role="status"
+                    />
                   </div>
                 </td>
                 <td
@@ -1785,6 +1809,12 @@
                         class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
+                    <div
+                      aria-atomic="true"
+                      aria-live="polite"
+                      class="MuiBox-root css-ty8jgw"
+                      role="status"
+                    />
                   </div>
                 </td>
                 <td
@@ -1940,6 +1970,12 @@
                         class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
+                    <div
+                      aria-atomic="true"
+                      aria-live="polite"
+                      class="MuiBox-root css-ty8jgw"
+                      role="status"
+                    />
                   </div>
                 </td>
                 <td
@@ -2095,6 +2131,12 @@
                         class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
                       />
                     </button>
+                    <div
+                      aria-atomic="true"
+                      aria-live="polite"
+                      class="MuiBox-root css-ty8jgw"
+                      role="status"
+                    />
                   </div>
                 </td>
                 <td
