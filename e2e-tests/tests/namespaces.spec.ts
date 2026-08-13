@@ -72,10 +72,19 @@ test('lists allowed namespaces without cluster-wide namespace access', async ({ 
     'The sidebar example plugin filters the Namespaces route in Container CI'
   );
 
+  const namespaceTable = page.getByRole('table');
+  await expect(namespaceTable).toBeVisible();
   for (const namespace of allowedNamespaces) {
-    await expect(page.getByRole('link', { name: namespace, exact: true })).toBeVisible();
+    await expect(
+      namespaceTable.getByRole('link', { name: namespace, exact: true })
+    ).toBeVisible();
   }
-  expect(namespaceRequests).toEqual([]);
+  expect(namespaceRequests.sort()).toEqual(
+    allowedNamespaces
+      .map(namespace => `/clusters/test/api/v1/namespaces/${namespace}`)
+      .sort()
+  );
+  expect(namespaceRequests).not.toContain('/clusters/test/api/v1/namespaces');
   expect(namespaceWebSockets).toEqual([]);
 });
 
