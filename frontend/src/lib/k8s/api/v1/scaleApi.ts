@@ -48,7 +48,12 @@ export function apiScaleFactory(apiRoot: string, resource: string): ScaleApi {
     },
     put: (body: { metadata: KubeMetadata; spec: { replicas: number } }, clusterName?: string) => {
       const cluster = clusterName || getCluster() || '';
-      return put(url(body.metadata.namespace!, body.metadata.name), body, undefined, { cluster });
+      return put(
+        url(body.metadata.namespace!, body.metadata.name) + '?fieldValidation=Strict',
+        body,
+        undefined,
+        { cluster }
+      );
     },
     patch: (
       body: {
@@ -60,7 +65,12 @@ export function apiScaleFactory(apiRoot: string, resource: string): ScaleApi {
       clusterName?: string
     ) => {
       const cluster = clusterName || getCluster() || '';
-      return patch(url(metadata.namespace!, metadata.name), body, false, { cluster });
+      return patch(
+        url(metadata.namespace!, metadata.name) + '?fieldValidation=Strict',
+        body,
+        undefined,
+        { cluster }
+      );
     },
   };
 

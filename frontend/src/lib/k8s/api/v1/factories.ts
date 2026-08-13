@@ -384,17 +384,35 @@ export function singleApiFactory<T extends KubeObjectInterface>(
     },
     get: (name, cb, errCb, queryParams, cluster) =>
       streamResult(url, name, cb, errCb, queryParams, cluster),
-    post: (body, queryParams, cluster) => post(url + asQuery(queryParams), body, true, { cluster }),
+    post: (body, queryParams, cluster) =>
+      post(url + asQuery({ fieldValidation: 'Strict', ...queryParams }), body, true, { cluster }),
     put: (body, queryParams, cluster) =>
-      put(`${url}/${body.metadata.name}` + asQuery(queryParams), body, true, { cluster }),
+      put(
+        `${url}/${body.metadata.name}` + asQuery({ fieldValidation: 'Strict', ...queryParams }),
+        body,
+        true,
+        {
+          cluster,
+        }
+      ),
     patch: (body, name, queryParams, cluster) =>
-      patch(`${url}/${name}` + asQuery({ ...queryParams, ...{ pretty: 'true' } }), body, true, {
-        cluster,
-      }),
+      patch(
+        `${url}/${name}` + asQuery({ fieldValidation: 'Strict', pretty: 'true', ...queryParams }),
+        body,
+        true,
+        {
+          cluster,
+        }
+      ),
     jsonPatch: (body, name, queryParams, cluster) =>
-      jsonPatch(`${url}/${name}` + asQuery({ ...queryParams, ...{ pretty: 'true' } }), body, true, {
-        cluster,
-      }),
+      jsonPatch(
+        `${url}/${name}` + asQuery({ fieldValidation: 'Strict', pretty: 'true', ...queryParams }),
+        body,
+        true,
+        {
+          cluster,
+        }
+      ),
     delete: (name, deleteParams, cluster) =>
       remove(`${url}/${name}` + asQuery(deleteParams), { cluster }),
     isNamespaced: false,
@@ -466,24 +484,32 @@ function simpleApiFactoryWithNamespace<T extends KubeObjectInterface>(
     get: (namespace, name, cb, errCb, queryParams, cluster) =>
       streamResult(url(namespace), name, cb, errCb, queryParams, cluster),
     post: (body, queryParams, cluster) =>
-      post(url(body.metadata?.namespace!) + asQuery(queryParams), body, true, { cluster }),
+      post(
+        url(body.metadata?.namespace!) + asQuery({ fieldValidation: 'Strict', ...queryParams }),
+        body,
+        true,
+        { cluster }
+      ),
     patch: (body, namespace, name, queryParams, cluster) =>
       patch(
-        `${url(namespace)}/${name}` + asQuery({ ...queryParams, ...{ pretty: 'true' } }),
+        `${url(namespace)}/${name}` +
+          asQuery({ fieldValidation: 'Strict', pretty: 'true', ...queryParams }),
         body,
         true,
         { cluster }
       ),
     jsonPatch: (body, namespace, name, queryParams, cluster) =>
       jsonPatch(
-        `${url(namespace)}/${name}` + asQuery({ ...queryParams, ...{ pretty: 'true' } }),
+        `${url(namespace)}/${name}` +
+          asQuery({ fieldValidation: 'Strict', pretty: 'true', ...queryParams }),
         body,
         true,
         { cluster }
       ),
     put: (body, queryParams, cluster) =>
       put(
-        `${url(body.metadata.namespace!)}/${body.metadata.name}` + asQuery(queryParams),
+        `${url(body.metadata.namespace!)}/${body.metadata.name}` +
+          asQuery({ fieldValidation: 'Strict', ...queryParams }),
         body,
         true,
         { cluster }
