@@ -27,7 +27,7 @@
             id=":mock-test-id:"
             placeholder="Search resources, pages, clusters, or label selectors"
             type="text"
-            value="coredns kube-system"
+            value="environment in (production),tier in (frontend)"
           />
           <button
             aria-label="Clear"
@@ -74,15 +74,15 @@
       role="listbox"
     >
       <div
-        style="position: relative; height: 100px; width: 100%; overflow: auto; -webkit-overflow-scrolling: touch; will-change: transform; direction: ltr;"
+        style="position: relative; height: 50px; width: 100%; overflow: auto; -webkit-overflow-scrolling: touch; will-change: transform; direction: ltr;"
       >
         <div
-          style="height: 100px; width: 100%;"
+          style="height: 50px; width: 100%;"
         >
           <li
             aria-disabled="false"
             aria-selected="false"
-            class="MuiBox-root css-iuk3p6"
+            class="MuiBox-root css-iuk3p6 Mui-focused"
             data-option-index="0"
             id=":mock-test-id:"
             role="option"
@@ -219,66 +219,12 @@
               <span
                 class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
               >
-                Pod • 
-                <span
-                  style="font-weight: bold;"
-                >
-                  kube-system
-                </span>
+                Label Selector
               </span>
               <div
                 class="MuiBox-root css-72rvq0"
               >
-                <span
-                  style="font-weight: bold;"
-                >
-                  coredns
-                </span>
-              </div>
-            </div>
-          </li>
-          <li
-            aria-disabled="false"
-            aria-selected="false"
-            class="MuiBox-root css-iuk3p6"
-            data-option-index="1"
-            id=":mock-test-id:"
-            role="option"
-            style="position: absolute; left: 0px; top: 50px; height: 50px; width: 100%;"
-            tabindex="-1"
-          >
-            <div
-              class="MuiBox-root css-hj9wmn"
-            />
-            <div
-              class="MuiBox-root css-kznbd2"
-            >
-              <span
-                class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
-              >
-                Advanced Search (Beta)
-              </span>
-              <div
-                class="MuiBox-root css-72rvq0"
-              >
-                <span
-                  style="font-weight: bold;"
-                >
-                  Se
-                </span>
-                a
-                <span
-                  style="font-weight: bold;"
-                >
-                  rc
-                </span>
-                h "
-                <span
-                  style="font-weight: bold;"
-                >
-                  coredns
-                </span>
-                 kube-system" with Advanced Search
+                Pods environment in (production),tier in (frontend)
               </div>
             </div>
           </li>
