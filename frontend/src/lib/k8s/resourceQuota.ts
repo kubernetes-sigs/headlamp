@@ -51,6 +51,7 @@ class ResourceQuota extends KubeObject<KubeResourceQuota> {
   static apiName = 'resourcequotas';
   static apiVersion = 'v1';
   static isNamespaced = true;
+  static supportsLabelSelectorList = false;
 
   static getBaseObject(): KubeResourceQuota {
     const baseObject = super.getBaseObject() as KubeResourceQuota;

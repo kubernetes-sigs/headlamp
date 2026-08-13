@@ -19,8 +19,9 @@ import React from 'react';
 import { TestContext } from '../../test';
 import JobDetails from './Details';
 
-const { mockDetailsGrid } = vi.hoisted(() => ({
+const { mockDetailsGrid, mockMetadataDictGrid } = vi.hoisted(() => ({
   mockDetailsGrid: vi.fn(),
+  mockMetadataDictGrid: vi.fn(),
 }));
 
 vi.mock('../common/Resource', () => ({
@@ -35,7 +36,10 @@ vi.mock('../common/Resource', () => ({
   LogsButton: () => null,
   ConditionsSection: () => null,
   ContainersSection: () => null,
-  MetadataDictGrid: () => null,
+  MetadataDictGrid: (props: any) => {
+    mockMetadataDictGrid(props);
+    return null;
+  },
   OwnedPodsSection: () => null,
 }));
 
@@ -83,6 +87,7 @@ const fakeJob: any = {
 describe('JobDetails', () => {
   beforeEach(() => {
     mockDetailsGrid.mockReset();
+    mockMetadataDictGrid.mockReset();
   });
 
   it('passes Job-specific extraInfo fields to DetailsGrid', () => {
@@ -126,6 +131,37 @@ describe('JobDetails', () => {
     const statusField = extraInfo.find((f: any) => f.name.includes('Status'));
 
     expect(statusField.hide).toBe(true);
+  });
+
+  it('renders an expression-only selector as a Pod filter', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'test-job' }}>
+        <JobDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const expressionJob = {
+      ...fakeJob,
+      cluster: 'main',
+      spec: {
+        ...fakeJob.spec,
+        selector: {
+          matchExpressions: [{ key: 'track', operator: 'In', values: ['stable', 'canary'] }],
+        },
+      },
+    };
+    const selector = props
+      .extraInfo(expressionJob)
+      .find((field: any) => String(field.name).includes('Selector'));
+
+    expect(selector.value.props).toEqual({
+      activeCluster: 'main',
+      dict: {},
+      labelFilterNamespace: 'default',
+      labelFilterRoute: 'pods',
+      labelSelector: 'track in (canary,stable)',
+    });
   });
 
   it('provides onResourceUpdate to DetailsGrid for tracking workload changes', () => {

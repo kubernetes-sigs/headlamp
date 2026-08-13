@@ -18,6 +18,7 @@ import React, { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
 import Job from '../../lib/k8s/job';
+import { labelSelectorToQuery } from '../../lib/k8s/labelSelector';
 import { formatDuration } from '../../lib/util';
 import { useEventCallback } from '../../redux/headlampEventSlice';
 import Link from '../common/Link';
@@ -144,9 +145,13 @@ export default function JobDetails(props: { name?: string; namespace?: string; c
           },
           {
             name: t('glossary|Selector'),
-            value: item.spec?.selector?.matchLabels && (
+            value: item.spec?.selector && (
               <MetadataDictGrid
-                dict={item.spec.selector.matchLabels as { [key: string]: string }}
+                activeCluster={item.cluster}
+                dict={(item.spec.selector.matchLabels ?? {}) as { [key: string]: string }}
+                labelFilterNamespace={item.metadata.namespace}
+                labelFilterRoute="pods"
+                labelSelector={labelSelectorToQuery(item.spec.selector)}
               />
             ),
           },

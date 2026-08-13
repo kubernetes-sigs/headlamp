@@ -14,19 +14,12 @@
  * limitations under the License.
  */
 
-import { KubeObject } from './KubeObject';
-import type { KubeRole } from './role';
+import { labelSelectorToQuery } from './labelSelector';
 
-class ClusterRole extends KubeObject<KubeRole> {
-  static kind = 'ClusterRole';
-  static apiName = 'clusterroles';
-  static apiVersion = 'rbac.authorization.k8s.io/v1';
-  static isNamespaced = false;
-  static supportsLabelSelectorList = false;
-
-  get rules() {
-    return this.jsonData!.rules;
-  }
-}
-
-export default ClusterRole;
+describe('labelSelectorToQuery', () => {
+  it('serializes matchLabels in canonical key order', () => {
+    expect(labelSelectorToQuery({ matchLabels: { tier: 'frontend', app: 'web' } })).toBe(
+      'app=web,tier=frontend'
+    );
+  });
+});
