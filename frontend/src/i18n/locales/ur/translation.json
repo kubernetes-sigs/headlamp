@@ -959,6 +959,7 @@
   "Pod Group Templates": "پوڈ گروپ ٹیمپلیٹس",
   "No pod group templates in this workload.": "اس ورک لوڈ میں کوئی پوڈ گروپ ٹیمپلیٹ نہیں ہے۔",
   "Composite Pod Group Templates": "مرکب پوڈ گروپ ٹیمپلیٹس",
+  "Min Group Count": "",
   "No data in this secret": "اس سیکرٹ میں کوئی ڈیٹا نہیں",
   "Hide Helm Secrets": "Helm سیکرٹس چھپائیں",
   "Shrink sidebar": "سائیڈ بار چھوٹا کریں",

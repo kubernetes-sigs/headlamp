@@ -35,6 +35,10 @@ export const SCHEDULING_WORKLOAD_DUMMY_DATA: KubeSchedulingWorkload[] = [
           name: 'workers',
           schedulingPolicy: { gang: { minCount: 4 } },
           schedulingConstraints: { topology: [{ key: 'kubernetes.io/hostname' }] },
+          disruptionMode: { all: {} },
+          priorityClassName: 'high-priority',
+          priority: 1000,
+          preemptionPolicy: 'PreemptLowerPriority',
         },
         {
           name: 'launcher',

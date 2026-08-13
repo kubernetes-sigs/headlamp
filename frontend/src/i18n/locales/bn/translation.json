@@ -959,6 +959,7 @@
   "Pod Group Templates": "পড গ্রুপ টেমপ্লেট",
   "No pod group templates in this workload.": "এই ওয়ার্কলোডে কোনো পড গ্রুপ টেমপ্লেট নেই।",
   "Composite Pod Group Templates": "যৌগিক পড গ্রুপ টেমপ্লেট",
+  "Min Group Count": "",
   "No data in this secret": "এই secret এর মধ্যে কোনও Data নেই",
   "Hide Helm Secrets": "Helm Secret লুকান",
   "Shrink sidebar": "সাইডবার সংকুচিত করুন",

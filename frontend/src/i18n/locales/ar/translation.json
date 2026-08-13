@@ -999,6 +999,7 @@
   "Pod Group Templates": "قوالب مجموعة البودات",
   "No pod group templates in this workload.": "لا توجد قوالب مجموعة بودات في حِمل العمل هذا.",
   "Composite Pod Group Templates": "قوالب مجموعة البودات المركّبة",
+  "Min Group Count": "",
   "No data in this secret": "لا توجد بيانات في هذا السر",
   "Hide Helm Secrets": "إخفاء أسرار Helm",
   "Shrink sidebar": "تصغير الشريط الجانبي",

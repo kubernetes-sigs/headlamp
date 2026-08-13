@@ -969,6 +969,7 @@
   "Pod Group Templates": "",
   "No pod group templates in this workload.": "",
   "Composite Pod Group Templates": "",
+  "Min Group Count": "",
   "No data in this secret": "",
   "Hide Helm Secrets": "",
   "Shrink sidebar": "",

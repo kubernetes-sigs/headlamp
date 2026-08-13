@@ -950,6 +950,7 @@
   "Pod Group Templates": "Pod 群組範本",
   "No pod group templates in this workload.": "此工作負載中沒有 Pod 群組範本。",
   "Composite Pod Group Templates": "",
+  "Min Group Count": "",
   "No data in this secret": "此金鑰中無資料",
   "Hide Helm Secrets": "",
   "Shrink sidebar": "收縮側邊欄",

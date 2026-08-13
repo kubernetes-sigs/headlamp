@@ -970,6 +970,7 @@
   "Pod Group Templates": "Plantillas de grupo de Pods",
   "No pod group templates in this workload.": "No hay plantillas de grupo de Pods en esta carga de trabajo.",
   "Composite Pod Group Templates": "",
+  "Min Group Count": "",
   "No data in this secret": "Sin datos en este secret",
   "Hide Helm Secrets": "",
   "Shrink sidebar": "Reducir barra lateral",

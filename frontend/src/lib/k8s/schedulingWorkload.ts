@@ -37,6 +37,10 @@ export interface PodGroupTemplate {
   schedulingPolicy: PodGroupSchedulingPolicy;
   schedulingConstraints?: PodGroupSchedulingConstraints;
   resourceClaims?: PodGroupResourceClaim[];
+  /** Whether a disruption affects one pod at a time, or the whole group. */
+  disruptionMode?: PodGroupDisruptionMode;
+  priorityClassName?: string;
+  priority?: number;
   /**
    * Served by v1alpha3 and v1beta1. Whether preemption may evict lower priority pods.
    */
@@ -91,7 +95,8 @@ export function getCompositeDisruptionMode(
 }
 
 export interface WorkloadSpec {
-  podGroupTemplates: PodGroupTemplate[];
+  /** Exactly one of this and `compositePodGroupTemplates` is set. */
+  podGroupTemplates?: PodGroupTemplate[];
   /**
    * Served by v1alpha3 and v1beta1. Templates that schedule several pod groups together.
    */

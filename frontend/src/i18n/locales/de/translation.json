@@ -960,6 +960,7 @@
   "Pod Group Templates": "Pod-Gruppen-Vorlagen",
   "No pod group templates in this workload.": "Keine Pod-Gruppen-Vorlagen in diesem Workload.",
   "Composite Pod Group Templates": "",
+  "Min Group Count": "",
   "No data in this secret": "Keine Daten in dieser Secret",
   "Hide Helm Secrets": "",
   "Shrink sidebar": "Seitenleiste verkleinern",

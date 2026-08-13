@@ -16,7 +16,7 @@
 
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
-import { getSchedulingPolicyKind } from '../../lib/k8s/podGroup';
+import { getDisruptionMode, getSchedulingPolicyKind } from '../../lib/k8s/podGroup';
 import type { CompositePodGroupTemplate, PodGroupTemplate } from '../../lib/k8s/schedulingWorkload';
 import Workload, { getCompositeDisruptionMode } from '../../lib/k8s/schedulingWorkload';
 import { DetailsGrid } from '../common/Resource';
@@ -48,6 +48,23 @@ function PodGroupTemplatesSection({ templates }: { templates: PodGroupTemplate[]
             label: t('translation|Topology Keys'),
             getter: (template: PodGroupTemplate) =>
               template.schedulingConstraints?.topology?.map(item => item.key).join(', ') ?? '',
+          },
+          {
+            label: t('translation|Disruption Mode'),
+            getter: (template: PodGroupTemplate) =>
+              getDisruptionMode(template.disruptionMode) ?? '',
+          },
+          {
+            label: t('glossary|Priority Class'),
+            getter: (template: PodGroupTemplate) => template.priorityClassName ?? '',
+          },
+          {
+            label: t('glossary|Priority'),
+            getter: (template: PodGroupTemplate) => template.priority ?? '',
+          },
+          {
+            label: t('translation|Preemption Policy'),
+            getter: (template: PodGroupTemplate) => template.preemptionPolicy ?? '',
           },
         ]}
         data={templates}
