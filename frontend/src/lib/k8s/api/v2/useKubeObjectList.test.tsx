@@ -491,6 +491,41 @@ describe('useKubeObjectList', () => {
     expect(response.skipWatch).toBe(true);
   });
 
+  it('filters individually fetched allowed namespaces with the requested selector', async () => {
+    const namespaceClass = class {
+      static apiVersion = 'v1';
+      static apiName = 'namespaces';
+      static kind = 'Namespace';
+
+      constructor(public jsonData: any) {}
+    } as any;
+    localStorage.setItem(
+      'cluster_settings.restricted',
+      JSON.stringify({ allowedNamespaces: ['team-a', 'team-b'] })
+    );
+    mockClusterFetch
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve({ metadata: { name: 'team-a', labels: { environment: 'production' } } }),
+      } as Response)
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve({ metadata: { name: 'team-b', labels: { environment: 'development' } } }),
+      } as Response);
+
+    const query = kubeObjectListQuery(
+      namespaceClass,
+      { version: 'v1', resource: 'namespaces' },
+      undefined,
+      'restricted',
+      { labelSelector: 'environment=production' }
+    );
+    const response = await (query.queryFn as any)();
+
+    expect(mockClusterFetch).toHaveBeenCalledTimes(2);
+    expect(response.list.items.map((item: any) => item.jsonData.metadata.name)).toEqual(['team-a']);
+  });
+
   it('adds cluster and namespace context to allowed namespace errors', async () => {
     localStorage.setItem(
       'cluster_settings.restricted',
@@ -1145,6 +1180,54 @@ describe('useKubeObjectList', () => {
       cluster: 'default',
       namespace: 'b',
     });
+  });
+
+  it('automatically drains every request one at a time with a one-item API page', async () => {
+    const responses = [deferred<Response>(), deferred<Response>(), deferred<Response>()];
+    responses.forEach(response => mockClusterFetch.mockReturnValueOnce(response.promise));
+
+    const result = renderHook(
+      () =>
+        useKubeObjectList({
+          fetchAllRequests: true,
+          kubeObjectClass: mockClass,
+          requests: [
+            { cluster: 'cluster-a', namespaces: ['team-a', 'team-b'] },
+            { cluster: 'cluster-b', namespaces: ['team-c'] },
+          ],
+          queryParams: { labelSelector: 'app=nginx', limit: 1 },
+        }),
+      {
+        wrapper: queryClientWrapper(new QueryClient()),
+      }
+    );
+
+    await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(1));
+    expect(mockClusterFetch.mock.calls[0][0]).toBe(
+      'api/v1/namespaces/team-a/pods?labelSelector=app%3Dnginx&limit=1'
+    );
+
+    await act(async () => {
+      responses[0].resolve({ json: () => Promise.resolve(makeListResponse()) } as Response);
+    });
+    await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(2));
+    expect(mockClusterFetch.mock.calls[1][0]).toBe(
+      'api/v1/namespaces/team-b/pods?labelSelector=app%3Dnginx&limit=1'
+    );
+
+    await act(async () => {
+      responses[1].resolve({ json: () => Promise.resolve(makeListResponse()) } as Response);
+    });
+    await waitFor(() => expect(mockClusterFetch).toHaveBeenCalledTimes(3));
+    expect(mockClusterFetch.mock.calls[2][0]).toBe(
+      'api/v1/namespaces/team-c/pods?labelSelector=app%3Dnginx&limit=1'
+    );
+
+    await act(async () => {
+      responses[2].resolve({ json: () => Promise.resolve(makeListResponse()) } as Response);
+    });
+    await waitFor(() => expect(result.result.current.isFetching).toBe(false));
+    expect(result.result.current.loadMore).toBeUndefined();
   });
 
   it('should normalize unexpected page processing errors to ApiError', async () => {

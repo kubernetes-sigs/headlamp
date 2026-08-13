@@ -27,7 +27,7 @@
             id=":mock-test-id:"
             placeholder="Search resources, pages, clusters, or label selectors"
             type="text"
-            value="coredns kube-system"
+            value="kube-system"
           />
           <button
             aria-label="Clear"
@@ -82,7 +82,7 @@
           <li
             aria-disabled="false"
             aria-selected="false"
-            class="MuiBox-root css-iuk3p6"
+            class="MuiBox-root css-iuk3p6 Mui-focused"
             data-option-index="0"
             id=":mock-test-id:"
             role="option"
@@ -91,15 +91,54 @@
           >
             <div
               class="MuiBox-root css-hj9wmn"
+            />
+            <div
+              class="MuiBox-root css-kznbd2"
+            >
+              <span
+                class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
+              >
+                Advanced Search (Beta)
+              </span>
+              <div
+                class="MuiBox-root css-72rvq0"
+              >
+                <span
+                  style="font-weight: bold;"
+                >
+                  Se
+                </span>
+                arch "
+                <span
+                  style="font-weight: bold;"
+                >
+                  kube-system
+                </span>
+                " with Advanced Search
+              </div>
+            </div>
+          </li>
+          <li
+            aria-disabled="false"
+            aria-selected="false"
+            class="MuiBox-root css-iuk3p6"
+            data-option-index="1"
+            id=":mock-test-id:"
+            role="option"
+            style="position: absolute; left: 0px; top: 50px; height: 50px; width: 100%;"
+            tabindex="-1"
+          >
+            <div
+              class="MuiBox-root css-hj9wmn"
             >
               <div
-                class="MuiBox-root css-72qomf"
+                class="MuiBox-root css-wjpmq5"
               >
                 <svg
                   height="17.500378mm"
                   id="svg13826"
                   inkscape:version="0.91 r13725"
-                  sodipodi:docname="pod.svg"
+                  sodipodi:docname="ns.svg"
                   style="scale: 1.1; width: 100%; height: 100%;"
                   viewBox="0 0 18.035334 17.500378"
                   width="18.035334mm"
@@ -124,7 +163,7 @@
                     id="base"
                     inkscape:current-layer="layer1"
                     inkscape:cx="-2.090004"
-                    inkscape:cy="33.752239"
+                    inkscape:cy="23.752239"
                     inkscape:document-units="mm"
                     inkscape:pageopacity="0"
                     inkscape:pageshadow="2"
@@ -180,35 +219,14 @@
                         style="color: rgb(0, 0, 0); font-style: normal; font-variant: normal; font-weight: normal; font-stretch: normal; font-size: medium; line-height: normal; font-family: Sans; text-indent: 0; text-align: start; text-decoration: none; text-decoration-line: none; letter-spacing: normal; word-spacing: normal; text-transform: none; writing-mode: lr-tb; direction: ltr; baseline-shift: baseline; text-anchor: start; display: inline; overflow: visible; visibility: visible; fill: currentcolor; fill-opacity: 1; fill-rule: nonzero; stroke: none; stroke-width: 0; stroke-miterlimit: 4; stroke-dasharray: none; marker: none; enable-background: accumulate;"
                       />
                     </g>
-                    <g
-                      id="g3341"
-                      transform="translate(0.12766661,0.35147801)"
-                    >
-                      <path
-                        d="M 6.2617914,7.036086 9.8826317,5.986087 13.503462,7.036086 9.8826317,8.086087 Z"
-                        id="path910"
-                        inkscape:connector-curvature="0"
-                        inkscape:export-xdpi="376.57999"
-                        inkscape:export-ydpi="376.57999"
-                        style="fill: currentcolor; fill-rule: evenodd; stroke: none; stroke-width: 0.26458332; stroke-linecap: square; stroke-miterlimit: 10;"
-                      />
-                      <path
-                        d="m 6.2617914,7.43817 0,3.852778 3.3736103,1.868749 0.0167,-4.713193 z"
-                        id="path912"
-                        inkscape:connector-curvature="0"
-                        inkscape:export-xdpi="376.57999"
-                        inkscape:export-ydpi="376.57999"
-                        style="fill: currentcolor; fill-rule: evenodd; stroke: none; stroke-width: 0.26458332; stroke-linecap: square; stroke-miterlimit: 10;"
-                      />
-                      <path
-                        d="m 13.503462,7.43817 0,3.852778 -3.37361,1.868749 -0.0167,-4.713193 z"
-                        id="path914"
-                        inkscape:connector-curvature="0"
-                        inkscape:export-xdpi="376.57999"
-                        inkscape:export-ydpi="376.57999"
-                        style="fill: currentcolor; fill-rule: evenodd; stroke: none; stroke-width: 0.26458332; stroke-linecap: square; stroke-miterlimit: 10;"
-                      />
-                    </g>
+                    <rect
+                      height="6.6900792"
+                      id="rect8790"
+                      style="opacity: 1; fill: none; fill-opacity: 1; fill-rule: nonzero; stroke: currentcolor; stroke-width: 0.40000001; stroke-linecap: butt; stroke-linejoin: round; stroke-miterlimit: 10; stroke-dasharray: 0.80000001, 0.4; stroke-dashoffset: 3.44000006; stroke-opacity: 1;"
+                      width="7.6735892"
+                      x="6.1734986"
+                      y="6.5793304"
+                    />
                   </g>
                 </svg>
               </div>
@@ -219,66 +237,30 @@
               <span
                 class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
               >
-                Pod • 
+                Current Namespace
+              </span>
+              <div
+                class="MuiBox-root css-72rvq0"
+              >
+                Add na
+                <span
+                  style="font-weight: bold;"
+                >
+                  mes
+                </span>
+                pac
+                <span
+                  style="font-weight: bold;"
+                >
+                  e
+                </span>
+                 (
                 <span
                   style="font-weight: bold;"
                 >
                   kube-system
                 </span>
-              </span>
-              <div
-                class="MuiBox-root css-72rvq0"
-              >
-                <span
-                  style="font-weight: bold;"
-                >
-                  coredns
-                </span>
-              </div>
-            </div>
-          </li>
-          <li
-            aria-disabled="false"
-            aria-selected="false"
-            class="MuiBox-root css-iuk3p6"
-            data-option-index="1"
-            id=":mock-test-id:"
-            role="option"
-            style="position: absolute; left: 0px; top: 50px; height: 50px; width: 100%;"
-            tabindex="-1"
-          >
-            <div
-              class="MuiBox-root css-hj9wmn"
-            />
-            <div
-              class="MuiBox-root css-kznbd2"
-            >
-              <span
-                class="MuiTypography-root MuiTypography-caption css-q1d4hg-MuiTypography-root"
-              >
-                Advanced Search (Beta)
-              </span>
-              <div
-                class="MuiBox-root css-72rvq0"
-              >
-                <span
-                  style="font-weight: bold;"
-                >
-                  Se
-                </span>
-                a
-                <span
-                  style="font-weight: bold;"
-                >
-                  rc
-                </span>
-                h "
-                <span
-                  style="font-weight: bold;"
-                >
-                  coredns
-                </span>
-                 kube-system" with Advanced Search
+                )
               </div>
             </div>
           </li>
