@@ -100,6 +100,19 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		WatchPluginsChanges:    conf.WatchPluginsChanges,
 		KubeConfigStore:        kubeConfigStore,
 		BaseURL:                conf.BaseURL,
+		AllowedFrameAncestors: func() []string {
+			var ancestors []string
+
+			if conf.AllowedFrameAncestors != "" {
+				for _, v := range strings.Split(conf.AllowedFrameAncestors, ",") {
+					if t := strings.TrimSpace(v); t != "" {
+						ancestors = append(ancestors, t)
+					}
+				}
+			}
+
+			return ancestors
+		}(),
 		ProxyURLs: func() []string {
 			if conf.ProxyURLs == "" {
 				return []string{}
