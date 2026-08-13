@@ -41,6 +41,7 @@ import * as fs from 'fs';
 import * as os from 'os';
 import * as path from 'path';
 import { _electron, Page } from 'playwright';
+import { dismissReleaseNotes } from './releaseNotesTestUtils';
 import { dismissWelcome } from './welcome';
 
 const CLUSTER_NAME = 'headlamp-e2e-connect';
@@ -54,6 +55,7 @@ const appPath = path.resolve(__dirname, '../../');
 let electronApp: Awaited<ReturnType<typeof _electron.launch>>;
 let electronPage: Page;
 let appBaseUrl = ''; // set after Electron launch
+let profileDir: string;
 
 function shell(cmd: string): string {
   return execSync(cmd, { encoding: 'utf8', stdio: ['pipe', 'pipe', 'inherit'] }).trim();
@@ -117,12 +119,13 @@ function teardownExecCluster(): void {
 test.beforeAll(async () => {
   test.setTimeout(3 * 60 * 1000); // cluster creation takes ~60s
   setupExecCluster();
+  profileDir = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-e2e-cluster-auto-connect-profile-'));
 
   // Launch Electron with the merged kubeconfig so it sees the new cluster.
   electronApp = await _electron.launch({
     cwd: appPath,
     executablePath: electronPath,
-    args: ['.'],
+    args: ['.', `--user-data-dir=${profileDir}`],
     env: {
       ...process.env,
       NODE_ENV: 'development',
@@ -130,7 +133,7 @@ test.beforeAll(async () => {
       KUBECONFIG: MERGED_KUBECONFIG,
     },
   });
-  electronPage = await electronApp.firstWindow();
+  electronPage = await dismissReleaseNotes(electronApp);
   await electronPage.waitForLoadState('load');
   await dismissWelcome(electronPage);
   // The app uses file:// with hash routing: file:///...index.html#/
@@ -147,6 +150,9 @@ test.beforeAll(async () => {
 test.afterAll(async () => {
   await electronApp?.close();
   teardownExecCluster();
+  if (profileDir) {
+    fs.rmSync(profileDir, { recursive: true, force: true });
+  }
 });
 
 async function goToHomeClean(page: Page) {

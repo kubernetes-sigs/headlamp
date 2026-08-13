@@ -47,6 +47,7 @@ export default defineConfig({
     'protocolScheme.spec.ts',
     'frontendBuild.spec.ts',
     'kubeConfigImport.spec.ts',
+    'releaseNotes.spec.ts',
     'runtimeProductIdentity.spec.ts',
   ],
   timeout: 60 * 1000,
