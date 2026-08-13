@@ -49,6 +49,12 @@ export const WebSocketManager = {
   /** Map to track pending unsubscribe operations for debouncing */
   pendingUnsubscribes: new Map<string, NodeJS.Timeout>(),
 
+  /** Flag to track if the WebSocket is intentionally suspended due to tab visibility */
+  suspended: false,
+
+  /** Timer for debouncing suspension when tab is hidden */
+  suspendTimer: null as NodeJS.Timeout | null,
+
   /**
    * Creates a unique key for identifying WebSocket subscriptions
    * @param clusterId - Cluster identifier
@@ -156,6 +162,28 @@ export const WebSocketManager = {
       };
       socket.send(JSON.stringify(requestMsg));
     });
+  },
+
+  /**
+   * Suspend all active watches by closing the WebSocket connection.
+   * Does not clear active subscriptions so they can be resumed later.
+   */
+  suspendAll(): void {
+    if (this.socketMultiplexer && this.socketMultiplexer.readyState === WebSocket.OPEN) {
+      this.socketMultiplexer.close();
+    }
+    this.suspended = true;
+  },
+
+  /**
+   * Resume all active watches by reconnecting the WebSocket.
+   */
+  resumeAll(): void {
+    this.suspended = false;
+    if (this.activeSubscriptions.size > 0) {
+      // Re-connect and resubscribe if there are active subscriptions
+      this.connect().catch(err => console.error('Failed to resume WebSocket subscriptions:', err));
+    }
   },
 
   /**
@@ -557,4 +585,25 @@ export interface WebSocketMessage {
    * - COMPLETE: Server indicates the watch request has completed (e.g., due to timeout or error)
    */
   type: 'REQUEST' | 'CLOSE' | 'COMPLETE';
+}
+
+// Add visibility change listener to pause background watches
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      // Set a grace period of 30 seconds before suspending
+      WebSocketManager.suspendTimer = setTimeout(() => {
+        WebSocketManager.suspendAll();
+      }, 30000);
+    } else {
+      // Tab is visible again
+      if (WebSocketManager.suspendTimer) {
+        clearTimeout(WebSocketManager.suspendTimer);
+        WebSocketManager.suspendTimer = null;
+      }
+      if (WebSocketManager.suspended) {
+        WebSocketManager.resumeAll();
+      }
+    }
+  });
 }
