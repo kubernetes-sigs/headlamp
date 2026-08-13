@@ -16,7 +16,15 @@
 
 import { Icon } from '@iconify/react';
 import { Box, Button, Card, CardContent, Grid, Tab, Tabs, Typography } from '@mui/material';
-import React, { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { KubeObject } from '../../lib/k8s/KubeObject';
@@ -24,6 +32,7 @@ import ResourceQuota from '../../lib/k8s/resourceQuota';
 import Role from '../../lib/k8s/role';
 import RoleBinding from '../../lib/k8s/roleBinding';
 import { SelectedClustersContext } from '../../lib/k8s/SelectedClustersContext';
+import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { ProjectDefinition, ProjectDetailsTab } from '../../redux/projectsSlice';
 import { Activity } from '../activity/Activity';
@@ -454,6 +463,16 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
 
   const { items, isLoading } = useProjectItems(project);
 
+  const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.PROJECT_DETAILS_VIEW);
+
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+    dispatchHeadlampEvent({ project, resources: items });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, items, isLoading]);
+
   const [allTabs, setAllTabs] = useState<Record<string, ProjectDetailsTab>>(DEFAULT_TABS);
 
   useEffect(() => {
@@ -501,6 +520,30 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
 
   // Get the definition for the currently selected tab
   const selectedTabData = selectedTab ? allTabs[selectedTab] : undefined;
+
+  const dispatchTabChangeEvent = useEventCallback(HeadlampEventType.PROJECT_DETAILS_TAB_CHANGE);
+  const previousTabRef = useRef<ProjectDetailsTab>();
+
+  useEffect(() => {
+    if (!selectedTabData) {
+      return;
+    }
+    const previousTab = previousTabRef.current;
+    previousTabRef.current = selectedTabData;
+
+    // Only report actual user-driven transitions, not the initial tab selection.
+    if (previousTab === undefined || previousTab.id === selectedTabData.id) {
+      return;
+    }
+
+    dispatchTabChangeEvent({
+      project,
+      tab: selectedTabData,
+      previousTab,
+      resources: items,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTabData, project, items]);
 
   const handleTabChange = (event: React.SyntheticEvent, newValue: string) => {
     setSelectedTab(newValue);

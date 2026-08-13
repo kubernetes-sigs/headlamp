@@ -87,6 +87,7 @@ function StorageClassField({ value, onChange }: StorageClassFieldProps) {
     <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
       <RadioGroup
         aria-label={t('glossary|Storage Class')}
+        name="storage-class-mode"
         value={mode}
         onChange={e => handleModeChange(e.target.value as StorageClassMode)}
       >

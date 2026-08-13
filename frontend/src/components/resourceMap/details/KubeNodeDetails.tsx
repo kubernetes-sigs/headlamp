@@ -25,6 +25,7 @@ import { CustomResourceDetails } from '../../crd/CustomResourceDetails';
 import CustomResourceDefinitionDetails from '../../crd/Details';
 import CronJobDetails from '../../cronjob/Details';
 import DaemonSetDetails from '../../daemonset/Details';
+import { DetailsGridContext } from '../../DetailsViewSection/detailsViewSectionSlice';
 import EndpointDetails from '../../endpoints/Details';
 import EndpointSliceDetails from '../../endpointSlices/Details';
 import BackendTLSPolicyDetails from '../../gateway/BackendTLSPolicyDetails';
@@ -172,9 +173,9 @@ export const KubeObjectDetails = memo(
     }, [kind, kindComponentMap]);
 
     return (
-      <Box>
-        <Box sx={{ marginTop: '-70px' }}>{content}</Box>
-      </Box>
+      <DetailsGridContext.Provider value={{ isInPanel: true }}>
+        <Box>{content}</Box>
+      </DetailsGridContext.Provider>
     );
   }
 );

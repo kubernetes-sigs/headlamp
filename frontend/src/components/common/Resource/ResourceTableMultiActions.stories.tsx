@@ -32,17 +32,10 @@ import ResourceTableMultiActions from './ResourceTableMultiActions';
 export default {
   title: 'Resource/ResourceTableMultiActions',
   component: ResourceTableMultiActions,
-  decorators: [
-    Story => (
-      <TestContext>
-        <SnackbarProvider>
-          <ActionsNotifier />
-          <Story />
-        </SnackbarProvider>
-      </TestContext>
-    ),
-  ],
   parameters: {
+    axe: {
+      timeout: 10000,
+    },
     msw: {
       handlers: {
         story: [
@@ -57,6 +50,16 @@ export default {
       },
     },
   },
+  decorators: [
+    Story => (
+      <TestContext>
+        <SnackbarProvider>
+          <ActionsNotifier />
+          <Story />
+        </SnackbarProvider>
+      </TestContext>
+    ),
+  ],
 } as Meta;
 
 const MOCK_CLUSTER = 'local';

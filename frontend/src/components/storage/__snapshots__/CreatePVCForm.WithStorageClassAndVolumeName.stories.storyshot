@@ -368,7 +368,7 @@
                       >
                         <input
                           class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
-                          name=":r3mn:"
+                          name="storage-class-mode"
                           type="radio"
                           value="default"
                         />
@@ -416,7 +416,7 @@
                       >
                         <input
                           class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
-                          name=":r3mn:"
+                          name="storage-class-mode"
                           type="radio"
                           value="none"
                         />
@@ -465,7 +465,7 @@
                         <input
                           checked=""
                           class="PrivateSwitchBase-input css-1p3z7et-MuiSwitchBase-root"
-                          name=":r3mn:"
+                          name="storage-class-mode"
                           type="radio"
                           value="specify"
                         />

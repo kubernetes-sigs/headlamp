@@ -124,6 +124,137 @@ func TestCreateHeadlampHandlerSkipsInClusterContextWhenConfigUnavailable(t *test
 	require.Error(t, err)
 }
 
+//nolint:funlen
+func TestLoadKubeConfigClustersLogging(t *testing.T) {
+	tests := []struct {
+		name          string
+		useInCluster  bool
+		path          string
+		expectedMsg   string
+		expectedLevel uint
+	}{
+		{
+			name:          "no kubeconfig",
+			expectedMsg:   "No kubeconfig set",
+			expectedLevel: logger.LevelInfo,
+		},
+		{
+			name:          "no in-cluster kubeconfig",
+			useInCluster:  true,
+			expectedMsg:   "No kubeconfig set, using only the in-cluster context",
+			expectedLevel: logger.LevelInfo,
+		},
+		{
+			name:          "missing kubeconfig",
+			path:          filepath.Join(t.TempDir(), "missing-kubeconfig"),
+			expectedMsg:   "kubeconfig not found, set -kubeconfig or the KUBECONFIG env var",
+			expectedLevel: logger.LevelError,
+		},
+		{
+			name:          "missing in-cluster kubeconfig",
+			useInCluster:  true,
+			path:          filepath.Join(t.TempDir(), "missing-in-cluster-kubeconfig"),
+			expectedMsg:   "kubeconfig not found, set -kubeconfig or HEADLAMP_CONFIG_KUBECONFIG and mount the file into the pod",
+			expectedLevel: logger.LevelError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var logs []struct {
+				level uint
+				msg   string
+			}
+
+			originalLogFunc := logger.SetLogFunc(func(level uint, _ map[string]string, _ interface{}, msg string) {
+				logs = append(logs, struct {
+					level uint
+					msg   string
+				}{level: level, msg: msg})
+			})
+			defer logger.SetLogFunc(originalLogFunc)
+
+			config := &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						UseInCluster:    test.useInCluster,
+						KubeConfigStore: kubeconfig.NewContextStore(),
+					},
+				},
+			}
+
+			loadKubeConfigClusters(config, test.path, nil)
+
+			require.Len(t, logs, 1)
+			assert.Equal(t, test.expectedLevel, logs[0].level)
+			assert.Equal(t, test.expectedMsg, logs[0].msg)
+		})
+	}
+}
+
+func TestLoadDynamicClustersLogging(t *testing.T) {
+	invalidKubeconfig := filepath.Join(t.TempDir(), "invalid-kubeconfig")
+	require.NoError(t, os.WriteFile(invalidKubeconfig, []byte("contexts: ["), 0o600))
+
+	tests := []struct {
+		name          string
+		path          string
+		expectedLevel uint
+		expectedMsg   string
+	}{
+		{name: "empty path"},
+		{
+			name:          "missing kubeconfig",
+			path:          filepath.Join(t.TempDir(), "missing-dynamic-kubeconfig"),
+			expectedLevel: logger.LevelInfo,
+			expectedMsg:   "No kubeconfig for dynamically added clusters",
+		},
+		{
+			name:          "invalid kubeconfig",
+			path:          invalidKubeconfig,
+			expectedLevel: logger.LevelError,
+			expectedMsg:   "loading the kubeconfig of dynamically added clusters",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var logs []struct {
+				level uint
+				msg   string
+			}
+
+			originalLogFunc := logger.SetLogFunc(func(level uint, _ map[string]string, _ interface{}, msg string) {
+				logs = append(logs, struct {
+					level uint
+					msg   string
+				}{level: level, msg: msg})
+			})
+			defer logger.SetLogFunc(originalLogFunc)
+
+			config := &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						KubeConfigStore: kubeconfig.NewContextStore(),
+					},
+				},
+			}
+
+			loadDynamicClusters(config, test.path, nil)
+
+			if test.expectedMsg == "" {
+				assert.Empty(t, logs)
+
+				return
+			}
+
+			require.Len(t, logs, 1)
+			assert.Equal(t, test.expectedLevel, logs[0].level)
+			assert.Equal(t, test.expectedMsg, logs[0].msg)
+		})
+	}
+}
+
 func getResponse(handler http.Handler, method, url string, body interface{}) (*httptest.ResponseRecorder, error) {
 	req, err := makeJSONReq(method, url, body)
 	if err != nil {

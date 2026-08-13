@@ -117,6 +117,8 @@
   "Failed": "ব্যর্থ",
   "Jobs": "জব",
   "Job Sets": "জব সেট",
+  "Checking if JobSet is enabled…": "",
+  "JobSet is not enabled. <1>Learn More</1>": "",
   "Leader Worker Sets": "",
   "Lease": "লিজ",
   "LimitRange": "সীমার পরিসর",

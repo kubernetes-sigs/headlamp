@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { request } from './api/v1/clusterRequests';
 import { isConditionTrue } from './conditions';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
@@ -38,6 +39,21 @@ class JobSet extends KubeObject<KubeJobSet> {
   static apiName = 'jobsets';
   static apiVersion = 'jobset.x-k8s.io/v1alpha2';
   static isNamespaced = true;
+
+  /**
+   * Whether the JobSet API is available on the current cluster.
+   * Probes the API group for the `jobsets` resource; missing group or
+   * resource means JobSet is not installed.
+   */
+  static async isEnabled(): Promise<boolean> {
+    try {
+      const res = await request('/apis/jobset.x-k8s.io/v1alpha2');
+      const resources = (res as { resources?: Array<{ name: string }> } | undefined)?.resources;
+      return !!resources?.some(r => r.name === 'jobsets');
+    } catch (e) {
+      return false;
+    }
+  }
 
   get spec() {
     return this.jsonData.spec;

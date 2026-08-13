@@ -71,7 +71,8 @@ vi.mock('../common/Resource/AuthVisible', () => ({
   default: ({ children }: any) => <div>{children}</div>,
 }));
 
-import { TestContext } from '../../test';
+import { EventStatus, HeadlampEventType } from '../../redux/headlampEventSlice';
+import { recordHeadlampEvents, TestContext } from '../../test';
 import { ProjectDeleteDialog } from './ProjectDeleteDialog';
 import { PROJECT_ID_LABEL } from './projectUtils';
 
@@ -216,6 +217,63 @@ describe('ProjectDeleteDialog', () => {
     expect(namespaces[0].update).not.toHaveBeenCalled();
     expect(namespaces[1].update).not.toHaveBeenCalled();
     expect(mockOnClose).toHaveBeenCalled();
+  });
+
+  test('dispatches DELETE_PROJECT with deleteNamespaces false when only the label is removed', () => {
+    const events = recordHeadlampEvents();
+
+    render(
+      <TestContext>
+        <ProjectDeleteDialog
+          open
+          project={mockProject}
+          onClose={mockOnClose}
+          namespaces={makeMockNamespaces()}
+        />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Project' }));
+
+    expect(events.filter(e => e.type === HeadlampEventType.DELETE_PROJECT)).toEqual([
+      {
+        type: HeadlampEventType.DELETE_PROJECT,
+        data: {
+          project: mockProject,
+          deleteNamespaces: false,
+          status: EventStatus.CONFIRMED,
+        },
+      },
+    ]);
+  });
+
+  test('dispatches DELETE_PROJECT with deleteNamespaces true when namespaces are deleted', () => {
+    const events = recordHeadlampEvents();
+
+    render(
+      <TestContext>
+        <ProjectDeleteDialog
+          open
+          project={mockProject}
+          onClose={mockOnClose}
+          namespaces={makeMockNamespaces()}
+        />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /also delete the namespaces/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Project & Namespaces' }));
+
+    expect(events.filter(e => e.type === HeadlampEventType.DELETE_PROJECT)).toEqual([
+      {
+        type: HeadlampEventType.DELETE_PROJECT,
+        data: {
+          project: mockProject,
+          deleteNamespaces: true,
+          status: EventStatus.CONFIRMED,
+        },
+      },
+    ]);
   });
 
   test('shows irreversible warning when namespace deletion checkbox is checked', () => {

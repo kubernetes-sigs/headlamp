@@ -929,11 +929,15 @@
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-x4ro7m-MuiTableCell-root"
                   >
-                    <span
-                      class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                    <div
+                      class="MuiBox-root css-1t9vi4v"
                     >
-                      No
-                    </span>
+                      <span
+                        class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                      >
+                        No
+                      </span>
+                    </div>
                   </td>
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16qg0bt-MuiTableCell-root"
@@ -1051,11 +1055,15 @@
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-x4ro7m-MuiTableCell-root"
                   >
-                    <span
-                      class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                    <div
+                      class="MuiBox-root css-1t9vi4v"
                     >
-                      No
-                    </span>
+                      <span
+                        class="MuiTypography-root MuiTypography-body1 css-1ge3384-MuiTypography-root"
+                      >
+                        No
+                      </span>
+                    </div>
                   </td>
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-16qg0bt-MuiTableCell-root"

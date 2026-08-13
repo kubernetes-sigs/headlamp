@@ -117,6 +117,8 @@
   "Failed": "فشل",
   "Jobs": "المهام",
   "Job Sets": "مجموعات المهام",
+  "Checking if JobSet is enabled…": "",
+  "JobSet is not enabled. <1>Learn More</1>": "",
   "Leader Worker Sets": "",
   "Lease": "الإيجار",
   "LimitRange": "نطاق الحدود",

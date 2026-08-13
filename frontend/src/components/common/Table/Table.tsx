@@ -173,7 +173,8 @@ const tableLocalizationMap: Partial<Record<string, MRT_Localization>> = {
   he: MRT_Localization_HE,
   it: MRT_Localization_IT,
   ja: MRT_Localization_JA,
-  pt: MRT_Localization_PT,
+  'pt-PT': MRT_Localization_PT,
+  'pt-BR': MRT_Localization_PT,
   ko: MRT_Localization_KO,
   ru: MRT_Localization_RU,
   zh: MRT_Localization_ZH_HANS,
@@ -389,7 +390,7 @@ export default function Table<RowItem extends Record<string, any>>({
     enableDensityToggle: tableProps.enableDensityToggle ?? false,
     enableFullScreenToggle: tableProps.enableFullScreenToggle ?? false,
     enableColumnActions: false,
-    localization: tableLocalizationMap[i18n.language],
+    localization: tableLocalizationMap[i18n.resolvedLanguage || i18n.language],
     autoResetAll: false,
     icons: {
       ...tableProps.icons,
