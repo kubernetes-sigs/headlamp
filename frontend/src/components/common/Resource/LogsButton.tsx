@@ -189,7 +189,7 @@ export function WorkloadLogs({ item }: WorkloadLogsProps) {
           throw new Error(t('translation|Invalid response from server'));
         }
 
-        return response.items.map((podData: any) => new Pod(podData));
+        return response.items.map((podData: any) => new Pod(podData, item.cluster));
       } catch (error) {
         console.error('Error in getRelatedPods:', error);
         throw new Error(
