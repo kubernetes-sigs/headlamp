@@ -111,12 +111,13 @@ export interface KubePodGroup extends KubeObjectInterface {
 }
 
 /**
- * Human readable name of the policy a scheduling policy describes.
+ * Human readable name of the policy a scheduling policy describes. Takes the shared
+ * shape of the policy union so that composite templates can use it too.
  * @param policy - The scheduling policy of a PodGroup or of a Workload's template.
  * @returns 'Gang', 'Basic', or undefined when no policy is set.
  */
 export function getSchedulingPolicyKind(
-  policy: PodGroupSchedulingPolicy | undefined
+  policy: { basic?: unknown; gang?: unknown } | undefined
 ): string | undefined {
   if (policy?.gang) {
     return 'Gang';

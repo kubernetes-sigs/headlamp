@@ -44,6 +44,9 @@ export const SCHEDULING_WORKLOAD_DUMMY_DATA: KubeSchedulingWorkload[] = [
       compositePodGroupTemplates: [
         {
           name: 'gang-of-gangs',
+          schedulingPolicy: { gang: { minGroupCount: 2 } },
+          schedulingConstraints: { topology: [{ key: 'topology.kubernetes.io/zone' }] },
+          disruptionMode: { all: {} },
           priorityClassName: 'high-priority',
           priority: 1000,
           preemptionPolicy: 'PreemptLowerPriority',

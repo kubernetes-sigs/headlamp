@@ -18,7 +18,7 @@ import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { getSchedulingPolicyKind } from '../../lib/k8s/podGroup';
 import type { CompositePodGroupTemplate, PodGroupTemplate } from '../../lib/k8s/schedulingWorkload';
-import Workload from '../../lib/k8s/schedulingWorkload';
+import Workload, { getCompositeDisruptionMode } from '../../lib/k8s/schedulingWorkload';
 import { DetailsGrid } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
@@ -73,6 +73,26 @@ function CompositePodGroupTemplatesSection({
           {
             label: t('translation|Name'),
             getter: (template: CompositePodGroupTemplate) => template.name,
+          },
+          {
+            label: t('translation|Policy'),
+            getter: (template: CompositePodGroupTemplate) =>
+              getSchedulingPolicyKind(template.schedulingPolicy) ?? '',
+          },
+          {
+            label: t('translation|Min Group Count'),
+            getter: (template: CompositePodGroupTemplate) =>
+              template.schedulingPolicy?.gang?.minGroupCount ?? '',
+          },
+          {
+            label: t('translation|Topology Keys'),
+            getter: (template: CompositePodGroupTemplate) =>
+              template.schedulingConstraints?.topology?.map(item => item.key).join(', ') ?? '',
+          },
+          {
+            label: t('translation|Disruption Mode'),
+            getter: (template: CompositePodGroupTemplate) =>
+              getCompositeDisruptionMode(template.disruptionMode) ?? '',
           },
           {
             label: t('glossary|Priority Class'),

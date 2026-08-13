@@ -619,6 +619,7 @@
     },
     "schedulingWorkload": {
       "default": [Function],
+      "getCompositeDisruptionMode": [Function],
     },
     "secret": {
       "default": [Function],
