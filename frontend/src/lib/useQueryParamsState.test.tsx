@@ -29,13 +29,12 @@ describe('useQueryParamsState', () => {
     const { result } = renderHook(() => useQueryParamsState('test', 'initial'), { wrapper });
 
     expect(result.current[0]).toBe('initial');
-    expect(history.length).toBe(1); // make sure it's replaced and not appended
+    expect(history.length).toBe(1);
   });
 
   it('should initialize with the query param value if present', () => {
     const history = createMemoryHistory();
     history.replace('?test=value');
-
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <Router history={history}>{children}</Router>
     );
@@ -51,14 +50,11 @@ describe('useQueryParamsState', () => {
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <Router history={history}>{children}</Router>
     );
-
     const { result } = renderHook(() => useQueryParamsState<string>('test', 'initial'), {
       wrapper,
     });
 
-    act(() => {
-      result.current[1]('new-value');
-    });
+    act(() => result.current[1]('new-value'));
 
     expect(history.location.search).toBe('?test=new-value');
     expect(result.current[0]).toBe('new-value');
@@ -68,20 +64,34 @@ describe('useQueryParamsState', () => {
   it('should remove the query param if the new value is undefined', () => {
     const history = createMemoryHistory();
     history.replace('?test=value');
-
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <Router history={history}>{children}</Router>
     );
-
     const { result } = renderHook(() => useQueryParamsState('test', 'initial'), { wrapper });
 
-    act(() => {
-      result.current[1](undefined);
-    });
+    act(() => result.current[1](undefined));
 
     expect(history.location.search).toBe('');
     expect(result.current[0]).toBeUndefined();
     expect(history.length).toBe(2);
+  });
+
+  it('should preserve unrelated query parameters', () => {
+    const history = createMemoryHistory();
+    history.replace('?namespace=default');
+    const wrapper = ({ children }: { children: React.ReactNode }) => (
+      <Router history={history}>{children}</Router>
+    );
+    const { result } = renderHook(
+      () => useQueryParamsState<string | undefined>('labelSelector', undefined),
+      {
+        wrapper,
+      }
+    );
+
+    act(() => result.current[1]('app=nginx'));
+
+    expect(history.location.search).toBe('?namespace=default&labelSelector=app%3Dnginx');
   });
 
   it('should replace the query param value if replace option is true', () => {
@@ -89,14 +99,11 @@ describe('useQueryParamsState', () => {
     const wrapper = ({ children }: { children: React.ReactNode }) => (
       <Router history={history}>{children}</Router>
     );
-
     const { result } = renderHook(() => useQueryParamsState<string>('test', 'initial'), {
       wrapper,
     });
 
-    act(() => {
-      result.current[1]('new-value', { replace: true });
-    });
+    act(() => result.current[1]('new-value', { replace: true }));
 
     expect(history.location.search).toBe('?test=new-value');
     expect(result.current[0]).toBe('new-value');
