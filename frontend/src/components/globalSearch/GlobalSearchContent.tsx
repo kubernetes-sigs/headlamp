@@ -31,7 +31,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation, useRouteMatch } from 'react-router';
 import { FixedSizeList } from 'react-window';
-import { getCombinedAllowedNamespaces, loadClusterSettings } from '../../helpers/clusterSettings';
+import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import ConfigMap from '../../lib/k8s/configMap';
 import CronJob from '../../lib/k8s/cronJob';
@@ -200,7 +200,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
     const knownNamespaces = new Set<string>(
       [
         ...namespaceItems.map(n => n.metadata.name),
-        ...selectedClusters.flatMap(c => getCombinedAllowedNamespaces(loadClusterSettings(c))),
+        ...selectedClusters.flatMap(c => getCombinedAllowedNamespaces(c)),
       ].filter(Boolean)
     );
 

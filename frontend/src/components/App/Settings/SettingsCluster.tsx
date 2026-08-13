@@ -30,7 +30,7 @@ import { useHistory, useLocation } from 'react-router-dom';
 import { sanitizeCssColor } from '../../../helpers/clusterAppearance';
 import { isElectron } from '../../../helpers/isElectron';
 import { useCluster, useClustersConf } from '../../../lib/k8s';
-import { fetchNamespacesBySelector } from '../../../lib/k8s/allowedNamespaces';
+import { useAllowedNamespacesFromSelector } from '../../../lib/k8s/allowedNamespaces';
 import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
 import { setConfig } from '../../../redux/configSlice';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
@@ -64,8 +64,6 @@ export default function SettingsCluster() {
   const [namespacesSelectorInput, setNamespacesSelectorInput] = React.useState(
     clusterSettings.allowedNamespacesSelector || ''
   );
-  const [namespacesSelectorError, setNamespacesSelectorError] = React.useState('');
-  const [namespacesSelectorSyncing, setNamespacesSelectorSyncing] = React.useState(false);
   const [colorPickerOpen, setColorPickerOpen] = React.useState(false);
   const [iconPickerOpen, setIconPickerOpen] = React.useState(false);
 
@@ -149,45 +147,34 @@ export default function SettingsCluster() {
   const allowedNamespacesSelector = clusterSettings.allowedNamespacesSelector || '';
   React.useEffect(() => {
     setNamespacesSelectorInput(allowedNamespacesSelector);
-    setNamespacesSelectorError('');
   }, [allowedNamespacesSelector, cluster]);
+
+  // Resolve the configured selector (via Namespace.useList) and keep the cache in
+  // sync. The resolution is keyed on the persisted selector, so it re-runs after
+  // applyNamespacesSelector persists a new value.
+  const namespacesSelectorResolution = useAllowedNamespacesFromSelector(
+    cluster,
+    allowedNamespacesSelector
+  );
+  const namespacesSelectorError = namespacesSelectorResolution.error
+    ? t('translation|Failed to fetch namespaces for this selector: {{ error }}', {
+        error: namespacesSelectorResolution.error.message,
+      })
+    : '';
 
   function applyNamespacesSelector(selector: string) {
     const trimmedSelector = selector.trim();
-    setNamespacesSelectorError('');
+    // Persist the selector only; the resolution (and cache update) is handled by
+    // useAllowedNamespacesFromSelector, which reacts to this change.
     setClusterSettings(settings => {
       const newSettings = { ...settings };
       if (trimmedSelector) {
         newSettings.allowedNamespacesSelector = trimmedSelector;
       } else {
         delete newSettings.allowedNamespacesSelector;
-        delete newSettings.allowedNamespacesFromSelector;
       }
       return newSettings;
     });
-
-    if (!trimmedSelector) {
-      return;
-    }
-
-    setNamespacesSelectorSyncing(true);
-    fetchNamespacesBySelector(cluster, trimmedSelector)
-      .then(namespaces => {
-        setClusterSettings(settings => ({
-          ...settings,
-          allowedNamespacesFromSelector: namespaces,
-        }));
-      })
-      .catch((err: Error) => {
-        setNamespacesSelectorError(
-          t('translation|Failed to fetch namespaces for this selector: {{ error }}', {
-            error: err.message,
-          })
-        );
-      })
-      .finally(() => {
-        setNamespacesSelectorSyncing(false);
-      });
   }
 
   function storeNewAllowedNamespace(namespace: string) {
@@ -520,9 +507,6 @@ export default function SettingsCluster() {
                     autoComplete="off"
                     inputProps={{
                       'aria-labelledby': allowedNamespacesSelectorLabelID,
-                      form: {
-                        autocomplete: 'off',
-                      },
                     }}
                     variant="outlined"
                     size="small"
@@ -533,7 +517,7 @@ export default function SettingsCluster() {
                             applyNamespacesSelector(namespacesSelectorInput);
                           }}
                           disabled={
-                            namespacesSelectorSyncing ||
+                            namespacesSelectorResolution.isFetching ||
                             namespacesSelectorInput.trim() === allowedNamespacesSelector
                           }
                           size="medium"
@@ -561,7 +545,7 @@ export default function SettingsCluster() {
                       marginTop: theme.spacing(1),
                     }}
                   >
-                    {(clusterSettings.allowedNamespacesFromSelector || []).map(namespace => (
+                    {namespacesSelectorResolution.namespaces.map(namespace => (
                       <Chip key={namespace} label={namespace} size="small" clickable={false} />
                     ))}
                   </Box>

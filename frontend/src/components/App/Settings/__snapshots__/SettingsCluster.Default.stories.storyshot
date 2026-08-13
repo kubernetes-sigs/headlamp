@@ -342,7 +342,6 @@
                   aria-labelledby="allowed-namespaces-selector-label"
                   autocomplete="off"
                   class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall MuiInputBase-inputAdornedEnd css-19qh8xo-MuiInputBase-input-MuiOutlinedInput-input"
-                  form="[object Object]"
                   id=":mock-test-id:"
                   placeholder="team=frontend,env=prod"
                   type="text"

@@ -16,7 +16,7 @@
 
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { getCombinedAllowedNamespaces, loadClusterSettings } from '../../helpers/clusterSettings';
+import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
 import { useCluster } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
 import { StatusLabel } from '../common/Label';
@@ -39,7 +39,7 @@ export default function NamespacesList() {
 
   React.useEffect(() => {
     if (cluster) {
-      const namespaces = getCombinedAllowedNamespaces(loadClusterSettings(cluster));
+      const namespaces = getCombinedAllowedNamespaces(cluster);
       setAllowedNamespaces(
         namespaces.map(namespace => ({
           metadata: {

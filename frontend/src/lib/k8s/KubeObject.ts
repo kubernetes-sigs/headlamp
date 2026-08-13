@@ -18,7 +18,7 @@ import { JSONPath } from 'jsonpath-plus';
 import cloneDeep from 'lodash/cloneDeep';
 import unset from 'lodash/unset';
 import React, { useMemo } from 'react';
-import { getCombinedAllowedNamespaces, loadClusterSettings } from '../../helpers/clusterSettings';
+import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../cluster';
 import { createRouteURL } from '../router/createRouteURL';
 import { timeAgo } from '../util';
@@ -45,8 +45,7 @@ function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
     return [];
   }
 
-  const clusterSettings = loadClusterSettings(cluster);
-  return getCombinedAllowedNamespaces(clusterSettings);
+  return getCombinedAllowedNamespaces(cluster);
 }
 
 export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
