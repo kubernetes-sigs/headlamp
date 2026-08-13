@@ -247,6 +247,17 @@ describe('isWatchedListStillRequested', () => {
 
     expect(isWatchedListStillRequested(watching, requests)).toBe(false);
   });
+
+  // The mirror image of the 9542b5cb5 regression: '' must not be read as "matches
+  // anything" either. Without this case, '' is never checked against a non-empty
+  // namespace list anywhere in the suite, so an implementation short-circuiting ''
+  // to a match would pass every other test here.
+  it('should drop a watch entry with an empty-string namespace when a specific namespace is requested', () => {
+    const watching = { cluster: 'default', namespace: '' };
+    const requests = [{ cluster: 'default', namespaces: ['default'] }];
+
+    expect(isWatchedListStillRequested(watching, requests)).toBe(false);
+  });
 });
 
 describe('useWatchKubeObjectLists', () => {
