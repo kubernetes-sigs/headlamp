@@ -55,6 +55,23 @@ export interface UsableCRDVersion {
   storage?: boolean;
 }
 
+/** API group tuple normalized by the custom resource class factory. */
+export type CRDApiInfo = [group: string, version: string, pluralName: string];
+
+/**
+ * Resolves the CRD route parameter for custom resource list navigation.
+ *
+ * @param explicitName - Name from a loaded CustomResourceDefinition, when available.
+ * @param apiInfo - Normalized API group, version, and plural resource name.
+ * @returns The explicit CRD name or the plural-and-group fallback.
+ */
+export function customResourceDefinitionName(
+  explicitName: string | undefined,
+  apiInfo: CRDApiInfo
+): string {
+  return explicitName || `${apiInfo[2]}.${apiInfo[0]}`;
+}
+
 /**
  * Identifiers that `validateCRDSpec` can produce in its `missing` array.
  * Typing this as a literal union (rather than `string`) lets

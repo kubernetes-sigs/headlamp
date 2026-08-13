@@ -40,6 +40,7 @@ class RoleBinding extends KubeObject<KubeRoleBinding> {
   static apiName = 'rolebindings';
   static apiVersion = 'rbac.authorization.k8s.io/v1';
   static isNamespaced = true;
+  static supportsLabelSelectorList = false;
 
   get roleRef() {
     return this.jsonData.roleRef;

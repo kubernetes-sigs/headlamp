@@ -185,11 +185,16 @@
                       <div
                         class="MuiBox-root css-yi3mkw"
                       >
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        <a
+                          class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineNone css-1vqhwzj-MuiTypography-root-MuiLink-root"
+                          href="/?labelSelector=addonmanager.kubernetes.io%2Fmode%3DReconcile&namespace=kube-system"
                         >
-                          addonmanager.kubernetes.io/mode: Reconcile
-                        </p>
+                          <span
+                            class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                          >
+                            addonmanager.kubernetes.io/mode: Reconcile
+                          </span>
+                        </a>
                       </div>
                     </div>
                   </dd>

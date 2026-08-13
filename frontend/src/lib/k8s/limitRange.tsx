@@ -51,6 +51,7 @@ export class LimitRange extends KubeObject<KubeLimitRange> {
   static apiName = 'limitranges';
   static apiVersion = 'v1';
   static isNamespaced = true;
+  static supportsLabelSelectorList = false;
 
   static getBaseObject(): KubeLimitRange {
     const baseObject = super.getBaseObject() as KubeLimitRange;

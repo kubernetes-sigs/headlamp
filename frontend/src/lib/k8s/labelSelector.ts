@@ -17,37 +17,48 @@
 import type { LabelSelector } from './cluster';
 
 /**
+ * Converts a Kubernetes LabelSelector to its query-string representation.
+ *
+ * @param labelSelector - Label selector to serialize.
+ * @returns A comma-separated selector accepted by Kubernetes list APIs.
+ */
+export function labelSelectorToQuery(labelSelector: LabelSelector) {
+  const segments: string[] = [];
+
+  segments.push(...(matchLabelsSimplifier(labelSelector.matchLabels, true) || []));
+  segments.push(...matchExpressionSimplifier(labelSelector.matchExpressions ?? []));
+
+  return segments.join(',');
+}
+
+/**
  * Simplifies a matchLabels object into an array of string expressions.
  *
- * @param matchLabels - the matchLabels object from a LabelSelector.
- * @param isEqualSeperator - whether to use "=" as the separator instead of ":".
- * @returns an array of simplified label strings, or an empty string.
+ * @param matchLabels - The matchLabels object from a LabelSelector.
+ * @param isEqualSeparator - Whether to use "=" instead of ": ".
+ * @returns Simplified label strings, or an empty string.
  */
 export function matchLabelsSimplifier(
   matchLabels: LabelSelector['matchLabels'],
-  isEqualSeperator = false
+  isEqualSeparator = false
 ): string[] | '' {
   if (!matchLabels) {
     return '';
   }
 
   const segments: string[] = [];
-  for (const k in matchLabels) {
-    if (isEqualSeperator) {
-      segments.push(`${k}=${matchLabels[k]}`);
-      continue;
-    }
-    segments.push(`${k}: ${matchLabels[k]}`);
+  for (const key of Object.keys(matchLabels).sort()) {
+    segments.push(`${key}${isEqualSeparator ? '=' : ': '}${matchLabels[key]}`);
   }
 
   return segments;
 }
 
 /**
- * Simplifies a matchExpressions array into an array of string representations.
+ * Simplifies matchExpressions into Kubernetes selector requirements.
  *
- * @param matchExpressions - the matchExpressionss array from a LabelSelector.
- * @returns an array of simplified expression strings, or an empty string.
+ * @param matchExpressions - The matchExpressions array from a LabelSelector.
+ * @returns Simplified selector requirements, or an empty string.
  */
 export function matchExpressionSimplifier(
   matchExpressions: LabelSelector['matchExpressions']
@@ -57,18 +68,14 @@ export function matchExpressionSimplifier(
   }
 
   const segments: string[] = [];
-  for (const expr of matchExpressions) {
-    let segment = '';
-    if (expr.operator === 'DoesNotExist') {
-      segment += '!';
-    }
-
+  for (const expression of matchExpressions) {
+    let segment = expression.operator === 'DoesNotExist' ? '!' : '';
     let needsParensWrap = false;
-    const NoLengthLimits = -1;
-    let expectedValuesLength = NoLengthLimits;
+    const noLengthLimits = -1;
+    let expectedValuesLength = noLengthLimits;
 
-    segment += expr.key;
-    switch (expr.operator) {
+    segment += expression.key;
+    switch (expression.operator) {
       case 'Equals':
         segment += '=';
         expectedValuesLength = 1;
@@ -104,18 +111,16 @@ export function matchExpressionSimplifier(
     }
 
     let values = '';
-
     if (expectedValuesLength === 1) {
-      values = expr.values[0] ?? '';
-    } else if (expectedValuesLength === NoLengthLimits) {
-      values = [...(expr.values ?? [])].sort().join(',');
+      values = expression.values[0] ?? '';
+    } else if (expectedValuesLength === noLengthLimits) {
+      values = [...(expression.values ?? [])].sort().join(',');
       if (needsParensWrap) {
-        values = '(' + values + ')';
+        values = `(${values})`;
       }
     }
 
-    segment += values;
-    segments.push(segment);
+    segments.push(segment + values);
   }
 
   return segments;

@@ -16,7 +16,12 @@
 
 import { describe, expect, it } from 'vitest';
 import type { CRDSpecLike } from './crdSpec';
-import { resolveCRDApiGroup, selectMainAPIGroup, validateCRDSpec } from './crdSpec';
+import {
+  customResourceDefinitionName,
+  resolveCRDApiGroup,
+  selectMainAPIGroup,
+  validateCRDSpec,
+} from './crdSpec';
 
 function spec(overrides: Partial<CRDSpecLike> = {}): CRDSpecLike {
   return {
@@ -33,6 +38,20 @@ function spec(overrides: Partial<CRDSpecLike> = {}): CRDSpecLike {
     ...overrides,
   };
 }
+
+describe('customResourceDefinitionName', () => {
+  it('uses the normalized plural from a deprecated array API tuple', () => {
+    expect(customResourceDefinitionName(undefined, ['example.com', 'v1', 'widgets'])).toBe(
+      'widgets.example.com'
+    );
+  });
+
+  it('prefers the loaded CRD name', () => {
+    expect(
+      customResourceDefinitionName('gadgets.example.com', ['example.com', 'v1', 'widgets'])
+    ).toBe('gadgets.example.com');
+  });
+});
 
 describe('selectMainAPIGroup', () => {
   it('returns null when spec.group is missing', () => {

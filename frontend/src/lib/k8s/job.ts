@@ -55,6 +55,7 @@ class Job extends KubeObject<KubeJob> {
   static apiName = 'jobs';
   static apiVersion = 'batch/v1';
   static isNamespaced = true;
+  static supportsLabelSelectorList = false;
 
   get spec() {
     return this.jsonData.spec;

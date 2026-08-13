@@ -19,6 +19,7 @@ import { useTranslation } from 'react-i18next';
 import { useLocation, useParams } from 'react-router-dom';
 import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import type { KubeObject } from '../../lib/k8s/KubeObject';
+import { labelSelectorToQuery } from '../../lib/k8s/labelSelector';
 import type Pod from '../../lib/k8s/pod';
 import type { Workload, WorkloadClass } from '../../lib/k8s/Workload';
 import { useEventCallback } from '../../redux/headlampEventSlice';
@@ -156,7 +157,6 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
       return null;
     }
 
-    // The API omits status counts that are 0, so read a missing count as 0.
     let values: { [key: string]: string } = {
       [t('translation|Desired', { context: 'replicas' })]: item.spec.replicas,
       [t('translation|Ready', { context: 'replicas' })]: item.status.readyReplicas ?? 0,
@@ -244,7 +244,11 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
             name: t('Selector'),
             value: item.spec.selector && (
               <MetadataDictGrid
+                activeCluster={item.cluster}
                 dict={item.spec.selector.matchLabels as { [key: string]: string }}
+                labelFilterNamespace={item.metadata.namespace}
+                labelFilterRoute="pods"
+                labelSelector={labelSelectorToQuery(item.spec.selector)}
               />
             ),
           },
@@ -252,7 +256,12 @@ export default function WorkloadDetails<T extends WorkloadClass>(props: Workload
             name: t('Node Selector'),
             value: item.spec?.template?.spec?.nodeSelector && (
               <MetadataDictGrid
+                activeCluster={item.cluster}
                 dict={item.spec.template.spec.nodeSelector as { [key: string]: string }}
+                labelFilterRoute="nodes"
+                labelSelector={labelSelectorToQuery({
+                  matchLabels: item.spec.template.spec.nodeSelector,
+                })}
               />
             ),
           },

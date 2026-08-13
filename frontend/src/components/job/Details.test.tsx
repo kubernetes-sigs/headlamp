@@ -20,8 +20,9 @@ import { TestContext } from '../../test';
 import JobDetails from './Details';
 import JobSuspendButton from './JobSuspendButton';
 
-const { mockDetailsGrid } = vi.hoisted(() => ({
+const { mockDetailsGrid, mockMetadataDictGrid } = vi.hoisted(() => ({
   mockDetailsGrid: vi.fn(),
+  mockMetadataDictGrid: vi.fn(),
 }));
 
 vi.mock('../common/Resource', () => ({
@@ -36,7 +37,10 @@ vi.mock('../common/Resource', () => ({
   LogsButton: () => null,
   ConditionsSection: () => null,
   ContainersSection: () => null,
-  MetadataDictGrid: () => null,
+  MetadataDictGrid: (props: any) => {
+    mockMetadataDictGrid(props);
+    return null;
+  },
   OwnedPodsSection: () => null,
 }));
 
@@ -84,6 +88,7 @@ const fakeJob: any = {
 describe('JobDetails', () => {
   beforeEach(() => {
     mockDetailsGrid.mockReset();
+    mockMetadataDictGrid.mockReset();
   });
 
   it('passes Job-specific extraInfo fields to DetailsGrid', () => {
@@ -175,6 +180,37 @@ describe('JobDetails', () => {
     // A limit of 0 means an index is not retried, and it is still shown.
     expect(row('Backoff Limit Per Index')).toMatchObject({ value: 0, hide: false });
     expect(row('Max Failed Indexes')).toMatchObject({ value: 2, hide: false });
+  });
+
+  it('renders an expression-only selector as a Pod filter', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'test-job' }}>
+        <JobDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const expressionJob = {
+      ...fakeJob,
+      cluster: 'main',
+      spec: {
+        ...fakeJob.spec,
+        selector: {
+          matchExpressions: [{ key: 'track', operator: 'In', values: ['stable', 'canary'] }],
+        },
+      },
+    };
+    const selector = props
+      .extraInfo(expressionJob)
+      .find((field: any) => String(field.name).includes('Selector'));
+
+    expect(selector.value.props).toEqual({
+      activeCluster: 'main',
+      dict: {},
+      labelFilterNamespace: 'default',
+      labelFilterRoute: 'pods',
+      labelSelector: 'track in (canary,stable)',
+    });
   });
 
   it('provides onResourceUpdate to DetailsGrid for tracking workload changes', () => {

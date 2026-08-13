@@ -22,6 +22,7 @@ class ClusterRoleBinding extends KubeObject<KubeRoleBinding> {
   static apiName = 'clusterrolebindings';
   static apiVersion = 'rbac.authorization.k8s.io/v1';
   static isNamespaced = false;
+  static supportsLabelSelectorList = false;
 
   get roleRef() {
     return this.jsonData!.roleRef;
