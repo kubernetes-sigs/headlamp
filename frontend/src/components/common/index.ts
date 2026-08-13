@@ -26,6 +26,7 @@ export { default as InnerTable } from './InnerTable';
 export * from './Label';
 export * from './LabelListItem';
 export { default as LabelListItem } from './LabelListItem';
+export * from './LabelSelectorInput';
 export * from './Link';
 export { default as Link } from './Link';
 export * from './Loader';
