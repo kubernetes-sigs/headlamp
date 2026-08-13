@@ -141,18 +141,25 @@ describe('PodGroup', () => {
     expect(makePodGroup({}).disruptionMode).toBeUndefined();
   });
 
-  it('picks the PodGroupScheduled condition out of the status', () => {
-    const podGroup = makePodGroup(
-      {},
-      {
-        conditions: [
-          { type: 'DisruptionTarget', status: 'False', lastProbeTime: '' },
-          { type: 'PodGroupScheduled', status: 'True', reason: 'Scheduled', lastProbeTime: '' },
-        ],
-      }
-    );
+  describe.each<[string, string]>([
+    ['scheduling.k8s.io/v1alpha2', 'PodGroupScheduled'],
+    ['scheduling.k8s.io/v1alpha3', 'PodGroupInitiallyScheduled'],
+    ['scheduling.k8s.io/v1beta1', 'PodGroupInitiallyScheduled'],
+  ])('on %s', (apiVersion, conditionType) => {
+    it('picks the scheduling condition out of the status', () => {
+      const podGroup = makePodGroup(
+        {},
+        {
+          conditions: [
+            { type: 'DisruptionTarget', status: 'False', lastProbeTime: '' },
+            { type: conditionType, status: 'True', reason: 'Scheduled', lastProbeTime: '' },
+          ],
+        },
+        apiVersion
+      );
 
-    expect(podGroup.schedulingCondition?.reason).toBe('Scheduled');
+      expect(podGroup.schedulingCondition?.reason).toBe('Scheduled');
+    });
   });
 
   it('has no scheduling condition when the status is empty', () => {

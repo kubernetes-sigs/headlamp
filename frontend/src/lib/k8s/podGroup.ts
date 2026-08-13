@@ -19,8 +19,14 @@ import type { KubeCondition } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 
-/** Condition reporting whether the group's scheduling requirement has been satisfied. */
+/**
+ * Condition reporting whether the group's scheduling requirement has been satisfied.
+ * Served by v1alpha2. Later versions renamed it, see the constant below.
+ */
 export const POD_GROUP_SCHEDULED_CONDITION = 'PodGroupScheduled';
+
+/** The same condition as served by v1alpha3 and v1beta1. */
+export const POD_GROUP_INITIALLY_SCHEDULED_CONDITION = 'PodGroupInitiallyScheduled';
 
 /**
  * How the pods of a group are scheduled. Exactly one field is set: `gang` for
@@ -225,9 +231,12 @@ class PodGroup extends KubeObject<KubePodGroup> {
     return this.spec?.parentCompositePodGroupName;
   }
 
+  /** The scheduling condition, under whichever name the served version uses. */
   get schedulingCondition(): KubeCondition | undefined {
     return this.status?.conditions?.find(
-      condition => condition.type === POD_GROUP_SCHEDULED_CONDITION
+      condition =>
+        condition.type === POD_GROUP_INITIALLY_SCHEDULED_CONDITION ||
+        condition.type === POD_GROUP_SCHEDULED_CONDITION
     );
   }
 }
