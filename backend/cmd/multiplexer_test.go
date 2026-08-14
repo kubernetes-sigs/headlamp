@@ -1801,3 +1801,136 @@ func TestConcurrentUpdateStatusAndSendDataMessage(t *testing.T) {
 		t.Fatal("deadlock detected: concurrent updateStatus and sendDataMessage blocked for 5s")
 	}
 }
+
+// =============================================================================
+// Benchmarks — validate hot-path performance optimizations.
+// =============================================================================
+
+// newBenchmarkWSClient creates a mock WebSocket server and returns a connected
+// WSConnLock for use in benchmarks. Registers cleanup on b.Cleanup.
+func newBenchmarkWSClient(b *testing.B) *WSConnLock {
+	b.Helper()
+
+	mockServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upgrader := websocket.Upgrader{}
+
+		c, err := upgrader.Upgrade(w, r, nil)
+		if err != nil {
+			return
+		}
+
+		defer func() { _ = c.Close() }()
+
+		for {
+			if _, _, err := c.ReadMessage(); err != nil {
+				return
+			}
+		}
+	}))
+
+	b.Cleanup(mockServer.Close)
+
+	wsURL := "ws" + strings.TrimPrefix(mockServer.URL, "http")
+
+	wsConn, resp, err := websocket.DefaultDialer.Dial(wsURL, nil)
+	if err != nil {
+		b.Fatalf("failed to dial mock server: %v", err)
+	}
+
+	if resp != nil && resp.Body != nil {
+		_ = resp.Body.Close()
+	}
+
+	b.Cleanup(func() { _ = wsConn.Close() })
+
+	return NewWSConnLock(wsConn)
+}
+
+// benchWatchEventMsg is a typical Kubernetes watch event message used in benchmarks.
+var benchWatchEventMsg = []byte(`{
+	"type": "MODIFIED",
+	"object": {
+		"apiVersion": "v1", "kind": "Pod",
+		"metadata": {
+			"name": "nginx-5d87f4f9b4-abc12", "namespace": "default",
+			"resourceVersion": "123456", "uid": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+			"labels": {"app": "nginx", "pod-template-hash": "5d87f4f9b4"}
+		},
+		"spec": {"containers": [{"name": "nginx", "image": "nginx:1.21"}]},
+		"status": {"phase": "Running"}
+	}
+}`)
+
+// BenchmarkSendIfNewResourceVersion measures the allocation overhead of
+// extracting metadata.resourceVersion from a typical Kubernetes watch event.
+// This is the hottest path in the multiplexer.
+func BenchmarkSendIfNewResourceVersion(b *testing.B) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	conn := &Connection{
+		ClusterID: "test-cluster",
+		Path:      "/api/v1/namespaces/default/pods",
+		Query:     "watch=true",
+		UserID:    "user-1",
+	}
+
+	clientConn := newBenchmarkWSClient(b)
+	lastRV := "123456"
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		_ = m.sendIfNewResourceVersion(benchWatchEventMsg, conn, clientConn, &lastRV)
+	}
+}
+
+// BenchmarkSendIfNewResourceVersion_DirectMetadata benchmarks the case where
+// resourceVersion is at the top-level metadata (non-watch event format).
+func BenchmarkSendIfNewResourceVersion_DirectMetadata(b *testing.B) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	directMsg := []byte(`{
+		"apiVersion": "v1", "kind": "Pod",
+		"metadata": {
+			"name": "nginx", "namespace": "default",
+			"resourceVersion": "789012",
+			"uid": "f1e2d3c4-b5a6-0987-fedc-ba0987654321"
+		}
+	}`)
+
+	conn := &Connection{
+		ClusterID: "test-cluster",
+		Path:      "/api/v1/namespaces/default/pods",
+		UserID:    "user-1",
+	}
+
+	clientConn := newBenchmarkWSClient(b)
+	lastRV := "789012"
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		_ = m.sendIfNewResourceVersion(directMsg, conn, clientConn, &lastRV)
+	}
+}
+
+// benchConnectionKeySink prevents the compiler from optimizing away benchmark work.
+var benchConnectionKeySink string
+
+// BenchmarkCreateConnectionKey measures the allocation overhead of creating
+// connection keys used for map lookups on every WebSocket message routing.
+func BenchmarkCreateConnectionKey(b *testing.B) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	clusterID := "my-production-cluster"
+	path := "/api/v1/namespaces/kube-system/pods"
+	userID := "user-abc123-def456"
+
+	b.ResetTimer()
+	b.ReportAllocs()
+
+	for i := 0; i < b.N; i++ {
+		benchConnectionKeySink = m.createConnectionKey(clusterID, path, userID)
+	}
+}

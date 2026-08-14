@@ -20,7 +20,7 @@ import { KubeObject, type KubeObjectInterface } from './KubeObject';
  * BackendTrafficPolicyTargetRef defines a backend object that the policy applies to
  * (Service, ServiceImport, or implementation‑specific backendRef).
  *
- * @see {@link https://gateway-api.sigs.k8s.io/api-types/backendtrafficpolicy}
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/spec/#localpolicytargetreference}
  */
 export interface BackendTrafficPolicyTargetRef {
   group: string;
@@ -71,7 +71,7 @@ export interface SessionPersistence {
 /**
  * BackendTrafficPolicySpec defines the desired policy.
  *
- * @see {@link https://gateway-api.sigs.k8s.io/api-types/backendtrafficpolicy/#spec}
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/specx/#backendtrafficpolicyspec}
  */
 export interface BackendTrafficPolicySpec {
   targetRefs: BackendTrafficPolicyTargetRef[];
@@ -92,6 +92,8 @@ export interface KubeBackendTrafficPolicy extends KubeObjectInterface {
  * XBackendTrafficPolicy – Gateway API experimental resource that controls
  * client behaviour (retries, session stickiness, etc.) when talking to a
  * backend.
+ *
+ * @see {@link https://gateway-api.sigs.k8s.io/reference/api-spec/main/specx/#xbackendtrafficpolicy}
  */
 class BackendTrafficPolicy extends KubeObject<KubeBackendTrafficPolicy> {
   static kind = 'XBackendTrafficPolicy';

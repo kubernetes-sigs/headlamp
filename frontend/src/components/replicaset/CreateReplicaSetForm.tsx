@@ -122,6 +122,7 @@ export default function CreateReplicaSetForm(props: CreateReplicaSetFormProps) {
           path: 'spec.template.spec.containers',
           label: t('translation|Containers'),
           type: 'containers' as const,
+          required: true,
         },
       ],
     },

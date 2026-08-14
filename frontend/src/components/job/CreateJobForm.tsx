@@ -92,6 +92,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
           path: 'spec.template.spec.containers',
           label: t('translation|Containers'),
           type: 'containers' as const,
+          required: true,
           showCommand: true,
         },
         {
@@ -99,6 +100,7 @@ export default function CreateJobForm(props: CreateJobFormProps) {
           path: 'spec.template.spec.restartPolicy',
           label: t('translation|Restart Policy'),
           type: 'select' as const,
+          required: true,
           options: [
             { value: 'Never', label: 'Never' },
             { value: 'OnFailure', label: 'OnFailure' },

@@ -26,6 +26,7 @@ import {
   useState,
 } from 'react';
 import { KubeObject } from '../../../lib/k8s/cluster';
+import { resolveCRDApiGroup } from '../../../lib/k8s/crdSpec';
 import {
   deduplicateGraphEdges,
   deduplicateGraphElements,
@@ -104,9 +105,9 @@ export const kubeOwnersEdgesReversed = (obj: KubeObject): GraphEdge[] => {
  * Create an object from any Kube object
  */
 export const makeKubeObjectNode = (obj: KubeObject): GraphNode => {
-  const crd = (obj.constructor as any)?.customResourceDefinition;
-  if (crd && typeof crd.getMainAPIGroup === 'function') {
-    const [group, , plural] = crd.getMainAPIGroup();
+  const apiGroup = resolveCRDApiGroup((obj.constructor as any)?.customResourceDefinition);
+  if (apiGroup) {
+    const [group, , plural] = apiGroup;
     return {
       id: obj.metadata.uid,
       kubeObject: obj,
@@ -243,7 +244,12 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
 
   const onData = useCallback(
     (id: string, data: MaybeNodesAndEdges) => {
-      setSourceData(map => new Map(map).set(id, data));
+      setSourceData(map => {
+        // Skip update if the data reference hasn't changed, avoiding a new Map
+        // allocation that would trigger downstream useMemo recomputations.
+        if (map.get(id) === data) return map;
+        return new Map(map).set(id, data);
+      });
     },
     [setSourceData]
   );
@@ -302,18 +308,47 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
       nodes = sourceGraph.nodes;
       edges = sourceGraph.edges;
 
+      // Build a UID → node index once, shared by all relations that provide
+      // buildEdgesWithIndex. This avoids the O(fromNodes × allNodes) nested-loop
+      // predicate scan for owner-reference relations, reducing them to
+      // O(fromNodes × avgOwnerRefs) with O(1) Map lookups.
+      let nodesByUid: Map<string, GraphNode> | null = null;
+      const getNodesByUid = () => {
+        if (!nodesByUid) {
+          nodesByUid = new Map();
+          for (const node of nodes) {
+            const uid = node.kubeObject?.metadata?.uid;
+            if (uid) {
+              nodesByUid.set(uid, node);
+            }
+          }
+        }
+        return nodesByUid;
+      };
+
       // Create edges based on Relations
       enabledRelations.forEach(relation => {
         const fromNodes = nodesPerSource.get(relation.fromSource) ?? [];
+
+        // Use index-based edge builder when available (O(n) vs O(n²))
+        if (relation.buildEdgesWithIndex) {
+          const indexEdges = relation.buildEdgesWithIndex(fromNodes, getNodesByUid());
+          for (const edge of indexEdges) {
+            edges.push(edge);
+          }
+          return;
+        }
+
         const toNodes = relation.toSource ? nodesPerSource.get(relation.toSource) ?? [] : nodes;
 
         fromNodes.forEach(from => {
           toNodes.forEach(to => {
             if (relation.predicate(from, to)) {
               edges.push({
-                id: from.id + '-' + to.id,
+                id: from.id + '-' + to.id + '-' + relation.id,
                 source: from.id,
                 target: to.id,
+                label: relation.label,
               });
             }
           });

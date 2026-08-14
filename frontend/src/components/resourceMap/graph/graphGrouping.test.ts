@@ -16,7 +16,7 @@
 
 import { KubeMetadata } from '../../../lib/k8s/KubeMetadata';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
-import { getMainNode, groupGraph } from './graphGrouping';
+import { collapseGraph, getMainNode, groupGraph } from './graphGrouping';
 import { GraphEdge, GraphNode } from './graphModel';
 
 describe('getMainNode', () => {
@@ -122,6 +122,41 @@ describe('groupGraph', () => {
     expect(nodeNames).toEqual(['1', '3', '4', 'Node-node1']);
   });
 
+  it('associates k8sNode kubeObject with node groups when k8sNodes are provided', () => {
+    const k8sNodeObject = {
+      kind: 'Node',
+      metadata: { name: 'node1', uid: 'node1-uid' },
+    } as any;
+
+    const groupedGraph = groupGraph(nodes, edges, {
+      groupBy: 'node',
+      namespaces: [],
+      k8sNodes: [k8sNodeObject],
+    });
+
+    const nodeGroup = groupedGraph.nodes?.find(node => node.label === 'node1');
+
+    // The group should have the k8sNode kubeObject associated with it
+    expect(nodeGroup).toBeDefined();
+    expect(nodeGroup?.kubeObject).toBe(k8sNodeObject);
+    // The group ID should be updated to the node's UID
+    expect(nodeGroup?.id).toBe('node1-uid');
+  });
+
+  it('does not associate k8sNode when k8sNodes list is empty', () => {
+    const groupedGraph = groupGraph(nodes, edges, {
+      groupBy: 'node',
+      namespaces: [],
+      k8sNodes: [],
+    });
+
+    const nodeGroup = groupedGraph.nodes?.find(node => node.id === 'Node-node1');
+
+    // Without k8sNodes data, the group should not have a kubeObject
+    expect(nodeGroup).toBeDefined();
+    expect(nodeGroup?.kubeObject).toBeUndefined();
+  });
+
   it('groups nodes by instance', () => {
     const groupedGraph = groupGraph(nodes, edges, {
       groupBy: 'instance',
@@ -182,5 +217,35 @@ describe('groupGraph', () => {
     // Individual nodes should be sorted by weight
     const individualNodes = groupedGraph.nodes?.filter(node => !node.id.startsWith('group-'));
     expect(individualNodes?.map(n => n.id)).toEqual(['hpa', 'configmap']);
+  });
+});
+
+describe('collapseGraph', () => {
+  const bigGraph: GraphNode = {
+    id: 'root',
+    nodes: [
+      {
+        id: 'Namespace-ns1',
+        label: 'ns1',
+        nodes: Array.from({ length: 15 }, (_, i) => ({
+          id: `node-${i}`,
+          kubeObject: { kind: 'Pod' } as any,
+        })),
+        edges: [],
+      },
+    ],
+    edges: [],
+  };
+
+  it('collapses large primary groups when expandLargeGraph is false', () => {
+    const collapsed = collapseGraph(bigGraph, { expandAll: false, expandLargeGraph: false });
+    const nsGroup = collapsed.nodes?.find(n => n.id === 'Namespace-ns1');
+    expect(nsGroup?.collapsed).toBe(true);
+  });
+
+  it('keeps large primary groups expanded when expandLargeGraph is true', () => {
+    const collapsed = collapseGraph(bigGraph, { expandAll: false, expandLargeGraph: true });
+    const nsGroup = collapsed.nodes?.find(n => n.id === 'Namespace-ns1');
+    expect(nsGroup?.collapsed).toBe(false);
   });
 });

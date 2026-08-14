@@ -155,12 +155,17 @@ class Pod extends KubeObject<KubePod> {
 
   evict() {
     const url = `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/eviction`;
-    return post(url, {
-      metadata: {
-        name: this.getName(),
-        namespace: this.getNamespace(),
+    return post(
+      url,
+      {
+        metadata: {
+          name: this.getName(),
+          namespace: this.getNamespace(),
+        },
       },
-    });
+      true,
+      { cluster: this._clusterName }
+    );
   }
 
   getLogs(...args: Parameters<oldGetLogs | newGetLogs>): () => void {
@@ -499,7 +504,7 @@ class Pod extends KubeObject<KubePod> {
           reason = container.state.terminated.reason;
           message = container.state.terminated.message || '';
         } else if (container.state.terminated?.reason === '') {
-          if (container.state.terminated.signal !== 0) {
+          if (container.state.terminated.signal) {
             reason = `Signal:${container.state.terminated.signal}`;
           } else {
             reason = `ExitCode:${container.state.terminated.exitCode}`;

@@ -14,12 +14,17 @@
  * limitations under the License.
  */
 
+import Alert from '@mui/material/Alert';
+import Grid from '@mui/material/Grid';
+import TextField from '@mui/material/TextField';
+import Typography from '@mui/material/Typography';
 import _, { uniq } from 'lodash';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
+import Namespace from '../../../lib/k8s/namespace';
 import Pod from '../../../lib/k8s/pod';
 import { CallbackActionOptions, clusterAction } from '../../../redux/clusterActionSlice';
 import {
@@ -67,9 +72,35 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
 
   const { items, options, afterConfirm, buttonStyle } = props;
   const [openAlert, setOpenAlert] = React.useState(false);
+  // For protected (system) namespaces the user must type their names to confirm deletion.
+  const [confirmInput, setConfirmInput] = React.useState('');
   const { t } = useTranslation(['translation']);
   const location = useLocation();
   const dispatchDeleteEvent = useEventCallback(HeadlampEventType.DELETE_RESOURCES);
+
+  // Protected namespaces included in the current selection, if any.
+  const protectedNamespaces = (items ?? []).filter(
+    (item): item is Namespace => Namespace.isClassOf(item) && item.isProtected()
+  );
+  // Build the confirm string from the same label-or-name value that isProtected() checks,
+  // de-duped and sorted alphabetically so the expected order is deterministic for the user.
+  const protectedNamespaceNames = uniq(
+    protectedNamespaces.map(
+      item => item.metadata.labels?.['kubernetes.io/metadata.name'] || item.metadata.name
+    )
+  ).sort();
+  const confirmString = protectedNamespaceNames.join(', ');
+  // Normalize the typed input the same way (split on commas, trim, drop blanks, de-dupe,
+  // sort) so the comparison is tolerant of spacing and ordering differences.
+  const normalizedConfirmInput = uniq(
+    confirmInput
+      .split(',')
+      .map(name => name.trim())
+      .filter(Boolean)
+  ).sort();
+  const confirmButtonDisabled =
+    protectedNamespaces.length > 0 &&
+    normalizedConfirmInput.join(', ') !== protectedNamespaceNames.join(', ');
 
   const deleteFunc = React.useCallback(
     (items: KubeObject[]) => {
@@ -119,6 +150,7 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
         description={t('translation|Delete items')}
         buttonStyle={buttonStyle}
         onClick={() => {
+          setConfirmInput('');
           setOpenAlert(true);
         }}
         icon="mdi:delete"
@@ -126,7 +158,49 @@ export default function DeleteMultipleButton(props: DeleteMultipleButtonProps) {
       <ConfirmDialog
         open={openAlert}
         title={t('translation|Delete items')}
-        description={<DeleteMultipleButtonDescription items={items} />}
+        description={
+          <Grid container direction="column">
+            <Grid item>
+              <DeleteMultipleButtonDescription items={items} />
+            </Grid>
+            {protectedNamespaces.length > 0 && (
+              <>
+                <Grid item sx={{ mt: 2 }}>
+                  <Alert
+                    severity="warning"
+                    variant="outlined"
+                    sx={theme => ({
+                      color: theme.palette.warning.main,
+                      borderColor: theme.palette.warning.main,
+                      '& .MuiAlert-icon': { color: theme.palette.warning.main },
+                      '& .MuiAlert-message': { fontSize: '0.95rem', fontWeight: 600 },
+                    })}
+                  >
+                    {t(
+                      'translation|Your selection includes system namespaces. Deleting them may break your cluster.'
+                    )}
+                  </Alert>
+                </Grid>
+                <Grid item sx={{ mt: 2.5 }}>
+                  <Typography variant="body1" sx={{ mb: 1.5 }}>
+                    {t('translation|To confirm, type {{ names }} in the field below.', {
+                      names: confirmString,
+                    })}
+                  </Typography>
+                  <TextField
+                    fullWidth
+                    autoComplete="off"
+                    value={confirmInput}
+                    onChange={event => setConfirmInput(event.target.value)}
+                    placeholder={confirmString}
+                    inputProps={{ 'aria-label': t('translation|Namespace name(s)') }}
+                  />
+                </Grid>
+              </>
+            )}
+          </Grid>
+        }
+        confirmButtonDisabled={confirmButtonDisabled}
         handleClose={() => setOpenAlert(false)}
         onConfirm={() => {
           deleteFunc(items);

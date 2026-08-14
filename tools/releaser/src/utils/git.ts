@@ -1,6 +1,7 @@
 import { execSync } from 'child_process';
 import path from 'path';
 import fs from 'fs';
+import { isValidVersion } from './version.js';
 
 export function getRepoRoot(): string {
   try {
@@ -26,13 +27,20 @@ export function getCurrentVersion(): string {
 }
 
 export function commitVersionChange(version: string): void {
+  if (!isValidVersion(version)) {
+    console.error(`Error: Invalid semantic version format "${version}".`);
+    process.exit(1);
+  }
+
   const repoRoot = getRepoRoot();
   const packageJsonPath = path.join(repoRoot, 'app', 'package.json');
   const packageLockJsonPath = path.join(repoRoot, 'app', 'package-lock.json');
+  const chartYamlPath = path.join(repoRoot, 'charts', 'headlamp', 'Chart.yaml');
+  const expectedTemplatesPath = path.join(repoRoot, 'charts', 'headlamp', 'tests', 'expected_templates');
 
   try {
-    execSync(`git add "${packageJsonPath}" "${packageLockJsonPath}"`);
-    execSync(`git commit --signoff -m "app: Bump version to ${version}"`);
+    execSync(`git add "${packageJsonPath}" "${packageLockJsonPath}" "${chartYamlPath}" "${expectedTemplatesPath}"`);
+    execSync(`git commit --signoff -m "releaser: bump version to ${version}"`);
   } catch (error) {
     console.error('Error: Failed to commit version change');
     console.error(error);
@@ -41,6 +49,11 @@ export function commitVersionChange(version: string): void {
 }
 
 export function createReleaseTag(version: string): void {
+  if (!isValidVersion(version)) {
+    console.error(`Error: Invalid semantic version format "${version}".`);
+    process.exit(1);
+  }
+
   try {
     execSync(`git tag -a v${version} -m "Release ${version}"`);
   } catch (error) {
@@ -51,6 +64,11 @@ export function createReleaseTag(version: string): void {
 }
 
 export function pushTag(version: string): void {
+  if (!isValidVersion(version)) {
+    console.error(`Error: Invalid semantic version format "${version}".`);
+    process.exit(1);
+  }
+
   try {
     execSync(`git push origin v${version}`);
   } catch (error) {

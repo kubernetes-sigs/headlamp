@@ -41,6 +41,7 @@ import Ingress from './ingress';
 import IngressClass from './ingressClass';
 import Job from './job';
 import JobSet from './jobSet';
+import LeaderWorkerSet from './leaderWorkerSet';
 import { Lease } from './lease';
 import { LimitRange } from './limitRange';
 import Namespace from './namespace';
@@ -61,6 +62,8 @@ import Service from './service';
 import ServiceAccount from './serviceAccount';
 import StatefulSet from './statefulSet';
 import StorageClass from './storageClass';
+import TCPRoute from './tcpRoute';
+import UDPRoute from './udpRoute';
 import VolumeAttributesClass from './volumeAttributesClass';
 
 export const ResourceClasses = {
@@ -85,6 +88,7 @@ export const ResourceClasses = {
   IngressClass,
   Job,
   JobSet,
+  LeaderWorkerSet,
   Namespace,
   NetworkPolicy,
   Node,
@@ -105,6 +109,8 @@ export const ResourceClasses = {
   GatewayClass,
   HTTPRoute,
   GRPCRoute,
+  TCPRoute,
+  UDPRoute,
 };
 
 /** Hook for getting or fetching the clusters configuration.
@@ -398,6 +404,7 @@ export * as ingress from './ingress';
 export * as ingressClass from './ingressClass';
 export * as job from './job';
 export * as jobSet from './jobSet';
+export * as leaderWorkerSet from './leaderWorkerSet';
 export * as namespace from './namespace';
 export * as node from './node';
 export * as persistentVolume from './persistentVolume';

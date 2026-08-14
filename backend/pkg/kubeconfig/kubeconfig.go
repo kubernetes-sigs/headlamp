@@ -1,6 +1,7 @@
 package kubeconfig
 
 import (
+	"context"
 	"encoding/base64"
 	"errors"
 	"fmt"
@@ -8,8 +9,10 @@ import (
 	"net/http/httputil"
 	"net/url"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	"gopkg.in/yaml.v2"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -483,7 +486,7 @@ func LoadContextsFromFile(kubeConfigPath string, source int) ([]Context, []Conte
 
 	skipProxySetup := source != KubeConfig
 
-	contexts, contextErrors, err := loadContextsFromData(data, source, skipProxySetup)
+	contexts, contextErrors, err := loadContextsFromData(data, source, skipProxySetup, kubeConfigPath)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error loading contexts from file: %w", err)
 	}
@@ -510,7 +513,9 @@ func LoadContextsFromBase64String(kubeConfig string, source int) ([]Context, []C
 
 	skipProxySetup := source != KubeConfig
 
-	return loadContextsFromData(kubeConfigByte, source, skipProxySetup)
+	// Base64 kubeconfigs have no filesystem origin, so relative certificate
+	// and key paths cannot be resolved against a parent directory.
+	return loadContextsFromData(kubeConfigByte, source, skipProxySetup, "")
 }
 
 // LoadContextsFromMultipleFiles loads contexts from the given kubeconfig files.
@@ -535,8 +540,15 @@ func LoadContextsFromMultipleFiles(kubeConfigs string, source int) ([]Context, [
 
 // loadContextsFromData loads contexts from a kubeconfig data.
 // It unmarshals the kubeconfig data, extracts the contexts, and processes each context.
+// kubeConfigPath is the filesystem path of the source kubeconfig when known; an empty
+// string means the data has no filesystem origin (for example base64 payloads).
 // It returns valid contexts, contextLoadErrors and any errors that occurred during the process.
-func loadContextsFromData(data []byte, source int, skipProxySetup bool) ([]Context, []ContextLoadError, error) {
+func loadContextsFromData(
+	data []byte,
+	source int,
+	skipProxySetup bool,
+	kubeConfigPath string,
+) ([]Context, []ContextLoadError, error) {
 	var contexts []Context
 
 	var contextErrors []ContextLoadError
@@ -555,7 +567,7 @@ func loadContextsFromData(data []byte, source int, skipProxySetup bool) ([]Conte
 
 	// Process each context
 	for _, rawContext := range rawContexts {
-		context, err := ProcessContext(rawContext, kubeconfig, source, skipProxySetup)
+		context, err := processContext(rawContext, kubeconfig, source, skipProxySetup, kubeConfigPath)
 		if err != nil {
 			contextErrors = append(contextErrors, ContextLoadError{
 				ContextName: context.Name,
@@ -602,11 +614,28 @@ func GetContextsFromKubeconfig(kubeconfig map[string]interface{}) ([]interface{}
 // source is the source of the kubeconfig, i.e where the kubeconfig came from.
 // It can be KubeConfig, DynamicCluster, or InCluster.
 // skipProxySetup is a flag to skip proxy setup.
+// Relative certificate and key paths are left unresolved because no filesystem
+// origin is available through this entry point.
 func ProcessContext(
 	rawContext interface{},
 	kubeconfig map[string]interface{},
 	source int,
 	skipProxySetup bool,
+) (Context, error) {
+	return processContext(rawContext, kubeconfig, source, skipProxySetup, "")
+}
+
+// processContext processes a context from the kubeconfig.
+// kubeConfigPath is the source kubeconfig file path when known. Relative PKI
+// paths (certificate-authority, client-certificate, client-key, tokenFile, and
+// path-based exec commands) are resolved against that file's directory, matching
+// kubectl / client-go LoadFromFile behavior. See issue #2413.
+func processContext(
+	rawContext interface{},
+	kubeconfig map[string]interface{},
+	source int,
+	skipProxySetup bool,
+	kubeConfigPath string,
 ) (Context, error) {
 	var errs []error
 
@@ -645,6 +674,19 @@ func ProcessContext(
 		return context, errors.Join(errs...)
 	}
 
+	if err := resolveKubeconfigPaths(singleConfig, kubeConfigPath); err != nil {
+		errs = append(errs, ContextError{
+			ContextName: contextName,
+			Reason:      err.Error(),
+		})
+		context = Context{
+			Name:  contextName,
+			Error: err.Error(),
+		}
+
+		return context, errors.Join(errs...)
+	}
+
 	// Convert the config to a context
 	context, err = convertToContext(contextName, singleConfig, source, skipProxySetup)
 	if err != nil {
@@ -657,6 +699,44 @@ func ProcessContext(
 	}
 
 	return context, errors.Join(errs...)
+}
+
+// resolveKubeconfigPaths makes relative certificate and key paths absolute using
+// the directory of the source kubeconfig file, matching client-go's
+// LoadFromFile + ResolveLocalPaths behavior. kubeConfigPath may be empty when
+// the config has no filesystem origin (for example base64 payloads); in that
+// case paths are left unchanged.
+func resolveKubeconfigPaths(config *api.Config, kubeConfigPath string) error {
+	if config == nil || kubeConfigPath == "" {
+		return nil
+	}
+
+	absPath, err := filepath.Abs(kubeConfigPath)
+	if err != nil {
+		return fmt.Errorf("could not determine absolute path of kubeconfig %q: %w", kubeConfigPath, err)
+	}
+
+	// ResolveLocalPaths resolves each relative path against filepath.Dir of
+	// that stanza's LocationOfOrigin and skips stanzas where it is empty.
+	// clientcmd.Load (used above) never sets LocationOfOrigin, so assign the
+	// source kubeconfig path here first — matching LoadFromFile.
+	for _, cluster := range config.Clusters {
+		cluster.LocationOfOrigin = absPath
+	}
+
+	for _, authInfo := range config.AuthInfos {
+		authInfo.LocationOfOrigin = absPath
+	}
+
+	for _, ctx := range config.Contexts {
+		ctx.LocationOfOrigin = absPath
+	}
+
+	if err := clientcmd.ResolveLocalPaths(config); err != nil {
+		return fmt.Errorf("resolving relative paths in kubeconfig %q: %w", absPath, err)
+	}
+
+	return nil
 }
 
 // extractContextInfo extracts the context information from the raw context.
@@ -1053,6 +1133,61 @@ func resolveServiceAccountTokenPath(clusterConfig *rest.Config, serviceAccountTo
 	return "/var/run/secrets/kubernetes.io/serviceaccount/token" // #nosec G101
 }
 
+// deriveInClusterNameTimeout bounds the kubeadm-config lookup so it cannot block startup indefinitely.
+const deriveInClusterNameTimeout = 2 * time.Second
+
+// deriveInClusterName reads the cluster name from the kube-system/kubeadm-config
+// ConfigMap, which kubeadm and KiND populate at creation time. It returns an error
+// when the ConfigMap, the ClusterConfiguration key, or the clusterName field is missing
+// (or when clusterName is kubeadm's default "kubernetes").
+func deriveInClusterName(ctx context.Context, clientset kubernetes.Interface) (string, error) {
+	cm, err := clientset.CoreV1().ConfigMaps("kube-system").Get(ctx, "kubeadm-config", metav1.GetOptions{})
+	if err != nil {
+		return "", err
+	}
+
+	clusterConfiguration, ok := cm.Data["ClusterConfiguration"]
+	if !ok {
+		return "", errors.New("kubeadm-config ConfigMap has no ClusterConfiguration entry")
+	}
+
+	var parsed struct {
+		ClusterName string `yaml:"clusterName"`
+	}
+
+	if err := yaml.Unmarshal([]byte(clusterConfiguration), &parsed); err != nil {
+		return "", fmt.Errorf("parsing kubeadm ClusterConfiguration: %w", err)
+	}
+
+	name := strings.TrimSpace(parsed.ClusterName)
+	if name == "" || strings.EqualFold(name, "kubernetes") {
+		return "", errors.New("kubeadm ClusterConfiguration clusterName is empty or default (kubernetes)")
+	}
+
+	return name, nil
+}
+
+func deriveInClusterContextName(clusterConfig *rest.Config) string {
+	clientset, err := kubernetes.NewForConfig(clusterConfig)
+	if err != nil {
+		logger.Log(logger.LevelInfo, nil, err, "deriving in-cluster context name: creating clientset")
+
+		return ""
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), deriveInClusterNameTimeout)
+	defer cancel()
+
+	name, err := deriveInClusterName(ctx, clientset)
+	if err != nil {
+		logger.Log(logger.LevelInfo, nil, err, "deriving in-cluster context name from kubeadm-config")
+
+		return ""
+	}
+
+	return name
+}
+
 // GetInClusterContext returns the in-cluster context.
 func GetInClusterContext(
 	contextName string,
@@ -1067,6 +1202,10 @@ func GetInClusterContext(
 	clusterConfig, err := rest.InClusterConfig()
 	if err != nil {
 		return nil, err
+	}
+
+	if strings.TrimSpace(contextName) == "" {
+		contextName = deriveInClusterContextName(clusterConfig)
 	}
 
 	return newInClusterContextFromConfig(

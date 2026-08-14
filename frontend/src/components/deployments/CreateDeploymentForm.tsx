@@ -111,6 +111,7 @@ export default function CreateDeploymentForm(props: CreateDeploymentFormProps) {
           path: 'spec.template.spec.containers',
           label: t('translation|Containers'),
           type: 'containers' as const,
+          required: true,
         },
       ],
     },

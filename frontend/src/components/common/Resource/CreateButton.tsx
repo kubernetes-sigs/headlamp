@@ -26,23 +26,35 @@ import * as yaml from 'js-yaml';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useSelectedClusters } from '../../../lib/k8s';
+import CronJob from '../../../lib/k8s/cronJob';
+import DaemonSet from '../../../lib/k8s/daemonSet';
 import Deployment from '../../../lib/k8s/deployment';
 import Job from '../../../lib/k8s/job';
+import PersistentVolumeClaim from '../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
+import StatefulSet from '../../../lib/k8s/statefulSet';
 import { Activity } from '../../activity/Activity';
+import CreateCronJobForm from '../../cronjob/CreateCronJobForm';
+import CreateDaemonSetForm from '../../daemonset/CreateDaemonSetForm';
 import CreateDeploymentForm from '../../deployments/CreateDeploymentForm';
 import CreateJobForm from '../../job/CreateJobForm';
 import CreatePodForm from '../../pod/CreatePodForm';
 import CreateReplicaSetForm from '../../replicaset/CreateReplicaSetForm';
+import CreateStatefulSetForm from '../../statefulset/CreateStatefulSetForm';
+import CreatePVCForm from '../../storage/CreatePVCForm';
 import ActionButton from '../ActionButton';
 import EditorDialog from './EditorDialog';
 
 export const RESOURCE_DEFINITIONS = {
   Pod: { class: Pod, form: CreatePodForm },
   Deployment: { class: Deployment, form: CreateDeploymentForm },
+  DaemonSet: { class: DaemonSet, form: CreateDaemonSetForm },
   ReplicaSet: { class: ReplicaSet, form: CreateReplicaSetForm },
   Job: { class: Job, form: CreateJobForm },
+  CronJob: { class: CronJob, form: CreateCronJobForm },
+  StatefulSet: { class: StatefulSet, form: CreateStatefulSetForm },
+  PersistentVolumeClaim: { class: PersistentVolumeClaim, form: CreatePVCForm },
 };
 
 export type ResourceType = keyof typeof RESOURCE_DEFINITIONS;
@@ -78,10 +90,12 @@ function CreateActivityContent(props: { onClose: () => void }) {
   const [errorMessage, setErrorMessage] = React.useState('');
   const [selectedResource, setSelectedResource] = React.useState<ResourceType | undefined>();
   const [targetCluster, setTargetCluster] = React.useState(clusters[0] || '');
+
   const [formValid, setFormValid] = React.useState(false);
 
   function handleResourceChange(resource: ResourceType | undefined) {
     setSelectedResource(resource);
+    setFormValid(false);
     if (resource && resource in RESOURCE_DEFINITIONS) {
       const baseObject = RESOURCE_DEFINITIONS[resource].class.getBaseObject();
       setItem(baseObject);
@@ -182,7 +196,7 @@ function CreateActivityContent(props: { onClose: () => void }) {
       title={t('translation|Create / Apply')}
       cluster={targetCluster}
       formContent={renderFormContent()}
-      formInvalid={!!selectedResource && !formValid}
+      formInvalid={!formValid}
       actions={
         clusters.length > 1
           ? [
@@ -212,13 +226,15 @@ function CreateActivityContent(props: { onClose: () => void }) {
 
 interface CreateButtonProps {
   isNarrow?: boolean;
+  onClickExtra?: () => void;
 }
 
 export default function CreateButton(props: CreateButtonProps) {
-  const { isNarrow } = props;
+  const { isNarrow, onClickExtra } = props;
   const { t } = useTranslation(['translation']);
 
   const openActivity = () => {
+    onClickExtra?.();
     const id = 'create-button';
     Activity.launch({
       id: id,

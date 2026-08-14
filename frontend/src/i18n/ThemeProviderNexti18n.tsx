@@ -25,6 +25,7 @@ import {
   itIT,
   jaJP,
   koKR,
+  ptBR,
   ptPT,
   ruRU,
   urPK,
@@ -47,7 +48,8 @@ function getLocale(locale: string | undefined): typeof enUS {
 
   const LOCALES = {
     en: enUS,
-    pt: ptPT,
+    'pt-pt': ptPT,
+    'pt-br': ptBR,
     ru: ruRU,
     es: esES,
     de: deDE,
@@ -66,7 +68,8 @@ function getLocale(locale: string | undefined): typeof enUS {
 
   type LocalesType =
     | 'en'
-    | 'pt'
+    | 'pt-pt'
+    | 'pt-br'
     | 'ru'
     | 'es'
     | 'ta'
@@ -114,13 +117,15 @@ const ThemeProviderNexti18n: React.FunctionComponent<ThemeProviderNexti18nProps>
    */
   function changeLang(lng: string) {
     if (lng) {
-      const dir = supportedLanguages[lng]?.dir || 'ltr';
+      // A legacy region-less "pt" resolves to the concrete pt-PT catalog.
+      const resolved = i18n.resolvedLanguage || lng;
+      const dir = supportedLanguages[resolved]?.dir || 'ltr';
 
-      document.documentElement.lang = lng;
+      document.documentElement.lang = resolved;
       document.documentElement.dir = dir;
       document.body.dir = dir;
 
-      setLang(lng);
+      setLang(resolved);
     }
   }
 

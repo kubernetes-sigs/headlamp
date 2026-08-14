@@ -330,9 +330,9 @@ func unmarshalConfig(k *koanf.Koanf, config *Config) error {
 	return nil
 }
 
-// patchWatchPluginsChanges disables plugin watching if running in-cluster and user didn't set the flag.
-func patchWatchPluginsChanges(config *Config, explicitFlags map[string]bool) {
-	if config.InCluster && !explicitFlags["watch-plugins-changes"] {
+// patchWatchPluginsChanges disables plugin watching if running in-cluster and user didn't set the flag or env var.
+func patchWatchPluginsChanges(config *Config, explicitFlags map[string]bool, watchPluginsChangesEnvSet bool) {
+	if config.InCluster && !explicitFlags["watch-plugins-changes"] && !watchPluginsChangesEnvSet {
 		config.WatchPluginsChanges = false
 	}
 }
@@ -429,6 +429,8 @@ func Parse(args []string) (*Config, error) {
 	explicitFlags := recordExplicitFlags(f)
 
 	// 4. Load config from environment variables.
+	_, watchPluginsChangesEnvSet := os.LookupEnv("HEADLAMP_CONFIG_WATCH_PLUGINS_CHANGES")
+
 	if err := loadConfigFromEnv(k); err != nil {
 		return nil, err
 	}
@@ -444,7 +446,7 @@ func Parse(args []string) (*Config, error) {
 	}
 
 	// 7. Post-process: patch plugin flag and kubeconfig path.
-	patchWatchPluginsChanges(&config, explicitFlags)
+	patchWatchPluginsChanges(&config, explicitFlags, watchPluginsChangesEnvSet)
 
 	if err := setKubeConfigPath(&config); err != nil {
 		return nil, err
@@ -539,7 +541,10 @@ func flagset() *flag.FlagSet {
 func addGeneralFlags(f *flag.FlagSet) {
 	f.Bool("version", false, "Print version information and exit")
 	f.Bool("in-cluster", false, "Set when running from a k8s cluster")
-	f.String("in-cluster-context-name", "main", "Name to use for the in-cluster Kubernetes context")
+	f.String("in-cluster-context-name", "",
+		"Name to use for the in-cluster Kubernetes context. "+
+			"If unset, it is derived from the kube-system/kubeadm-config ConfigMap (treating \"kubernetes\" as unset), "+
+			"falling back to \"main\"")
 	f.Bool("dev", false, "Allow connections from other origins")
 	f.Bool("cache-enabled", false, "K8s cache in backend")
 	f.Bool("no-browser", false, "Disable automatically opening the browser when using embedded frontend")

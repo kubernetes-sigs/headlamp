@@ -24,6 +24,7 @@ import (
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -36,6 +37,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -120,6 +122,137 @@ func TestCreateHeadlampHandlerSkipsInClusterContextWhenConfigUnavailable(t *test
 
 	_, err := kubeConfigStore.GetContext(kubeconfig.DefaultInClusterContextName)
 	require.Error(t, err)
+}
+
+//nolint:funlen
+func TestLoadKubeConfigClustersLogging(t *testing.T) {
+	tests := []struct {
+		name          string
+		useInCluster  bool
+		path          string
+		expectedMsg   string
+		expectedLevel uint
+	}{
+		{
+			name:          "no kubeconfig",
+			expectedMsg:   "No kubeconfig set",
+			expectedLevel: logger.LevelInfo,
+		},
+		{
+			name:          "no in-cluster kubeconfig",
+			useInCluster:  true,
+			expectedMsg:   "No kubeconfig set, using only the in-cluster context",
+			expectedLevel: logger.LevelInfo,
+		},
+		{
+			name:          "missing kubeconfig",
+			path:          filepath.Join(t.TempDir(), "missing-kubeconfig"),
+			expectedMsg:   "kubeconfig not found, set -kubeconfig or the KUBECONFIG env var",
+			expectedLevel: logger.LevelError,
+		},
+		{
+			name:          "missing in-cluster kubeconfig",
+			useInCluster:  true,
+			path:          filepath.Join(t.TempDir(), "missing-in-cluster-kubeconfig"),
+			expectedMsg:   "kubeconfig not found, set -kubeconfig or HEADLAMP_CONFIG_KUBECONFIG and mount the file into the pod",
+			expectedLevel: logger.LevelError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var logs []struct {
+				level uint
+				msg   string
+			}
+
+			originalLogFunc := logger.SetLogFunc(func(level uint, _ map[string]string, _ interface{}, msg string) {
+				logs = append(logs, struct {
+					level uint
+					msg   string
+				}{level: level, msg: msg})
+			})
+			defer logger.SetLogFunc(originalLogFunc)
+
+			config := &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						UseInCluster:    test.useInCluster,
+						KubeConfigStore: kubeconfig.NewContextStore(),
+					},
+				},
+			}
+
+			loadKubeConfigClusters(config, test.path, nil)
+
+			require.Len(t, logs, 1)
+			assert.Equal(t, test.expectedLevel, logs[0].level)
+			assert.Equal(t, test.expectedMsg, logs[0].msg)
+		})
+	}
+}
+
+func TestLoadDynamicClustersLogging(t *testing.T) {
+	invalidKubeconfig := filepath.Join(t.TempDir(), "invalid-kubeconfig")
+	require.NoError(t, os.WriteFile(invalidKubeconfig, []byte("contexts: ["), 0o600))
+
+	tests := []struct {
+		name          string
+		path          string
+		expectedLevel uint
+		expectedMsg   string
+	}{
+		{name: "empty path"},
+		{
+			name:          "missing kubeconfig",
+			path:          filepath.Join(t.TempDir(), "missing-dynamic-kubeconfig"),
+			expectedLevel: logger.LevelInfo,
+			expectedMsg:   "No kubeconfig for dynamically added clusters",
+		},
+		{
+			name:          "invalid kubeconfig",
+			path:          invalidKubeconfig,
+			expectedLevel: logger.LevelError,
+			expectedMsg:   "loading the kubeconfig of dynamically added clusters",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var logs []struct {
+				level uint
+				msg   string
+			}
+
+			originalLogFunc := logger.SetLogFunc(func(level uint, _ map[string]string, _ interface{}, msg string) {
+				logs = append(logs, struct {
+					level uint
+					msg   string
+				}{level: level, msg: msg})
+			})
+			defer logger.SetLogFunc(originalLogFunc)
+
+			config := &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						KubeConfigStore: kubeconfig.NewContextStore(),
+					},
+				},
+			}
+
+			loadDynamicClusters(config, test.path, nil)
+
+			if test.expectedMsg == "" {
+				assert.Empty(t, logs)
+
+				return
+			}
+
+			require.Len(t, logs, 1)
+			assert.Equal(t, test.expectedLevel, logs[0].level)
+			assert.Equal(t, test.expectedMsg, logs[0].msg)
+		})
+	}
 }
 
 func getResponse(handler http.Handler, method, url string, body interface{}) (*httptest.ResponseRecorder, error) {
@@ -925,7 +1058,12 @@ func TestDrainNodePodDeletionFailure(t *testing.T) { //nolint:funlen
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      "pod-daemonset",
 			Namespace: "default",
-			Labels:    map[string]string{"kubernetes.io/created-by": "daemonset-controller"},
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					Kind: "DaemonSet", Name: "my-daemonset", APIVersion: "apps/v1",
+					Controller: func() *bool { b := true; return &b }(),
+				},
+			},
 		},
 		Spec: corev1.PodSpec{
 			NodeName: "test-node",
@@ -1003,16 +1141,6 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 			NodeName: "test-node",
 		},
 	}
-	podDaemonset := &corev1.Pod{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "pod-daemonset",
-			Namespace: "default",
-			Labels:    map[string]string{"kubernetes.io/created-by": "daemonset-controller"},
-		},
-		Spec: corev1.PodSpec{
-			NodeName: "test-node",
-		},
-	}
 
 	node := &corev1.Node{
 		ObjectMeta: metav1.ObjectMeta{
@@ -1020,7 +1148,7 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 		},
 	}
 
-	fakeClient := fake.NewClientset(node, pod1, podDaemonset)
+	fakeClient := fake.NewClientset(node, pod1)
 
 	testCache := cache.New[interface{}]()
 	c := &HeadlampConfig{
@@ -1184,6 +1312,66 @@ func TestDrainNodeCancelledContextDoesNotWriteCache(t *testing.T) {
 		_, err := testCache.Get(context.Background(), cacheKey)
 		return err == nil
 	}, 100*time.Millisecond, 10*time.Millisecond, "cache should not be written when context is already cancelled")
+}
+
+func TestDrainNodeSkipsDaemonSetPods(t *testing.T) {
+	podDaemonset := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "pod-daemonset",
+			Namespace: "default",
+			OwnerReferences: []metav1.OwnerReference{
+				{
+					Kind:       "DaemonSet",
+					Name:       "my-daemonset",
+					APIVersion: "apps/v1",
+					Controller: func() *bool { b := true; return &b }(),
+				},
+			},
+		},
+		Spec: corev1.PodSpec{
+			NodeName: "test-node",
+		},
+	}
+
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: "test-node",
+		},
+	}
+
+	fakeClient := fake.NewClientset(node, podDaemonset)
+
+	var deleted atomic.Bool
+
+	fakeClient.PrependReactor("delete", "pods", func(action k8stesting.Action) (bool, k8sruntime.Object, error) {
+		deleted.Store(true)
+		return false, nil, nil
+	})
+
+	testCache := cache.New[interface{}]()
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			Cache: testCache,
+		},
+	}
+
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
+	ctx := context.Background()
+
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+
+	require.Eventually(t, func() bool {
+		cacheItem, err := testCache.Get(ctx, cacheKey)
+		if err != nil {
+			return false
+		}
+
+		status, ok := cacheItem.(string)
+
+		return ok && status == "success"
+	}, 2*time.Second, 50*time.Millisecond)
+
+	assert.False(t, deleted.Load(), "DaemonSet pod should not be deleted during drain")
 }
 
 func TestDeletePlugin(t *testing.T) {
@@ -1692,16 +1880,25 @@ func TestFindMatchingContextName(t *testing.T) {
 // contexts that have never had extensions set).
 func TestCustomNameToExtensions(t *testing.T) {
 	cases := []struct {
-		label      string
-		extensions map[string]k8sruntime.Object // nil simulates a fresh context
+		label       string
+		contextName string
+		extensions  map[string]k8sruntime.Object // nil simulates a fresh context
+		wantErr     string
 	}{
 		{
-			label:      "nil Extensions map is initialized before write",
-			extensions: nil,
+			label:       "nil Extensions map is initialized before write",
+			contextName: "my-cluster",
+			extensions:  nil,
 		},
 		{
-			label:      "existing Extensions map is preserved and updated",
-			extensions: map[string]k8sruntime.Object{},
+			label:       "existing Extensions map is preserved and updated",
+			contextName: "my-cluster",
+			extensions:  map[string]k8sruntime.Object{},
+		},
+		{
+			label:       "missing context returns an error",
+			contextName: "missing-cluster",
+			wantErr:     `context "missing-cluster" not found in kubeconfig`,
 		},
 	}
 
@@ -1722,7 +1919,12 @@ func TestCustomNameToExtensions(t *testing.T) {
 			require.NoError(t, clientcmd.WriteToFile(*config, tmpFile.Name()))
 
 			// Must not panic when Extensions is nil.
-			err = customNameToExtensions(config, "my-cluster", "my-custom-name", tmpFile.Name())
+			err = customNameToExtensions(config, tc.contextName, "my-custom-name", tmpFile.Name())
+			if tc.wantErr != "" {
+				require.EqualError(t, err, tc.wantErr)
+				return
+			}
+
 			require.NoError(t, err)
 
 			// Reload from disk and verify the custom name was written.
@@ -1819,7 +2021,7 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 				Stateless:      false,
 				Source:         "kubeconfig",
 			},
-			expectedState: http.StatusCreated,
+			expectedState: http.StatusInternalServerError,
 		},
 	}
 
@@ -1828,8 +2030,8 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 	remErr := c.KubeConfigStore.RemoveContext("minikubetest")
 	require.NoError(t, remErr, "Failed to remove context: minikubetest")
 
-	remErrNonDy := c.KubeConfigStore.RemoveContext("minikubetestworkskubeconfig")
-	require.NoError(t, remErrNonDy, "Failed to remove context: minikubetestworkskubeconfig")
+	remErrNonDy := c.KubeConfigStore.RemoveContext("minikubetestnondynamic")
+	require.NoError(t, remErrNonDy, "Failed to remove context: minikubetestnondynamic")
 
 	clusters := c.getClusters()
 	clustersByName := map[string]Cluster{}
@@ -1839,10 +2041,12 @@ func TestRenameCluster(t *testing.T) { //nolint:funlen
 	}
 
 	// The stateless rename removes the original from the store; the new name is frontend-only.
-	// The kubeconfig rename context was explicitly removed above.
+	// The failed kubeconfig rename left the original context intact, which was removed above.
 	assert.NotContains(t, clustersByName, "minikubetest", "expected stateless cluster to be removed from store")
 	assert.NotContains(t, clustersByName, "minikubetestworkskubeconfig",
-		"expected kubeconfig-renamed cluster to be removed from store")
+		"expected failed kubeconfig rename not to create a new cluster name in the store")
+	assert.NotContains(t, clustersByName, "minikubetestnondynamic",
+		"expected original kubeconfig context to be removed during cleanup")
 	// The clusters added via POST should still be present.
 	assert.Contains(t, clustersByName, minikubeName, "expected minikube cluster to still exist")
 	assert.Contains(t, clustersByName, "docker-desktop", "expected docker-desktop cluster to still exist")
@@ -1880,6 +2084,31 @@ func TestHandleClusterRename_NameCollision(t *testing.T) {
 
 	require.Error(t, err, "a name collision must return a non-nil error")
 	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+// TestHandleError_NilError ensures handleError does not panic when a caller
+// passes a nil error. Calling err.Error() on a nil error would otherwise crash
+// the request handler; handleError falls back to the message instead.
+func TestHandleError_NilError(t *testing.T) {
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG:      &headlampconfig.HeadlampCFG{},
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	w := httptest.NewRecorder()
+	ctx, span := otel.Tracer("test").Start(context.Background(), "TestHandleError_NilError")
+
+	defer span.End()
+
+	require.NotPanics(t, func() {
+		c.handleError(w, ctx, span, nil, "something went wrong", http.StatusInternalServerError)
+	})
+
+	assert.Equal(t, http.StatusInternalServerError, w.Code)
+	assert.Contains(t, w.Body.String(), "something went wrong")
 }
 
 func TestFileExists(t *testing.T) {
@@ -2077,11 +2306,7 @@ func TestGetOidcCallbackURL(t *testing.T) {
 	}
 }
 
-// Regression test for #4839: /oidc-callback's missing-state log must not
-// carry the outer-scope kubeconfig-load err from createHeadlampHandler.
-//
-//nolint:funlen
-func TestOidcCallbackEmptyStateDoesNotLogStaleError(t *testing.T) {
+func TestOidcCallbackEmptyStateDoesNotLogStaleError(t *testing.T) { //nolint:funlen
 	type logCall struct {
 		level uint
 		msg   string
@@ -2103,8 +2328,6 @@ func TestOidcCallbackEmptyStateDoesNotLogStaleError(t *testing.T) {
 
 	scratch := t.TempDir()
 
-	// createHeadlampHandler overwrites config.StaticPluginDir from this env
-	// var, so set it deterministically rather than relying on the caller.
 	t.Setenv("HEADLAMP_STATIC_PLUGINS_DIR", scratch)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -2113,9 +2336,7 @@ func TestOidcCallbackEmptyStateDoesNotLogStaleError(t *testing.T) {
 	cfg := &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				UseInCluster: false,
-				// Guaranteed-missing kubeconfig so the startup load fails and
-				// seeds the outer-scope err the callback closure would leak.
+				UseInCluster:    false,
 				KubeConfigPath:  filepath.Join(scratch, "missing-kubeconfig"),
 				KubeConfigStore: kubeconfig.NewContextStore(),
 				PluginDir:       scratch,
@@ -2135,8 +2356,7 @@ func TestOidcCallbackEmptyStateDoesNotLogStaleError(t *testing.T) {
 	rr := httptest.NewRecorder()
 	handler.ServeHTTP(rr, req)
 
-	assert.Equal(t, http.StatusBadRequest, rr.Code,
-		"empty state should still produce a 400 response")
+	assert.Equal(t, http.StatusBadRequest, rr.Code, "empty state should still produce a 400 response")
 
 	logMu.Lock()
 
@@ -2194,6 +2414,83 @@ func TestOidcStateMapEviction(t *testing.T) {
 	assert.True(t, freshPresent, "fresh OIDC state entry should still be present")
 }
 
+func TestGenerateOidcState(t *testing.T) {
+	t.Run("success", func(t *testing.T) {
+		stateBytes := make([]byte, 32)
+		for i := range stateBytes {
+			stateBytes[i] = byte(i)
+		}
+
+		state, err := generateOidcState(bytes.NewReader(stateBytes))
+		require.NoError(t, err)
+		assert.Equal(t, "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8", state)
+	})
+
+	t.Run("failure", func(t *testing.T) {
+		state, err := generateOidcState(errReader{err: errors.New("rand failure")})
+
+		require.Error(t, err)
+		assert.Empty(t, state)
+	})
+
+	t.Run("short read", func(t *testing.T) {
+		// bytes.NewReader with fewer than 32 bytes triggers the short-read path.
+		state, err := generateOidcState(bytes.NewReader(make([]byte, 31)))
+
+		require.ErrorIs(t, err, io.ErrUnexpectedEOF)
+		assert.Empty(t, state)
+	})
+}
+
+func TestOIDCHandlerReturnsInternalServerErrorWhenStateGenerationFails(t *testing.T) {
+	oidcSrv := newOIDCTestServer(t, nil)
+	handler, cluster := newOIDCTestHandler(t, oidcSrv,
+		withStateReader(errReader{err: errors.New("rand failure")}))
+
+	rr, err := getResponse(handler, http.MethodGet, "/oidc?cluster="+cluster, nil)
+	require.NoError(t, err)
+
+	assert.Equal(t, http.StatusInternalServerError, rr.Code)
+	assert.Contains(t, rr.Body.String(), "failed to generate OIDC state")
+}
+
+type errReader struct {
+	err error
+}
+
+func (r errReader) Read([]byte) (int, error) {
+	return 0, r.err
+}
+
+func TestOIDCTokenRefreshMiddleware(t *testing.T) {
+	kubeConfigStore := kubeconfig.NewContextStore()
+	config := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG:      &headlampconfig.HeadlampCFG{KubeConfigStore: kubeConfigStore},
+			Cache:            cache.New[interface{}](),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	handler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	middleware := config.OIDCTokenRefreshMiddleware(handler)
+
+	// Test case: non-cluster request
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/non-cluster", nil)
+	rec := httptest.NewRecorder()
+	middleware.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
+	// Test case: cluster request without token
+	req = httptest.NewRequestWithContext(context.Background(), "GET", "/clusters/test-cluster", nil)
+	rec = httptest.NewRecorder()
+	middleware.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+}
+
 func TestStartHeadlampServer(t *testing.T) {
 	// Create a temporary directory for plugins
 	tempDir, err := os.MkdirTemp("", "headlamp-test")
@@ -2201,10 +2498,18 @@ func TestStartHeadlampServer(t *testing.T) {
 
 	defer func() { _ = os.RemoveAll(tempDir) }()
 
+	// Pick a free port to avoid collisions with other processes.
+	ln, err := (&net.ListenConfig{}).Listen(context.Background(), "tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	port := ln.Addr().(*net.TCPAddr).Port
+	require.NoError(t, ln.Close())
+
 	config := &HeadlampConfig{
 		HeadlampConfig: &headlampconfig.HeadlampConfig{
 			HeadlampCFG: &headlampconfig.HeadlampCFG{
-				Port:            8080,
+				// port comes from net.TCPAddr.Port and is always in [0, 65535], so uint conversion is safe.
+				Port:            uint(port),
 				PluginDir:       tempDir,
 				KubeConfigStore: kubeconfig.NewContextStore(),
 			},
@@ -2233,7 +2538,7 @@ func TestStartHeadlampServer(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
-	req, err := http.NewRequestWithContext(ctx, "GET", "http://localhost:8080/config", nil)
+	req, err := http.NewRequestWithContext(ctx, "GET", fmt.Sprintf("http://localhost:%d/config", port), nil)
 	if err != nil {
 		t.Fatalf("Failed to create request: %v", err)
 	}
@@ -2852,7 +3157,7 @@ func TestCacheMiddleware_AuthErrorResponse(t *testing.T) {
 	ctx := context.Background()
 
 	expectedResponse := `{"kind":"Status","apiVersion":"v1","metadata":{"resourceVersion":""},` +
-		`"message":"resource is forbidden: User \"system:serviceaccount:default:test\" cannot get resource ` +
+		`"message":"resource is forbidden: User \"system:serviceaccount:default:test\" cannot list resource ` +
 		`\"resource\" in API group \"\" at the cluster scope","reason":"Forbidden","details":{"kind":"resource"},` +
 		`"code":403}`
 

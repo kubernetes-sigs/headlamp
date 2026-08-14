@@ -31,6 +31,7 @@
                     class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Name
+                     *
                   </span>
                 </div>
                 <div
@@ -44,6 +45,7 @@
                       aria-label="Name"
                       class="MuiInputBase-input MuiOutlinedInput-input MuiInputBase-inputSizeSmall css-1n4twyu-MuiInputBase-input-MuiOutlinedInput-input"
                       id=":mock-test-id:"
+                      required=""
                       type="text"
                       value=""
                     />
@@ -562,6 +564,7 @@
                     class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Containers
+                     *
                   </span>
                 </div>
                 <div
