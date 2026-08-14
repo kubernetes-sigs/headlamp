@@ -163,7 +163,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
       namespace,
       queryParams,
     ],
-    queryFn: async () => {
+    queryFn: async ({ signal } = {} as any) => {
       // If no valid endpoint is passed, don't make the request
       if (!endpoint) return;
 
@@ -172,6 +172,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
           makeUrl([KubeObjectEndpoint.toUrl(endpoint!, namespace)], queryParams),
           {
             cluster,
+            signal,
           }
         ).then(it => it.json());
         const kind = list.kind.replace(/List$/, '');

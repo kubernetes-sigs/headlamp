@@ -15,8 +15,9 @@
  */
 
 import { configureStore } from '@reduxjs/toolkit';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarProvider } from 'notistack';
-import { PropsWithChildren } from 'react';
+import { PropsWithChildren, useState } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route } from 'react-router-dom';
 import { addEventCallback, HeadlampEvent } from '../redux/headlampEventSlice';
@@ -71,13 +72,26 @@ export function TestContext(props: TestContextProps) {
     url += '?' + new URLSearchParams(urlSearchParams).toString();
   }
 
+  const [queryClient] = useState(
+    () =>
+      new QueryClient({
+        defaultOptions: {
+          queries: {
+            retry: false,
+          },
+        },
+      })
+  );
+
   return (
-    <Provider store={store || defaultStore}>
-      <SnackbarProvider>
-        <MemoryRouter initialEntries={url ? [url] : undefined}>
-          {routePath ? <Route path={routePath}>{children}</Route> : children}
-        </MemoryRouter>
-      </SnackbarProvider>
-    </Provider>
+    <QueryClientProvider client={queryClient}>
+      <Provider store={store || defaultStore}>
+        <SnackbarProvider>
+          <MemoryRouter initialEntries={url ? [url] : undefined}>
+            {routePath ? <Route path={routePath}>{children}</Route> : children}
+          </MemoryRouter>
+        </SnackbarProvider>
+      </Provider>
+    </QueryClientProvider>
   );
 }

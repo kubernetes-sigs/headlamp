@@ -154,13 +154,14 @@ export function useKubeObject<K extends KubeObject>({
     staleTime: 5000,
     retry: kubeRequestRetry,
     queryKey,
-    queryFn: async () => {
+    queryFn: async ({ signal }) => {
       const url = makeUrl(
         [KubeObjectEndpoint.toUrl(endpoint!, namespace), name],
         cleanedUpQueryParams
       );
       const obj: KubeObjectInterface = await clusterFetch(url, {
         cluster,
+        signal,
       }).then(it => it.json());
       return new kubeObjectClass(obj, cluster) as Instance;
     },
@@ -257,7 +258,8 @@ const getWorkingEndpoint = async (
   endpoints: KubeObjectEndpoint[],
   cluster: string,
   namespace?: string,
-  name?: string
+  name?: string,
+  signal?: AbortSignal
 ) => {
   const promises = endpoints.map(endpoint => {
     const resourceUrl = KubeObjectEndpoint.toUrl(endpoint, namespace);
@@ -268,6 +270,7 @@ const getWorkingEndpoint = async (
     return clusterFetch(url, {
       method: 'GET',
       cluster: cluster ?? getCluster() ?? '',
+      signal,
     }).then(() => endpoint);
   });
 
@@ -302,7 +305,7 @@ export const useEndpoints = (
     enabled: endpoints.length > 1,
     retry: false,
     queryKey: ['endpoints', cluster, namespace, name ?? '', endpointsKey],
-    queryFn: () => getWorkingEndpoint(endpoints, cluster!, namespace, name),
+    queryFn: ({ signal }) => getWorkingEndpoint(endpoints, cluster!, namespace, name, signal),
   });
 
   if (endpoints.length === 1) return { endpoint: endpoints[0], error: null };
