@@ -23,7 +23,7 @@ import { memo, useEffect, useState } from 'react';
 import { Activity } from '../../activity/Activity';
 import { GraphNodeDetails } from '../details/GraphNodeDetails';
 import { getMainNode } from '../graph/graphGrouping';
-import { useGraphView, useNode } from '../GraphView';
+import { useGraphView, useNode } from '../graphViewContext';
 import { KubeIcon } from '../kubeIcon/KubeIcon';
 import { NodeGlance } from '../KubeObjectGlance/NodeGlance';
 import { GroupNodeComponent } from './GroupNode';

@@ -17,7 +17,7 @@
 import { ThemeProvider } from '@mui/material/styles';
 import { fireEvent, render, screen } from '@testing-library/react';
 import { SnackbarProvider } from 'notistack';
-import { ReactNode } from 'react';
+import { ComponentType, ReactNode } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Cluster } from '../../../lib/k8s/cluster';
@@ -26,6 +26,7 @@ import ClusterContextMenu from './ClusterContextMenu';
 import ClusterTable from './ClusterTable';
 
 const theme = createMuiTheme({ name: 'light', base: 'light' });
+let ClusterEmptyState: ComponentType<{ defaultContent: ReactNode }> | null = null;
 
 function renderWithTheme(ui: ReactNode) {
   return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
@@ -58,6 +59,7 @@ vi.mock('../../../redux/hooks', () => ({
         clusterStatuses: [],
         dialogs: [],
         menuItems: [],
+        clusterEmptyState: ClusterEmptyState,
       },
       config: {
         allowKubeconfigChanges: true,
@@ -96,6 +98,66 @@ vi.mock('../../common/Table', () => ({
 describe('ClusterTable', () => {
   afterEach(() => {
     vi.clearAllMocks();
+    ClusterEmptyState = null;
+  });
+
+  it('renders the standard empty state when no custom state is registered', () => {
+    renderWithTheme(
+      <MemoryRouter>
+        <ClusterTable
+          customNameClusters={[]}
+          clusters={{}}
+          versions={{}}
+          errors={{}}
+          warningLabels={{}}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('No clusters found')).toBeInTheDocument();
+  });
+
+  it('renders a registered cluster empty state instead of the default', () => {
+    ClusterEmptyState = () => <div>Choose a cluster provider</div>;
+
+    renderWithTheme(
+      <MemoryRouter>
+        <ClusterTable
+          customNameClusters={[]}
+          clusters={{}}
+          versions={{}}
+          errors={{}}
+          warningLabels={{}}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Choose a cluster provider')).toBeInTheDocument();
+    expect(screen.queryByText('No clusters found')).not.toBeInTheDocument();
+  });
+
+  it('passes the standard empty state to a registered wrapper', () => {
+    ClusterEmptyState = ({ defaultContent }) => (
+      <section>
+        <div>Before</div>
+        {defaultContent}
+      </section>
+    );
+
+    renderWithTheme(
+      <MemoryRouter>
+        <ClusterTable
+          customNameClusters={[]}
+          clusters={{}}
+          versions={{}}
+          errors={{}}
+          warningLabels={{}}
+        />
+      </MemoryRouter>
+    );
+
+    expect(screen.getByText('Before')).toBeInTheDocument();
+    expect(screen.getByText('No clusters found')).toBeInTheDocument();
   });
 
   it('renders Cluster Inventory source labels', () => {

@@ -992,7 +992,32 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-fe8q5p-MuiTableCell-root"
                 >
-                  0.0.0.2
+                  <div
+                    class="MuiBox-root css-18oja2p"
+                  >
+                    <div
+                      class="MuiBox-root css-1fjtzvx"
+                    >
+                      0.0.0.2
+                    </div>
+                    <button
+                      aria-label="Copy to clipboard"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall copy-button css-d7r42q-MuiButtonBase-root-MuiIconButton-root"
+                      data-mui-internal-clone-element="true"
+                      tabindex="0"
+                      type="button"
+                    >
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                    <div
+                      aria-atomic="true"
+                      aria-live="polite"
+                      class="MuiBox-root css-ty8jgw"
+                      role="status"
+                    />
+                  </div>
                 </td>
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1eq0ete-MuiTableCell-root"
@@ -1282,7 +1307,32 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-fe8q5p-MuiTableCell-root"
                 >
-                  0.0.0.2
+                  <div
+                    class="MuiBox-root css-18oja2p"
+                  >
+                    <div
+                      class="MuiBox-root css-1fjtzvx"
+                    >
+                      0.0.0.2
+                    </div>
+                    <button
+                      aria-label="Copy to clipboard"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall copy-button css-d7r42q-MuiButtonBase-root-MuiIconButton-root"
+                      data-mui-internal-clone-element="true"
+                      tabindex="0"
+                      type="button"
+                    >
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                    <div
+                      aria-atomic="true"
+                      aria-live="polite"
+                      class="MuiBox-root css-ty8jgw"
+                      role="status"
+                    />
+                  </div>
                 </td>
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1eq0ete-MuiTableCell-root"
@@ -1418,7 +1468,32 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-fe8q5p-MuiTableCell-root"
                 >
-                  0.0.0.2
+                  <div
+                    class="MuiBox-root css-18oja2p"
+                  >
+                    <div
+                      class="MuiBox-root css-1fjtzvx"
+                    >
+                      0.0.0.2
+                    </div>
+                    <button
+                      aria-label="Copy to clipboard"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall copy-button css-d7r42q-MuiButtonBase-root-MuiIconButton-root"
+                      data-mui-internal-clone-element="true"
+                      tabindex="0"
+                      type="button"
+                    >
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                    <div
+                      aria-atomic="true"
+                      aria-live="polite"
+                      class="MuiBox-root css-ty8jgw"
+                      role="status"
+                    />
+                  </div>
                 </td>
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1eq0ete-MuiTableCell-root"
@@ -1554,7 +1629,32 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-fe8q5p-MuiTableCell-root"
                 >
-                  0.0.0.2
+                  <div
+                    class="MuiBox-root css-18oja2p"
+                  >
+                    <div
+                      class="MuiBox-root css-1fjtzvx"
+                    >
+                      0.0.0.2
+                    </div>
+                    <button
+                      aria-label="Copy to clipboard"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall copy-button css-d7r42q-MuiButtonBase-root-MuiIconButton-root"
+                      data-mui-internal-clone-element="true"
+                      tabindex="0"
+                      type="button"
+                    >
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                    <div
+                      aria-atomic="true"
+                      aria-live="polite"
+                      class="MuiBox-root css-ty8jgw"
+                      role="status"
+                    />
+                  </div>
                 </td>
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1eq0ete-MuiTableCell-root"
@@ -1690,7 +1790,32 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-fe8q5p-MuiTableCell-root"
                 >
-                  0.0.0.2
+                  <div
+                    class="MuiBox-root css-18oja2p"
+                  >
+                    <div
+                      class="MuiBox-root css-1fjtzvx"
+                    >
+                      0.0.0.2
+                    </div>
+                    <button
+                      aria-label="Copy to clipboard"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall copy-button css-d7r42q-MuiButtonBase-root-MuiIconButton-root"
+                      data-mui-internal-clone-element="true"
+                      tabindex="0"
+                      type="button"
+                    >
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                    <div
+                      aria-atomic="true"
+                      aria-live="polite"
+                      class="MuiBox-root css-ty8jgw"
+                      role="status"
+                    />
+                  </div>
                 </td>
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1eq0ete-MuiTableCell-root"
@@ -1826,7 +1951,32 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-fe8q5p-MuiTableCell-root"
                 >
-                  0.0.0.2
+                  <div
+                    class="MuiBox-root css-18oja2p"
+                  >
+                    <div
+                      class="MuiBox-root css-1fjtzvx"
+                    >
+                      0.0.0.2
+                    </div>
+                    <button
+                      aria-label="Copy to clipboard"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall copy-button css-d7r42q-MuiButtonBase-root-MuiIconButton-root"
+                      data-mui-internal-clone-element="true"
+                      tabindex="0"
+                      type="button"
+                    >
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                    <div
+                      aria-atomic="true"
+                      aria-live="polite"
+                      class="MuiBox-root css-ty8jgw"
+                      role="status"
+                    />
+                  </div>
                 </td>
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1eq0ete-MuiTableCell-root"
@@ -1962,7 +2112,32 @@
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-fe8q5p-MuiTableCell-root"
                 >
-                  0.0.0.2
+                  <div
+                    class="MuiBox-root css-18oja2p"
+                  >
+                    <div
+                      class="MuiBox-root css-1fjtzvx"
+                    >
+                      0.0.0.2
+                    </div>
+                    <button
+                      aria-label="Copy to clipboard"
+                      class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall copy-button css-d7r42q-MuiButtonBase-root-MuiIconButton-root"
+                      data-mui-internal-clone-element="true"
+                      tabindex="0"
+                      type="button"
+                    >
+                      <span
+                        class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                      />
+                    </button>
+                    <div
+                      aria-atomic="true"
+                      aria-live="polite"
+                      class="MuiBox-root css-ty8jgw"
+                      role="status"
+                    />
+                  </div>
                 </td>
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1eq0ete-MuiTableCell-root"
