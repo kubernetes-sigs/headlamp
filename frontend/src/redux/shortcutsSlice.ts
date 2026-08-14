@@ -23,10 +23,10 @@ import { createSlice } from '@reduxjs/toolkit';
 export interface ShortcutConfig {
   /** The unique identifier for the shortcut */
   id: string;
-  /** The human-readable name of the shortcut */
-  name: string;
-  /** A description of what the shortcut does */
-  description: string;
+  /** The translation key for the human-readable name of the shortcut */
+  labelKey: string;
+  /** The translation key for the description of what the shortcut does */
+  descriptionKey: string;
   /** The current key combination assigned to the shortcut */
   key: string;
   /** The default key combination for the shortcut */
@@ -35,40 +35,46 @@ export interface ShortcutConfig {
   category: 'navigation' | 'search' | 'general';
 }
 
-import i18next from 'i18next';
-
 /**
  * All available shortcuts with their default configurations
  */
+// t('Global Search')
+// t('Open the global search dialog')
+// t('Cluster Chooser')
+// t('Open the cluster chooser popup')
+// t('Toggle Table Filters')
+// t('Toggle column filters in tables')
+// t('Log Viewer Search')
+// t('Toggle search in log viewer')
 export const DEFAULT_SHORTCUTS: Record<string, ShortcutConfig> = {
   GLOBAL_SEARCH: {
     id: 'GLOBAL_SEARCH',
-    name: i18next.t('Global Search'),
-    description: i18next.t('Open the global search dialog'),
+    labelKey: 'Global Search',
+    descriptionKey: 'Open the global search dialog',
     key: '/',
     defaultKey: '/',
     category: 'search',
   },
   CLUSTER_CHOOSER: {
     id: 'CLUSTER_CHOOSER',
-    name: i18next.t('Cluster Chooser'),
-    description: i18next.t('Open the cluster chooser popup'),
+    labelKey: 'Cluster Chooser',
+    descriptionKey: 'Open the cluster chooser popup',
     key: 'ctrl+shift+l',
     defaultKey: 'ctrl+shift+l',
     category: 'navigation',
   },
   TABLE_COLUMN_FILTERS: {
     id: 'TABLE_COLUMN_FILTERS',
-    name: i18next.t('Toggle Table Filters'),
-    description: i18next.t('Toggle column filters in tables'),
+    labelKey: 'Toggle Table Filters',
+    descriptionKey: 'Toggle column filters in tables',
     key: 'alt+shift+t',
     defaultKey: 'alt+shift+t',
     category: 'general',
   },
   LOG_VIEWER_SEARCH: {
     id: 'LOG_VIEWER_SEARCH',
-    name: i18next.t('Log Viewer Search'),
-    description: i18next.t('Toggle search in log viewer'),
+    labelKey: 'Log Viewer Search',
+    descriptionKey: 'Toggle search in log viewer',
     key: 'ctrl+shift+f',
     defaultKey: 'ctrl+shift+f',
     category: 'search',
