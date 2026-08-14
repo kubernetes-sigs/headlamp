@@ -1,0 +1,32 @@
+apiVersion: v1
+kind: Secret
+metadata:
+  name: pomerium-e2e-idp
+  namespace: pomerium
+type: Opaque
+stringData:
+  client_id: pomerium
+  client_secret: pomerium-e2e-secret
+---
+apiVersion: ingress.pomerium.io/v1
+kind: Pomerium
+metadata:
+  name: global
+spec:
+  caSecrets:
+    - pomerium/pomerium-e2e-ca
+  authenticate:
+    url: https://authenticate.localhost.pomerium.io:8443
+  certificates:
+    - pomerium/pomerium-e2e-tls
+  identityProvider:
+    provider: oidc
+    secret: pomerium/pomerium-e2e-idp
+    url: https://dex.headlamp-pomerium-e2e.svc.cluster.local:5556/dex
+    scopes:
+      - openid
+      - profile
+      - email
+  jwtClaimHeaders:
+    X-Pomerium-Claim-Email: email
+  secrets: pomerium/bootstrap
