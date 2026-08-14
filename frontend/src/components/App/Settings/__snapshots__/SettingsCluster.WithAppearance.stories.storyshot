@@ -412,6 +412,54 @@
           <dt
             class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
           >
+            <p
+              class="MuiTypography-root MuiTypography-body1 css-1os2m0i-MuiTypography-root"
+              id="node-shell-chroot-host-root-label"
+            >
+              Chroot to host
+            </p>
+            <button
+              aria-label="Chroot to host"
+              class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-w2d4tr-MuiButtonBase-root-MuiIconButton-root"
+              data-mui-internal-clone-element="true"
+              tabindex="0"
+              title="Start the Node Shell with chroot /host."
+              type="button"
+            >
+              <span
+                class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+              />
+            </button>
+          </dt>
+          <dd
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
+          >
+            <span
+              class="MuiSwitch-root MuiSwitch-sizeMedium css-julti5-MuiSwitch-root"
+            >
+              <span
+                class="MuiButtonBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary PrivateSwitchBase-root MuiSwitch-switchBase MuiSwitch-colorPrimary css-po6g13-MuiButtonBase-root-MuiSwitchBase-root-MuiSwitch-switchBase"
+              >
+                <input
+                  aria-labelledby="node-shell-chroot-host-root-label"
+                  class="PrivateSwitchBase-input MuiSwitch-input css-1p3z7et-MuiSwitchBase-root"
+                  type="checkbox"
+                />
+                <span
+                  class="MuiSwitch-thumb css-jsexje-MuiSwitch-thumb"
+                />
+                <span
+                  class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+                />
+              </span>
+              <span
+                class="MuiSwitch-track css-1yjjitx-MuiSwitch-track"
+              />
+            </span>
+          </dd>
+          <dt
+            class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
+          >
             Linux Image
           </dt>
           <dd
