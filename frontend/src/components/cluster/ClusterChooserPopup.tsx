@@ -260,7 +260,7 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
       <Box p={2} pb={1}>
         <TextField
           label={t('Choose cluster')}
-          id="filled-size-small"
+          id="cluster-chooser-filter"
           placeholder={t('translation|Name')}
           variant="outlined"
           size="small"
@@ -278,6 +278,9 @@ function ClusterChooserPopup(props: ChooserPopupPros) {
         <MenuList
           id="cluster-chooser-list"
           role="listbox"
+          // A listbox is an ARIA input field, so it needs its own name: reuse
+          // the filter field's label.
+          aria-labelledby="cluster-chooser-filter-label"
           tabIndex={0}
           sx={{
             width: '280px',
