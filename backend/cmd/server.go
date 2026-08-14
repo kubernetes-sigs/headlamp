@@ -292,6 +292,14 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 		return
 	}
 
+	// Lease objects are updated at high frequency (node heartbeats and
+	// leader-election renewals) and are not watched for invalidation, so
+	// their requests bypass the cache entirely to always serve fresh data.
+	if k8cache.IsLeaseAPIPath(r.URL.Path) {
+		next.ServeHTTP(w, r)
+		return
+	}
+
 	ctx, span, contextKey, kContext, err := GetContextKeyAndKContext(w, r, c)
 	if err != nil {
 		return

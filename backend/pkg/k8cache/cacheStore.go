@@ -129,6 +129,19 @@ func GetAPIGroup(path string) (apiGroup, version string, err error) {
 	return
 }
 
+// IsLeaseAPIPath reports whether the path addresses coordination.k8s.io Lease
+// resources. Lease objects are updated at high frequency (node heartbeats and
+// leader-election renewals), so their responses are never cached and their
+// requests bypass the cache middleware entirely.
+func IsLeaseAPIPath(path string) bool {
+	apiGroup, _, err := GetAPIGroup(path)
+	if err != nil || apiGroup != "coordination.k8s.io" {
+		return false
+	}
+
+	return strings.Contains(path, "/leases")
+}
+
 // ExtractNamespace extracts the namespace from the parameter from the given raw URL. This is used to make
 // cache key more specific to a particular namespace.
 func ExtractNamespace(rawURL string) (string, string) {
