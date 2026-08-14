@@ -92,8 +92,8 @@ func TestHeadlampConfigNilEmbeddedPanics(t *testing.T) {
 }
 
 // newTestCFG builds a HeadlampCFG with every field populated (a superset of
-// what buildHeadlampCFG in server.go sets), so renames or type changes of any
-// field break this test.
+// what buildHeadlampCFG in server.go sets), acting as a constructibility and
+// field-name guard.
 func newTestCFG(store kubeconfig.ContextStore) *headlampconfig.HeadlampCFG {
 	return &headlampconfig.HeadlampCFG{ //nolint:gosec // test fixture, not real credentials
 		UseInCluster:                          true,
@@ -138,8 +138,8 @@ func newTestCFG(store kubeconfig.ContextStore) *headlampconfig.HeadlampCFG {
 	}
 }
 
-// Mirrors how server.go builds the config (buildHeadlampCFG + createHeadlampConfig),
-// guarding against accidental field renames or type changes.
+// TestHeadlampConfigConstruction verifies struct constructibility, promoted
+// embedded field access, and interface delegation on HeadlampConfig.
 func TestHeadlampConfigConstruction(t *testing.T) {
 	store := stubContextStore{}
 	c := cache.New[interface{}]()
@@ -192,8 +192,9 @@ func TestHeadlampConfigConstruction(t *testing.T) {
 	assert.Equal(t, []string{"openid", "profile", "email"}, cfg.OidcScopes)
 }
 
-// Mutating an embedded field through the outer struct writes to the shared
-// *HeadlampCFG, matching how createHeadlampConfig assigns fields after construction.
+// Go's embedded-pointer semantics mean that a write to a promoted field on the
+// outer struct (HeadlampConfig) reaches the shared *HeadlampCFG directly.
+// Verify this guarantee so field access patterns remain obvious to future readers.
 func TestHeadlampConfigEmbeddedMutation(t *testing.T) {
 	inner := &headlampconfig.HeadlampCFG{}
 	cfg := headlampconfig.HeadlampConfig{HeadlampCFG: inner}
