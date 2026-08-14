@@ -816,6 +816,51 @@ describe('plugin archive integrity', () => {
     ).rejects.toThrow();
   });
 
+  it.each([
+    {
+      layout: 'current',
+      archiveRoot: 'plugin',
+      mainPath: 'plugin/main.js',
+      packageJsonPath: 'plugin/package.json',
+      translationPath: 'plugin/locales/fr/translation.json',
+    },
+    {
+      layout: 'legacy',
+      archiveRoot: 'package',
+      mainPath: 'package/dist/main.js',
+      packageJsonPath: 'package/package.json',
+      translationPath: 'package/dist/locales/fr/translation.json',
+    },
+  ])('copies plugin locales from the $layout archive layout', async archiveLayout => {
+    const sourceDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-tar-source-'));
+    const extractionDirectory = fs.mkdtempSync(
+      path.join(os.tmpdir(), 'headlamp-plugin-extraction-')
+    );
+    const pluginRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugin-root-'));
+    temporaryDirectories.push(sourceDirectory, extractionDirectory, pluginRoot);
+
+    for (const [relativePath, contents] of [
+      [archiveLayout.mainPath, 'main'],
+      [archiveLayout.packageJsonPath, '{}'],
+      [archiveLayout.translationPath, '{"hello":"bonjour"}'],
+    ]) {
+      const filePath = path.join(sourceDirectory, relativePath);
+      fs.mkdirSync(path.dirname(filePath), { recursive: true });
+      fs.writeFileSync(filePath, contents);
+    }
+    const archive = path.join(sourceDirectory, `${archiveLayout.layout}.tar.gz`);
+    await tar.c({ cwd: sourceDirectory, file: archive, gzip: true }, [archiveLayout.archiveRoot]);
+
+    await extractArchive('localized', archive, extractionDirectory, pluginRoot);
+
+    expect(
+      fs.readFileSync(
+        path.join(pluginRoot, 'localized', 'locales', 'fr', 'translation.json'),
+        'utf8'
+      )
+    ).toBe('{"hello":"bonjour"}');
+  });
+
   it('limits extracted entries and rejects symbolic links', async () => {
     const sourceDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-tar-source-'));
     const extractionDirectory = fs.mkdtempSync(

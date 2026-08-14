@@ -359,6 +359,11 @@ export async function extractArchive(
       path.join(pluginFolder, 'package.json'),
       temporaryFolder
     );
+    copyExtractedDirectory(
+      path.join(path.dirname(mainLocation), 'locales'),
+      path.join(pluginFolder, 'locales'),
+      temporaryFolder
+    );
   } else if (fs.existsSync(path.join(temporaryFolder, 'package', 'dist'))) {
     copyExtractedRegularFile(
       path.join(temporaryFolder, 'package', 'dist', 'main.js'),
@@ -370,8 +375,40 @@ export async function extractArchive(
       path.join(pluginFolder, 'package.json'),
       temporaryFolder
     );
+    copyExtractedDirectory(
+      path.join(temporaryFolder, 'package', 'dist', 'locales'),
+      path.join(pluginFolder, 'locales'),
+      temporaryFolder
+    );
   } else {
     throw new Error(`Failed to find plugin content within archive: ${archivePath}`);
+  }
+}
+
+function copyExtractedDirectory(source: string, destination: string, extractionRoot: string): void {
+  if (!fs.existsSync(source)) return;
+
+  const realRoot = fs.realpathSync.native(extractionRoot);
+  const realSource = fs.realpathSync.native(source);
+  const relativeSource = path.relative(realRoot, realSource);
+  if (relativeSource.startsWith('..') || path.isAbsolute(relativeSource)) {
+    throw new Error(`Extracted plugin directory escapes extraction directory: ${source}`);
+  }
+  if (!fs.lstatSync(realSource).isDirectory()) {
+    throw new Error(`Extracted plugin directory must be a directory: ${source}`);
+  }
+
+  fs.mkdirSync(destination, { recursive: true });
+  for (const entry of fs.readdirSync(realSource, { withFileTypes: true })) {
+    const sourceEntry = path.join(realSource, entry.name);
+    const destinationEntry = path.join(destination, entry.name);
+    if (entry.isDirectory()) {
+      copyExtractedDirectory(sourceEntry, destinationEntry, extractionRoot);
+    } else if (entry.isFile()) {
+      copyExtractedRegularFile(sourceEntry, destinationEntry, extractionRoot);
+    } else {
+      throw new Error(`Extracted plugin directory contains an unsupported entry: ${sourceEntry}`);
+    }
   }
 }
 
