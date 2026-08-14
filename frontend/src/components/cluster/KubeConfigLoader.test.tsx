@@ -422,4 +422,11 @@ describe('KubeConfigLoader', () => {
     });
     expect(screen.getByText('No kubeconfig files selected')).not.toHaveClass('MuiAlertTitle-root');
   });
+  it('names the kubeconfig file input', () => {
+    renderLoader();
+
+    expect(
+      screen.getByLabelText('Drag & drop or choose kubeconfig file here', { selector: 'input' })
+    ).toHaveAttribute('type', 'file');
+  });
 });

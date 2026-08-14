@@ -287,6 +287,7 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
                   title={t('translation|Drag & drop or choose kubeconfig files here')}
                   placement="top"
                 >
+                  {/* The dropzone root already opens the file dialog on click. */}
                   <Button
                     variant="contained"
                     startIcon={<InlineIcon icon="mdi:upload" width={32} />}
