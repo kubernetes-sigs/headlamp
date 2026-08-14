@@ -570,6 +570,7 @@
                 class="MuiBox-root css-1rnoxx5"
               >
                 <span
+                  aria-label="Connecting…"
                   class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
                   role="progressbar"
                   style="width: 14px; height: 14px;"
@@ -698,6 +699,7 @@
                 class="MuiBox-root css-1rnoxx5"
               >
                 <span
+                  aria-label="Connecting…"
                   class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
                   role="progressbar"
                   style="width: 14px; height: 14px;"
@@ -824,6 +826,7 @@
                 class="MuiBox-root css-1rnoxx5"
               >
                 <span
+                  aria-label="Connecting…"
                   class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
                   role="progressbar"
                   style="width: 14px; height: 14px;"
@@ -952,6 +955,7 @@
                 class="MuiBox-root css-1rnoxx5"
               >
                 <span
+                  aria-label="Connecting…"
                   class="MuiCircularProgress-root MuiCircularProgress-indeterminate MuiCircularProgress-colorPrimary css-1g0vz9s-MuiCircularProgress-root"
                   role="progressbar"
                   style="width: 14px; height: 14px;"
