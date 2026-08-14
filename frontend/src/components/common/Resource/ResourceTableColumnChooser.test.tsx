@@ -52,6 +52,13 @@ it('has no interactive element nested inside another one', () => {
   }
 });
 
+it('puts only list items directly inside the list', () => {
+  renderPopup();
+
+  const list = screen.getByRole('list');
+  expect([...list.children].map(child => child.tagName)).toEqual(['LI', 'LI']);
+});
+
 it('toggles the column when the label is clicked', async () => {
   const onToggleColumn = renderPopup();
 
