@@ -16,7 +16,6 @@
 
 import React from 'react';
 import { useHistory } from 'react-router';
-import NotFoundComponent from '../../components/404';
 import AuthToken from '../../components/account/Auth';
 import AddCluster from '../../components/App/CreateCluster/AddCluster';
 import Home from '../../components/App/Home';
@@ -1091,14 +1090,4 @@ const defaultRoutes: { [routeName: string]: Route } = {
 
 setDefaultRoutes(defaultRoutes);
 
-// The NotFound route  needs to be considered always in the last place when used
-// with the router switch, as any routes added after this one will never be considered.
-// So we do not include it in the default routes in order to always "manually" consider it.
-export const NotFoundRoute = {
-  path: '*',
-  exact: true,
-  name: `Whoops! This page doesn't exist`,
-  component: () => <NotFoundComponent />,
-  sidebar: null,
-  noAuthRequired: true,
-};
+export { NotFoundRoute } from './notFoundRoute';

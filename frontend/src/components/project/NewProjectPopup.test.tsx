@@ -77,6 +77,8 @@ vi.mock('@iconify/react', () => ({
   Icon: () => <span />,
 }));
 
+// Registers the app's routes (via setDefaultRoutes) so createRouteURL below has routes to resolve.
+import '../../lib/router';
 import { EventStatus, HeadlampEventType } from '../../redux/headlampEventSlice';
 import { recordHeadlampEvents, TestContext } from '../../test';
 import { NewProjectPopup } from './NewProjectPopup';
