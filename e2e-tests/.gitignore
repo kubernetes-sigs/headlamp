@@ -3,6 +3,7 @@ node_modules/
 /test-results/
 /playwright-report/
 /playwright/.cache/
+/pomerium/generated/
 /test-results/
 /playwright-report/
 /blob-report/
