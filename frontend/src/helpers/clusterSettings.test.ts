@@ -39,6 +39,7 @@ describe('clusterSettings', () => {
           linuxImage: 'alpine:latest',
           namespace: 'kube-system',
           isEnabled: true,
+          chrootHostRoot: true,
         },
         podDebugTerminal: {
           debugImage: 'busybox:1.36',
