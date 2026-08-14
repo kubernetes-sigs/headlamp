@@ -48,6 +48,12 @@ const forEachEntry = (items: SidebarItemProps[], cb: (item: SidebarItemProps) =>
   });
 };
 
+// Stable reference so the `?? EMPTY_CLUSTERS` fallback below doesn't create
+// a new object identity on every render when there's no cluster config yet
+// — an unstable fallback here would defeat the `sidebars` memo's dependency
+// on `clusters`.
+const EMPTY_CLUSTERS: Record<string, unknown> = {};
+
 const sortSidebarItems = (items: SidebarItemProps[]): SidebarItemProps[] => {
   const homeItems = items.filter(({ name }) => name === 'home');
   const otherItems = items
@@ -64,7 +70,7 @@ const sortSidebarItems = (items: SidebarItemProps[]): SidebarItemProps[] => {
 };
 
 export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER) => {
-  const clusters = useTypedSelector(state => state.config.clusters) ?? {};
+  const clusters = useTypedSelector(state => state.config.clusters) ?? EMPTY_CLUSTERS;
   const settings = useTypedSelector(selectEffectiveSettings);
   const customSidebarEntries = useTypedSelector(state => state.sidebar.entries);
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
@@ -669,6 +675,9 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     }
 
     return sidebars;
+    // allClustersConf and sources are not read in this callback, but the helpers
+    // it calls (getClusterAppearanceFromMeta, getLabel) depend on them, so they
+    // must invalidate the memo.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [
     customSidebarEntries,
@@ -679,6 +688,8 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     Object.keys(clusters).join(','),
     // eslint-disable-next-line react-hooks/exhaustive-deps
     selectedClusters.join(','),
+    clusters,
+    selectedClusters,
     allClustersConf,
     sources,
     getLabel,
@@ -689,17 +700,16 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     schedulingWorkloadsEnabled,
     compositePodGroupsEnabled,
     t,
+    theme,
   ]);
 
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  const unsortedItems =
-    sidebars[sidebarName === '' ? DefaultSidebars.IN_CLUSTER : sidebarName] ?? [];
-
   const sortedItems = useMemo(() => {
+    const unsortedItems =
+      sidebars[sidebarName === '' ? DefaultSidebars.IN_CLUSTER : sidebarName] ?? [];
     // Make a copy so that we always start from the original (unsorted) order.
     const itemsCopy = [...unsortedItems];
     return settings?.sidebarSortAlphabetically ? sortSidebarItems(itemsCopy) : itemsCopy;
-  }, [unsortedItems, settings.sidebarSortAlphabetically]);
+  }, [sidebars, sidebarName, settings.sidebarSortAlphabetically]);
 
   return sortedItems;
 };

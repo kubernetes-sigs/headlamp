@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
+import { createTheme, ThemeProvider } from '@mui/material/styles';
 import { configureStore } from '@reduxjs/toolkit';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { cleanup, renderHook, waitFor } from '@testing-library/react';
+import { act, cleanup, renderHook, waitFor } from '@testing-library/react';
 import React from 'react';
 import { Provider } from 'react-redux';
+import { vi } from 'vitest';
 import App from '../../App';
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { useSelectedClusters } from '../../lib/k8s/api/v1/hooks';
@@ -30,6 +32,27 @@ import reducers from '../../redux/reducers/reducers';
 import { TestContext } from '../../test';
 import { DefaultSidebars, SidebarEntry } from './sidebarSlice';
 import { useSidebarItems } from './useSidebarItems';
+
+// Force a deterministic appearance so the accent-color fallback to
+// theme.palette.getContrastText(...) is always exercised, regardless of
+// any stored per-cluster appearance overrides.
+vi.mock('../../helpers/clusterAppearance', () => ({
+  getClusterAppearanceFromMeta: () => ({ accentColor: undefined, icon: undefined }),
+}));
+
+// Guarantee at least one selected cluster so the cluster badge subtitle
+// (and therefore the theme-dependent accent color) is actually rendered.
+const { MOCK_SELECTED_CLUSTERS } = vi.hoisted(() => ({
+  MOCK_SELECTED_CLUSTERS: ['test-cluster'],
+}));
+
+vi.mock('../../lib/k8s', async () => {
+  const actual = await vi.importActual('../../lib/k8s');
+  return {
+    ...actual,
+    useSelectedClusters: () => MOCK_SELECTED_CLUSTERS,
+  };
+});
 
 // Fix for a circular dependency issue
 // App import will load the whole app dependency tree
@@ -462,5 +485,59 @@ describe('useSidebarItems', () => {
 
     // Check that home is still present
     expect(result.current.find(it => it.name === 'home')).toBeDefined();
+  });
+
+  it('should recompute cluster badge accent color when the theme changes', () => {
+    // Regression test for a missing `theme` dependency on the `sidebars`
+    // useMemo: theme.palette.getContrastText(...) is used to color cluster
+    // badges, but the memo previously didn't list `theme` as a dependency,
+    // so badges kept a stale accent color after a light/dark theme switch.
+    let setTheme: (theme: ReturnType<typeof createTheme>) => void = () => {};
+
+    const lightTheme = createTheme({ palette: { mode: 'light' } });
+    const darkTheme = createTheme({ palette: { mode: 'dark' } });
+
+    const ThemeSwitcher = ({ children }: { children: React.ReactNode }) => {
+      const [theme, setThemeState] = React.useState(lightTheme);
+      React.useEffect(() => {
+        setTheme = setThemeState;
+      }, []);
+      return <ThemeProvider theme={theme}>{children}</ThemeProvider>;
+    };
+
+    const store = mockStore({}, []);
+
+    const themeWrapper = ({ children }: any) => (
+      <TestContext>
+        <Provider store={store}>
+          <QueryClientProvider client={queryClient}>
+            <ThemeSwitcher>{children}</ThemeSwitcher>
+          </QueryClientProvider>
+        </Provider>
+      </TestContext>
+    );
+
+    const { result, rerender } = renderHook(() => useSidebarItems(), {
+      wrapper: themeWrapper,
+    });
+
+    const getAccentColor = () => {
+      const clusterItem = result.current.find(it => it.name === 'cluster');
+      const badge = (clusterItem?.subtitle as any)?.props?.children?.[0];
+      return badge?.props?.accentColor;
+    };
+
+    const lightAccent = getAccentColor();
+    expect(lightAccent).toBeDefined();
+
+    act(() => {
+      setTheme(darkTheme);
+    });
+    rerender();
+
+    const darkAccent = getAccentColor();
+
+    expect(darkAccent).toBeDefined();
+    expect(darkAccent).not.toEqual(lightAccent);
   });
 });
