@@ -2,6 +2,7 @@ package config
 
 import (
 	"crypto/x509"
+	"encoding/json"
 	"errors"
 	"flag"
 	"fmt"
@@ -123,21 +124,16 @@ func (c *Config) warnRedundantThemeDefaults() {
 }
 
 func (c *Config) Validate() error {
-	if !c.InCluster && !c.OidcUseCookie && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
-		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
-		return errors.New("oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, " +
-			"oidc-validator-client-id, oidc-validator-idp-issuer-url, flags are only " +
-			"meant to be used in inCluster mode or with --oidc-use-cookie")
+	if err := c.validateOIDCFlagUsage(); err != nil {
+		return err
 	}
 
-	// Extracted to keep Validate's cognitive complexity within the linter limit.
 	c.warnRedundantThemeDefaults()
 
 	if err := c.validateServiceAccountTokenFlags(); err != nil {
 		return err
 	}
 
-	// OIDC TLS verification warning.
 	if c.OidcSkipTLSVerify {
 		logger.Log(logger.LevelWarn, nil, nil, "oidc-skip-tls-verify is set, this is not safe for production")
 	}
@@ -146,6 +142,37 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if err := c.validateBaseURLAndSessionTTL(); err != nil {
+		return err
+	}
+
+	if err := c.validateTracing(); err != nil {
+		return err
+	}
+
+	if err := c.validateClusterInventory(); err != nil {
+		return err
+	}
+
+	if err := c.validateExternalLinks(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Config) validateOIDCFlagUsage() error {
+	if !c.InCluster && !c.OidcUseCookie && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
+		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
+		return errors.New("oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, " +
+			"oidc-validator-client-id, oidc-validator-idp-issuer-url, flags are only " +
+			"meant to be used in inCluster mode or with --oidc-use-cookie")
+	}
+
+	return nil
+}
+
+func (c *Config) validateBaseURLAndSessionTTL() error {
 	if c.BaseURL != "" && !strings.HasPrefix(c.BaseURL, "/") {
 		return errors.New("base-url needs to start with a '/' or be empty")
 	}
@@ -155,11 +182,14 @@ func (c *Config) Validate() error {
 	}
 
 	const oneYearInSeconds = 31536000
-
 	if c.SessionTTL > oneYearInSeconds {
 		return errors.New("session-ttl cannot be greater than 1 year")
 	}
 
+	return nil
+}
+
+func (c *Config) validateTracing() error {
 	if c.TracingEnabled != nil && *c.TracingEnabled {
 		if c.ServiceName == "" {
 			return errors.New("service-name is required when tracing is enabled")
@@ -177,8 +207,29 @@ func (c *Config) Validate() error {
 		}
 	}
 
-	if err := c.validateClusterInventory(); err != nil {
-		return err
+	return nil
+}
+
+func (c *Config) validateExternalLinks() error {
+	if c.ExternalLinks != "" {
+		var list []struct {
+			Label string `json:"label"`
+			URL   string `json:"url"`
+			Icon  string `json:"icon,omitempty"`
+		}
+		if err := json.Unmarshal([]byte(c.ExternalLinks), &list); err != nil {
+			return fmt.Errorf("invalid external-links JSON: %w", err)
+		}
+
+		for i, entry := range list {
+			if entry.Label == "" {
+				return fmt.Errorf("invalid external-links entry at index %d: label cannot be empty", i)
+			}
+
+			if entry.URL == "" {
+				return fmt.Errorf("invalid external-links entry at index %d: url cannot be empty", i)
+			}
+		}
 	}
 
 	return nil

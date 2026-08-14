@@ -56,9 +56,19 @@ const sortSidebarItems = (items: SidebarItemProps[]): SidebarItemProps[] => {
 const safeLinkUrl = (url: unknown): string | null => {
   if (typeof url !== 'string') return null;
   const trimmed = url.trim();
-  if (!/^https?:\/\//i.test(trimmed)) return null;
-  // Normalize only the scheme so external URLs are detected reliably without changing the full URL.
-  return trimmed.replace(/^https?:\/\//i, m => m.toLowerCase());
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null;
+    }
+    if (!parsed.hostname) {
+      return null;
+    }
+    // Normalize only the scheme so external URLs are detected reliably without changing the full URL.
+    return trimmed.replace(/^https?:\/\//i, m => m.toLowerCase());
+  } catch {
+    return null;
+  }
 };
 
 export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER) => {

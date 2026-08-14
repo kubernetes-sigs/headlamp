@@ -334,6 +334,9 @@ describe('useSidebarItems', () => {
         { label: 'Missing URL', url: undefined as any },
         { label: 'Number URL', url: 123 as any },
         { label: 'Null URL', url: null as any },
+        { label: 'Malformed Prefix Only', url: 'https://' },
+        { label: 'No Hostname', url: 'http://' },
+        { label: 'Invalid Format', url: 'https://google.com:abc' },
       ],
     });
 
@@ -369,5 +372,14 @@ describe('useSidebarItems', () => {
 
     const nullLink = result.current.find(it => it.label === 'Null URL');
     expect(nullLink).toBeUndefined();
+
+    const malformedPrefixLink = result.current.find(it => it.label === 'Malformed Prefix Only');
+    expect(malformedPrefixLink).toBeUndefined();
+
+    const noHostnameLink = result.current.find(it => it.label === 'No Hostname');
+    expect(noHostnameLink).toBeUndefined();
+
+    const invalidFormatLink = result.current.find(it => it.label === 'Invalid Format');
+    expect(invalidFormatLink).toBeUndefined();
   });
 });
