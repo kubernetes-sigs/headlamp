@@ -166,7 +166,10 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
           <Box>
             <DropZoneBox border={1} borderColor="secondary.main" {...getRootProps()}>
               <FormControl>
-                <input {...getInputProps()} />
+                <input
+                  {...getInputProps()}
+                  aria-label={t('translation|Drag & drop or choose kubeconfig file here')}
+                />
                 <Tooltip
                   title={t('translation|Drag & drop or choose kubeconfig file here')}
                   placement="top"
