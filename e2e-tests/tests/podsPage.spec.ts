@@ -456,3 +456,44 @@ test('opens aggregated logs for a workload', async ({ page }) => {
   await expect(page.getByLabel('Select Pod')).toBeVisible();
   await expect(page.getByRole('combobox', { name: /^Container/ })).toBeVisible();
 });
+
+test('checks pod accessibility with a visible status tooltip', async ({ page }) => {
+  const headlampPage = new HeadlampPage(page);
+  await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+
+  await page.route('**/clusters/test/apis/metrics.k8s.io/v1beta1/pods?*', async route => {
+    await route.fulfill({ json: { apiVersion: 'v1', kind: 'PodMetricsList', items: [] } });
+  });
+  await page.route('**/clusters/test/api/v1/pods?*', async route => {
+    const pod = {
+      ...makePod('tooltip-test-pod', '1'),
+      status: {
+        phase: 'Pending',
+        conditions: [{ type: 'Ready', status: 'False' }],
+        containerStatuses: [
+          {
+            name: 'main',
+            ready: false,
+            restartCount: 0,
+            state: {
+              waiting: {
+                reason: 'ImagePullBackOff',
+                message: 'Waiting to pull the container image',
+              },
+            },
+          },
+        ],
+      },
+    };
+    await route.fulfill({
+      json: { apiVersion: 'v1', kind: 'PodList', metadata: {}, items: [pod] },
+    });
+  });
+  await headlampPage.navigateTopage('/c/test/pods', /Pods/);
+
+  const podsTable = page.getByRole('table');
+  await podsTable.getByText('ImagePullBackOff', { exact: true }).hover();
+  await expect(page.getByRole('tooltip')).toContainText('Waiting to pull the container image');
+
+  await new podsPage(page).a11y();
+});
