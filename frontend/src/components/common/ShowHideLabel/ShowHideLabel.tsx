@@ -56,22 +56,21 @@ export default function ShowHideLabel(props: ShowHideLabelProps) {
     <Box display={expanded ? 'block' : 'flex'}>
       <span id={labelIdOrRandom} style={{ wordBreak: 'break-all', whiteSpace: 'normal' }}>
         {actualText}
-        {needsButton && (
-          <>
-            {!expanded && '…'}
-            <IconButton
-              aria-controls={labelIdOrRandom}
-              aria-expanded={expanded}
-              sx={{ display: 'inline' }}
-              onClick={() => setExpanded(expandedVal => !expandedVal)}
-              size="small"
-              aria-label={expanded ? t('translation|Collapse') : t('translation|Expand')}
-            >
-              <Icon icon={expanded ? 'mdi:menu-up' : 'mdi:menu-down'} />
-            </IconButton>
-          </>
-        )}
+        {!expanded && needsButton && '…'}
       </span>
+
+      {needsButton && (
+        <IconButton
+          aria-controls={labelIdOrRandom}
+          aria-expanded={expanded}
+          sx={{ display: 'inline' }}
+          onClick={() => setExpanded(expandedVal => !expandedVal)}
+          size="small"
+          aria-label={expanded ? t('translation|Collapse') : t('translation|Expand')}
+        >
+          <Icon icon={expanded ? 'mdi:menu-up' : 'mdi:menu-down'} />
+        </IconButton>
+      )}
     </Box>
   );
 }
