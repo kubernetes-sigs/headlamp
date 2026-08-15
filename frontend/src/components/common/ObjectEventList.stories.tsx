@@ -47,6 +47,17 @@ const mockOwnerObjectNoEvents = new KubeObject({
   },
 });
 
+const mockOwnerObjectSourcelessEvents = new KubeObject({
+  kind: 'Pod',
+  apiVersion: 'v1',
+  metadata: {
+    name: 'test-pod-sourceless-events',
+    namespace: 'default',
+    uid: 'owner-pod-uid-789',
+    creationTimestamp: getTestDate().toISOString(),
+  },
+});
+
 const mockEvents: KubeEvent[] = [
   {
     kind: 'Event',
@@ -102,6 +113,62 @@ const mockEvents: KubeEvent[] = [
   },
 ];
 
+// Events created through the events.k8s.io API have no `source` field, so the
+// From column has to tolerate it being absent.
+const mockSourcelessEvents: KubeEvent[] = [
+  {
+    kind: 'Event',
+    apiVersion: 'v1',
+    metadata: {
+      name: 'event3.789',
+      namespace: 'default',
+      uid: 'event-uid-3',
+      creationTimestamp: new Date(getTestDate().getTime() - 3 * 60 * 1000).toISOString(),
+    },
+    involvedObject: {
+      kind: 'Pod',
+      namespace: 'default',
+      name: 'test-pod-sourceless-events',
+      uid: 'owner-pod-uid-789',
+      apiVersion: 'v1',
+      resourceVersion: '1',
+      fieldPath: '',
+    },
+    reason: 'Scheduled',
+    message: 'Successfully assigned default/test-pod-sourceless-events to worker-node-1',
+    firstTimestamp: new Date(getTestDate().getTime() - 3 * 60 * 1000).toISOString(),
+    lastTimestamp: new Date(getTestDate().getTime() - 3 * 60 * 1000).toISOString(),
+    count: 1,
+    type: 'Normal',
+  },
+  {
+    kind: 'Event',
+    apiVersion: 'v1',
+    metadata: {
+      name: 'event4.101',
+      namespace: 'default',
+      uid: 'event-uid-4',
+      creationTimestamp: new Date(getTestDate().getTime() - 1 * 60 * 1000).toISOString(),
+    },
+    involvedObject: {
+      kind: 'Pod',
+      namespace: 'default',
+      name: 'test-pod-sourceless-events',
+      uid: 'owner-pod-uid-789',
+      apiVersion: 'v1',
+      resourceVersion: '1',
+      fieldPath: '',
+    },
+    reason: 'Pulled',
+    message: 'Container image "nginx:latest" already present on machine',
+    source: {},
+    firstTimestamp: new Date(getTestDate().getTime() - 1 * 60 * 1000).toISOString(),
+    lastTimestamp: new Date(getTestDate().getTime() - 1 * 60 * 1000).toISOString(),
+    count: 1,
+    type: 'Normal',
+  },
+];
+
 export default {
   title: 'common/ObjectEventList',
   component: ObjectEventList,
@@ -143,6 +210,22 @@ export default {
             ) {
               return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
             }
+            if (
+              reqNamespace === mockOwnerObjectSourcelessEvents.metadata.namespace &&
+              fieldSelector &&
+              fieldSelector.includes(
+                `involvedObject.kind=${mockOwnerObjectSourcelessEvents.kind}`
+              ) &&
+              fieldSelector.includes(
+                `involvedObject.name=${mockOwnerObjectSourcelessEvents.metadata.name}`
+              )
+            ) {
+              return HttpResponse.json({
+                kind: 'EventList',
+                items: mockSourcelessEvents,
+                metadata: {},
+              });
+            }
             return HttpResponse.json({ kind: 'EventList', items: [], metadata: {} });
           }),
         ],
@@ -170,6 +253,12 @@ NoEventsForObject.args = {
   object: mockOwnerObjectNoEvents,
 };
 NoEventsForObject.storyName = 'No Events for an Object';
+
+export const EventsWithoutSource = Template.bind({});
+EventsWithoutSource.args = {
+  object: mockOwnerObjectSourcelessEvents,
+};
+EventsWithoutSource.storyName = 'Events Without a Source';
 
 export const ErrorFetching = Template.bind({});
 ErrorFetching.args = {
