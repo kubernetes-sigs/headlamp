@@ -944,22 +944,36 @@ export function registerClusterProviderMenuItem(item: MenuItemComponent) {
 }
 
 /**
- * Register a new cluster status component.
+ * Register a cluster status callback.
  *
- * @param item - The component to add to the cluster status.
- * Item is a function/component and its props are cluster and error.
+ * @param item - A render function that receives `{ cluster, error }` and returns
+ * a React element to display as the cluster's status, or `null` if this callback
+ * does not handle the given cluster.
+ *
+ * **Important:** Callbacks are invoked as plain functions (not as JSX components),
+ * so they **must not call React hooks**. If you need hooks or state, return an
+ * inner component from the callback:
  *
  * @example
  * ```tsx
  * import { registerClusterStatus } from '@kinvolk/headlamp-plugin/lib';
- * import { ClusterStatus } from './ClusterStatus';
+ *
+ * // ✅ Correct — outer callback is hook-free; stateful logic lives in the inner component.
  * registerClusterStatus(({ cluster, error }) => {
- *   if (!isElectron() || !isMinikube(cluster)) {
+ *   if (!isMyCluster(cluster)) {
  *     return null;
  *   }
- *   return <ClusterStatus cluster={cluster} error={error} />;
+ *   return <MyStatusInner cluster={cluster} error={error} />;
+ * });
+ *
+ * // ❌ Wrong — hooks in the outer callback can cause runtime Hook failures.
+ * registerClusterStatus(({ cluster, error }) => {
+ *   const [state, setState] = useState(null); // breaks rules of hooks
+ *   ...
  * });
  * ```
+ *
+ * @see https://react.dev/reference/rules/rules-of-hooks
  */
 export function registerClusterStatus(item: ClusterStatusComponent) {
   store.dispatch(addClusterStatus(item));
