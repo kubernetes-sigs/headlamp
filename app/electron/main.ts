@@ -53,6 +53,7 @@ import {
   getMatchingExtraFiles,
   getPluginBinDirectories,
   PluginManager,
+  recoverInterruptedUpdate,
   setAppConfigDirName,
 } from './plugin-management';
 import {
@@ -1442,6 +1443,23 @@ function adjustZoom(delta: number) {
 function startElectron() {
   console.info('App starting...');
 
+  // Force a single instance. This must happen before any work that could
+  // race with another instance (e.g. recovering interrupted plugin update
+  // transactions) so a second instance can never interfere with a live
+  // update transaction in the first instance.
+  const gotTheLock = app.requestSingleInstanceLock();
+  if (!gotTheLock) {
+    app.quit();
+    return;
+  }
+  app.on('second-instance', () => {
+    // Someone tried to run a second instance, we should focus our window.
+    if (mainWindow) {
+      if (mainWindow.isMinimized()) mainWindow.restore();
+      mainWindow.focus();
+    }
+  });
+
   // Increase max listeners to prevent false positive warnings
   // The app legitimately needs multiple IPC listeners (currently 11)
   // Default is 10, setting to 20 provides headroom for future additions
@@ -1690,21 +1708,6 @@ function startElectron() {
       }
     });
 
-    // Force Single Instance Application
-    const gotTheLock = app.requestSingleInstanceLock();
-    if (gotTheLock) {
-      app.on('second-instance', () => {
-        // Someone tried to run a second instance, we should focus our window.
-        if (mainWindow) {
-          if (mainWindow.isMinimized()) mainWindow.restore();
-          mainWindow.focus();
-        }
-      });
-    } else {
-      app.quit();
-      return;
-    }
-
     /*
     if a library is trying to open a url other than app url in electron take it
     to the default browser
@@ -1905,6 +1908,9 @@ function startElectron() {
   }
 
   app.on('ready', async () => {
+    // Restore any plugins left broken by an update that was interrupted
+    // mid-swap, before the backend starts serving the plugins directory.
+    recoverInterruptedUpdate(defaultUserPluginsDir());
     await Promise.all([startServerIfNeeded(), createWindow()]);
     hasTray = createHeadlampTray(buildTrayOptions());
   });
