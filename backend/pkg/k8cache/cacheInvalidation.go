@@ -80,7 +80,13 @@ func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.Response
 
 	freshURL := *r.URL
 
-	freshReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, freshURL.String(), nil) //nolint:gosec
+	// Use context.Background() instead of r.Context() so the cache repopulation
+	// request is not cancelled if the client disconnects before the fresh GET
+	// completes. Using r.Context() would leave the cache empty (already purged)
+	// and never repopulated, causing a cache miss storm on the next request.
+	freshReq, err := http.NewRequestWithContext( //nolint:gosec
+		context.Background(), http.MethodGet, freshURL.String(), nil,
+	)
 	if err != nil {
 		return err
 	}

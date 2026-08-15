@@ -735,6 +735,49 @@ func TestHandleNonGETCacheInvalidation_PostOnResourceNamedVersion(t *testing.T) 
 	assert.NotContains(t, cachedValue, "stale")
 }
 
+// TestHandleNonGETCacheInvalidation_CachePopulatedAfterClientDisconnect is a
+// regression test for the bug where using r.Context() for the fresh-GET caused
+// the cache repopulation to be cancelled when the client disconnected, leaving
+// the cache permanently empty (cache poisoning on disconnect).
+//
+// The test cancels the request context *before* calling HandleNonGETCacheInvalidation
+// to simulate a client that disconnects immediately after sending the mutating
+// request. The fix (context.Background()) means the cache must still be
+// populated with the fresh response regardless of the client's context state.
+func TestHandleNonGETCacheInvalidation_CachePopulatedAfterClientDisconnect(t *testing.T) {
+	mockCache := NewMockCache()
+	targetURL := &url.URL{Path: "/clusters/kind/api/v1/namespaces/default/pods"}
+	cacheKey, err := k8cache.GenerateKey(targetURL, "ctx")
+	require.NoError(t, err)
+
+	// Seed an existing stale entry so we can confirm it is replaced.
+	require.NoError(t, mockCache.Set(context.Background(), cacheKey, `{"body":"stale"}`))
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"PodList","fresh":true}`))
+	})
+
+	// Simulate a client that has already disconnected: create a cancelled context.
+	cancelledCtx, cancel := context.WithCancel(context.Background())
+	cancel() // cancel immediately — context.Err() is non-nil from here on
+
+	w := httptest.NewRecorder()
+	r := httptest.NewRequestWithContext(cancelledCtx, http.MethodPost, targetURL.String(), nil)
+	r.URL = targetURL
+
+	err = k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
+	assert.ErrorIs(t, err, k8cache.ErrHandled)
+
+	// The cache must contain the fresh data even though the client context was
+	// already cancelled. Before the fix this would fail because the fresh GET
+	// would be aborted along with the client context.
+	cachedValue, err := mockCache.Get(context.Background(), cacheKey)
+	require.NoError(t, err, "cache must be populated after client disconnect")
+	assert.Contains(t, cachedValue, "PodList", "cache must hold fresh response, not empty or stale data")
+	assert.NotContains(t, cachedValue, "stale")
+}
+
 var filterImportantResourcesTests = []struct {
 	name  string
 	input []schema.GroupVersionResource
