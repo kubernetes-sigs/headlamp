@@ -880,17 +880,27 @@
                         <p
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                         >
+                          ephemeral-storage: 50000000Ki
+                        </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
+                          hugepages-1Gi: 0
+                        </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
+                          hugepages-2Mi: 0
+                        </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
                           memory: 8000000Ki
                         </p>
                         <p
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                         >
                           pods: 110
-                        </p>
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                        >
-                          ephemeral-storage: 50000000Ki
                         </p>
                       </div>
                     </div>
@@ -917,17 +927,27 @@
                         <p
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                         >
+                          ephemeral-storage: 50000000Ki
+                        </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
+                          hugepages-1Gi: 0
+                        </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
+                          hugepages-2Mi: 0
+                        </p>
+                        <p
+                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
+                        >
                           memory: 8000000Ki
                         </p>
                         <p
                           class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
                         >
                           pods: 110
-                        </p>
-                        <p
-                          class="MuiTypography-root MuiTypography-body1 css-1on669h-MuiTypography-root"
-                        >
-                          ephemeral-storage: 50000000Ki
                         </p>
                       </div>
                     </div>

@@ -349,10 +349,11 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
           if (!item) return [];
           const roles = item.getRoles();
           const nodePool = item.getNodePool();
-          // The keys of interest are reported by the API in kebab-case.
-          const reportedKeys = ['cpu', 'memory', 'pods', 'ephemeral-storage'];
+          // Show every resource the API reports (cpu, memory, pods, ephemeral-storage,
+          // hugepages-*, extended resources like nvidia.com/gpu, etc.), not just a
+          // fixed subset, so device/GPU/hugepage capacity isn't silently hidden.
           const pickResources = (res: { [key: string]: string } = {}) =>
-            Object.fromEntries(reportedKeys.filter(key => res[key]).map(key => [key, res[key]]));
+            Object.fromEntries(Object.entries(res).filter(([, value]) => !!value));
           const capacity = pickResources(item.status?.capacity);
           const allocatable = pickResources(item.status?.allocatable);
 
