@@ -48,8 +48,6 @@
     "common/ReleaseNotes/ReleaseNotes/Default": ["heading-order"],
     "common/ReleaseNotes/ReleaseNotesModal/Show": ["heading-order", "scrollable-region-focusable"],
     "Resource/RestartMultipleButton/Menu Button Style": ["aria-required-parent"],
-    "common/ShowHideLabel/Basic": ["aria-allowed-attr"],
-    "common/ShowHideLabel/Expanded": ["aria-allowed-attr"],
     "GlobalSearch/Basic Example": ["color-contrast"],
     "Settings/PodDebugSettings/Default": ["label-title-only"],
     "Settings/PodDebugSettings/Disabled": ["label-title-only"],
