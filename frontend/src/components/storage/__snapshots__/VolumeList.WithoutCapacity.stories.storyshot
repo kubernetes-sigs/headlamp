@@ -739,7 +739,7 @@
                     class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                     href="/"
                   >
-                    my-pvc
+                    pv-without-capacity
                   </a>
                 </td>
                 <td
@@ -756,9 +756,7 @@
                 </td>
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1l0ciqb-MuiTableCell-root"
-                >
-                  8Gi
-                </td>
+                />
                 <td
                   class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1idyspx-MuiTableCell-root"
                 >
