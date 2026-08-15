@@ -68,3 +68,60 @@ test('project overview displays only enabled plugin sections', async ({ page }) 
     expect(deleteResponse.ok()).toBe(true);
   }
 });
+
+test('project overview renders plugin section cards', async ({ page }) => {
+  const token = process.env.HEADLAMP_TEST_TOKEN;
+  test.skip(!token, 'HEADLAMP_TEST_TOKEN is required to create the project fixture.');
+
+  const projectName = `project-overview-${Date.now()}`;
+  const namespacePath = `/clusters/test/api/v1/namespaces/${projectName}`;
+  const headers = { Authorization: `Bearer ${token}` };
+  const headlampPage = new HeadlampPage(page);
+
+  await page.route(
+    `**/clusters/test/apis/argoproj.io/v1alpha1/namespaces/${projectName}/applications*`,
+    async route => {
+      await route.fulfill({
+        json: {
+          apiVersion: 'argoproj.io/v1alpha1',
+          kind: 'ApplicationList',
+          metadata: { resourceVersion: '1' },
+          items: [],
+        },
+      });
+    }
+  );
+
+  await headlampPage.navigateToCluster('test', token);
+
+  const createResponse = await page.request.post('/clusters/test/api/v1/namespaces', {
+    headers,
+    data: {
+      apiVersion: 'v1',
+      kind: 'Namespace',
+      metadata: {
+        name: projectName,
+        labels: { 'headlamp.dev/project-id': projectName },
+      },
+    },
+  });
+  expect(createResponse.status()).toBe(201);
+
+  try {
+    await headlampPage.navigateTopage(`/project/${projectName}`, /Project Details/);
+
+    await expect(page.getByRole('progressbar', { name: 'Loading' })).toBeHidden({
+      timeout: 15_000,
+    });
+    await expect(page.getByText(`Custom resource usage for project ${projectName}`)).toBeVisible();
+
+    const emptySection = page.locator(
+      '.MuiGrid-item:has(> .MuiCard-root > .MuiCardContent-root:empty)'
+    );
+    await expect(emptySection).toHaveCount(1);
+    await expect(emptySection).toBeVisible();
+  } finally {
+    const deleteResponse = await page.request.delete(namespacePath, { headers });
+    expect(deleteResponse.ok()).toBe(true);
+  }
+});

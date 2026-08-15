@@ -183,6 +183,11 @@ registerProjectOverviewSection({
   isEnabled: async ({ project }) => project.clusters.length > 1,
 });
 
+registerProjectOverviewSection({
+  id: 'empty-section',
+  component: () => null,
+});
+
 registerProjectDeleteButton({
   component: ({ project }) => (
     <button
