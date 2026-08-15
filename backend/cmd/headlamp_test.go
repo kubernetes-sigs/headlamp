@@ -55,6 +55,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
@@ -1275,6 +1276,225 @@ func TestDrainNodeAllPodsDeletedSuccessfully(t *testing.T) {
 	require.True(t, ok)
 
 	assert.Equal(t, "success", status)
+}
+
+func TestIsDaemonSetPod(t *testing.T) {
+	tests := []struct {
+		name string
+		pod  *corev1.Pod
+		want bool
+	}{
+		{
+			name: "pod owned by DaemonSet returns true",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							Kind: "DaemonSet", Name: "my-ds", APIVersion: "apps/v1",
+							Controller: func() *bool { b := true; return &b }(),
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "pod owned by ReplicaSet returns false",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							Kind: "ReplicaSet", Name: "my-rs", APIVersion: "apps/v1",
+							Controller: func() *bool { b := true; return &b }(),
+						},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "pod with no owner returns false",
+			pod:  &corev1.Pod{},
+			want: false,
+		},
+		{
+			name: "pod with deprecated created-by label but no OwnerReference returns false",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Labels: map[string]string{"kubernetes.io/created-by": "daemonset-controller"},
+				},
+			},
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, isDaemonSetPod(tc.pod))
+		})
+	}
+}
+
+func TestIsMirrorPod(t *testing.T) {
+	tests := []struct {
+		name string
+		pod  *corev1.Pod
+		want bool
+	}{
+		{
+			name: "pod with mirror annotation returns true",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"kubernetes.io/config.mirror": "abc123",
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "pod without mirror annotation returns false",
+			pod:  &corev1.Pod{},
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, isMirrorPod(tc.pod))
+		})
+	}
+}
+
+func TestHasEmptyDirVolume(t *testing.T) {
+	tests := []struct {
+		name string
+		pod  *corev1.Pod
+		want bool
+	}{
+		{
+			name: "pod with emptyDir volume returns true",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Volumes: []corev1.Volume{
+						{
+							Name:         "tmp",
+							VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "pod with only configMap volume returns false",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Volumes: []corev1.Volume{
+						{
+							Name: "config",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{},
+							},
+						},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "pod with no volumes returns false",
+			pod:  &corev1.Pod{},
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, hasEmptyDirVolume(tc.pod))
+		})
+	}
+}
+
+// TestDrainNodeSkipsMirrorAndEmptyDirPods verifies that mirror pods and pods
+// with emptyDir volumes are not deleted during a node drain, while regular
+// pods are still evicted.
+func TestDrainNodeSkipsMirrorAndEmptyDirPods(t *testing.T) { //nolint:funlen
+	normalPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "normal", Namespace: "default"},
+		Spec:       corev1.PodSpec{NodeName: "test-node"},
+	}
+	mirrorPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mirror",
+			Namespace: "kube-system",
+			Annotations: map[string]string{
+				"kubernetes.io/config.mirror": "sha256abc",
+			},
+		},
+		Spec: corev1.PodSpec{NodeName: "test-node"},
+	}
+	emptyDirPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "emptydir", Namespace: "default"},
+		Spec: corev1.PodSpec{
+			NodeName: "test-node",
+			Volumes: []corev1.Volume{
+				{
+					Name:         "scratch",
+					VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+				},
+			},
+		},
+	}
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-node"},
+	}
+
+	fakeClient := fake.NewClientset(node, normalPod, mirrorPod, emptyDirPod)
+
+	testCache := cache.New[interface{}]()
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			Cache: testCache,
+		},
+	}
+
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
+	ctx := context.Background()
+
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+
+	// Wait for the drain goroutine to complete and write to cache.
+	require.Eventually(t, func() bool {
+		item, err := testCache.Get(ctx, cacheKey)
+		if err != nil {
+			return false
+		}
+
+		_, ok := item.(string)
+
+		return ok
+	}, 2*time.Second, 50*time.Millisecond)
+
+	// The drain must succeed: mirror and emptyDir pods are skipped, not errored.
+	item, err := testCache.Get(ctx, cacheKey)
+	require.NoError(t, err)
+
+	status, ok := item.(string)
+	require.True(t, ok)
+	assert.Equal(t, "success", status, "drain should succeed when only mirror/emptyDir pods remain")
+
+	// Verify the normal pod was deleted.
+	_, err = fakeClient.CoreV1().Pods("default").Get(ctx, "normal", metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "normal pod should have been deleted")
+
+	// Verify mirror pod was NOT deleted.
+	_, err = fakeClient.CoreV1().Pods("kube-system").Get(ctx, "mirror", metav1.GetOptions{})
+	assert.NoError(t, err, "mirror pod must not be deleted")
+
+	// Verify emptyDir pod was NOT deleted.
+	_, err = fakeClient.CoreV1().Pods("default").Get(ctx, "emptydir", metav1.GetOptions{})
+	assert.NoError(t, err, "emptyDir pod must not be deleted")
 }
 
 func TestHandleNodeDrainUsesRequestedClusterCookieForCustomNamedContext(t *testing.T) { //nolint:funlen
