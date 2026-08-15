@@ -25,6 +25,7 @@ import { CustomResourceDetails } from '../../crd/CustomResourceDetails';
 import CustomResourceDefinitionDetails from '../../crd/Details';
 import CronJobDetails from '../../cronjob/Details';
 import DaemonSetDetails from '../../daemonset/Details';
+import { DetailsGridContext } from '../../DetailsViewSection/detailsViewSectionSlice';
 import EndpointDetails from '../../endpoints/Details';
 import EndpointSliceDetails from '../../endpointSlices/Details';
 import BackendTLSPolicyDetails from '../../gateway/BackendTLSPolicyDetails';
@@ -33,6 +34,8 @@ import GatewayDetails from '../../gateway/GatewayDetails';
 import GRPCRouteDetails from '../../gateway/GRPCRouteDetails';
 import HTTPRouteDetails from '../../gateway/HTTPRouteDetails';
 import ReferenceGrantDetails from '../../gateway/ReferenceGrantDetails';
+import TCPRouteDetails from '../../gateway/TCPRouteDetails';
+import UDPRouteDetails from '../../gateway/UDPRouteDetails';
 import HpaDetails from '../../horizontalPodAutoscaler/Details';
 import IngressClassDetails from '../../ingress/ClassDetails';
 import IngressDetails from '../../ingress/Details';
@@ -109,6 +112,8 @@ const kindComponentMap: Record<
   GatewayClass: GatewayClassDetails,
   HTTPRoute: HTTPRouteDetails,
   GRPCRoute: GRPCRouteDetails,
+  TCPRoute: TCPRouteDetails,
+  UDPRoute: UDPRouteDetails,
   ReferenceGrant: ReferenceGrantDetails,
   BackendTLSPolicy: BackendTLSPolicyDetails,
   XBackendTrafficPolicy: BackendTLSPolicyDetails,
@@ -168,9 +173,9 @@ export const KubeObjectDetails = memo(
     }, [kind, kindComponentMap]);
 
     return (
-      <Box>
-        <Box sx={{ marginTop: '-70px' }}>{content}</Box>
-      </Box>
+      <DetailsGridContext.Provider value={{ isInPanel: true }}>
+        <Box>{content}</Box>
+      </DetailsGridContext.Provider>
     );
   }
 );

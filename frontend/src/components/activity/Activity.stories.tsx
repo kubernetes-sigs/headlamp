@@ -16,11 +16,24 @@
 
 import { Box } from '@mui/material';
 import { Meta, StoryFn } from '@storybook/react';
+import { useEffect } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
 import store from '../../redux/stores/store';
 import { ActivitiesRenderer, Activity } from './Activity';
 import { activitySlice } from './activitySlice';
+
+const activityStoryIds = ['1', '2', 'long-1', 'long-2', 'short-1'];
+
+function ActivityStoryCleanup({ children }: { children: React.ReactNode }) {
+  useEffect(() => {
+    return () => {
+      resetActivities(activityStoryIds);
+    };
+  }, []);
+
+  return <>{children}</>;
+}
 
 export default {
   title: 'Activity',
@@ -52,7 +65,9 @@ export default {
                 gridRow: '1/2',
               }}
             ></Box>
-            <Story />
+            <ActivityStoryCleanup>
+              <Story />
+            </ActivityStoryCleanup>
           </Box>
         </MemoryRouter>
       </Provider>
@@ -68,7 +83,15 @@ const makeActivity = (activity: Partial<Activity>): Activity => ({
   ...activity,
 });
 
+function resetActivities(ids: string[]) {
+  ids.forEach(id => {
+    store.dispatch(activitySlice.actions.close(id));
+  });
+}
+
 function setupActivities(activities: Activity[]) {
+  resetActivities(activities.map(activity => activity.id));
+
   activities.forEach(activity => {
     store.dispatch(activitySlice.actions.launchActivity(activity));
   });
@@ -84,8 +107,35 @@ export const Basic: StoryFn = () => {
 };
 
 export const EmptyBar: StoryFn = () => {
-  store.dispatch(activitySlice.actions.close('1'));
-  store.dispatch(activitySlice.actions.close('2'));
+  resetActivities(activityStoryIds);
+
+  return <ActivitiesRenderer />;
+};
+
+export const ResponsiveContent: StoryFn = () => {
+  setupActivities([
+    makeActivity({
+      id: 'long-1',
+      location: 'window',
+      cluster: 'docker-desktop-development-cluster-with-a-very-long-name',
+      title: 'Pod metrics collector for a very long deployment name in the activity view',
+      content: 'Long content',
+    }),
+    makeActivity({
+      id: 'long-2',
+      location: 'window',
+      cluster: 'prod-eu-west-1-internal-observability',
+      title: 'SomeAreVeryLongAndMightLookDifferent resource details and live logs',
+      content: 'Second long content',
+    }),
+    makeActivity({
+      id: 'short-1',
+      location: 'window',
+      cluster: 'dev',
+      title: 'Pod',
+      content: 'Short content',
+    }),
+  ]);
 
   return <ActivitiesRenderer />;
 };

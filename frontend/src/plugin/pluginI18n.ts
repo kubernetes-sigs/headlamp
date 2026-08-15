@@ -88,7 +88,18 @@ async function getPluginI18nInstance(
   const instance = createInstance();
 
   // Use supported locales from package.json or fall back to common locales
-  const locales = supportedLocales || ['en', 'es', 'fr', 'de', 'pt', 'it', 'zh', 'ko', 'ja'];
+  const locales = supportedLocales || [
+    'en',
+    'es',
+    'fr',
+    'de',
+    'pt-PT',
+    'pt-BR',
+    'it',
+    'zh',
+    'ko',
+    'ja',
+  ];
   const resources: Record<string, Record<string, Record<string, string>>> = {};
 
   // Load translations for each locale that exists
@@ -117,7 +128,7 @@ async function getPluginI18nInstance(
   }
 
   await instance.init({
-    lng: i18next.language || 'en',
+    lng: i18next.resolvedLanguage || i18next.language || 'en',
     fallbackLng: 'en',
     defaultNS: pluginName,
     ns: [pluginName],
@@ -154,7 +165,7 @@ export function registerPluginTranslations(pluginName: string, translations: Plu
   const namespace = pluginName;
 
   instance.init({
-    lng: i18next.language || 'en',
+    lng: i18next.resolvedLanguage || i18next.language || 'en',
     fallbackLng: 'en',
     defaultNS: namespace,
     ns: [namespace],
@@ -253,10 +264,11 @@ export function useTranslation(pluginNameParam?: string): UseTranslationResult {
 
   // Sync language changes from main i18n
   useEffect(() => {
-    if (instance && mainI18n?.language !== instance.language) {
-      instance.changeLanguage(mainI18n.language);
+    const mainLanguage = mainI18n?.resolvedLanguage || mainI18n?.language;
+    if (instance && mainLanguage && mainLanguage !== instance.language) {
+      instance.changeLanguage(mainLanguage);
     }
-  }, [mainI18n?.language, instance]);
+  }, [mainI18n?.resolvedLanguage, mainI18n?.language, instance]);
 
   // Translation function
   const t = (key: string, options?: TOptions) => {

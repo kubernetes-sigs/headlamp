@@ -59,7 +59,6 @@ import { useSettings } from '../../App/Settings/hook';
 import { useQueryParamsState } from '../../resourceMap/useQueryParamsState';
 import Empty from '../EmptyContent';
 import Loader from '../Loader';
-import { useScrollPreservationOnDataChange } from './useScrollPreservation';
 
 /**
  * Column definition
@@ -174,7 +173,8 @@ const tableLocalizationMap: Partial<Record<string, MRT_Localization>> = {
   he: MRT_Localization_HE,
   it: MRT_Localization_IT,
   ja: MRT_Localization_JA,
-  pt: MRT_Localization_PT,
+  'pt-PT': MRT_Localization_PT,
+  'pt-BR': MRT_Localization_PT,
   ko: MRT_Localization_KO,
   ru: MRT_Localization_RU,
   zh: MRT_Localization_ZH_HANS,
@@ -299,11 +299,6 @@ export default function Table<RowItem extends Record<string, any>>({
     return (tableProps.data ?? []).filter(it => filterFunction(it));
   }, [tableProps.data, filterFunction]);
 
-  // Preserve scroll position across auto-refresh re-renders where React Query
-  // hands us a fresh array reference (kubernetes-sigs/headlamp#5701).
-  const { ref: scrollContainerRef, onScroll: onScrollContainer } =
-    useScrollPreservationOnDataChange(tableData);
-
   const paginationSelectProps = import.meta.env.UNDER_TEST
     ? {
         inputProps: {
@@ -395,7 +390,7 @@ export default function Table<RowItem extends Record<string, any>>({
     enableDensityToggle: tableProps.enableDensityToggle ?? false,
     enableFullScreenToggle: tableProps.enableFullScreenToggle ?? false,
     enableColumnActions: false,
-    localization: tableLocalizationMap[i18n.language],
+    localization: tableLocalizationMap[i18n.resolvedLanguage || i18n.language],
     autoResetAll: false,
     icons: {
       ...tableProps.icons,
@@ -464,10 +459,6 @@ export default function Table<RowItem extends Record<string, any>>({
       showFirstButton: false,
       showLastButton: false,
       SelectProps: paginationSelectProps,
-    },
-    muiTableContainerProps: {
-      ref: scrollContainerRef,
-      onScroll: onScrollContainer,
     },
     muiTableBodyCellProps: {
       sx: {

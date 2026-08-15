@@ -1,0 +1,22 @@
+<body>
+  <div>
+    <span
+      aria-disabled="true"
+      aria-label="Cannot edit this resource"
+      class=""
+      data-mui-internal-clone-element="true"
+      role="button"
+      style="display: inline-flex;"
+      tabindex="0"
+    >
+      <button
+        aria-hidden="true"
+        aria-label="Cannot edit this resource"
+        class="MuiButtonBase-root Mui-disabled MuiIconButton-root Mui-disabled MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+        disabled=""
+        tabindex="-1"
+        type="button"
+      />
+    </span>
+  </div>
+</body>

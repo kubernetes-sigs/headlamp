@@ -45,3 +45,10 @@ LongDescription.args = {
   longDescription: 'Although this is Some label, there is more to it than meets the eye.',
   icon: 'mdi:pencil',
 };
+
+export const Disabled = Template.bind({});
+Disabled.args = {
+  description: 'Cannot edit this resource',
+  icon: 'mdi:pencil',
+  iconButtonProps: { disabled: true },
+};

@@ -32,6 +32,7 @@ import { isElectron } from '../../../helpers/isElectron';
 import { useCluster, useClustersConf } from '../../../lib/k8s';
 import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
 import { setConfig } from '../../../redux/configSlice';
+import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import ConfirmButton from '../../common/ConfirmButton';
 import Empty from '../../common/EmptyContent';
 import Link from '../../common/Link';
@@ -68,6 +69,15 @@ export default function SettingsCluster() {
   const dispatch = useDispatch();
   const location = useLocation();
   const { enqueueSnackbar } = useSnackbar();
+  const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.CLUSTER_SETTINGS_VIEW);
+
+  React.useEffect(() => {
+    if (!cluster) {
+      return;
+    }
+    dispatchHeadlampEvent({ cluster });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cluster]);
 
   const removeCluster = () => {
     deleteCluster(cluster || '')
@@ -256,7 +266,7 @@ export default function SettingsCluster() {
                         size="small"
                         onClick={() => setColorPickerOpen(true)}
                         startIcon={<Icon icon="mdi:palette" />}
-                        aria-labelledby={`${appearanceLabelID} ${colorButtonID}`}
+                        aria-labelledby={`${appearanceLabelID} ${accentColorLabelID} ${colorButtonID}`}
                       >
                         {appearanceAccentColor
                           ? t('translation|Change Color')
@@ -292,7 +302,7 @@ export default function SettingsCluster() {
                         size="small"
                         onClick={() => setIconPickerOpen(true)}
                         startIcon={<Icon icon="mdi:emoticon-outline" />}
-                        aria-labelledby={`${appearanceLabelID} ${iconButtonID}`}
+                        aria-labelledby={`${appearanceLabelID} ${clusterIconLabelID} ${iconButtonID}`}
                       >
                         {appearanceIcon
                           ? t('translation|Change Icon')

@@ -85,6 +85,33 @@ const modifiedConfigMap = {
   metadata: { ...mockConfigMap.metadata, resourceVersion: '5678' },
   data: { ...mockConfigMap.data, volumeName: 'pvc-xyz-5678' },
 };
+const oldestConfigMap = {
+  ...mockConfigMap,
+  metadata: {
+    ...mockConfigMap.metadata,
+    creationTimestamp: '2023-04-25T20:31:27Z',
+    name: 'oldest',
+    uid: 'abc-oldest',
+  },
+};
+const middleConfigMap = {
+  ...mockConfigMap,
+  metadata: {
+    ...mockConfigMap.metadata,
+    creationTimestamp: '2023-04-26T20:31:27Z',
+    name: 'middle',
+    uid: 'abc-middle',
+  },
+};
+const newestConfigMap = {
+  ...mockConfigMap,
+  metadata: {
+    ...mockConfigMap.metadata,
+    creationTimestamp: '2023-04-27T20:31:27Z',
+    name: 'newest',
+    uid: 'abc-newest',
+  },
+};
 
 describe('apiProxy', () => {
   describe('clusterRequest', () => {
@@ -583,6 +610,31 @@ describe('apiProxy', () => {
               });
             })
             .catch(err => done(err));
+        }));
+
+      it('Keeps the most recent resources when over the limit', () =>
+        new Promise<void>(done => {
+          expect.assertions(1);
+
+          apiProxy.streamResultsForCluster(
+            streamResultsUrl,
+            { cb, errCb, cluster: clusterName },
+            { watch: '1', limit: 2 }
+          );
+
+          mockServer.on('connection', async (socket: any) => {
+            for (const configMap of [oldestConfigMap, middleConfigMap, newestConfigMap]) {
+              socket.send(JSON.stringify({ type: 'ADDED', object: configMap }));
+            }
+
+            const lastCall = cb.mock.calls[cb.mock.calls.length - 1][0];
+            expect(lastCall.map((item: any) => item.metadata.name)).toEqual([
+              newestConfigMap.metadata.name,
+              middleConfigMap.metadata.name,
+            ]);
+
+            done();
+          });
         }));
     });
   });

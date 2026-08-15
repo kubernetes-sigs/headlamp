@@ -16,7 +16,7 @@
 
 import { KubeMetadata } from '../../../lib/k8s/KubeMetadata';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
-import { getMainNode, groupGraph } from './graphGrouping';
+import { collapseGraph, getMainNode, groupGraph } from './graphGrouping';
 import { GraphEdge, GraphNode } from './graphModel';
 
 describe('getMainNode', () => {
@@ -217,5 +217,35 @@ describe('groupGraph', () => {
     // Individual nodes should be sorted by weight
     const individualNodes = groupedGraph.nodes?.filter(node => !node.id.startsWith('group-'));
     expect(individualNodes?.map(n => n.id)).toEqual(['hpa', 'configmap']);
+  });
+});
+
+describe('collapseGraph', () => {
+  const bigGraph: GraphNode = {
+    id: 'root',
+    nodes: [
+      {
+        id: 'Namespace-ns1',
+        label: 'ns1',
+        nodes: Array.from({ length: 15 }, (_, i) => ({
+          id: `node-${i}`,
+          kubeObject: { kind: 'Pod' } as any,
+        })),
+        edges: [],
+      },
+    ],
+    edges: [],
+  };
+
+  it('collapses large primary groups when expandLargeGraph is false', () => {
+    const collapsed = collapseGraph(bigGraph, { expandAll: false, expandLargeGraph: false });
+    const nsGroup = collapsed.nodes?.find(n => n.id === 'Namespace-ns1');
+    expect(nsGroup?.collapsed).toBe(true);
+  });
+
+  it('keeps large primary groups expanded when expandLargeGraph is true', () => {
+    const collapsed = collapseGraph(bigGraph, { expandAll: false, expandLargeGraph: true });
+    const nsGroup = collapsed.nodes?.find(n => n.id === 'Namespace-ns1');
+    expect(nsGroup?.collapsed).toBe(false);
   });
 });

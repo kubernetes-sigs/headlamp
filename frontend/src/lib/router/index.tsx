@@ -59,6 +59,10 @@ import HTTPRouteDetails from '../../components/gateway/HTTPRouteDetails';
 import HTTPRouteList from '../../components/gateway/HTTPRouteList';
 import ReferenceGrantDetails from '../../components/gateway/ReferenceGrantDetails';
 import ReferenceGrantList from '../../components/gateway/ReferenceGrantList';
+import TCPRouteDetails from '../../components/gateway/TCPRouteDetails';
+import TCPRouteList from '../../components/gateway/TCPRouteList';
+import UDPRouteDetails from '../../components/gateway/UDPRouteDetails';
+import UDPRouteList from '../../components/gateway/UDPRouteList';
 import HpaDetails from '../../components/horizontalPodAutoscaler/Details';
 import HpaList from '../../components/horizontalPodAutoscaler/List';
 import IngressClassDetails from '../../components/ingress/ClassDetails';
@@ -461,6 +465,34 @@ const defaultRoutes: { [routeName: string]: Route } = {
     name: 'GRPCRoutes',
     sidebar: 'grpcroutes',
     component: () => <GRPCRouteDetails />,
+  },
+  tcproutes: {
+    path: '/tcproutes',
+    exact: true,
+    name: 'TCPRoutes',
+    sidebar: 'tcproutes',
+    component: () => <TCPRouteList />,
+  },
+  tcproute: {
+    path: '/tcproutes/:namespace/:name',
+    exact: true,
+    name: 'TCPRoutes',
+    sidebar: 'tcproutes',
+    component: () => <TCPRouteDetails />,
+  },
+  udproutes: {
+    path: '/udproutes',
+    exact: true,
+    name: 'UDPRoutes',
+    sidebar: 'udproutes',
+    component: () => <UDPRouteList />,
+  },
+  udproute: {
+    path: '/udproutes/:namespace/:name',
+    exact: true,
+    name: 'UDPRoutes',
+    sidebar: 'udproutes',
+    component: () => <UDPRouteDetails />,
   },
   gatewayclasses: {
     path: '/gatewayclasses',

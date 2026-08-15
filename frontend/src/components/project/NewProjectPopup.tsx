@@ -38,6 +38,7 @@ import { ApiError } from '../../lib/k8s/api/v2/ApiError';
 import { KubeObjectInterface } from '../../lib/k8s/KubeObject';
 import Namespace from '../../lib/k8s/namespace';
 import { createRouteURL } from '../../lib/router/createRouteURL';
+import { EventStatus, HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { PROJECT_ID_LABEL, toKubernetesName } from './projectUtils';
 /**
@@ -105,6 +106,7 @@ function ProjectTypeButton({
 function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
   const { t } = useTranslation();
   const history = useHistory();
+  const dispatchCreateProjectEvent = useEventCallback(HeadlampEventType.CREATE_PROJECT);
 
   const [projectName, setProjectName] = useState('');
   const [selectedClusters, setSelectedClusters] = useState<string[]>([]);
@@ -171,6 +173,15 @@ function ProjectFromExistingNamespace({ onBack }: { onBack: () => void }) {
    */
   const handleCreate = async () => {
     if (!isReadyToCreate || isCreating) return;
+
+    dispatchCreateProjectEvent({
+      project: {
+        id: projectName,
+        namespaces: effectiveNamespace ? [effectiveNamespace] : [],
+        clusters: selectedClusters,
+      },
+      status: EventStatus.CONFIRMED,
+    });
 
     setIsCreating(true);
     try {
