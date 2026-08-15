@@ -195,9 +195,7 @@ func addRepository(request AddUpdateRepoRequest, settings *cli.EnvSettings) erro
 
 	repoFile.Update(newRepo)
 
-	err = repoFile.WriteFile(settings.RepositoryConfig, defaultNewConfigFileMode)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing repo file")
+	if err = writeRepositoryFile(repoFile, settings); err != nil {
 		return err
 	}
 
@@ -263,7 +261,7 @@ func createFullPath(p string) (*os.File, error) {
 		return nil, err
 	}
 
-	return os.Create(p) //nolint:gosec
+	return os.OpenFile(p, os.O_RDWR|os.O_CREATE|os.O_TRUNC, defaultNewConfigFileMode) //nolint:gosec
 }
 
 func listRepositories(settings *cli.EnvSettings) ([]repositoryInfo, error) {
@@ -354,13 +352,7 @@ func RemoveRepository(name string, settings *cli.EnvSettings) error {
 		return errRepositoryNotFound
 	}
 
-	err = repoFile.WriteFile(settings.RepositoryConfig, defaultNewConfigFileMode)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing repo file")
-		return err
-	}
-
-	return nil
+	return writeRepositoryFile(repoFile, settings)
 }
 
 func (h *Handler) RemoveRepo(w http.ResponseWriter, r *http.Request) {
@@ -456,13 +448,7 @@ func updateRepositoryWithRequest(request AddUpdateRepoRequest, settings *cli.Env
 	applyRequestFields(updated, request)
 	repoFile.Update(updated)
 
-	err = repoFile.WriteFile(settings.RepositoryConfig, defaultNewConfigFileMode)
-	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "writing repo file")
-		return err
-	}
-
-	return nil
+	return writeRepositoryFile(repoFile, settings)
 }
 
 func (h *Handler) UpdateRepository(w http.ResponseWriter, r *http.Request) {
@@ -496,4 +482,19 @@ func (h *Handler) UpdateRepository(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func writeRepositoryFile(repoFile *repo.File, settings *cli.EnvSettings) error {
+	err := repoFile.WriteFile(settings.RepositoryConfig, defaultNewConfigFileMode)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "writing repo file")
+		return err
+	}
+
+	if err := os.Chmod(settings.RepositoryConfig, defaultNewConfigFileMode); err != nil {
+		logger.Log(logger.LevelError, nil, err, "chmodding repo file")
+		return err
+	}
+
+	return nil
 }
