@@ -196,6 +196,10 @@ test('warns and preserves edits when a pod is modified externally', async ({ pag
   const tempDirectory = await mkdtemp(join(tmpdir(), 'headlamp-e2e-'));
   const kubeconfig = join(tempDirectory, 'kubeconfig');
 
+  await page.addInitScript(() => {
+    window.localStorage.setItem('headlampThemePreference', 'Dark');
+  });
+
   try {
     const { stdout } = await execFileAsync('kind', ['get', 'kubeconfig', '--name', 'test']);
     await writeFile(kubeconfig, stdout);
@@ -252,11 +256,12 @@ test('warns and preserves edits when a pod is modified externally', async ({ pag
       '--overwrite'
     );
 
-    await expect(
-      page.getByText(
-        'This resource was modified while you were editing. Your changes may conflict with the latest version.'
-      )
-    ).toBeVisible({ timeout: 15000 });
+    const warningAlert = page.getByRole('alert').filter({
+      hasText:
+        'This resource was modified while you were editing. Your changes may conflict with the latest version.',
+    });
+    await expect(warningAlert).toBeVisible({ timeout: 15000 });
+    await expect(warningAlert).toHaveClass(/MuiAlert-standardWarning/);
     await expect(editor).toHaveValue(editedYaml);
   } finally {
     await kubectl(
