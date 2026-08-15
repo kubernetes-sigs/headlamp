@@ -155,12 +155,17 @@ class Pod extends KubeObject<KubePod> {
 
   evict() {
     const url = `/api/v1/namespaces/${this.getNamespace()}/pods/${this.getName()}/eviction`;
-    return post(url, {
-      metadata: {
-        name: this.getName(),
-        namespace: this.getNamespace(),
+    return post(
+      url,
+      {
+        metadata: {
+          name: this.getName(),
+          namespace: this.getNamespace(),
+        },
       },
-    });
+      true,
+      { cluster: this._clusterName }
+    );
   }
 
   getLogs(...args: Parameters<oldGetLogs | newGetLogs>): () => void {

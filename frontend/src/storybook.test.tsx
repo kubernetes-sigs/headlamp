@@ -105,6 +105,7 @@ function replaceUseId(node: any) {
   const attributesToReplace = [
     'id',
     'for',
+    'name',
     'aria-describedby',
     'aria-labelledby',
     'aria-controls',

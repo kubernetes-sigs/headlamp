@@ -56,6 +56,7 @@ import {
 import { canSelectCluster } from './clusterStatus';
 import { CONNECT_ON_CLUSTER_LINK, MULTI_HOME_ENABLED } from './config';
 import { getCustomClusterNames } from './customClusterNames';
+import RegisteredClusterEmptyState from './RegisteredClusterEmptyState';
 
 /**
  * ClusterStatus component displays the status of a cluster.
@@ -272,7 +273,7 @@ export default function ClusterTable({
 
   const clustersList = Object.values(customNameClusters);
   if (clustersList.length === 0) {
-    return (
+    const defaultContent = (
       <Box
         display="flex"
         flexDirection="column"
@@ -304,6 +305,7 @@ export default function ClusterTable({
         )}
       </Box>
     );
+    return <RegisteredClusterEmptyState defaultContent={defaultContent} />;
   }
 
   return (

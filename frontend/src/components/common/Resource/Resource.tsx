@@ -45,9 +45,11 @@ import Job from '../../../lib/k8s/job';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { KubeObjectInterface } from '../../../lib/k8s/KubeObject';
 import { KubeObjectClass } from '../../../lib/k8s/KubeObject';
+import { LEADER_WORKER_SET_NAME_LABEL } from '../../../lib/k8s/leaderWorkerSet';
 import Pod, { KubePod, KubeVolume } from '../../../lib/k8s/pod';
 import { METRIC_REFETCH_INTERVAL_MS, PodMetrics } from '../../../lib/k8s/PodMetrics';
 import Secret from '../../../lib/k8s/secret';
+import StatefulSet from '../../../lib/k8s/statefulSet';
 import { RouteURLProps } from '../../../lib/router';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { divideK8sResources } from '../../../lib/units';
@@ -59,10 +61,12 @@ import { SectionBox } from '../../common/SectionBox';
 import SimpleTable, { NameValueTable } from '../../common/SimpleTable';
 import {
   DefaultDetailsViewSection,
+  DetailsGridContext,
   DetailsViewSection,
 } from '../../DetailsViewSection/detailsViewSectionSlice';
 import { JobsListRenderer } from '../../job/List';
 import { PodListProps, PodListRenderer } from '../../pod/List';
+import { StatefulSetsListRenderer } from '../../statefulset/List';
 import { LightTooltip, Loader, ObjectEventList } from '..';
 import BackLink from '../BackLink';
 import Empty from '../EmptyContent';
@@ -154,6 +158,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
   const { t } = useTranslation();
   const location = useLocation<{ backLink: NavLinkProps['location'] }>();
   const hasPreviousRoute = useHasPreviousRoute();
+  const { isInPanel } = React.useContext(DetailsGridContext);
   const detailViews = useTypedSelector(state => state.detailsViewSection.detailsViewSections);
   const detailViewsProcessors = useTypedSelector(
     state => state.detailsViewSection.detailsViewSectionsProcessors
@@ -207,6 +212,11 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
   }, [item, error]);
 
   const actualBackLink: string | Location | undefined = React.useMemo(() => {
+    // No back link in side panels
+    if (isInPanel) {
+      return undefined;
+    }
+
     if (!!backLink || backLink === '') {
       return backLink;
     }
@@ -240,7 +250,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
 
     return createRouteURL(route);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item]);
+  }, [item, isInPanel]);
 
   const sections: (DetailsViewSection | ReactNode)[] = [];
 
@@ -1745,6 +1755,14 @@ export function ContainerInfo(props: ContainerInfoProps) {
   );
 }
 
+/**
+ * Pods shown under a JobSet or LeaderWorkerSet are owned by the parent and
+ * should not be edited or deleted individually from the parent's page.
+ */
+function isOwnedListReadOnly(resource: KubeObject) {
+  return resource.kind === 'JobSet' || resource.kind === 'LeaderWorkerSet';
+}
+
 export interface OwnedPodsSectionProps {
   resource: KubeObject;
   hideColumns?: PodListProps['hideColumns'];
@@ -1769,6 +1787,8 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
     labelSelector = labelSelectorToQuery(resource?.jsonData?.spec?.selector);
   } else if (resource.kind === 'JobSet') {
     labelSelector = `jobset.sigs.k8s.io/jobset-name=${resource.metadata.name}`;
+  } else if (resource.kind === 'LeaderWorkerSet') {
+    labelSelector = `${LEADER_WORKER_SET_NAME_LABEL}=${resource.metadata.name}`;
   }
 
   const queryData = {
@@ -1816,8 +1836,45 @@ export function OwnedPodsSection(props: OwnedPodsSectionProps) {
       metrics={podMetrics}
       noNamespaceFilter={hideNamespaceFilter}
       hideCreateButton
-      enableRowActions={resource.kind === 'JobSet' ? false : undefined}
-      enableRowSelection={resource.kind === 'JobSet' ? false : undefined}
+      enableRowActions={isOwnedListReadOnly(resource) ? false : undefined}
+      enableRowSelection={isOwnedListReadOnly(resource) ? false : undefined}
+    />
+  );
+}
+
+export interface TargetedPodsSectionProps {
+  /** Namespace to look for the pods in. */
+  namespace?: string;
+  /** Label selector query identifying the targeted pods. */
+  labelSelector: string;
+  cluster?: string;
+}
+
+/**
+ * Lists the pods matched by a label selector, e.g. the pods a Service or
+ * NetworkPolicy targets. Unlike OwnedPodsSection it takes an explicit selector
+ * instead of deriving one from spec.selector, so it works for a Service (whose
+ * selector is a plain label map) and a NetworkPolicy (spec.podSelector).
+ */
+export function TargetedPodsSection(props: TargetedPodsSectionProps) {
+  const { namespace, labelSelector, cluster } = props;
+  const queryData = { namespace, labelSelector, cluster };
+  const { items: pods, errors } = Pod.useList(queryData);
+  const { items: podMetrics } = PodMetrics.useList({
+    ...queryData,
+    refetchInterval: METRIC_REFETCH_INTERVAL_MS,
+  });
+
+  return (
+    <PodListRenderer
+      hideColumns={namespace ? ['namespace'] : undefined}
+      pods={pods}
+      errors={errors}
+      metrics={podMetrics}
+      noNamespaceFilter={!!namespace}
+      hideCreateButton
+      enableRowActions={false}
+      enableRowSelection={false}
     />
   );
 }
@@ -1846,6 +1903,40 @@ function OwnedJobsSectionContent({ resource }: OwnedJobsSectionProps) {
   return (
     <JobsListRenderer
       jobs={jobs}
+      errors={errors}
+      hideColumns={['namespace']}
+      noNamespaceFilter
+      enableRowActions={false}
+      enableRowSelection={false}
+      hideCreateButton
+    />
+  );
+}
+
+export interface OwnedStatefulSetsSectionProps {
+  resource: KubeObject;
+}
+
+export function OwnedStatefulSetsSection(props: OwnedStatefulSetsSectionProps) {
+  const { resource } = props;
+
+  if (resource.kind !== 'LeaderWorkerSet') {
+    return null;
+  }
+
+  return <OwnedStatefulSetsSectionContent resource={resource} />;
+}
+
+function OwnedStatefulSetsSectionContent({ resource }: OwnedStatefulSetsSectionProps) {
+  const { items: statefulSets, errors } = StatefulSet.useList({
+    namespace: resource.metadata.namespace,
+    labelSelector: `${LEADER_WORKER_SET_NAME_LABEL}=${resource.metadata.name}`,
+    cluster: resource.cluster,
+  });
+
+  return (
+    <StatefulSetsListRenderer
+      statefulSets={statefulSets}
       errors={errors}
       hideColumns={['namespace']}
       noNamespaceFilter

@@ -14,9 +14,21 @@
  * limitations under the License.
  */
 
-import { describe, expect, it } from 'vitest';
+import { ThemeProvider } from '@mui/material/styles';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, waitFor } from '@testing-library/react';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+vi.mock('./useProjectResources', () => ({
+  useProjectItems: () => ({ items: [], isLoading: false }),
+}));
+
 import App from '../../App';
-import { groupNamespacesIntoProjects } from './ProjectList';
+import Namespace from '../../lib/k8s/namespace';
+import { createMuiTheme } from '../../lib/themes';
+import { HeadlampEventType } from '../../redux/headlampEventSlice';
+import { recordHeadlampEvents, TestContext } from '../../test';
+import ProjectList, { groupNamespacesIntoProjects } from './ProjectList';
 import { PROJECT_ID_LABEL } from './projectUtils';
 
 // cyclic imports fix
@@ -83,5 +95,43 @@ describe('groupNamespacesIntoProjects', () => {
       ns('mine', { project: 'app' }),
     ]);
     expect(projects).toEqual([{ id: 'app', namespaces: ['mine'], clusters: ['cluster-a'] }]);
+  });
+});
+
+describe('ProjectList events', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('dispatches PROJECT_LIST_VIEW with the listed projects', async () => {
+    vi.spyOn(Namespace, 'useList').mockReturnValue({
+      items: [ns('app-prod', { project: 'app' }), ns('billing', { project: 'billing' })],
+      isLoading: false,
+    } as any);
+    const events = recordHeadlampEvents();
+
+    render(
+      <TestContext>
+        <QueryClientProvider client={new QueryClient()}>
+          <ThemeProvider theme={createMuiTheme({ name: 'Light', base: 'light' })}>
+            <ProjectList />
+          </ThemeProvider>
+        </QueryClientProvider>
+      </TestContext>
+    );
+
+    await waitFor(() => {
+      expect(events.filter(e => e.type === HeadlampEventType.PROJECT_LIST_VIEW)).toEqual([
+        {
+          type: HeadlampEventType.PROJECT_LIST_VIEW,
+          data: {
+            projects: [
+              { id: 'app', namespaces: ['app-prod'], clusters: ['cluster-a'] },
+              { id: 'billing', namespaces: ['billing'], clusters: ['cluster-a'] },
+            ],
+          },
+        },
+      ]);
+    });
   });
 });

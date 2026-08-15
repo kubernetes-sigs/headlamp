@@ -285,11 +285,23 @@ const TemplateExternalName: StoryFn<typeof Details> = () => {
   return <Details name="externalname-service" namespace="default" />;
 };
 
+// Handlers for the "Targeted Pods" section, which lists the pods matched by the
+// service's selector.
+const podHandlers = [
+  http.get(`${API_BASE}/api/v1/namespaces/default/pods`, () =>
+    HttpResponse.json({ kind: 'PodList', items: [], metadata: {} })
+  ),
+  http.get(`${API_BASE}/apis/metrics.k8s.io/v1beta1/namespaces/default/pods`, () =>
+    HttpResponse.json({ kind: 'PodMetricsList', items: [], metadata: {} })
+  ),
+];
+
 export const Default = Template.bind({});
 Default.parameters = {
   msw: {
     handlers: {
       story: [
+        ...podHandlers,
         http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
         ),
@@ -321,6 +333,7 @@ ErrorWithEndpoints.parameters = {
   msw: {
     handlers: {
       story: [
+        ...podHandlers,
         http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
         ),
@@ -342,6 +355,7 @@ WithA8RAnnotations.parameters = {
   msw: {
     handlers: {
       story: [
+        ...podHandlers,
         http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
         ),
@@ -374,6 +388,7 @@ WithA8ROwnerOnly.parameters = {
   msw: {
     handlers: {
       story: [
+        ...podHandlers,
         http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
           HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
         ),
@@ -402,6 +417,7 @@ WithA8ROwnerOnly.parameters = {
 
 function makeServiceHandlers(name: string, mock: object) {
   return [
+    ...podHandlers,
     http.get(`${API_BASE}/api/v1/namespaces/default/events`, () =>
       HttpResponse.json({ kind: 'EventList', items: [], metadata: {} })
     ),

@@ -58,17 +58,21 @@ import AuthVisible from '../common/Resource/AuthVisible';
 import { SectionBox } from '../common/SectionBox';
 import { NameValueTable } from '../common/SimpleTable';
 import { NodeShellAction } from './NodeShellAction';
-import { NodeTaintsLabel } from './utils';
+import { isNodeCordoned, isNodeDrained, NodeTaintsLabel } from './utils';
 
-function NodeConditionsLabel(props: { node: Node }) {
-  const { node } = props;
-  const unschedulable = node?.jsonData?.spec?.unschedulable;
+function NodeConditionsLabel(props: { node: Node; pods?: Pod[] | null; podsLoaded?: boolean }) {
+  const { node, pods, podsLoaded } = props;
   const { t } = useTranslation();
-  return unschedulable ? (
-    <StatusLabel status="warning">{t('translation|Scheduling Disabled')}</StatusLabel>
-  ) : (
-    <StatusLabel status="success">{t('translation|Scheduling Enabled')}</StatusLabel>
-  );
+  if (!isNodeCordoned(node)) {
+    return <StatusLabel status="success">{t('translation|Scheduling Enabled')}</StatusLabel>;
+  }
+  // Only claim "Drained" once the pod query has succeeded. An empty list while
+  // loading or after an error should not be mistaken for a node without workloads.
+  const label =
+    podsLoaded && isNodeDrained(node, pods ?? [])
+      ? t('translation|Scheduling Disabled (Drained)')
+      : t('translation|Scheduling Disabled');
+  return <StatusLabel status="warning">{label}</StatusLabel>;
 }
 
 export default function NodeDetails(props: { name?: string; cluster?: string }) {
@@ -86,7 +90,7 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
   const [isNodeDrainInProgress, setisNodeDrainInProgress] = React.useState(false);
   const [pollingDrainNodeName, setPollingDrainNodeName] = React.useState<string | null>(null);
   const [nodeFromAPI, nodeError] = Node.useGet(name, undefined, { cluster });
-  const { items: nodePods } = Pod.useList({
+  const { items: nodePods, isSuccess: nodePodsLoaded } = Pod.useList({
     fieldSelector: name
       ? `spec.nodeName=${name},status.phase!=Succeeded,status.phase!=Failed`
       : undefined,
@@ -372,7 +376,9 @@ export default function NodeDetails(props: { name?: string; cluster?: string }) 
             },
             {
               name: t('translation|Conditions'),
-              value: <NodeConditionsLabel node={item} />,
+              value: (
+                <NodeConditionsLabel node={item} pods={nodePods} podsLoaded={nodePodsLoaded} />
+              ),
             },
             {
               name: t('Node Pool'),

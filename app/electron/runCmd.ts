@@ -19,6 +19,7 @@ import { BrowserWindow, dialog } from 'electron';
 import { IpcMainEvent } from 'electron/main';
 import crypto from 'node:crypto';
 import fs from 'node:fs';
+import { pathToFileURL } from 'node:url';
 import path from 'path';
 import i18n from './i18next.config';
 import { defaultPluginsDir, defaultUserPluginsDir } from './plugin-management';
@@ -368,7 +369,7 @@ export function runScript() {
     process.exit(1);
   }
 
-  import(scriptPath);
+  import(pathToFileURL(scriptPath).href);
 }
 
 /**

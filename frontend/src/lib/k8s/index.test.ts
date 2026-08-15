@@ -253,6 +253,7 @@ const namespacedClasses = [
   'Ingress',
   'Job',
   'JobSet',
+  'LeaderWorkerSet',
   'Lease',
   'LimitRange',
   'NetworkPolicy',
@@ -265,6 +266,8 @@ const namespacedClasses = [
   'Service',
   'ServiceAccount',
   'StatefulSet',
+  'TCPRoute',
+  'UDPRoute',
   'PodDisruptionBudget',
   'PersistentVolumeClaim',
 ];
