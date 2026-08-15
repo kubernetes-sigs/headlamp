@@ -16,6 +16,7 @@
 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render } from '@testing-library/react';
+import { useEffect } from 'react';
 import { useHistory } from 'react-router-dom';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import * as useShortcutMod from '../../lib/useShortcut';
@@ -88,8 +89,10 @@ describe('Layout namespace shortcuts', () => {
     let currentHistory: any;
 
     const ExtractHistory = () => {
-      // eslint-disable-next-line
-      currentHistory = useHistory();
+      const history = useHistory();
+      useEffect(() => {
+        currentHistory = history;
+      }, [history]);
       return null;
     };
 
@@ -114,8 +117,10 @@ describe('Layout namespace shortcuts', () => {
     let currentHistory: any;
 
     const ExtractHistory = () => {
-      // eslint-disable-next-line
-      currentHistory = useHistory();
+      const history = useHistory();
+      useEffect(() => {
+        currentHistory = history;
+      }, [history]);
       return null;
     };
 
