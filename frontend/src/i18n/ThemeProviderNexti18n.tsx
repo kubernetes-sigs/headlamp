@@ -33,7 +33,7 @@ import {
   zhTW,
 } from '@mui/material/locale';
 import { createTheme, StyledEngineProvider, Theme, ThemeProvider } from '@mui/material/styles';
-import React, { ReactNode, useEffect, useState } from 'react';
+import React, { ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { supportedLanguages } from './config';
 
@@ -108,52 +108,65 @@ const ThemeProviderNexti18n: React.FunctionComponent<ThemeProviderNexti18nProps>
     useSuspense: false,
   });
 
-  const [lang, setLang] = useState(i18n.language);
+  const initialLang = i18n.resolvedLanguage || i18n.language;
+  const [lang, setLang] = useState(initialLang);
+
+  /**
+   * Initializes the document language on mount without triggering a state update.
+   */
+  useEffect(() => {
+    if (initialLang) {
+      const dir = supportedLanguages[initialLang]?.dir || 'ltr';
+      document.documentElement.lang = initialLang;
+      document.documentElement.dir = dir;
+      document.body.dir = dir;
+    }
+  }, [initialLang]);
 
   /**
    * Updates the document language and direction based on the selected language.
    *
    * @param lng - The new language code.
    */
-  function changeLang(lng: string) {
-    if (lng) {
-      // A legacy region-less "pt" resolves to the concrete pt-PT catalog.
-      const resolved = i18n.resolvedLanguage || lng;
-      const dir = supportedLanguages[resolved]?.dir || 'ltr';
+  const changeLang = useCallback(
+    (lng: string) => {
+      if (lng) {
+        // A legacy region-less "pt" resolves to the concrete pt-PT catalog.
+        const resolved = i18n.resolvedLanguage || lng;
+        const dir = supportedLanguages[resolved]?.dir || 'ltr';
 
-      document.documentElement.lang = resolved;
-      document.documentElement.dir = dir;
-      document.body.dir = dir;
+        document.documentElement.lang = resolved;
+        document.documentElement.dir = dir;
+        document.body.dir = dir;
 
-      setLang(resolved);
-    }
-  }
+        setLang(resolved);
+      }
+    },
+    [i18n]
+  );
 
   /**
-   * Sets up language change listeners and initializes the document language.
+   * Sets up language change listeners.
    */
   useEffect(() => {
     i18n.on('languageChanged', changeLang);
 
-    if (i18n.language) {
-      // Set the language when the page loads.
-      changeLang(i18n.language);
-    }
-
     return () => {
       i18n.off('languageChanged', changeLang);
     };
+  }, [i18n, changeLang]);
 
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const theme = createTheme(
-    {
-      ...props.theme,
-      // Use the local config metadata for the theme direction too
-      direction: supportedLanguages[lang]?.dir || 'ltr',
-    },
-    getLocale(lang)
+  const theme = useMemo(
+    () =>
+      createTheme(
+        {
+          ...props.theme,
+          // Use the local config metadata for the theme direction too
+          direction: supportedLanguages[lang]?.dir || 'ltr',
+        },
+        getLocale(lang)
+      ),
+    [props.theme, lang]
   );
 
   return (
