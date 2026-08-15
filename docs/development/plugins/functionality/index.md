@@ -93,6 +93,17 @@ Change the Cluster Chooser button in the top right of the app bar with
 - Example plugin: [How To Register Cluster Chooser button](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/cluster-chooser)
 - API reference: [registerClusterChooser](../../api/plugin/registry/functions/registerclusterchooser)
 
+### Cluster Empty State
+
+Customize the Home page shown when no clusters are configured with
+[registerClusterEmptyState](../../api/plugin/registry/functions/registerclusteremptystate).
+The registered component receives Headlamp's standard empty state as
+`defaultContent`. Render it to extend the default onboarding, or omit it to
+replace the empty state completely.
+
+- Example plugin: [How To Customize The Cluster Empty State](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/cluster-chooser)
+- API reference: [registerClusterEmptyState](../../api/plugin/registry/functions/registerclusteremptystate)
+
 ### Details View Header Action
 
 Show a component in the top right of a detail view with

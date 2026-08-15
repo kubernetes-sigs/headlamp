@@ -18,15 +18,18 @@ import { renderHook } from '@testing-library/react';
 import App from '../../../../App';
 import ConfigMap from '../../../../lib/k8s/configMap';
 import CRD from '../../../../lib/k8s/crd';
+import Gateway from '../../../../lib/k8s/gateway';
 import { KubeObject, KubeObjectClass } from '../../../../lib/k8s/KubeObject';
 import Pod from '../../../../lib/k8s/pod';
 import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
+import TCPRoute from '../../../../lib/k8s/tcpRoute';
+import UDPRoute from '../../../../lib/k8s/udpRoute';
 import { useNamespaces } from '../../../../redux/filterSlice';
 import { TestContext } from '../../../../test';
 import { GraphNode, Relation } from '../../graph/graphModel';
 import { makeKubeSourceId } from './graphDefinitionUtils';
-import { matchesLabels, useGetAllRelations } from './relations';
+import { BUILT_IN_RELATION_IDS, matchesLabels, useGetAllRelations } from './relations';
 
 vi.mock('../../../../redux/filterSlice', async importOriginal => ({
   ...(await importOriginal<typeof import('../../../../redux/filterSlice')>()),
@@ -53,6 +56,12 @@ const relationFor = (relations: Relation[], from: KubeObjectClass, to?: KubeObje
 const renderUseGetAllRelations = () =>
   renderHook(() => useGetAllRelations(), { wrapper: TestContext });
 
+const relationById = (relations: Relation[], id: string) => {
+  const relation = relations.find(relation => relation.id === id);
+  expect(relation, `relation ${id} should be registered`).toBeDefined();
+  return relation!;
+};
+
 const pod = (
   metadata: Record<string, any>,
   spec: Record<string, any> = {},
@@ -72,6 +81,18 @@ const service = (
   selector: Record<string, string>,
   cluster = 'cluster-a'
 ) => new Service({ metadata, spec: { selector, ports: [] }, status: {} } as any, cluster);
+
+type L4RouteClass = typeof TCPRoute | typeof UDPRoute;
+
+const l4Route = (
+  RouteClass: L4RouteClass,
+  metadata: Record<string, any>,
+  spec: Record<string, any>,
+  cluster = 'cluster-a'
+) => new RouteClass({ metadata, spec, status: {} } as any, cluster);
+
+const gateway = (metadata: Record<string, any>, cluster = 'cluster-a') =>
+  new Gateway({ metadata, spec: { gatewayClassName: 'example' }, status: {} } as any, cluster);
 
 describe('KubeObject class matching', () => {
   it('does not match a generic plugin object to a typed resource class', () => {
@@ -144,6 +165,161 @@ describe('useGetAllRelations', () => {
         node(pod({ uid: 'cluster-pod', name: 'pod', labels: { app: 'web' } }))
       )
     ).toBe(true);
+  });
+
+  it.each([
+    ['TCPRoute', TCPRoute, 'tcproute-gateway'],
+    ['UDPRoute', UDPRoute, 'udproute-gateway'],
+  ] as const)(
+    'matches %s parent references by resolved identity and cluster',
+    (_kind, RouteClass, relationId) => {
+      vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+      const { result } = renderUseGetAllRelations();
+      const relation = relationById(result.current, relationId);
+      const target = gateway({ uid: 'gateway', name: 'edge', namespace: 'routes' });
+      const routeWithParent = (parentRef: Record<string, any>, cluster = 'cluster-a') =>
+        l4Route(
+          RouteClass,
+          { uid: 'route', name: 'route', namespace: 'routes' },
+          { parentRefs: [parentRef], rules: [] },
+          cluster
+        );
+
+      expect(relation.predicate(node(routeWithParent({ name: 'edge' })), node(target))).toBe(true);
+      expect(
+        relation.predicate(
+          node(
+            routeWithParent({
+              group: 'gateway.networking.k8s.io',
+              kind: 'Gateway',
+              name: 'edge',
+              namespace: 'routes',
+            })
+          ),
+          node(target)
+        )
+      ).toBe(true);
+      expect(
+        relation.predicate(
+          node(routeWithParent({ group: 'example.io', name: 'edge' })),
+          node(target)
+        )
+      ).toBe(false);
+      expect(
+        relation.predicate(node(routeWithParent({ kind: 'Service', name: 'edge' })), node(target))
+      ).toBe(false);
+      expect(relation.predicate(node(routeWithParent({ name: 'other' })), node(target))).toBe(
+        false
+      );
+      expect(
+        relation.predicate(
+          node(routeWithParent({ name: 'edge', namespace: 'other' })),
+          node(target)
+        )
+      ).toBe(false);
+      expect(
+        relation.predicate(node(routeWithParent({ name: 'edge' }, 'cluster-b')), node(target))
+      ).toBe(false);
+
+      const crossNamespaceTarget = gateway({
+        uid: 'shared-gateway',
+        name: 'shared',
+        namespace: 'gateways',
+      });
+      expect(
+        relation.predicate(
+          node(routeWithParent({ name: 'shared', namespace: 'gateways' })),
+          node(crossNamespaceTarget)
+        )
+      ).toBe(true);
+    }
+  );
+
+  it.each([
+    ['TCPRoute', TCPRoute, 'tcproute-service'],
+    ['UDPRoute', UDPRoute, 'udproute-service'],
+  ] as const)(
+    'matches %s backend references by resolved identity and cluster',
+    (_kind, RouteClass, relationId) => {
+      vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+      const { result } = renderUseGetAllRelations();
+      const relation = relationById(result.current, relationId);
+      const target = service(
+        { uid: 'service', name: 'echo', namespace: 'routes' },
+        {},
+        'cluster-a'
+      );
+      const routeWithBackend = (backendRef: Record<string, any>, cluster = 'cluster-a') =>
+        l4Route(
+          RouteClass,
+          { uid: 'route', name: 'route', namespace: 'routes' },
+          { parentRefs: [], rules: [{ backendRefs: [backendRef] }] },
+          cluster
+        );
+
+      expect(relation.predicate(node(routeWithBackend({ name: 'echo' })), node(target))).toBe(true);
+      expect(
+        relation.predicate(
+          node(
+            routeWithBackend({
+              group: '',
+              kind: 'Service',
+              name: 'echo',
+              namespace: 'routes',
+            })
+          ),
+          node(target)
+        )
+      ).toBe(true);
+      expect(
+        relation.predicate(
+          node(routeWithBackend({ group: 'example.io', name: 'echo' })),
+          node(target)
+        )
+      ).toBe(false);
+      expect(
+        relation.predicate(node(routeWithBackend({ kind: 'Backend', name: 'echo' })), node(target))
+      ).toBe(false);
+      expect(relation.predicate(node(routeWithBackend({ name: 'other' })), node(target))).toBe(
+        false
+      );
+      expect(
+        relation.predicate(
+          node(routeWithBackend({ name: 'echo', namespace: 'other' })),
+          node(target)
+        )
+      ).toBe(false);
+      expect(
+        relation.predicate(node(routeWithBackend({ name: 'echo' }, 'cluster-b')), node(target))
+      ).toBe(false);
+
+      const crossNamespaceTarget = service(
+        { uid: 'shared-service', name: 'shared', namespace: 'backends' },
+        {}
+      );
+      expect(
+        relation.predicate(
+          node(routeWithBackend({ name: 'shared', namespace: 'backends' })),
+          node(crossNamespaceTarget)
+        )
+      ).toBe(true);
+    }
+  );
+
+  it('registers the four stable L4 relation IDs', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const expectedIds = [
+      'tcproute-gateway',
+      'tcproute-service',
+      'udproute-gateway',
+      'udproute-service',
+    ];
+
+    expect(result.current.map(relation => relation.id)).toEqual(
+      expect.arrayContaining(expectedIds)
+    );
+    expect(BUILT_IN_RELATION_IDS).toEqual(expect.arrayContaining(expectedIds));
   });
 
   it('exercises volume, environment, and projected-secret predicates', () => {

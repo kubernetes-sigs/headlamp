@@ -71,14 +71,19 @@ import {
   addClusterStatus,
   addDialog,
   addMenuItem,
+  ClusterEmptyStateComponent,
   ClusterProviderInfo,
   ClusterStatusComponent,
   DialogComponent,
   MenuItemComponent,
+  setClusterEmptyState,
 } from '../redux/clusterProviderSlice';
 import {
   addEventCallback,
+  ClusterSettingsViewLoadedEvent,
+  CreateProjectEvent,
   CreateResourceEvent,
+  DeleteProjectEvent,
   DeleteResourceEvent,
   EditResourceEvent,
   ErrorBoundaryEvent,
@@ -87,13 +92,19 @@ import {
   HeadlampEventCallback,
   HeadlampEventType,
   LogsEvent,
+  PluginDetailsViewLoadedEvent,
+  PluginListViewLoadedEvent,
   PluginLoadingErrorEvent,
   PluginsLoadedEvent,
   PodAttachEvent,
+  ProjectDetailsTabChangeEvent,
+  ProjectDetailsViewLoadedEvent,
+  ProjectListViewLoadedEvent,
   ResourceDetailsViewLoadedEvent,
   ResourceListViewLoadedEvent,
   RestartResourceEvent,
   ScaleResourceEvent,
+  SettingsViewLoadedEvent,
   TerminalEvent,
 } from '../redux/headlampEventSlice';
 import { addOverviewChartsProcessor, OverviewChartsProcessor } from '../redux/overviewChartsSlice';
@@ -150,6 +161,15 @@ export type {
   ResourceDetailsViewLoadedEvent,
   ResourceListViewLoadedEvent,
   EventListEvent,
+  ProjectListViewLoadedEvent,
+  ProjectDetailsViewLoadedEvent,
+  ProjectDetailsTabChangeEvent,
+  CreateProjectEvent,
+  DeleteProjectEvent,
+  SettingsViewLoadedEvent,
+  ClusterSettingsViewLoadedEvent,
+  PluginListViewLoadedEvent,
+  PluginDetailsViewLoadedEvent,
   PluginSettingsDetailsProps,
   PluginSettingsComponentType,
   GraphSource,
@@ -943,6 +963,32 @@ export function registerClusterProviderMenuItem(item: MenuItemComponent) {
  */
 export function registerClusterStatus(item: ClusterStatusComponent) {
   store.dispatch(addClusterStatus(item));
+}
+
+/**
+ * Replace the empty state shown on the Home page when no clusters are configured.
+ *
+ * The component receives Headlamp's default content so a product can wrap it.
+ * Registering another component replaces the previous registration.
+ *
+ * @param component - Product-owned empty state component.
+ * @returns Nothing.
+ *
+ * @example
+ *
+ * ```tsx
+ * import { registerClusterEmptyState } from '@kinvolk/headlamp-plugin/lib';
+ *
+ * registerClusterEmptyState(({ defaultContent }) => (
+ *   <section>
+ *     <p>Choose how to connect your first cluster.</p>
+ *     {defaultContent}
+ *   </section>
+ * ));
+ * ```
+ */
+export function registerClusterEmptyState(component: ClusterEmptyStateComponent): void {
+  store.dispatch(setClusterEmptyState(component));
 }
 
 /**

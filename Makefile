@@ -355,18 +355,22 @@ frontend-i18n-check:
 frontend-test:
 	cd frontend && npm run test -- --coverage
 
+frontend-test-a11y:
+	cd frontend && npm run test:a11y
+
 .PHONY: lint
 lint: backend-lint frontend-lint
 
 .PHONY: lint-fix
 lint-fix: backend-lint-fix frontend-lint-fix
 
+.PHONY: plugins-test
 plugins-test:
-	cd plugins/headlamp-plugin && npm install && ./test-headlamp-plugin.js
+	cd plugins/headlamp-plugin && ./test-headlamp-plugin.js
 	cd plugins/headlamp-plugin && ./test-plugins-examples.sh
-	cd plugins/pluginctl/src && npm install && node ./plugin-management.e2e.js
-	cd plugins/pluginctl && npx jest src/multi-plugin-management.test.js
-	cd plugins/pluginctl && npx jest src/plugin-management.test.js
+	cd plugins/pluginctl && npm ci
+	cd plugins/pluginctl/src && node ./plugin-management.e2e.js
+	cd plugins/pluginctl && npx jest --runInBand src/multi-plugin-management.test.js src/plugin-management.test.js
 	cd plugins/pluginctl && npm run test
 
 # IMAGE_BASE can be used to specify a base final image.

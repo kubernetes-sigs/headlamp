@@ -30,6 +30,7 @@ import { useDispatch } from 'react-redux';
 import { isElectron } from '../../../helpers/isElectron';
 import { useFilterFunc } from '../../../lib/util';
 import { PluginInfo, reloadPage, setPluginSettings } from '../../../plugin/pluginsSlice';
+import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { Link as HeadlampLink } from '../../common/';
 import ActionButton from '../../common/ActionButton';
@@ -510,6 +511,12 @@ export default function PluginSettings() {
   const dispatch = useDispatch();
   const pluginSettings = useTypedSelector(state => state.plugins.pluginSettings);
   const handleDelete = usePluginDelete();
+  const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.PLUGIN_LIST_VIEW);
+
+  useEffect(() => {
+    dispatchHeadlampEvent({ plugins: pluginSettings });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pluginSettings]);
 
   return (
     <PluginSettingsPure

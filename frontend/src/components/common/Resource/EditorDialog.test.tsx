@@ -231,6 +231,267 @@ describe('EditorDialog', () => {
     expect(screen.queryByText('Invalid YAML')).not.toBeInTheDocument();
   });
 
+  it('shows a warning and preserves user edits when the resource is modified externally', async () => {
+    const initialItem = {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: { name: 'my-config', resourceVersion: '1' },
+    };
+
+    const { rerender } = render(
+      <TestContext>
+        <EditorDialog
+          open
+          keepMounted
+          noDialog
+          item={initialItem}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+        />
+      </TestContext>
+    );
+
+    const editor = screen.getByRole('textbox', { name: /code$/i });
+
+    // Simulate user making an edit
+    fireEvent.change(editor, { target: { value: 'user-edited-content' } });
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    // Re-render with updated resourceVersion simulating an external modification
+    act(() => {
+      rerender(
+        <TestContext>
+          <EditorDialog
+            open
+            keepMounted
+            noDialog
+            item={{
+              apiVersion: 'v1',
+              kind: 'ConfigMap',
+              metadata: { name: 'my-config', resourceVersion: '2' },
+            }}
+            onClose={vi.fn()}
+            onSave={vi.fn()}
+          />
+        </TestContext>
+      );
+    });
+
+    // Warning banner should be visible — assert on the specific warning text so the test fails
+    // if a different alert (e.g. a YAML parse or apply error) is rendered instead.
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        'This resource was modified while you were editing. Your changes may conflict with the latest version.'
+      )
+    ).toBeInTheDocument();
+
+    // User's edit must be preserved — not overwritten with the new server content
+    expect(screen.getByRole('textbox', { name: /code$/i })).toHaveValue('user-edited-content');
+  });
+
+  it('syncs to the new server content without warning when the resource changes and the user has no edits', () => {
+    const initialItem = {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: { name: 'my-config', resourceVersion: '1' },
+      data: { key1: 'value1' },
+    };
+
+    const { rerender } = render(
+      <TestContext>
+        <EditorDialog
+          open
+          keepMounted
+          noDialog
+          item={initialItem}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+        />
+      </TestContext>
+    );
+
+    const editor = screen.getByRole('textbox', { name: /code$/i }) as HTMLTextAreaElement;
+    expect(editor.value).toContain('value1');
+
+    // Re-render with a newer resourceVersion and changed content, with no user edits.
+    act(() => {
+      rerender(
+        <TestContext>
+          <EditorDialog
+            open
+            keepMounted
+            noDialog
+            item={{
+              apiVersion: 'v1',
+              kind: 'ConfigMap',
+              metadata: { name: 'my-config', resourceVersion: '2' },
+              data: { key1: 'updated-value' },
+            }}
+            onClose={vi.fn()}
+            onSave={vi.fn()}
+          />
+        </TestContext>
+      );
+    });
+
+    // No warning, because there were no unsaved edits to conflict with.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+
+    // Editor synced to the new server content.
+    const updatedEditor = screen.getByRole('textbox', { name: /code$/i }) as HTMLTextAreaElement;
+    expect(updatedEditor.value).toContain('updated-value');
+    expect(updatedEditor.value).not.toContain('value1');
+  });
+
+  it('calls onBaselineAccepted with the latest server version when Undo discards a conflicting edit', () => {
+    const onBaselineAccepted = vi.fn();
+    const initialItem = {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: { name: 'my-config', resourceVersion: '1' },
+    };
+
+    const { rerender } = render(
+      <TestContext>
+        <EditorDialog
+          open
+          keepMounted
+          noDialog
+          item={initialItem}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+          onBaselineAccepted={onBaselineAccepted}
+        />
+      </TestContext>
+    );
+
+    const editor = screen.getByRole('textbox', { name: /code$/i });
+    fireEvent.change(editor, { target: { value: 'user-edited-content' } });
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    const externallyModifiedItem = {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: { name: 'my-config', resourceVersion: '2' },
+    };
+
+    // Re-render with updated resourceVersion simulating an external modification.
+    act(() => {
+      rerender(
+        <TestContext>
+          <EditorDialog
+            open
+            keepMounted
+            noDialog
+            item={externallyModifiedItem}
+            onClose={vi.fn()}
+            onSave={vi.fn()}
+            onBaselineAccepted={onBaselineAccepted}
+          />
+        </TestContext>
+      );
+    });
+
+    expect(screen.getByRole('alert')).toBeInTheDocument();
+    // Not yet — the user's edits are still being preserved, nothing has been accepted.
+    expect(onBaselineAccepted).not.toHaveBeenCalled();
+
+    fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+
+    // Undo discards the user's edit in favour of the latest server version — the
+    // save-baseline owner must rebase onto that same version, not the stale one it
+    // launched with, so a subsequent edit + save doesn't replay the external change.
+    expect(onBaselineAccepted).toHaveBeenCalledTimes(1);
+    expect(onBaselineAccepted).toHaveBeenCalledWith(externallyModifiedItem);
+
+    // A second Undo click (e.g. on a fresh unrelated edit) must not re-fire it.
+    fireEvent.change(screen.getByRole('textbox', { name: /code$/i }), {
+      target: { value: 'another-edit' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+    expect(onBaselineAccepted).toHaveBeenCalledTimes(1);
+  });
+
+  it('does not call onBaselineAccepted when Undo discards a plain edit with no external conflict', () => {
+    const onBaselineAccepted = vi.fn();
+    renderEditorDialog({ onSave: vi.fn(), onBaselineAccepted });
+
+    const editor = screen.getByRole('textbox', { name: /code$/i });
+    fireEvent.change(editor, { target: { value: 'just my own edit, no conflict involved' } });
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+
+    expect(onBaselineAccepted).not.toHaveBeenCalled();
+  });
+
+  it('clears the warning when the server-side change matches what the user already typed', () => {
+    const initialItem = {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: { name: 'my-config', resourceVersion: '1' },
+      data: { key1: 'value1' },
+    };
+
+    const { rerender } = render(
+      <TestContext>
+        <EditorDialog
+          open
+          keepMounted
+          noDialog
+          item={initialItem}
+          onClose={vi.fn()}
+          onSave={vi.fn()}
+        />
+      </TestContext>
+    );
+
+    const newItem = {
+      apiVersion: 'v1',
+      kind: 'ConfigMap',
+      metadata: { name: 'my-config', resourceVersion: '2' },
+      data: { key1: 'value1', key2: 'value2' },
+    };
+
+    // The user happens to type exactly the content the server will push next.
+    const editor = screen.getByRole('textbox', { name: /code$/i });
+    fireEvent.change(editor, { target: { value: JSON.stringify(newItem) } });
+
+    act(() => {
+      vi.advanceTimersByTime(500);
+    });
+
+    // Re-render under a new resourceVersion, with the same content the user already has.
+    act(() => {
+      rerender(
+        <TestContext>
+          <EditorDialog
+            open
+            keepMounted
+            noDialog
+            item={newItem}
+            onClose={vi.fn()}
+            onSave={vi.fn()}
+          />
+        </TestContext>
+      );
+    });
+
+    // No warning: once the baseline is rebased onto the latest version, the user's
+    // content no longer differs from it, so there's nothing left to protect.
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument();
+  });
+
   it('cancels pending validation when undo restores the original content', () => {
     renderEditorDialog();
 

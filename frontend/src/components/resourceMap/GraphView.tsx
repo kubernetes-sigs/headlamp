@@ -26,11 +26,9 @@ import TextField from '@mui/material/TextField';
 import ThemeProvider from '@mui/system/ThemeProvider';
 import { Edge, Node, Panel, ReactFlowProvider } from '@xyflow/react';
 import {
-  createContext,
   ReactNode,
   StrictMode,
   useCallback,
-  useContext,
   useEffect,
   useLayoutEffect,
   useMemo,
@@ -44,6 +42,7 @@ import K8sNode from '../../lib/k8s/node';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { NamespacesAutocomplete } from '../common/NamespacesAutocomplete';
+import { MAP_PERFORMANCE_FEATURES_ENABLED } from './config';
 import { filterGraph, filterGraphIncremental, GraphFilter } from './graph/graphFiltering';
 import { getGraphForNamespaceSelection } from './graph/graphForNamespaceSelection';
 import {
@@ -55,7 +54,7 @@ import {
 } from './graph/graphGrouping';
 import { detectGraphChanges, shouldUseIncrementalUpdate } from './graph/graphIncrementalUpdate';
 import { applyGraphLayout } from './graph/graphLayout';
-import { GraphLookup, makeGraphLookup } from './graph/graphLookup';
+import { makeGraphLookup } from './graph/graphLookup';
 import { forEachNode, GraphEdge, GraphNode, GraphSource, Relation } from './graph/graphModel';
 import {
   EXTREME_SIMPLIFICATION_THRESHOLD,
@@ -66,6 +65,7 @@ import {
 } from './graph/graphSimplification';
 import { GraphControlButton } from './GraphControls';
 import { GraphRenderer } from './GraphRenderer';
+import { FullGraphContext, GraphViewContext } from './graphViewContext';
 import { PerformanceStats } from './PerformanceStats';
 import { SelectionBreadcrumbs } from './SelectionBreadcrumbs';
 import { useGetAllRelations } from './sources/definitions/relations';
@@ -75,27 +75,18 @@ import { GraphSourcesView } from './sources/GraphSourcesView';
 import { useGraphViewport } from './useGraphViewport';
 import { useQueryParamsState } from './useQueryParamsState';
 
-interface GraphViewContent {
-  setNodeSelection: (nodeId: string) => void;
-  nodeSelection?: string;
-}
-export const GraphViewContext = createContext({} as any);
-export const useGraphView = () => useContext<GraphViewContent>(GraphViewContext);
+// Re-exported here for backwards compatibility with existing consumers that
+// imported these from GraphView.tsx. The actual definitions live in
+// graphViewContext.tsx to avoid a circular import with the node renderers.
+export {
+  FullGraphContext,
+  GraphViewContext,
+  useFullGraphContext,
+  useNode,
+} from './graphViewContext';
+export { useGraphView } from './graphViewContext';
 
-interface FullGraphContent {
-  fullGraph: any;
-  lookup: GraphLookup<GraphNode, GraphEdge>;
-}
-export const FullGraphContext = createContext({} as any);
-export const useFullGraphContext = () => useContext<FullGraphContent>(FullGraphContext);
-
-export const useNode = (id: string) => {
-  const { lookup } = useFullGraphContext();
-
-  return lookup.getNode(id);
-};
-
-interface GraphViewContentProps {
+export interface GraphViewProps {
   /** Height of the Map */
   height?: string;
   /** ID of a node to select by default */
@@ -117,12 +108,9 @@ interface GraphViewContentProps {
   defaultFilters?: GraphFilter[];
 }
 
-export const MAP_PERFORMANCE_FEATURES_ENABLED =
-  import.meta.env.REACT_APP_HEADLAMP_ENABLE_MAP_PERFORMANCE_FEATURES === 'true';
-
 const defaultFiltersValue: GraphFilter[] = [];
 
-interface GraphViewInternalProps extends Omit<GraphViewContentProps, 'defaultSources'> {
+interface GraphViewInternalProps extends Omit<GraphViewProps, 'defaultSources'> {
   sources: GraphSource[];
 }
 
@@ -205,6 +193,8 @@ function GraphViewContent({
 
   // Performance stats visibility
   const [showPerformanceStats, setShowPerformanceStats] = useState(false);
+  // Expand by Default
+  const expandLargeGraph = useTypedSelector(state => state.config.settings.expandLargeGraph);
 
   // Load source data
   const { nodes, edges, selectedSources, sourceData, isLoading, toggleSelection } = useSources();
@@ -435,7 +425,7 @@ function GraphViewContent({
     });
 
     const collapseStart = performance.now();
-    const visibleGraph = collapseGraph(graph, { selectedNodeId, expandAll });
+    const visibleGraph = collapseGraph(graph, { selectedNodeId, expandAll, expandLargeGraph });
     const collapseTime = performance.now() - collapseStart;
 
     const totalTime = performance.now() - perfStart;
@@ -450,7 +440,15 @@ function GraphViewContent({
     }
 
     return { visibleGraph, fullGraph: graph };
-  }, [graphForGrouping, groupBy, selectedNodeId, expandAll, activeNamespaces, activeNodes]);
+  }, [
+    graphForGrouping,
+    groupBy,
+    selectedNodeId,
+    expandAll,
+    activeNamespaces,
+    expandLargeGraph,
+    activeNodes,
+  ]);
 
   const viewport = useGraphViewport();
 
@@ -475,7 +473,7 @@ function GraphViewContent({
   // Reset after view change
   useLayoutEffect(() => {
     viewportMovedRef.current = false;
-  }, [selectedNodeId, groupBy, expandAll]);
+  }, [selectedNodeId, groupBy, expandAll, expandLargeGraph]);
 
   const selectedGroup = useMemo(() => {
     if (selectedNodeId) {
@@ -527,10 +525,11 @@ function GraphViewContent({
     }
 
     return {
+      fullGraph,
       visibleGraph,
       lookup,
     };
-  }, [visibleGraph]);
+  }, [fullGraph, visibleGraph]);
 
   return (
     <GraphViewContext.Provider value={contextValue}>
@@ -783,7 +782,7 @@ function CustomThemeProvider({ children }: { children: ReactNode }) {
  * @param params - Map parameters
  * @returns
  */
-export function GraphView(props: GraphViewContentProps) {
+export function GraphView(props: GraphViewProps) {
   const allSources = useGetAllSources();
   const allRelations = useGetAllRelations();
 
