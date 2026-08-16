@@ -1568,12 +1568,12 @@ func StartHeadlampServer(config *HeadlampConfig) {
 		return
 	}
 
-	runServer(config, cancel, handler)
+	runServer(config, cancel, handler, nil)
 }
 
 // runServer creates the HTTP server, sets up graceful shutdown, starts
 // listening (TLS or plain), and handles the server completion and errors.
-func runServer(config *HeadlampConfig, cancel context.CancelFunc, handler http.Handler) {
+func runServer(config *HeadlampConfig, cancel context.CancelFunc, handler http.Handler, listener net.Listener) {
 	listenHost := strings.TrimPrefix(strings.TrimSuffix(config.ListenAddr, "]"), "[")
 	addr := net.JoinHostPort(listenHost, fmt.Sprintf("%d", config.Port))
 
@@ -1585,21 +1585,31 @@ func runServer(config *HeadlampConfig, cancel context.CancelFunc, handler http.H
 	}
 
 	serverDone := make(chan struct{})
-	setupGracefulShutdown(server, cancel, serverDone)
+	shutdownComplete := make(chan struct{})
+	setupGracefulShutdown(server, cancel, serverDone, shutdownComplete)
 
 	var err error
 
-	if config.TLSCertPath != "" && config.TLSKeyPath != "" {
+	tlsEnabled := config.TLSCertPath != "" && config.TLSKeyPath != ""
+
+	switch {
+	case listener == nil && tlsEnabled:
 		err = server.ListenAndServeTLS(config.TLSCertPath, config.TLSKeyPath)
-	} else {
+	case listener == nil && !tlsEnabled:
 		err = server.ListenAndServe()
+	case listener != nil && tlsEnabled:
+		err = server.ServeTLS(listener, config.TLSCertPath, config.TLSKeyPath)
+	case listener != nil && !tlsEnabled:
+		err = server.Serve(listener)
 	}
 
 	close(serverDone)
 
-	if err != nil && err != http.ErrServerClosed {
+	if err != nil && !errors.Is(err, http.ErrServerClosed) {
 		logger.Log(logger.LevelError, nil, err, "Failed to start server")
 		HandleServerStartError(&err)
+	} else if errors.Is(err, http.ErrServerClosed) {
+		<-shutdownComplete
 	}
 }
 
@@ -1650,9 +1660,22 @@ func copyStaticFiles(config *HeadlampConfig) error {
 // (SIGINT, SIGTERM) and gracefully shuts down the server. It cancels
 // the context to stop all watcher goroutines. The serverDone channel
 // is used to stop this goroutine if the server exits for a non-signal reason.
-func setupGracefulShutdown(server *http.Server, cancel context.CancelFunc, serverDone <-chan struct{}) {
+func setupGracefulShutdown(
+	server *http.Server,
+	cancel context.CancelFunc,
+	serverDone <-chan struct{},
+	shutdownComplete chan<- struct{},
+) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	if os.Getenv("HEADLAMP_ELECTRON") == "true" {
+		go func() {
+			_, _ = io.Copy(io.Discard, os.Stdin)
+
+			sigChan <- syscall.SIGINT
+		}()
+	}
 
 	go func() {
 		defer signal.Stop(sigChan)
@@ -1669,6 +1692,8 @@ func setupGracefulShutdown(server *http.Server, cancel context.CancelFunc, serve
 			if err := server.Shutdown(shutdownCtx); err != nil {
 				logger.Log(logger.LevelError, nil, err, "Failed to gracefully shutdown server")
 			}
+
+			close(shutdownComplete)
 		case <-serverDone:
 			// Server exited on its own, clean up watchers and stop the signal goroutine
 			cancel()
