@@ -65,7 +65,7 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
-	authv1 "k8s.io/api/authorization/v1"
+
 	corev1 "k8s.io/api/core/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -341,38 +341,6 @@ func defaultHeadlampKubeConfigFile() (string, error) {
 // It serves plugin list base paths as json at "plugins".
 // It serves plugin static files at "plugins/", "user-plugins/" and "static-plugins/".
 // It disables caching and reloads plugin list base paths if not in-cluster.
-func checkAuditStreamPermission(clientset *kubernetes.Clientset) error {
-	ctx := context.Background()
-
-	// Check if the user has permission to get nodes (cluster-wide).
-	// This is used as a proxy for high-privilege access suitable for audit logs.
-	ssar := &authv1.SelfSubjectAccessReview{
-		Spec: authv1.SelfSubjectAccessReviewSpec{
-			ResourceAttributes: &authv1.ResourceAttributes{
-				Verb:     "get",
-				Group:    "", // core API group
-				Resource: "nodes",
-			},
-		},
-	}
-
-	result, err := clientset.AuthorizationV1().SelfSubjectAccessReviews().Create(ctx, ssar, v1.CreateOptions{})
-	if err != nil {
-		return fmt.Errorf("failed to check permissions: %w", err)
-	}
-
-	if !result.Status.Allowed {
-		reason := "insufficient permissions"
-		if result.Status.Reason != "" {
-			reason = result.Status.Reason
-		}
-
-		return fmt.Errorf("permission denied: %s", reason)
-	}
-
-	return nil
-}
-
 func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 	// Delete plugin route.
 	// This is only available when running locally.
@@ -757,49 +725,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	addPluginRoutes(config, r)
 
-	// Audit logs stream endpoint (Cluster-scoped with authentication)
-	r.HandleFunc("/clusters/{clusterName}/audit", func(w http.ResponseWriter, r *http.Request) {
-		requestClusterName := mux.Vars(r)["clusterName"]
 
-		kContext, err := config.KubeConfigStore.GetContext(requestClusterName)
-		if err != nil {
-			logger.Log(logger.LevelError, map[string]string{"cluster": requestClusterName},
-				err, "getting kubeconfig context for audit stream")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-
-			return
-		}
-
-		if !config.shouldUseUnsafeServiceAccountToken() || !kContext.UsesInClusterServiceAccountToken() {
-			token, err := auth.GetTokenFromCookie(r, requestClusterName)
-			if err != nil || token == "" {
-				logger.Log(logger.LevelError, map[string]string{"cluster": requestClusterName},
-					err, "unauthorized access to audit stream")
-				http.Error(w, "Unauthorized", http.StatusUnauthorized)
-
-				return
-			}
-
-			clientset, err := kContext.ClientSetWithToken(token)
-			if err != nil {
-				logger.Log(logger.LevelError, map[string]string{"cluster": requestClusterName},
-					err, "getting clientset for audit stream")
-				http.Error(w, err.Error(), http.StatusInternalServerError)
-
-				return
-			}
-
-			if err := checkAuditStreamPermission(clientset); err != nil {
-				logger.Log(logger.LevelError, map[string]string{"cluster": requestClusterName},
-					err, "permission denied to access audit stream")
-				http.Error(w, "Forbidden", http.StatusForbidden)
-
-				return
-			}
-		}
-
-		audit.StreamHandler(w, r)
-	})
 	// Setup port forwarding handlers.
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
 		portforward.StartPortForward(
