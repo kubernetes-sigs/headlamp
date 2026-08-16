@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { loadSettings, saveSettings } from '../settings';
 import { expandEnvAndResolvePaths, loadMCPSettings, saveMCPSettings } from './MCPSettings';
 import * as MCP from './MCPSettings';
@@ -136,13 +136,7 @@ describe('expandEnvAndResolvePaths', () => {
 
 describe('MultiServerMCPClient', () => {
   beforeEach(() => {
-    // ensure predictable env for merging tests
-    process.env.TEST_ORIG_ENV = 'orig';
     vi.resetAllMocks();
-  });
-
-  afterEach(() => {
-    delete process.env.TEST_ORIG_ENV;
   });
 
   it('returns empty when no mcp settings', () => {
@@ -209,14 +203,66 @@ describe('MultiServerMCPClient', () => {
     expect(entry.transport).toBe('stdio');
     expect(entry.command).toBe('cmd');
     expect(entry.args).toEqual(['arg1']);
-    // env should include process.env and server.env overrides
-    expect(entry.env.MCP_VAR).toBe('mcp');
-    expect(entry.env.TEST_ORIG_ENV).toBe('orig');
+    // the explicit server env is passed through as-is; the MCP SDK's
+    // StdioClientTransport merges its own per-platform baseline env
+    // underneath it, so we don't duplicate that allowlist here.
+    expect(entry.env).toEqual({ MCP_VAR: 'mcp' });
     // restart settings
     expect(entry.restart).toBeDefined();
     expect(entry.restart.enabled).toBe(true);
     expect(entry.restart.maxAttempts).toBe(3);
     expect(entry.restart.delayMs).toBe(2000);
+  });
+
+  it('passes undefined env when no explicit server env is configured', () => {
+    const mcpSettings = {
+      enabled: true,
+      servers: [
+        {
+          name: 'valid',
+          command: 'cmd',
+          args: [],
+          enabled: true,
+        },
+      ],
+    };
+
+    (loadSettings as Mock).mockReturnValue({ mcp: mcpSettings });
+
+    const result = MCP.makeMcpServersFromSettings('/cfg', ['clusterA']);
+
+    const entry = result['valid'] as any;
+    expect(entry.env).toBeUndefined();
+  });
+
+  it('does not throw when server env is null or not a plain object, and drops it', () => {
+    const mcpSettings = {
+      enabled: true,
+      servers: [
+        {
+          name: 'nullEnv',
+          command: 'cmd',
+          args: [],
+          enabled: true,
+          env: null,
+        },
+        {
+          name: 'arrayEnv',
+          command: 'cmd',
+          args: [],
+          enabled: true,
+          env: ['not', 'an', 'object'],
+        },
+      ],
+    };
+
+    (loadSettings as Mock).mockReturnValue({ mcp: mcpSettings });
+
+    expect(() => MCP.makeMcpServersFromSettings('/cfg', ['clusterA'])).not.toThrow();
+
+    const result = MCP.makeMcpServersFromSettings('/cfg', ['clusterA']);
+    expect((result['nullEnv'] as any).env).toBeUndefined();
+    expect((result['arrayEnv'] as any).env).toBeUndefined();
   });
 
   it('expands HEADLAMP_CURRENT_CLUSTER placeholder using provided clusters[0]', () => {
