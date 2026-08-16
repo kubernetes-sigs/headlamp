@@ -110,6 +110,10 @@ function checkCommandConsent(command: string, args: string[], mainWindow: Browse
     }
     settings.confirmedCommands[consentKey] = commandChoice;
     saveSettings(SETTINGS_PATH, settings);
+    if (!commandChoice) {
+      console.error(`Invalid command: ${consentKey}, command not allowed by users choice`);
+    }
+    return commandChoice;
   }
   return true;
 }
