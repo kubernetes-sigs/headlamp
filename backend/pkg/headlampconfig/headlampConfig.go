@@ -70,22 +70,22 @@ type HeadlampCFG struct {
 	BaseURL                string
 	ProxyURLs              []string
 
-	TLSCertPath                  string
-	TLSKeyPath                   string
-	SessionTTL                   int
-	PodDebugImage                string
-	NodeShellImage               string
-	NodeShellNamespace           string
-	OidcUseCookie                bool
-	DefaultLightTheme            string
-	DefaultDarkTheme             string
-	ForceTheme                   string
-	UnsafeUseServiceAccountToken bool
-	ServiceAccountTokenPath      string
-
+	TLSCertPath                           string
+	TLSKeyPath                            string
+	SessionTTL                            int
+	PodDebugImage                         string
+	NodeShellImage                        string
+	NodeShellNamespace                    string
+	OidcUseCookie                         bool
+	DefaultLightTheme                     string
+	DefaultDarkTheme                      string
+	ForceTheme                            string
+	UnsafeUseServiceAccountToken          bool
+	ServiceAccountTokenPath               string
 	EnableClusterInventory                bool
 	ClusterInventoryProviderFile          string
 	ClusterInventoryLabelSelector         string
 	ClusterInventoryRootReconcileInterval time.Duration
 	ClusterInventoryNoCRDCacheTTL         time.Duration
+	ExternalLinks                         string
 }

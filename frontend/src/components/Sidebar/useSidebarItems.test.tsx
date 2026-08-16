@@ -21,6 +21,8 @@ import React from 'react';
 import { Provider } from 'react-redux';
 import App from '../../App';
 import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
+import type { ConfigState } from '../../redux/configSlice';
+import { initialState as initialConfigState } from '../../redux/configSlice';
 import reducers from '../../redux/reducers/reducers';
 import { TestContext } from '../../test';
 import { DefaultSidebars, SidebarEntry } from './sidebarSlice';
@@ -40,18 +42,28 @@ describe('useSidebarItems', () => {
   const mockStore = (
     customSidebarEntries: { [name: string]: SidebarEntry },
     customSidebarFilters: ((entry: SidebarEntry) => SidebarEntry | null)[],
-    customHomeSidebarFilters: ((entry: SidebarEntry) => SidebarEntry | null)[] = []
+    configOrHomeFilters?: Partial<ConfigState> | ((entry: SidebarEntry) => SidebarEntry | null)[],
+    customConfig?: Partial<ConfigState>
   ) => {
+    const homeFilters = Array.isArray(configOrHomeFilters) ? configOrHomeFilters : [];
+    const config = !Array.isArray(configOrHomeFilters) ? configOrHomeFilters : customConfig;
+
     return configureStore({
       reducer: reducers,
       preloadedState: {
         sidebar: {
           entries: customSidebarEntries,
           filters: customSidebarFilters,
-          homeFilters: customHomeSidebarFilters,
+          homeFilters,
           selected: { item: null, sidebar: DefaultSidebars.IN_CLUSTER },
           isVisible: true,
         },
+        config: config
+          ? {
+              ...initialConfigState,
+              ...config,
+            }
+          : undefined,
       },
     });
   };
@@ -311,5 +323,63 @@ describe('useSidebarItems', () => {
 
     // Check that home is still present
     expect(result.current.find(it => it.name === 'home')).toBeDefined();
+  });
+
+  it('should include external links and filter out invalid ones', () => {
+    const store = mockStore({}, [], {
+      externalLinks: [
+        { label: 'Google', url: 'https://google.com' },
+        { label: 'GitHub', url: 'http://github.com' },
+        { label: 'Invalid Link', url: 'javascript:alert(1)' },
+        { label: 'Missing URL', url: undefined as any },
+        { label: 'Number URL', url: 123 as any },
+        { label: 'Null URL', url: null as any },
+        { label: 'Malformed Prefix Only', url: 'https://' },
+        { label: 'No Hostname', url: 'http://' },
+        { label: 'Invalid Format', url: 'https://google.com:abc' },
+      ],
+    });
+
+    const { result } = renderHook(() => useSidebarItems(), {
+      wrapper: wrapper(store),
+    });
+
+    const headerLink = result.current.find(it => it.name === 'external-links-header');
+    expect(headerLink).toBeDefined();
+    expect(headerLink?.label).toBe('External Links');
+    expect(headerLink?.entryType).toBe('subheader');
+
+    const googleLink = result.current.find(it => it.name === 'external-link-0');
+    expect(googleLink).toBeDefined();
+    expect(googleLink?.label).toBe('Google');
+    expect(googleLink?.url).toBe('https://google.com');
+    expect(googleLink?.icon).toBe('mdi:link');
+
+    const githubLink = result.current.find(it => it.name === 'external-link-1');
+    expect(githubLink).toBeDefined();
+    expect(githubLink?.label).toBe('GitHub');
+    expect(githubLink?.url).toBe('http://github.com');
+    expect(githubLink?.icon).toBe('mdi:link');
+
+    const invalidLink = result.current.find(it => it.name === 'external-link-2');
+    expect(invalidLink).toBeUndefined();
+
+    const missingLink = result.current.find(it => it.label === 'Missing URL');
+    expect(missingLink).toBeUndefined();
+
+    const numberLink = result.current.find(it => it.label === 'Number URL');
+    expect(numberLink).toBeUndefined();
+
+    const nullLink = result.current.find(it => it.label === 'Null URL');
+    expect(nullLink).toBeUndefined();
+
+    const malformedPrefixLink = result.current.find(it => it.label === 'Malformed Prefix Only');
+    expect(malformedPrefixLink).toBeUndefined();
+
+    const noHostnameLink = result.current.find(it => it.label === 'No Hostname');
+    expect(noHostnameLink).toBeUndefined();
+
+    const invalidFormatLink = result.current.find(it => it.label === 'Invalid Format');
+    expect(invalidFormatLink).toBeUndefined();
   });
 });

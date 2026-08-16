@@ -102,6 +102,14 @@ describe('configSlice', () => {
     expect(nextState.defaultNodeShellImage).toBe('');
   });
 
+  it('should handle setConfig with externalLinks', () => {
+    const state = initialState;
+    const links = [{ label: 'Grafana', url: 'https://grafana.com', icon: 'mdi:chart-line' }];
+    const nextState = configReducer(state, setConfig({ clusters: {}, externalLinks: links }));
+
+    expect(nextState.externalLinks).toEqual(links);
+  });
+
   it('should handle setConfig with defaultNodeShellNamespace', () => {
     const clusters: ConfigState['clusters'] = {
       'cluster-1': { name: 'cluster-1' } as Cluster,

@@ -265,6 +265,16 @@ var ParseWithEnvTests = []struct {
 			assert.Equal(t, false, conf.WatchPluginsChanges)
 		},
 	},
+	{
+		name: "external_links_from_env",
+		args: []string{"go run ./cmd"},
+		env: map[string]string{
+			"HEADLAMP_CONFIG_EXTERNAL_LINKS": `[{"label":"Google","url":"https://google.com"}]`,
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, `[{"label":"Google","url":"https://google.com"}]`, conf.ExternalLinks)
+		},
+	},
 }
 
 func TestParseWithEnv(t *testing.T) {
@@ -283,57 +293,82 @@ func TestParseWithEnv(t *testing.T) {
 	}
 }
 
-func TestParseErrors(t *testing.T) {
-	tests := []struct {
-		name          string
-		args          []string
-		errorContains string
-	}{
-		{
-			name:          "oidc_settings_without_incluster",
-			args:          []string{"go run ./cmd", "-oidc-client-id=noClient"},
-			errorContains: "flags are only meant to be used in inCluster mode or with --oidc-use-cookie",
+var parseErrorsTests = []struct {
+	name          string
+	args          []string
+	errorContains string
+}{
+	{
+		name:          "oidc_settings_without_incluster",
+		args:          []string{"go run ./cmd", "-oidc-client-id=noClient"},
+		errorContains: "flags are only meant to be used in inCluster mode or with --oidc-use-cookie",
+	},
+	{
+		name:          "unsafe_use_service_account_token_without_incluster",
+		args:          []string{"go run ./cmd", "--unsafe-use-service-account-token"},
+		errorContains: "are only meant to be used with --in-cluster",
+	},
+	{
+		name: "service_account_token_path_without_incluster",
+		args: []string{
+			"go run ./cmd",
+			"--service-account-token-path=/custom/token/path",
 		},
-		{
-			name:          "unsafe_use_service_account_token_without_incluster",
-			args:          []string{"go run ./cmd", "--unsafe-use-service-account-token"},
-			errorContains: "are only meant to be used with --in-cluster",
+		errorContains: "are only meant to be used with --in-cluster",
+	},
+	{
+		name: "service_account_token_path_requires_unsafe_flag",
+		args: []string{
+			"go run ./cmd",
+			"--in-cluster",
+			"--service-account-token-path=/custom/token/path",
 		},
-		{
-			name: "service_account_token_path_without_incluster",
-			args: []string{
-				"go run ./cmd",
-				"--service-account-token-path=/custom/token/path",
-			},
-			errorContains: "are only meant to be used with --in-cluster",
-		},
-		{
-			name: "service_account_token_path_requires_unsafe_flag",
-			args: []string{
-				"go run ./cmd",
-				"--in-cluster",
-				"--service-account-token-path=/custom/token/path",
-			},
-			errorContains: "--service-account-token-path requires --unsafe-use-service-account-token",
-		},
-		{
-			name:          "invalid_base_url",
-			args:          []string{"go run ./cmd", "--base-url=testingthis"},
-			errorContains: "base-url",
-		},
-		{
-			name:          "no_browser_without_embed",
-			args:          []string{"go run ./cmd", "--no-browser"},
-			errorContains: "no-browser cannot be used when running without embedded frontend",
-		},
-		{
-			name:          "no_browser_in_cluster",
-			args:          []string{"go run ./cmd", "--no-browser", "--in-cluster"},
-			errorContains: "no-browser cannot be used in in-cluster mode",
-		},
-	}
+		errorContains: "--service-account-token-path requires --unsafe-use-service-account-token",
+	},
+	{
+		name:          "invalid_base_url",
+		args:          []string{"go run ./cmd", "--base-url=testingthis"},
+		errorContains: "base-url",
+	},
+	{
+		name:          "no_browser_without_embed",
+		args:          []string{"go run ./cmd", "--no-browser"},
+		errorContains: "no-browser cannot be used when running without embedded frontend",
+	},
+	{
+		name:          "no_browser_in_cluster",
+		args:          []string{"go run ./cmd", "--no-browser", "--in-cluster"},
+		errorContains: "no-browser cannot be used in in-cluster mode",
+	},
+	{
+		name:          "invalid_external_links_json",
+		args:          []string{"go run ./cmd", "--external-links={invalid json}"},
+		errorContains: "invalid external-links JSON",
+	},
+	{
+		name:          "external_links_not_array",
+		args:          []string{"go run ./cmd", `--external-links={"label":"Google","url":"https://google.com"}`},
+		errorContains: "invalid external-links JSON",
+	},
+	{
+		name:          "external_links_malformed_entry",
+		args:          []string{"go run ./cmd", `--external-links=[{"label":123,"url":"https://google.com"}]`},
+		errorContains: "invalid external-links JSON",
+	},
+	{
+		name:          "external_links_empty_label",
+		args:          []string{"go run ./cmd", `--external-links=[{"url":"https://google.com"}]`},
+		errorContains: "label cannot be empty",
+	},
+	{
+		name:          "external_links_empty_url",
+		args:          []string{"go run ./cmd", `--external-links=[{"label":"Google"}]`},
+		errorContains: "url cannot be empty",
+	},
+}
 
-	for _, tt := range tests {
+func TestParseErrors(t *testing.T) {
+	for _, tt := range parseErrorsTests {
 		t.Run(tt.name, func(t *testing.T) {
 			conf, err := config.Parse(tt.args)
 			require.Error(t, err)
@@ -406,6 +441,13 @@ var parseFlagTests = []parseFlagTest{
 		verify: func(t *testing.T, conf *config.Config) {
 			assert.Equal(t, true, conf.UnsafeUseServiceAccountToken)
 			assert.Equal(t, "/custom/token/path", conf.ServiceAccountTokenPath)
+		},
+	},
+	{
+		name: "external_links_flag",
+		args: []string{"go run ./cmd", `--external-links=[{"label":"Google","url":"https://google.com"}]`},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, `[{"label":"Google","url":"https://google.com"}]`, conf.ExternalLinks)
 		},
 	},
 }

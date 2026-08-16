@@ -53,9 +53,28 @@ const sortSidebarItems = (items: SidebarItemProps[]): SidebarItemProps[] => {
   }));
 };
 
+const safeLinkUrl = (url: unknown): string | null => {
+  if (typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return null;
+    }
+    if (!parsed.hostname) {
+      return null;
+    }
+    // Normalize only the scheme so external URLs are detected reliably without changing the full URL.
+    return trimmed.replace(/^https?:\/\//i, m => m.toLowerCase());
+  } catch {
+    return null;
+  }
+};
+
 export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER) => {
   const clusters = useTypedSelector(state => state.config.clusters) ?? {};
   const settings = useTypedSelector(state => state.config.settings);
+  const externalLinks = useTypedSelector(state => state.config.externalLinks) || [];
   const customSidebarEntries = useTypedSelector(state => state.sidebar.entries);
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
   const customHomeSidebarFilters = useTypedSelector(state => state.sidebar.homeFilters);
@@ -457,6 +476,8 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
       },
     ];
 
+    const hasExternalLinks = externalLinks.some(link => safeLinkUrl(link.url) !== null);
+
     if (crdsSidebarEntries.length !== 0) {
       const sublist: SidebarItemProps[] = [
         {
@@ -474,6 +495,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
         label: t('glossary|Custom Resources'),
         icon: 'mdi:puzzle',
         subList: sublist,
+        divider: hasExternalLinks,
       });
     } else {
       inClusterItems.push({
@@ -486,7 +508,32 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
             label: t('translation|Instances'),
           },
         ],
+        divider: hasExternalLinks,
       });
+    }
+
+    if (externalLinks.length > 0) {
+      const validLinks: SidebarItemProps[] = [];
+      externalLinks.forEach((link, i) => {
+        const url = safeLinkUrl(link.url);
+        if (url) {
+          validLinks.push({
+            name: `external-link-${i}`,
+            label: link.label,
+            url,
+            icon: link.icon || 'mdi:link',
+          });
+        }
+      });
+
+      if (validLinks.length > 0) {
+        inClusterItems.push({
+          name: 'external-links-header',
+          label: t('translation|External Links'),
+          entryType: 'subheader',
+        });
+        inClusterItems.push(...validLinks);
+      }
     }
 
     // List of sidebars, they act as roots for the sidebar tree
@@ -583,6 +630,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     allClustersConf,
     crdsSidebarEntries,
     gatewayKinds,
+    externalLinks,
     t,
   ]);
 

@@ -53,6 +53,7 @@ const makeStore = () => {
         defaultPodDebugImage: '',
         defaultNodeShellImage: '',
         defaultNodeShellNamespace: '',
+        externalLinks: [],
       },
       projects: {
         headerActions: {},
