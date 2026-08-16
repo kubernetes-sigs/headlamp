@@ -119,13 +119,13 @@ test('keeps a simplified namespace expanded while resizing', async ({ page }) =>
   await expect.poll(() => [...mockedResources].sort()).toEqual(['namespaces', 'pods']);
 
   const namespaceNode = page.locator(
-    `.react-flow__node.parent[data-id*="${namespace.metadata.uid}"], .react-flow__node.parent[data-id*="${namespace.metadata.name}"]`
+    `.react-flow__node[data-id*="${namespace.metadata.uid}"], .react-flow__node[data-id*="${namespace.metadata.name}"]`
   );
 
   await page.waitForSelector('.react-flow', { timeout: 30_000 });
   await page.waitForSelector('.react-flow__nodes', { timeout: 30_000 });
-  await expect(namespaceNode).toBeVisible({ timeout: 30_000 });
-  await namespaceNode.locator('button').first().click();
+  await expect(namespaceNode.first()).toBeVisible({ timeout: 30_000 });
+  await namespaceNode.first().click();
 
   const assertExpandedTopology = async () => {
     const parent = page.locator(
