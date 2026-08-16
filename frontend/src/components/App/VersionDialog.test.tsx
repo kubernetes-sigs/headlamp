@@ -64,7 +64,11 @@ describe('VersionDialog', () => {
   it('shows version information without tabs in a browser host', () => {
     renderVersionDialog();
 
-    expect(screen.getByRole('dialog', { name: 'Headlamp' })).toHaveTextContent('1.2.3');
+    const dialog = screen.getByRole('dialog', { name: 'Headlamp' });
+    expect(dialog).toHaveTextContent('Version');
+    expect(dialog).toHaveTextContent('1.2.3');
+    expect(dialog).toHaveTextContent('Git Commit');
+    expect(dialog).toHaveTextContent('abc123');
     expect(screen.queryByRole('tab', { name: 'Legal' })).not.toBeInTheDocument();
   });
 
