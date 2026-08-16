@@ -16,7 +16,7 @@
         >
           Uh-oh! Something went wrong.
         </h1>
-        <h2
+        <div
           class="MuiTypography-root MuiTypography-h2 css-15otqr2-MuiTypography-root"
         >
           <h3
@@ -24,7 +24,7 @@
           >
             Not sure what to do!
           </h3>
-        </h2>
+        </div>
       </div>
     </div>
   </div>
