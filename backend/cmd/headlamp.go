@@ -64,6 +64,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/transfer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -2282,6 +2283,23 @@ func handleClusterServiceProxy(c *HeadlampConfig, router *mux.Router) {
 		Methods("GET")
 }
 
+// handleClusterTransfer registers the routes that copy files to and from containers.
+func handleClusterTransfer(c *HeadlampConfig, router *mux.Router) {
+	opts := transfer.Options{ContextKey: c.getContextKeyForRequest}
+
+	if c.ProxyAuthEnabled {
+		opts.ProxyAuthTokenHeader = c.ProxyAuthTokenHeader
+	}
+
+	copyPath := "/clusters/{clusterName}/namespace/{namespace}/pod/{pod}/container/{container}/copy"
+	backendTokenMiddleware := auth.NewBackendTokenMiddleware(c.UseInCluster)
+
+	router.Handle(copyPath,
+		backendTokenMiddleware(transfer.DownloadHandler(c.KubeConfigStore, opts))).Methods("GET")
+	router.Handle(copyPath,
+		backendTokenMiddleware(transfer.UploadHandler(c.KubeConfigStore, opts))).Methods("POST")
+}
+
 func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
 	router.PathPrefix("/clusters/{clusterName}/helm/{.*}").Handler(
 		c.authenticatedHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -2721,6 +2739,7 @@ func (c *HeadlampConfig) handleClusterRequests(router *mux.Router) {
 		handleClusterHelm(c, router)
 	}
 
+	handleClusterTransfer(c, router)
 	handleClusterServiceProxy(c, router)
 	handleClusterAPI(c, router)
 }
