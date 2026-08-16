@@ -40,6 +40,7 @@
               <h1
                 class="MuiTypography-root MuiTypography-h1 css-1kazmbo-MuiTypography-root"
                 style="font-size: 1.25rem; font-weight: 500; line-height: 1.6;"
+                tabindex="-1"
               >
                 Release Notes (1.9.9)
               </h1>
@@ -65,7 +66,10 @@
           </div>
         </h2>
         <div
+          aria-label="Release notes content"
           class="MuiDialogContent-root MuiDialogContent-dividers css-1t4vnk2-MuiDialogContent-root"
+          role="region"
+          tabindex="0"
         >
           <div
             class="MuiBox-root css-wicc6q"
