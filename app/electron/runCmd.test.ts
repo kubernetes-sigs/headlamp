@@ -18,15 +18,16 @@ import { EventEmitter } from 'events';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
-const { getShellEnvironmentMock, spawnMock, showMessageBoxSyncMock } = vi.hoisted(() => ({
+const { dialogMock, getShellEnvironmentMock, loadSettingsMock, spawnMock } = vi.hoisted(() => ({
+  dialogMock: vi.fn(),
   getShellEnvironmentMock: vi.fn(),
+  loadSettingsMock: vi.fn(),
   spawnMock: vi.fn(),
-  showMessageBoxSyncMock: vi.fn(),
 }));
 
 vi.mock('electron', () => ({
   BrowserWindow: class {},
-  dialog: { showMessageBoxSync: showMessageBoxSyncMock },
+  dialog: { showMessageBoxSync: dialogMock },
 }));
 
 vi.mock('child_process', () => ({
@@ -39,9 +40,7 @@ vi.mock('./plugin-management', () => ({
 }));
 
 vi.mock('./settings', () => ({
-  loadSettings: vi.fn(() => ({
-    confirmedCommands: { 'minikube start': true, 'gh auth': true, 'az account': true },
-  })),
+  loadSettings: loadSettingsMock,
   saveSettings: vi.fn(),
   SETTINGS_PATH: '/fake/settings.json',
 }));
@@ -61,6 +60,8 @@ import {
   checkPermissionSecret,
   environmentOverrides,
   handleRunCommand,
+  removeRunCmdConsent,
+  setupRunCmdHandlers,
   validateCommandData,
 } from './runCmd';
 
@@ -71,6 +72,10 @@ it('does not cache process environment changes as shell overrides', () => {
       { PATH: '/usr/bin', HEADLAMP_CONFIG_ENABLE_HELM: 'true' }
     )
   ).toEqual({ PATH: '/opt/homebrew/bin:/usr/bin' });
+});
+
+it('uses process.env as the default comparison environment', () => {
+  expect(environmentOverrides(process.env)).toEqual({});
 });
 
 describe('checkPermissionSecret', () => {
@@ -283,8 +288,14 @@ describe('handleRunCommand', () => {
   let sentMessages: Array<[string, ...unknown[]]>;
 
   beforeEach(() => {
+    dialogMock.mockReset();
+    dialogMock.mockReturnValue(0);
     getShellEnvironmentMock.mockReset();
     getShellEnvironmentMock.mockResolvedValue(shellEnvironment);
+    loadSettingsMock.mockReset();
+    loadSettingsMock.mockReturnValue({
+      confirmedCommands: { 'minikube start': true, 'gh auth': true, 'az account': true },
+    });
     spawnMock.mockReset();
     childEmitter = new EventEmitter();
     childEmitter.stdout = new EventEmitter();
@@ -300,6 +311,13 @@ describe('handleRunCommand', () => {
 
   afterEach(() => {
     vi.unstubAllEnvs();
+  });
+
+  it('does not run commands without a main window', async () => {
+    await handleRunCommand(fakeEvent, {}, null, {});
+
+    expect(sentMessages).toEqual([]);
+    expect(spawnMock).not.toHaveBeenCalled();
   });
 
   it('runs gh with the login-shell environment and reports child errors', async () => {
@@ -327,6 +345,83 @@ describe('handleRunCommand', () => {
 
     expect(sentMessages).toContainEqual(['command-stderr', 'test-id', 'spawn error']);
     expect(sentMessages).toContainEqual(['command-exit', 'test-id', -1]);
+  });
+
+  it('reports command output and exit codes', async () => {
+    const eventData = {
+      id: 'test-id',
+      command: 'gh',
+      args: ['auth', 'token'],
+      options: {},
+      permissionSecrets: { 'runCmd-gh': 99 },
+    };
+
+    await handleRunCommand(fakeEvent, eventData, { id: 1 } as any, { 'runCmd-gh': 99 });
+
+    childEmitter.stdout.emit('data', Buffer.from('standard output'));
+    childEmitter.stderr.emit('data', 'standard error');
+    childEmitter.emit('exit', 2);
+
+    expect(sentMessages).toContainEqual(['command-stdout', 'test-id', 'standard output']);
+    expect(sentMessages).toContainEqual(['command-stderr', 'test-id', 'standard error']);
+    expect(sentMessages).toContainEqual(['command-exit', 'test-id', 2]);
+  });
+
+  it('runs plugin scripts with the Electron executable', async () => {
+    const originalResourcesPath = process.resourcesPath;
+    // @ts-ignore Electron defines this at runtime.
+    process.resourcesPath = '/resources';
+    loadSettingsMock.mockReturnValue({
+      confirmedCommands: { 'scriptjs missing-plugin/script.js': true },
+    });
+    const eventData = {
+      id: 'script-id',
+      command: 'scriptjs',
+      args: ['missing-plugin/script.js', '--flag'],
+      options: {},
+      permissionSecrets: { 'runCmd-scriptjs-missing-plugin/script.js': 99 },
+    };
+
+    try {
+      await handleRunCommand(fakeEvent, eventData, { id: 1 } as any, {
+        'runCmd-scriptjs-missing-plugin/script.js': 99,
+      });
+
+      expect(spawnMock).toHaveBeenCalledWith(
+        process.execPath,
+        [path.join('/plugins/default', 'missing-plugin/script.js'), '--flag'],
+        expect.objectContaining({
+          env: expect.objectContaining({ HEADLAMP_RUN_SCRIPT: 'true' }),
+        })
+      );
+    } finally {
+      // @ts-ignore Electron defines this at runtime.
+      process.resourcesPath = originalResourcesPath;
+    }
+  });
+
+  it('initializes consent settings for a new command', async () => {
+    const { saveSettings } = await import('./settings');
+    loadSettingsMock.mockReturnValue({});
+    vi.mocked(saveSettings).mockClear();
+    const eventData = {
+      id: 'consent-id',
+      command: 'minikube',
+      args: [],
+      options: {},
+      permissionSecrets: { 'runCmd-minikube': 99 },
+    };
+
+    await handleRunCommand(fakeEvent, eventData, { id: 1 } as any, {
+      'runCmd-minikube': 99,
+    });
+
+    expect(dialogMock).toHaveBeenCalledTimes(1);
+    expect(saveSettings).toHaveBeenCalledWith(
+      '/fake/settings.json',
+      expect.objectContaining({ confirmedCommands: { minikube: true } })
+    );
+    expect(spawnMock).toHaveBeenCalled();
   });
 
   it('reports synchronous spawn errors without rejecting', async () => {
@@ -484,6 +579,99 @@ describe('addRunCmdConsent', () => {
       expect(savedSettings?.confirmedCommands?.[cmd]).toBeUndefined();
     }
   });
+
+  it('initializes consent settings and pre-populates minikube commands', async () => {
+    const { loadSettings, saveSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({});
+    vi.mocked(saveSettings).mockClear();
+
+    addRunCmdConsent({ name: 'headlamp_minikube' });
+
+    const savedSettings = vi.mocked(saveSettings).mock.calls[0][1] as any;
+    expect(savedSettings.confirmedCommands['minikube status']).toBe(true);
+  });
+
+  it('recognizes the development minikube plugin name', async () => {
+    const { loadSettings, saveSettings } = await import('./settings');
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: {} });
+    vi.mocked(saveSettings).mockClear();
+
+    addRunCmdConsent({ name: 'minikube' });
+
+    const savedSettings = vi.mocked(saveSettings).mock.calls[0][1] as any;
+    expect(savedSettings.confirmedCommands['minikube status']).toBe(true);
+    vi.unstubAllEnvs();
+  });
+});
+
+describe('removeRunCmdConsent', () => {
+  it('returns when consent settings do not exist', async () => {
+    const { loadSettings, saveSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({});
+    vi.mocked(saveSettings).mockClear();
+
+    removeRunCmdConsent('@headlamp-k8s/minikube');
+
+    expect(saveSettings).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['@headlamp-k8s/minikube', 'minikube status'],
+    ['@headlamp-k8s/minikubeprerelease', 'minikube status'],
+    ['@headlamp-k8s/ai-assistant', 'gh auth'],
+    ['@headlamp-k8s/ai-assistantprerelease', 'gh auth'],
+  ])('removes consent for %s', async (pluginName, command) => {
+    const { loadSettings, saveSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: { [command]: true } });
+    vi.mocked(saveSettings).mockClear();
+
+    removeRunCmdConsent(pluginName);
+
+    const savedSettings = vi.mocked(saveSettings).mock.calls[0][1] as any;
+    expect(savedSettings.confirmedCommands[command]).toBeUndefined();
+  });
+});
+
+describe('setupRunCmdHandlers', () => {
+  it('does not register handlers without a main window', () => {
+    const ipcMain = { on: vi.fn() } as any;
+
+    setupRunCmdHandlers(null, ipcMain);
+
+    expect(ipcMain.on).not.toHaveBeenCalled();
+  });
+
+  it('sends permission secrets once per main-frame load', () => {
+    const ipcHandlers = new Map<string, (...args: any[]) => void>();
+    let frameLoadHandler: (_event: unknown, isMainFrame: boolean) => void = () => {};
+    const send = vi.fn();
+    const mainWindow = {
+      webContents: {
+        on: vi.fn((_event: string, handler: typeof frameLoadHandler) => {
+          frameLoadHandler = handler;
+        }),
+        send,
+      },
+    } as any;
+    const ipcMain = {
+      on: vi.fn((channel: string, handler: (...args: any[]) => void) => {
+        ipcHandlers.set(channel, handler);
+      }),
+    } as any;
+
+    setupRunCmdHandlers(mainWindow, ipcMain);
+    const requestSecrets = ipcHandlers.get('request-plugin-permission-secrets')!;
+    requestSecrets();
+    requestSecrets();
+    frameLoadHandler({}, false);
+    requestSecrets();
+    frameLoadHandler({}, true);
+    requestSecrets();
+
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(ipcHandlers.has('run-command')).toBe(true);
+  });
 });
 
 describe('command consent', () => {
@@ -511,27 +699,27 @@ describe('command consent', () => {
         stderr: new EventEmitter(),
       })
     );
-    showMessageBoxSyncMock.mockReset();
+    dialogMock.mockReset();
     fakeEvent = { sender: { send: vi.fn() } } as any;
   });
 
   it('does not run the command when the user denies consent', async () => {
     // Second button is Deny.
-    showMessageBoxSyncMock.mockReturnValue(1);
+    dialogMock.mockReturnValue(1);
 
     await handleRunCommand(fakeEvent, eventData, fakeMainWindow, permissionSecrets);
 
-    expect(showMessageBoxSyncMock).toHaveBeenCalled();
+    expect(dialogMock).toHaveBeenCalled();
     expect(spawnMock).not.toHaveBeenCalled();
   });
 
   it('runs the command when the user allows it', async () => {
     // First button is Allow.
-    showMessageBoxSyncMock.mockReturnValue(0);
+    dialogMock.mockReturnValue(0);
 
     await handleRunCommand(fakeEvent, eventData, fakeMainWindow, permissionSecrets);
 
-    expect(showMessageBoxSyncMock).toHaveBeenCalled();
+    expect(dialogMock).toHaveBeenCalled();
     expect(spawnMock).toHaveBeenCalled();
   });
 });
