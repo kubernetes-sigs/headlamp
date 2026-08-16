@@ -899,6 +899,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	// Websocket connections
 	if config.Multiplexer != nil {
 		r.HandleFunc("/wsMultiplexer", config.Multiplexer.HandleClientWebSocket)
+		r.HandleFunc("/wsTerminal", config.Multiplexer.HandleTerminal)
 	}
 
 	config.addClusterSetupRoute(r)
