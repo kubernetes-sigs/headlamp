@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/gorilla/websocket"
@@ -12,7 +14,21 @@ import (
 
 var upgrader = websocket.Upgrader{
 	CheckOrigin: func(r *http.Request) bool {
-		return true // Allow all for simplicity
+		origin := r.Header.Get("Origin")
+		if origin == "" {
+			return true
+		}
+
+		u, err := url.Parse(origin)
+		if err != nil {
+			return false
+		}
+
+		if u.Scheme == "app" || u.Scheme == "file" || u.Scheme == "headlamp" {
+			return true
+		}
+
+		return strings.EqualFold(u.Host, r.Host)
 	},
 }
 
