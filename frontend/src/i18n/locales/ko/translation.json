@@ -749,6 +749,7 @@
   "Max": "최대",
   "Min": "최소",
   "Max Limit/Request Ratio": "",
+  "Dialog": "",
   "Namespaces must be under 64 characters.": "네임스페이스는 64자 이하여야 합니다.",
   "A namespace with this name already exists.": "이 이름을 가진 네임스페이스가 이미 존재합니다.",
   "Create Namespace": "네임스페이스 생성",

@@ -749,6 +749,7 @@
   "Max": "最大",
   "Min": "最小",
   "Max Limit/Request Ratio": "",
+  "Dialog": "",
   "Namespaces must be under 64 characters.": "命名空间必须小于 64 个字符。",
   "A namespace with this name already exists.": "已存在具有此名称的命名空间。",
   "Create Namespace": "新增命名空间",
