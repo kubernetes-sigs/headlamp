@@ -963,7 +963,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	r.HandleFunc("/config", config.getConfig).Methods("GET")
 
 	// Auth token management
-	r.HandleFunc("/auth/set-token", config.handleSetToken).Methods("POST")
+	r.HandleFunc("/auth/set-token", authRateLimitMiddleware(config.handleSetToken)).Methods("POST")
 
 	// Websocket connections
 	if config.Multiplexer != nil {
@@ -2006,7 +2006,7 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 // It parses the request and creates a proxy request to the cluster.
 // That proxy is saved in the cache with the context key.
 func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
-	router.HandleFunc("/clusters/{clusterName}/set-token", c.handleSetToken).Methods("POST")
+	router.HandleFunc("/clusters/{clusterName}/set-token", authRateLimitMiddleware(c.handleSetToken)).Methods("POST")
 
 	handler := clusterRequestHandler(c)
 	if c.CacheEnabled {
