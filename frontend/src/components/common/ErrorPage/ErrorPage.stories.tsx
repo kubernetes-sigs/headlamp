@@ -56,7 +56,7 @@ StringMessage.args = {
 
 export const ComponentMessage = Template.bind({});
 ComponentMessage.args = {
-  message: <Typography variant="h3">Not sure what to do!</Typography>,
+  message: <Typography variant="h2">Not sure what to do!</Typography>,
 };
 
 export const WithErrorStack = Template.bind({});
