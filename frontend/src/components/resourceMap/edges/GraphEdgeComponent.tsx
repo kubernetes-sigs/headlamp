@@ -86,9 +86,9 @@ export const GraphEdgeComponent = memo((props: EdgeProps & { data: GraphEdge['da
               border: `1px solid ${
                 isCrossCluster ? theme.palette.secondary.main : alpha(theme.palette.divider, 0.6)
               }`,
-              pointerEvents: isCrossCluster ? 'auto' : undefined,
+              pointerEvents: isCrossCluster ? 'auto' : 'none',
             }}
-            className={isCrossCluster ? 'nodrag nopan' : ''}
+            className="nodrag nopan"
           >
             {label}
           </div>
