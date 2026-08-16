@@ -19,8 +19,7 @@ import { type BrowserWindow, dialog } from 'electron';
 import os from 'os';
 import path from 'path';
 import { loadSettings, saveSettings } from '../settings';
-
-const DEBUG = true;
+import { mcpDebugLog } from './debug';
 
 export interface MCPSettings {
   /**
@@ -177,9 +176,10 @@ export function makeMcpServersFromSettings(
 
     const expandedArgs = expandEnvAndResolvePaths(server.args || [], clusters[0] || null);
 
-    if (DEBUG) {
-      console.log(`Expanded args for ${server.name}:`, expandedArgs);
-    }
+    mcpDebugLog('Expanded args for MCP server:', {
+      serverName: server.name,
+      expandedArgs,
+    });
 
     const serverEnv = server.env ? { ...process.env, ...server.env } : process.env;
 
