@@ -30,6 +30,7 @@ const chromiumExecutablePath = process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH?.
  */
 const config: PlaywrightTestConfig = {
   testDir: './tests',
+  testIgnore: '**/*.test.*',
   /* Maximum time one test can run for. */
   timeout: 30 * 1000,
   expect: {
