@@ -571,6 +571,7 @@
   "Failed to run \"{{ command }}\"": "Nie można uruchomić „{{ command }}”",
   "Trying to attach to the container {{ container }}…": "Trwa próba dołączenia do kontenera {{ container }}...",
   "Trying to run \"{{command}}\"…": "Trwa próba uruchomienia „{{command}}”...",
+  "Paste": "",
   "Attach: {{ itemName }}": "Dołącz: {{ itemName }}",
   "Terminal: {{ itemName }}": "Terminal: {{ itemName }}",
   "Timezone": "Strefa czasowa",

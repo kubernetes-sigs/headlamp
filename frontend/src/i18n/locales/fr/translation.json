@@ -566,6 +566,7 @@
   "Failed to run \"{{ command }}\"": "Échec de l'exécution de \"{commande }}\"",
   "Trying to attach to the container {{ container }}…": "Tentative de connexion au conteneur {{ container }}…",
   "Trying to run \"{{command}}\"…": "Essayer d'exécuter \"{{command}}\"…",
+  "Paste": "Coller",
   "Attach: {{ itemName }}": "Attacher : {{ itemName }}",
   "Terminal: {{ itemName }}": "Terminal : {{ itemName }}",
   "Timezone": "Fuseau horaire",

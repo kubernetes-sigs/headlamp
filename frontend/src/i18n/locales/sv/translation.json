@@ -561,6 +561,7 @@
   "Failed to run \"{{ command }}\"": "Det gick inte att köra {{ command }}",
   "Trying to attach to the container {{ container }}…": "Försöker ansluta till containern {{ container }}…",
   "Trying to run \"{{command}}\"…": "Försöker köra {{command}}…",
+  "Paste": "",
   "Attach: {{ itemName }}": "Anslut: {{ itemName }}",
   "Terminal: {{ itemName }}": "Terminal: {{ itemName }}",
   "Timezone": "Tidszon",

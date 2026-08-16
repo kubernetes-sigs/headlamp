@@ -561,6 +561,7 @@
   "Failed to run \"{{ command }}\"": "A(z) {{ command }} futtatása nem sikerült",
   "Trying to attach to the container {{ container }}…": "Kísérlet a(z) {{ container }} tárolóhoz való csatolásra…",
   "Trying to run \"{{command}}\"…": "Próbálkozás a(z) {{command}} futtatásával…",
+  "Paste": "",
   "Attach: {{ itemName }}": "Csatolás: {{ itemName }}",
   "Terminal: {{ itemName }}": "Terminál: {{ itemName }}",
   "Timezone": "Időzóna",

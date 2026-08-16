@@ -571,6 +571,7 @@
   "Failed to run \"{{ command }}\"": "Nepodařilo se spustit {{ command }}.",
   "Trying to attach to the container {{ container }}…": "Probíhá pokus o připojení ke kontejneru {{ container }}...",
   "Trying to run \"{{command}}\"…": "Probíhá pokus o spuštění {{command}}...",
+  "Paste": "",
   "Attach: {{ itemName }}": "Připojit: {{ itemName }}",
   "Terminal: {{ itemName }}": "Terminál: {{ itemName }}",
   "Timezone": "Časové pásmo",

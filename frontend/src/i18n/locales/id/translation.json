@@ -556,6 +556,7 @@
   "Failed to run \"{{ command }}\"": "Gagal menjalankan \"{{ command }}\"",
   "Trying to attach to the container {{ container }}…": "Mencoba memasangkan ke kontainer {{ container }}…",
   "Trying to run \"{{command}}\"…": "Mencoba menjalankan \"{{command}}\"…",
+  "Paste": "",
   "Attach: {{ itemName }}": "Pasang: {{ itemName }}",
   "Terminal: {{ itemName }}": "Terminal: {{ itemName }}",
   "Timezone": "Zona waktu",

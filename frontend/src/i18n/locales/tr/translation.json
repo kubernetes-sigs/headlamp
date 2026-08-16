@@ -561,6 +561,7 @@
   "Failed to run \"{{ command }}\"": "\"{{ command }}\" çalıştırılamadı",
   "Trying to attach to the container {{ container }}…": "{{ container }} kapsayıcısına bağlanmaya çalışılıyor…",
   "Trying to run \"{{command}}\"…": "\"{{command}}\" komutunu çalıştırma deneniyor…",
+  "Paste": "",
   "Attach: {{ itemName }}": "Ekle: {{ itemName }}",
   "Terminal: {{ itemName }}": "Terminal: {{ itemName }}",
   "Timezone": "Saat dilimi",

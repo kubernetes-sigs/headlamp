@@ -561,6 +561,7 @@
   "Failed to run \"{{ command }}\"": "\"{{ command }}\" چلانے میں ناکامی",
   "Trying to attach to the container {{ container }}…": "کنٹینر {{ container }} سے منسلک ہونے کی کوشش کی جا رہی ہے…",
   "Trying to run \"{{command}}\"…": "\"{{command}}\" چلانے کی کوشش کی جا رہی ہے…",
+  "Paste": "",
   "Attach: {{ itemName }}": "منسلک کریں: {{ itemName }}",
   "Terminal: {{ itemName }}": "ٹرمنل: {{ itemName }}",
   "Timezone": "ٹائم زون",

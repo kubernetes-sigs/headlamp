@@ -571,6 +571,7 @@
   "Failed to run \"{{ command }}\"": "Не удалось запустить \"{{ command }}\"",
   "Trying to attach to the container {{ container }}…": "Пытаюсь присоединиться к контейнеру {{ container }}…",
   "Trying to run \"{{command}}\"…": "Пытаюсь запустить \"{{command}}\"…",
+  "Paste": "",
   "Attach: {{ itemName }}": "Прикрепить: {{ itemName }}",
   "Terminal: {{ itemName }}": "Терминал: {{ itemName }}",
   "Timezone": "Часовой пояс",

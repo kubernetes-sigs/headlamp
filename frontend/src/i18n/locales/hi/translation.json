@@ -561,6 +561,7 @@
   "Failed to run \"{{ command }}\"": "",
   "Trying to attach to the container {{ container }}…": "",
   "Trying to run \"{{command}}\"…": "",
+  "Paste": "पेस्ट करें",
   "Attach: {{ itemName }}": "",
   "Terminal: {{ itemName }}": "",
   "Timezone": "",

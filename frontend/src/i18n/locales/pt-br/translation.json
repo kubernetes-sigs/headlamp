@@ -566,6 +566,7 @@
   "Failed to run \"{{ command }}\"": "Falha ao executar \"{{ command }}\"",
   "Trying to attach to the container {{ container }}…": "A tentar anexar ao container {{ container }}…",
   "Trying to run \"{{command}}\"…": "A tentar executar \"{{command}}\"…",
+  "Paste": "Colar",
   "Attach: {{ itemName }}": "Anexar: {{ itemName }}",
   "Terminal: {{ itemName }}": "Terminal: {{ itemName }}",
   "Timezone": "Fuso horário",

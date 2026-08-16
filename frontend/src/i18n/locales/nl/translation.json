@@ -561,6 +561,7 @@
   "Failed to run \"{{ command }}\"": "Kan \"{{ command }}\" niet uitvoeren",
   "Trying to attach to the container {{ container }}…": "Bezig met koppelen aan container {{ container }}...",
   "Trying to run \"{{command}}\"…": "Bezig met uitvoeren van {{command}}...",
+  "Paste": "",
   "Attach: {{ itemName }}": "Koppel: {{ itemName }}",
   "Terminal: {{ itemName }}": "Terminal: {{ itemName }}",
   "Timezone": "Tijdzone",

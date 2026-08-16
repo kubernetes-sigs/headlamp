@@ -581,6 +581,7 @@
   "Failed to run \"{{ command }}\"": "فشل تشغيل \"{{ command }}\"",
   "Trying to attach to the container {{ container }}…": "جارٍ محاولة الاتصال بالحاوية {{ container }}…",
   "Trying to run \"{{command}}\"…": "جارٍ محاولة تشغيل \"{{command}}\"…",
+  "Paste": "",
   "Attach: {{ itemName }}": "اتصال: {{ itemName }}",
   "Terminal: {{ itemName }}": "الطرفية: {{ itemName }}",
   "Timezone": "المنطقة الزمنية",
