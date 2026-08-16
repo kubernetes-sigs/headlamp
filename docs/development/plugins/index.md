@@ -34,6 +34,10 @@ Complete tutorial from installation to your first working plugin, with practical
 
 Learn the development workflow, production builds, and deployment strategies.
 
+### 🔐 [Desktop Command Capabilities](./command-capabilities.md)
+
+Declare local command scopes and understand their desktop security threat model.
+
 ### 📖 [Common Patterns](./common-patterns.md)
 
 Ready-to-use examples for typical plugin scenarios like dashboards, resource extensions, and external integrations.
