@@ -39,6 +39,7 @@ function mockList(overrides: Record<string, unknown>) {
     error: null,
     isError: false,
     isFetching: false,
+    isSuccess: false,
     ...overrides,
   });
 }
@@ -75,6 +76,16 @@ describe('useAllowedNamespacesFromSelector', () => {
     const cache = loadResolvedAllowedNamespaces('prod');
     expect(cache?.selector).toBe('team=frontend');
     expect(cache?.namespaces).toEqual(['a', 'b']);
+  });
+
+  it('reports a successful empty result when the selector matches no namespaces', () => {
+    mockList({ items: [], isSuccess: true, isFetching: false });
+
+    const { result } = renderHook(() => useAllowedNamespacesFromSelector('prod', 'team=frontend'));
+
+    expect(result.current.namespaces).toEqual([]);
+    expect(result.current.isSuccess).toBe(true);
+    expect(result.current.error).toBeNull();
   });
 
   it('clears the cache and surfaces the error on a failed resolution (fail closed)', () => {

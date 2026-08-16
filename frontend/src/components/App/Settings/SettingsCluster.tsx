@@ -161,6 +161,12 @@ export default function SettingsCluster() {
         error: namespacesSelectorResolution.error.message,
       })
     : '';
+  // A valid selector that resolved to no namespaces: warn the user so an empty
+  // list is not mistaken for a still-loading or misconfigured state.
+  const namespacesSelectorMatchedNothing =
+    !!allowedNamespacesSelector &&
+    namespacesSelectorResolution.isSuccess &&
+    namespacesSelectorResolution.namespaces.length === 0;
 
   function applyNamespacesSelector(selector: string) {
     const trimmedSelector = selector.trim();
@@ -545,9 +551,15 @@ export default function SettingsCluster() {
                       marginTop: theme.spacing(1),
                     }}
                   >
-                    {namespacesSelectorResolution.namespaces.map(namespace => (
-                      <Chip key={namespace} label={namespace} size="small" clickable={false} />
-                    ))}
+                    {namespacesSelectorMatchedNothing ? (
+                      <Typography variant="body2" sx={{ color: 'warning.main' }}>
+                        {t('translation|No namespaces match this selector')}
+                      </Typography>
+                    ) : (
+                      namespacesSelectorResolution.namespaces.map(namespace => (
+                        <Chip key={namespace} label={namespace} size="small" clickable={false} />
+                      ))
+                    )}
                   </Box>
                 </>
               ),

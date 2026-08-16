@@ -57,11 +57,11 @@ function sameNamespaces(a: string[], b: string[]): boolean {
 export function useAllowedNamespacesFromSelector(
   cluster: string,
   selector?: string
-): { namespaces: string[]; isFetching: boolean; error: ApiError | null } {
+): { namespaces: string[]; isFetching: boolean; isSuccess: boolean; error: ApiError | null } {
   const trimmedSelector = (selector ?? '').trim();
   const enabled = Boolean(cluster && trimmedSelector);
 
-  const { items, error, isError, isFetching } = Namespace.useList({
+  const { items, error, isError, isFetching, isSuccess } = Namespace.useList({
     clusters: enabled ? [cluster] : [],
     labelSelector: enabled ? trimmedSelector : undefined,
   });
@@ -98,6 +98,7 @@ export function useAllowedNamespacesFromSelector(
   return {
     namespaces: enabled ? namespaces : [],
     isFetching: enabled && isFetching,
+    isSuccess: enabled && isSuccess && !isError,
     error: isError ? error : null,
   };
 }

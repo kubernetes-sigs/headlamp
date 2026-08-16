@@ -204,6 +204,7 @@
   "Allowed namespaces label selector": "",
   "A label selector used to automatically find the namespaces you are allowed to access in this cluster. Press Enter or the apply button to resolve it. The resolved namespaces are combined with the allowed namespaces list above.": "",
   "Apply label selector": "",
+  "No namespaces match this selector": "",
   "Remove Cluster": "Remove Cluster",
   "Are you sure you want to remove the cluster \"{{ clusterName }}\"?": "Are you sure you want to remove the cluster \"{{ clusterName }}\"?",
   "Server": "Server",

@@ -204,6 +204,7 @@
   "Allowed namespaces label selector": "",
   "A label selector used to automatically find the namespaces you are allowed to access in this cluster. Press Enter or the apply button to resolve it. The resolved namespaces are combined with the allowed namespaces list above.": "",
   "Apply label selector": "",
+  "No namespaces match this selector": "",
   "Remove Cluster": "Cluster সরান",
   "Are you sure you want to remove the cluster \"{{ clusterName }}\"?": "আপনি কি নিশ্চিত যে আপনি Clusterটি সরিয়ে ফেলতে চান \"{{ clusterName }}\"?",
   "Server": "সার্ভার",
