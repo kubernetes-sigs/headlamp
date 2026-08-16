@@ -188,6 +188,55 @@ npx playwright test -g "404 page is present"
 npx playwright test -g "404 page is present" --headed
 ```
 
+## OAuth2-Proxy + Dex e2e test (opt-in)
+
+The spec `tests/dexOauth2Proxy.spec.ts` exercises the
+[Headlamp + OAuth2-Proxy + Dex tutorial](../docs/installation/in-cluster/dex/index.md)
+end-to-end against the runnable
+[`test-scripts/`](../docs/installation/in-cluster/dex/test-scripts/)
+stack (Minikube + Dex + Headlamp + OAuth2-Proxy). It covers the
+authentication gating, login and logout, Kubernetes API access, session
+handling, redirects, and common bypass attempts. It is **opt-in**: the
+whole `describe` block is skipped unless
+`HEADLAMP_TEST_DEX_OAUTH2_PROXY=1` is set — because the stack takes
+several minutes to bring up.
+
+The browser must resolve `host.minikube.internal` to the machine running Dex.
+If Playwright runs outside WSL or a VM, add the mapping on the browser side and
+use the WSL/VM address that reaches Dex rather than assuming `127.0.0.1`.
+
+Two modes are supported:
+
+1. **Have the test bring the stack up and tear it down (recommended):**
+
+   ```shell
+   export HEADLAMP_TEST_DEX_OAUTH2_PROXY=1
+   export HEADLAMP_TEST_DEX_OAUTH2_PROXY_MANAGE=1
+   npx playwright test tests/dexOauth2Proxy.spec.ts
+   ```
+
+    The test runs
+    `../docs/installation/in-cluster/dex/test-scripts/run.sh`
+    in `beforeAll` and `cleanup.sh` in `afterAll`.
+
+2. **Use a stack you already brought up:**
+
+    ```shell
+    cd ../docs/installation/in-cluster/dex/test-scripts
+    ./run.sh
+    cd -
+    export HEADLAMP_TEST_DEX_OAUTH2_PROXY=1
+    npx playwright test tests/dexOauth2Proxy.spec.ts
+    # …when done:
+    ../docs/installation/in-cluster/dex/test-scripts/cleanup.sh
+    ```
+
+The test points at `http://localhost:8080` (the port `run.sh`
+port-forwards to OAuth2-Proxy) and signs in to Dex as
+`admin@example.com` / `password` (the static user from
+`dex-config.yaml`). Override with `HEADLAMP_TEST_DEX_OAUTH2_PROXY_URL`,
+`HEADLAMP_TEST_DEX_USER` and `HEADLAMP_TEST_DEX_PASSWORD` if needed.
+
 ## Recommended configuration
 
 ### Playwright UI Mode
