@@ -40,6 +40,7 @@ const checkExports = [
   'CreateButton',
   'CreateResourceForm',
   'CopyButton',
+  'CopyKubectlCommandButton',
   'DeleteButton',
   'DeleteMultipleButton',
   'DetailsDrawer',
