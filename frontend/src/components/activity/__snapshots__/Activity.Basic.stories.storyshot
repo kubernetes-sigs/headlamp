@@ -11,6 +11,7 @@
         class="MuiBox-root css-11hh78l"
       />
       <div
+        aria-label="Left"
         class="MuiBox-root css-3xoqkk"
         role="complementary"
       >
@@ -25,7 +26,10 @@
             />
             <p
               class="MuiTypography-root MuiTypography-body1 css-1bfo8fe-MuiTypography-root"
-            />
+              title="Left"
+            >
+              Left
+            </p>
             <div
               class="MuiBox-root css-1po99kh"
             />
@@ -35,7 +39,6 @@
               aria-label="Window"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
-              title="Window"
               type="button"
             >
               <span
@@ -43,7 +46,7 @@
               />
             </button>
             <button
-              aria-label="Minimize"
+              aria-label="Minimize Left"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               data-mui-internal-clone-element="true"
               tabindex="0"
@@ -54,7 +57,7 @@
               />
             </button>
             <button
-              aria-label="Close"
+              aria-label="Close Left"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               data-mui-internal-clone-element="true"
               tabindex="0"
@@ -73,6 +76,7 @@
         </div>
       </div>
       <div
+        aria-label="Right"
         class="MuiBox-root css-3xoqkk"
         role="complementary"
       >
@@ -87,7 +91,10 @@
             />
             <p
               class="MuiTypography-root MuiTypography-body1 css-1bfo8fe-MuiTypography-root"
-            />
+              title="Right"
+            >
+              Right
+            </p>
             <div
               class="MuiBox-root css-1po99kh"
             />
@@ -97,7 +104,6 @@
               aria-label="Window"
               class="MuiButtonBase-root Mui-focusVisible MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               tabindex="0"
-              title="Window"
               type="button"
             >
               <span
@@ -114,7 +120,7 @@
               </span>
             </button>
             <button
-              aria-label="Minimize"
+              aria-label="Minimize Right"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               data-mui-internal-clone-element="true"
               tabindex="0"
@@ -125,7 +131,7 @@
               />
             </button>
             <button
-              aria-label="Close"
+              aria-label="Close Right"
               class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeSmall css-hvz71z-MuiButtonBase-root-MuiIconButton-root"
               data-mui-internal-clone-element="true"
               tabindex="0"
@@ -162,8 +168,9 @@
               />
               <div
                 class="MuiBox-root css-r1zxuf"
+                title="Right"
               >
-                Something
+                Right
               </div>
             </div>
             <span
@@ -197,8 +204,9 @@
               />
               <div
                 class="MuiBox-root css-r1zxuf"
+                title="Left"
               >
-                Something
+                Left
               </div>
             </div>
             <span

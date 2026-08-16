@@ -140,6 +140,7 @@ export function SingleActivityRenderer({
   onClick: React.PointerEventHandler<HTMLDivElement>;
 }) {
   const { id, minimized, location, content, title, hideTitleInHeader, icon, cluster } = activity;
+  const titleText = typeof title === 'string' ? title : undefined;
   const { t } = useTranslation();
   const activityElementRef = useRef<HTMLDivElement>(null);
   const containerElementRef = useRef(document.getElementById('main'));
@@ -521,7 +522,6 @@ export function SingleActivityRenderer({
                 <>
                   <IconButton
                     size="small"
-                    title={t('Window')}
                     aria-label={t('Window')}
                     aria-haspopup="menu"
                     aria-expanded={isSnapMenuOpen}
@@ -725,22 +725,32 @@ export function SingleActivityRenderer({
                       </Paper>
                     </ClickAwayListener>
                   </Popper>
-                  <Tooltip title={t('Minimize')}>
+                  <Tooltip
+                    title={
+                      titleText ? t('Minimize {{title}}', { title: titleText }) : t('Minimize')
+                    }
+                  >
                     <IconButton
                       onClick={() => {
                         Activity.update(id, { minimized: true });
                       }}
                       size="small"
-                      aria-label={t('Minimize')}
+                      aria-label={
+                        titleText ? t('Minimize {{title}}', { title: titleText }) : t('Minimize')
+                      }
                     >
                       <Icon icon="mdi:minimize" />
                     </IconButton>
                   </Tooltip>
-                  <Tooltip title={t('Close')}>
+                  <Tooltip
+                    title={titleText ? t('Close {{title}}', { title: titleText }) : t('Close')}
+                  >
                     <IconButton
                       onClick={() => Activity.close(id)}
                       size="small"
-                      aria-label={t('Close')}
+                      aria-label={
+                        titleText ? t('Close {{title}}', { title: titleText }) : t('Close')
+                      }
                     >
                       <Icon icon="mdi:close" />
                     </IconButton>
