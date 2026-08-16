@@ -623,6 +623,69 @@ func loadDynamicClusters(config *HeadlampConfig, path string, skipFunc func(kube
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"kubeconfig": path}, err,
 			"loading the kubeconfig of dynamically added clusters")
+
+type authLimiterEntry struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
+}
+
+var (
+	authLimiterMu   sync.Mutex
+	authLimiters    = make(map[string]*authLimiterEntry)
+	authLimiterOnce sync.Once
+)
+
+func getAuthLimiter(ip string) *rate.Limiter {
+	authLimiterOnce.Do(func() {
+		go func() {
+			for {
+				time.Sleep(5 * time.Minute)
+				cleanupAuthLimiters(10 * time.Minute)
+			}
+		}()
+	})
+
+	authLimiterMu.Lock()
+	defer authLimiterMu.Unlock()
+
+	entry, exists := authLimiters[ip]
+	if !exists {
+		entry = &authLimiterEntry{
+			limiter: rate.NewLimiter(5, 10),
+		}
+		authLimiters[ip] = entry
+	}
+	entry.lastSeen = time.Now()
+	return entry.limiter
+}
+
+func cleanupAuthLimiters(ttl time.Duration) {
+	cutoff := time.Now().Add(-ttl)
+
+	authLimiterMu.Lock()
+	defer authLimiterMu.Unlock()
+
+	for ip, entry := range authLimiters {
+		if entry.lastSeen.Before(cutoff) {
+			delete(authLimiters, ip)
+		}
+	}
+}
+
+func authRateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ip, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			ip = r.RemoteAddr
+		}
+
+
+		if !getAuthLimiter(strings.TrimSpace(ip)).Allow() {
+			http.Error(w, "Too many requests", http.StatusTooManyRequests)
+			return
+		}
+		next.ServeHTTP(w, r)
+
 	}
 }
 
@@ -1051,7 +1114,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		oauthMu.Unlock()
 
 		http.Redirect(w, r, authURL, http.StatusFound)
-	}).Queries("cluster", "{cluster}")
+	})).Queries("cluster", "{cluster}")
 
 	r.HandleFunc("/drain-node", config.handleNodeDrain).Methods("POST")
 	r.HandleFunc("/drain-node-status",
@@ -1171,7 +1234,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
-	})
+	}))
 
 	// Serve the frontend if needed
 	if spa.UseEmbeddedFiles {
