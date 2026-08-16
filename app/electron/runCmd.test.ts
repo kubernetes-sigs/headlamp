@@ -18,9 +18,15 @@ import { EventEmitter } from 'events';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
-const { getShellEnvironmentMock, spawnMock } = vi.hoisted(() => ({
+const { dialogMock, getShellEnvironmentMock, spawnMock } = vi.hoisted(() => ({
+  dialogMock: vi.fn(),
   getShellEnvironmentMock: vi.fn(),
   spawnMock: vi.fn(),
+}));
+
+vi.mock('electron', () => ({
+  BrowserWindow: vi.fn(),
+  dialog: { showMessageBoxSync: dialogMock },
 }));
 
 vi.mock('child_process', () => ({
@@ -52,11 +58,48 @@ vi.mock('./main', () => ({
 
 import {
   addRunCmdConsent,
+  checkCommandConsent,
   checkPermissionSecret,
   environmentOverrides,
   handleRunCommand,
   validateCommandData,
 } from './runCmd';
+
+describe('checkCommandConsent', () => {
+  it('uses a previously allowed command without prompting', async () => {
+    const { loadSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: { 'kubectl get': true } });
+
+    expect(checkCommandConsent('kubectl', ['get'], {} as any)).toBe(true);
+    expect(dialogMock).not.toHaveBeenCalled();
+  });
+
+  it('rejects a previously denied command without prompting', async () => {
+    const { loadSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: { 'kubectl get': false } });
+
+    expect(checkCommandConsent('kubectl', ['get'], {} as any)).toBe(false);
+    expect(dialogMock).not.toHaveBeenCalled();
+  });
+
+  it('stores consent when the settings command map is absent', async () => {
+    const { loadSettings, saveSettings } = await import('./settings');
+    const settings = {} as any;
+    vi.mocked(loadSettings).mockReturnValueOnce(settings);
+    dialogMock.mockReturnValueOnce(0);
+
+    expect(checkCommandConsent('gh', [], {} as any)).toBe(true);
+    expect(settings.confirmedCommands).toEqual({ gh: true });
+    expect(saveSettings).toHaveBeenCalledWith('/fake/settings.json', settings);
+  });
+
+  it('uses the command alone as the consent key when arguments are empty', async () => {
+    const { loadSettings } = await import('./settings');
+    vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: { gh: true } });
+
+    expect(checkCommandConsent('gh', [], {} as any)).toBe(true);
+  });
+});
 
 it('does not cache process environment changes as shell overrides', () => {
   expect(
@@ -65,6 +108,10 @@ it('does not cache process environment changes as shell overrides', () => {
       { PATH: '/usr/bin', HEADLAMP_CONFIG_ENABLE_HELM: 'true' }
     )
   ).toEqual({ PATH: '/opt/homebrew/bin:/usr/bin' });
+});
+
+it('uses the current process environment by default', () => {
+  expect(environmentOverrides(process.env)).toEqual({});
 });
 
 describe('checkPermissionSecret', () => {
