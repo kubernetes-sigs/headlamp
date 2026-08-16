@@ -114,6 +114,14 @@ describe('ProjectDetails events', () => {
     );
   }
 
+  it('lets project details grow beyond the viewport height', async () => {
+    const { container } = renderDetails();
+
+    await screen.findByRole('tab', { name: /Overview/ });
+
+    expect(container.firstElementChild).toHaveStyle({ minHeight: '100%' });
+  });
+
   it('dispatches PROJECT_DETAILS_VIEW once the project resources are loaded', async () => {
     const events = recordHeadlampEvents();
 
