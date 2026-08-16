@@ -240,4 +240,83 @@ describe('GraphSourceManager', () => {
       },
     ]);
   });
+
+  it('applies a relation edgeAttributes callback to the generated edge', async () => {
+    const edgeAttributes = vi.fn(() => ({ nonGroupingSide: 'source' as const }));
+
+    render(
+      <GraphSourceManager
+        sources={[
+          source('first', { nodes: [{ id: 'first-node' }] }),
+          source('second', { nodes: [{ id: 'second-node' }] }),
+        ]}
+        relations={[
+          {
+            id: 'first-second',
+            fromSource: 'first',
+            toSource: 'second',
+            predicate: () => true,
+            edgeAttributes,
+          },
+        ]}
+      >
+        <Probe />
+      </GraphSourceManager>
+    );
+
+    await waitFor(() => expect(context.isLoading).toBe(false));
+    expect(edgeAttributes).toHaveBeenCalledWith(
+      expect.objectContaining({ id: 'first-node' }),
+      expect.objectContaining({ id: 'second-node' })
+    );
+    expect(context.edges).toEqual([
+      {
+        id: 'first-node-second-node-first-second',
+        source: 'first-node',
+        target: 'second-node',
+        label: undefined,
+        nonGroupingSide: 'source',
+      },
+    ]);
+  });
+
+  it('does not let a relation edgeAttributes callback override the generated id/source/target', async () => {
+    // edgeAttributes is typed to exclude these fields, but nothing stops a
+    // dynamically-loaded plugin relation from returning them anyway at runtime.
+    const edgeAttributes = vi.fn(() => ({
+      id: 'hijacked-id',
+      source: 'nonexistent-node',
+      target: 'nonexistent-node',
+    })) as unknown as Relation['edgeAttributes'];
+
+    render(
+      <GraphSourceManager
+        sources={[
+          source('first', { nodes: [{ id: 'first-node' }] }),
+          source('second', { nodes: [{ id: 'second-node' }] }),
+        ]}
+        relations={[
+          {
+            id: 'first-second',
+            fromSource: 'first',
+            toSource: 'second',
+            predicate: () => true,
+            edgeAttributes,
+          },
+        ]}
+      >
+        <Probe />
+      </GraphSourceManager>
+    );
+
+    await waitFor(() => expect(context.isLoading).toBe(false));
+    expect(context.edges).toEqual([
+      {
+        id: 'first-node-second-node-first-second',
+        source: 'first-node',
+        target: 'second-node',
+        label: undefined,
+      },
+    ]);
+  });
 });

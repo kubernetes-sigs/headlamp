@@ -416,6 +416,199 @@ describe('groupGraph', () => {
     const individualNodes = groupedGraph.nodes?.filter(node => !node.id.startsWith('group-'));
     expect(individualNodes?.map(n => n.id)).toEqual(['hpa', 'configmap']);
   });
+
+  it('does not merge separate components through shared RWX PVC', () => {
+    const rwxPvc: GraphNode = {
+      id: 'pvc-rwx',
+      kubeObject: {
+        kind: 'PersistentVolumeClaim',
+        metadata: { name: 'pvc-rwx', namespace: 'ns1' } as any,
+        spec: { accessModes: ['ReadWriteMany'] },
+      } as any,
+    };
+
+    const deploymentA: GraphNode = { id: 'deploy-a', kubeObject: { kind: 'Deployment' } as any };
+    const podA: GraphNode = { id: 'pod-a', kubeObject: { kind: 'Pod' } as any };
+    const deploymentB: GraphNode = { id: 'deploy-b', kubeObject: { kind: 'Deployment' } as any };
+    const podB: GraphNode = { id: 'pod-b', kubeObject: { kind: 'Pod' } as any };
+
+    const groupedGraph = groupGraph(
+      [deploymentA, podA, deploymentB, podB, rwxPvc],
+      [
+        { id: 'e-a', source: 'deploy-a', target: 'pod-a' },
+        { id: 'e-b', source: 'deploy-b', target: 'pod-b' },
+        // Edges from RWX PVC to pods should be marked with a nonGroupingSide (simulating what relations.tsx does)
+        { id: 'e-a-pvc', source: 'pvc-rwx', target: 'pod-a', nonGroupingSide: 'source' },
+        { id: 'e-b-pvc', source: 'pvc-rwx', target: 'pod-b', nonGroupingSide: 'source' },
+      ],
+      { namespaces: [], k8sNodes: [] }
+    );
+
+    const connectedGroups = (groupedGraph.nodes ?? []).filter(
+      node => node.id.startsWith('group-') && (node.edges?.length ?? 0) > 0
+    );
+    expect(connectedGroups).toHaveLength(2);
+
+    // The original shared PVC node should not appear directly in grouped output.
+    expect((groupedGraph.nodes ?? []).some(n => n.id === 'pvc-rwx')).toBe(false);
+
+    const groupNodeIds = (group: GraphNode) => new Set((group.nodes ?? []).map(n => n.id));
+
+    const groupA = connectedGroups.find(g => groupNodeIds(g).has('deploy-a'));
+    const groupB = connectedGroups.find(g => groupNodeIds(g).has('deploy-b'));
+    expect(groupA).toBeDefined();
+    expect(groupB).toBeDefined();
+
+    expect(groupNodeIds(groupA!).has('pod-a')).toBe(true);
+    expect(groupNodeIds(groupB!).has('pod-b')).toBe(true);
+    // Each group should only contain its own workload, not the other one.
+    expect(groupNodeIds(groupA!).has('deploy-b')).toBe(false);
+    expect(groupNodeIds(groupA!).has('pod-b')).toBe(false);
+    expect(groupNodeIds(groupB!).has('deploy-a')).toBe(false);
+    expect(groupNodeIds(groupB!).has('pod-a')).toBe(false);
+
+    const pvcNodesByGroup = connectedGroups.map(group =>
+      (group.nodes ?? []).filter(node => node.kubeObject?.kind === 'PersistentVolumeClaim')
+    );
+
+    expect(pvcNodesByGroup[0]).toHaveLength(1);
+    expect(pvcNodesByGroup[1]).toHaveLength(1);
+
+    const pvc0 = pvcNodesByGroup[0][0];
+    const pvc1 = pvcNodesByGroup[1][0];
+
+    expect(pvc0.id).not.toEqual(pvc1.id);
+    expect(pvc0.id).not.toEqual('pvc-rwx');
+    expect(pvc1.id).not.toEqual('pvc-rwx');
+    expect(pvc0.id.startsWith('pvc-rwx--group-')).toBe(true);
+    expect(pvc1.id.startsWith('pvc-rwx--group-')).toBe(true);
+
+    // Each group should reference its own cloned PVC ID (not the original PVC ID), and
+    // the cloned PVC node should preserve the original PVC's kubeObject data.
+    connectedGroups.forEach(group => {
+      const edgeIds = new Set((group.edges ?? []).flatMap(e => [e.source, e.target]));
+      expect(edgeIds.has('pvc-rwx')).toBe(false);
+
+      const pvc = (group.nodes ?? []).find(n => n.kubeObject?.kind === 'PersistentVolumeClaim');
+      expect(pvc).toBeDefined();
+      expect(edgeIds.has(pvc!.id)).toBe(true);
+      expect((pvc!.kubeObject as any)?.spec?.accessModes).toContain('ReadWriteMany');
+    });
+  });
+
+  it('does not merge separate components through shared generic nodes', () => {
+    // Verifies the nonGroupingSide logic is generic and not tied to PVCs specifically.
+    const sharedNode: GraphNode = {
+      id: 'shared-resource',
+      kubeObject: { kind: 'ConfigMap', metadata: { name: 'shared-cm' } } as any,
+    };
+
+    const nodeA: GraphNode = { id: 'node-a', kubeObject: { kind: 'Pod' } as any };
+    const nodeB: GraphNode = { id: 'node-b', kubeObject: { kind: 'Pod' } as any };
+
+    const groupedGraph = groupGraph(
+      [nodeA, nodeB, sharedNode],
+      [
+        {
+          id: 'e-a-shared',
+          source: 'shared-resource',
+          target: 'node-a',
+          nonGroupingSide: 'source',
+        },
+        {
+          id: 'e-b-shared',
+          source: 'shared-resource',
+          target: 'node-b',
+          nonGroupingSide: 'source',
+        },
+      ],
+      { namespaces: [], k8sNodes: [] }
+    );
+
+    const connectedGroups = (groupedGraph.nodes ?? []).filter(
+      node => node.id.startsWith('group-') && (node.edges?.length ?? 0) > 0
+    );
+    // Should result in 2 separate groups, not 1 giant group.
+    expect(connectedGroups).toHaveLength(2);
+
+    const groupA = connectedGroups.find(g => (g.nodes ?? []).some(n => n.id === 'node-a'));
+    const groupB = connectedGroups.find(g => (g.nodes ?? []).some(n => n.id === 'node-b'));
+
+    expect(groupA).toBeDefined();
+    expect(groupB).toBeDefined();
+
+    // Verify shared node is cloned, once per group, with a distinct ID.
+    const sharedInA = groupA?.nodes?.find(n => n.id.startsWith('shared-resource--'));
+    const sharedInB = groupB?.nodes?.find(n => n.id.startsWith('shared-resource--'));
+    expect(sharedInA).toBeDefined();
+    expect(sharedInB).toBeDefined();
+    expect(sharedInA?.id).not.toEqual(sharedInB?.id);
+  });
+
+  it('keeps the original ID for a shared RWX PVC that only touches one component', () => {
+    // Two Pods of the *same* Deployment mounting an RWX PVC don't bridge separate
+    // components, so the PVC should be reattached as-is (not cloned with a synthetic ID).
+    const rwxPvc: GraphNode = {
+      id: 'pvc-rwx',
+      kubeObject: { kind: 'PersistentVolumeClaim' } as any,
+    };
+    const deployment: GraphNode = { id: 'deploy-a', kubeObject: { kind: 'Deployment' } as any };
+    const podA: GraphNode = { id: 'pod-a', kubeObject: { kind: 'Pod' } as any };
+    const podB: GraphNode = { id: 'pod-b', kubeObject: { kind: 'Pod' } as any };
+
+    const groupedGraph = groupGraph(
+      [deployment, podA, podB, rwxPvc],
+      [
+        { id: 'e-dep-a', source: 'deploy-a', target: 'pod-a' },
+        { id: 'e-dep-b', source: 'deploy-a', target: 'pod-b' },
+        { id: 'e-a-pvc', source: 'pvc-rwx', target: 'pod-a', nonGroupingSide: 'source' },
+        { id: 'e-b-pvc', source: 'pvc-rwx', target: 'pod-b', nonGroupingSide: 'source' },
+      ],
+      { namespaces: [], k8sNodes: [] }
+    );
+
+    const connectedGroup = (groupedGraph.nodes ?? []).find(
+      node => node.id.startsWith('group-') && (node.edges?.length ?? 0) > 0
+    );
+    expect(connectedGroup).toBeDefined();
+
+    const pvcNode = connectedGroup?.nodes?.find(
+      n => n.kubeObject?.kind === 'PersistentVolumeClaim'
+    );
+    expect(pvcNode?.id).toBe('pvc-rwx');
+
+    const edgeIds = (connectedGroup?.edges ?? []).map(e => e.id);
+    expect(edgeIds).toEqual(expect.arrayContaining(['e-a-pvc', 'e-b-pvc']));
+  });
+
+  it('does not treat a standalone Pod mounting two RWX PVCs as shared', () => {
+    // The Pod's only edges are both `nonGroupingSide: 'source'` (naming the PVCs, not
+    // the Pod, as shareable) so even though the Pod itself has no "normal" edges and
+    // touches 2 neighbors, it must not be split out as if it were the shared resource.
+    // Neither PVC has more than one consumer either, so nothing here should be split:
+    // the Pod and both PVCs should end up in a single, un-cloned connected component.
+    const pod: GraphNode = { id: 'pod-solo', kubeObject: { kind: 'Pod' } as any };
+    const pvcA: GraphNode = { id: 'pvc-a', kubeObject: { kind: 'PersistentVolumeClaim' } as any };
+    const pvcB: GraphNode = { id: 'pvc-b', kubeObject: { kind: 'PersistentVolumeClaim' } as any };
+
+    const groupedGraph = groupGraph(
+      [pod, pvcA, pvcB],
+      [
+        { id: 'e-pod-pvc-a', source: 'pvc-a', target: 'pod-solo', nonGroupingSide: 'source' },
+        { id: 'e-pod-pvc-b', source: 'pvc-b', target: 'pod-solo', nonGroupingSide: 'source' },
+      ],
+      { namespaces: [], k8sNodes: [] }
+    );
+
+    const connectedGroups = (groupedGraph.nodes ?? []).filter(
+      node => node.id.startsWith('group-') && (node.edges?.length ?? 0) > 0
+    );
+    // A single group containing the Pod and both (un-cloned) PVCs, not split apart.
+    expect(connectedGroups).toHaveLength(1);
+    const group = connectedGroups[0];
+    expect((group.nodes ?? []).map(n => n.id).sort()).toEqual(['pod-solo', 'pvc-a', 'pvc-b']);
+    expect((group.edges ?? []).map(e => e.id).sort()).toEqual(['e-pod-pvc-a', 'e-pod-pvc-b']);
+  });
 });
 
 describe('collapseGraph', () => {
