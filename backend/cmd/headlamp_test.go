@@ -4387,7 +4387,7 @@ func TestAuthLimiterCleanup(t *testing.T) {
 	// 4. Creating a new request after cleanup creates a new limiter.
 	limiter3 := getAuthLimiter(ip)
 	assert.NotNil(t, limiter3)
-	assert.NotEqual(t, limiter1, limiter3, "A new limiter should be created")
+	assert.NotSame(t, limiter1, limiter3, "A new limiter should be created")
 
 	// 5. Concurrent access does not cause a race.
 	var wg sync.WaitGroup

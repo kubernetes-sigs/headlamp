@@ -74,6 +74,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 
 	"golang.org/x/oauth2"
+	"golang.org/x/time/rate"
 )
 
 type HeadlampConfig struct {
@@ -623,6 +624,8 @@ func loadDynamicClusters(config *HeadlampConfig, path string, skipFunc func(kube
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{"kubeconfig": path}, err,
 			"loading the kubeconfig of dynamically added clusters")
+	}
+}
 
 type authLimiterEntry struct {
 	limiter  *rate.Limiter
@@ -678,7 +681,6 @@ func authRateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
 		if err != nil {
 			ip = r.RemoteAddr
 		}
-
 
 		if !getAuthLimiter(strings.TrimSpace(ip)).Allow() {
 			http.Error(w, "Too many requests", http.StatusTooManyRequests)
@@ -1114,7 +1116,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		oauthMu.Unlock()
 
 		http.Redirect(w, r, authURL, http.StatusFound)
-	})).Queries("cluster", "{cluster}")
+	}).Queries("cluster", "{cluster}")
 
 	r.HandleFunc("/drain-node", config.handleNodeDrain).Methods("POST")
 	r.HandleFunc("/drain-node-status",
@@ -1234,7 +1236,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
-	}))
+	})
 
 	// Serve the frontend if needed
 	if spa.UseEmbeddedFiles {
