@@ -54,7 +54,7 @@ function getMockStore(clusters: Record<string, any> = {}) {
       ui: (state = {}) => state,
       filter: (
         state = {
-          namespaces: new Set(),
+          namespaces: [],
           search: '',
         }
       ) => state,

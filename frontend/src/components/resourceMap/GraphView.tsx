@@ -213,7 +213,7 @@ function GraphViewContent({
     if (hasErrorsFilter) {
       filters.push({ type: 'hasErrors' });
     }
-    if (namespaces?.size > 0) {
+    if (namespaces.length > 0) {
       filters.push({ type: 'namespace', namespaces });
     }
     return filters;
@@ -507,7 +507,7 @@ function GraphViewContent({
                 />
                 <Box sx={{ fontSize: '14px', marginLeft: 1 }}>{t('Group By')}</Box>
                 <ChipGroup>
-                  {namespaces.size !== 1 && (
+                  {namespaces.length !== 1 && (
                     <ChipToggleButton
                       label={t('Namespace')}
                       isActive={groupBy === 'namespace'}

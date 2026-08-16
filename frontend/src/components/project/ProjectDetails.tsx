@@ -634,7 +634,7 @@ function ProjectGraph({ project: { namespaces, clusters } }: { project: ProjectD
         namespaces.length > 0
           ? {
               type: 'namespace',
-              namespaces: new Set(namespaces),
+              namespaces,
             }
           : undefined,
       ].filter(Boolean) as GraphFilter[],
