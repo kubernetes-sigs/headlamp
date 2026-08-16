@@ -166,6 +166,10 @@ func withStateReader(r io.Reader) oidcTestOption {
 func newOIDCTestHandler(t *testing.T, oidcSrv *oidcTestServer, opts ...oidcTestOption) (http.Handler, string) {
 	t.Helper()
 
+	authLimiterMu.Lock()
+	authLimiters = make(map[string]*authLimiterEntry)
+	authLimiterMu.Unlock()
+
 	const clusterName = "oidc-char-test"
 
 	kubeConfigStore := kubeconfig.NewContextStore()

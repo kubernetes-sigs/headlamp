@@ -30,6 +30,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"os/signal"
@@ -75,6 +76,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 
 	"golang.org/x/oauth2"
+	"golang.org/x/time/rate"
 )
 
 type HeadlampConfig struct {
@@ -658,6 +660,104 @@ func loadDynamicClusters(config *HeadlampConfig, path string, skipFunc func(kube
 	}
 }
 
+type authLimiterEntry struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
+}
+
+var (
+	authLimiterMu   sync.Mutex
+	authLimiters    = make(map[string]*authLimiterEntry)
+	authLimiterOnce sync.Once
+)
+
+func getAuthLimiter(ip string) *rate.Limiter {
+	authLimiterOnce.Do(func() {
+		go func() {
+			for {
+				time.Sleep(5 * time.Minute)
+				cleanupAuthLimiters(10 * time.Minute)
+			}
+		}()
+	})
+
+	authLimiterMu.Lock()
+	defer authLimiterMu.Unlock()
+
+	entry, exists := authLimiters[ip]
+	if !exists {
+		entry = &authLimiterEntry{
+			limiter: rate.NewLimiter(5, 10),
+		}
+		authLimiters[ip] = entry
+	}
+	entry.lastSeen = time.Now()
+	return entry.limiter
+}
+
+func cleanupAuthLimiters(ttl time.Duration) {
+	cutoff := time.Now().Add(-ttl)
+
+	authLimiterMu.Lock()
+	defer authLimiterMu.Unlock()
+
+	for ip, entry := range authLimiters {
+		if entry.lastSeen.Before(cutoff) {
+			delete(authLimiters, ip)
+		}
+	}
+}
+
+func clientIP(r *http.Request, trustedProxyCIDRs []string) string {
+	remoteHost, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		remoteHost = r.RemoteAddr
+	}
+
+	remoteIP, err := netip.ParseAddr(strings.TrimSpace(remoteHost))
+	if err != nil {
+		return strings.TrimSpace(remoteHost)
+	}
+
+	for _, cidr := range trustedProxyCIDRs {
+		prefix, err := netip.ParsePrefix(strings.TrimSpace(cidr))
+		if err != nil {
+			continue
+		}
+
+		if prefix.Contains(remoteIP) {
+			forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-For"))
+			if forwarded == "" {
+				break
+			}
+
+			// X-Forwarded-For is a comma-separated list.
+			// The first address is the original client.
+			client := strings.TrimSpace(strings.Split(forwarded, ",")[0])
+			if parsed, err := netip.ParseAddr(client); err == nil {
+				return parsed.String()
+			}
+
+			break
+		}
+	}
+
+	return remoteIP.String()
+}
+
+func authRateLimitMiddleware(trustedProxyCIDRs []string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ip := clientIP(r, trustedProxyCIDRs)
+
+		if !getAuthLimiter(ip).Allow() {
+			http.Error(w, "Too many requests", http.StatusTooManyRequests)
+			return
+		}
+		next.ServeHTTP(w, r)
+
+	}
+}
+
 //nolint:gocognit,funlen,gocyclo
 func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
@@ -970,7 +1070,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	// Auth token management
 	r.Handle("/auth/set-token", auth.NewBackendTokenMiddleware(config.UseInCluster)(
-		http.HandlerFunc(config.handleSetToken))).Methods("POST")
+		authRateLimitMiddleware(config.TrustedProxyCIDRs, config.handleSetToken))).Methods("POST")
 
 	// Websocket connections
 	if config.Multiplexer != nil {
@@ -1003,7 +1103,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 	}()
 
-	r.HandleFunc("/oidc", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/oidc", authRateLimitMiddleware(config.TrustedProxyCIDRs, func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
 		cluster := r.URL.Query().Get("cluster")
 
@@ -1125,7 +1225,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		oauthMu.Unlock()
 
 		http.Redirect(w, r, authURL, http.StatusFound)
-	}).Queries("cluster", "{cluster}")
+	})).Queries("cluster", "{cluster}")
 
 	r.Handle("/drain-node",
 		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(config.handleNodeDrain))).Methods("POST")
@@ -1133,7 +1233,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(
 			config.handleNodeDrainStatus))).Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
 
-	r.HandleFunc("/oidc-callback", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/oidc-callback", authRateLimitMiddleware(config.TrustedProxyCIDRs, func(w http.ResponseWriter, r *http.Request) {
 		// Shadow createHeadlampHandler's outer-scope err so any log call in
 		// this handler is guaranteed to reference this closure's err and
 		// never the startup kubeconfig-load error. See issue #4839.
@@ -1247,7 +1347,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
 
 		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
-	})
+	}))
 
 	// Serve the frontend if needed
 	if spa.UseEmbeddedFiles {
@@ -2024,7 +2124,8 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 // That proxy is saved in the cache with the context key.
 func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 	router.Handle("/clusters/{clusterName}/set-token",
-		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.handleSetToken))).Methods("POST")
+		auth.NewBackendTokenMiddleware(c.UseInCluster)(
+			authRateLimitMiddleware(c.TrustedProxyCIDRs, c.handleSetToken))).Methods("POST")
 
 	handler := clusterRequestHandler(c)
 	if c.CacheEnabled {

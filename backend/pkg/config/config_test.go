@@ -116,6 +116,7 @@ func TestParseBasic(t *testing.T) {
 				"--pod-debug-image=registry.example.com/debug:latest",
 				"--node-shell-image=registry.example.com/shell:latest",
 				"--node-shell-namespace=custom-ns",
+				"--trusted-proxy-cidrs=10.0.0.0/8,192.168.1.0/24",
 			},
 			verify: func(t *testing.T, conf *config.Config) {
 				assert.Equal(t, uint(3456), conf.Port)
@@ -123,6 +124,7 @@ func TestParseBasic(t *testing.T) {
 				assert.Equal(t, "registry.example.com/shell:latest", conf.NodeShellImage)
 				assert.Equal(t, "custom-ns", conf.NodeShellNamespace)
 				assert.Equal(t, config.DefaultMeUsernamePath, conf.MeUsernamePath)
+				assert.Equal(t, "10.0.0.0/8,192.168.1.0/24", conf.TrustedProxyCIDRs)
 			},
 		},
 		{

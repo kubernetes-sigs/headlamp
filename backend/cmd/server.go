@@ -110,6 +110,13 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 
 			return strings.Split(conf.ProxyURLs, ",")
 		}(),
+		TrustedProxyCIDRs: func() []string {
+			if conf.TrustedProxyCIDRs == "" {
+				return []string{}
+			}
+
+			return strings.Split(conf.TrustedProxyCIDRs, ",")
+		}(),
 		ClusterInventoryProviderFile:          conf.ClusterInventoryProviderFile,
 		ClusterInventoryLabelSelector:         conf.ClusterInventoryLabelSelector,
 		ClusterInventoryNamespaces:            conf.ClusterInventoryNamespaces,

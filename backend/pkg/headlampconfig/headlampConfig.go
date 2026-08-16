@@ -71,6 +71,7 @@ type HeadlampCFG struct {
 	Metrics                *telemetry.Metrics
 	BaseURL                string
 	ProxyURLs              []string
+	TrustedProxyCIDRs      []string
 
 	TLSCertPath                  string
 	TLSKeyPath                   string
