@@ -1006,3 +1006,64 @@ func TestGetDefaultKubeConfigPath(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(tmpDir, ".kube", "config"), path)
 }
+
+func TestOIDCAuthStyleValidation(t *testing.T) {
+	tests := []struct {
+		name          string
+		args          []string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:        "auth_style_params",
+			args:        []string{"go run ./cmd", "--oidc-auth-style=params"},
+			expectError: false,
+		},
+		{
+			name:        "auth_style_header",
+			args:        []string{"go run ./cmd", "--oidc-auth-style=header"},
+			expectError: false,
+		},
+		{
+			name:        "auth_style_auto",
+			args:        []string{"go run ./cmd", "--oidc-auth-style=auto"},
+			expectError: false,
+		},
+		{
+			name:        "auth_style_uppercase_normalized",
+			args:        []string{"go run ./cmd", "--oidc-auth-style=PARAMS"},
+			expectError: false,
+		},
+		{
+			name:          "auth_style_invalid",
+			args:          []string{"go run ./cmd", "--oidc-auth-style=bogus"},
+			expectError:   true,
+			errorContains: "oidc-auth-style must be one of",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, conf)
+				assert.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, conf)
+			}
+		})
+	}
+}
+
+func TestOIDCAuthStyleFromEnv(t *testing.T) {
+	require.NoError(t, os.Setenv("HEADLAMP_CONFIG_OIDC_AUTH_STYLE", "params"))
+	defer func() {
+		require.NoError(t, os.Unsetenv("HEADLAMP_CONFIG_OIDC_AUTH_STYLE"))
+	}()
+
+	conf, err := config.Parse([]string{"go run ./cmd"})
+	require.NoError(t, err)
+	require.NotNil(t, conf)
+	assert.Equal(t, "params", conf.OidcAuthStyle)
+}

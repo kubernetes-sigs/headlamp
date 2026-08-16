@@ -227,6 +227,7 @@ users:
         client-secret: "test-client-secret"
         idp-issuer-url: "https://oidc.example.com"
         scope: "profile,email"
+        auth-style: "params"
         idp-certificate-authority: "%s"
       name: oidc`, caFilePath))
 
@@ -250,6 +251,7 @@ users:
 	assert.Equal(t, "test-client-secret", oidcConfig.ClientSecret)
 	assert.Equal(t, "https://oidc.example.com", oidcConfig.IdpIssuerURL)
 	assert.Equal(t, []string{"profile", "email"}, oidcConfig.Scopes)
+	assert.Equal(t, "params", oidcConfig.AuthStyle)
 
 	// Verify CA certificate is loaded from file
 	require.NotNil(t, oidcConfig.CACert, "Expected CA certificate to be loaded")
@@ -1353,4 +1355,41 @@ users:
 	assert.Equal(t, filepath.Join(root, "pki", "ca.pem"), filepath.Clean(ctx.Cluster.CertificateAuthority))
 	assert.Equal(t, filepath.Join(root, "pki", "admin.pem"), filepath.Clean(ctx.AuthInfo.ClientCertificate))
 	assert.Equal(t, filepath.Join(root, "pki", "admin.key"), filepath.Clean(ctx.AuthInfo.ClientKey))
+}
+
+func TestOIDCConfigRejectsInvalidAuthStyle(t *testing.T) {
+	kubeConfig := `apiVersion: v1
+clusters:
+- cluster:
+    server: https://127.0.0.1:6443
+  name: oidc-test-cluster
+contexts:
+- context:
+    cluster: oidc-test-cluster
+    user: oidc-test-user
+  name: oidc-test-context
+current-context: oidc-test-context
+kind: Config
+users:
+- name: oidc-test-user
+  user:
+    auth-provider:
+      config:
+        client-id: "test-client-id"
+        client-secret: "test-client-secret"
+        idp-issuer-url: "https://oidc.example.com"
+        scope: "profile,email"
+        auth-style: "bogus"
+      name: oidc`
+
+	tempKubeconfig := createTempKubeconfig(t, kubeConfig)
+	defer func() { _ = os.Remove(tempKubeconfig) }()
+
+	contexts, _, err := kubeconfig.LoadContextsFromFile(tempKubeconfig, kubeconfig.KubeConfig)
+	require.NoError(t, err)
+	require.Equal(t, 1, len(contexts))
+
+	_, err = contexts[0].OidcConfig()
+	require.Error(t, err, "expected an error for an invalid auth-style value")
+	assert.Contains(t, err.Error(), "auth-style")
 }

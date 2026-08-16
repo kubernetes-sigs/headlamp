@@ -528,3 +528,113 @@ func TestOIDCCallback_PKCEVerifierSentOnExchange(t *testing.T) {
 			"no code_verifier should be sent when PKCE is off")
 	})
 }
+
+// newOIDCTestHandlerWithAuthStyle builds an OIDC handler like
+// newOIDCTestHandler but sets the token-endpoint client auth style on the
+// context's OidcConf, so a test can drive the configured style through the
+// callback exchange.
+func newOIDCTestHandlerWithAuthStyle(t *testing.T, oidcSrv *oidcTestServer, authStyle string) (http.Handler, string) {
+	t.Helper()
+
+	const clusterName = "oidc-authstyle-test"
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+
+	err := kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: clusterName,
+		Cluster: &api.Cluster{
+			Server: "https://test-cluster.example.com",
+		},
+		AuthInfo: &api.AuthInfo{},
+		OidcConf: &kubeconfig.OidcConfig{
+			ClientID:     "test-client-id",
+			ClientSecret: "test-client-secret",
+			IdpIssuerURL: oidcSrv.URL(),
+			Scopes:       []string{"profile", "email"},
+			AuthStyle:    authStyle,
+		},
+		Source: kubeconfig.KubeConfig,
+	})
+	require.NoError(t, err)
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				UseInCluster:    false,
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	return createHeadlampHandler(context.Background(), c), clusterName
+}
+
+// TestOIDCCallback_AuthStyle asserts that the configured auth-style controls
+// where the token exchange sends client credentials: "params" places them in
+// the request form with no Basic Authorization header, while "header" sends a
+// Basic Authorization header. This guards the fix for #7064, where auto-detect
+// probing burned single-use authorization codes.
+func TestOIDCCallback_AuthStyle(t *testing.T) {
+	tests := []struct {
+		name            string
+		authStyle       string
+		wantBasicHeader bool
+		wantFormSecret  bool
+	}{
+		{
+			name:            "params_sends_credentials_in_body",
+			authStyle:       "params",
+			wantBasicHeader: false,
+			wantFormSecret:  true,
+		},
+		{
+			name:            "header_sends_basic_auth",
+			authStyle:       "header",
+			wantBasicHeader: true,
+			wantFormSecret:  false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var (
+				gotBasicHeader bool
+				gotFormSecret  string
+			)
+
+			tokenHandler := func(w http.ResponseWriter, r *http.Request) {
+				_ = r.ParseForm()
+				gotBasicHeader = strings.HasPrefix(r.Header.Get("Authorization"), "Basic ")
+				gotFormSecret = r.Form.Get("client_secret")
+
+				// Reject the exchange so the callback fails deterministically
+				// after the token request has been captured.
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusBadRequest)
+				_, _ = io.WriteString(w, `{"error":"invalid_grant"}`)
+			}
+
+			oidcSrv := newOIDCTestServer(t, tokenHandler)
+			handler, cluster := newOIDCTestHandlerWithAuthStyle(t, oidcSrv, tt.authStyle)
+
+			loc := driveOIDCStart(t, handler, cluster)
+			state := extractState(t, loc)
+
+			_ = callOIDCCallback(t, handler, fmt.Sprintf("state=%s&code=fake", state))
+
+			assert.Equal(t, tt.wantBasicHeader, gotBasicHeader,
+				"Basic Authorization header presence mismatch for style %q", tt.authStyle)
+
+			if tt.wantFormSecret {
+				assert.Equal(t, "test-client-secret", gotFormSecret,
+					"expected client_secret in form body for style %q", tt.authStyle)
+			} else {
+				assert.Empty(t, gotFormSecret,
+					"did not expect client_secret in form body for style %q", tt.authStyle)
+			}
+		})
+	}
+}
