@@ -132,6 +132,26 @@ func TestParseBasic(t *testing.T) {
 	}
 }
 
+func TestParseCacheResyncPeriod(t *testing.T) {
+	tests := []struct {
+		name   string
+		args   []string
+		expect time.Duration
+	}{
+		{"default", nil, 30 * time.Minute},
+		{"custom", []string{"go run ./cmd", "--cache-resync-period=15m"}, 15 * time.Minute},
+		{"disabled", []string{"go run ./cmd", "--cache-resync-period=0s"}, 0},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expect, conf.CacheResyncPeriod)
+		})
+	}
+}
+
 var ParseWithEnvTests = []struct {
 	name   string
 	args   []string
