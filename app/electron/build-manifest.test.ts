@@ -203,6 +203,18 @@ describe('build manifest selection', () => {
     vi.resetModules();
     await expect(import('../electron-builder.config.ts')).rejects.toThrow('proxy-urls');
   });
+
+  it('pins SHA-256 digests for every bundled plugin archive', () => {
+    const bundledManifest = loadBuildManifest(DEFAULT_MANIFEST_FILE) as {
+      plugins?: Array<{ archive?: string; sha256?: string }>;
+    };
+    const bundledArchives = bundledManifest.plugins?.filter(plugin => plugin.archive) ?? [];
+
+    expect(bundledArchives.length).toBeGreaterThan(0);
+    for (const plugin of bundledArchives) {
+      expect(plugin.sha256).toMatch(/^[a-f0-9]{64}$/);
+    }
+  });
 });
 
 describe('plugin archive integrity', () => {
@@ -412,26 +424,22 @@ describe('plugin archive integrity', () => {
     ).not.toThrow();
   });
 
-  it.each([
-    'CON',
-    'nul.txt',
-    'COM1',
-    'lpt9.log',
-    'plugin.',
-    'plugin ',
-  ])('rejects an unsafe external plugin name: %j', name => {
-    expect(() =>
-      validatePluginSource(
-        {
-          name,
-          packageName: 'example-plugin',
-          file: './plugin.tar.gz',
-          sha256: '0'.repeat(64),
-        },
-        true
-      )
-    ).toThrow('Invalid plugin name');
-  });
+  it.each(['CON', 'nul.txt', 'COM1', 'lpt9.log', 'plugin.', 'plugin '])(
+    'rejects an unsafe external plugin name: %j',
+    name => {
+      expect(() =>
+        validatePluginSource(
+          {
+            name,
+            packageName: 'example-plugin',
+            file: './plugin.tar.gz',
+            sha256: '0'.repeat(64),
+          },
+          true
+        )
+      ).toThrow('Invalid plugin name');
+    }
+  );
   it('accepts matching package identities and rejects mismatches', () => {
     const packageJson = temporaryFile('{"name":"@example/plugin"}');
 
