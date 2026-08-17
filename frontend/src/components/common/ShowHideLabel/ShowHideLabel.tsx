@@ -53,7 +53,7 @@ export default function ShowHideLabel(props: ShowHideLabelProps) {
   }
 
   return (
-    <Box display={expanded ? 'block' : 'flex'}>
+    <Box display="block">
       <span id={labelIdOrRandom} style={{ wordBreak: 'break-all', whiteSpace: 'normal' }}>
         {actualText}
         {!expanded && needsButton && '…'}
