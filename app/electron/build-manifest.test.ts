@@ -30,6 +30,7 @@ import {
   resolveBuildManifestPath,
 } from '../scripts/build-manifest.ts';
 import {
+  applyEnabledByDefault,
   downloadFile,
   extractArchive,
   getArchiveFileName,
@@ -465,6 +466,19 @@ describe('plugin archive integrity', () => {
     ).toThrow('Invalid SHA-256');
   });
 
+  it('rejects non-boolean default enabled states', () => {
+    expect(() =>
+      validatePluginSource(
+        {
+          name: 'example',
+          file: './plugin.tar.gz',
+          enabledByDefault: 'false' as unknown as boolean,
+        },
+        false
+      )
+    ).toThrow('enabledByDefault must be a boolean');
+  });
+
   it('accepts matching digests and manifests without digests', () => {
     const archive = temporaryFile('plugin archive');
     const digest = crypto.createHash('sha256').update('plugin archive').digest('hex');
@@ -577,6 +591,58 @@ describe('plugin archive integrity', () => {
     expect(() => verifyPluginIdentity(missingPackageJson, '@example/plugin')).toThrow(
       'Plugin identity verification failed for @example/plugin'
     );
+  });
+});
+
+describe('bundled plugin default metadata', () => {
+  function pluginPackage(contents: string = '{"name":"example"}') {
+    const pluginRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugin-default-'));
+    temporaryDirectories.push(pluginRoot);
+    const pluginDirectory = path.join(pluginRoot, 'example');
+    fs.mkdirSync(pluginDirectory);
+    const packageJsonPath = path.join(pluginDirectory, 'package.json');
+    fs.writeFileSync(packageJsonPath, contents);
+    return { pluginRoot, packageJsonPath };
+  }
+
+  it('atomically preserves package metadata while applying a disabled default', () => {
+    const { pluginRoot, packageJsonPath } = pluginPackage(
+      '{"name":"example","headlamp":{"i18n":["en"]}}'
+    );
+    const rename = vi.spyOn(fs, 'renameSync');
+
+    applyEnabledByDefault(pluginRoot, 'example', false);
+
+    expect(rename).toHaveBeenCalledWith(expect.stringContaining('.tmp-'), packageJsonPath);
+    expect(JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))).toEqual({
+      name: 'example',
+      headlamp: { i18n: ['en'], enabledByDefault: false },
+    });
+    expect(fs.readdirSync(path.dirname(packageJsonPath))).toEqual(['package.json']);
+    rename.mockRestore();
+  });
+
+  it('fails closed when an explicit default cannot be applied', () => {
+    const missingRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugin-default-'));
+    temporaryDirectories.push(missingRoot);
+    expect(() => applyEnabledByDefault(missingRoot, 'missing', false)).toThrow(
+      'package.json is missing'
+    );
+
+    const { pluginRoot, packageJsonPath } = pluginPackage('{invalid json');
+    expect(() => applyEnabledByDefault(pluginRoot, 'example', false)).toThrow(
+      'Failed to apply enabledByDefault'
+    );
+    expect(fs.readFileSync(packageJsonPath, 'utf8')).toBe('{invalid json');
+    expect(fs.readdirSync(path.dirname(packageJsonPath))).toEqual(['package.json']);
+  });
+
+  it('leaves package metadata unchanged when no default is declared', () => {
+    const { pluginRoot, packageJsonPath } = pluginPackage();
+
+    applyEnabledByDefault(pluginRoot, 'example');
+
+    expect(fs.readFileSync(packageJsonPath, 'utf8')).toBe('{"name":"example"}');
   });
 });
 
