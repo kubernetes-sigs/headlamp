@@ -35,7 +35,11 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
+	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream" //nolint:staticcheck // Cover the legacy client-go fallback error.
+	"k8s.io/client-go/kubernetes/fake"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	streamhttp "k8s.io/streaming/pkg/httpstream"
@@ -874,4 +878,149 @@ func TestStartPortForward_ConcurrentRequests(t *testing.T) {
 	assert.Equal(t, 1, conflicts, "expected exactly one 409 Conflict from the in-flight lock")
 	assert.Contains(t, statusCodes, http.StatusInternalServerError,
 		"expected the winning request to return 500 for missing context")
+}
+
+// ---------------------------------------------------------------------------
+// resolveServicePod tests (EndpointSlice-based)
+// ---------------------------------------------------------------------------
+
+func TestResolveServicePod_ReturnsReadyPod(t *testing.T) {
+	t.Parallel()
+
+	ready := true
+	slice := &discoveryv1.EndpointSlice{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "my-service-abc",
+			Namespace: "default",
+			Labels:    map[string]string{discoveryv1.LabelServiceName: "my-service"},
+		},
+		Endpoints: []discoveryv1.Endpoint{
+			{
+				Conditions: discoveryv1.EndpointConditions{Ready: &ready},
+				TargetRef: &corev1.ObjectReference{
+					Kind:      "Pod",
+					Name:      "my-pod-abc",
+					Namespace: "default",
+				},
+			},
+		},
+	}
+
+	clientset := fake.NewClientset(slice)
+
+	podName, podNamespace, err := resolveServicePod(clientset, "default", "my-service")
+	require.NoError(t, err)
+	assert.Equal(t, "my-pod-abc", podName)
+	assert.Equal(t, "default", podNamespace)
+}
+
+func TestResolveServicePod_NoReadyEndpoints(t *testing.T) {
+	t.Parallel()
+
+	notReady := false
+	slice := &discoveryv1.EndpointSlice{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "my-service-abc",
+			Namespace: "default",
+			Labels:    map[string]string{discoveryv1.LabelServiceName: "my-service"},
+		},
+		Endpoints: []discoveryv1.Endpoint{
+			{
+				Conditions: discoveryv1.EndpointConditions{Ready: &notReady},
+				TargetRef: &corev1.ObjectReference{
+					Kind:      "Pod",
+					Name:      "my-pod-abc",
+					Namespace: "default",
+				},
+			},
+		},
+	}
+
+	clientset := fake.NewClientset(slice)
+
+	_, _, err := resolveServicePod(clientset, "default", "my-service")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no ready endpoints")
+}
+
+func TestResolveServicePod_ServiceNotFound(t *testing.T) {
+	t.Parallel()
+
+	clientset := fake.NewClientset()
+
+	_, _, err := resolveServicePod(clientset, "default", "nonexistent-service")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no ready endpoints")
+}
+
+func TestResolveServicePod_SkipsNonPodTargetRef(t *testing.T) {
+	t.Parallel()
+
+	ready := true
+	slice := &discoveryv1.EndpointSlice{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "my-service-abc",
+			Namespace: "default",
+			Labels:    map[string]string{discoveryv1.LabelServiceName: "my-service"},
+		},
+		Endpoints: []discoveryv1.Endpoint{
+			{
+				Conditions: discoveryv1.EndpointConditions{Ready: &ready},
+				TargetRef: &corev1.ObjectReference{
+					Kind: "Node",
+					Name: "some-node",
+				},
+			},
+		},
+	}
+
+	clientset := fake.NewClientset(slice)
+
+	_, _, err := resolveServicePod(clientset, "default", "my-service")
+	assert.Error(t, err)
+	assert.Contains(t, err.Error(), "no ready endpoints")
+}
+
+func TestResolveServicePod_MultipleSlices(t *testing.T) {
+	t.Parallel()
+
+	ready := true
+	slice1 := &discoveryv1.EndpointSlice{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "my-service-aaa",
+			Namespace: "production",
+			Labels:    map[string]string{discoveryv1.LabelServiceName: "my-service"},
+		},
+		Endpoints: []discoveryv1.Endpoint{
+			{
+				Conditions: discoveryv1.EndpointConditions{Ready: &ready},
+				TargetRef:  nil, // no target ref
+			},
+		},
+	}
+
+	slice2 := &discoveryv1.EndpointSlice{
+		ObjectMeta: v1.ObjectMeta{
+			Name:      "my-service-bbb",
+			Namespace: "production",
+			Labels:    map[string]string{discoveryv1.LabelServiceName: "my-service"},
+		},
+		Endpoints: []discoveryv1.Endpoint{
+			{
+				Conditions: discoveryv1.EndpointConditions{Ready: &ready},
+				TargetRef: &corev1.ObjectReference{
+					Kind:      "Pod",
+					Name:      "backend-pod-xyz",
+					Namespace: "production",
+				},
+			},
+		},
+	}
+
+	clientset := fake.NewClientset(slice1, slice2)
+
+	podName, podNamespace, err := resolveServicePod(clientset, "production", "my-service")
+	require.NoError(t, err)
+	assert.Equal(t, "backend-pod-xyz", podName)
+	assert.Equal(t, "production", podNamespace)
 }

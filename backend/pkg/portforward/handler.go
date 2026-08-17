@@ -39,6 +39,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	authv1 "k8s.io/api/authorization/v1"
 	corev1 "k8s.io/api/core/v1"
+	discoveryv1 "k8s.io/api/discovery/v1"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/util/httpstream" //nolint:staticcheck // SA1019: client-go/tools/portforward still uses this; migrate when upstream does.
 	"k8s.io/client-go/kubernetes"
@@ -49,8 +50,9 @@ import (
 )
 
 const (
-	RUNNING = "Running"
-	STOPPED = "Stopped"
+	RUNNING      = "Running"
+	STOPPED      = "Stopped"
+	RECONNECTING = "Reconnecting"
 )
 
 const (
@@ -90,16 +92,17 @@ type portForward struct {
 	mu               *sync.Mutex
 	ID               string `json:"id"`
 	closeChan        chan struct{}
-	Pod              string `json:"pod"`
-	Service          string `json:"service"`
-	ServiceNamespace string `json:"serviceNamespace"`
-	Namespace        string `json:"namespace"`
-	Cluster          string `json:"cluster"`
-	cacheKey         string `json:"-"`
-	Port             string `json:"port"`
-	TargetPort       string `json:"targetPort"`
-	Status           string `json:"status"`
-	Error            string `json:"error"`
+	Pod              string       `json:"pod"`
+	Service          string       `json:"service"`
+	ServiceNamespace string       `json:"serviceNamespace"`
+	Namespace        string       `json:"namespace"`
+	Cluster          string       `json:"cluster"`
+	cacheKey         string       `json:"-"`
+	Port             string       `json:"port"`
+	TargetPort       string       `json:"targetPort"`
+	Status           string       `json:"status"`
+	Error            string       `json:"error"`
+	rConf            *rest.Config `json:"-"` // needed for reconnect on pod restart
 }
 
 // setStatusAndSnapshot updates the Status and Error fields and returns a
@@ -409,6 +412,7 @@ func safeCloseChan(ch chan struct{}) {
 // target pod for a port-forward is still running. If the pod is not running
 // (or if an unrecoverable error occurs during check), it signals the port-forward
 // to stop by closing its stopChan and updates its status in the cache.
+// For service-backed port-forwards, it attempts automatic reconnection to a new pod.
 // It stops when the associated port-forward's closeChan is closed.
 func monitorPodAndManagePortForward(
 	clientset *kubernetes.Clientset,
@@ -430,6 +434,32 @@ func monitorPodAndManagePortForward(
 					continue
 				}
 
+				// If this port-forward is backed by a Service, attempt auto-reconnect
+				// to a replacement pod instead of immediately stopping.
+				if pfDetails.Service != "" {
+					logger.Log(logger.LevelInfo, logParams, err,
+						"pod unavailable, attempting reconnect via service")
+
+					pfSnapshot := pfDetails.setStatusAndSnapshot(RECONNECTING, "")
+					portforwardstore(cache, pfSnapshot)
+
+					// Close the old forwarder's stop channel so its goroutine
+					// exits, then allocate a fresh one. attemptReconnect's
+					// backoff select listens on closeChan for user-initiated
+					// cancellation; without a new channel, the select would
+					// fire immediately on the already-closed channel.
+					safeCloseChan(pfDetails.closeChan)
+
+					pfDetails.mu.Lock()
+					pfDetails.closeChan = make(chan struct{})
+					pfDetails.mu.Unlock()
+
+					if attemptReconnect(clientset, cache, pfDetails) {
+						return // new monitor goroutine started by runAndMonitorPortForward
+					}
+					// All reconnect attempts failed — fall through to stop
+				}
+
 				errMsg := fmt.Sprintf("Pod %s/%s check failed: %v", pfDetails.Namespace, pfDetails.Pod, err)
 				logger.Log(logger.LevelError, logParams, errors.New(errMsg), "stopping port-forward due to pod status")
 
@@ -445,6 +475,157 @@ func monitorPodAndManagePortForward(
 			return
 		}
 	}
+}
+
+// resolveServicePod queries the EndpointSlice API for the given service and
+// returns the name and namespace of the first ready pod backing the service.
+func resolveServicePod(
+	clientset kubernetes.Interface, serviceNamespace, serviceName string,
+) (podName string, podNamespace string, err error) {
+	slices, err := clientset.DiscoveryV1().EndpointSlices(serviceNamespace).List(
+		context.Background(), v1.ListOptions{
+			LabelSelector: discoveryv1.LabelServiceName + "=" + serviceName,
+		})
+	if err != nil {
+		return "", "", fmt.Errorf("failed to list endpointslices for service %s/%s: %w",
+			serviceNamespace, serviceName, err)
+	}
+
+	for i := range slices.Items {
+		for j := range slices.Items[i].Endpoints {
+			ep := &slices.Items[i].Endpoints[j]
+			if ep.Conditions.Ready != nil && !*ep.Conditions.Ready {
+				continue
+			}
+
+			if ep.TargetRef != nil && ep.TargetRef.Kind == "Pod" {
+				ns := serviceNamespace
+				if ep.TargetRef.Namespace != "" {
+					ns = ep.TargetRef.Namespace
+				}
+
+				return ep.TargetRef.Name, ns, nil
+			}
+		}
+	}
+
+	return "", "", fmt.Errorf("no ready endpoints for service %s/%s",
+		serviceNamespace, serviceName)
+}
+
+// attemptReconnect tries to re-establish a port-forward by finding a new pod
+// behind the same service. It retries up to 3 times with exponential backoff
+// (5s, 10s, 20s). Returns true if reconnection succeeded.
+func attemptReconnect(
+	clientset *kubernetes.Clientset,
+	cache cache.Cache[interface{}],
+	pfDetails *portForward,
+) bool {
+	logParams := map[string]string{
+		"id": pfDetails.ID, "service": pfDetails.Service,
+		"serviceNamespace": pfDetails.ServiceNamespace,
+	}
+	backoffs := []time.Duration{5 * time.Second, 10 * time.Second, 20 * time.Second}
+
+	for attempt, delay := range backoffs {
+		logger.Log(logger.LevelInfo, logParams, nil,
+			fmt.Sprintf("reconnect attempt %d/%d, waiting %s", attempt+1, len(backoffs), delay))
+
+		// Use a select so the backoff sleep is cancellable when the user
+		// stops or deletes the port-forward during a retry window.
+		select {
+		case <-time.After(delay):
+		case <-pfDetails.closeChan:
+			logger.Log(logger.LevelInfo, logParams, nil, "reconnect cancelled during backoff")
+			return false
+		}
+
+		ok, abort := tryReconnectOnce(clientset, cache, pfDetails, logParams)
+		if abort {
+			return false
+		}
+
+		if ok {
+			return true
+		}
+
+		// Not ok and not abort → retry on next iteration.
+	}
+
+	logger.Log(logger.LevelError, logParams, nil, "all reconnect attempts exhausted")
+
+	return false
+}
+
+// tryReconnectOnce resolves a new pod for the service, initialises a fresh
+// port-forwarder, swaps closeChan safely, and starts monitoring.
+// It returns (true, false) on success, (false, true) to abort retries,
+// or (false, false) when the caller should retry.
+//
+//nolint:cyclop
+func tryReconnectOnce(
+	clientset *kubernetes.Clientset,
+	cache cache.Cache[interface{}],
+	pfDetails *portForward,
+	logParams map[string]string,
+) (ok bool, abort bool) {
+	newPod, podNamespace, err := resolveServicePod(
+		clientset, pfDetails.ServiceNamespace, pfDetails.Service)
+	if err != nil {
+		logger.Log(logger.LevelError, logParams, err, "resolving service endpoint for reconnect")
+
+		pfSnapshot := pfDetails.setStatusAndSnapshot(RECONNECTING, "")
+		portforwardstore(cache, pfSnapshot)
+
+		return false, false
+	}
+
+	if pfDetails.rConf == nil {
+		logger.Log(logger.LevelError, logParams, nil, "no REST config available for reconnect")
+		return false, true
+	}
+
+	portMapping := pfDetails.Port + ":" + pfDetails.TargetPort
+
+	forwarder, stopChan, readyChan, _, errOut, err := initPortForwarder(
+		pfDetails.rConf, podNamespace, newPod, portMapping, pfDetails.TargetPort,
+	)
+	if err != nil {
+		logger.Log(logger.LevelError, logParams, err, "re-initializing port forwarder")
+
+		pfSnapshot := pfDetails.setStatusAndSnapshot(RECONNECTING, "")
+		portforwardstore(cache, pfSnapshot)
+
+		return false, false
+	}
+
+	// Swap closeChan and pod name under lock.
+	// Capture the old closeChan so the old forwarder's deferred
+	// safeCloseChan does not accidentally close the new channel.
+	pfDetails.mu.Lock()
+	oldCloseChan := pfDetails.closeChan
+	pfDetails.closeChan = stopChan
+	pfDetails.Pod = newPod
+	pfDetails.Namespace = podNamespace
+	pfDetails.mu.Unlock()
+
+	// Ensure the old channel is closed so its goroutine can exit cleanly.
+	safeCloseChan(oldCloseChan)
+
+	err = runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut)
+	if err != nil {
+		logger.Log(logger.LevelError, logParams, err, "reconnected forwarder failed readiness")
+
+		pfSnapshot := pfDetails.setStatusAndSnapshot(RECONNECTING, "")
+		portforwardstore(cache, pfSnapshot)
+
+		return false, false
+	}
+
+	logger.Log(logger.LevelInfo, logParams, nil,
+		fmt.Sprintf("successfully reconnected to pod %s/%s", podNamespace, newPod))
+
+	return true, false
 }
 
 func handlePortForwardError(
@@ -544,9 +725,13 @@ func forwardPortsAsync(
 	forwardErrChan chan error,
 	logParams map[string]string,
 ) {
+	// Capture closeChan now so the deferred close targets THIS forwarder's
+	// channel even if pfDetails.closeChan is swapped during reconnect.
+	closeOnExit := pfDetails.closeChan
+
 	go func() {
 		defer func() {
-			safeCloseChan(pfDetails.closeChan)
+			safeCloseChan(closeOnExit)
 			close(forwardErrChan)
 		}()
 
@@ -642,18 +827,16 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 	var (
 		forwarder           *portforward.PortForwarder
 		stopChan, readyChan chan struct{}
-		outBuffer, errOut   *bytes.Buffer
+		errOut              *bytes.Buffer
 		errInit             error
 	)
 
-	forwarder, stopChan, readyChan, outBuffer, errOut, errInit = initPortForwarder(
+	forwarder, stopChan, readyChan, _, errOut, errInit = initPortForwarder(
 		rConf, p.Namespace, p.Pod, portMapping, p.TargetPort,
 	)
 	if errInit != nil {
 		return fmt.Errorf("failed to initialize port forwarder: %w", errInit)
 	}
-
-	_ = outBuffer // Avoid unused variable error if outBuffer isn't used directly later
 
 	pfDetails := &portForward{
 		mu:               &sync.Mutex{},
@@ -669,6 +852,7 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 		Status:           RUNNING,
 		Port:             p.Port,
 		Error:            "",
+		rConf:            rConf,
 	}
 
 	return runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut)
