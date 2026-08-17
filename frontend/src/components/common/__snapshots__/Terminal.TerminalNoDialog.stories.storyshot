@@ -4,7 +4,7 @@
       class="MuiDialogContent-root css-1ydrgiv-MuiDialogContent-root"
     >
       <div
-        class="MuiBox-root css-0"
+        class="MuiBox-root css-70qvj9"
       >
         <div
           class="MuiFormControl-root css-1rb4qd1-MuiFormControl-root"
@@ -51,6 +51,32 @@
             </svg>
           </div>
         </div>
+        <button
+          aria-label="Download Files from Container"
+          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+          data-mui-internal-clone-element="true"
+          tabindex="0"
+          type="button"
+        >
+          <span
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+          />
+        </button>
+        <input
+          style="display: none;"
+          type="file"
+        />
+        <button
+          aria-label="Upload Files to Container"
+          class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
+          data-mui-internal-clone-element="true"
+          tabindex="0"
+          type="button"
+        >
+          <span
+            class="MuiTouchRipple-root css-8je8zh-MuiTouchRipple-root"
+          />
+        </button>
       </div>
       <div
         class="MuiBox-root css-ffkpbp"
