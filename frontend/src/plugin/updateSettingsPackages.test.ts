@@ -45,6 +45,7 @@ describe('updateSettingsPackages tests', () => {
         name: 'ourplugin1',
         description: 'package description1',
         homepage: 'https://example.com/1',
+        type: 'shipped',
         headlamp: { enabledByDefault: true },
       },
     ];
@@ -60,6 +61,7 @@ describe('updateSettingsPackages tests', () => {
         name: 'ourplugin1',
         description: 'package description1',
         homepage: 'https://example.com/1',
+        type: 'shipped',
         headlamp: { enabledByDefault: false },
       },
     ];
@@ -67,6 +69,47 @@ describe('updateSettingsPackages tests', () => {
     const updatedSettingsPlugins = updateSettingsPackages(backendPlugins, []);
 
     expect(updatedSettingsPlugins[0].isEnabled).toBe(false);
+  });
+
+  test('when a new plugin without a type explicitly defaults to disabled', () => {
+    const backendPlugins: PluginInfo[] = [
+      {
+        name: 'ourplugin1',
+        description: 'package description1',
+        homepage: 'https://example.com/1',
+        headlamp: { enabledByDefault: false },
+      },
+    ];
+
+    expect(updateSettingsPackages(backendPlugins, [])[0].isEnabled).toBe(false);
+  });
+
+  test('when a new user plugin declares a disabled default', () => {
+    const backendPlugins: PluginInfo[] = [
+      {
+        name: 'ourplugin1',
+        description: 'package description1',
+        homepage: 'https://example.com/1',
+        type: 'user',
+        headlamp: { enabledByDefault: false },
+      },
+    ];
+
+    expect(updateSettingsPackages(backendPlugins, [])[0].isEnabled).toBe(true);
+  });
+
+  test('when a shipped plugin has a non-boolean disabled default', () => {
+    const backendPlugins: PluginInfo[] = [
+      {
+        name: 'ourplugin1',
+        description: 'package description1',
+        homepage: 'https://example.com/1',
+        type: 'shipped',
+        headlamp: { enabledByDefault: 'false' as unknown as boolean },
+      },
+    ];
+
+    expect(updateSettingsPackages(backendPlugins, [])[0].isEnabled).toBe(true);
   });
 
   test('when there is an existing setting already turned to true by user', () => {
