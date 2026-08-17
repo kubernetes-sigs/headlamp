@@ -318,6 +318,8 @@ export function useClustersVersion(clusters: Cluster[]) {
         queryKey: ['clusterVersion', clusterName],
         queryFn: () => getVersion(clusterName),
         refetchInterval: versionFetchInterval,
+        refetchIntervalInBackground: false,
+        refetchOnWindowFocus: 'always' as const,
         retry: false, // surface errors immediately rather than hammering unreachable clusters
       })),
     [clusterNames]

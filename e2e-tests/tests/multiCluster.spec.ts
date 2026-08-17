@@ -53,6 +53,41 @@ test.describe('multi-cluster setup', () => {
     }
   });
 
+  test('cluster version polling pauses in the background and resumes immediately', async ({
+    page,
+  }) => {
+    await page.evaluate(() => localStorage.setItem('recent_clusters', JSON.stringify(['test'])));
+
+    let versionRequests = 0;
+    page.on('request', request => {
+      if (new URL(request.url()).pathname.endsWith('/clusters/test/version')) {
+        versionRequests++;
+      }
+    });
+
+    await page.reload();
+    await expect.poll(() => versionRequests).toBe(1);
+
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => 'hidden',
+      });
+      window.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.waitForTimeout(11_000);
+    expect(versionRequests).toBe(1);
+
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => 'visible',
+      });
+      window.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect.poll(() => versionRequests, { timeout: 2_000 }).toBe(2);
+  });
+
   test("user should be able to login to 'test' cluster, perform logout and return to cluster selection", async ({
     page,
   }) => {
