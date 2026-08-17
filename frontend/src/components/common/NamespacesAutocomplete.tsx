@@ -32,8 +32,10 @@ import { useCluster, useClustersConf } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
 import {
   getEffectiveNamespaces,
+  getManualAllowedNamespaces,
   getNamespaceDiscoveryAlert,
   useDiscoveredNamespaces,
+  usesDiscoveredNamespaceRouting,
 } from '../../lib/k8s/useDiscoveredNamespaces';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
@@ -216,6 +218,8 @@ export function NamespacesAutocomplete() {
     () => getEffectiveNamespaces(cluster, discovery),
     [cluster, discovery]
   );
+  const manualAllowedNamespaces = getManualAllowedNamespaces(cluster);
+  const useDiscoveredAutocomplete = usesDiscoveredNamespaceRouting(discovery);
 
   const discoveryError = getNamespaceDiscoveryAlert({
     effectiveNamespaces,
@@ -231,7 +235,12 @@ export function NamespacesAutocomplete() {
     dispatch(setNamespaceFilter(newValue));
   };
 
-  if (effectiveNamespaces.length > 0) {
+  // Manual Settings override still uses Namespace.useList → allowedNamespaceListQuery.
+  if (manualAllowedNamespaces.length > 0) {
+    return <NamespacesFromClusterAutocomplete onChange={onChange} filter={filter} />;
+  }
+
+  if (useDiscoveredAutocomplete) {
     return (
       <PureNamespacesAutocomplete
         namespaceNames={effectiveNamespaces}
