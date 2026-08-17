@@ -32,7 +32,6 @@ import { IpcMainEvent, MenuItemConstructorOptions } from 'electron/main';
 import find_process from 'find-process';
 import * as fsPromises from 'fs/promises';
 import * as net from 'net';
-import fs from 'node:fs';
 import { userInfo } from 'node:os';
 import { promisify } from 'node:util';
 import { platform } from 'os';
@@ -76,6 +75,13 @@ import {
   setTrayIconEnabled,
 } from './tray';
 import windowSize from './windowSize';
+import {
+  clampZoom,
+  DEFAULT_ZOOM_FACTOR,
+  flushZoomFactorSave,
+  loadZoomFactor,
+  saveZoomFactor,
+} from './zoom';
 
 if (process.env.APPIMAGE) {
   app.commandLine.appendSwitch('disable-setuid-sandbox');
@@ -1409,41 +1415,75 @@ function killProcess(pid: number) {
 }
 
 const ZOOM_FILE_PATH = path.join(app.getPath('userData'), 'headlamp-config.json');
-let cachedZoom: number = 1.0;
+let cachedZoom: number = DEFAULT_ZOOM_FACTOR;
 
-function saveZoomFactor(factor: number) {
-  try {
-    fs.writeFileSync(ZOOM_FILE_PATH, JSON.stringify({ zoomFactor: factor }), 'utf-8');
-  } catch (err) {
-    console.error('Failed to save zoom factor:', err);
+function applyZoom(forceRefresh = false) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
   }
+
+  const wc = mainWindow.webContents;
+  // The window may be mid-close (e.g. deferred scheduleApplyZoom callbacks);
+  // setZoomFactor on a destroyed WebContents throws.
+  if (!wc || wc.isDestroyed()) {
+    return;
+  }
+
+  // Chromium's renderer process skips re-calculating layout and re-scaling
+  // newly painted DOM elements if it believes the zoom factor is already set
+  // to cachedZoom (e.g. on in-page SPA navigation or window focus/restore).
+  // Nudging the zoomFactor slightly (±0.001) forces Chromium to recognize
+  // a factor change and re-layout/repaint the page, then we immediately restore
+  // it to the target cachedZoom.
+  if (forceRefresh && cachedZoom !== DEFAULT_ZOOM_FACTOR) {
+    let nudge = clampZoom(cachedZoom + 0.001);
+    if (nudge === cachedZoom) {
+      nudge = clampZoom(cachedZoom - 0.001);
+    }
+    wc.setZoomFactor(nudge);
+  }
+  wc.setZoomFactor(cachedZoom);
 }
 
-async function loadZoomFactor(): Promise<number> {
-  try {
-    const content = await fsPromises.readFile(ZOOM_FILE_PATH, 'utf-8');
-    const { zoomFactor = 1.0 } = JSON.parse(content);
-    return typeof zoomFactor === 'number' ? zoomFactor : 1.0;
-  } catch (err) {
-    console.error('Failed to load zoom factor, defaulting to 1.0:', err);
-    return 1.0;
-  }
-}
+function scheduleApplyZoom(forceRefresh = false) {
+  applyZoom(forceRefresh);
+  setImmediate(() => {
+    applyZoom(forceRefresh);
 
-// The zoom factor should respect the fixed limits set by Electron.
-function clampZoom(factor: number) {
-  return Math.min(5.0, Math.max(0.25, factor));
+    // Re-grab webContents: the window may have closed since scheduling.
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+    const wc = mainWindow.webContents;
+    if (!wc || wc.isDestroyed()) {
+      return;
+    }
+
+    wc.executeJavaScript(
+      'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))'
+    )
+      .then(() => applyZoom(forceRefresh))
+      .catch(() => {});
+  });
 }
 
 function setZoom(factor: number) {
-  cachedZoom = factor;
-  mainWindow?.webContents.setZoomFactor(cachedZoom);
+  cachedZoom = clampZoom(factor);
+  applyZoom(false);
+  saveZoomFactor(ZOOM_FILE_PATH, cachedZoom);
 }
 
 function adjustZoom(delta: number) {
-  const newZoom = clampZoom(cachedZoom + delta);
-  setZoom(newZoom);
+  setZoom(cachedZoom + delta);
 }
+
+// React Router in the frontend renderer sends 'route-changed' after rendering
+// and painting a new route; re-apply zoom with forceRefresh to ensure the new view
+// is rendered at the correct scale. Registered outside createWindow so it is not
+// re-attached multiple times when the window is reopened (e.g. on macOS activate).
+ipcMain.on('route-changed', () => {
+  scheduleApplyZoom(true);
+});
 
 function startElectron() {
   console.info('App starting...');
@@ -1610,6 +1650,15 @@ function startElectron() {
     const withMargin = await isWSL();
     const { width, height } = windowSize(screen.getPrimaryDisplay().workAreaSize, withMargin);
 
+    // Flush any pending debounced zoom save before reading so reopening the
+    // window immediately after a zoom change reads the latest factor.
+    flushZoomFactorSave();
+
+    // Load before constructing the window so no await sits between window
+    // creation and the 'closed' handler; closing during the read would
+    // otherwise leave a destroyed window that later loadURL/menu calls throw on.
+    cachedZoom = await loadZoomFactor(ZOOM_FILE_PATH);
+
     mainWindow = new BrowserWindow({
       width,
       height,
@@ -1619,6 +1668,8 @@ function startElectron() {
         preload: `${__dirname}/preload.js`,
       },
     });
+
+    applyZoom();
 
     // Load the frontend
     mainWindow.loadURL(startUrl);
@@ -1648,15 +1699,34 @@ function startElectron() {
       }
     });
 
-    mainWindow.webContents.on('did-finish-load', async () => {
-      const startZoom = await loadZoomFactor();
-      if (startZoom !== 1.0) {
-        setZoom(startZoom);
-      }
-
+    mainWindow.webContents.on('did-finish-load', () => {
+      scheduleApplyZoom(true);
       // Inject the backend port into the window object
       mainWindow?.webContents.executeJavaScript(`window.headlampBackendPort = ${actualPort};`);
     });
+
+    mainWindow.webContents.on('did-frame-finish-load', (_event, isMainFrame) => {
+      if (isMainFrame) {
+        scheduleApplyZoom(true);
+      }
+    });
+
+    mainWindow.webContents.on('zoom-changed', (_event, zoomDirection) => {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return;
+      }
+      const wc = mainWindow.webContents;
+      if (!wc || wc.isDestroyed()) {
+        return;
+      }
+
+      const delta = zoomDirection === 'in' ? 0.1 : -0.1;
+      adjustZoom(delta);
+    });
+
+    // Electron can visually reset zoom after SPA navigation or when the window regains focus.
+    mainWindow.on('focus', () => scheduleApplyZoom(true));
+    mainWindow.on('show', () => scheduleApplyZoom(true));
 
     mainWindow.webContents.on('dom-ready', () => {
       const defaultMenu = getDefaultAppMenu();
@@ -1935,9 +2005,10 @@ function startElectron() {
 
   app.once('before-quit', async () => {
     isQuitting = true;
+    // Persist any zoom change still waiting on the debounced save.
+    flushZoomFactorSave();
     cleanupHeadlampTray();
     hasTray = false;
-    saveZoomFactor(cachedZoom);
     i18n.off('languageChanged');
     if (mainWindow) {
       mainWindow.removeAllListeners('close');
