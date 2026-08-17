@@ -214,8 +214,8 @@ export default function SimpleTable(props: SimpleTableProps) {
       return;
     }
 
-    if (displayData && page * rowsPerPage > displayData.length) {
-      setPage(Math.floor(displayData.length / rowsPerPage));
+    if (displayData && page * rowsPerPage >= displayData.length) {
+      setPage(Math.max(0, Math.floor((displayData.length - 1) / rowsPerPage)));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [page, displayData, rowsPerPage]);
@@ -342,7 +342,8 @@ export default function SimpleTable(props: SimpleTableProps) {
     }
 
     if (
-      (filteredData?.length === 0 || (filteredData?.length ?? 0) < page * rowsPerPage) &&
+      filterFunction &&
+      (filteredData?.length === 0 || (filteredData?.length ?? 0) <= page * rowsPerPage) &&
       page !== 0
     ) {
       setPage(0);
