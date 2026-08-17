@@ -77,12 +77,31 @@ vi.mock('@iconify/react', () => ({
   Icon: () => <span />,
 }));
 
-import { TestContext } from '../../test';
+import { EventStatus, HeadlampEventType } from '../../redux/headlampEventSlice';
+import { recordHeadlampEvents, TestContext } from '../../test';
 import { NewProjectPopup } from './NewProjectPopup';
 import { PROJECT_ID_LABEL } from './projectUtils';
 
 describe('NewProjectPopup', () => {
   const mockOnClose = vi.fn();
+
+  /** Fills in the create form with a valid project and returns the enabled Create button. */
+  async function fillCreateForm(projectName: string, namespace: string) {
+    fireEvent.click(screen.getByText('New Project'));
+    fireEvent.change(screen.getByLabelText(/Project Name/i), { target: { value: projectName } });
+
+    const clusterInput = screen.getByLabelText('Clusters');
+    fireEvent.mouseDown(clusterInput);
+    fireEvent.click(screen.getByText('cluster-1'));
+
+    const nsInput = screen.getByLabelText('Namespace');
+    fireEvent.change(nsInput, { target: { value: namespace } });
+    fireEvent.keyDown(nsInput, { key: 'Enter' });
+
+    const createBtn = screen.getByRole('button', { name: 'Create' });
+    await waitFor(() => expect(createBtn).not.toBeDisabled());
+    return createBtn;
+  }
 
   beforeEach(() => {
     vi.clearAllMocks();
@@ -179,27 +198,73 @@ describe('NewProjectPopup', () => {
       </TestContext>
     );
 
-    fireEvent.click(screen.getByText('New Project'));
-
-    fireEvent.change(screen.getByLabelText(/Project Name/i), { target: { value: 'new-project' } });
-
-    const clusterInput = screen.getByLabelText('Clusters');
-    fireEvent.mouseDown(clusterInput);
-    fireEvent.click(screen.getByText('cluster-1'));
-
-    const nsInput = screen.getByLabelText('Namespace');
-    fireEvent.change(nsInput, { target: { value: 'new-ns' } });
-    fireEvent.keyDown(nsInput, { key: 'Enter' });
-
-    const createBtn = screen.getByRole('button', { name: 'Create' });
-    await waitFor(() => expect(createBtn).not.toBeDisabled());
-
+    const createBtn = await fillCreateForm('new-project', 'new-ns');
     fireEvent.click(createBtn);
 
     await waitFor(() => {
       expect(mockApply).toHaveBeenCalled();
       expect(mockHistoryPush).toHaveBeenCalledWith(expect.stringContaining('new-project'));
     });
+  });
+
+  test('dispatches CREATE_PROJECT when the user confirms creation', async () => {
+    const events = recordHeadlampEvents();
+
+    render(
+      <TestContext>
+        <NewProjectPopup open onClose={mockOnClose} />
+      </TestContext>
+    );
+
+    const createBtn = await fillCreateForm('new-project', 'new-ns');
+    fireEvent.click(createBtn);
+
+    await waitFor(() => expect(mockApply).toHaveBeenCalled());
+
+    expect(events.filter(e => e.type === HeadlampEventType.CREATE_PROJECT)).toEqual([
+      {
+        type: HeadlampEventType.CREATE_PROJECT,
+        data: {
+          project: {
+            id: 'new-project',
+            namespaces: ['new-ns'],
+            clusters: ['cluster-1'],
+          },
+          status: EventStatus.CONFIRMED,
+        },
+      },
+    ]);
+  });
+
+  test('dispatches CREATE_PROJECT even when the namespace creation fails', async () => {
+    mockApply.mockRejectedValueOnce(new Error('nope'));
+    const events = recordHeadlampEvents();
+
+    render(
+      <TestContext>
+        <NewProjectPopup open onClose={mockOnClose} />
+      </TestContext>
+    );
+
+    const createBtn = await fillCreateForm('failing-project', 'failing-ns');
+    fireEvent.click(createBtn);
+
+    await waitFor(() => expect(mockApply).toHaveBeenCalled());
+
+    expect(events.filter(e => e.type === HeadlampEventType.CREATE_PROJECT)).toEqual([
+      {
+        type: HeadlampEventType.CREATE_PROJECT,
+        data: {
+          project: {
+            id: 'failing-project',
+            namespaces: ['failing-ns'],
+            clusters: ['cluster-1'],
+          },
+          status: EventStatus.CONFIRMED,
+        },
+      },
+    ]);
+    expect(mockHistoryPush).not.toHaveBeenCalled();
   });
 
   test('navigates back to selection from New Project step', () => {

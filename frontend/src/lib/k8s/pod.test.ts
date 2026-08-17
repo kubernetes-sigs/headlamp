@@ -14,13 +14,21 @@
  * limitations under the License.
  */
 
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import App from '../../App';
+import { post } from './api/v1/clusterRequests';
 import Pod from './pod';
 
 // cyclic imports fix
 // eslint-disable-next-line no-unused-vars
 const _dont_delete_me = App;
+
+vi.mock('./api/v1/clusterRequests', async () => {
+  const actual = await vi.importActual<typeof import('./api/v1/clusterRequests')>(
+    './api/v1/clusterRequests'
+  );
+  return { ...actual, post: vi.fn().mockResolvedValue({}) };
+});
 
 describe('Pod class', () => {
   const mockPodData = {
@@ -94,6 +102,20 @@ describe('Pod class', () => {
     };
     const pod = new Pod(dataMissingBoth as any);
     expect(() => pod.getDetailedStatus()).not.toThrow();
+  });
+
+  it("sends the eviction request to the pod's own cluster", () => {
+    const data = JSON.parse(JSON.stringify(mockPodData));
+    const pod = new Pod(data, 'other-cluster');
+
+    pod.evict();
+
+    expect(post).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.anything(),
+      expect.anything(),
+      expect.objectContaining({ cluster: 'other-cluster' })
+    );
   });
 
   it('returns ExitCode when a container terminated with empty reason and no signal', () => {
