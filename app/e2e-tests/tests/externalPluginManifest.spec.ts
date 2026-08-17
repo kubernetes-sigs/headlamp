@@ -150,6 +150,7 @@ test('setup-plugins verifies plugin identity from an external manifest', () => {
         }
       )
     ).toThrow(/Plugin package name mismatch/);
+    expect(fs.existsSync(installedPlugin)).toBe(false);
   } finally {
     fs.rmSync(temporaryRoot, { recursive: true, force: true });
   }

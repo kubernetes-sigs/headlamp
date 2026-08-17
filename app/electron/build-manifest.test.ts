@@ -412,6 +412,26 @@ describe('plugin archive integrity', () => {
     ).not.toThrow();
   });
 
+  it.each([
+    'CON',
+    'nul.txt',
+    'COM1',
+    'lpt9.log',
+    'plugin.',
+    'plugin ',
+  ])('rejects an unsafe external plugin name: %j', name => {
+    expect(() =>
+      validatePluginSource(
+        {
+          name,
+          packageName: 'example-plugin',
+          file: './plugin.tar.gz',
+          sha256: '0'.repeat(64),
+        },
+        true
+      )
+    ).toThrow('Invalid plugin name');
+  });
   it('accepts matching package identities and rejects mismatches', () => {
     const packageJson = temporaryFile('{"name":"@example/plugin"}');
 
@@ -420,6 +440,18 @@ describe('plugin archive integrity', () => {
       'Plugin package name mismatch'
     );
     expect(() => verifyPluginIdentity(packageJson, undefined)).not.toThrow();
+  });
+
+  it('reports package metadata errors with identity context', () => {
+    const malformedPackageJson = temporaryFile('{not-json');
+    const missingPackageJson = path.join(path.dirname(malformedPackageJson), 'missing.json');
+
+    expect(() => verifyPluginIdentity(malformedPackageJson, '@example/plugin')).toThrow(
+      'Plugin identity verification failed for @example/plugin'
+    );
+    expect(() => verifyPluginIdentity(missingPackageJson, '@example/plugin')).toThrow(
+      'Plugin identity verification failed for @example/plugin'
+    );
   });
 });
 
