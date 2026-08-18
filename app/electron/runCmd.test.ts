@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { dialog } from 'electron';
 import { EventEmitter } from 'events';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
@@ -27,6 +28,13 @@ vi.mock('child_process', () => ({
   spawn: spawnMock,
 }));
 
+import { loadSettings, saveSettings } from './settings';
+
+vi.mock('electron', () => ({
+  BrowserWindow: class {},
+  dialog: { showMessageBoxSync: vi.fn() },
+}));
+
 vi.mock('./plugin-management', () => ({
   defaultPluginsDir: vi.fn(() => '/plugins/default'),
   defaultUserPluginsDir: vi.fn(() => '/plugins/user'),
@@ -34,9 +42,18 @@ vi.mock('./plugin-management', () => ({
 
 vi.mock('./settings', () => ({
   loadSettings: vi.fn(() => ({
-    confirmedCommands: { 'minikube start': true, 'gh auth': true, 'az account': true },
+    confirmedCommands: {
+      'minikube start': true,
+      'gh auth': true,
+      'az account': true,
+      'aws sso login': true,
+    },
   })),
   saveSettings: vi.fn(),
+  isPlainObject: (value: unknown) =>
+    value !== null && typeof value === 'object' && !Array.isArray(value),
+  asSettingsObject: (value: unknown) =>
+    value !== null && typeof value === 'object' && !Array.isArray(value) ? value : {},
   SETTINGS_PATH: '/fake/settings.json',
 }));
 
@@ -52,6 +69,7 @@ vi.mock('./main', () => ({
 
 import {
   addRunCmdConsent,
+  checkCommandConsent,
   checkPermissionSecret,
   environmentOverrides,
   handleRunCommand,
@@ -157,20 +175,47 @@ describe('validateCommandData', () => {
   });
 
   it('returns false if command is missing or not a string', () => {
-    expect(validateCommandData({ args: [], options: {}, permissionSecrets: {} })[0]).toBe(false);
     expect(
-      validateCommandData({ command: 123 as any, args: [], options: {}, permissionSecrets: {} })[0]
+      validateCommandData({ id: 'test-id', args: [], options: {}, permissionSecrets: {} })[0]
     ).toBe(false);
     expect(
-      validateCommandData({ command: '', args: [], options: {}, permissionSecrets: {} })[0]
+      validateCommandData({
+        id: 'test-id',
+        command: 123 as any,
+        args: [],
+        options: {},
+        permissionSecrets: {},
+      })[0]
+    ).toBe(false);
+    expect(
+      validateCommandData({
+        id: 'test-id',
+        command: '',
+        args: [],
+        options: {},
+        permissionSecrets: {},
+      })[0]
     ).toBe(false);
   });
 
   it('returns false if args is not an array', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'minikube',
         args: 'not-array' as any,
+        options: {},
+        permissionSecrets: {},
+      })[0]
+    ).toBe(false);
+  });
+
+  it('returns false if any arg is not a string', () => {
+    expect(
+      validateCommandData({
+        id: 'test-id',
+        command: 'minikube',
+        args: ['start', 123 as any],
         options: {},
         permissionSecrets: {},
       })[0]
@@ -180,6 +225,7 @@ describe('validateCommandData', () => {
   it('returns false if options is not an object', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'minikube',
         args: [],
         options: null as any,
@@ -188,6 +234,7 @@ describe('validateCommandData', () => {
     ).toBe(false);
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'minikube',
         args: [],
         options: 123 as any,
@@ -196,9 +243,22 @@ describe('validateCommandData', () => {
     ).toBe(false);
   });
 
+  it('returns false if options is an array', () => {
+    expect(
+      validateCommandData({
+        id: 'test-id',
+        command: 'minikube',
+        args: [],
+        options: [] as any,
+        permissionSecrets: {},
+      })[0]
+    ).toBe(false);
+  });
+
   it('returns false if permissionSecrets is not an object', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'minikube',
         args: [],
         options: {},
@@ -207,6 +267,7 @@ describe('validateCommandData', () => {
     ).toBe(false);
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'minikube',
         args: [],
         options: {},
@@ -215,9 +276,22 @@ describe('validateCommandData', () => {
     ).toBe(false);
   });
 
+  it('returns false if permissionSecrets is an array', () => {
+    expect(
+      validateCommandData({
+        id: 'test-id',
+        command: 'minikube',
+        args: [],
+        options: {},
+        permissionSecrets: [] as any,
+      })[0]
+    ).toBe(false);
+  });
+
   it('returns false if any permissionSecret value is not a number', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'minikube',
         args: [],
         options: {},
@@ -229,7 +303,37 @@ describe('validateCommandData', () => {
   it('returns false if command is not in validCommands', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'invalidcmd',
+        args: [],
+        options: {},
+        permissionSecrets: {},
+      })[0]
+    ).toBe(false);
+  });
+
+  it('returns false if id is missing or not a string', () => {
+    expect(
+      validateCommandData({
+        command: 'minikube',
+        args: [],
+        options: {},
+        permissionSecrets: {},
+      })[0]
+    ).toBe(false);
+    expect(
+      validateCommandData({
+        id: 123 as any,
+        command: 'minikube',
+        args: [],
+        options: {},
+        permissionSecrets: {},
+      })[0]
+    ).toBe(false);
+    expect(
+      validateCommandData({
+        id: '',
+        command: 'minikube',
         args: [],
         options: {},
         permissionSecrets: {},
@@ -240,6 +344,7 @@ describe('validateCommandData', () => {
   it('returns true for valid minikube command', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'minikube',
         args: [],
         options: {},
@@ -251,6 +356,7 @@ describe('validateCommandData', () => {
   it('returns true for valid az command', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'az',
         args: ['arg1'],
         options: {},
@@ -262,12 +368,132 @@ describe('validateCommandData', () => {
   it('returns true for valid scriptjs command', () => {
     expect(
       validateCommandData({
+        id: 'test-id',
         command: 'scriptjs',
         args: ['myscript.js'],
         options: {},
         permissionSecrets: { 'runCmd-scriptjs-myscript.js': 42 },
       })[0]
     ).toBe(true);
+  });
+
+  it('returns true for valid aws command', () => {
+    expect(
+      validateCommandData({
+        id: 'test-id',
+        command: 'aws',
+        args: ['sso', 'login'],
+        options: {},
+        permissionSecrets: {},
+      })[0]
+    ).toBe(true);
+  });
+});
+
+describe('checkCommandConsent', () => {
+  afterEach(() => {
+    vi.mocked(loadSettings).mockReturnValue({
+      confirmedCommands: {
+        'minikube start': true,
+        'gh auth': true,
+        'az account': true,
+        'aws sso login': true,
+      },
+    } as any);
+  });
+
+  it('matches the "aws sso login" pre-consent entry using command + first two args', () => {
+    expect(checkCommandConsent('aws', ['sso', 'login'], null as any)).toBe(true);
+  });
+
+  it('builds a distinct consent key for other "aws sso" subcommands', () => {
+    // 'aws sso logout' was previously denied and saved as its own key, distinct
+    // from 'aws sso login', proving the consent key includes the second arg.
+    vi.mocked(loadSettings).mockReturnValue({
+      confirmedCommands: { 'aws sso login': true, 'aws sso logout': false },
+    } as any);
+    expect(checkCommandConsent('aws', ['sso', 'logout'], null as any)).toBe(false);
+    expect(checkCommandConsent('aws', ['sso', 'login'], null as any)).toBe(true);
+  });
+
+  it('blocks the command when the user denies it at the prompt', () => {
+    vi.mocked(loadSettings).mockReturnValue({ confirmedCommands: {} } as any);
+    vi.mocked(dialog.showMessageBoxSync).mockReturnValue(1); // Deny
+
+    expect(checkCommandConsent('aws', ['ec2', 'describe-instances'], {} as any)).toBe(false);
+
+    const savedSettings = vi.mocked(saveSettings).mock.calls.at(-1)![1] as any;
+    expect(savedSettings.confirmedCommands['aws ec2 describe-instances']).toBe(false);
+  });
+
+  it('allows the command when the user allows it at the prompt', () => {
+    vi.mocked(loadSettings).mockReturnValue({ confirmedCommands: {} } as any);
+    vi.mocked(dialog.showMessageBoxSync).mockReturnValue(0); // Allow
+
+    expect(checkCommandConsent('aws', ['ec2', 'describe-instances'], {} as any)).toBe(true);
+
+    const savedSettings = vi.mocked(saveSettings).mock.calls.at(-1)![1] as any;
+    expect(savedSettings.confirmedCommands['aws ec2 describe-instances']).toBe(true);
+  });
+
+  it('prompts the user when a corrupted non-boolean value is saved', () => {
+    vi.mocked(loadSettings).mockReturnValue({
+      confirmedCommands: { 'aws ec2 describe-instances': null },
+    } as any);
+    vi.mocked(dialog.showMessageBoxSync).mockClear();
+    vi.mocked(dialog.showMessageBoxSync).mockReturnValue(0); // Allow
+
+    expect(checkCommandConsent('aws', ['ec2', 'describe-instances'], {} as any)).toBe(true);
+    expect(dialog.showMessageBoxSync).toHaveBeenCalledTimes(1);
+  });
+
+  it('denies without persisting a decision when there is no window to prompt on', () => {
+    vi.mocked(loadSettings).mockReturnValue({ confirmedCommands: {} } as any);
+    vi.mocked(dialog.showMessageBoxSync).mockClear();
+    vi.mocked(saveSettings).mockClear();
+
+    expect(checkCommandConsent('aws', ['ec2', 'describe-instances'], null as any)).toBe(false);
+
+    expect(dialog.showMessageBoxSync).not.toHaveBeenCalled();
+    expect(saveSettings).not.toHaveBeenCalled();
+  });
+});
+
+describe('addRunCmdConsent', () => {
+  afterEach(() => {
+    vi.mocked(loadSettings).mockReturnValue({
+      confirmedCommands: {
+        'minikube start': true,
+        'gh auth': true,
+        'az account': true,
+        'aws sso login': true,
+      },
+    } as any);
+  });
+
+  it('seeds "aws sso login" as pre-consented for the ai-assistant plugin', () => {
+    vi.mocked(loadSettings).mockReturnValue({ confirmedCommands: {} } as any);
+    addRunCmdConsent({ name: 'headlamp_ai-assistant' });
+    const savedSettings = vi.mocked(saveSettings).mock.calls.at(-1)![1];
+    expect(savedSettings.confirmedCommands['aws sso login']).toBe(true);
+  });
+
+  it('does not override a previously denied command with true', () => {
+    vi.mocked(loadSettings).mockReturnValue({
+      confirmedCommands: { 'aws sso login': false },
+    } as any);
+    addRunCmdConsent({ name: 'headlamp_ai-assistant' });
+    const savedSettings = vi.mocked(saveSettings).mock.calls.at(-1)![1];
+    expect(savedSettings.confirmedCommands['aws sso login']).toBe(false);
+  });
+
+  it('handles corrupted confirmedCommands gracefully without throwing', () => {
+    vi.mocked(loadSettings).mockReturnValue({
+      confirmedCommands: 'corrupted_string' as any,
+    } as any);
+    expect(() => addRunCmdConsent({ name: 'headlamp_ai-assistant' })).not.toThrow();
+    const savedSettings = vi.mocked(saveSettings).mock.calls.at(-1)![1];
+    expect(savedSettings.confirmedCommands['aws sso login']).toBe(true);
   });
 });
 
@@ -341,6 +567,28 @@ describe('handleRunCommand', () => {
 
     expect(sentMessages).toContainEqual(['command-stderr', 'test-id', 'spawn failed']);
     expect(sentMessages).toContainEqual(['command-exit', 'test-id', -1]);
+  });
+
+  it('forces piped stdio even if the caller requests ignore/inherit stdio', async () => {
+    const eventData = {
+      id: 'test-id',
+      command: 'gh',
+      args: ['auth', 'token'],
+      options: { stdio: 'ignore' },
+      permissionSecrets: { 'runCmd-gh': 99 },
+    };
+
+    await handleRunCommand(fakeEvent, eventData, { id: 1 } as any, { 'runCmd-gh': 99 });
+
+    expect(spawnMock).toHaveBeenCalledWith(
+      'gh',
+      ['auth', 'token'],
+      expect.objectContaining({ stdio: ['pipe', 'pipe', 'pipe'] })
+    );
+
+    // Would throw if child.stdout/stderr were null, as they would be with 'ignore' stdio.
+    expect(() => childEmitter.stdout.emit('data', 'hi')).not.toThrow();
+    expect(() => childEmitter.stderr.emit('data', 'oh no')).not.toThrow();
   });
 
   it('falls back to process.env when shell environment resolution fails', async () => {

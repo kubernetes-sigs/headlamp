@@ -168,6 +168,102 @@ export function runPlugin(
 }
 
 /**
+ * The ArtifactHub repository name that the official `@headlamp-k8s` plugins
+ * (minikube, ai-assistant) are published under. Only plugins installed from
+ * this repository are trusted with elevated `runCmd-*` secrets.
+ *
+ * @see https://artifacthub.io/packages/headlamp/headlamp-plugins/headlamp_ai_assistant
+ */
+export const OFFICIAL_HEADLAMP_PLUGINS_ARTIFACTHUB_REPO = 'headlamp-plugins';
+
+/**
+ * Describes where a plugin actually came from, so permission grants can be bound
+ * to that provenance rather than to the plugin's self-reported path/name alone.
+ */
+export interface PluginOrigin {
+  /**
+   * "shipped" (bundled with the Headlamp binary) and "development" (loaded from
+   * a local dev plugins folder) are both filesystem locations a remote attacker
+   * can't write to, so they're inherently trusted.
+   */
+  type: 'development' | 'user' | 'shipped' | undefined;
+  /**
+   * For a "user"-installed plugin, the ArtifactHub repository it was installed
+   * from (`package.json`'s `artifacthub.repoName`, set by the installer). This is
+   * controlled by ArtifactHub's own repository registration, not by the plugin's
+   * own package.json name, so a look-alike package published under a different
+   * repository won't match it.
+   */
+  artifacthubRepoName?: string;
+}
+
+/**
+ * Determines which `runCmd-*` permission secrets a plugin is allowed to receive,
+ * based on which official package it was identified as (if any) AND whether its
+ * actual origin can be trusted to be that package.
+ *
+ * `pluginPath`/`pluginName` alone are not enough: both come from the plugin's own
+ * `package.json` and folder name, which a plugin published under a different,
+ * arbitrary ArtifactHub repository can freely set to match
+ * `@headlamp-k8s/ai-assistant` / `user-plugins/headlamp_ai-assistant` and so
+ * masquerade as the official plugin. `pluginOrigin` is derived independently:
+ * "shipped"/"development" plugins live in filesystem locations only Headlamp
+ * itself can populate, and "user"-installed plugins are checked against the
+ * ArtifactHub repository they actually came from.
+ *
+ * This is the permission boundary that decides, for example, that only the
+ * official `@headlamp-k8s/ai-assistant` package is handed the `runCmd-aws` secret,
+ * and that an arbitrary/unrecognised plugin gets no `runCmd-*` secrets at all.
+ *
+ * @param pluginPath is like "plugins/headlamp-pod-counter"
+ * @param pluginName is like "@headlamp-k8s/minikube"
+ * @param secrets all available permission secrets, keyed by permission name
+ * @param isDevelopmentMode whether Headlamp is running in development mode
+ * @param pluginOrigin where the plugin actually came from, used to verify provenance
+ * @returns only the secrets the identified package is allowed to access
+ */
+export function getAllowedRunCmdPermissions(
+  pluginPath: string,
+  pluginName: string,
+  secrets: Record<string, number>,
+  isDevelopmentMode: boolean,
+  pluginOrigin: PluginOrigin
+): Record<string, number> {
+  const secretsToReturn: Record<string, number> = {};
+  const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
+
+  const isTrustedOrigin =
+    pluginOrigin.type === 'shipped' ||
+    pluginOrigin.type === 'development' ||
+    (pluginOrigin.type === 'user' &&
+      pluginOrigin.artifacthubRepoName === OFFICIAL_HEADLAMP_PLUGINS_ARTIFACTHUB_REPO);
+
+  if (!isTrustedOrigin) {
+    return secretsToReturn;
+  }
+
+  if (isPackage['@headlamp-k8s/minikube']) {
+    secretsToReturn['runCmd-minikube'] = secrets['runCmd-minikube'];
+    if (isDevelopmentMode) {
+      secretsToReturn['runCmd-scriptjs-minikube/manage-minikube.js'] =
+        secrets['runCmd-scriptjs-minikube/manage-minikube.js'];
+    }
+    secretsToReturn['runCmd-scriptjs-headlamp_minikube/manage-minikube.js'] =
+      secrets['runCmd-scriptjs-headlamp_minikube/manage-minikube.js'];
+    secretsToReturn['runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js'] =
+      secrets['runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js'];
+  }
+
+  if (isPackage['@headlamp-k8s/ai-assistant']) {
+    secretsToReturn['runCmd-gh'] = secrets['runCmd-gh'];
+    secretsToReturn['runCmd-az'] = secrets['runCmd-az'];
+    secretsToReturn['runCmd-aws'] = secrets['runCmd-aws'];
+  }
+
+  return secretsToReturn;
+}
+
+/**
  * Identifies which packages this is, taking into account prereleases, and development mode.
  *
  * @param pluginPath is like "plugins/headlamp-pod-counter"

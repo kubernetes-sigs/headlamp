@@ -41,3 +41,26 @@ export function loadSettings(settingsPath: string): Record<string, any> {
 export function saveSettings(settingsPath: string, settings: Record<string, any>) {
   fs.writeFileSync(settingsPath, JSON.stringify(settings), 'utf-8');
 }
+
+/**
+ * Reports whether a value is a non-null, non-array object.
+ *
+ * `typeof value === 'object'` alone is true for both `null` and arrays, so
+ * callers that need an actual key-value object (e.g. before indexing into
+ * settings.json data) should check this instead.
+ */
+export function isPlainObject(value: unknown): value is Record<string, any> {
+  return value !== null && typeof value === 'object' && !Array.isArray(value);
+}
+
+/**
+ * Normalizes an arbitrary value into a plain settings object.
+ *
+ * loadSettings() returns whatever JSON.parse() produced, which can be null,
+ * a number, a string, or an array if settings.json is corrupted. Callers
+ * that read/write properties on the result need a plain object; this
+ * substitutes an empty one for anything else.
+ */
+export function asSettingsObject(value: unknown): Record<string, any> {
+  return isPlainObject(value) ? value : {};
+}

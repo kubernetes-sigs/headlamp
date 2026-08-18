@@ -17,7 +17,7 @@
 import { app, BrowserWindow, Menu, nativeImage, Tray } from 'electron';
 import { MenuItemConstructorOptions } from 'electron/main';
 import path from 'path';
-import { loadSettings, saveSettings, SETTINGS_PATH } from './settings';
+import { asSettingsObject, loadSettings, saveSettings, SETTINGS_PATH } from './settings';
 
 const TRAY_SETTING_KEY = 'enableSystemTray';
 
@@ -42,14 +42,6 @@ let trayUpdateTimeout: NodeJS.Timeout | null = null;
 
 export function shouldRunTray(): boolean {
   return ['darwin', 'linux', 'win32'].includes(process.platform);
-}
-
-// settings.json is user-editable, so it may contain valid JSON that is not a
-// plain object (e.g. an array or string). Treat anything else as empty.
-function asSettingsObject(value: unknown): Record<string, any> {
-  return value !== null && typeof value === 'object' && !Array.isArray(value)
-    ? (value as Record<string, any>)
-    : {};
 }
 
 /**

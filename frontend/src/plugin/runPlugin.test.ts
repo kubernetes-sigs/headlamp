@@ -14,7 +14,15 @@
  * limitations under the License.
  */
 
-import { getInfoForRunningPlugins, identifyPackages, runPlugin, runPluginProps } from './runPlugin';
+import {
+  getAllowedRunCmdPermissions,
+  getInfoForRunningPlugins,
+  identifyPackages,
+  OFFICIAL_HEADLAMP_PLUGINS_ARTIFACTHUB_REPO,
+  PluginOrigin,
+  runPlugin,
+  runPluginProps,
+} from './runPlugin';
 
 function runPluginInner(info: runPluginProps) {
   const source = info[0];
@@ -623,5 +631,178 @@ describe('identifyPackages', () => {
       false
     );
     expect(result).toEqual({ '@headlamp-k8s/minikube': false, '@headlamp-k8s/ai-assistant': true });
+  });
+});
+
+describe('getAllowedRunCmdPermissions', () => {
+  const allSecrets: Record<string, number> = {
+    'runCmd-minikube': 1,
+    'runCmd-scriptjs-minikube/manage-minikube.js': 2,
+    'runCmd-scriptjs-headlamp_minikube/manage-minikube.js': 3,
+    'runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js': 4,
+    'runCmd-gh': 5,
+    'runCmd-az': 6,
+    'runCmd-aws': 7,
+  };
+
+  const shipped: PluginOrigin = { type: 'shipped' };
+  const development: PluginOrigin = { type: 'development' };
+  const officialUserInstall: PluginOrigin = {
+    type: 'user',
+    artifacthubRepoName: OFFICIAL_HEADLAMP_PLUGINS_ARTIFACTHUB_REPO,
+  };
+  const lookAlikeUserInstall: PluginOrigin = {
+    type: 'user',
+    artifacthubRepoName: 'some-other-repo',
+  };
+  const noRepoUserInstall: PluginOrigin = { type: 'user' };
+
+  test('the official ai-assistant package receives gh, az and aws secrets when shipped', () => {
+    const result = getAllowedRunCmdPermissions(
+      'plugins/headlamp_ai-assistant',
+      '@headlamp-k8s/ai-assistant',
+      allSecrets,
+      false,
+      shipped
+    );
+    expect(result).toEqual({
+      'runCmd-gh': allSecrets['runCmd-gh'],
+      'runCmd-az': allSecrets['runCmd-az'],
+      'runCmd-aws': allSecrets['runCmd-aws'],
+    });
+  });
+
+  test('the official ai-assistant package receives gh, az and aws secrets when installed from the official ArtifactHub repo', () => {
+    const result = getAllowedRunCmdPermissions(
+      'user-plugins/headlamp_ai-assistant',
+      '@headlamp-k8s/ai-assistant',
+      allSecrets,
+      false,
+      officialUserInstall
+    );
+    expect(result).toEqual({
+      'runCmd-gh': allSecrets['runCmd-gh'],
+      'runCmd-az': allSecrets['runCmd-az'],
+      'runCmd-aws': allSecrets['runCmd-aws'],
+    });
+  });
+
+  test('the official ai-assistant prerelease package receives the aws secret in development mode', () => {
+    const result = getAllowedRunCmdPermissions(
+      'plugins/headlamp_ai-assistantprerelease',
+      '@headlamp-k8s/ai-assistantprerelease',
+      allSecrets,
+      false,
+      development
+    );
+    expect(result['runCmd-aws']).toBe(allSecrets['runCmd-aws']);
+  });
+
+  test('an arbitrary plugin does not receive the aws secret, or any runCmd secret', () => {
+    const result = getAllowedRunCmdPermissions(
+      'plugins/some-random-plugin',
+      '@some-org/some-random-plugin',
+      allSecrets,
+      false,
+      officialUserInstall
+    );
+    expect(result).toEqual({});
+    expect(result['runCmd-aws']).toBeUndefined();
+  });
+
+  test('a plugin merely named ai-assistant, but not at the official path, does not receive the aws secret', () => {
+    const result = getAllowedRunCmdPermissions(
+      'plugins/some-random-plugin',
+      '@headlamp-k8s/ai-assistant',
+      allSecrets,
+      false,
+      officialUserInstall
+    );
+    expect(result).toEqual({});
+  });
+
+  test('a plugin at the official ai-assistant path, but with a spoofed name, does not receive the aws secret', () => {
+    const result = getAllowedRunCmdPermissions(
+      'plugins/headlamp_ai-assistant',
+      '@some-org/not-ai-assistant',
+      allSecrets,
+      false,
+      officialUserInstall
+    );
+    expect(result).toEqual({});
+  });
+
+  test('a look-alike plugin matching the official path and name, but installed from a different ArtifactHub repo, receives nothing', () => {
+    const result = getAllowedRunCmdPermissions(
+      'user-plugins/headlamp_ai-assistant',
+      '@headlamp-k8s/ai-assistant',
+      allSecrets,
+      false,
+      lookAlikeUserInstall
+    );
+    expect(result).toEqual({});
+  });
+
+  test('a look-alike plugin matching the official path and name, but with no ArtifactHub provenance at all, receives nothing', () => {
+    const result = getAllowedRunCmdPermissions(
+      'user-plugins/headlamp_ai-assistant',
+      '@headlamp-k8s/ai-assistant',
+      allSecrets,
+      false,
+      noRepoUserInstall
+    );
+    expect(result).toEqual({});
+  });
+
+  test('the minikube package receives minikube secrets but not gh/az/aws secrets', () => {
+    const result = getAllowedRunCmdPermissions(
+      'plugins/headlamp_minikube',
+      '@headlamp-k8s/minikube',
+      allSecrets,
+      false,
+      shipped
+    );
+    expect(result).toEqual({
+      'runCmd-minikube': allSecrets['runCmd-minikube'],
+      'runCmd-scriptjs-headlamp_minikube/manage-minikube.js':
+        allSecrets['runCmd-scriptjs-headlamp_minikube/manage-minikube.js'],
+      'runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js':
+        allSecrets['runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js'],
+    });
+    expect(result['runCmd-aws']).toBeUndefined();
+    expect(result['runCmd-gh']).toBeUndefined();
+  });
+
+  test('a look-alike minikube plugin installed from an unofficial ArtifactHub repo receives nothing', () => {
+    const result = getAllowedRunCmdPermissions(
+      'user-plugins/headlamp_minikube',
+      '@headlamp-k8s/minikube',
+      allSecrets,
+      false,
+      lookAlikeUserInstall
+    );
+    expect(result).toEqual({});
+  });
+
+  test('minikube dev-mode secret is only included in development mode', () => {
+    const prod = getAllowedRunCmdPermissions(
+      'plugins/headlamp_minikube',
+      '@headlamp-k8s/minikube',
+      allSecrets,
+      false,
+      shipped
+    );
+    expect(prod['runCmd-scriptjs-minikube/manage-minikube.js']).toBeUndefined();
+
+    const dev = getAllowedRunCmdPermissions(
+      'plugins/minikube',
+      '@headlamp-k8s/minikube',
+      allSecrets,
+      true,
+      development
+    );
+    expect(dev['runCmd-scriptjs-minikube/manage-minikube.js']).toBe(
+      allSecrets['runCmd-scriptjs-minikube/manage-minikube.js']
+    );
   });
 });

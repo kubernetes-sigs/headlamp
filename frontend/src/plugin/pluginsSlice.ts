@@ -88,6 +88,15 @@ export type PluginInfo = {
   type?: 'development' | 'user' | 'shipped';
 
   /**
+   * artifacthub is set by the plugin installer when a "user" type plugin was
+   * installed from ArtifactHub. repoName is the ArtifactHub repository the
+   * plugin actually came from, independent of the plugin's own package.json name.
+   */
+  artifacthub?: {
+    repoName?: string;
+  };
+
+  /**
    * isLoaded indicates if this plugin version is actually loaded and executed.
    * When multiple versions of the same plugin exist, only the highest priority enabled version is loaded.
    */
