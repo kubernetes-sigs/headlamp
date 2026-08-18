@@ -60,6 +60,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/serviceproxy"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/transfer"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -2034,6 +2035,10 @@ func (c *HeadlampConfig) handleClusterRequests(router *mux.Router) {
 		handleClusterHelm(c, router)
 	}
 
+	router.HandleFunc("/clusters/{clusterName}/namespace/{namespace}/pod/{pod}/container/{container}/copy",
+		transfer.DownloadHandler(c.KubeConfigStore)).Methods("GET")
+	router.HandleFunc("/clusters/{clusterName}/namespace/{namespace}/pod/{pod}/container/{container}/copy",
+		transfer.UploadHandler(c.KubeConfigStore)).Methods("POST")
 	handleClusterServiceProxy(c, router)
 	handleClusterAPI(c, router)
 }
