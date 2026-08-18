@@ -379,7 +379,7 @@ export function combineClusterListErrors(
     return Object.fromEntries(Object.entries(clusterErrors).filter(([, error]) => error !== null));
   });
 
-  const errors = merge({}, ...filteredArgs);
+  const errors = Object.assign({}, ...filteredArgs);
   const hasErrors = Object.values(errors).some(error => error !== null);
 
   return hasErrors ? errors : null;
