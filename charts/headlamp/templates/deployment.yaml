@@ -484,7 +484,7 @@ spec:
               command:
                 - /bin/sh
                 - -c
-                - pgrep -f pluginctl || pgrep -f node
+                - pgrep node >/dev/null
             initialDelaySeconds: {{ .Values.pluginsManager.livenessProbe.initialDelaySeconds | default 30 }}
             periodSeconds: {{ .Values.pluginsManager.livenessProbe.periodSeconds | default 30 }}
             timeoutSeconds: {{ .Values.pluginsManager.livenessProbe.timeoutSeconds | default 1 }}
