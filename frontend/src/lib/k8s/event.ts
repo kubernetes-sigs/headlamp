@@ -15,13 +15,12 @@
  */
 
 import { useMemo } from 'react';
+import { getResourceClass } from '.';
 import { request } from './api/v1/clusterRequests';
 import type { QueryParameters } from './api/v1/queryParameters';
 import type { ApiError } from './api/v2/ApiError';
 import type { KubeMetadata } from './KubeMetadata';
-import type { KubeObjectClass } from './KubeObject';
 import { KubeObject } from './KubeObject';
-import { ResourceClasses } from './resourceClasses';
 
 export interface KubeEvent {
   type: string;
@@ -176,9 +175,10 @@ class Event extends KubeObject<KubeEvent> {
       return null;
     }
 
-    const InvolvedObjectClass = (ResourceClasses as Record<string, KubeObjectClass>)[
-      this.involvedObject.kind
-    ];
+    const InvolvedObjectClass = getResourceClass(
+      this.involvedObject.kind,
+      this.involvedObject.apiVersion
+    );
     let objInstance: KubeObject | null = null;
     if (!!InvolvedObjectClass) {
       objInstance = new InvolvedObjectClass(
