@@ -29,6 +29,7 @@ import (
 
 	"github.com/cli/browser"
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
@@ -203,6 +204,18 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 
 	multiplexer := NewMultiplexer(kubeConfigStore, conf.InCluster && conf.UnsafeUseServiceAccountToken)
 
+	var impersonationRules []config.MappingRule
+
+	if conf.ImpersonationEnabled {
+		rules, err := auth.ParseRules(conf.ImpersonationRules, conf.ImpersonationRulesFile)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "failed to parse impersonation rules")
+			os.Exit(1)
+		}
+
+		impersonationRules = rules
+	}
+
 	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),
 		OidcClientID:              conf.OidcClientID,
@@ -223,6 +236,8 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		Multiplexer:               multiplexer,
 		TelemetryConfig:           buildTelemetryConfig(conf),
 		OidcCACert:                loadOidcCACert(conf.OidcCAFile),
+		ImpersonationEnabled:      conf.ImpersonationEnabled,
+		ImpersonationRules:        impersonationRules,
 	}
 
 	cfg.ProxyAuthEnabled = conf.ProxyAuthEnabled
