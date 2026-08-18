@@ -699,12 +699,15 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     });
   }
 
-  const initialState: ComponentProps<typeof Table<RowItem>>['initialState'] = {};
-
-  if (defaultGlobalFilter) {
-    initialState.globalFilter = defaultGlobalFilter;
-    initialState.showGlobalFilter = true;
-  }
+  const initialState: ComponentProps<typeof Table<RowItem>>['initialState'] = useMemo(() => {
+    if (!defaultGlobalFilter) {
+      return undefined;
+    }
+    return {
+      globalFilter: defaultGlobalFilter,
+      showGlobalFilter: true,
+    };
+  }, [defaultGlobalFilter]);
 
   const handleSortingChange = useCallback(
     (updaterOrValue: MRT_SortingState | ((old: MRT_SortingState) => MRT_SortingState)) => {
@@ -719,6 +722,27 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
   );
 
   const filterFunc = filterFunction ?? defaultFilterFunc;
+
+  const tableState = useMemo(
+    () => ({
+      columnVisibility,
+      sorting,
+    }),
+    [columnVisibility, sorting]
+  );
+
+  const filterFns = useMemo(
+    () => ({
+      // `filterFns` is created inside useMemo, so it doesn't get JSX contextual typing.
+      // Keep the signature explicit to match MRT's FilterFn and avoid implicit-any params.
+      kubeObjectSearch: (row: any, id: string, filterValue: string) => {
+        const customFilterResult = filterFunc(row.original, filterValue);
+        const fuzzyColumnsResult = MRT_FilterFns.contains(row, id, filterValue);
+        return customFilterResult || fuzzyColumnsResult;
+      },
+    }),
+    [filterFunc]
+  );
 
   // Faceted values build a unique-value map per column across the full dataset.
   // On large clusters this is the dominant cause of OOM crashes, so we disable
@@ -739,22 +763,13 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
         loading={data === null}
         initialState={initialState}
         rowsPerPage={storeRowsPerPageOptions}
-        state={{
-          columnVisibility,
-          sorting,
-        }}
+        state={tableState}
         reflectInURL={reflectInURL}
         onColumnVisibilityChange={onColumnsVisibilityChange}
         onSortingChange={handleSortingChange}
         enableRowActions={enableRowActions}
         renderRowActionMenuItems={renderRowActionMenuItems}
-        filterFns={{
-          kubeObjectSearch: (row, id, filterValue) => {
-            const customFilterResult = filterFunc(row.original, filterValue);
-            const fuzzyColumnsResult = MRT_FilterFns.contains(row, id, filterValue);
-            return customFilterResult || fuzzyColumnsResult;
-          },
-        }}
+        filterFns={filterFns}
         globalFilterFn="kubeObjectSearch"
         filterFunction={filterFunc}
         getRowId={getResourceRowId}
