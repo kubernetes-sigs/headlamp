@@ -21,7 +21,7 @@ import { Theme } from '@mui/material/styles';
 import Typography, { TypographyProps } from '@mui/material/Typography';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
-import { ResourceClasses, useSelectedClusters } from '../../../lib/k8s';
+import { getResourceClass, useSelectedClusters } from '../../../lib/k8s';
 import { KubeOwnerReference } from '../../../lib/k8s/cluster';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
 import { localeDate } from '../../../lib/util';
@@ -69,19 +69,9 @@ export function MetadataDisplay<T extends KubeObject>(props: MetadataDisplayProp
 
     return ownerReferences
       .map((ownerRef, i) => {
-        // Match both kind AND apiVersion to avoid linking to the wrong resource when
+        // Match both kind AND apiVersion group to avoid linking to the wrong resource when
         // different API groups share the same kind name (e.g. batch/v1 Job vs a CRD Job).
-        const matchingClass =
-          ownerRef.kind in ResourceClasses
-            ? (() => {
-                const cls = ResourceClasses[ownerRef.kind as keyof typeof ResourceClasses];
-                const apiVersions = Array.isArray(cls.apiVersion)
-                  ? cls.apiVersion
-                  : [cls.apiVersion];
-                const apiVersionMatches = apiVersions.includes(ownerRef.apiVersion);
-                return apiVersionMatches ? cls : null;
-              })()
-            : null;
+        const matchingClass = getResourceClass(ownerRef.kind, ownerRef.apiVersion);
 
         if (matchingClass) {
           let routeName;
