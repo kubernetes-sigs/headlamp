@@ -86,4 +86,28 @@ describe('HPA class', () => {
     expect(metrics[0].value).toBe('0% (0m)/0%');
     expect(metrics[0].shortValue).toBe('0% /0%');
   });
+
+  describe('referenceObject', () => {
+    it('resolves the target class when kind and apiVersion group match', () => {
+      const data = JSON.parse(JSON.stringify(mockHpaData));
+      const hpa = new HPA(data);
+
+      expect(hpa.referenceObject).not.toBeNull();
+      expect(hpa.referenceObject?.kind).toBe('Deployment');
+    });
+
+    it('returns null when the target kind matches a built-in but the group differs', () => {
+      // Reproduces issue #7321: a CRD sharing a kind name with a built-in resource
+      // must not resolve to the built-in class.
+      const data = JSON.parse(JSON.stringify(mockHpaData));
+      data.spec.scaleTargetRef = {
+        apiVersion: 'kueue.x-k8s.io/v1beta1',
+        kind: 'Deployment',
+        name: 'test-deployment',
+      };
+      const hpa = new HPA(data);
+
+      expect(hpa.referenceObject).toBeNull();
+    });
+  });
 });

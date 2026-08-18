@@ -535,6 +535,7 @@
       "useEventListForClusters": [Function],
       "useEventWarningList": [Function],
     },
+    "getResourceClass": [Function],
     "getVersion": [Function],
     "ingress": {
       "default": [Function],
