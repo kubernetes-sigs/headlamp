@@ -34,6 +34,8 @@ export interface ProjectDefinition {
   clusters: string[];
   /** Exact namespace and cluster pairs included in the project entry. */
   namespaceRefs?: ProjectNamespaceReference[];
+  /** Whether project discovery completed successfully across all clusters. */
+  namespaceDiscoveryComplete?: boolean;
 }
 
 /** Identifies one Kubernetes namespace within a specific Headlamp cluster. */
