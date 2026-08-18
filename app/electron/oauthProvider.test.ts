@@ -118,6 +118,19 @@ describe('registerOAuthProvider', () => {
     expect(dispatchOAuthCallback(new URL('headlamp://oauth/callback'), 'headlamp')).toBe(true);
     expect(replacementHandler).toHaveBeenCalledOnce();
   });
+
+  it('does not let stale cleanup remove a re-registration of the same object', () => {
+    const handleCallback = vi.fn();
+    const reused = registration({ handleCallback });
+    const firstUnregister = register(reused);
+    firstUnregister();
+    register(reused);
+
+    firstUnregister();
+
+    expect(dispatchOAuthCallback(new URL('headlamp://oauth/callback'), 'headlamp')).toBe(true);
+    expect(handleCallback).toHaveBeenCalledOnce();
+  });
 });
 
 describe('dispatchOAuthCallback', () => {

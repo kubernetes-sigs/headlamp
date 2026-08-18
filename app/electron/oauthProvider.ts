@@ -42,7 +42,16 @@ export interface OAuthProviderRegistration {
   handleCallback(url: URL): void | Promise<void>;
 }
 
-const providersByCallback = new Map<string, OAuthProviderRegistration>();
+/**
+ * Internal registry record giving every registration call its own identity, so a
+ * cleanup callback can only remove the registration it was issued for.
+ */
+interface RegistryEntry {
+  /** Provider registration supplied by the caller. */
+  registration: OAuthProviderRegistration;
+}
+
+const providersByCallback = new Map<string, RegistryEntry>();
 
 /**
  * Creates a case-insensitive lookup key for a callback route.
@@ -107,10 +116,13 @@ export function registerOAuthProvider(registration: OAuthProviderRegistration): 
   if (providersByCallback.has(key)) {
     throw new Error('OAuth callback is already registered');
   }
-  providersByCallback.set(key, registration);
+  // A fresh entry per call, so a stale cleanup callback never matches a later
+  // registration even when the caller re-registers the same registration object.
+  const entry: RegistryEntry = { registration };
+  providersByCallback.set(key, entry);
 
   return () => {
-    if (providersByCallback.get(key) === registration) {
+    if (providersByCallback.get(key) === entry) {
       providersByCallback.delete(key);
     }
   };
@@ -130,10 +142,11 @@ export function dispatchOAuthCallback(url: URL, protocolScheme: string): boolean
   if (url.protocol !== `${protocolScheme}:`) {
     return false;
   }
-  const provider = providersByCallback.get(callbackKey(url.hostname, url.pathname));
-  if (!provider) {
+  const entry = providersByCallback.get(callbackKey(url.hostname, url.pathname));
+  if (!entry) {
     return false;
   }
+  const provider = entry.registration;
 
   try {
     Promise.resolve(provider.handleCallback(url)).catch(error => {
