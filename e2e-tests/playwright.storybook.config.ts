@@ -32,5 +32,8 @@ export default defineConfig({
     command: 'cd ../frontend && npm exec storybook dev -- --ci --host 127.0.0.1 --port 6007',
     url: 'http://127.0.0.1:6007',
     reuseExistingServer: !process.env.CI,
+    // A cold Storybook dev start on a CI runner regularly exceeds Playwright's
+    // 60s default.
+    timeout: 180_000,
   },
 });

@@ -3,7 +3,9 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {},
+  "scripts": {
+    "test:storybook": "playwright test --config playwright.storybook.config.ts"
+  },
   "keywords": [],
   "author": "",
   "license": "ISC",

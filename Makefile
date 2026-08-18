@@ -358,6 +358,13 @@ frontend-test:
 frontend-test-a11y:
 	cd frontend && npm run test:a11y
 
+# Runs the browser-level Playwright checks for the global Storybook MSW mocks.
+# The Playwright config boots `storybook dev` itself, so frontend deps must be
+# installed before this target runs.
+.PHONY: e2e-test-storybook
+e2e-test-storybook:
+	cd e2e-tests && npm run test:storybook
+
 .PHONY: lint
 lint: backend-lint frontend-lint
 
