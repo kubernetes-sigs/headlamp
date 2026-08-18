@@ -6,6 +6,7 @@ import (
 	"time"
 
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	tel "github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
 	"github.com/stretchr/testify/assert"
 )
@@ -14,6 +15,7 @@ func TestNewTelemetry(t *testing.T) { //nolint:funlen // multiple test cases fun
 	testVersion := "1.0.0"
 	sampleRate := 1.0
 	emptyStr := ""
+	jaegerEndpoint := "http://jaeger:14268/api/traces"
 	trueVal := true
 	falseVal := false
 
@@ -68,6 +70,23 @@ func TestNewTelemetry(t *testing.T) { //nolint:funlen // multiple test cases fun
 			expectError:   true,
 			errorContains: "service name cannot be empty",
 		},
+		{
+			name: "jaeger endpoint is rejected instead of falling back to otlp",
+			config: cfg.Config{
+				ServiceName:        "test-service",
+				ServiceVersion:     &testVersion,
+				TracingEnabled:     &trueVal,
+				StdoutTraceEnabled: &falseVal,
+				SamplingRate:       &sampleRate,
+				MetricsEnabled:     &falseVal,
+				JaegerEndpoint:     &jaegerEndpoint,
+				OTLPEndpoint:       &emptyStr,
+				UseOTLPHTTP:        &falseVal,
+			},
+			expectError: true,
+			errorContains: "jaeger endpoint http://jaeger:14268/api/traces is not supported; " +
+				"use an OTLP endpoint or stdout tracing instead",
+		},
 	}
 
 	for _, tc := range tests {
@@ -94,4 +113,43 @@ func TestNewTelemetry(t *testing.T) { //nolint:funlen // multiple test cases fun
 			}
 		})
 	}
+}
+
+func TestNewTelemetryDoesNotCountJaegerInExporterWarning(t *testing.T) {
+	testVersion := "1.0.0"
+	sampleRate := 1.0
+	jaegerEndpoint := "http://jaeger:14268/api/traces"
+	otlpEndpoint := "localhost:4317"
+	trueVal := true
+	falseVal := false
+
+	var warningFields map[string]string
+
+	originalLogFunc := logger.SetLogFunc(func(level uint, str map[string]string, err interface{}, msg string) {
+		if level == logger.LevelWarn && msg == "Multiple trace exporters configured, using highest priority exporter" {
+			warningFields = str
+		}
+	})
+	defer logger.SetLogFunc(originalLogFunc)
+
+	telemetry, err := tel.NewTelemetry(cfg.Config{
+		ServiceName:        "test-service",
+		ServiceVersion:     &testVersion,
+		TracingEnabled:     &trueVal,
+		StdoutTraceEnabled: &trueVal,
+		SamplingRate:       &sampleRate,
+		MetricsEnabled:     &falseVal,
+		JaegerEndpoint:     &jaegerEndpoint,
+		OTLPEndpoint:       &otlpEndpoint,
+		UseOTLPHTTP:        &falseVal,
+	})
+	assert.NoError(t, err)
+	assert.NotNil(t, telemetry)
+	assert.Equal(t, "stdout, OTLP", warningFields["configured"])
+	assert.Equal(t, "stdout", warningFields["selected"])
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	assert.NoError(t, telemetry.Shutdown(ctx))
 }
