@@ -345,6 +345,7 @@ export default function Terminal(props: TerminalProps) {
 
       return function cleanup() {
         xtermRef.current?.xterm.dispose();
+        fitAddonRef.current?.dispose();
         execOrAttachRef.current?.cancel();
         execOrAttachRef.current = null;
         window.removeEventListener('resize', handler);
@@ -529,7 +530,9 @@ export default function Terminal(props: TerminalProps) {
       onClose={onClose}
       onFullScreenToggled={() => {
         setTimeout(() => {
-          fitAddonRef.current!.fit();
+          if (fitAddonRef.current && typeof fitAddonRef.current.fit === 'function') {
+            fitAddonRef.current.fit();
+          }
         }, 1);
       }}
       withFullScreen
