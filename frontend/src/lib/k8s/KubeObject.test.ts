@@ -43,11 +43,43 @@ vi.mock('./patchUtils', () => ({
   computeRawPatchCount: vi.fn(),
 }));
 
+import { renderHook } from '@testing-library/react';
+import { useSelectedClusters } from './api/v1/hooks';
+import { makeListRequests, useKubeObjectList } from './api/v2/useKubeObjectList';
 import { KubeObject } from './KubeObject';
 
 describe('KubeObject', () => {
   it('returns no API group when the class does not define an API version', () => {
     expect(KubeObject.apiGroupName).toBeUndefined();
+  });
+
+  describe('useList', () => {
+    beforeEach(() => {
+      vi.clearAllMocks();
+    });
+
+    it('requests no clusters when no cluster is selected', () => {
+      vi.mocked(useSelectedClusters).mockReturnValue([]);
+      vi.mocked(useKubeObjectList).mockReturnValue([null, null] as any);
+
+      renderHook(() => KubeObject.useList());
+
+      expect(makeListRequests).toHaveBeenCalledWith([], expect.any(Function), undefined, undefined);
+    });
+
+    it('requests the selected clusters when no explicit cluster is given', () => {
+      vi.mocked(useSelectedClusters).mockReturnValue(['cluster-a']);
+      vi.mocked(useKubeObjectList).mockReturnValue([null, null] as any);
+
+      renderHook(() => KubeObject.useList());
+
+      expect(makeListRequests).toHaveBeenCalledWith(
+        ['cluster-a'],
+        expect.any(Function),
+        undefined,
+        undefined
+      );
+    });
   });
 
   it('matches subclasses that define a custom API group and kind', () => {

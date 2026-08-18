@@ -87,6 +87,20 @@ describe('useEndpoints', () => {
     expect(mockClusterFetch).not.toHaveBeenCalled();
   });
 
+  it('does not probe when no cluster is given', () => {
+    const endpoints: KubeObjectEndpoint[] = [
+      { group: 'apiextensions.k8s.io', version: 'v1', resource: 'customresourcedefinitions' },
+      { group: 'apiextensions.k8s.io', version: 'v1beta1', resource: 'customresourcedefinitions' },
+    ];
+
+    const { result } = renderHook(() => useEndpoints(endpoints, ''), {
+      wrapper: createWrapper(),
+    });
+
+    expect(result.current.endpoint).toBeUndefined();
+    expect(mockClusterFetch).not.toHaveBeenCalled();
+  });
+
   it('uses name-based GET probing in endpoint priority order', async () => {
     const endpoints: KubeObjectEndpoint[] = [
       { group: 'extensions', version: 'v1beta1', resource: 'ingresses' },

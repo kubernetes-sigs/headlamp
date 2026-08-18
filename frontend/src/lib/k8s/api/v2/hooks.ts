@@ -299,7 +299,9 @@ export const useEndpoints = (
   );
 
   const { data: endpoint, error } = useQuery<KubeObjectEndpoint, ApiError>({
-    enabled: endpoints.length > 1,
+    // Probing without a cluster would hit the backend's own root, which
+    // serves the SPA index.html with a 200 and makes the probe "succeed".
+    enabled: endpoints.length > 1 && !!cluster,
     retry: false,
     queryKey: ['endpoints', cluster, namespace, name ?? '', endpointsKey],
     queryFn: () => getWorkingEndpoint(endpoints, cluster!, namespace, name),

@@ -395,9 +395,10 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
     // Create requests for each cluster and namespace
     // eslint-disable-next-line react-hooks/rules-of-hooks
     const requests = useMemo(() => {
-      const clusterList = cluster
-        ? [cluster]
-        : clusters || (fallbackClusters.length === 0 ? [''] : fallbackClusters);
+      // When no cluster is explicitly requested and none is selected, make no
+      // requests: a request without a cluster would go to the backend's own
+      // root, which serves the SPA index.html instead of any Kubernetes API.
+      const clusterList = cluster ? [cluster] : clusters || fallbackClusters;
 
       const namespacesFromParams =
         typeof namespace === 'string'
