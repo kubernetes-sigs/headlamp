@@ -542,7 +542,7 @@ const defaultRoutes: { [routeName: string]: Route } = {
     sidebar: 'backendtrafficpolicies',
     component: () => <BackendTrafficPolicyList />,
   },
-  xbackendtrafficpolicy: {
+  backendtrafficpolicy: {
     path: '/backendtrafficpolicy/:namespace/:name',
     exact: true,
     name: 'BackendTrafficPolicies',
