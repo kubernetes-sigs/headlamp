@@ -163,7 +163,6 @@ test.describe('portforward auto-reconnect', () => {
       // --- Step 4: Poll until status becomes Reconnecting or Running (new pod) ---
       // The monitor checks every 5s, then reconnect has backoffs of 5s, 10s, 20s.
       // We should see Reconnecting within ~10s, and Running again within ~30s.
-      let sawReconnecting = false;
       let finalPf: PortForwardResponse | null = null;
       const deadline = Date.now() + 90_000;
 
@@ -182,25 +181,14 @@ test.describe('portforward auto-reconnect', () => {
 
         const pf: PortForwardResponse = await resp.json();
 
-        if (pf.status === 'Reconnecting') {
-          sawReconnecting = true;
-        }
-
-        if (pf.status === 'Running' && sawReconnecting) {
+        // The key success criteria: the port-forward is running again,
+        // and it has switched to a new pod because the old one was deleted.
+        if (pf.status === 'Running' && pf.pod !== initialPod) {
           finalPf = pf;
           break;
         }
 
         if (pf.status === 'Stopped') {
-          // If it stopped before we saw it reconnect, the test has failed.
-          // But check if maybe it reconnected and came back so fast we
-          // missed the Reconnecting state — in that case the pod name
-          // should have changed.
-          if (pf.pod !== initialPod) {
-            finalPf = pf;
-            // It reconnected so fast we missed the intermediate state.
-            break;
-          }
           throw new Error(`Port-forward stopped without reconnecting: ${pf.error}`);
         }
       }
