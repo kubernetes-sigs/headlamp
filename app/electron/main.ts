@@ -60,6 +60,7 @@ import {
   PluginManager,
   setAppConfigDirName,
 } from './plugin-management';
+import { findProtocolUrlInArgv, getRouteFromProtocolUrl } from './protocol';
 import {
   addRunCmdConsent,
   environmentOverrides,
@@ -210,6 +211,45 @@ let mainWindow: BrowserWindow | null;
 let mcpClient: MCPClient | null = null;
 let isQuitting = false;
 let hasTray = false;
+
+// headlamp:// URL received before the main window was created (macOS emits
+// open-url before 'ready' on a cold start), kept until the window can navigate.
+let pendingProtocolUrl: string | null = null;
+
+/** Returns the full app URL for an in-app hash route. */
+function urlForRoute(route: string): string {
+  let baseUrl = startUrl;
+  if (baseUrl.endsWith('/')) {
+    baseUrl = baseUrl.slice(0, -1);
+  }
+  return baseUrl + '#' + route;
+}
+
+/**
+ * Maps a headlamp:// URL to its in-app route, showing an error dialog and
+ * returning null when the URL cannot be mapped.
+ */
+function getProtocolRouteOrShowError(rawUrl: string): string | null {
+  const route = getRouteFromProtocolUrl(rawUrl);
+  if (route === null) {
+    dialog.showErrorBox(
+      i18n.t('Invalid URL'),
+      i18n.t('Application opened with an invalid URL: {{ url }}', { url: rawUrl })
+    );
+  }
+  return route;
+}
+
+/**
+ * Navigates the main window to the route a headlamp:// URL points to, showing
+ * an error dialog for URLs that cannot be mapped to a route.
+ */
+function navigateToProtocolUrl(rawUrl: string) {
+  const route = getProtocolRouteOrShowError(rawUrl);
+  if (route !== null) {
+    mainWindow?.loadURL(urlForRoute(route));
+  }
+}
 
 /**
  * `Action` is an interface for an action to be performed by the plugin manager.
@@ -1620,8 +1660,18 @@ function startElectron() {
       },
     });
 
+    // Fold any headlamp:// URL the app was launched with into the initial
+    // load: Windows and Linux pass it on the command line, while macOS
+    // delivers it through an early open-url event that is stored until the
+    // window exists. Issuing a single loadURL avoids aborting a navigation
+    // that just started.
+    const startupProtocolUrl = pendingProtocolUrl ?? findProtocolUrlInArgv(process.argv);
+    pendingProtocolUrl = null;
+    const startupRoute =
+      startupProtocolUrl !== undefined ? getProtocolRouteOrShowError(startupProtocolUrl) : null;
+
     // Load the frontend
-    mainWindow.loadURL(startUrl);
+    mainWindow.loadURL(startupRoute !== null ? urlForRoute(startupRoute) : startUrl);
 
     setMenu(mainWindow, currentMenu);
 
@@ -1699,11 +1749,20 @@ function startElectron() {
     // Force Single Instance Application
     const gotTheLock = app.requestSingleInstanceLock();
     if (gotTheLock) {
-      app.on('second-instance', () => {
-        // Someone tried to run a second instance, we should focus our window.
+      app.on('second-instance', (event, commandLine) => {
+        // Someone tried to run a second instance, we should focus our window
+        // and navigate to any headlamp:// URL it was invoked with, which is
+        // how Windows and Linux deliver protocol URLs while the app runs.
         if (mainWindow) {
           if (mainWindow.isMinimized()) mainWindow.restore();
+          // The window may be hidden rather than closed when the tray is
+          // active, and focus() alone does not reveal a hidden window.
+          mainWindow.show();
           mainWindow.focus();
+        }
+        const protocolUrl = findProtocolUrlInArgv(commandLine);
+        if (protocolUrl) {
+          navigateToProtocolUrl(protocolUrl);
         }
       });
     } else {
@@ -1722,29 +1781,6 @@ function startElectron() {
       }
       event.preventDefault();
       shell.openExternal(url);
-    });
-
-    app.on('open-url', (event, url) => {
-      mainWindow?.focus();
-      let urlObj;
-      try {
-        urlObj = new URL(url);
-      } catch (e) {
-        dialog.showErrorBox(
-          i18n.t('Invalid URL'),
-          i18n.t('Application opened with an invalid URL: {{ url }}', { url })
-        );
-        return;
-      }
-
-      const urlParam = urlObj.hostname;
-      let baseUrl = startUrl;
-      // this check helps us to avoid adding multiple / to the startUrl when appending the incoming url to it
-      if (baseUrl.endsWith('/')) {
-        baseUrl = baseUrl.slice(0, startUrl.length - 1);
-      }
-      // load the index.html from build and route to the hostname received in the protocol handler url
-      mainWindow?.loadURL(baseUrl + '#' + urlParam + urlObj.search);
     });
 
     i18n.on('languageChanged', () => {
@@ -1916,6 +1952,22 @@ function startElectron() {
       hasTray = false;
     }
   }
+
+  // macOS delivers headlamp:// protocol URLs through open-url, possibly
+  // before the window exists on a cold start; registering here (rather than
+  // in createWindow) keeps a single listener and catches early events.
+  app.on('open-url', (event, url) => {
+    event.preventDefault();
+    if (mainWindow) {
+      // The window may be hidden rather than closed when the tray is active,
+      // and focus() alone does not reveal a hidden window.
+      mainWindow.show();
+      mainWindow.focus();
+      navigateToProtocolUrl(url);
+    } else {
+      pendingProtocolUrl = url;
+    }
+  });
 
   app.on('ready', async () => {
     await Promise.all([startServerIfNeeded(), createWindow()]);
