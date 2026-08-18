@@ -14,7 +14,22 @@
  * limitations under the License.
  */
 
-import { isValidRedirectPath } from './AppContainer';
+import { createTheme } from '@mui/material/styles';
+import { getSuccessSnackbarBackground, isValidRedirectPath } from './AppContainer';
+
+describe('getSuccessSnackbarBackground', () => {
+  it('uses the active theme success background for each color mode', () => {
+    const lightTheme = createTheme({
+      palette: { mode: 'light', success: { main: '#123456' } },
+    });
+    const darkTheme = createTheme({
+      palette: { mode: 'dark', success: { main: '#abcdef', light: '#654321' } },
+    });
+
+    expect(getSuccessSnackbarBackground(lightTheme)).toBe('#123456');
+    expect(getSuccessSnackbarBackground(darkTheme)).toBe('#654321');
+  });
+});
 
 describe('isValidRedirectPath', () => {
   it('should allow safe internal paths', () => {

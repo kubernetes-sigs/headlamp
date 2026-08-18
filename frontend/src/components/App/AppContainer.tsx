@@ -15,6 +15,7 @@
  */
 
 import GlobalStyles from '@mui/material/GlobalStyles';
+import type { Theme } from '@mui/material/styles';
 import { SnackbarProvider } from 'notistack';
 import React, { useEffect } from 'react';
 import { BrowserRouter, HashRouter, useHistory, useLocation } from 'react-router-dom';
@@ -132,6 +133,9 @@ const Router = ({ children }: React.PropsWithChildren<{}>) =>
     <BrowserRouter basename={getBaseUrl()}>{children}</BrowserRouter>
   );
 
+export const getSuccessSnackbarBackground = (theme: Theme) =>
+  theme.palette.mode === 'dark' ? theme.palette.success.light : theme.palette.success.main;
+
 export default function AppContainer() {
   return (
     <SnackbarProvider
@@ -141,7 +145,10 @@ export default function AppContainer() {
       }}
     >
       <GlobalStyles
-        styles={{
+        styles={theme => ({
+          '.notistack-MuiContent-success': {
+            backgroundColor: getSuccessSnackbarBackground(theme),
+          },
           ':root': {
             '@media (prefers-reduced-motion: reduce)': {
               '& *': {
@@ -152,7 +159,7 @@ export default function AppContainer() {
               },
             },
           },
-        }}
+        })}
       />
       <Router>
         <PreviousRouteProvider>
