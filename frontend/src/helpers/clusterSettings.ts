@@ -55,7 +55,11 @@ export function storeClusterSettings(clusterName: string, settings: ClusterSetti
   if (!clusterName) {
     return;
   }
-  localStorage.setItem(`cluster_settings.${clusterName}`, JSON.stringify(settings));
+  try {
+    localStorage.setItem(`cluster_settings.${clusterName}`, JSON.stringify(settings));
+  } catch (error) {
+    console.warn(`Failed to store cluster_settings.${clusterName}:`, error);
+  }
 }
 
 /**
