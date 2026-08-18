@@ -149,6 +149,29 @@ describe('createProtocolHandler', () => {
     unregister();
   });
 
+  it('dispatches the startup callback before callbacks queued while starting up', () => {
+    const dispatched: string[] = [];
+    const protocolHandler = createProtocolHandler({
+      protocolScheme: 'headlamp',
+      startUrl: 'file:///headlamp/index.html',
+      getMainWindow: () => null,
+    });
+    const unregister = registerOAuthProvider({
+      id: 'ordering',
+      callback: { hostname: 'oauth', pathname: '/callback' },
+      handleCallback: url => {
+        dispatched.push(url.searchParams.get('code') ?? '');
+      },
+    });
+
+    // Queued after launch but before readiness, so it must follow the startup callback.
+    protocolHandler.handle('headlamp://oauth/callback?code=second');
+    protocolHandler.setReady(['electron', 'headlamp://oauth/callback?code=startup']);
+
+    expect(dispatched).toEqual(['startup', 'second']);
+    unregister();
+  });
+
   it('uses the process startup context by default', () => {
     const protocolHandler = createProtocolHandler({
       protocolScheme: 'headlamp',

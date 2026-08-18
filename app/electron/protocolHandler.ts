@@ -134,10 +134,12 @@ export function createProtocolHandler(options: ProtocolHandlerOptions): Protocol
         return;
       }
       isReady = true;
+      // The launch argument callback arrived before anything queued by open-url or
+      // second-instance, so dispatch it first to keep dispatch order matching arrival order.
+      handleFirstProtocolUrl(argv);
       for (const value of pendingUrls.splice(0)) {
         processUrl(value);
       }
-      handleFirstProtocolUrl(argv);
     },
   };
 }
