@@ -80,6 +80,8 @@ const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const PLUGIN_FOLDER = path.join(scriptDirectory, '../../.plugins');
 const MANIFEST_FILE = resolveBuildManifestPath();
 const manifest = loadBuildManifest(MANIFEST_FILE) as BuildManifest;
+// The reviewed in-repo manifest predates digest metadata; externally selected manifests are
+// untrusted and must pin every plugin source.
 const externalManifest = !pathsReferToSameFile(MANIFEST_FILE, DEFAULT_MANIFEST_FILE);
 
 /**
@@ -222,6 +224,7 @@ export async function extractArchive(
     },
     onReadEntry: entry => {
       entryCount += 1;
+      // node-tar reads exactly `size` bytes per entry, so the header value bounds real output.
       extractedBytes += entry.size;
       if (entryCount > limits.maxEntries) {
         extractionError = new Error(`Plugin archive exceeds entry limit of ${limits.maxEntries}`);
@@ -289,6 +292,9 @@ function copyExtractedRegularFile(
  * @param url HTTPS URL of the plugin archive.
  * @param destinationPath Path where the downloaded archive is written.
  * @param redirectCount Number of redirects followed so far.
+ * @param limits Download size and total duration limits.
+ * @param initialHostname Original hostname used to constrain redirects.
+ * @param deadline Absolute deadline shared by every request in the redirect chain.
  * @returns A promise that resolves when the archive is fully written.
  * @throws When the URL is invalid or insecure, redirects exceed the limit, or the request fails.
  */
@@ -297,7 +303,8 @@ export function downloadFile(
   destinationPath: string,
   redirectCount: number = 0,
   limits: DownloadLimits = DEFAULT_DOWNLOAD_LIMITS,
-  initialHostname?: string
+  initialHostname?: string,
+  deadline: number = Date.now() + limits.timeoutMs
 ): Promise<void> {
   return new Promise((resolve, reject) => {
     let parsedUrl: URL;
@@ -313,6 +320,12 @@ export function downloadFile(
     }
     if (redirectCount > 5) {
       reject(new Error(`Too many redirects while downloading plugin archive: ${url}`));
+      return;
+    }
+    const remainingTime = deadline - Date.now();
+    if (remainingTime <= 0) {
+      fs.rmSync(destinationPath, { force: true });
+      reject(new Error(`Plugin archive download timed out after ${limits.timeoutMs}ms`));
       return;
     }
 
@@ -376,7 +389,8 @@ export function downloadFile(
           destinationPath,
           redirectCount + 1,
           limits,
-          sourceHostname
+          sourceHostname,
+          deadline
         )
           .then(() => finish())
           .catch(error => finish(error as Error));
@@ -388,7 +402,7 @@ export function downloadFile(
     request.on('error', error => finish(error));
     const timeout = setTimeout(() => {
       request.destroy(new Error(`Plugin archive download timed out after ${limits.timeoutMs}ms`));
-    }, limits.timeoutMs);
+    }, remainingTime);
   });
 }
 

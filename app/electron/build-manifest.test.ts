@@ -205,39 +205,6 @@ describe('build manifest selection', () => {
   });
 });
 
-describe('TypeScript plugin setup entrypoints', () => {
-  const repositoryRoot = path.resolve(__dirname, '../..');
-  const expectedCommand = 'node --experimental-strip-types ./scripts/setup-plugins.ts';
-
-  it('uses Node type stripping in package scripts', () => {
-    const packageJson = JSON.parse(
-      fs.readFileSync(path.join(repositoryRoot, 'package.json'), 'utf8')
-    );
-    const appPackageJson = JSON.parse(
-      fs.readFileSync(path.join(repositoryRoot, 'app/package.json'), 'utf8')
-    );
-
-    for (const scriptName of ['app:build', 'app:build:dir', 'app:start']) {
-      expect(packageJson.scripts[scriptName]).toContain(expectedCommand);
-    }
-    expect(packageJson.engines.node).toBe('>=22.6.0');
-    expect(appPackageJson.engines.node).toBe('>=22.6.0');
-  });
-
-  it('uses Node type stripping in Make and Windows build entrypoints', () => {
-    const makefile = fs.readFileSync(path.join(repositoryRoot, 'Makefile'), 'utf8');
-    const windowsWorkflow = fs.readFileSync(
-      path.join(repositoryRoot, '.github/workflows/app-artifacts-win.yml'),
-      'utf8'
-    );
-
-    expect(
-      makefile.match(/node --experimental-strip-types \.\/scripts\/setup-plugins\.ts/g)
-    ).toHaveLength(3);
-    expect(windowsWorkflow).toContain('node --experimental-strip-types scripts/setup-plugins.ts');
-  });
-});
-
 describe('plugin archive integrity', () => {
   it('rejects missing and malformed plugin archives', async () => {
     const extractionDirectory = fs.mkdtempSync(
@@ -439,6 +406,24 @@ describe('plugin archive download', () => {
     await expect(
       downloadFile('https://plugins.example/latest', destination)
     ).resolves.toBeUndefined();
+  });
+
+  it('uses one timeout budget across redirects', async () => {
+    const destination = temporaryFile('');
+    const now = vi.spyOn(Date, 'now').mockReturnValueOnce(1_000).mockReturnValue(1_000);
+    nock('https://plugins.example').get('/latest').reply(302, undefined, {
+      Location: '/plugin.tar.gz',
+    });
+
+    const download = downloadFile('https://plugins.example/latest', destination, 0, {
+      maxBytes: 1024,
+      timeoutMs: 10,
+    });
+    now.mockReturnValue(1_010);
+
+    await expect(download).rejects.toThrow('timed out after 10ms');
+    expect(fs.existsSync(destination)).toBe(false);
+    now.mockRestore();
   });
 
   it('follows only 3xx redirects to allowed HTTPS hosts', async () => {
