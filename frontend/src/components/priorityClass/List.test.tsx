@@ -64,7 +64,9 @@ describe('PriorityClassList', () => {
     const globalDefault = props.columns.find((c: any) => c?.id === 'globalDefault');
 
     expect(value.getValue({ value: 1000000 })).toBe(1000000);
-    expect(globalDefault.getValue({ globalDefault: true })).toBe('translation|Yes');
-    expect(globalDefault.getValue({ globalDefault: false })).toBe('translation|No');
+    expect(globalDefault.getValue({ globalDefault: true })).toBe('true');
+    expect(globalDefault.getValue({ globalDefault: false })).toBe('false');
+    expect(globalDefault.render({ globalDefault: true })).toBe('translation|Yes');
+    expect(globalDefault.render({ globalDefault: false })).toBeNull();
   });
 });
