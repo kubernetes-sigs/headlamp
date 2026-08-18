@@ -15,6 +15,10 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron';
+import type {
+  DesktopApiReceiveChannel,
+  DesktopApiSendChannel,
+} from '../../frontend/src/plugin/lib';
 import type { LegalDocumentResult, LegalDocumentSummary } from './legal-documents';
 
 // Keeps the mapping between a caller-provided listener and the wrapped one we
@@ -32,9 +36,9 @@ const wrappedListeners = new WeakMap<
 // Expose protected methods that allow the renderer process to use
 // the ipcRenderer without exposing the entire object
 contextBridge.exposeInMainWorld('desktopApi', {
-  send: (channel: string, data: unknown) => {
+  send: (channel: DesktopApiSendChannel, data: unknown) => {
     // allowed channels
-    const validChannels = [
+    const validChannels: DesktopApiSendChannel[] = [
       'setMenu',
       'locale',
       'appConfig',
@@ -53,8 +57,8 @@ contextBridge.exposeInMainWorld('desktopApi', {
       ipcRenderer.send(channel, data);
     }
   },
-  receive: (channel: string, func: (...args: unknown[]) => void) => {
-    const validChannels = [
+  receive: (channel: DesktopApiReceiveChannel, func: (...args: unknown[]) => void) => {
+    const validChannels: DesktopApiReceiveChannel[] = [
       'currentMenu',
       'setMenu',
       'locale',
@@ -83,7 +87,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
     }
   },
 
-  removeListener: (channel: string, func: (...args: unknown[]) => void) => {
+  removeListener: (channel: DesktopApiReceiveChannel, func: (...args: unknown[]) => void) => {
     const entry = wrappedListeners.get(func);
     if (entry && entry.channel === channel) {
       ipcRenderer.removeListener(channel, entry.wrapped);
