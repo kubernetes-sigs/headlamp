@@ -101,7 +101,7 @@ describe('getShellEnv', () => {
       FROM_SHELL: 'result',
       WITH_EQUALS: 'one=two',
     });
-    expect(execute).toHaveBeenCalledWith("/bin/zsh --login --interactive -c 'env -0'", {
+    expect(execute).toHaveBeenCalledWith('/bin/zsh', ['--login', '--interactive', '-c', 'env -0'], {
       EXISTING: 'value',
       DISABLE_AUTO_UPDATE: 'true',
     });
@@ -113,7 +113,24 @@ describe('getShellEnv', () => {
     await expect(
       getShellEnv(dependencies({ getShell: vi.fn().mockResolvedValue('/bin/bash'), execute }))
     ).resolves.toMatchObject({ FROM_BASH: 'result' });
-    expect(execute).toHaveBeenCalledWith("/bin/bash --login -c 'env -0'", expect.any(Object));
+    expect(execute).toHaveBeenCalledWith(
+      '/bin/bash',
+      ['--login', '-c', 'env -0'],
+      expect.any(Object)
+    );
+  });
+
+  it('passes the shell path as a literal executable instead of shell syntax', async () => {
+    const execute = vi.fn().mockResolvedValue('FROM_SHELL=result\0');
+    const shell = "/opt/My Shell/bin/zsh'; touch /tmp/injected; '";
+
+    await getShellEnv(dependencies({ getShell: vi.fn().mockResolvedValue(shell), execute }));
+
+    expect(execute).toHaveBeenCalledWith(
+      shell,
+      ['--login', '--interactive', '-c', 'env -0'],
+      expect.any(Object)
+    );
   });
 
   it('falls back to newline-delimited env output', async () => {
@@ -128,7 +145,8 @@ describe('getShellEnv', () => {
       SECOND: 'two',
     });
     expect(execute).toHaveBeenLastCalledWith(
-      "/bin/zsh --login --interactive -c 'env'",
+      '/bin/zsh',
+      ['--login', '--interactive', '-c', 'env'],
       expect.any(Object)
     );
   });

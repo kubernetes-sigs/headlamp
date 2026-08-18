@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
-import { exec } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import * as fsPromises from 'node:fs/promises';
 import { userInfo } from 'node:os';
 import { promisify } from 'node:util';
 
-const execPromisify = promisify(exec);
+const execFilePromisify = promisify(execFile);
 
 /** Dependencies used to locate an available login shell. */
 export interface ShellLookupDependencies {
@@ -32,11 +32,12 @@ export interface ShellLookupDependencies {
 /** Executes a command through the selected login shell. */
 export interface ShellCommandExecutor {
   /**
-   * @param command - The complete shell command to execute.
+   * @param file - The shell executable path.
+   * @param args - Arguments passed directly to the shell executable.
    * @param environment - Environment variables supplied to the shell process.
    * @returns The command's standard output.
    */
-  (command: string, environment: NodeJS.ProcessEnv): Promise<string>;
+  (file: string, args: string[], environment: NodeJS.ProcessEnv): Promise<string>;
 }
 
 /** Dependencies used to resolve shell environment variables. */
@@ -56,8 +57,8 @@ const defaultShellLookupDependencies: ShellLookupDependencies = {
   shellExists: shell => fsPromises.stat(shell),
 };
 
-const executeShellCommand: ShellCommandExecutor = async (command, environment) => {
-  const { stdout } = await execPromisify(command, {
+const executeShellCommand: ShellCommandExecutor = async (file, args, environment) => {
+  const { stdout } = await execFilePromisify(file, args, {
     encoding: 'utf8',
     timeout: 10000,
     env: environment,
@@ -131,11 +132,11 @@ export async function getShellEnv(
     let isEnvNull = false;
 
     try {
-      stdout = await dependencies.execute(`${shell} ${shellArgs.join(' ')} 'env -0'`, environment);
+      stdout = await dependencies.execute(shell, [...shellArgs, 'env -0'], environment);
       isEnvNull = true;
     } catch {
       console.log('env -0 failed, falling back to env');
-      stdout = await dependencies.execute(`${shell} ${shellArgs.join(' ')} 'env'`, environment);
+      stdout = await dependencies.execute(shell, [...shellArgs, 'env'], environment);
     }
 
     const processLines = (separator: string) => {
