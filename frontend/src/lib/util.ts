@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 import React from 'react';
 import { useHistory } from 'react-router';
 import { filterGeneric, filterResource } from '../redux/filterSlice';
