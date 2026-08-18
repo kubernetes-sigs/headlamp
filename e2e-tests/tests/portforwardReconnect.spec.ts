@@ -144,7 +144,10 @@ test.describe('portforward auto-reconnect', () => {
           targetPort: '80',
         },
       });
-      expect(startResp.ok()).toBeTruthy();
+      if (!startResp.ok()) {
+        const errorText = await startResp.text();
+        throw new Error(`Failed to start portforward: ${startResp.status()} ${errorText}`);
+      }
       const pfData: PortForwardResponse = await startResp.json();
       expect(pfData.id).not.toBe('');
       const pfId = pfData.id;
@@ -272,7 +275,10 @@ test.describe('portforward auto-reconnect', () => {
           targetPort: '80',
         },
       });
-      expect(startResp.ok()).toBeTruthy();
+      if (!startResp.ok()) {
+        const errorText = await startResp.text();
+        throw new Error(`Failed to start portforward: ${startResp.status()} ${errorText}`);
+      }
       const pfData: PortForwardResponse = await startResp.json();
       const pfId = pfData.id;
 
