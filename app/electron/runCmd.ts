@@ -62,14 +62,16 @@ export function environmentOverrides(
  *
  * @returns true if the user allows the command to be executed, false otherwise.
  */
-function confirmCommandDialog(command: string, mainWindow: BrowserWindow): boolean {
+function confirmCommandDialog(fullCommand: string, mainWindow: BrowserWindow): boolean {
   if (mainWindow === null) {
     return false;
   }
   const resp = dialog.showMessageBoxSync(mainWindow, {
     title: i18n.t('Consent to command being run'),
-    message: i18n.t('Allow this local command to be executed? Your choice will be saved.'),
-    detail: command,
+    message: i18n.t(
+      'An installed plugin or dashboard script is requesting to run the following command. We cannot verify its exact origin. Allow this local command to be executed? Your choice will be saved.'
+    ),
+    detail: fullCommand,
     type: 'question',
     buttons: [i18n.t('Allow'), i18n.t('Deny')],
   });
@@ -90,21 +92,18 @@ function checkCommandConsent(command: string, args: string[], mainWindow: Browse
   const settings = loadSettings(SETTINGS_PATH);
   const confirmedCommands = settings?.confirmedCommands;
 
-  // Build the consent key: command + (first arg if present)
-  let consentKey = command;
-  if (args && args.length > 0) {
-    consentKey += ' ' + args[0];
-  }
+  const consentKey = JSON.stringify([command, ...args]);
+  const prettyCommand = `${command} ${args.join(' ')}`.trim();
 
   const savedCommand: boolean | undefined = confirmedCommands
     ? confirmedCommands[consentKey]
     : undefined;
 
   if (savedCommand === false) {
-    console.error(`Invalid command: ${consentKey}, command not allowed by users choice`);
+    console.error(`Denied command: ${consentKey}, command not allowed by users choice`);
     return false;
   } else if (savedCommand === undefined) {
-    const commandChoice = confirmCommandDialog(consentKey, mainWindow);
+    const commandChoice = confirmCommandDialog(prettyCommand, mainWindow);
     if (settings?.confirmedCommands === undefined) {
       settings.confirmedCommands = {};
     }
@@ -116,19 +115,24 @@ function checkCommandConsent(command: string, args: string[], mainWindow: Browse
 
 const COMMANDS_WITH_CONSENT = {
   headlamp_minikube: [
-    'minikube start',
-    'minikube stop',
-    'minikube delete',
-    'minikube status',
-    'minikube service',
-    'minikube logs',
-    'minikube addons',
-    'minikube ssh',
-    'scriptjs headlamp_minikubeprerelease/manage-minikube.js',
-    'scriptjs headlamp_minikube/manage-minikube.js',
-    'scriptjs minikube/manage-minikube.js',
+    JSON.stringify(['minikube', 'start']),
+    JSON.stringify(['minikube', 'stop']),
+    JSON.stringify(['minikube', 'delete']),
+    JSON.stringify(['minikube', 'status']),
+    JSON.stringify(['minikube', 'service']),
+    JSON.stringify(['minikube', 'logs']),
+    JSON.stringify(['minikube', 'addons']),
+    JSON.stringify(['minikube', 'ssh']),
+    JSON.stringify(['scriptjs', 'headlamp_minikubeprerelease/manage-minikube.js']),
+    JSON.stringify(['scriptjs', 'headlamp_minikube/manage-minikube.js']),
+    JSON.stringify(['scriptjs', 'minikube/manage-minikube.js']),
   ],
-  headlamp_ai_assistant: ['gh auth', 'az account', 'az cognitiveservices'],
+  headlamp_ai_assistant: [
+    JSON.stringify(['gh', 'auth']),
+    JSON.stringify(['gh', 'auth', 'token']),
+    JSON.stringify(['az', 'account']),
+    JSON.stringify(['az', 'cognitiveservices']),
+  ],
 };
 
 /**
@@ -136,8 +140,6 @@ const COMMANDS_WITH_CONSENT = {
  *
  * This is used to give consent to the plugin to run commands when the plugin is installed.
  * So the user is not presented with many consent requests.
- *
- * @param pluginInfo artifacthub plugin info
  */
 export function addRunCmdConsent(pluginInfo: { name: string }): void {
   const settings = loadSettings(SETTINGS_PATH);
@@ -172,7 +174,6 @@ export function addRunCmdConsent(pluginInfo: { name: string }): void {
       settings.confirmedCommands[command] = true;
     }
   }
-
   saveSettings(SETTINGS_PATH, settings);
 }
 
@@ -315,6 +316,7 @@ export async function handleRunCommand(
   try {
     child = spawn(command, args, {
       ...commandData.options,
+      // Security: ensure shell is explicitly false to prevent shell injection via args
       shell: false,
       env: {
         ...shellEnvironment,
@@ -399,6 +401,8 @@ export function setupRunCmdHandlers(mainWindow: BrowserWindow | null, ipcMain: E
   // This means that if the secrets are requested before the plugins are loaded, then
   // they will not be sent until the next time the app is reloaded.
   let pluginPermissionSecretsSent = false;
+  // LEGACY/DEPRECATED - Provides NO security boundary due to shared renderer context.
+  // Kept solely for API backward compatibility so existing plugins do not crash.
   const permissionSecrets = {
     'runCmd-minikube': cryptoRandom(),
     'runCmd-scriptjs-minikube/manage-minikube.js': cryptoRandom(),

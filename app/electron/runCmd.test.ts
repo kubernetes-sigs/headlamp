@@ -34,7 +34,12 @@ vi.mock('./plugin-management', () => ({
 
 vi.mock('./settings', () => ({
   loadSettings: vi.fn(() => ({
-    confirmedCommands: { 'minikube start': true, 'gh auth': true, 'az account': true },
+    confirmedCommands: {
+      [JSON.stringify(['minikube', 'start'])]: true,
+      [JSON.stringify(['gh', 'auth'])]: true,
+      [JSON.stringify(['gh', 'auth', 'token'])]: true,
+      [JSON.stringify(['az', 'account'])]: true,
+    },
   })),
   saveSettings: vi.fn(),
   SETTINGS_PATH: '/fake/settings.json',
@@ -428,7 +433,12 @@ describe('runScript', () => {
 });
 
 describe('addRunCmdConsent', () => {
-  const AI_ASSISTANT_COMMANDS = ['gh auth', 'az account', 'az cognitiveservices'];
+  const AI_ASSISTANT_COMMANDS = [
+    JSON.stringify(['gh', 'auth']),
+    JSON.stringify(['gh', 'auth', 'token']),
+    JSON.stringify(['az', 'account']),
+    JSON.stringify(['az', 'cognitiveservices']),
+  ];
 
   it.each([
     ['headlamp_ai-assistant'],
