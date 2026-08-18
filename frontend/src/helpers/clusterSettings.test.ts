@@ -83,6 +83,23 @@ describe('clusterSettings', () => {
       expect(localStorage.getItem('cluster_settings.prod')).toBe('{}');
       expect(loadClusterSettings('prod')).toEqual({});
     });
+    it('catches and logs errors when localStorage.setItem throws', () => {
+      const consoleWarnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+      const setItemSpy = vi.spyOn(localStorage, 'setItem').mockImplementation(() => {
+        throw new Error('QuotaExceededError');
+      });
+
+      try {
+        expect(() => storeClusterSettings('prod', { defaultNamespace: 'fail' })).not.toThrow();
+        expect(consoleWarnSpy).toHaveBeenCalledWith(
+          'Failed to store cluster_settings.prod:',
+          expect.any(Error)
+        );
+      } finally {
+        setItemSpy.mockRestore();
+        consoleWarnSpy.mockRestore();
+      }
+    });
   });
 
   describe('loadClusterSettings', () => {
