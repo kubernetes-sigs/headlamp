@@ -77,8 +77,7 @@ test.describe('portforward auto-reconnect', () => {
     test.setTimeout(120_000);
 
     const hlPage = new HeadlampPage(page);
-    await hlPage.navigateToCluster(clusterName);
-    await hlPage.authenticate(process.env.HEADLAMP_TEST_TOKEN);
+    await hlPage.navigateToCluster(clusterName, process.env.HEADLAMP_TEST_TOKEN);
 
     const testId = `pf-reconnect-${Date.now()}`;
     const tempDir = await mkdtemp(join(tmpdir(), 'headlamp-e2e-pf-'));
@@ -247,8 +246,7 @@ test.describe('portforward auto-reconnect', () => {
     test.setTimeout(90_000);
 
     const hlPage = new HeadlampPage(page);
-    await hlPage.navigateToCluster(clusterName);
-    await hlPage.authenticate(process.env.HEADLAMP_TEST_TOKEN);
+    await hlPage.navigateToCluster(clusterName, process.env.HEADLAMP_TEST_TOKEN);
 
     const testId = `pf-no-reconnect-${Date.now()}`;
     const tempDir = await mkdtemp(join(tmpdir(), 'headlamp-e2e-pf-'));
