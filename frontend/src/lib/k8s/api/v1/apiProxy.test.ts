@@ -1070,7 +1070,11 @@ describe('apiProxy', () => {
 
     describe('stopOrDeletePortForward', () => {
       it('Successfully deletes a port forward', async () => {
-        const response = await apiProxy.stopOrDeletePortForward(clusterName, mockId);
+        const response = await apiProxy.stopOrDeletePortForward(
+          clusterName,
+          mockId,
+          /* stopOnly */ true
+        );
         const data = JSON.parse(response);
         expect(data).toEqual(mockStopResponse);
       });
