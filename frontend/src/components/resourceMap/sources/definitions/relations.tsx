@@ -50,6 +50,8 @@ import ServiceAccount from '../../../../lib/k8s/serviceAccount';
 import StatefulSet from '../../../../lib/k8s/statefulSet';
 import TCPRoute from '../../../../lib/k8s/tcpRoute';
 import UDPRoute from '../../../../lib/k8s/udpRoute';
+import ValidatingAdmissionPolicy from '../../../../lib/k8s/validatingAdmissionPolicy';
+import ValidatingAdmissionPolicyBinding from '../../../../lib/k8s/validatingAdmissionPolicyBinding';
 import ValidatingWebhookConfiguration from '../../../../lib/k8s/validatingWebhookConfiguration';
 import { useNamespaces } from '../../../../redux/filterSlice';
 import { useTypedSelector } from '../../../../redux/hooks';
@@ -227,6 +229,13 @@ const mwcToService = makeRelation(
   Service,
   (mwc, service) =>
     mwc.webhooks.find(webhook => service.metadata.name === webhook.clientConfig.service?.name)
+);
+
+const vapBindingToVap = makeRelation(
+  'vapbinding-vap',
+  ValidatingAdmissionPolicyBinding,
+  ValidatingAdmissionPolicy,
+  (binding, policy) => binding.spec.policyName === policy.metadata.name
 );
 
 const serviceToPods = makeRelation('service-pod', Service, Pod, (service, pod) =>
@@ -455,6 +464,7 @@ const staticRelations = [
   hpaToStatefulSet,
   vwcToService,
   mwcToService,
+  vapBindingToVap,
   serviceToPods,
   endpointsToServices,
   endpointSlicesToServices,

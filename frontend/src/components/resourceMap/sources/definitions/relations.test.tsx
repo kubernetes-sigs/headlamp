@@ -25,6 +25,8 @@ import Secret from '../../../../lib/k8s/secret';
 import Service from '../../../../lib/k8s/service';
 import TCPRoute from '../../../../lib/k8s/tcpRoute';
 import UDPRoute from '../../../../lib/k8s/udpRoute';
+import ValidatingAdmissionPolicy from '../../../../lib/k8s/validatingAdmissionPolicy';
+import ValidatingAdmissionPolicyBinding from '../../../../lib/k8s/validatingAdmissionPolicyBinding';
 import { useNamespaces } from '../../../../redux/filterSlice';
 import { TestContext } from '../../../../test';
 import { GraphNode, Relation } from '../../graph/graphModel';
@@ -305,6 +307,28 @@ describe('useGetAllRelations', () => {
       ).toBe(true);
     }
   );
+
+  it('matches ValidatingAdmissionPolicyBindings to ValidatingAdmissionPolicy by policyName', () => {
+    vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);
+    const { result } = renderUseGetAllRelations();
+    const relation = relationById(result.current, 'vapbinding-vap');
+
+    const policy = new ValidatingAdmissionPolicy(
+      { metadata: { uid: 'p1', name: 'demo-policy' } } as any,
+      'cluster-a'
+    );
+    const binding = new ValidatingAdmissionPolicyBinding(
+      { metadata: { uid: 'b1' }, spec: { policyName: 'demo-policy' } } as any,
+      'cluster-a'
+    );
+    const otherPolicy = new ValidatingAdmissionPolicy(
+      { metadata: { uid: 'p2', name: 'other-policy' } } as any,
+      'cluster-a'
+    );
+
+    expect(relation.predicate(node(binding), node(policy))).toBe(true);
+    expect(relation.predicate(node(binding), node(otherPolicy))).toBe(false);
+  });
 
   it('registers the four stable L4 relation IDs', () => {
     vi.spyOn(CRD, 'useList').mockReturnValue({ items: null } as ReturnType<typeof CRD.useList>);

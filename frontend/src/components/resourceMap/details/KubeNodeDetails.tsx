@@ -60,6 +60,8 @@ import VolumeClaimDetails from '../../storage/ClaimDetails';
 import StorageClassDetails from '../../storage/ClassDetails';
 import VolumeAttributesClassDetails from '../../storage/VolumeAttributesClassDetails';
 import VolumeDetails from '../../storage/VolumeDetails';
+import ValidatingAdmissionPolicyBindingDetails from '../../validatingadmissionpolicy/BindingDetails';
+import ValidatingAdmissionPolicyDetails from '../../validatingadmissionpolicy/PolicyDetails';
 import VpaDetails from '../../verticalPodAutoscaler/Details';
 import MutatingWebhookConfigList from '../../webhookconfiguration/MutatingWebhookConfigDetails';
 import ValidatingWebhookConfigurationDetails from '../../webhookconfiguration/ValidatingWebhookConfigDetails';
@@ -105,6 +107,8 @@ const kindComponentMap: Record<
   VerticalPodAutoscaler: VpaDetails,
   MutatingWebhookConfiguration: MutatingWebhookConfigList,
   ValidatingWebhookConfiguration: ValidatingWebhookConfigurationDetails,
+  ValidatingAdmissionPolicy: ValidatingAdmissionPolicyDetails,
+  ValidatingAdmissionPolicyBinding: ValidatingAdmissionPolicyBindingDetails,
   IngressClass: IngressClassDetails,
   CustomResourceDefinition: CustomResourceDefinitionDetails,
   crd: CustomResourceDefinitionDetails,
