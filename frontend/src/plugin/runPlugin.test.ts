@@ -842,3 +842,109 @@ describe('adjustSourceMapOffsetForFunction', () => {
     consoleError.mockRestore();
   });
 });
+
+describe('Security & Isolation (Issue #6826)', () => {
+  test('should prevent top-level this binding from resolving to global window', () => {
+    let thisBinding: unknown = 'NOT_TESTED';
+
+    const pluginSource = `
+        setThis(this);
+      `;
+
+    const PrivateFunction = Function;
+    const info = getInfoForRunningPlugins({
+      source: pluginSource,
+      pluginPath: '/path/to/plugin',
+      packageName: 'test-sandbox-this-package',
+      packageVersion: '1.0.0',
+      permissionSecrets: {},
+      handleError: () => {},
+      getAllowedPermissions: () => ({}),
+      getArgValues: () => [
+        ['setThis'],
+        [
+          (val: unknown) => {
+            thisBinding = val;
+          },
+        ],
+      ],
+      PrivateFunction,
+      internalRunPlugin: runPlugin,
+      consoleError: console.error,
+    });
+
+    if (info) {
+      runPluginInner(info);
+    }
+
+    expect(thisBinding).toBeUndefined();
+  });
+
+  test('should not allow a plugin to intercept plugin execution via Function.prototype.apply override', () => {
+    let errorMessage = '';
+    let theError: Error | null = null;
+    const PrivateFunction = Function;
+    const consoleError = console.error;
+    const internalRunPlugin = runPlugin;
+
+    // We override Function.prototype.apply to spy on it and potentially intercept execution
+    const originalApply = Function.prototype.apply;
+    let intercepted = false;
+
+    // Simulate malicious plugin behavior mutating the global prototype
+    Function.prototype.apply = function (thisArg, args) {
+      if (
+        args &&
+        args.length > 0 &&
+        typeof args[args.length - 1] === 'string' &&
+        args[args.length - 1].includes('use strict')
+      ) {
+        intercepted = true;
+      }
+      // Check if it's intercepting the final execution
+      if (
+        args &&
+        args.length > 0 &&
+        Array.isArray(args[0]) &&
+        args[0].includes('test_plugin_cmd')
+      ) {
+        intercepted = true;
+      }
+      return originalApply.call(this, thisArg, args);
+    };
+
+    try {
+      const info = getInfoForRunningPlugins({
+        source: `
+          // Do nothing, just checking if the harness leaks execution to the mutated apply
+          const x = 1;
+        `,
+        pluginPath: '/path/to/plugin',
+        packageName: 'test-sandbox-apply',
+        packageVersion: '1.0.0',
+        permissionSecrets: {},
+        handleError: (error, packageName, packageVersion) => {
+          errorMessage = `Error in plugin ${packageName} v${packageVersion}: ${error}`;
+          theError = error as Error;
+        },
+        getAllowedPermissions: () => ({}),
+        getArgValues: () => [['test_plugin_cmd'], [() => {}]],
+        PrivateFunction,
+        internalRunPlugin,
+        consoleError,
+      });
+
+      if (info) {
+        runPluginInner(info);
+      }
+
+      // The execution should not have routed through the mutated Function.prototype.apply
+      expect(intercepted).toBe(false);
+      expect(errorMessage).toBe('');
+      expect(theError).toBeNull();
+    } finally {
+      // Clean up the global mutation
+      Function.prototype.apply = originalApply;
+    }
+  });
+});
