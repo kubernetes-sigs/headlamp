@@ -72,7 +72,11 @@ const makeRelation = <From extends KubeObjectClass, To extends KubeObjectClass>(
   id: string,
   from: From,
   to: To,
-  selector: (a: InstanceType<From>, b: InstanceType<To>) => unknown
+  selector: (a: InstanceType<From>, b: InstanceType<To>) => unknown,
+  edgeAttributes?: (
+    a: InstanceType<From>,
+    b: InstanceType<To>
+  ) => Partial<Omit<GraphEdge, 'id' | 'source' | 'target'>>
 ): Relation => ({
   id,
   fromSource: makeKubeSourceId(from),
@@ -92,6 +96,13 @@ const makeRelation = <From extends KubeObjectClass, To extends KubeObjectClass>(
       Boolean(selector(fromObject, toObject))
     );
   },
+  edgeAttributes: edgeAttributes
+    ? (fromNode, toNode) =>
+        edgeAttributes(
+          fromNode.kubeObject as InstanceType<From>,
+          toNode.kubeObject as InstanceType<To>
+        )
+    : undefined,
 });
 
 const makeOwnerRelation = (cl: KubeObjectClass): Relation => ({
@@ -313,8 +324,18 @@ const serviceAccountToDaemonSets = makeRelation(
     ds.metadata.namespace === sa.metadata.namespace
 );
 
-const pvcToPods = makeRelation('pvc-pod', PersistentVolumeClaim, Pod, (pvc, pod) =>
-  pod.spec.volumes?.find(volume => volume.persistentVolumeClaim?.claimName === pvc.metadata.name)
+const pvcToPods = makeRelation(
+  'pvc-pod',
+  PersistentVolumeClaim,
+  Pod,
+  (pvc, pod) =>
+    pod.spec.volumes?.find(volume => volume.persistentVolumeClaim?.claimName === pvc.metadata.name),
+  // A ReadWriteMany PVC can be mounted by many otherwise-unrelated Pods; don't let
+  // it bridge their components into one giant group (see #4310). 'source' names the
+  // PVC (this relation's `from`), not the Pod, as the one allowed to be shared/split.
+  // eslint-disable-next-line no-unused-vars
+  (pvc, _pod) =>
+    pvc.spec?.accessModes?.includes('ReadWriteMany') ? { nonGroupingSide: 'source' } : {}
 );
 
 const podToOwner = makeOwnerRelation(Pod);

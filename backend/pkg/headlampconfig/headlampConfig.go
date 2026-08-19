@@ -59,6 +59,7 @@ type HeadlampCFG struct {
 	WatchPluginsChanges    bool
 	Port                   uint
 	KubeConfigPath         string
+	KubeConfigDir          string
 	SkippedKubeContexts    string
 	StaticDir              string
 	PluginDir              string
@@ -86,6 +87,7 @@ type HeadlampCFG struct {
 	EnableClusterInventory                bool
 	ClusterInventoryProviderFile          string
 	ClusterInventoryLabelSelector         string
+	ClusterInventoryNamespaces            string
 	ClusterInventoryRootReconcileInterval time.Duration
 	ClusterInventoryNoCRDCacheTTL         time.Duration
 }

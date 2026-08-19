@@ -22,17 +22,54 @@ import { useTypedSelector } from '../../redux/hooks';
 import { uiSlice } from '../../redux/uiSlice';
 import { Dialog } from '../common/Dialog';
 import NameValueTable from '../common/NameValueTable';
+import Tabs from '../common/Tabs';
+import LegalDocuments from './LegalDocuments';
 
-export default function VersionDialog(props: {
+/** Version values displayed by the About dialog. */
+interface VersionInformation {
+  /** Application release version. */
+  VERSION: string;
+  /** Source revision used to build the application. */
+  GIT_VERSION: string;
+}
+
+/** Properties accepted by the Version dialog. */
+interface VersionDialogProps {
+  /** Optional version provider used by tests and embedding hosts. */
   getVersion?: () => {
-    VERSION: any;
-    GIT_VERSION: any;
+    VERSION: string;
+    GIT_VERSION: string;
   };
-}) {
+}
+
+/**
+ * Displays application version information and host-provided legal documents.
+ *
+ * @param props - Version dialog dependencies.
+ * @returns The application Version dialog.
+ */
+export default function VersionDialog(props: VersionDialogProps) {
   const open = useTypedSelector(state => state.ui.isVersionDialogOpen);
   const dispatch = useDispatch();
   const { t } = useTranslation(['glossary', 'translation']);
-  const { VERSION, GIT_VERSION } = props.getVersion ? props.getVersion() : getVersion();
+  const { VERSION, GIT_VERSION } = (
+    props.getVersion ? props.getVersion() : getVersion()
+  ) as VersionInformation;
+  const versionInformation = (
+    <NameValueTable
+      rows={[
+        {
+          name: t('translation|Version'),
+          value: VERSION,
+        },
+        {
+          name: t('Git Commit'),
+          value: GIT_VERSION,
+        },
+      ]}
+    />
+  );
+  const hasLegalDocuments = Boolean(window.desktopApi?.getLegalDocuments);
 
   return (
     <Dialog
@@ -45,18 +82,23 @@ export default function VersionDialog(props: {
       style={{ zIndex: 1900 }}
     >
       <DialogContent>
-        <NameValueTable
-          rows={[
-            {
-              name: t('translation|Version'),
-              value: VERSION,
-            },
-            {
-              name: t('Git Commit'),
-              value: GIT_VERSION,
-            },
-          ]}
-        />
+        {hasLegalDocuments ? (
+          <Tabs
+            ariaLabel={t('translation|About dialog tabs')}
+            tabs={[
+              {
+                label: t('translation|About'),
+                component: versionInformation,
+              },
+              {
+                label: t('translation|Legal'),
+                component: <LegalDocuments />,
+              },
+            ]}
+          />
+        ) : (
+          versionInformation
+        )}
       </DialogContent>
     </Dialog>
   );
