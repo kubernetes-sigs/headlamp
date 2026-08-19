@@ -110,6 +110,10 @@ function checkCommandConsent(command: string, args: string[], mainWindow: Browse
     }
     settings.confirmedCommands[consentKey] = commandChoice;
     saveSettings(SETTINGS_PATH, settings);
+    if (!commandChoice) {
+      console.error(`Invalid command: ${consentKey}, command not allowed by users choice`);
+    }
+    return commandChoice;
   }
   return true;
 }
@@ -129,6 +133,7 @@ const COMMANDS_WITH_CONSENT = {
     'scriptjs minikube/manage-minikube.js',
   ],
   headlamp_ai_assistant: ['gh auth', 'az account', 'az cognitiveservices'],
+  azure_aks: ['scriptjs azure-aks/azure-api.js'],
 };
 
 /**
@@ -165,6 +170,10 @@ export function addRunCmdConsent(pluginInfo: { name: string }): void {
     (process.env.NODE_ENV === 'development' && pluginInfo.name === 'ai-assistant');
   if (pluginIsAiAssistant) {
     commands = COMMANDS_WITH_CONSENT.headlamp_ai_assistant;
+  }
+
+  if (pluginInfo.name === 'azure-aks') {
+    commands = COMMANDS_WITH_CONSENT.azure_aks;
   }
 
   for (const command of commands) {
@@ -406,6 +415,7 @@ export function setupRunCmdHandlers(mainWindow: BrowserWindow | null, ipcMain: E
     'runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js': cryptoRandom(),
     'runCmd-gh': cryptoRandom(),
     'runCmd-az': cryptoRandom(),
+    'runCmd-scriptjs-azure-aks/azure-api.js': cryptoRandom(),
   };
 
   ipcMain.on('request-plugin-permission-secrets', function giveSecrets() {

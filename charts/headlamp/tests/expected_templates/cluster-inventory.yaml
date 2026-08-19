@@ -131,6 +131,7 @@ spec:
             - "-enable-cluster-inventory"
             - "-cluster-inventory-provider-file=/etc/cluster-inventory/config.json"
             - "-cluster-inventory-label-selector=!headlamp.dev/ignore"
+            - "-cluster-inventory-namespaces=inventory-e2e,shared-inventory"
             - "-cluster-inventory-root-reconcile-interval=10s"
             - "-cluster-inventory-no-crd-cache-ttl=30s"
             # Check if externalSecret is disabled

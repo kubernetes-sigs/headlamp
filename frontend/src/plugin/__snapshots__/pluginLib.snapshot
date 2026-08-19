@@ -266,6 +266,7 @@
       "ViewDialog": [Function],
       "VolumeMounts": [Function],
       "VolumeSection": [Function],
+      "WorkloadLogs": [Function],
       "addResourceTableColumnsProcessor": [Function],
       "buildLabelRows": [Function],
       "formatCommand": [Function],
@@ -343,6 +344,7 @@
     "ViewDialog": [Function],
     "VolumeMounts": [Function],
     "VolumeSection": [Function],
+    "WorkloadLogs": [Function],
     "addResourceTableColumnsProcessor": [Function],
     "buildLabelRows": [Function],
     "formatCommand": [Function],
@@ -483,6 +485,7 @@
       "PersistentVolumeClaim": [Function],
       "Pod": [Function],
       "PodDisruptionBudget": [Function],
+      "PodGroup": [Function],
       "PriorityClass": [Function],
       "ReplicaSet": [Function],
       "ResourceQuota": [Function],
@@ -497,6 +500,7 @@
       "TCPRoute": [Function],
       "UDPRoute": [Function],
       "VolumeAttributesClass": [Function],
+      "Workload": [Function],
     },
     "cluster": {
       "HEADLAMP_ALLOWED_NAMESPACES": "headlamp.allowed-namespaces",
@@ -597,6 +601,13 @@
     "pod": {
       "default": [Function],
     },
+    "podGroup": {
+      "POD_GROUP_INITIALLY_SCHEDULED_CONDITION": "PodGroupInitiallyScheduled",
+      "POD_GROUP_SCHEDULED_CONDITION": "PodGroupScheduled",
+      "default": [Function],
+      "getDisruptionMode": [Function],
+      "getSchedulingPolicyKind": [Function],
+    },
     "replicaSet": {
       "default": [Function],
     },
@@ -605,6 +616,10 @@
     },
     "roleBinding": {
       "default": [Function],
+    },
+    "schedulingWorkload": {
+      "default": [Function],
+      "getCompositeDisruptionMode": [Function],
     },
     "secret": {
       "default": [Function],
