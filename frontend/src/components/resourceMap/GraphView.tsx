@@ -66,10 +66,9 @@ import {
 import { GraphControlButton } from './GraphControls';
 import { GraphRenderer } from './GraphRenderer';
 import { FullGraphContext, GraphViewContext } from './graphViewContext';
+import { GraphViewDefinitions } from './GraphViewDefinitions';
 import { PerformanceStats } from './PerformanceStats';
 import { SelectionBreadcrumbs } from './SelectionBreadcrumbs';
-import { useGetAllRelations } from './sources/definitions/relations';
-import { useGetAllSources } from './sources/definitions/sources';
 import { GraphSourceManager, useSources } from './sources/GraphSources';
 import { GraphSourcesView } from './sources/GraphSourcesView';
 import { useGraphViewport } from './useGraphViewport';
@@ -776,19 +775,15 @@ function CustomThemeProvider({ children }: { children: ReactNode }) {
   );
 }
 
-/**
- * Renders Map of Kubernetes resources
- *
- * @param params - Map parameters
- * @returns
- */
-export function GraphView(props: GraphViewProps) {
-  const allSources = useGetAllSources();
-  const allRelations = useGetAllRelations();
-
-  const propsSources = props.defaultSources ?? allSources;
-  const propsRelations = props.defaultRelations ?? allRelations;
-
+function GraphViewWithDefinitions({
+  props,
+  sources: propsSources,
+  relations,
+}: {
+  props: GraphViewProps;
+  sources: GraphSource[];
+  relations: Relation[];
+}) {
   // Load plugin defined sources
   const pluginGraphSources = useTypedSelector(state => state.graphView.graphSources);
 
@@ -800,10 +795,38 @@ export function GraphView(props: GraphViewProps) {
   return (
     <StrictMode>
       <ReactFlowProvider>
-        <GraphSourceManager sources={sources} relations={propsRelations}>
+        <GraphSourceManager sources={sources} relations={relations}>
           <GraphViewContent {...props} sources={sources} />
         </GraphSourceManager>
       </ReactFlowProvider>
     </StrictMode>
+  );
+}
+
+/**
+ * Renders a map of Kubernetes resources and their relationships.
+ *
+ * Sources and relations are discovered only when their corresponding default
+ * is omitted. Passing an explicit array, including an empty array, skips that
+ * definition's discovery hooks.
+ *
+ * @param props - Graph display options and optional definition overrides.
+ * @param props.height - CSS height of the map container.
+ * @param props.defaultNodeSelection - ID of the node selected on first render.
+ * @param props.defaultSources - Sources to use instead of built-in discovery.
+ * @param props.defaultRelations - Relations to use instead of built-in discovery.
+ * @param props.defaultFilters - Filters applied before user-selected filters.
+ * @returns The rendered Kubernetes resource map.
+ */
+export function GraphView(props: GraphViewProps) {
+  return (
+    <GraphViewDefinitions
+      defaultSources={props.defaultSources}
+      defaultRelations={props.defaultRelations}
+    >
+      {({ sources, relations }) => (
+        <GraphViewWithDefinitions props={props} sources={sources} relations={relations} />
+      )}
+    </GraphViewDefinitions>
   );
 }
