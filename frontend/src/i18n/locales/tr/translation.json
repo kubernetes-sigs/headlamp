@@ -1013,5 +1013,13 @@
   "Toggle Table Filters": "Tablo Filtrelerini Aç/Kapat",
   "Toggle column filters in tables": "Tablolarda sütun filtrelerini aç/kapat",
   "Log Viewer Search": "Günlük Görüntüleyicisi Araması",
-  "Toggle search in log viewer": "Günlük görüntüleyicisinde aramayı aç/kapat"
+  "Toggle search in log viewer": "Günlük görüntüleyicisinde aramayı aç/kapat",
+  "Close Details Drawer": "",
+  "Close the active details drawer": "",
+  "Navigate to Pods": "",
+  "Go to the Pods list page": "",
+  "Navigate to Deployments": "",
+  "Go to the Deployments list page": "",
+  "Show Shortcuts Help": "",
+  "Show the keyboard shortcuts cheat sheet": ""
 }
