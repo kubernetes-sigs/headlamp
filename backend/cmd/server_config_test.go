@@ -40,6 +40,7 @@ func TestBuildHeadlampCFG(t *testing.T) {
 			WatchPluginsChanges:    false,
 			BaseURL:                "/headlamp",
 			ProxyURLs:              "http://proxy1,http://proxy2",
+			PluginsConfig:          `{"prometheus":{"autoDetect":false}}`,
 		}
 
 		headlampCFG := buildHeadlampCFG(conf, store)
@@ -55,6 +56,7 @@ func TestBuildHeadlampCFG(t *testing.T) {
 		assert.False(t, headlampCFG.WatchPluginsChanges)
 		assert.Equal(t, "/headlamp", headlampCFG.BaseURL)
 		assert.Equal(t, []string{"http://proxy1", "http://proxy2"}, headlampCFG.ProxyURLs)
+		assert.Equal(t, `{"prometheus":{"autoDetect":false}}`, headlampCFG.PluginsConfig)
 		assert.Equal(t, store, headlampCFG.KubeConfigStore)
 	})
 

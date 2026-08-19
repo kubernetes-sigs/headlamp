@@ -291,6 +291,9 @@ spec:
             {{- with .Values.config.nodeShellNamespace }}
             - "-node-shell-namespace={{ . }}"
             {{- end }}
+            {{- with .Values.config.pluginsConfig }}
+            - {{ printf "-plugins-config=%s" (mustToJson .) | quote }}
+            {{- end }}
             {{- if and .Values.config.inCluster .Values.config.unsafeUseServiceAccountToken }}
             - "-unsafe-use-service-account-token"
             {{- end }}

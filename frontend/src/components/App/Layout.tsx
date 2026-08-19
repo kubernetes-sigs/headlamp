@@ -147,7 +147,8 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
       clustersToConfig[cluster.name] = cluster;
     });
 
-    const configToStore = { ...config, clusters: clustersToConfig };
+    const plugins = config?.plugins ? JSON.parse(config.plugins) : undefined;
+    const configToStore = { ...config, clusters: clustersToConfig, plugins };
 
     if (clusters === null) {
       dispatch(setConfig(configToStore));

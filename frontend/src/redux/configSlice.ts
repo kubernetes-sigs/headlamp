@@ -74,6 +74,8 @@ export interface ConfigState {
   defaultLightTheme?: string;
   defaultDarkTheme?: string;
   forceTheme?: string;
+  /** Default plugin settings from the backend, keyed by config key; user settings take precedence. */
+  plugins?: { [configKey: string]: { [key: string]: any } };
   /**
    * Settings is a map of settings names to settings values.
    */
@@ -204,6 +206,7 @@ const configSlice = createSlice({
         defaultLightTheme?: string;
         defaultDarkTheme?: string;
         forceTheme?: string;
+        plugins?: ConfigState['plugins'];
       }>
     ) {
       state.clusters = action.payload.clusters;
@@ -225,6 +228,7 @@ const configSlice = createSlice({
       state.defaultLightTheme = action.payload.defaultLightTheme;
       state.defaultDarkTheme = action.payload.defaultDarkTheme;
       state.forceTheme = action.payload.forceTheme;
+      state.plugins = action.payload.plugins;
     },
     /**
      * Save the config. To both the store, and localStorage.
