@@ -42,6 +42,19 @@ const { mockResourceClasses } = vi.hoisted(() => {
 vi.mock('../../../lib/k8s', () => ({
   ResourceClasses: mockResourceClasses,
   useSelectedClusters: vi.fn(() => ['test-cluster']),
+  getResourceClass: (kind: string, apiVersion?: string) => {
+    const cls = (mockResourceClasses as Record<string, any>)[kind];
+    if (!cls) {
+      return null;
+    }
+    if (!apiVersion) {
+      return cls;
+    }
+    const groupOf = (v: string) => (v.includes('/') ? v.split('/')[0] : '');
+    const apiVersions = Array.isArray(cls.apiVersion) ? cls.apiVersion : [cls.apiVersion];
+    const groupMatches = apiVersions.some((v: string) => groupOf(v) === groupOf(apiVersion));
+    return groupMatches ? cls : null;
+  },
 }));
 
 const theme = createMuiTheme({ base: 'light', name: 'light' });
@@ -155,6 +168,46 @@ describe('MetadataDisplay', () => {
 
     expect(screen.queryByRole('link', { name: 'Job: custom-job' })).not.toBeInTheDocument();
     expect(screen.getByText('Job: custom-job')).toBeInTheDocument();
+  });
+
+  it('renders a link when the group matches but the version differs (loosened from exact apiVersion match)', () => {
+    const ownerReferences = [
+      {
+        apiVersion: 'batch/v1beta1', // Same group as Job (batch/v1), different version.
+        kind: 'Job',
+        name: 'old-version-job',
+        uid: 'uid-5',
+      },
+    ];
+    const resourceWithOwners = {
+      ...mockResource,
+      metadata: { ...mockResource.metadata, ownerReferences },
+    } as unknown as KubeObject;
+
+    renderWithTheme(<MetadataDisplay resource={resourceWithOwners} />);
+
+    const link = screen.getByRole('link', { name: 'Job: old-version-job' });
+    expect(link).toBeInTheDocument();
+  });
+
+  it('renders plain text when the kind matches a built-in but the group differs (issue #7321)', () => {
+    const ownerReferences = [
+      {
+        apiVersion: 'kueue.x-k8s.io/v1beta1',
+        kind: 'Job',
+        name: 'kueue-job',
+        uid: 'uid-6',
+      },
+    ];
+    const resourceWithOwners = {
+      ...mockResource,
+      metadata: { ...mockResource.metadata, ownerReferences },
+    } as unknown as KubeObject;
+
+    renderWithTheme(<MetadataDisplay resource={resourceWithOwners} />);
+
+    expect(screen.queryByRole('link', { name: 'Job: kueue-job' })).not.toBeInTheDocument();
+    expect(screen.getByText('Job: kueue-job')).toBeInTheDocument();
   });
 
   it('correctly interpolates kind in console.error when detailsRoute lookup fails', () => {

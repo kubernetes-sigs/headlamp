@@ -15,7 +15,7 @@
  */
 
 import { useEffect, useMemo, useState } from 'react';
-import { ResourceClasses } from '../../../lib/k8s';
+import { getResourceClass } from '../../../lib/k8s';
 import { ApiError } from '../../../lib/k8s/api/v2/ApiError';
 import { ApiResource } from '../../../lib/k8s/api/v2/ApiResource';
 import { KubeObject, KubeObjectClass } from '../../../lib/k8s/cluster';
@@ -43,7 +43,7 @@ export const useKubeLists = (
       resources
         .map(
           it =>
-            (ResourceClasses as Record<string, KubeObjectClass>)[it.kind] ??
+            getResourceClass(it.kind, it.apiVersion) ??
             class extends KubeObject {
               static kind = it.kind;
               static apiVersion = it.apiVersion;

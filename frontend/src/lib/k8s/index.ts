@@ -41,6 +41,7 @@ import Ingress from './ingress';
 import IngressClass from './ingressClass';
 import Job from './job';
 import JobSet from './jobSet';
+import type { KubeObjectClass } from './KubeObject';
 import LeaderWorkerSet from './leaderWorkerSet';
 import { Lease } from './lease';
 import { LimitRange } from './limitRange';
@@ -117,6 +118,43 @@ export const ResourceClasses = {
   // Keyed by kind, so the scheduling.k8s.io Workload is registered as 'Workload'.
   Workload: SchedulingWorkload,
 };
+
+/**
+ * Extracts the API group from a "GROUP/VERSION" (or bare "VERSION") string.
+ *
+ * A bare version (no "/") belongs to the core group, represented as ''.
+ */
+function apiGroupOf(apiVersion: string): string {
+  return apiVersion.includes('/') ? apiVersion.split('/')[0] : '';
+}
+
+/**
+ * Looks up the {@link KubeObjectClass} registered for a given `kind`, guarding against
+ * a CRD sharing a `kind` name with a built-in resource from a different API group
+ * (e.g. Kueue's `kueue.x-k8s.io/v1beta1` `Workload` vs. `scheduling.k8s.io` `Workload`).
+ *
+ * @param kind - the kind of the resource, e.g. "Pod".
+ * @param apiVersion - the apiVersion of the specific object being resolved, e.g. "apps/v1".
+ *   If omitted or empty, the class registered for `kind` is returned unchecked.
+ * @returns the matching class, or null if there is no class registered for `kind`, or if
+ *   `apiVersion` is given and its group doesn't match any of the class's registered groups.
+ */
+export function getResourceClass(kind: string, apiVersion?: string): KubeObjectClass | null {
+  const cls = (ResourceClasses as Record<string, KubeObjectClass>)[kind];
+  if (!cls) {
+    return null;
+  }
+
+  if (!apiVersion) {
+    return cls;
+  }
+
+  const classApiVersions = Array.isArray(cls.apiVersion) ? cls.apiVersion : [cls.apiVersion];
+  const requestedGroup = apiGroupOf(apiVersion);
+  const groupMatches = classApiVersions.some(version => apiGroupOf(version) === requestedGroup);
+
+  return groupMatches ? cls : null;
+}
 
 /** Hook for getting or fetching the clusters configuration.
  * This gets the clusters from the redux store. The redux store is updated
