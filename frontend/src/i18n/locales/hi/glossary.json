@@ -103,6 +103,7 @@
   "To": "",
   "Reference Grants": "",
   "TCPRoutes": "",
+  "TLS Routes": "",
   "UDPRoutes": "",
   "Horizontal Pod Autoscalers": "हॉरिज़ॉन्टल Pod ऑटोस्केलर्स",
   "Ingress Classes": "इंग्रेस क्लासेज",

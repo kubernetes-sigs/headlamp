@@ -103,6 +103,7 @@
   "To": "Till",
   "Reference Grants": "Referensbeviljanden",
   "TCPRoutes": "",
+  "TLS Routes": "",
   "UDPRoutes": "",
   "Horizontal Pod Autoscalers": "Horisontella poddautoskalningar",
   "Ingress Classes": "Ingressklass",

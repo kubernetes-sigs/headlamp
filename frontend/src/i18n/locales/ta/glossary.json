@@ -103,6 +103,7 @@
   "To": "க்கு",
   "Reference Grants": "ரெஃபரன்ஸ் அனுமதிகள்",
   "TCPRoutes": "",
+  "TLS Routes": "",
   "UDPRoutes": "",
   "Horizontal Pod Autoscalers": "ஹாரிஸன்டல் பாட் ஆட்டோஸ்கேலர்கள்",
   "Ingress Classes": "இன்க்ரெஸ் கிளாச்கள்",

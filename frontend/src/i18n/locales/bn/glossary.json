@@ -103,6 +103,7 @@
   "To": "প্রতি",
   "Reference Grants": "রেফারেন্স অনুমতি",
   "TCPRoutes": "",
+  "TLS Routes": "",
   "UDPRoutes": "",
   "Horizontal Pod Autoscalers": "Horizontal Pod Autoscalers",
   "Ingress Classes": "Ingress ক্লাস",

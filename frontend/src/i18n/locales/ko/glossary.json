@@ -103,6 +103,7 @@
   "To": "",
   "Reference Grants": "",
   "TCPRoutes": "",
+  "TLS Routes": "",
   "UDPRoutes": "",
   "Horizontal Pod Autoscalers": "수평 파드 오토스케일러",
   "Ingress Classes": "인그레스 클래스",
