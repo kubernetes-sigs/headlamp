@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { expect, test } from '@playwright/test';
+import { expect, Page, test } from '@playwright/test';
 import { HeadlampPage } from './headlampPage';
 const yaml = require('yaml');
 const fs = require('fs').promises;
@@ -130,6 +130,74 @@ test('stateless cluster loads without errors after storing kubeconfig', async ({
     'button:has-text("Our Cluster Chooser button. Cluster: dummy")',
     'Our Cluster Chooser button. Cluster: dummy'
   );
+});
+
+test('stateless cluster can start a port forward', async ({ page }) => {
+  const clusterName = 'dummy';
+  const userID = 'port-forward-e2e-user';
+  const portForwardID = `stateless-port-forward-${Date.now()}`;
+  const base64EncodedKubeconfig = await getBase64EncodedKubeconfig(clusterName);
+
+  if (!base64EncodedKubeconfig) {
+    throw new Error('Failed to generate a kubeconfig for the port-forward test');
+  }
+
+  const result = await page.evaluate(
+    async ({ cluster, kubeconfig, id, user }) => {
+      const headers = {
+        'Content-Type': 'application/json',
+        KUBECONFIG: kubeconfig,
+        'X-HEADLAMP-USER-ID': user,
+      };
+      const podResponse = await fetch(
+        `/clusters/${cluster}/api/v1/namespaces/kube-system/pods?labelSelector=app.kubernetes.io%2Fname%3Dheadlamp`,
+        { headers }
+      );
+      const podResponseBody = await podResponse.text();
+
+      if (!podResponse.ok) {
+        return { status: podResponse.status, body: podResponseBody };
+      }
+
+      const pods = JSON.parse(podResponseBody);
+      const podName = pods.items?.[0]?.metadata?.name;
+      if (!podName) {
+        return { status: 404, body: 'Headlamp pod not found' };
+      }
+
+      const startResponse = await fetch(`/clusters/${cluster}/portforward`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({
+          id,
+          namespace: 'kube-system',
+          pod: podName,
+          service: '',
+          serviceNamespace: '',
+          targetPort: '4466',
+        }),
+      });
+      const startResponseBody = await startResponse.text();
+
+      if (startResponse.ok) {
+        await fetch(`/clusters/${cluster}/portforward`, {
+          method: 'DELETE',
+          headers,
+          body: JSON.stringify({ id, stopOrDelete: false }),
+        });
+      }
+
+      return { status: startResponse.status, body: startResponseBody };
+    },
+    {
+      cluster: clusterName,
+      kubeconfig: base64EncodedKubeconfig,
+      id: portForwardID,
+      user: userID,
+    }
+  );
+
+  expect(result.status, result.body).toBe(200);
 });
 
 test('reload does not trigger stateless parsing when IndexedDB is empty', async ({ page }) => {
@@ -260,8 +328,7 @@ const getBase64EncodedKubeconfig = async (clusterName: string = 'dummy') => {
   // Use kubectl command-line tool to get the kubeconfig
   const { stdout, stderr } = await exec('kubectl config view --output json');
   if (stderr) {
-    console.error('Error fetching Minikube kubeconfig:', stderr);
-    return;
+    throw new Error(`Error fetching Minikube kubeconfig: ${stderr}`);
   }
 
   // Parse the kubeconfig JSON
@@ -309,7 +376,7 @@ const getBase64EncodedKubeconfig = async (clusterName: string = 'dummy') => {
   return Buffer.from(kubeconfigYaml).toString('base64');
 };
 
-const saveKubeconfigToIndexDB = async (page, base64EncodedKubeconfig) => {
+const saveKubeconfigToIndexDB = async (page: Page, base64EncodedKubeconfig: string) => {
   await page.evaluate(base64EncodedKubeconfig => {
     return new Promise<void>((resolve, reject) => {
       // Open or create an IndexDB database
@@ -365,9 +432,9 @@ const saveKubeconfigToIndexDB = async (page, base64EncodedKubeconfig) => {
   }, base64EncodedKubeconfig);
 };
 
-const getKubeconfigFromIndexDB = async page => {
+const getKubeconfigFromIndexDB = async (page: Page) => {
   const storedKubeconfig = await page.evaluate(() => {
-    return new Promise((resolve, reject) => {
+    return new Promise<string | null>((resolve, reject) => {
       const request = indexedDB.open('kubeconfigs', 1);
 
       request.onsuccess = (event: any) => {
@@ -404,7 +471,7 @@ const getKubeconfigFromIndexDB = async page => {
   return storedKubeconfig;
 };
 
-const clearKubeconfigsFromIndexDB = async page => {
+const clearKubeconfigsFromIndexDB = async (page: Page) => {
   await page.evaluate(() => {
     return new Promise<void>((resolve, reject) => {
       const request = indexedDB.open('kubeconfigs', 1);
