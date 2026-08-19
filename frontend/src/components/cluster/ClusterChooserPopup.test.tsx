@@ -15,18 +15,24 @@
  */
 
 import { render, screen, within } from '@testing-library/react';
-import { expect, it, vi } from 'vitest';
+import { beforeEach, expect, it, vi } from 'vitest';
 import { setRecentCluster } from '../../helpers/recentClusters';
 import { TestContext } from '../../test';
 import ClusterChooserPopup from './ClusterChooserPopup';
+
+const selectedClusters = ['cluster0'];
 
 // ClusterChooserPopup transitively pulls in k8s resource classes which have a
 // circular dependency that breaks module initialisation in the test
 // environment. Mock the two hooks it needs from there.
 vi.mock('../../lib/k8s', () => ({
   useClustersConf: () => ({ cluster0: { name: 'cluster0' }, cluster1: { name: 'cluster1' } }),
-  useSelectedClusters: () => ['cluster0'],
+  useSelectedClusters: () => selectedClusters,
 }));
+
+beforeEach(() => {
+  selectedClusters.splice(0, selectedClusters.length, 'cluster0');
+});
 
 it('names the cluster listbox after the filter field', () => {
   render(
@@ -50,4 +56,40 @@ it('keeps the recent-cluster divider out of the listbox accessibility tree', () 
   const listbox = screen.getByRole('listbox', { name: 'Choose cluster' });
   expect(within(listbox).getAllByRole('option')).toHaveLength(2);
   expect(within(listbox).queryByRole('separator')).not.toBeInTheDocument();
+});
+
+it('keeps selected recent clusters in recency order', () => {
+  selectedClusters.push('cluster1');
+  setRecentCluster('cluster1');
+  setRecentCluster('cluster0');
+
+  render(
+    <TestContext routerMap={{ cluster: 'cluster0' }} urlPrefix="/c">
+      <ClusterChooserPopup anchor={document.body} />
+    </TestContext>
+  );
+
+  const listbox = screen.getByRole('listbox', { name: 'Choose cluster' });
+  expect(
+    within(listbox)
+      .getAllByRole('option')
+      .map(option => option.id)
+  ).toEqual(['cluster0', 'cluster1']);
+});
+
+it('keeps selected clusters that are not recent in name order', () => {
+  selectedClusters.push('cluster1');
+
+  render(
+    <TestContext routerMap={{ cluster: 'cluster0' }} urlPrefix="/c">
+      <ClusterChooserPopup anchor={document.body} />
+    </TestContext>
+  );
+
+  const listbox = screen.getByRole('listbox', { name: 'Choose cluster' });
+  expect(
+    within(listbox)
+      .getAllByRole('option')
+      .map(option => option.id)
+  ).toEqual(['cluster0', 'cluster1']);
 });
