@@ -16,7 +16,11 @@
 
 import { KubeBackendTLSPolicy } from '../../lib/k8s/backendTLSPolicy';
 import { KubeBackendTrafficPolicy } from '../../lib/k8s/backendTrafficPolicy';
-import { KubeGateway, type KubeGatewayL4Route } from '../../lib/k8s/gateway';
+import {
+  KubeGateway,
+  type KubeGatewayL4Route,
+  type KubeGatewayTLSRoute,
+} from '../../lib/k8s/gateway';
 import { KubeGatewayClass } from '../../lib/k8s/gatewayClass';
 import { KubeGRPCRoute } from '../../lib/k8s/grpcRoute';
 import { KubeHTTPRoute } from '../../lib/k8s/httpRoute';
@@ -210,6 +214,57 @@ export const EMPTY_TCP_ROUTE: KubeGatewayL4Route = {
     name: 'empty-tcproute',
     namespace: 'default',
     uid: 'empty-tcp-route-uid',
+  },
+  spec: {},
+};
+
+export const DEFAULT_TLS_ROUTE: KubeGatewayTLSRoute = {
+  apiVersion: 'gateway.networking.k8s.io/v1',
+  kind: 'TLSRoute',
+  metadata: {
+    creationTimestamp: '2026-08-12T08:00:34Z',
+    name: 'default-tlsroute',
+    namespace: 'default',
+    resourceVersion: '149331',
+    uid: 'tls-route-uid',
+  },
+  spec: {
+    hostnames: ['secure.example.com'],
+    parentRefs: [{ name: 'default-gateway', sectionName: 'tls' }],
+    rules: [
+      {
+        name: 'tls-backend',
+        backendRefs: [{ name: 'tls-service', port: 8443, weight: 1 }],
+      },
+    ],
+  },
+  status: {
+    parents: [
+      {
+        parentRef: { name: 'default-gateway', sectionName: 'tls' },
+        controllerName: 'gateway.example.com/controller',
+        conditions: [
+          {
+            lastProbeTime: null,
+            lastTransitionTime: '2026-08-12T08:01:00Z',
+            reason: 'Accepted',
+            status: 'True',
+            type: 'Accepted',
+          },
+        ],
+      },
+    ],
+  },
+};
+
+export const EMPTY_TLS_ROUTE: KubeGatewayTLSRoute = {
+  apiVersion: 'gateway.networking.k8s.io/v1alpha2',
+  kind: 'TLSRoute',
+  metadata: {
+    creationTimestamp: '2026-08-12T08:00:34Z',
+    name: 'empty-tlsroute',
+    namespace: 'default',
+    uid: 'empty-tls-route-uid',
   },
   spec: {},
 };
