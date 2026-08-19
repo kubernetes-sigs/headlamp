@@ -1033,5 +1033,13 @@
   "Toggle Table Filters": "Przełącz filtry tabeli",
   "Toggle column filters in tables": "Przełącz filtry kolumn w tabelach",
   "Log Viewer Search": "Przeszukiwanie podglądu dzienników",
-  "Toggle search in log viewer": "Przełącz wyszukiwanie w przeglądarce dzienników"
+  "Toggle search in log viewer": "Przełącz wyszukiwanie w przeglądarce dzienników",
+  "Close Details Drawer": "",
+  "Close the active details drawer": "",
+  "Navigate to Pods": "",
+  "Go to the Pods list page": "",
+  "Navigate to Deployments": "",
+  "Go to the Deployments list page": "",
+  "Show Shortcuts Help": "",
+  "Show the keyboard shortcuts cheat sheet": ""
 }
