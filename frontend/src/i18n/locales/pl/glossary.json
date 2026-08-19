@@ -32,6 +32,7 @@
   "Ephemeral Containers": "Kontenery efemeryczne",
   "Owner": "Właściciel",
   "Container": "Kontener",
+  "Pod": "",
   "Config Maps": "Mapy konfiguracji",
   "Definition": "Definicja",
   "CRD: {{ crdName }}": "CRD: {{ crdName }}",
