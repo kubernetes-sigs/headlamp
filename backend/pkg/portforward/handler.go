@@ -45,6 +45,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
+	streamhttp "k8s.io/streaming/pkg/httpstream"
 )
 
 const (
@@ -293,15 +294,16 @@ func getKubeClientAndConfig(kContext *kubeconfig.Context, token string) (*kubern
 }
 
 // buildPortForwardDialer returns a dialer that performs the port-forward
-// upgrade. It tries WebSocket first (matching kubectl since v1.31) and falls
-// back to SPDY/3.1 over POST when WebSocket negotiation fails — the WebSocket
-// path is also required when the cluster is fronted by a reverse proxy (e.g.
-// Warpgate) that propagates WebSocket upgrades but drops SPDY upgrade headers.
+// upgrade. Direct API endpoints use SPDY, while path-routed proxies try
+// WebSocket first because proxies such as Warpgate can drop SPDY headers.
 func buildPortForwardDialer(
 	rConf *rest.Config, fullURL *url.URL,
 	upgrader spdy.Upgrader, roundTripper http.RoundTripper,
 ) httpstream.Dialer {
 	spdyDialer := spdy.NewDialer(upgrader, &http.Client{Transport: roundTripper}, http.MethodPost, fullURL)
+	if strings.HasPrefix(fullURL.Path, "/api/") {
+		return spdyDialer
+	}
 
 	tunnelingDialer, err := portforward.NewSPDYOverWebsocketDialer(fullURL, rConf)
 	if err != nil {
@@ -310,9 +312,13 @@ func buildPortForwardDialer(
 		return spdyDialer
 	}
 
-	return portforward.NewFallbackDialer(tunnelingDialer, spdyDialer, func(err error) bool {
-		return httpstream.IsUpgradeFailure(err) || httpstream.IsHTTPSProxyError(err)
-	})
+	return portforward.NewFallbackDialer(tunnelingDialer, spdyDialer, shouldFallbackToSPDY)
+}
+
+func shouldFallbackToSPDY(err error) bool {
+	return httpstream.IsUpgradeFailure(err) ||
+		streamhttp.IsUpgradeFailure(err) ||
+		httpstream.IsHTTPSProxyError(err)
 }
 
 // buildPortForwardURL constructs the upstream port-forward URL for a pod,
@@ -322,7 +328,7 @@ func buildPortForwardDialer(
 // `hostURL.ResolveReference(&url.URL{Path: …})` cannot be used here because
 // `ResolveReference` replaces the host path when the reference path is
 // absolute, dropping the prefix.
-func buildPortForwardURL(host, namespace, podName string) (*url.URL, error) {
+func buildPortForwardURL(host, namespace, podName, targetPort string) (*url.URL, error) {
 	hostURL, err := url.Parse(host)
 	if err != nil {
 		return nil, fmt.Errorf("invalid REST config host: %w", err)
@@ -346,6 +352,11 @@ func buildPortForwardURL(host, namespace, podName string) (*url.URL, error) {
 
 	prefix := strings.TrimSuffix(hostURL.Path, "/")
 	hostURL.Path = fmt.Sprintf("%s/api/v1/namespaces/%s/pods/%s/portforward", prefix, namespace, podName)
+	query := hostURL.Query()
+	// The API server decodes PodPortForwardOptions.ports and forwards each value
+	// to the kubelet's singular port query parameter.
+	query.Set("ports", targetPort)
+	hostURL.RawQuery = query.Encode()
 
 	return hostURL, nil
 }
@@ -353,7 +364,7 @@ func buildPortForwardURL(host, namespace, podName string) (*url.URL, error) {
 // initPortForwarder sets up the SPDY dialer and creates a new port forwarder.
 // It requires a REST config, namespace, pod name, and the port mapping string (e.g., "8080:80").
 // It returns the port forwarder instance, stop/ready channels, output/error buffers, or an error.
-func initPortForwarder(rConf *rest.Config, namespace, podName, portMapping string) (
+func initPortForwarder(rConf *rest.Config, namespace, podName, portMapping, targetPort string) (
 	*portforward.PortForwarder, chan struct{}, chan struct{}, *bytes.Buffer, *bytes.Buffer, error,
 ) {
 	roundTripper, upgrader, err := spdy.RoundTripperFor(rConf)
@@ -361,15 +372,12 @@ func initPortForwarder(rConf *rest.Config, namespace, podName, portMapping strin
 		return nil, nil, nil, nil, nil, fmt.Errorf("failed to create SPDY round tripper: %w", err)
 	}
 
-	fullURL, err := buildPortForwardURL(rConf.Host, namespace, podName)
+	fullURL, err := buildPortForwardURL(rConf.Host, namespace, podName, targetPort)
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
 
-	// Try WebSocket-based port-forward first, fall back to SPDY/3.1 over POST.
-	// This mirrors `kubectl port-forward` behavior since v1.31 and is required
-	// for clusters fronted by reverse proxies (e.g. Warpgate) that handle WS
-	// upgrades but drop SPDY upgrade headers.
+	// Path-routed proxies use WebSocket first; direct API endpoints use SPDY.
 	dialer := buildPortForwardDialer(rConf, fullURL, upgrader, roundTripper)
 
 	stopChan, readyChan := make(chan struct{}), make(chan struct{}, 1)
@@ -639,7 +647,7 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 	)
 
 	forwarder, stopChan, readyChan, outBuffer, errOut, errInit = initPortForwarder(
-		rConf, p.Namespace, p.Pod, portMapping,
+		rConf, p.Namespace, p.Pod, portMapping, p.TargetPort,
 	)
 	if errInit != nil {
 		return fmt.Errorf("failed to initialize port forwarder: %w", errInit)
