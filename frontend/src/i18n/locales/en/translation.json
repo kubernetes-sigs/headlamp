@@ -843,7 +843,7 @@
   "Stop": "Stop",
   "Error fetching port forwards": "Error fetching port forwards",
   "Loading port forwarding": "Loading port forwarding",
-  "Reconnecting": "",
+  "Reconnecting": "Reconnecting",
   "Pod Port": "Pod Port",
   "Local Port": "Local Port",
   "Error starting port forward": "Error starting port forward",

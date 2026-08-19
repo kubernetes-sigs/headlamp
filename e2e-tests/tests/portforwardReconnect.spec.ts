@@ -161,7 +161,15 @@ test.describe('portforward auto-reconnect', () => {
       expect(verifyResp.ok()).toBeTruthy();
 
       // --- Step 3: Delete the backing pod to trigger reconnect ---
-      await kubectl(kubeconfig, 'delete', 'pod', initialPod, '--namespace=default', '--wait=false');
+      await kubectl(
+        kubeconfig,
+        'delete',
+        'pod',
+        initialPod,
+        '--namespace=default',
+        '--grace-period=1',
+        '--wait=false'
+      );
 
       // --- Step 4: Poll until status becomes Reconnecting or Running (new pod) ---
       // The monitor checks every 5s, then reconnect has backoffs of 5s, 10s, 20s.
@@ -283,7 +291,15 @@ test.describe('portforward auto-reconnect', () => {
       const pfId = pfData.id;
 
       // Delete the pod
-      await kubectl(kubeconfig, 'delete', 'pod', testId, '--namespace=default', '--wait=false');
+      await kubectl(
+        kubeconfig,
+        'delete',
+        'pod',
+        testId,
+        '--namespace=default',
+        '--grace-period=1',
+        '--wait=false'
+      );
 
       // Poll until the port-forward status changes from Running
       const deadline = Date.now() + 60_000;
