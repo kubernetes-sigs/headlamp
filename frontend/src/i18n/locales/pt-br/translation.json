@@ -1016,18 +1016,6 @@
   "resource {{resourceName}} of container {{containerName}} on pods": "resource {{resourceName}} do container {{containerName}} em pods",
   "Warning. Incompatible plugins disabled: ({{ pluginList }})": "Aviso. Plugins incompatíveis desactivados: ({{ pluginList }})",
   "Failed to load plugins. Please try reloading the app.": "",
-  "Global Search": "",
-  "Open the global search dialog": "",
-  "Cluster Chooser": "",
-  "Open the cluster chooser popup": "",
-  "Toggle Table Filters": "",
-  "Toggle column filters in tables": "",
-  "Log Viewer Search": "",
-  "Toggle search in log viewer": "",
-  "Navigate to Pods": "",
-  "Go to the Pods list page": "",
-  "Navigate to Deployments": "",
-  "Go to the Deployments list page": ""
   "Global Search": "Pesquisa Global",
   "Open the global search dialog": "Abrir a caixa de diálogo da pesquisa global",
   "Cluster Chooser": "Seletor de Cluster",
@@ -1035,5 +1023,9 @@
   "Toggle Table Filters": "Alternar Filtros de Tabela",
   "Toggle column filters in tables": "Alternar filtros de coluna em tabelas",
   "Log Viewer Search": "Pesquisa do Visualizador de Logs",
-  "Toggle search in log viewer": "Alternar pesquisa no visualizador de log"
+  "Toggle search in log viewer": "Alternar pesquisa no visualizador de log",
+  "Navigate to Pods": "",
+  "Go to the Pods list page": "",
+  "Navigate to Deployments": "",
+  "Go to the Deployments list page": ""
 }
