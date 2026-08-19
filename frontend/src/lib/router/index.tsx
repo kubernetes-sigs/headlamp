@@ -67,6 +67,8 @@ import ReferenceGrantDetails from '../../components/gateway/ReferenceGrantDetail
 import ReferenceGrantList from '../../components/gateway/ReferenceGrantList';
 import TCPRouteDetails from '../../components/gateway/TCPRouteDetails';
 import TCPRouteList from '../../components/gateway/TCPRouteList';
+import TLSRouteDetails from '../../components/gateway/TLSRouteDetails';
+import TLSRouteList from '../../components/gateway/TLSRouteList';
 import UDPRouteDetails from '../../components/gateway/UDPRouteDetails';
 import UDPRouteList from '../../components/gateway/UDPRouteList';
 import HpaDetails from '../../components/horizontalPodAutoscaler/Details';
@@ -511,6 +513,20 @@ const defaultRoutes: { [routeName: string]: Route } = {
     name: 'UDPRoutes',
     sidebar: 'udproutes',
     component: () => <UDPRouteDetails />,
+  },
+  tlsroutes: {
+    path: '/tlsroutes',
+    exact: true,
+    name: 'TLSRoutes',
+    sidebar: 'tlsroutes',
+    component: () => <TLSRouteList />,
+  },
+  tlsroute: {
+    path: '/tlsroutes/:namespace/:name',
+    exact: true,
+    name: 'TLSRoutes',
+    sidebar: 'tlsroutes',
+    component: () => <TLSRouteDetails />,
   },
   gatewayclasses: {
     path: '/gatewayclasses',

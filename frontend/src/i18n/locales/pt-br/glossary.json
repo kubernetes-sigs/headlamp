@@ -116,6 +116,7 @@
   "To": "Para",
   "Reference Grants": "Concessões\u00a0de Referência",
   "TCPRoutes": "",
+  "TLS Routes": "",
   "UDPRoutes": "",
   "Horizontal Pod Autoscalers": "Horizontal Pod Autoscalers",
   "Ingress Classes": "Ingress Classes",
