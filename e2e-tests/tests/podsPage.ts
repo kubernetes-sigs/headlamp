@@ -83,6 +83,9 @@ spec:
     await expect(podLink).toBeVisible();
 
     console.log(`Created pod ${name}`);
+    await expect(page.getByText(`Applied ${name}.`, { exact: true })).toBeHidden({
+      timeout: 10000,
+    });
     await this.a11y();
   }
 
