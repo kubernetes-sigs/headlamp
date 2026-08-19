@@ -90,14 +90,17 @@ function normalizeSeverity(token: string): LogSeverity {
 }
 
 /**
- * Filter an array of log lines by the selected severity levels.
+ * Filter log entries by the selected severity levels.
  *
- * Lines with no detectable severity are always included to avoid
+ * An entry is matched as a whole, so a prettified JSON object spanning
+ * several lines is never broken up.
+ *
+ * Entries with no detectable severity are always included to avoid
  * hiding plain-text or structureless output.
  *
- * @param logs - The full array of log lines.
+ * @param logs - The log entries.
  * @param selectedSeverities - The severity levels to keep.
- * @returns The filtered array of log lines.
+ * @returns The matching entries, each keeping its trailing newline.
  */
 export function filterLogsBySeverity(logs: string[], selectedSeverities: LogSeverity[]): string[] {
   // If all severities are selected, skip filtering for performance
@@ -107,9 +110,9 @@ export function filterLogsBySeverity(logs: string[], selectedSeverities: LogSeve
 
   const severitySet = new Set(selectedSeverities);
 
-  return logs.filter(line => {
-    const severity = detectSeverity(line);
-    // Always show lines with no detectable severity
+  return logs.filter(entry => {
+    const severity = detectSeverity(entry);
+    // Always show entries with no detectable severity
     if (severity === null) {
       return true;
     }
