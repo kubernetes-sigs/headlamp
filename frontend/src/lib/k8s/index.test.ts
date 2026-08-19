@@ -17,6 +17,7 @@
 import { createRouteURL } from '../router/createRouteURL';
 import { labelSelectorToQuery, ResourceClasses } from '.';
 import { LabelSelector } from './cluster';
+import type { KubeEvent } from './event';
 import { KubeObjectClass } from './KubeObject';
 import Namespace from './namespace';
 
@@ -36,6 +37,69 @@ const mockK8sObject = (className: string) => ({
     resourceVersion: '01',
     selfLink: 'http://localhost/api/v1/phony/01',
   },
+});
+
+describe('Event resource references', () => {
+  const pluginResourceKind = 'PluginResource';
+  const resourceClasses = ResourceClasses as Record<string, KubeObjectClass>;
+
+  afterEach(() => {
+    delete resourceClasses[pluginResourceKind];
+  });
+
+  test('Ignore registered resource classes that do not create valid KubeObjects', async () => {
+    class InvalidPluginResource {
+      static isNamespaced = true;
+      static detailsRoute = 'pluginresource';
+      jsonData: unknown;
+
+      constructor(jsonData: unknown) {
+        this.jsonData = jsonData;
+      }
+
+      getName() {
+        return 'plugin-resource';
+      }
+
+      getNamespace() {
+        return 'default';
+      }
+
+      _class() {
+        return InvalidPluginResource;
+      }
+    }
+
+    resourceClasses[pluginResourceKind] = InvalidPluginResource as unknown as KubeObjectClass;
+
+    const { default: Event } = await import('./event');
+    const event = new Event(
+      {
+        kind: 'Event',
+        type: 'Warning',
+        reason: 'InvalidPluginResource',
+        message: 'Plugin registered a class that does not implement the KubeObject contract',
+        metadata: {
+          name: 'invalid-plugin-resource',
+          namespace: 'default',
+          creationTimestamp: '2026-08-13T00:00:00Z',
+          uid: 'invalid-plugin-resource',
+        },
+        involvedObject: {
+          kind: pluginResourceKind,
+          namespace: 'default',
+          name: 'plugin-resource',
+          uid: 'plugin-resource',
+          apiVersion: 'example.com/v1',
+          resourceVersion: '1',
+          fieldPath: '',
+        },
+      } as KubeEvent,
+      'test-cluster'
+    );
+
+    expect(event.involvedObjectInstance).toBeNull();
+  });
 });
 
 describe('Class tests', () => {
