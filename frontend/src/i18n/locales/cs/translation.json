@@ -942,6 +942,8 @@
   "Zoom in": "Přiblížit",
   "Zoom out": "Oddálit",
   "No data to be shown. Try to change filters or select a different namespace.": "Nejsou k dispozici žádná data, která by bylo možné zobrazit. Zkuste změnit filtry nebo vybrat jiný obor názvů.",
+  "Resource Types": "",
+  "Labels (e.g. app=nginx)": "",
   "Group By": "Seskupit podle",
   "Instance": "Instance",
   "Status: Error or Warning": "Stav: Chyba nebo upozornění",
