@@ -362,5 +362,13 @@ export function useGetAllSources(): GraphSource[] {
     }
 
     return sources;
-  }, [CustomResourceDefinition, vpaEnabled, gatewayEnabled, tcpRouteEnabled, udpRouteEnabled, t]);
+  }, [
+    CustomResourceDefinition,
+    vpaEnabled,
+    gatewayEnabled,
+    tcpRouteEnabled,
+    udpRouteEnabled,
+    tlsRouteEnabled,
+    t,
+  ]);
 }
