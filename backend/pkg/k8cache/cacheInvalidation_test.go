@@ -754,6 +754,11 @@ func TestHandleNonGETCacheInvalidation_CachePopulatedAfterClientDisconnect(t *te
 	require.NoError(t, mockCache.Set(context.Background(), cacheKey, `{"body":"stale"}`))
 
 	next := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		if req.Method == http.MethodGet {
+			require.NoError(t, req.Context().Err(), "fresh GET context should not be cancelled")
+			vars := mux.Vars(req)
+			require.Equal(t, "test-cluster", vars["clusterName"], "fresh GET should preserve mux variables")
+		}
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"kind":"PodList","fresh":true}`))
 	})
@@ -764,6 +769,7 @@ func TestHandleNonGETCacheInvalidation_CachePopulatedAfterClientDisconnect(t *te
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(cancelledCtx, http.MethodPost, targetURL.String(), nil)
+	r = mux.SetURLVars(r, map[string]string{"clusterName": "test-cluster"})
 	r.URL = targetURL
 
 	err = k8cache.HandleNonGETCacheInvalidation(mockCache, w, r, next, "ctx")
