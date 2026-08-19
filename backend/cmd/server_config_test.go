@@ -63,4 +63,30 @@ func TestBuildHeadlampCFG(t *testing.T) {
 
 		assert.Empty(t, headlampCFG.ProxyURLs)
 	})
+
+	t.Run("AllowedFrameAncestors parsing", func(t *testing.T) {
+		t.Run("empty string yields nil", func(t *testing.T) {
+			conf := &config.Config{AllowedFrameAncestors: ""}
+			headlampCFG := buildHeadlampCFG(conf, store)
+			assert.Empty(t, headlampCFG.AllowedFrameAncestors)
+		})
+
+		t.Run("comma-separated list without spaces", func(t *testing.T) {
+			conf := &config.Config{AllowedFrameAncestors: "http://localhost:3000,https://example.com"}
+			headlampCFG := buildHeadlampCFG(conf, store)
+			assert.Equal(t, []string{"http://localhost:3000", "https://example.com"}, headlampCFG.AllowedFrameAncestors)
+		})
+
+		t.Run("comma-separated list with spaces", func(t *testing.T) {
+			conf := &config.Config{AllowedFrameAncestors: "  http://localhost:3000 , https://example.com  "}
+			headlampCFG := buildHeadlampCFG(conf, store)
+			assert.Equal(t, []string{"http://localhost:3000", "https://example.com"}, headlampCFG.AllowedFrameAncestors)
+		})
+
+		t.Run("comma-separated list with empty elements", func(t *testing.T) {
+			conf := &config.Config{AllowedFrameAncestors: "http://localhost:3000,,https://example.com, "}
+			headlampCFG := buildHeadlampCFG(conf, store)
+			assert.Equal(t, []string{"http://localhost:3000", "https://example.com"}, headlampCFG.AllowedFrameAncestors)
+		})
+	})
 }

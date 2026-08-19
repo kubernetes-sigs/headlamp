@@ -4315,8 +4315,8 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 				Cache: cache,
 			},
 		}
-		handler := createHeadlampHandler(context.Background(), cfg)
-		handler = cfg.securityHeadersMiddleware(handler)
+		handler, err := serverHandler(context.Background(), cfg)
+		require.NoError(t, err)
 
 		req, err := http.NewRequestWithContext(context.Background(), "GET", "/config", nil)
 		require.NoError(t, err)
@@ -4339,8 +4339,8 @@ func TestSecurityHeadersMiddleware(t *testing.T) {
 				Cache: cache,
 			},
 		}
-		handler := createHeadlampHandler(context.Background(), cfg)
-		handler = cfg.securityHeadersMiddleware(handler)
+		handler, err := serverHandler(context.Background(), cfg)
+		require.NoError(t, err)
 
 		req, err := http.NewRequestWithContext(context.Background(), "GET", "/config", nil)
 		require.NoError(t, err)
