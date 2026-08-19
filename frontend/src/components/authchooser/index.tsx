@@ -121,12 +121,14 @@ function AuthChooser({ children }: AuthChooserProps) {
           })
           .catch(err => {
             if (!cancelledRef.current) {
-              console.debug(`Requiring token for ${clusterName} as testing auth failed:`, err);
+              console.debug(`Testing auth failed for ${clusterName}:`, err);
 
-              // Ideally we'd only not assign the error if it was 401 or 403 (so we let the logic
-              // proceed to request a token), but let's first check whether this is all we get
-              // from clusters that require a token.
-              if ([408, 504, 502].includes(err.status)) {
+              // Only a 401 or a 403 means the cluster is actually asking us for credentials.
+              // Anything else -- the backend not finding the cluster, a broken exec credential
+              // plugin, an unreachable API server -- is a real error, and falling through to the
+              // token page hides it behind a login prompt that cannot fix it.
+              // See https://github.com/kubernetes-sigs/headlamp/issues/7154
+              if (![401, 403].includes(err.status)) {
                 errorObj = err;
               }
 
