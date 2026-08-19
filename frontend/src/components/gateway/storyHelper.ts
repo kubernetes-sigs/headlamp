@@ -264,6 +264,57 @@ export const EMPTY_UDP_ROUTE: KubeGatewayL4Route = {
   spec: {},
 };
 
+export const DEFAULT_TLS_ROUTE: KubeGatewayL4Route = {
+  apiVersion: 'gateway.networking.k8s.io/v1',
+  kind: 'TLSRoute',
+  metadata: {
+    creationTimestamp: '2025-08-07T11:00:00Z',
+    name: 'default-tlsroute',
+    namespace: 'default',
+    resourceVersion: '12347',
+    uid: 'tls-route-uid',
+  },
+  spec: {
+    hostnames: ['db.example.com', 'broker.example.com'],
+    parentRefs: [{ name: 'default-gateway', sectionName: 'tls-passthrough' }],
+    rules: [
+      {
+        name: 'tls-backend',
+        backendRefs: [{ name: 'tls-service', port: 5432, weight: 1 }],
+      },
+    ],
+  },
+  status: {
+    parents: [
+      {
+        parentRef: { name: 'default-gateway', sectionName: 'tls-passthrough' },
+        controllerName: 'gateway.example.com/controller',
+        conditions: [
+          {
+            lastProbeTime: null,
+            lastTransitionTime: '2025-08-07T11:01:00Z',
+            reason: 'Accepted',
+            status: 'True',
+            type: 'Accepted',
+          },
+        ],
+      },
+    ],
+  },
+};
+
+export const EMPTY_TLS_ROUTE: KubeGatewayL4Route = {
+  apiVersion: 'gateway.networking.k8s.io/v1alpha2',
+  kind: 'TLSRoute',
+  metadata: {
+    creationTimestamp: '2025-08-07T11:00:00Z',
+    name: 'empty-tlsroute',
+    namespace: 'default',
+    uid: 'empty-tls-route-uid',
+  },
+  spec: {},
+};
+
 export const DEFAULT_GRPC_ROUTE: KubeGRPCRoute = {
   apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'GRPCRoute',
