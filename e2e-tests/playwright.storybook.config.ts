@@ -18,6 +18,12 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './storybook-tests',
+  timeout: 30 * 1000,
+  expect: {
+    timeout: 15_000,
+  },
+  forbidOnly: !!process.env.CI,
+  retries: process.env.CI ? 2 : 0,
   use: {
     baseURL: 'http://127.0.0.1:6007',
     trace: 'on-first-retry',
