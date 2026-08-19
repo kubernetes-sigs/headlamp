@@ -155,20 +155,14 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		p.ID = uuid.New().String()
 	}
 
-	userID := r.Header.Get("X-HEADLAMP-USER-ID")
 	requestClusterName := mux.Vars(r)["clusterName"]
-	clusterName := requestClusterName
-
-	if userID != "" {
-		clusterName += userID
-	}
 
 	// Ensure we don't orphan an existing port-forward by overwriting its cache entry.
 	// This check happens before any resource allocation or blocking code so duplicates short-circuit
 	// deterministically and avoid unnecessary listener churn.
-	if existingPF, err := getPortForwardByID(cache, clusterName, p.ID); err == nil && existingPF.Status == RUNNING {
+	if existingPF, err := getPortForwardByID(cache, contextKey, p.ID); err == nil && existingPF.Status == RUNNING {
 		//nolint:goconst
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName, "id": p.ID},
+		logger.Log(logger.LevelError, map[string]string{"cluster": contextKey, "id": p.ID},
 			nil, "portforward ID already exists")
 		http.Error(w, "portforward with this ID is already running", http.StatusConflict)
 
@@ -176,9 +170,9 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 	}
 
 	// Reject duplicates before any resource-consuming work (port alloc, kubeconfig lookup).
-	inFlightKey := strings.Join([]string{requestClusterName, userID, p.ID}, "\x00")
+	inFlightKey := strings.Join([]string{contextKey, p.ID}, "\x00")
 	if _, loaded := inFlightPortForwards.LoadOrStore(inFlightKey, struct{}{}); loaded {
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName, "id": p.ID},
+		logger.Log(logger.LevelError, map[string]string{"cluster": contextKey, "id": p.ID},
 			nil, "portforward ID is already starting")
 		http.Error(w, "portforward with this ID is already starting", http.StatusConflict)
 

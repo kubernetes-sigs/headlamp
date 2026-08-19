@@ -675,13 +675,19 @@ func TestStopOrDeletePortForwardHandler_UserIDKeyIsolation(t *testing.T) {
 // TestStartPortForward_DuplicateIDConflict verifies that StartPortForward
 // returns a 409 Conflict if a port-forward with the same ID is already running.
 func TestStartPortForward_DuplicateIDConflict(t *testing.T) {
+	const (
+		clusterName = "test-cluster"
+		contextKey  = clusterName + "\x00user"
+	)
+
 	c := cache.New[interface{}]()
 	kubeConfigStore := kubeconfig.NewContextStore()
 
 	// Seed a running port-forward in the cache
 	pf := portForward{
 		ID:        "duplicate-id",
-		Cluster:   "test-cluster",
+		Cluster:   clusterName,
+		cacheKey:  contextKey,
 		Pod:       "some-pod",
 		Namespace: "default",
 		Status:    RUNNING,
@@ -699,9 +705,10 @@ func TestStartPortForward_DuplicateIDConflict(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequestWithContext(context.Background(), http.MethodPost, "/portforward", bytes.NewReader(jsonReq))
-	r = mux.SetURLVars(r, map[string]string{"clusterName": "test-cluster"})
+	r.Header.Set("X-HEADLAMP-USER-ID", "user")
+	r = mux.SetURLVars(r, map[string]string{"clusterName": clusterName})
 
-	StartPortForward(kubeConfigStore, c, false, "test-cluster", w, r)
+	StartPortForward(kubeConfigStore, c, false, contextKey, w, r)
 
 	res := w.Result()
 
