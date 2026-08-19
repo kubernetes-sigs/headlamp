@@ -91,14 +91,35 @@ absolute, because the test resolves them relative to its own working directory:
 
 ```bash
 mkdir -p ~/headlamp-e2e-certs
-kubectl config view --raw --minify --context=test -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 --decode > ~/headlamp-e2e-certs/ca.crt
-kubectl config set-cluster kind-test --certificate-authority="$HOME/headlamp-e2e-certs/ca.crt" --embed-certs=false
-kubectl config unset clusters.kind-test.certificate-authority-data
-```
 
-Do the same for the `client-certificate-data` and `client-key-data` fields on
-the user entry. To update the second cluster, use `--context=test2` and the
-`kind-test2` cluster entry.
+# test cluster
+kubectl config view --raw --minify --context=test -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 --decode > ~/headlamp-e2e-certs/test-ca.crt
+kubectl config view --raw --minify --context=test -o jsonpath='{.users[0].user.client-certificate-data}' | base64 --decode > ~/headlamp-e2e-certs/test-client.crt
+kubectl config view --raw --minify --context=test -o jsonpath='{.users[0].user.client-key-data}' | base64 --decode > ~/headlamp-e2e-certs/test-client.key
+
+kubectl config set-cluster kind-test \
+  --certificate-authority="$HOME/headlamp-e2e-certs/test-ca.crt" \
+  --embed-certs=false
+
+kubectl config set-credentials kind-test \
+  --client-certificate="$HOME/headlamp-e2e-certs/test-client.crt" \
+  --client-key="$HOME/headlamp-e2e-certs/test-client.key" \
+  --embed-certs=false
+
+# test2 cluster
+kubectl config view --raw --minify --context=test2 -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 --decode > ~/headlamp-e2e-certs/test2-ca.crt
+kubectl config view --raw --minify --context=test2 -o jsonpath='{.users[0].user.client-certificate-data}' | base64 --decode > ~/headlamp-e2e-certs/test2-client.crt
+kubectl config view --raw --minify --context=test2 -o jsonpath='{.users[0].user.client-key-data}' | base64 --decode > ~/headlamp-e2e-certs/test2-client.key
+
+kubectl config set-cluster kind-test2 \
+  --certificate-authority="$HOME/headlamp-e2e-certs/test2-ca.crt" \
+  --embed-certs=false
+
+kubectl config set-credentials kind-test2 \
+  --client-certificate="$HOME/headlamp-e2e-certs/test2-client.crt" \
+  --client-key="$HOME/headlamp-e2e-certs/test2-client.key" \
+  --embed-certs=false
+```
 
 ### Additional suites
 
