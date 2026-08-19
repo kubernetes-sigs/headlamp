@@ -220,7 +220,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		token, _ = auth.GetTokenFromCookie(r, requestClusterName)
 	}
 
-	err = startPortForward(kContext, cache, p, token, clusterName, requestClusterName)
+	err = startPortForward(r.Context(), kContext, cache, p, token, clusterName, requestClusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting portforward")
 
@@ -408,6 +408,7 @@ func safeCloseChan(ch chan struct{}) {
 // to stop by closing its stopChan and updates its status in the cache.
 // It stops when the associated port-forward's closeChan is closed.
 func monitorPodAndManagePortForward(
+	ctx context.Context,
 	clientset *kubernetes.Clientset,
 	cache cache.Cache[interface{}],
 	pfDetails *portForward,
@@ -419,6 +420,14 @@ func monitorPodAndManagePortForward(
 
 	for {
 		select {
+		case <-ctx.Done():
+			logger.Log(logger.LevelInfo, logParams, nil, "Pod monitor stopping: request context canceled.")
+
+			pfSnapshot := pfDetails.setStatusAndSnapshot(STOPPED, "request context canceled")
+			portforwardstore(cache, pfSnapshot)
+			safeCloseChan(pfDetails.closeChan)
+
+			return
 		case <-ticker.C:
 			err := checkIfPodIsRunning(clientset, pfDetails.Namespace, pfDetails.Pod)
 			if err != nil {
@@ -594,6 +603,7 @@ func forwardPortsAsync(
 // then handles its readiness, and if ready, starts another goroutine to
 // monitor the target pod's status.
 func runAndMonitorPortForward(
+	ctx context.Context,
 	clientset *kubernetes.Clientset,
 	cache cache.Cache[interface{}],
 	pfDetails *portForward,
@@ -613,14 +623,14 @@ func runAndMonitorPortForward(
 		return err
 	}
 
-	go monitorPodAndManagePortForward(clientset, cache, pfDetails)
+	go monitorPodAndManagePortForward(ctx, clientset, cache, pfDetails)
 
 	return nil
 }
 
 // startPortForward starts a port forward. This is the internal function that was refactored.
 // It sets up Kubernetes clients, initializes the port forwarder, and manages its lifecycle.
-func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{}],
+func startPortForward(ctx context.Context, kContext *kubeconfig.Context, cache cache.Cache[interface{}],
 	p portForwardRequest, token string, clusterName string, requestClusterName string,
 ) error {
 	clientset, rConf, err := getKubeClientAndConfig(kContext, token)
@@ -668,7 +678,7 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 		Error:            "",
 	}
 
-	return runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut)
+	return runAndMonitorPortForward(ctx, clientset, cache, pfDetails, forwarder, readyChan, errOut)
 }
 
 func checkIfPodIsRunning(clientset *kubernetes.Clientset, namespace string, pod string) error {
