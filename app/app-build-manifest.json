@@ -13,5 +13,17 @@
       "name": "prometheus",
       "archive": "https://github.com/headlamp-k8s/plugins/releases/download/prometheus-0.9.1/prometheus-0.9.1.tar.gz"
     }
+  ],
+  "legalDocuments": [
+    {
+      "id": "license",
+      "title": "License",
+      "file": "LICENSE"
+    },
+    {
+      "id": "notices",
+      "title": "Third-party notices",
+      "file": "NOTICE"
+    }
   ]
 }

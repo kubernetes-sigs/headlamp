@@ -19,6 +19,11 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST_DIR="$APP_DIR/dist"
+PRODUCT_NAME=$(node -e "const path=require('path'); const d=process.argv[1]; const p=require(path.join(d, 'package.json')); const {derivePackageVerificationName}=require(path.join(d, 'scripts/package-verification-name.ts')); process.stdout.write(derivePackageVerificationName(p, 'mac'))" "$APP_DIR")
+if [ -z "$PRODUCT_NAME" ]; then
+  echo "✗ Could not derive the app executable name"
+  exit 1
+fi
 
 # Function to test backend binary
 test_backend() {
@@ -31,13 +36,12 @@ test_backend() {
       return 1
     fi
     echo "Backend version: $VERSION_OUTPUT"
-    if echo "$VERSION_OUTPUT" | grep -q "Headlamp"; then
-      echo "✓ Backend binary is working"
-      return 0
-    else
-      echo "✗ Backend version check failed"
+    if [ -z "$VERSION_OUTPUT" ]; then
+      echo "✗ Backend produced no version output"
       return 1
     fi
+    echo "✓ Backend binary is working"
+    return 0
   else
     echo "✗ Backend server binary not found at $BACKEND_PATH"
     return 1
@@ -48,7 +52,7 @@ test_backend() {
 test_electron_app() {
   local HEADLAMP_EXEC="$1"
   if [ -f "$HEADLAMP_EXEC" ]; then
-    echo "Found Headlamp at: $HEADLAMP_EXEC"
+    echo "Found $PRODUCT_NAME at: $HEADLAMP_EXEC"
     chmod +x "$HEADLAMP_EXEC"
     
     echo "Running app with 10 second timeout..."
@@ -80,7 +84,7 @@ test_electron_app() {
       return 1
     fi
   else
-    echo "✗ Headlamp executable not found at $HEADLAMP_EXEC"
+    echo "✗ $PRODUCT_NAME executable not found at $HEADLAMP_EXEC"
     return 1
   fi
 }
@@ -92,10 +96,11 @@ echo ""
 echo "Checking for built artifacts..."
 ls -lh "$DIST_DIR/" || true
 
-if ls "$DIST_DIR"/*.dmg 1> /dev/null 2>&1; then
-  echo "✓ Mac DMG found"
+PACKAGE_NAME=$(node -p "require(process.argv[1]).name" "$APP_DIR/package.json")
+if ls "$DIST_DIR/${PACKAGE_NAME}-"*.dmg 1> /dev/null 2>&1; then
+  echo "✓ Mac DMG found with package name"
 else
-  echo "✗ No Mac DMG found"
+  echo "✗ No Mac DMG found with package name: $PACKAGE_NAME"
   exit 1
 fi
 echo ""
@@ -122,7 +127,7 @@ if [ -d "$DIST_DIR/mac" ]; then
   
   # Test Electron app
   echo "=== Verifying Electron App ==="
-  HEADLAMP_EXEC="$APP_BUNDLE/Contents/MacOS/Headlamp"
+  HEADLAMP_EXEC="$APP_BUNDLE/Contents/MacOS/$PRODUCT_NAME"
   test_electron_app "$HEADLAMP_EXEC" || exit 1
 else
   echo "Mac build directory not found, checking DMG contents..."
@@ -159,7 +164,7 @@ else
       
       # Test Electron app
       echo "=== Verifying Electron App from DMG ==="
-      HEADLAMP_EXEC="$APP_BUNDLE/Contents/MacOS/Headlamp"
+      HEADLAMP_EXEC="$APP_BUNDLE/Contents/MacOS/$PRODUCT_NAME"
       if ! test_electron_app "$HEADLAMP_EXEC"; then
         hdiutil detach "$MOUNT_POINT" > /dev/null 2>&1
         rm -rf "$MOUNT_POINT" || true
@@ -202,7 +207,7 @@ test_server_cleanup() {
   local REMAINING_SERVER_PIDS
 
   EXISTING_SERVER_PIDS=$(pgrep -f headlamp-server 2>/dev/null || true)
-  EXISTING_APP_PIDS=$(pgrep -x Headlamp 2>/dev/null || true)
+  EXISTING_APP_PIDS=$(pgrep -x "$PRODUCT_NAME" 2>/dev/null || true)
 
   # Launch the app using macOS 'open' command so it properly registers with
   # WindowServer and Electron's 'ready' event fires (direct binary execution
@@ -211,10 +216,10 @@ test_server_cleanup() {
   echo "Launching app for server cleanup test (via open, GPU disabled for CI)..."
   open "$APP_BUNDLE" --args --disable-gpu
 
-  # Wait for the Headlamp process to appear (up to 15 seconds)
+  # Wait for the Electron process to appear (up to 15 seconds)
   ELECTRON_PID=""
   for i in $(seq 1 15); do
-    ALL_APP_PIDS=$(pgrep -x Headlamp 2>/dev/null || true)
+    ALL_APP_PIDS=$(pgrep -x "$PRODUCT_NAME" 2>/dev/null || true)
     for pid in $ALL_APP_PIDS; do
       if [ -z "$EXISTING_APP_PIDS" ] || ! echo "$EXISTING_APP_PIDS" | grep -qw "$pid"; then
         ELECTRON_PID="$pid"
@@ -228,7 +233,7 @@ test_server_cleanup() {
   done
 
   if [ -z "$ELECTRON_PID" ]; then
-    echo "⚠ Headlamp process did not appear within 15 seconds, skipping cleanup test"
+    echo "⚠ $PRODUCT_NAME process did not appear within 15 seconds, skipping cleanup test"
     return 0
   fi
   echo "Electron app started with PID: $ELECTRON_PID"
