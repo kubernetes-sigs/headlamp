@@ -357,7 +357,6 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
                 id: from.id + '-' + to.id + '-' + relation.id,
                 source: from.id,
                 target: to.id,
-                label: relation.label,
                 data: {
                   isCrossCluster: from.kubeObject?.cluster !== to.kubeObject?.cluster,
                 },
