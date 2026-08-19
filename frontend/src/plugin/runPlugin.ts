@@ -143,9 +143,10 @@ export function getInfoForRunningPlugins({
  * Adjusts inline source maps for code that will be executed via `new Function()`.
  *
  * When using `new Function(args, body)`, the browser wraps the code in a function declaration,
- * adding 2 extra lines (function header and closing brace). This causes source map line numbers
- * to be off by 2. We fix this by prepending semicolons to the mappings field - each semicolon
- * represents an empty generated line, effectively shifting all mappings down.
+ * adding 2 extra lines (function header and closing brace). Along with the 1 strict mode directive line
+ * prepended by the plugin runner, this causes source map line numbers to be off by 3.
+ * We fix this by prepending semicolons to the mappings field - each semicolon represents an empty
+ * generated line, effectively shifting all mappings down.
  */
 export function adjustSourceMapOffsetForFunction(jsSource: string) {
   try {
@@ -165,7 +166,8 @@ export function adjustSourceMapOffsetForFunction(jsSource: string) {
       return jsSource;
     }
 
-    const wrapperLineCount = 2;
+    // 2 lines from Function wrapper + 1 line for 'use strict' directive
+    const wrapperLineCount = 3;
     sourceMap.mappings = ';'.repeat(wrapperLineCount) + sourceMap.mappings;
 
     const newBase64 = btoa(JSON.stringify(sourceMap));
@@ -215,7 +217,10 @@ export function runPlugin(
   for (let index = 0; index < args.length; index += 1) {
     constructorArgs[index] = args[index];
   }
-  constructorArgs[args.length] = adjustSourceMapOffsetForFunction(source);
+
+  // Ensure strict mode execution
+  const strictSource = `'use strict';\n${adjustSourceMapOffsetForFunction(source)}`;
+  constructorArgs[args.length] = strictSource;
 
   // Use the private Function reference and avoid the mutable array iterator.
   const executePlugin = privateConstruct(PrivateFunction, constructorArgs) as Function;

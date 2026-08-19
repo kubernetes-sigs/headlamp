@@ -60,7 +60,7 @@ describe('runPlugin', () => {
 
     const encodedSourceMap = compiledSources[0].split('base64,')[1];
     const compiledSourceMap = JSON.parse(atob(encodedSourceMap));
-    expect(compiledSourceMap.mappings).toBe(';;AAAA');
+    expect(compiledSourceMap.mappings).toBe(';;;AAAA');
     expect(executePlugin).toHaveBeenCalledOnce();
   });
 
@@ -917,7 +917,7 @@ describe('adjustSourceMapOffsetForFunction', () => {
 
     const encodedSourceMap = result.split('base64,')[1].split(/\s/)[0];
     const resultSourceMap = JSON.parse(atob(encodedSourceMap));
-    expect(resultSourceMap.mappings).toBe(';;' + originalMappings);
+    expect(resultSourceMap.mappings).toBe(';;;' + originalMappings);
     expect(result.endsWith(sourceUrl)).toBe(true);
   });
 
@@ -949,7 +949,7 @@ describe('adjustSourceMapOffsetForFunction', () => {
     const result = adjustSourceMapOffsetForFunction(jsSource);
     const encodedSourceMap = result.split('base64,')[1];
 
-    expect(JSON.parse(atob(encodedSourceMap)).mappings).toBe(';;');
+    expect(JSON.parse(atob(encodedSourceMap)).mappings).toBe(';;;');
   });
 
   test('should return source unchanged when the source map is not valid base64', () => {
@@ -976,5 +976,170 @@ describe('adjustSourceMapOffsetForFunction', () => {
       expect.any(SyntaxError)
     );
     consoleError.mockRestore();
+  });
+});
+
+describe('Security & Isolation (Issue #6826)', () => {
+  test('should prevent top-level this binding from resolving to global window', () => {
+    let thisBinding: unknown = 'NOT_TESTED';
+
+    const pluginSource = `
+        setThis(this);
+      `;
+
+    const PrivateFunction = Function;
+    const info = getInfoForRunningPlugins({
+      source: pluginSource,
+      pluginPath: '/path/to/plugin',
+      packageName: 'test-sandbox-this-package',
+      packageVersion: '1.0.0',
+      permissionSecrets: {},
+      handleError: () => {},
+      getAllowedPermissions: () => ({}),
+      getArgValues: () => [
+        ['setThis'],
+        [
+          (val: unknown) => {
+            thisBinding = val;
+          },
+        ],
+      ],
+      PrivateFunction,
+      internalRunPlugin: runPlugin,
+      consoleError: console.error,
+    });
+
+    if (info) {
+      runPluginInner(info);
+    }
+
+    expect(thisBinding).toBeUndefined();
+  });
+
+  test('should not allow a plugin to intercept plugin execution via Function.prototype.apply override', () => {
+    let errorMessage = '';
+    let theError: Error | null = null;
+    const PrivateFunction = Function;
+    const consoleError = console.error;
+    const internalRunPlugin = runPlugin;
+
+    // Spy on apply
+    const originalApply = Function.prototype.apply;
+    let intercepted = false;
+
+    // Sentinel capability to detect apply interception
+    function SENTINEL_CAPABILITY() {}
+
+    // Mock apply to detect interception
+    Function.prototype.apply = function (thisArg, args) {
+      if (
+        args &&
+        args.length > 0 &&
+        typeof args[args.length - 1] === 'string' &&
+        args[args.length - 1].includes('use strict')
+      ) {
+        intercepted = true;
+      }
+      // Check for interception of the final capability invocation
+      if (args && args.length > 0 && args[0] === SENTINEL_CAPABILITY) {
+        intercepted = true;
+      }
+      return originalApply.call(this, thisArg, args);
+    };
+
+    try {
+      const info = getInfoForRunningPlugins({
+        source: `
+          // Empty plugin
+          const x = 1;
+        `,
+        pluginPath: '/path/to/plugin',
+        packageName: 'test-sandbox-apply',
+        packageVersion: '1.0.0',
+        permissionSecrets: {},
+        handleError: (error, packageName, packageVersion) => {
+          errorMessage = `Error in plugin ${packageName} v${packageVersion}: ${error}`;
+          theError = error as Error;
+        },
+        getAllowedPermissions: () => ({}),
+        getArgValues: () => [['test_plugin_cmd'], [SENTINEL_CAPABILITY]],
+        PrivateFunction,
+        internalRunPlugin,
+        consoleError,
+      });
+
+      if (info) {
+        runPluginInner(info);
+      }
+
+      // The execution should not have routed through the mutated Function.prototype.apply
+      expect(intercepted).toBe(false);
+      expect(errorMessage).toBe('');
+      expect(theError).toBeNull();
+    } finally {
+      // Clean up the global mutation
+      Function.prototype.apply = originalApply;
+    }
+  });
+
+  test('should not allow a plugin to intercept execution via Array.prototype[Symbol.iterator] spread', () => {
+    let errorMessage = '';
+    let theError: Error | null = null;
+    const PrivateFunction = Function;
+    const consoleError = console.error;
+    const internalRunPlugin = runPlugin;
+
+    const originalIterator = Array.prototype[Symbol.iterator];
+    let intercepted = false;
+
+    // Sentinel capability to detect iterator spread interception
+    function SENTINEL_CAPABILITY() {}
+
+    // Malicious plugin mutates global iterator
+    (globalThis as any).Array.prototype[Symbol.iterator] = function* (this: any) {
+      // Check for target parameter name or sentinel capability value
+      if (
+        this &&
+        this.length > 0 &&
+        (this[0] === 'test_plugin_cmd' || this[0] === SENTINEL_CAPABILITY)
+      ) {
+        intercepted = true;
+      }
+      yield* originalIterator.call(this);
+    } as any;
+
+    try {
+      const info = getInfoForRunningPlugins({
+        source: `
+          // Empty plugin
+          const x = 1;
+        `,
+        pluginPath: '/path/to/plugin',
+        packageName: 'test-sandbox-iterator',
+        packageVersion: '1.0.0',
+        permissionSecrets: {},
+        handleError: (error, packageName, packageVersion) => {
+          errorMessage = `Error in plugin ${packageName} v${packageVersion}: ${error}`;
+          theError = error as Error;
+        },
+        getAllowedPermissions: () => ({}),
+        getArgValues: () => [['test_plugin_cmd'], [SENTINEL_CAPABILITY]],
+        PrivateFunction,
+        internalRunPlugin,
+        consoleError,
+      });
+
+      if (info) {
+        runPluginInner(info);
+      }
+
+      // Execution must not leak
+      expect(intercepted).toBe(false);
+      expect(errorMessage).toBe('');
+      expect(theError).toBeNull();
+    } finally {
+      // Clean up the global mutation
+      (globalThis as any).Array.prototype[Symbol.iterator] = originalIterator;
+    }
   });
 });
