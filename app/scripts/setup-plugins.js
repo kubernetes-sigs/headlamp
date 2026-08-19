@@ -11,6 +11,19 @@ const MANIFEST_FILE = path.join(__dirname, '../app-build-manifest.json');
 
 const manifest = require(MANIFEST_FILE);
 
+// Headlamp fetches plugin translations from <plugin>/locales at runtime.
+function copyLocales(fromDir, toDir) {
+  const localesDir = path.join(fromDir, 'locales');
+  const destDir = path.join(toDir, 'locales');
+  // Cleared first so locales dropped by a newer archive do not linger.
+  fs.rmSync(destDir, { recursive: true, force: true });
+  if (!fs.existsSync(localesDir)) {
+    return;
+  }
+  fs.cpSync(localesDir, destDir, { recursive: true });
+  console.log('Copied locales from ', localesDir);
+}
+
 async function extractArchive(
   name,
   archivePath,
@@ -50,6 +63,7 @@ async function extractArchive(
             path.join(packageJsonLocation, 'package.json'),
             path.join(pluginFolder, 'package.json')
           );
+          copyLocales(packageJsonLocation, pluginFolder);
           console.log('Copied plugin from ', packageJsonLocation, ' to ', pluginFolder);
         }
         // Compatibility with legacy tarball structure
@@ -64,6 +78,7 @@ async function extractArchive(
             path.join(tmpFolder, 'package', 'package.json'),
             path.join(pluginFolder, 'package.json')
           );
+          copyLocales(path.join(tmpFolder, 'package', 'dist'), pluginFolder);
         } else {
           console.error('Failed to find plugin content within tarball');
           console.error({
