@@ -124,7 +124,7 @@ func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
 // syncContexts synchronizes the contexts in the store with the ones in the kubeconfig files.
 func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignoreFunc shouldBeSkippedFunc) error {
 	// First read all kubeconfig files to get new contexts
-	newContexts, _, err := LoadContextsFromMultipleFiles(paths, source)
+	newContexts, contextLoadErrors, err := LoadContextsFromMultipleFiles(paths, source)
 	if err != nil {
 		return fmt.Errorf("error reading kubeconfig files: %w", err)
 	}
@@ -135,11 +135,39 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 		return fmt.Errorf("error getting existing contexts: %w", err)
 	}
 
-	// Find and remove contexts that no longer exist in the kubeconfig
-	// but only for contexts that came from KubeConfig source
+	removeStaleContexts(kubeConfigStore, existingContexts, newContexts, contextLoadErrors)
+
+	// Now store the contexts read above. Reusing that read instead of loading the
+	// files again keeps the removals and the additions based on the same view of
+	// the kubeconfig.
+	if err := storeContexts(kubeConfigStore, newContexts, contextLoadErrors, ignoreFunc); err != nil {
+		return fmt.Errorf("error storing contexts: %w", err)
+	}
+
+	return nil
+}
+
+// removeStaleContexts removes the contexts that no longer exist in the kubeconfig
+// files, but only the ones that came from the KubeConfig source.
+//
+// Contexts that failed to load are kept. Such a context is still in the kubeconfig,
+// it just could not be parsed this time around: kubectl and friends rewrite
+// kubeconfig files in place rather than atomically, so a reload landing mid-write
+// can see a context whose cluster or user entry has not been written back yet.
+// Removing it would leave it missing from the store until the next change event or
+// a restart, and every request for it would fail meanwhile as if the cluster needed
+// a token. Keep it and let the next reload correct it instead.
+func removeStaleContexts(kubeConfigStore ContextStore, existingContexts []*Context,
+	newContexts []Context, contextLoadErrors []ContextLoadError,
+) {
+	failedToLoad := make(map[string]bool, len(contextLoadErrors))
+	for _, contextLoadError := range contextLoadErrors {
+		failedToLoad[MakeDNSFriendly(contextLoadError.ContextName)] = true
+	}
+
 	for _, existingCtx := range existingContexts {
-		// Skip contexts from other sources
-		if existingCtx.Source != KubeConfig {
+		// Skip contexts from other sources, and the ones that just failed to load.
+		if existingCtx.Source != KubeConfig || failedToLoad[existingCtx.Name] {
 			continue
 		}
 
@@ -160,12 +188,4 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 			}
 		}
 	}
-
-	// Now load and store the new configurations
-	err = LoadAndStoreKubeConfigs(kubeConfigStore, paths, source, ignoreFunc)
-	if err != nil {
-		return fmt.Errorf("error loading kubeconfig files: %w", err)
-	}
-
-	return nil
 }

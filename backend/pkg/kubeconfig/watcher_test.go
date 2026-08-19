@@ -3,6 +3,7 @@ package kubeconfig_test
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -115,4 +116,140 @@ func TestWatchAndLoadFiles(t *testing.T) {
 			require.NoError(t, err)
 		}
 	}()
+}
+
+// twoContextKubeconfig is a kubeconfig with two independent contexts.
+const twoContextKubeconfig = `apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: https://cluster-a.example.com
+  name: cluster-a
+- cluster:
+    server: https://cluster-b.example.com
+  name: cluster-b
+contexts:
+- context:
+    cluster: cluster-a
+    user: user-a
+  name: context-a
+- context:
+    cluster: cluster-b
+    user: user-b
+  name: context-b
+current-context: context-a
+users:
+- name: user-a
+  user:
+    token: token-a
+- name: user-b
+  user:
+    token: token-b
+`
+
+// partiallyWrittenKubeconfig is what twoContextKubeconfig looks like when it is
+// read while being rewritten in place: context-b is there but the user entry it
+// points at has not been written back yet.
+const partiallyWrittenKubeconfig = `apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: https://cluster-a.example.com
+  name: cluster-a
+- cluster:
+    server: https://cluster-b.example.com
+  name: cluster-b
+contexts:
+- context:
+    cluster: cluster-a
+    user: user-a
+  name: context-a
+- context:
+    cluster: cluster-b
+    user: user-b
+  name: context-b
+current-context: context-a
+users:
+- name: user-a
+  user:
+    token: token-a
+`
+
+// singleContextKubeconfig is twoContextKubeconfig with context-b genuinely removed.
+const singleContextKubeconfig = `apiVersion: v1
+kind: Config
+clusters:
+- cluster:
+    server: https://cluster-a.example.com
+  name: cluster-a
+contexts:
+- context:
+    cluster: cluster-a
+    user: user-a
+  name: context-a
+current-context: context-a
+users:
+- name: user-a
+  user:
+    token: token-a
+`
+
+// writeKubeconfig writes contents to path, failing the test if it cannot.
+func writeKubeconfig(t *testing.T, path, contents string) {
+	t.Helper()
+
+	require.NoError(t, os.WriteFile(path, []byte(contents), 0o600))
+}
+
+// storeWithBothContexts returns a store loaded from a kubeconfig holding both
+// contexts, along with the path of that kubeconfig.
+func storeWithBothContexts(t *testing.T) (kubeconfig.ContextStore, string) {
+	t.Helper()
+
+	path := filepath.Join(t.TempDir(), "config")
+	writeKubeconfig(t, path, twoContextKubeconfig)
+
+	store := kubeconfig.NewContextStore()
+	require.NoError(t, kubeconfig.LoadAndStoreKubeConfigs(store, path, kubeconfig.KubeConfig, nil))
+
+	for _, name := range []string{"context-a", "context-b"} {
+		_, err := store.GetContext(name)
+		require.NoError(t, err, "%s should be loaded before syncing", name)
+	}
+
+	return store, path
+}
+
+// A context that fails to load is still in the kubeconfig, it just could not be
+// parsed on this pass. Dropping it would leave it missing from the store until
+// the next change event or a restart, so it has to survive the sync. See #7154.
+func TestSyncContextsKeepsContextsThatFailedToLoad(t *testing.T) {
+	store, path := storeWithBothContexts(t)
+
+	writeKubeconfig(t, path, partiallyWrittenKubeconfig)
+
+	err := kubeconfig.SyncContexts(store, path, kubeconfig.KubeConfig, nil)
+	require.Error(t, err, "the partial kubeconfig should be reported as a load error")
+	require.Contains(t, err.Error(), "context-b")
+
+	_, err = store.GetContext("context-b")
+	require.NoError(t, err, "context-b should be kept after failing to load")
+
+	_, err = store.GetContext("context-a")
+	require.NoError(t, err, "context-a should be untouched")
+}
+
+// Contexts that are really gone from the kubeconfig still have to be removed.
+func TestSyncContextsRemovesDeletedContexts(t *testing.T) {
+	store, path := storeWithBothContexts(t)
+
+	writeKubeconfig(t, path, singleContextKubeconfig)
+
+	require.NoError(t, kubeconfig.SyncContexts(store, path, kubeconfig.KubeConfig, nil))
+
+	_, err := store.GetContext("context-b")
+	require.Error(t, err, "context-b should be removed once it is gone from the kubeconfig")
+
+	_, err = store.GetContext("context-a")
+	require.NoError(t, err, "context-a should be untouched")
 }

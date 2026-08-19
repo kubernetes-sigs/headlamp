@@ -1319,12 +1319,22 @@ func SkipKubeContextInCommaSeparatedString(blackKubeContextNameStr string) shoul
 func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, source int,
 	ignoreFunc shouldBeSkippedFunc,
 ) error {
-	var errs []error
-
 	kubeConfigContexts, contextErrors, err := LoadContextsFromMultipleFiles(kubeConfigs, source)
 	if err != nil {
 		return fmt.Errorf("error loading kubeconfig files: %w", err)
 	}
+
+	return storeContexts(kubeConfigStore, kubeConfigContexts, contextErrors, ignoreFunc)
+}
+
+// storeContexts stores the given contexts in the store, skipping the ones the
+// ignoreFunc rejects. contextErrors are the load errors from the parse that
+// produced the contexts; they are returned joined with any error hit while
+// storing, so callers report them the same way regardless of which one failed.
+func storeContexts(kubeConfigStore ContextStore, contexts []Context,
+	contextErrors []ContextLoadError, ignoreFunc shouldBeSkippedFunc,
+) error {
+	var errs []error
 
 	// if pass the shouldBeSkippedFunc=nil, it works like before
 	_ignoreFunc := ignoreFunc
@@ -1332,7 +1342,7 @@ func LoadAndStoreKubeConfigs(kubeConfigStore ContextStore, kubeConfigs string, s
 		_ignoreFunc = AllowAllKubeContext
 	}
 
-	for _, kubeConfigContext := range kubeConfigContexts {
+	for _, kubeConfigContext := range contexts {
 		if _ignoreFunc(kubeConfigContext) {
 			continue
 		}
