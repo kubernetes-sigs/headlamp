@@ -121,6 +121,8 @@
   "Checking if JobSet is enabled…": "",
   "JobSet is not enabled. <1>Learn More</1>": "",
   "Leader Worker Sets": "",
+  "Checking if LeaderWorkerSet is enabled…": "",
+  "LeaderWorkerSet is not enabled on this cluster. <1>Learn More</1>": "",
   "Lease": "லீஸ்",
   "LimitRange": "லிமிட்ரேஞ்ச்",
   "Ingress": "இன்க்ரெஸ்",

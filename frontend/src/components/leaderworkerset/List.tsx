@@ -14,10 +14,16 @@
  * limitations under the License.
  */
 
-import { useTranslation } from 'react-i18next';
+import Link from '@mui/material/Link';
+import Paper from '@mui/material/Paper';
+import Typography from '@mui/material/Typography';
+import { useEffect, useState } from 'react';
+import { Trans, useTranslation } from 'react-i18next';
 import { getTopCondition } from '../../lib/k8s/conditions';
 import LeaderWorkerSet from '../../lib/k8s/leaderWorkerSet';
+import Empty from '../common/EmptyContent';
 import ResourceListView from '../common/Resource/ResourceListView';
+import SectionBox from '../common/SectionBox';
 
 // Explicit priority to make the rendered condition stable and meaningful: an
 // in-flight rollout or scale-up says more about the current state than the
@@ -35,6 +41,49 @@ function getGroupSize(leaderWorkerSet: LeaderWorkerSet): number | string {
 
 export default function LeaderWorkerSetList() {
   const { t } = useTranslation(['glossary', 'translation']);
+  const [lwsEnabled, setLwsEnabled] = useState<boolean | null>(null);
+
+  useEffect(() => {
+    LeaderWorkerSet.isEnabled().then(setLwsEnabled);
+  }, []);
+
+  if (lwsEnabled === null) {
+    return (
+      <SectionBox title={t('glossary|Leader Worker Sets')}>
+        <Paper variant="outlined">
+          <Empty>
+            <Typography style={{ textAlign: 'center' }}>
+              {t('glossary|Checking if LeaderWorkerSet is enabled…')}
+            </Typography>
+          </Empty>
+        </Paper>
+      </SectionBox>
+    );
+  }
+
+  if (!lwsEnabled) {
+    return (
+      <SectionBox title={t('glossary|Leader Worker Sets')}>
+        <Paper variant="outlined">
+          <Empty>
+            <Typography style={{ textAlign: 'center' }}>
+              <Trans t={t}>
+                LeaderWorkerSet is not enabled on this cluster.&nbsp;
+                <Link
+                  href="https://github.com/kubernetes-sigs/lws#installation"
+                  target="_blank"
+                  rel="noopener"
+                  sx={{ textDecoration: 'underline' }}
+                >
+                  Learn More
+                </Link>
+              </Trans>
+            </Typography>
+          </Empty>
+        </Paper>
+      </SectionBox>
+    );
+  }
 
   return (
     <ResourceListView

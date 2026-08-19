@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { request } from './api/v1/clusterRequests';
 import { isConditionTrue } from './conditions';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
@@ -110,6 +111,18 @@ class LeaderWorkerSet extends KubeObject<KubeLeaderWorkerSet> {
       return isConditionTrue(conditions, 'Progressing') ? 'transitional' : 'failed';
     }
     return 'degraded';
+  }
+
+  static async isEnabled(): Promise<boolean> {
+    let res;
+    try {
+      res = await request('/apis/leaderworkerset.x-k8s.io/v1');
+    } catch (e) {
+      return false;
+    }
+    return !!res?.resources?.find(
+      (r: { name: string; [key: string]: any }) => r?.name === 'leaderworkersets'
+    );
   }
 
   static getBaseObject(): KubeLeaderWorkerSet {
