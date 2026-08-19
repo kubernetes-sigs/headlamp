@@ -59,8 +59,10 @@ type ActivityLocation =
   | 'full'
   | 'split-left'
   | 'split-right'
+  | 'split-right-wide'
   | 'split-top'
   | 'split-bottom'
+  | 'window-medium'
   | 'window';
 
 /** Independent screen or a page rendered on top of the app */
@@ -184,6 +186,14 @@ export function SingleActivityRenderer({
       height: '100%',
       gridColumn: '2 / 4',
     },
+    'split-right-wide': {
+      position: 'absolute',
+      right: 0,
+      width: 'max(50%, 1024px)',
+      maxWidth: '100%',
+      height: '100%',
+      gridColumn: '2 / 4',
+    },
     'split-left': {
       position: 'absolute',
       width: '50%',
@@ -209,6 +219,20 @@ export function SingleActivityRenderer({
       position: 'absolute',
       width: '50%',
       height: '70%',
+      gridColumn: '2 / 4',
+      border: '1px solid',
+      borderTop: '1px solid',
+      borderBottom: '1px solid',
+      borderRadius: '10px',
+    },
+    'window-medium': {
+      position: 'fixed',
+      top: '72px',
+      right: '8px',
+      bottom: '8px',
+      left: '8px',
+      width: 'auto',
+      height: 'auto',
       gridColumn: '2 / 4',
       border: '1px solid',
       borderTop: '1px solid',
@@ -1020,8 +1044,7 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
   const locationRef = useRef(location.pathname);
 
   // Minimize activities that block the main content on route change.
-  // Activities in 'split-right' location are kept visible since they
-  // allow the user to see most of the main content.
+  // Right-side activities are kept visible since they leave main content visible.
   useEffect(() => {
     activities.forEach(activity => {
       // If we were triggered just because of the activities changing but the
@@ -1030,7 +1053,11 @@ export const ActivitiesRenderer = React.memo(function ActivitiesRenderer() {
         return;
       }
 
-      if (activity.location !== 'split-right' && !activity.minimized) {
+      if (
+        activity.location !== 'split-right' &&
+        activity.location !== 'split-right-wide' &&
+        !activity.minimized
+      ) {
         Activity.update(activity.id, { minimized: true });
       }
     });

@@ -1194,13 +1194,16 @@ export function registerProjectDetailsTab(projectDetailsTab: ProjectDetailsTab) 
  *
  * @param projectOverviewSection - The section configuration to register
  * @param projectOverviewSection.id - Unique identifier for the section
- * @param projectOverviewSection.component - React component to render in the section
+ * @param projectOverviewSection.component - React component receiving the current project and its loaded resources
+ * @param projectOverviewSection.isEnabled - Optional asynchronous predicate receiving the project being evaluated
+ * @returns void
  *
  * @example
  * ```tsx
  * registerProjectOverviewSection({
  *   id: 'resource-usage',
- *   component: ({ project }) => <ResourceUsageChart project={project} />
+ *   component: ({ project }) => <ResourceUsageChart project={project} />,
+ *   isEnabled: async ({ project }) => project.clusters.length > 1,
  * });
  * ```
  */
@@ -1226,16 +1229,16 @@ export function registerProjectDeleteButton(projectDeleteButton: ProjectDeleteBu
  *
  * @param projectHeaderAction - The action configuration to register
  * @param projectHeaderAction.id - Unique identifier for the action
- * @param projectHeaderAction.component - React component to render as the action button
+ * @param projectHeaderAction.component - React component to render as the action button. It receives the project and an optional `setSelectedTab?: (tabId: string) => void` callback.
  * @param projectHeaderAction.isEnabled - Optional function to determine if action is displayed
  *
  * @example
  * ```tsx
  * registerProjectHeaderAction({
- *   id: 'deploy-app',
- *   component: ({ project }) => (
- *     <Button onClick={() => navigate(`/deploy/${project.id}`)}>
- *       Deploy App
+ *   id: 'view-resources',
+ *   component: ({ setSelectedTab }) => (
+ *     <Button onClick={() => setSelectedTab?.('headlamp-projects.tabs.resources')}>
+ *       View resources
  *     </Button>
  *   )
  * });

@@ -15,6 +15,7 @@
  */
 
 import { contextBridge, ipcRenderer } from 'electron';
+import type { LegalDocumentResult, LegalDocumentSummary } from './legal-documents';
 
 // Keeps the mapping between a caller-provided listener and the wrapped one we
 // actually register with ipcRenderer, so removeListener can still unsubscribe
@@ -47,6 +48,7 @@ contextBridge.exposeInMainWorld('desktopApi', {
       'request-tray-icon',
       'set-tray-icon',
       'cluster-changed',
+      'route-changed',
     ];
     if (validChannels.includes(channel)) {
       ipcRenderer.send(channel, data);
@@ -117,4 +119,18 @@ contextBridge.exposeInMainWorld('desktopApi', {
   notifyClusterChange: (cluster: string | null) => {
     ipcRenderer.send('cluster-changed', cluster);
   },
+
+  platform: process.platform,
+
+  /** @returns Legal documents declared by the packaged application manifest. */
+  getLegalDocuments: (): Promise<LegalDocumentSummary[]> =>
+    ipcRenderer.invoke('get-legal-documents'),
+  /**
+   * Reads a packaged legal document.
+   *
+   * @param id - Stable identifier returned by `getLegalDocuments`.
+   * @returns Document content or a stable failure result.
+   */
+  getLegalDocument: (id: string): Promise<LegalDocumentResult> =>
+    ipcRenderer.invoke('get-legal-document', id),
 });

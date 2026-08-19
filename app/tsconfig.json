@@ -14,6 +14,10 @@
     "outDir": "electron/",
     "noEmit": true
   },
-  "include": ["electron/**/*"],
+  "include": [
+    "electron/**/*",
+    "electron-builder.config.ts",
+    "scripts/package-verification-name.ts"
+  ],
   "exclude": []
 }

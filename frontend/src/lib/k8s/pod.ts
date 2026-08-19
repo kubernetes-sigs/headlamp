@@ -64,6 +64,13 @@ export interface KubePodSpec {
   terminationGracePeriodSeconds?: number;
   tolerations?: any[];
   restartPolicy?: string;
+  /**
+   * The scheduling group this Pod belongs to. Set only when the GenericWorkload
+   * feature gate is enabled on the cluster.
+   */
+  schedulingGroup?: {
+    podGroupName: string;
+  };
 }
 
 export interface KubePod extends KubeObjectInterface {

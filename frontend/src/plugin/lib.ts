@@ -67,6 +67,14 @@ export abstract class Plugin {
   abstract initialize(register: Registry): boolean | void;
 }
 
+/** APIs exposed to Headlamp's renderer process by the desktop preload bridge. */
+export interface DesktopApi {
+  /** Operating system platform hosting the desktop app. */
+  platform: NodeJS.Platform;
+  /** Additional APIs exposed by the desktop preload bridge. */
+  [key: string]: any;
+}
+
 declare global {
   interface Window {
     pluginLib: {
@@ -76,7 +84,7 @@ declare global {
       [pluginId: string]: Plugin;
     };
     registerPlugin: (pluginId: string, pluginObj: Plugin) => void;
-    desktopApi: any;
+    desktopApi: DesktopApi;
   }
 }
 
