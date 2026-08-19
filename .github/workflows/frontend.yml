@@ -237,6 +237,9 @@ jobs:
   test-storybook-mocks:
     name: test storybook mocks
     runs-on: ${{ matrix.os }}
+    # Normal runs finish well under 12 minutes; a stalled apt mirror or
+    # download should fail fast instead of hanging for the 6 hour default.
+    timeout-minutes: 25
     strategy:
       matrix:
         node-version: [22.x]
@@ -274,6 +277,9 @@ jobs:
   test-a11y:
     name: test accessibility
     runs-on: ${{ matrix.os }}
+    # Normal runs finish well under 12 minutes; a stalled apt mirror or
+    # download should fail fast instead of hanging for the 6 hour default.
+    timeout-minutes: 25
     strategy:
       matrix:
         node-version: [22.x]
