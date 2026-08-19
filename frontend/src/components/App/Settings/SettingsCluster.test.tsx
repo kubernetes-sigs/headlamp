@@ -230,6 +230,27 @@ describe('SettingsCluster states and namespaces', () => {
     ).toMatchObject({ defaultNamespace: 'team-a' });
   });
 
+  it('strips every space from a pasted default namespace', async () => {
+    renderSettings();
+    const input = screen.getByRole('textbox', { name: 'Default namespace' });
+
+    await userEvent.click(input);
+    await userEvent.paste('kube  system');
+
+    expect(input).toHaveValue('kubesystem');
+    expect(input).toHaveAttribute('aria-invalid', 'false');
+  });
+
+  it('strips every space from a pasted allowed namespace', async () => {
+    renderSettings();
+    const input = screen.getByRole('textbox', { name: 'Allowed namespaces' });
+
+    await userEvent.click(input);
+    await userEvent.paste('team  a');
+
+    expect(input).toHaveValue('teama');
+  });
+
   it('adds, deduplicates, and removes allowed namespaces', async () => {
     renderSettings({ allowedNamespaces: ['zeta'] });
     const input = screen.getByRole('textbox', { name: 'Allowed namespaces' });
