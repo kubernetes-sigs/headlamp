@@ -29,3 +29,30 @@ export function getVersion() {
 export function getProductName(): string | undefined {
   return import.meta.env.REACT_APP_HEADLAMP_PRODUCT_NAME;
 }
+
+/** A page that supports product-configured error content. */
+export type ProductErrorPage = 'error' | 'notFound';
+
+/**
+ * Returns the product-configured title for an error page.
+ *
+ * @param page - The error page whose title should be returned.
+ * @returns The configured title, or undefined if it is not set.
+ */
+export function getErrorPageTitle(page: ProductErrorPage): string | undefined {
+  return page === 'error'
+    ? import.meta.env.REACT_APP_HEADLAMP_ERROR_PAGE_TITLE
+    : import.meta.env.REACT_APP_HEADLAMP_NOT_FOUND_PAGE_TITLE;
+}
+
+/**
+ * Returns the product-configured graphic URL for an error page.
+ *
+ * @param page - The error page whose graphic should be returned.
+ * @returns The configured graphic URL, or undefined if it is not set.
+ */
+export function getErrorPageGraphic(page: ProductErrorPage): string | undefined {
+  return page === 'error'
+    ? import.meta.env.REACT_APP_HEADLAMP_ERROR_PAGE_GRAPHIC
+    : import.meta.env.REACT_APP_HEADLAMP_NOT_FOUND_PAGE_GRAPHIC;
+}

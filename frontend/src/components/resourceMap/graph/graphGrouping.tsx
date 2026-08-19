@@ -24,6 +24,9 @@ import { forEachNode, getNodeWeight, GraphEdge, GraphNode } from './graphModel';
 
 export type GroupBy = 'node' | 'namespace' | 'instance' | 'cluster';
 
+/** Label used for pods that have not been assigned to a Kubernetes Node. */
+export const UNSCHEDULED_GROUP = 'Unscheduled';
+
 /**
  * Returns the amount of nodes in the graph
  */
@@ -318,25 +321,32 @@ export function groupGraph(
   }
 
   if (groupBy === 'node') {
-    // Create groups based on the Kube resource node
+    // Create groups based on the Kube resource node.
+    // Pods without a nodeName (e.g. pending due to quota or scheduling failures)
+    // are grouped under an "Unscheduled" sentinel so they remain visible.
     components = groupByProperty(
       components,
       component => {
+        let pod: Pod | undefined;
         if (component.nodes) {
-          return (component.nodes.find(node => node.kubeObject?.kind === 'Pod')?.kubeObject as Pod)
-            ?.spec?.nodeName;
+          const pods = component.nodes
+            .filter(node => node.kubeObject?.kind === 'Pod')
+            .map(node => node.kubeObject as Pod);
+          pod = pods.find(pod => !pod.spec?.nodeName) ?? pods[0];
+        } else if (component.kubeObject?.kind === 'Pod') {
+          pod = component.kubeObject as Pod;
         }
-
-        return (component.kubeObject as Pod)?.spec?.nodeName;
+        if (pod) {
+          return pod.spec?.nodeName ?? UNSCHEDULED_GROUP;
+        }
+        return undefined;
       },
       { label: 'Node', allowSingleMemberGroup: true }
     );
 
     components.forEach(component => {
-      if (!component.kubeObject) {
-        component.kubeObject = k8sNodes.find(
-          namespace => namespace.metadata.name === component.label
-        );
+      if (!component.kubeObject && component.label !== UNSCHEDULED_GROUP) {
+        component.kubeObject = k8sNodes.find(node => node.metadata.name === component.label);
         if (component.kubeObject) {
           component.id = component.kubeObject.metadata.uid;
         }

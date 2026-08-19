@@ -1,0 +1,13 @@
+{
+  "platforms": {
+    "linux": {
+      "executableName": "example-headlamp"
+    },
+    "mac": {
+      "appId": "io.example.headlamp"
+    },
+    "win": {
+      "icon": "build/icons/example.ico"
+    }
+  }
+}

@@ -16,7 +16,15 @@
 
 import { KubeMetadata } from '../../../lib/k8s/KubeMetadata';
 import { KubeObject } from '../../../lib/k8s/KubeObject';
-import { collapseGraph, getMainNode, groupGraph } from './graphGrouping';
+import {
+  collapseGraph,
+  findGroupContaining,
+  getGraphSize,
+  getMainNode,
+  getParentNode,
+  groupGraph,
+  UNSCHEDULED_GROUP,
+} from './graphGrouping';
 import { GraphEdge, GraphNode } from './graphModel';
 
 describe('getMainNode', () => {
@@ -48,6 +56,78 @@ describe('getMainNode', () => {
 
     const mainNode = getMainNode(nodes);
     expect(mainNode?.id).toBe('high-weight-pod');
+  });
+});
+
+describe('graph helpers', () => {
+  const smallGroup: GraphNode = {
+    id: 'small-group',
+    nodes: [{ id: 'small-leaf' }],
+    edges: [],
+  };
+  const nestedGroup: GraphNode = {
+    id: 'nested-group',
+    nodes: [{ id: 'nested-leaf' }],
+    edges: [],
+  };
+  const bigGroup: GraphNode = {
+    id: 'big-group',
+    nodes: [nestedGroup, ...Array.from({ length: 10 }, (_, index) => ({ id: `leaf-${index}` }))],
+    edges: [],
+  };
+  const connectedGroup: GraphNode = {
+    id: 'connected-group',
+    nodes: [{ id: 'connected-leaf' }],
+    edges: [{ id: 'edge', source: 'connected-leaf', target: 'connected-leaf' }],
+  };
+  const graph: GraphNode = {
+    id: 'root',
+    nodes: [smallGroup, bigGroup, connectedGroup],
+    edges: [],
+  };
+
+  it('counts every node in nested graphs', () => {
+    expect(getGraphSize(graph)).toBe(18);
+  });
+
+  it('finds direct parents and returns undefined for missing nodes', () => {
+    expect(getParentNode(graph, 'nested-leaf')).toBe(nestedGroup);
+    expect(getParentNode(graph, 'missing')).toBeUndefined();
+  });
+
+  it('finds groups containing nodes and nested groups', () => {
+    expect(findGroupContaining(graph, 'root')).toBe(graph);
+    expect(findGroupContaining(graph, 'small-leaf')).toBe(smallGroup);
+    expect(findGroupContaining(graph, 'nested-leaf')).toBe(nestedGroup);
+    expect(findGroupContaining(graph, 'nested-group')).toBe(nestedGroup);
+    expect(findGroupContaining(graph, 'big-group', true)).toBe(graph);
+    expect(findGroupContaining(graph, 'missing')).toBeUndefined();
+  });
+
+  it('collapses only large or connected unselected groups', () => {
+    const collapsed = collapseGraph(graph, { expandAll: false });
+
+    expect(collapsed.collapsed).toBe(false);
+    expect(collapsed.nodes?.find(node => node.id === 'small-group')?.collapsed).toBe(false);
+    expect(collapsed.nodes?.find(node => node.id === 'big-group')?.collapsed).toBe(true);
+    expect(collapsed.nodes?.find(node => node.id === 'connected-group')?.collapsed).toBe(true);
+  });
+
+  it('keeps every group open when expandAll is enabled', () => {
+    const expanded = collapseGraph(graph, { expandAll: true });
+
+    expect(expanded.nodes?.every(node => node.collapsed === false)).toBe(true);
+  });
+
+  it('keeps only the selected non-root group at the root', () => {
+    const selected = collapseGraph(graph, {
+      selectedNodeId: 'nested-leaf',
+      expandAll: false,
+    });
+
+    expect(selected.nodes).toHaveLength(1);
+    expect(selected.nodes?.[0].id).toBe('nested-group');
+    expect(selected.nodes?.[0].collapsed).toBe(false);
   });
 });
 
@@ -107,6 +187,23 @@ describe('groupGraph', () => {
     expect(namespaces).toEqual(['Namespace-ns1', 'Namespace-ns2']);
   });
 
+  it('associates namespace kubeObjects with namespace groups', () => {
+    const namespace = {
+      kind: 'Namespace',
+      metadata: { name: 'ns1', uid: 'ns1-uid' },
+    } as any;
+
+    const groupedGraph = groupGraph(nodes, edges, {
+      groupBy: 'namespace',
+      namespaces: [namespace],
+      k8sNodes: [],
+    });
+
+    const namespaceGroup = groupedGraph.nodes?.find(node => node.label === 'ns1');
+    expect(namespaceGroup?.kubeObject).toBe(namespace);
+    expect(namespaceGroup?.id).toBe('ns1-uid');
+  });
+
   it('groups nodes by node', () => {
     const groupedGraph = groupGraph(nodes, edges, {
       groupBy: 'node',
@@ -115,11 +212,95 @@ describe('groupGraph', () => {
     });
     const nodeNames = groupedGraph.nodes?.map(node => node.id);
 
-    // Node 2 is grouped into Node-node1 group
-    // Nodes 1, 3 and 4 don't have a node and are not grouped
-    // After sorting by weight (descending) and ID (stable sort),
-    // individual nodes come first, then group because no edges are present
-    expect(nodeNames).toEqual(['1', '3', '4', 'Node-node1']);
+    // Pods 1, 3 and 4 have no nodeName and are grouped into Node-Unscheduled
+    // Pod 2 has nodeName 'node1' and is grouped into Node-node1
+    expect(nodeNames).toHaveLength(2);
+    expect(nodeNames).toEqual(expect.arrayContaining(['Node-Unscheduled', 'Node-node1']));
+  });
+
+  it('groups connected components by the pod node', () => {
+    const componentNodes: GraphNode[] = [
+      {
+        id: 'deployment',
+        kubeObject: { kind: 'Deployment', metadata: { name: 'deployment' } } as KubeObject,
+      },
+      {
+        id: 'scheduled-pod',
+        kubeObject: {
+          kind: 'Pod',
+          metadata: { name: 'scheduled-pod' },
+          spec: { nodeName: 'node2' },
+        } as any as KubeObject,
+      },
+    ];
+
+    const groupedGraph = groupGraph(
+      componentNodes,
+      [{ id: 'deployment-pod', source: 'deployment', target: 'scheduled-pod' }],
+      {
+        groupBy: 'node',
+        namespaces: [],
+        k8sNodes: [],
+      }
+    );
+
+    const nodeGroup = groupedGraph.nodes?.find(node => node.id === 'Node-node2');
+    expect(nodeGroup?.nodes?.[0].id).toBe('group-deployment');
+  });
+
+  it('prefers unscheduled pods when grouping mixed connected components', () => {
+    const componentNodes: GraphNode[] = [
+      {
+        id: 'deployment',
+        kubeObject: { kind: 'Deployment', metadata: { name: 'deployment' } } as KubeObject,
+      },
+      {
+        id: 'scheduled-pod',
+        kubeObject: {
+          kind: 'Pod',
+          metadata: { name: 'scheduled-pod' },
+          spec: { nodeName: 'node2' },
+        } as any as KubeObject,
+      },
+      {
+        id: 'unscheduled-pod',
+        kubeObject: {
+          kind: 'Pod',
+          metadata: { name: 'unscheduled-pod' },
+        } as KubeObject,
+      },
+    ];
+
+    const groupedGraph = groupGraph(
+      componentNodes,
+      [
+        { id: 'deployment-pod', source: 'deployment', target: 'scheduled-pod' },
+        { id: 'pod-pod', source: 'scheduled-pod', target: 'unscheduled-pod' },
+      ],
+      {
+        groupBy: 'node',
+        namespaces: [],
+        k8sNodes: [],
+      }
+    );
+
+    const unscheduledGroup = groupedGraph.nodes?.find(node => node.label === UNSCHEDULED_GROUP);
+    expect(unscheduledGroup?.nodes?.[0].id).toBe('group-deployment');
+  });
+
+  it('leaves non-Pod resources ungrouped when grouping by node', () => {
+    const deployment = {
+      id: 'deployment',
+      kubeObject: { kind: 'Deployment', metadata: { name: 'deployment' } } as KubeObject,
+    };
+
+    const groupedGraph = groupGraph([deployment], edges, {
+      groupBy: 'node',
+      namespaces: [],
+      k8sNodes: [],
+    });
+
+    expect(groupedGraph.nodes).toEqual([deployment]);
   });
 
   it('associates k8sNode kubeObject with node groups when k8sNodes are provided', () => {
@@ -155,6 +336,23 @@ describe('groupGraph', () => {
     // Without k8sNodes data, the group should not have a kubeObject
     expect(nodeGroup).toBeDefined();
     expect(nodeGroup?.kubeObject).toBeUndefined();
+  });
+
+  it('does not link a kubeObject to the Unscheduled group', () => {
+    const nodeNamedUnscheduled = {
+      kind: 'Node',
+      metadata: { name: UNSCHEDULED_GROUP, uid: 'unscheduled-node-uid' },
+    } as any;
+    const groupedGraph = groupGraph(nodes, edges, {
+      groupBy: 'node',
+      namespaces: [],
+      k8sNodes: [nodeNamedUnscheduled],
+    });
+
+    const unscheduledGroup = groupedGraph.nodes?.find(node => node.label === UNSCHEDULED_GROUP);
+    expect(unscheduledGroup).toBeDefined();
+    expect(unscheduledGroup?.kubeObject).toBeUndefined();
+    expect(unscheduledGroup?.nodes?.length).toBe(3);
   });
 
   it('groups nodes by instance', () => {

@@ -46,8 +46,28 @@ export interface CustomCreateProject {
  * Custom section for the project overview tab
  */
 export interface ProjectOverviewSection {
+  /** Unique identifier for the section registration. */
   id: string;
+  /**
+   * Component rendered in the project overview.
+   *
+   * @param props - Properties supplied to the section component.
+   * @param props.project - Project currently displayed.
+   * @param props.projectResources - Kubernetes resources loaded for the project.
+   * @returns Content to render in the section.
+   */
   component: (props: { project: ProjectDefinition; projectResources: KubeObject[] }) => ReactNode;
+  /**
+   * Determines whether the section is displayed for a project.
+   *
+   * The section is displayed by default when this function is omitted. Rejected promises and
+   * synchronous errors are treated as `false`.
+   *
+   * @param params - Section enablement context.
+   * @param params.project - Project being evaluated.
+   * @returns A promise resolving to `true` when the section should be displayed.
+   */
+  isEnabled?: ({ project }: { project: ProjectDefinition }) => Promise<boolean>;
 }
 
 export interface ProjectDetailsTab {
@@ -66,7 +86,10 @@ export interface ProjectDeleteButton {
 
 export interface ProjectHeaderAction {
   id: string;
-  component: (props: { project: ProjectDefinition }) => ReactNode;
+  component: (props: {
+    project: ProjectDefinition;
+    setSelectedTab?: (tabId: string) => void;
+  }) => ReactNode;
   /** Function to check if this action should be displayed in the given project. If not provided the action will be enabled. */
   isEnabled?: ({ project }: { project: ProjectDefinition }) => Promise<boolean>;
 }
