@@ -470,7 +470,7 @@ export default function SettingsCluster() {
               value: (
                 <TextField
                   onChange={event => {
-                    const value = event.target.value.replace(' ', '');
+                    const value = event.target.value.replace(/\s/g, '');
                     setDefaultNamespaceInput(value);
                     if (isValidNamespaceFormat(value) || value === '') {
                       setClusterSettings(s => ({ ...s, defaultNamespace: value }));
@@ -508,7 +508,7 @@ export default function SettingsCluster() {
                   <TextField
                     onChange={event => {
                       let value = event.target.value;
-                      value = value.replace(' ', '');
+                      value = value.replace(/\s/g, '');
                       setNewAllowedNamespace(value);
                     }}
                     placeholder={t('glossary|Namespace')}
