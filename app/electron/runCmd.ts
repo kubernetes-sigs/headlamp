@@ -86,7 +86,11 @@ function confirmCommandDialog(command: string, mainWindow: BrowserWindow): boole
  * @param args - The arguments to the command.
  * @returns true if the user has consented to running the command, false otherwise.
  */
-function checkCommandConsent(command: string, args: string[], mainWindow: BrowserWindow): boolean {
+export function checkCommandConsent(
+  command: string,
+  args: string[],
+  mainWindow: BrowserWindow
+): boolean {
   const settings = loadSettings(SETTINGS_PATH);
   const confirmedCommands = settings?.confirmedCommands;
 
@@ -110,6 +114,7 @@ function checkCommandConsent(command: string, args: string[], mainWindow: Browse
     }
     settings.confirmedCommands[consentKey] = commandChoice;
     saveSettings(SETTINGS_PATH, settings);
+    return commandChoice;
   }
   return true;
 }
