@@ -280,7 +280,7 @@ spec:
             - "-plugins-dir={{ . }}"
             {{- end }}
             {{- if hasKey .Values.config "sessionTTL" }}
-            - "-session-ttl={{ .Values.config.sessionTTL }}"
+            - "-session-ttl={{ int .Values.config.sessionTTL }}"
             {{- end }}
             {{- with .Values.config.podDebugImage }}
             - "-pod-debug-image={{ . }}"
