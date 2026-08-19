@@ -40,7 +40,7 @@ export interface OurDialogTitleProps extends DialogTitleProps {
 /**
  * This is like Material-ui DialogTitle but fixes some a11y issues.
  *
- * First, it needs a h1 because other page content is aria-diable=true'd
+ * First, it needs a h1 because other page content is aria-disable=true'd
  *
  * Additionally, it also focuses the title text as that is where
  * reading can begin.
@@ -63,7 +63,8 @@ export function DialogTitle(props: OurDialogTitleProps) {
   }
 
   return (
-    <MuiDialogTitle style={{ display: 'flex' }} {...other}>
+    // MuiDialogTitle renders as an h2 by default; render as div to avoid heading violations
+    <MuiDialogTitle component="div" style={{ display: 'flex' }} {...other}>
       <Grid container justifyContent="space-between" alignItems="center">
         {children && (
           <Grid item>

@@ -24,8 +24,6 @@
     "TopBar/Undefined Data": ["color-contrast"],
     "TopBar/Empty User Info": ["color-contrast"],
     "TopBar/Version Dialog": ["aria-dialog-name"],
-    "AuthToken/Show Error": ["empty-heading"],
-    "AuthToken/Show Actions": ["empty-heading"],
     "Activity/Basic": ["landmark-unique"],
     "AuthChooser/Basic Auth Chooser": ["empty-heading"],
     "AuthChooser/Testing": ["empty-heading"],
