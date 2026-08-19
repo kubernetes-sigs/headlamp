@@ -25,7 +25,7 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
 import { useMemo } from 'react';
-import { loadClusterSettings } from '../../helpers/clusterSettings';
+import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
 import { getCluster } from '../cluster';
 import { testAuth } from './api/v1/clusterApi';
 import { ApiError } from './api/v2/ApiError';
@@ -68,14 +68,15 @@ const authProbeQueryOptions = {
 } as const;
 
 /**
- * Manual namespace override from Settings (unchanged Headlamp behavior).
+ * Settings-configured allowed namespaces: manual list plus label-selector cache.
+ * When non-empty, discovery is skipped and Namespace.useList routing applies.
  */
 export function getManualAllowedNamespaces(cluster: string | null = getCluster()): string[] {
   if (!cluster) {
     return [];
   }
 
-  return loadClusterSettings(cluster).allowedNamespaces || [];
+  return getCombinedAllowedNamespaces(cluster);
 }
 
 /**
