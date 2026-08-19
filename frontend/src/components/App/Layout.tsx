@@ -31,10 +31,9 @@ import { getSelectedClusters } from '../../lib/cluster';
 import { useCluster, useClustersConf } from '../../lib/k8s';
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { Cluster } from '../../lib/k8s/cluster';
-import { getSavedNamespaces } from '../../lib/storage';
 import { setConfig } from '../../redux/configSlice';
 import { ConfigState } from '../../redux/configSlice';
-import { setNamespaceFilter } from '../../redux/filterSlice';
+import { restoreFiltersForCluster } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import store from '../../redux/stores/store';
 import { useUIPanelsGroupedBySide } from '../../redux/uiSlice';
@@ -230,8 +229,7 @@ export default function Layout({}: LayoutProps) {
   const cluster = useCluster();
   useEffect(() => {
     if (cluster) {
-      const saved = getSavedNamespaces(cluster);
-      dispatch(setNamespaceFilter(saved));
+      dispatch(restoreFiltersForCluster(cluster));
     }
   }, [cluster, dispatch]);
 

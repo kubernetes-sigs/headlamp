@@ -69,7 +69,7 @@ test('main page should have global search along with react-hotkey hint text', as
 test('react-hotkey for global search', async ({ page }) => {
   await page.keyboard.press('/');
 
-  const focusedSearch = page.getByPlaceholder(/^Search resources, pages, clusters by name$/);
+  const focusedSearch = page.getByRole('textbox', { name: 'Search' });
   await expect(focusedSearch).toBeVisible();
   await expect(focusedSearch).toBeFocused();
 });

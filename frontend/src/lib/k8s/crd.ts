@@ -258,6 +258,21 @@ export function makeCustomResourceClass(
     static apiEndpoint = apiFunc(...apiInfoArgs);
     static customResourceDefinition = crClassArgs.customResourceDefinition;
 
+    /**
+     * Returns the parameterized custom-resource list route.
+     *
+     * @returns The custom-resource route and backing CRD name.
+     */
+    getListRouteDescriptor() {
+      const crdName =
+        crClassArgs.customResourceDefinition?.metadata.name ||
+        `${crClassArgs.pluralName}.${apiInfoArgs[0][0]}`;
+      return {
+        routeName: 'customresources',
+        params: { crd: crdName },
+      };
+    }
+
     static getBaseObject(): Omit<KubeObjectInterface, 'metadata'> & {
       metadata: Partial<import('./KubeMetadata').KubeMetadata>;
     } {
