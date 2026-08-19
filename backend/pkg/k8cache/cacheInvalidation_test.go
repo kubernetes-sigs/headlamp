@@ -759,6 +759,7 @@ func TestHandleNonGETCacheInvalidation_CachePopulatedAfterClientDisconnect(t *te
 			vars := mux.Vars(req)
 			require.Equal(t, "test-cluster", vars["clusterName"], "fresh GET should preserve mux variables")
 		}
+
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte(`{"kind":"PodList","fresh":true}`))
 	})

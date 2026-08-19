@@ -88,6 +88,7 @@ func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.Response
 	// from leaking goroutines.
 	detachedCtx := context.WithoutCancel(r.Context())
 	timeoutCtx, timeoutCancel := context.WithTimeout(detachedCtx, 60*time.Second)
+
 	defer timeoutCancel()
 
 	freshReq, err := http.NewRequestWithContext( //nolint:gosec
