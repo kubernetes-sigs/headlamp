@@ -58,6 +58,8 @@ import {
   PluginManager,
   setAppConfigDirName,
 } from './plugin-management';
+import { readProtocolScheme } from './protocol';
+import { createProtocolHandler } from './protocolHandler';
 import {
   addRunCmdConsent,
   environmentOverrides,
@@ -202,12 +204,19 @@ const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false'
 const legalDocumentsResourcePath = getLegalDocumentsResourcePath(isDev, process.resourcesPath);
 const appBuildManifestPath = path.join(legalDocumentsResourcePath, 'app-build-manifest.json');
 const legalDocuments = loadLegalDocuments(appBuildManifestPath);
+const protocolScheme = readProtocolScheme(appBuildManifestPath);
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
 let mcpClient: MCPClient | null = null;
 let isQuitting = false;
 let hasTray = false;
+
+const protocolHandler = createProtocolHandler({
+  protocolScheme,
+  startUrl,
+  getMainWindow: () => mainWindow,
+});
 
 /**
  * `Action` is an interface for an action to be performed by the plugin manager.
@@ -1386,6 +1395,12 @@ ipcMain.on('route-changed', () => {
 function startElectron() {
   console.info('App starting...');
 
+  const gotTheLock = app.requestSingleInstanceLock();
+  if (!gotTheLock) {
+    app.quit();
+    return;
+  }
+
   // Increase max listeners to prevent false positive warnings
   // The app legitimately needs multiple IPC listeners (currently 11)
   // Default is 10, setting to 20 provides headroom for future additions
@@ -1556,7 +1571,6 @@ function startElectron() {
     // creation and the 'closed' handler; closing during the read would
     // otherwise leave a destroyed window that later loadURL/menu calls throw on.
     cachedZoom = await loadZoomFactor(ZOOM_FILE_PATH);
-
     mainWindow = new BrowserWindow({
       width,
       height,
@@ -1601,6 +1615,8 @@ function startElectron() {
       scheduleApplyZoom(true);
       // Inject the backend port into the window object
       mainWindow?.webContents.executeJavaScript(`window.headlampBackendPort = ${actualPort};`);
+
+      protocolHandler.setReady();
     });
 
     mainWindow.webContents.on('did-frame-finish-load', (_event, isMainFrame) => {
@@ -1664,21 +1680,6 @@ function startElectron() {
       }
     });
 
-    // Force Single Instance Application
-    const gotTheLock = app.requestSingleInstanceLock();
-    if (gotTheLock) {
-      app.on('second-instance', () => {
-        // Someone tried to run a second instance, we should focus our window.
-        if (mainWindow) {
-          if (mainWindow.isMinimized()) mainWindow.restore();
-          mainWindow.focus();
-        }
-      });
-    } else {
-      app.quit();
-      return;
-    }
-
     /*
     if a library is trying to open a url other than app url in electron take it
     to the default browser
@@ -1692,29 +1693,6 @@ function startElectron() {
       shell.openExternal(url);
     });
 
-    app.on('open-url', (event, url) => {
-      mainWindow?.focus();
-      let urlObj;
-      try {
-        urlObj = new URL(url);
-      } catch (e) {
-        dialog.showErrorBox(
-          i18n.t('Invalid URL'),
-          i18n.t('Application opened with an invalid URL: {{ url }}', { url })
-        );
-        return;
-      }
-
-      const urlParam = urlObj.hostname;
-      let baseUrl = startUrl;
-      // this check helps us to avoid adding multiple / to the startUrl when appending the incoming url to it
-      if (baseUrl.endsWith('/')) {
-        baseUrl = baseUrl.slice(0, startUrl.length - 1);
-      }
-      // load the index.html from build and route to the hostname received in the protocol handler url
-      mainWindow?.loadURL(baseUrl + '#' + urlParam + urlObj.search);
-    });
-
     i18n.on('languageChanged', () => {
       updateMenuLabels(currentMenu);
       setMenu(mainWindow, currentMenu);
@@ -1724,6 +1702,7 @@ function startElectron() {
       mainWindow?.webContents.send('appConfig', {
         checkForUpdates: shouldCheckForUpdates,
         appVersion,
+        protocolScheme,
       });
     });
 
