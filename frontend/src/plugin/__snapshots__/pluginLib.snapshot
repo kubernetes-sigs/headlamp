@@ -59,6 +59,7 @@
     "CreateReplicaSetForm": [Function],
     "CreateResourceButton": [Function],
     "CreateResourceForm": [Function],
+    "CreateServiceForm": [Function],
     "CreateStatefulSetForm": [Function],
     "DOCKER_DESKTOP_MAX_PORT": 32000,
     "DOCKER_DESKTOP_MIN_PORT": 30000,
@@ -149,6 +150,10 @@
         "class": [Function],
         "form": [Function],
       },
+      "Service": {
+        "class": [Function],
+        "form": [Function],
+      },
       "StatefulSet": {
         "class": [Function],
         "form": [Function],
@@ -172,6 +177,7 @@
       "CreatePodForm": [Function],
       "CreateReplicaSetForm": [Function],
       "CreateResourceForm": [Function],
+      "CreateServiceForm": [Function],
       "CreateStatefulSetForm": [Function],
       "DOCKER_DESKTOP_MAX_PORT": 32000,
       "DOCKER_DESKTOP_MIN_PORT": 30000,
@@ -240,6 +246,10 @@
           "class": [Function],
           "form": [Function],
         },
+        "Service": {
+          "class": [Function],
+          "form": [Function],
+        },
         "StatefulSet": {
           "class": [Function],
           "form": [Function],
@@ -260,6 +270,7 @@
       "ScaleMultipleButton": [Function],
       "SecretField": [Function],
       "SectionGrid": [Function],
+      "ServicePortsTextField": [Function],
       "SimpleEditor": [Function],
       "TargetedPodsSection": [Function],
       "ViewButton": [Function],
@@ -324,6 +335,7 @@
     "SectionFilterHeader": [Function],
     "SectionGrid": [Function],
     "SectionHeader": [Function],
+    "ServicePortsTextField": [Function],
     "ShowHideLabel": [Function],
     "SimpleEditor": [Function],
     "SimpleTable": [Function],

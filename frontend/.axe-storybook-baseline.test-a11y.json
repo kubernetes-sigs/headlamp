@@ -36,7 +36,11 @@
     "cluster/Chooser/Single Cluster": ["empty-heading"],
     "cluster/Chooser/Many Clusters": ["empty-heading"],
     "cluster/Chooser/No Clusters": ["empty-heading"],
-    "cluster/ClusterChooserPopup/Normal": ["aria-required-children", "listitem", "aria-input-field-name"],
+    "cluster/ClusterChooserPopup/Normal": [
+      "aria-required-children",
+      "listitem",
+      "aria-input-field-name"
+    ],
     "cluster/ClusterChooserPopup/Scrollbar": [
       "aria-required-children",
       "listitem",
@@ -76,8 +80,16 @@
     "Resource/CreateResourceForm/Multiple Sections": ["label"],
     "Resource/DownloadButton/Menu Style": ["aria-required-parent"],
     "Resource/ResourceTableColumnChooser/Default": ["label", "list", "nested-interactive"],
-    "Resource/ResourceTableColumnChooser/All Columns Visible": ["label", "list", "nested-interactive"],
-    "Resource/ResourceTableColumnChooser/All Columns Hidden": ["label", "list", "nested-interactive"],
+    "Resource/ResourceTableColumnChooser/All Columns Visible": [
+      "label",
+      "list",
+      "nested-interactive"
+    ],
+    "Resource/ResourceTableColumnChooser/All Columns Hidden": [
+      "label",
+      "list",
+      "nested-interactive"
+    ],
     "Resource/ResourceTableColumnChooser/Many Columns": ["label", "list", "nested-interactive"],
     "Resource/UploadDialog/Default": ["aria-dialog-name"],
     "Resource/UploadDialog/File Selected": ["aria-dialog-name"],
@@ -92,9 +104,21 @@
     "Deployments/CreateDeploymentForm/Filled": ["label"],
     "Deployments/CreateDeploymentForm/Pod Template Extras": ["label"],
     "Deployments/CreateDeploymentForm/Empty": ["label"],
-    "GlobalSearch/GlobalSearchContent/With Empty Input": ["aria-input-field-name", "aria-progressbar-name", "aria-tooltip-name"],
-    "GlobalSearch/GlobalSearchContent/Loading Resources": ["aria-progressbar-name", "aria-tooltip-name", "scrollable-region-focusable"],
-    "GlobalSearch/GlobalSearchContent/Found Some Results": ["aria-progressbar-name", "aria-tooltip-name", "scrollable-region-focusable"],
+    "GlobalSearch/GlobalSearchContent/With Empty Input": [
+      "aria-input-field-name",
+      "aria-progressbar-name",
+      "aria-tooltip-name"
+    ],
+    "GlobalSearch/GlobalSearchContent/Loading Resources": [
+      "aria-progressbar-name",
+      "aria-tooltip-name",
+      "scrollable-region-focusable"
+    ],
+    "GlobalSearch/GlobalSearchContent/Found Some Results": [
+      "aria-progressbar-name",
+      "aria-tooltip-name",
+      "scrollable-region-focusable"
+    ],
     "Jobs/CreateJobForm/Default": ["label"],
     "Jobs/CreateJobForm/Filled": ["label"],
     "Jobs/CreateJobForm/Pod Template Extras": ["label"],
@@ -108,9 +132,18 @@
     "ReplicaSets/CreateReplicaSetForm/Filled": ["label"],
     "ReplicaSets/CreateReplicaSetForm/Pod Template Extras": ["label"],
     "ReplicaSets/CreateReplicaSetForm/Empty": ["label"],
+    "Service/CreateServiceForm/Default": ["label"],
     "home/ClusterTable/Connecting": ["aria-progressbar-name"],
-    "GlobalSearch/GlobalSearchContent/Bare Namespace Query": ["aria-progressbar-name", "aria-tooltip-name", "scrollable-region-focusable"],
-    "GlobalSearch/GlobalSearchContent/Combined Namespace Query": ["aria-progressbar-name", "aria-tooltip-name", "scrollable-region-focusable"],
+    "GlobalSearch/GlobalSearchContent/Bare Namespace Query": [
+      "aria-progressbar-name",
+      "aria-tooltip-name",
+      "scrollable-region-focusable"
+    ],
+    "GlobalSearch/GlobalSearchContent/Combined Namespace Query": [
+      "aria-progressbar-name",
+      "aria-tooltip-name",
+      "scrollable-region-focusable"
+    ],
     "GraphView/Performance Test 20000 Pods": ["color-contrast"],
     "GraphView/Performance Test 100000 Pods": ["color-contrast"],
     "StatefulSet/CreateStatefulSetForm/Default": ["label"],
