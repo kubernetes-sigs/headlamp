@@ -24,6 +24,7 @@ import { isElectron } from '../../../helpers/isElectron';
 import LocaleSelect from '../../../i18n/LocaleSelect/LocaleSelect';
 import { setAppSettings } from '../../../redux/configSlice';
 import { defaultTableRowsPerPageOptions } from '../../../redux/configSlice';
+import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../../redux/hooks';
 import { uiSlice } from '../../../redux/uiSlice';
 import ActionButton from '../../common/ActionButton';
@@ -57,6 +58,12 @@ export default function Settings() {
   const themeName = useTypedSelector(state => state.theme.name);
   const appThemes = useAppThemes();
   const forceTheme = useTypedSelector(state => state.config.forceTheme);
+  const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.SETTINGS_VIEW);
+
+  useEffect(() => {
+    dispatchHeadlampEvent({ theme: themeName });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     dispatch(

@@ -345,10 +345,14 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
           toNodes.forEach(to => {
             if (relation.predicate(from, to)) {
               edges.push({
+                label: relation.label,
+                ...relation.edgeAttributes?.(from, to),
+                // Structural fields are authoritative and must win over a relation's
+                // edgeAttributes: otherwise a Partial<GraphEdge> that (accidentally or
+                // not) sets id/source/target could corrupt deduplication or topology.
                 id: from.id + '-' + to.id + '-' + relation.id,
                 source: from.id,
                 target: to.id,
-                label: relation.label,
               });
             }
           });

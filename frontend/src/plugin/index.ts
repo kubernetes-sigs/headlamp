@@ -39,6 +39,7 @@ import { Activity } from '../components/activity/Activity';
 import { runCommand } from '../components/App/runCommand';
 import { applyBackendThemeConfig, ensureValidThemeName } from '../components/App/themeSlice';
 import * as CommonComponents from '../components/common';
+import * as ResourceMap from '../components/resourceMap';
 import { addBackstageAuthHeaders } from '../helpers/addBackstageAuthHeaders';
 import { getAppUrl } from '../helpers/getAppUrl';
 import { isElectron } from '../helpers/isElectron';
@@ -74,6 +75,7 @@ window.pluginLib = {
     __esModule: true,
   },
   CommonComponents,
+  ResourceMap,
   MuiMaterial: {
     ...MuiMaterial,
     styles: MuiMaterialStyles,
@@ -282,8 +284,9 @@ export function applyPluginPriority(plugins: PluginInfo[]): PluginInfo[] {
 /**
  * Updates settings packages based on what the backend provides.
  *
- * - For new plugins (not in settings), includes them with isEnabled=true
- * - For existing plugins (in settings), preserves their isEnabled preference
+ * - Newly discovered shipped plugins use an explicit false enabledByDefault value
+ * - Development and user-installed plugins remain enabled when first discovered
+ * - Existing settings always win, including entries automatically persisted by earlier releases
  * - Returns only plugins that exist in the backend list (automatically removing any that are gone)
  * - Treats plugins with the same name but different types as separate entries
  * - Each plugin is identified by name + type combination
@@ -315,10 +318,10 @@ export function updateSettingsPackages(
     const index = settingsPlugins.findIndex(x => x.name === plugin.name && x.type === plugin.type);
 
     if (index === -1) {
-      // It's a new one settings doesn't know about, enable it by default
       return {
         ...plugin,
-        isEnabled: true,
+        isEnabled:
+          (plugin.type ?? 'shipped') !== 'shipped' || plugin.headlamp?.enabledByDefault !== false,
       };
     }
 
@@ -602,6 +605,10 @@ export async function fetchAndExecutePlugins(
         getAllowedPermissions: (pluginName, pluginPath, secrets): Record<string, number> => {
           const secretsToReturn: Record<string, number> = {};
           const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
+          if (isPackage['az-auth']) {
+            secretsToReturn['runCmd-scriptjs-az-auth/azure-api.js'] =
+              +secrets['runCmd-scriptjs-az-auth/azure-api.js'];
+          }
           if (isPackage['@headlamp-k8s/minikube']) {
             secretsToReturn['runCmd-minikube'] = secrets['runCmd-minikube'];
             if (isDevelopmentMode) {
@@ -617,6 +624,11 @@ export async function fetchAndExecutePlugins(
           if (isPackage['@headlamp-k8s/ai-assistant']) {
             secretsToReturn['runCmd-gh'] = secrets['runCmd-gh'];
             secretsToReturn['runCmd-az'] = secrets['runCmd-az'];
+          }
+
+          if (isPackage['azure-aks']) {
+            secretsToReturn['runCmd-scriptjs-azure-aks/azure-api.js'] =
+              secrets['runCmd-scriptjs-azure-aks/azure-api.js'];
           }
 
           return secretsToReturn;
@@ -651,6 +663,27 @@ export async function fetchAndExecutePlugins(
           if (isPackage['@headlamp-k8s/ai-assistant']) {
             function pluginRunCommand(
               command: 'gh' | 'az',
+              args: string[],
+              options: {}
+            ): ReturnType<typeof internalRunCommand> {
+              return internalRunCommand(
+                command,
+                args,
+                options,
+                allowedPermissions,
+                pluginDesktopApiSend,
+                pluginDesktopApiReceive
+              );
+            }
+            return [
+              ['pluginRunCommand', 'pluginPath'],
+              [pluginRunCommand, pluginPath],
+            ];
+          }
+
+          if (isPackage['azure-aks']) {
+            function pluginRunCommand(
+              command: 'scriptjs',
               args: string[],
               options: {}
             ): ReturnType<typeof internalRunCommand> {

@@ -18,6 +18,7 @@ import i18next, { createInstance, i18n, TFunction, TOptions } from 'i18next';
 import { useEffect, useState } from 'react';
 import { useTranslation as useReactI18nTranslation } from 'react-i18next';
 import { getAppUrl } from '../helpers/getAppUrl';
+import type { PluginPackageHeadlampConfig } from './pluginsSlice';
 
 export interface PluginTranslations {
   [locale: string]: {
@@ -41,9 +42,7 @@ export interface UseTranslationResult {
 
 export interface PluginPackageInfo {
   name: string;
-  headlamp?: {
-    i18n?: string[]; // Array of supported locales
-  };
+  headlamp?: PluginPackageHeadlampConfig;
   [key: string]: unknown;
 }
 

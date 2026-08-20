@@ -14,7 +14,17 @@
  * limitations under the License.
  */
 
-import { ClusterSettings, loadClusterSettings, storeClusterSettings } from './clusterSettings';
+import {
+  ALLOWED_NAMESPACES_SELECTOR_MAX_AGE_MS,
+  clearResolvedAllowedNamespaces,
+  ClusterSettings,
+  getCombinedAllowedNamespaces,
+  isResolvedAllowedNamespacesStale,
+  loadClusterSettings,
+  loadResolvedAllowedNamespaces,
+  storeClusterSettings,
+  storeResolvedAllowedNamespaces,
+} from './clusterSettings';
 
 describe('clusterSettings', () => {
   beforeEach(() => {
@@ -149,6 +159,116 @@ describe('clusterSettings', () => {
       expect(consoleWarnSpy).toHaveBeenCalledTimes(3);
 
       consoleWarnSpy.mockRestore();
+    });
+  });
+
+  describe('resolved allowed namespaces cache', () => {
+    it('round-trips the selector, sorted/deduplicated namespaces and a timestamp', () => {
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', ['b', 'a', 'b']);
+
+      const cache = loadResolvedAllowedNamespaces('prod');
+      expect(cache?.selector).toBe('team=frontend');
+      expect(cache?.namespaces).toEqual(['a', 'b']);
+      expect(typeof cache?.resolvedAt).toBe('number');
+    });
+
+    it('returns null when nothing is stored', () => {
+      expect(loadResolvedAllowedNamespaces('never-stored')).toBeNull();
+    });
+
+    it('returns null and does not throw when the stored payload is malformed', () => {
+      localStorage.setItem('cluster_allowed_namespaces_selector_cache.prod', '{not json');
+      expect(loadResolvedAllowedNamespaces('prod')).toBeNull();
+
+      localStorage.setItem(
+        'cluster_allowed_namespaces_selector_cache.prod',
+        JSON.stringify({ selector: 'team=frontend' })
+      );
+      expect(loadResolvedAllowedNamespaces('prod')).toBeNull();
+    });
+
+    it('is a no-op when the cluster name is empty', () => {
+      storeResolvedAllowedNamespaces('', 'team=frontend', ['a']);
+      expect(localStorage.getItem('cluster_allowed_namespaces_selector_cache.')).toBeNull();
+    });
+
+    it('clears the cache', () => {
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', ['a']);
+      clearResolvedAllowedNamespaces('prod');
+      expect(loadResolvedAllowedNamespaces('prod')).toBeNull();
+    });
+  });
+
+  describe('getCombinedAllowedNamespaces', () => {
+    it('returns an empty list when nothing is configured', () => {
+      expect(getCombinedAllowedNamespaces('prod')).toEqual([]);
+    });
+
+    it('returns the manually configured namespaces', () => {
+      storeClusterSettings('prod', { allowedNamespaces: ['b', 'a'] });
+      expect(getCombinedAllowedNamespaces('prod')).toEqual(['a', 'b']);
+    });
+
+    it('includes the resolved namespaces when the cache matches the configured selector', () => {
+      storeClusterSettings('prod', { allowedNamespacesSelector: 'team=frontend' });
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', ['b', 'a']);
+      expect(getCombinedAllowedNamespaces('prod')).toEqual(['a', 'b']);
+    });
+
+    it('merges, deduplicates and sorts the manual and resolved lists', () => {
+      storeClusterSettings('prod', {
+        allowedNamespaces: ['c', 'a'],
+        allowedNamespacesSelector: 'team=frontend',
+      });
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', ['b', 'a']);
+      expect(getCombinedAllowedNamespaces('prod')).toEqual(['a', 'b', 'c']);
+    });
+
+    it('ignores a cache that was resolved for a different selector', () => {
+      storeClusterSettings('prod', {
+        allowedNamespaces: ['a'],
+        allowedNamespacesSelector: 'team=backend',
+      });
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', ['x', 'y']);
+      expect(getCombinedAllowedNamespaces('prod')).toEqual(['a']);
+    });
+
+    it('ignores the cache when no selector is configured', () => {
+      storeClusterSettings('prod', { allowedNamespaces: ['a'] });
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', ['x', 'y']);
+      expect(getCombinedAllowedNamespaces('prod')).toEqual(['a']);
+    });
+  });
+
+  describe('isResolvedAllowedNamespacesStale', () => {
+    it('is false when no selector is configured', () => {
+      storeClusterSettings('prod', {});
+      expect(isResolvedAllowedNamespacesStale('prod')).toBe(false);
+    });
+
+    it('is true when a selector is configured but nothing is cached', () => {
+      storeClusterSettings('prod', { allowedNamespacesSelector: 'team=frontend' });
+      expect(isResolvedAllowedNamespacesStale('prod')).toBe(true);
+    });
+
+    it('is true when the cache was resolved for a different selector', () => {
+      storeClusterSettings('prod', { allowedNamespacesSelector: 'team=backend' });
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', ['a']);
+      expect(isResolvedAllowedNamespacesStale('prod')).toBe(true);
+    });
+
+    it('is false for a fresh, matching cache and true once it is too old', () => {
+      storeClusterSettings('prod', { allowedNamespacesSelector: 'team=frontend' });
+      storeResolvedAllowedNamespaces('prod', 'team=frontend', ['a']);
+      const resolvedAt = loadResolvedAllowedNamespaces('prod')!.resolvedAt;
+
+      expect(isResolvedAllowedNamespacesStale('prod', resolvedAt + 1000)).toBe(false);
+      expect(
+        isResolvedAllowedNamespacesStale(
+          'prod',
+          resolvedAt + ALLOWED_NAMESPACES_SELECTOR_MAX_AGE_MS + 1
+        )
+      ).toBe(true);
     });
   });
 });

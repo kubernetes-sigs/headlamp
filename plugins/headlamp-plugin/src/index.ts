@@ -22,6 +22,7 @@ declare module '@mui/private-theming' {
 
 import { Activity } from './components/activity/Activity';
 import * as CommonComponents from './components/common';
+import * as ResourceMap from './components/resourceMap';
 import type { AppTheme } from './lib/AppTheme';
 import * as K8s from './lib/k8s';
 import * as ApiProxy from './lib/k8s/apiProxy';
@@ -50,6 +51,7 @@ import Registry, {
   registerAppLogo,
   registerAppTheme,
   registerClusterChooser,
+  registerClusterEmptyState,
   registerClusterProviderDialog,
   registerClusterProviderMenuItem,
   registerClusterStatus,
@@ -80,6 +82,7 @@ import Registry, {
   registerUIPanel,
   runCommand,
 } from './plugin/registry';
+import type { ClusterEmptyStateProps } from './redux/clusterProviderSlice';
 export type { ApiResource } from './plugin/registry';
 
 // We export k8s (lowercase) since someone may use it as we do in the Headlamp source code.
@@ -88,6 +91,7 @@ export {
   K8s,
   K8s as k8s,
   CommonComponents,
+  ResourceMap,
   Utils,
   Router,
   Plugin,
@@ -102,6 +106,7 @@ export {
   registerAppLogo,
   registerAppBarAction,
   registerClusterChooser,
+  registerClusterEmptyState,
   registerDetailsViewHeaderAction,
   registerDetailsViewSection,
   registerDetailsViewSectionsProcessor,
@@ -148,6 +153,7 @@ export type {
   PluginSettingsDetailsProps,
   CallbackActionOptions,
   ClusterChooserProps,
+  ClusterEmptyStateProps,
   DetailsViewSectionProps,
   DefaultSidebars,
   HeadlampEvent,

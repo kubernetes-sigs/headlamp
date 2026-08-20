@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
+import { expect, test } from '@playwright/test';
 import { execFile } from 'node:child_process';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import { expect, test } from '@playwright/test';
 import { HeadlampPage } from './headlampPage';
 import { podsPage } from './podsPage';
 
@@ -196,6 +196,10 @@ test('warns and preserves edits when a pod is modified externally', async ({ pag
   const tempDirectory = await mkdtemp(join(tmpdir(), 'headlamp-e2e-'));
   const kubeconfig = join(tempDirectory, 'kubeconfig');
 
+  await page.addInitScript(() => {
+    window.localStorage.setItem('headlampThemePreference', 'Dark');
+  });
+
   try {
     const { stdout } = await execFileAsync('kind', ['get', 'kubeconfig', '--name', 'test']);
     await writeFile(kubeconfig, stdout);
@@ -252,11 +256,12 @@ test('warns and preserves edits when a pod is modified externally', async ({ pag
       '--overwrite'
     );
 
-    await expect(
-      page.getByText(
-        'This resource was modified while you were editing. Your changes may conflict with the latest version.'
-      )
-    ).toBeVisible({ timeout: 15000 });
+    const warningAlert = page.getByRole('alert').filter({
+      hasText:
+        'This resource was modified while you were editing. Your changes may conflict with the latest version.',
+    });
+    await expect(warningAlert).toBeVisible({ timeout: 15000 });
+    await expect(warningAlert).toHaveClass(/MuiAlert-standardWarning/);
     await expect(editor).toHaveValue(editedYaml);
   } finally {
     await kubectl(
@@ -264,6 +269,136 @@ test('warns and preserves edits when a pod is modified externally', async ({ pag
       '--namespace=default',
       'delete',
       'pod',
+      name,
+      '--ignore-not-found=true'
+    )
+      .catch(() => undefined)
+      .finally(() => rm(tempDirectory, { recursive: true, force: true }));
+  }
+});
+
+test('positions the resource YAML viewer for each viewport size', async ({ page }) => {
+  test.setTimeout(90000);
+  const name = `headlamp-view-yaml-${Date.now()}`;
+  const hundredColumnValue = '1234567890'.repeat(9) + '123456';
+  const tempDirectory = await mkdtemp(join(tmpdir(), 'headlamp-e2e-'));
+  const kubeconfig = join(tempDirectory, 'kubeconfig');
+
+  expect(`    ${hundredColumnValue}`).toHaveLength(100);
+
+  try {
+    const { stdout } = await execFileAsync('kind', ['get', 'kubeconfig', '--name', 'test']);
+    await writeFile(kubeconfig, stdout);
+    await kubectl(
+      kubeconfig,
+      '--namespace=default',
+      'create',
+      'configmap',
+      name,
+      '--from-literal=example=value',
+      `--from-literal=line100=${hundredColumnValue}`
+    );
+
+    await page.goto('/c/test', { waitUntil: 'domcontentloaded' });
+    const needsAuthentication = await Promise.race([
+      page
+        .getByRole('heading', { level: 1, name: 'Authentication' })
+        .waitFor({ state: 'visible' })
+        .then(() => true),
+      page
+        .getByRole('heading', { name: 'Overview' })
+        .waitFor({ state: 'visible' })
+        .then(() => false),
+    ]);
+    if (needsAuthentication) {
+      const useTokenButton = page.getByRole('button', { name: 'Use A Token' });
+      if (await useTokenButton.isVisible()) {
+        await useTokenButton.click();
+      }
+      const token = process.env.HEADLAMP_TEST_TOKEN;
+      expect(token).toBeTruthy();
+      await page.getByRole('textbox', { name: 'ID token' }).fill(token!);
+      await page.getByRole('button', { name: 'Authenticate' }).click();
+      await expect(page.getByRole('heading', { name: 'Overview' })).toBeVisible();
+    }
+    await page.route(`**/clusters/test/api/v1/namespaces/default/configmaps/${name}`, route =>
+      route.abort('failed')
+    );
+
+    for (const viewport of [
+      { name: 'phone', width: 390, height: 844 },
+      { name: 'medium', width: 1024, height: 900 },
+      { name: 'large', width: 1440, height: 900 },
+      { name: 'extra-large', width: 2560, height: 900 },
+    ]) {
+      await page.setViewportSize(viewport);
+      await page.goto('/c/test/configmaps', { waitUntil: 'domcontentloaded' });
+      await expect(page).toHaveURL(/\/c\/test\/configmaps$/);
+      await expect(page.getByRole('heading', { name: 'Config Maps' })).toBeVisible();
+      const resourceRow = page.getByRole('row').filter({ has: page.getByRole('link', { name }) });
+      await expect(resourceRow).toBeVisible();
+      await resourceRow.locator('td').last().getByRole('button').click();
+      await page.getByRole('menuitem', { name: 'View YAML' }).click();
+      await page.keyboard.press('Escape');
+      await expect(page.getByRole('menu')).toHaveCount(0);
+
+      const activity = page.locator(`[role="complementary"][aria-label="${name}"]`);
+      const viewer = activity.locator(':scope > div');
+      const main = page.locator('#main');
+      await expect(activity, `${viewport.name} activity`).toBeVisible({ timeout: 15000 });
+      await expect
+        .poll(
+          async () => {
+            const [mainBox, viewerBox] = await Promise.all([
+              main.boundingBox(),
+              viewer.boundingBox(),
+            ]);
+            if (!mainBox || !viewerBox) {
+              return false;
+            }
+
+            if (viewport.name === 'phone') {
+              return (
+                Math.abs(viewerBox.x - mainBox.x) < 2 &&
+                Math.abs(viewerBox.y - mainBox.y) < 2 &&
+                Math.abs(viewerBox.width - mainBox.width) < 2 &&
+                Math.abs(viewerBox.height - mainBox.height) < 2
+              );
+            }
+
+            if (viewport.name === 'medium') {
+              return (
+                Math.abs(viewerBox.x - 8) < 2 &&
+                Math.abs(viewerBox.y - 72) < 2 &&
+                Math.abs(viewerBox.width - (viewport.width - 16)) < 2 &&
+                Math.abs(viewerBox.height - (viewport.height - 80)) < 2
+              );
+            }
+
+            const expectedWidth = Math.min(mainBox.width, Math.max(mainBox.width / 2, 1024));
+            return (
+              Math.abs(viewerBox.width - expectedWidth) < 2 &&
+              Math.abs(viewerBox.height - mainBox.height) < 2 &&
+              Math.abs(viewerBox.x + viewerBox.width - (mainBox.x + mainBox.width)) < 2
+            );
+          },
+          { message: `${viewport.name} viewer placement` }
+        )
+        .toBe(true);
+
+      if (viewport.name === 'large' || viewport.name === 'extra-large') {
+        await expect(activity.locator('.monaco-editor')).toContainText(hundredColumnValue);
+      }
+
+      await activity.locator('button[title="Close"]').evaluate(button => button.click());
+      await expect(activity).toHaveCount(0);
+    }
+  } finally {
+    await kubectl(
+      kubeconfig,
+      '--namespace=default',
+      'delete',
+      'configmap',
       name,
       '--ignore-not-found=true'
     )
@@ -307,4 +442,58 @@ test('react-hotkey for logs search', async ({ page }) => {
   const searchInput = page.getByPlaceholder(/^Find$/);
   await expect(searchInput).toBeVisible();
   await expect(searchInput).toBeFocused();
+});
+
+test('opens aggregated logs for a workload', async ({ page }) => {
+  const headlampPage = new HeadlampPage(page);
+  await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+  await headlampPage.navigateTopage('/c/test/deployments/kube-system/headlamp');
+  await expect(page.getByRole('heading', { level: 1, name: 'Deployment: headlamp' })).toBeVisible();
+
+  await page.getByRole('button', { name: /^Show logs$/i }).click();
+
+  await expect(page.locator('#xterm-container')).toBeVisible();
+  await expect(page.getByLabel('Select Pod')).toBeVisible();
+  await expect(page.getByRole('combobox', { name: /^Container/ })).toBeVisible();
+});
+
+test('checks pod accessibility with a visible status tooltip', async ({ page }) => {
+  const headlampPage = new HeadlampPage(page);
+  await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+
+  await page.route('**/clusters/test/apis/metrics.k8s.io/v1beta1/pods?*', async route => {
+    await route.fulfill({ json: { apiVersion: 'v1', kind: 'PodMetricsList', items: [] } });
+  });
+  await page.route('**/clusters/test/api/v1/pods?*', async route => {
+    const pod = {
+      ...makePod('tooltip-test-pod', '1'),
+      status: {
+        phase: 'Pending',
+        conditions: [{ type: 'Ready', status: 'False' }],
+        containerStatuses: [
+          {
+            name: 'main',
+            ready: false,
+            restartCount: 0,
+            state: {
+              waiting: {
+                reason: 'ImagePullBackOff',
+                message: 'Waiting to pull the container image',
+              },
+            },
+          },
+        ],
+      },
+    };
+    await route.fulfill({
+      json: { apiVersion: 'v1', kind: 'PodList', metadata: {}, items: [pod] },
+    });
+  });
+  await headlampPage.navigateTopage('/c/test/pods', /Pods/);
+
+  const podsTable = page.getByRole('table');
+  await podsTable.getByText('ImagePullBackOff', { exact: true }).hover();
+  await expect(page.getByRole('tooltip')).toContainText('Waiting to pull the container image');
+
+  await new podsPage(page).a11y();
 });

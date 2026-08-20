@@ -93,6 +93,17 @@ Change the Cluster Chooser button in the top right of the app bar with
 - Example plugin: [How To Register Cluster Chooser button](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/cluster-chooser)
 - API reference: [registerClusterChooser](../../api/plugin/registry/functions/registerclusterchooser)
 
+### Cluster Empty State
+
+Customize the Home page shown when no clusters are configured with
+[registerClusterEmptyState](../../api/plugin/registry/functions/registerclusteremptystate).
+The registered component receives Headlamp's standard empty state as
+`defaultContent`. Render it to extend the default onboarding, or omit it to
+replace the empty state completely.
+
+- Example plugin: [How To Customize The Cluster Empty State](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/cluster-chooser)
+- API reference: [registerClusterEmptyState](../../api/plugin/registry/functions/registerclusteremptystate)
+
 ### Details View Header Action
 
 Show a component in the top right of a detail view with
@@ -282,7 +293,40 @@ Each tab needs a unique ID, a label, and a React component that receives the pro
 
 Add custom sections to the project overview page with
 [registerProjectOverviewSection](../../api/plugin/registry/functions/registerProjectOverviewSection).
-These sections appear in the project's main overview area.
+Each section needs a unique `id` and a component. The component receives the current
+`project` and its loaded `projectResources`.
+
+Use the optional asynchronous `isEnabled` callback to display a section only for
+matching projects. The callback receives `{ project }` and returns a `Promise<boolean>`.
+Sections without the callback are displayed by default. A section is hidden when the
+callback resolves to `false`, rejects, or throws, and eligibility is checked again when
+the project changes.
+
+```tsx
+registerProjectOverviewSection({
+  id: 'multi-cluster-summary',
+  component: ({ project, projectResources }) => (
+    <MultiClusterSummary project={project} resources={projectResources} />
+  ),
+  isEnabled: async ({ project }) => project.clusters.length > 1,
+});
+```
+
+Add action buttons to the project details header with
+[registerProjectHeaderAction](../../api/plugin/registry/functions/registerProjectHeaderAction).
+The action component receives the current project and an optional
+`setSelectedTab?: (tabId: string) => void` callback. Call it with the ID of a
+registered, enabled tab to select that tab. Unknown tabs and tabs without a
+component are ignored.
+
+```tsx
+registerProjectHeaderAction({
+  id: 'view-metrics',
+  component: ({ setSelectedTab }) => (
+    <Button onClick={() => setSelectedTab?.('my-plugin.metrics')}>View metrics</Button>
+  ),
+});
+```
 
 Register custom API resources (e.g. CRDs) for project resource tracking with
 [registerProjectApiResource](../../api/plugin/registry/functions/registerProjectApiResource).
@@ -290,7 +334,8 @@ Once registered, the CRD resources will appear in the project's resource count,
 health status, and Resources tab. Only namespaced resources can be registered,
 since Projects are scoped to namespaces.
 
-Example plugin: [How to customize projects](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/projects)
+Example plugin: [How to customize projects](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/projects),
+including conditionally displayed overview sections.
 
 ### Activities
 

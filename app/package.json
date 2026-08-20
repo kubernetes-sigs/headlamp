@@ -7,10 +7,10 @@
   "productName": "Headlamp",
   "engines": {
     "npm": ">=11.0.0",
-    "node": ">=22.0.0"
+    "node": ">=22.6.0"
   },
   "scripts": {
-    "build": "npm run copy-icons && npm run copy-plugins && npm run compile-electron && electron-builder --dir --publish never",
+    "build": "npm run copy-icons && npm run copy-plugins && npm run compile-electron && electron-builder --config electron-builder.config.ts --dir --publish never",
     "compile-electron": "node scripts/build-electron.js",
     "copy-icons": "mkdirp build/icons && copyfiles -f ../frontend/build/*.png ../frontend/build/*.ico ../frontend/build/*.icns ../frontend/build/*.svg build/icons",
     "copy-plugins": "npx --no-install shx rm -rf build/.plugins && mkdirp build/.plugins && copyfiles ../.plugins build/.plugins",
@@ -23,7 +23,7 @@
     "i18n-check": "npm run i18n -- --fail-on-update",
     "lint": "cd .. && npm run frontend:lint",
     "lint-fix": "cd .. && npm run frontend:lint:fix",
-    "package": "npm run build && electron-builder build --publish never",
+    "package": "npm run build && electron-builder build --config electron-builder.config.ts --publish never",
     "package-msi": "npm run build && node windows/msi/build.js",
     "start": "node scripts/start.js",
     "star": "node scripts/start.js --star",
@@ -38,7 +38,7 @@
     "beforeBuild": "./scripts/build-backend.js",
     "afterPack": "./scripts/after-pack.js",
     "asar": false,
-    "artifactName": "${productName}-${version}-${os}-${arch}.${ext}",
+    "artifactName": "${name}-${version}-${os}-${arch}.${ext}",
     "protocols": {
       "name": "headlamp-protocol",
       "schemes": [
@@ -93,7 +93,6 @@
           ]
         }
       ],
-      "executableName": "headlamp",
       "maintainer": "Kinvolk <hello@kinvolk.io>",
       "category": "Network",
       "extraResources": [
@@ -162,6 +161,14 @@
       {
         "from": "./app-build-manifest.json",
         "to": "app-build-manifest.json"
+      },
+      {
+        "from": "../LICENSE",
+        "to": "LICENSE"
+      },
+      {
+        "from": "../NOTICE",
+        "to": "NOTICE"
       }
     ],
     "publish": {
@@ -208,5 +215,8 @@
     "shx": "^0.4.0",
     "tar": "^7.5.11",
     "yargs": "^17.7.2"
+  },
+  "optionalDependencies": {
+    "dmg-license": "^1.0.11"
   }
 }
