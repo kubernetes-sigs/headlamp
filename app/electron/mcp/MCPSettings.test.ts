@@ -28,11 +28,41 @@ beforeEach(() => {
   vi.resetAllMocks();
 });
 
+// Mirrors the platform-dependent BASELINE_ENV_KEYS in MCPSettings.ts, but only keeps keys
+// that are actually present in this process's env so the assertions stay accurate on any OS.
+const EXPECTED_BASELINE_ENV_KEYS = (
+  process.platform === 'win32' ? ['PATH', 'SystemRoot', 'ComSpec', 'PATHEXT'] : ['PATH']
+).filter(key => process.env[key] !== undefined);
+
+function expectedBaselineEnv(): Record<string, string> {
+  const env: Record<string, string> = {};
+  for (const key of EXPECTED_BASELINE_ENV_KEYS) {
+    env[key] = process.env[key] as string;
+  }
+  return env;
+}
+
 describe('MCPSettings', () => {
-  it('loadMCPSettings returns mcp settings when present', () => {
+  it('loadMCPSettings returns mcp settings unchanged when already migrated', () => {
     const expected = {
       enabled: true,
-      servers: [{ name: 's1', command: 'cmd', args: ['-v'], enabled: true }],
+      permissionsMigrated: true,
+      servers: [
+        {
+          name: 's1',
+          command: 'cmd',
+          args: ['-v'],
+          enabled: true,
+          permissions: {
+            command: 'cmd',
+            args: ['-v'],
+            envKeys: [...EXPECTED_BASELINE_ENV_KEYS].sort(),
+            clusterDependent: false,
+            restart: { enabled: true, maxAttempts: 3, delayMs: 2000 },
+            approvedAt: '2026-01-01T00:00:00.000Z',
+          },
+        },
+      ],
     };
     (loadSettings as Mock).mockReturnValue({ mcp: expected });
 
@@ -40,6 +70,50 @@ describe('MCPSettings', () => {
 
     expect(loadSettings).toHaveBeenCalledWith('/path/to/settings.json');
     expect(result).toEqual(expected);
+    expect(saveSettings).not.toHaveBeenCalled();
+  });
+
+  it('loadMCPSettings migrates legacy servers with no permissions field to approved', () => {
+    const raw = {
+      mcp: {
+        enabled: true,
+        servers: [{ name: 'legacy', command: 'cmd', args: ['-v'], enabled: true }],
+      },
+    };
+    (loadSettings as Mock).mockReturnValue(raw);
+
+    const result = loadMCPSettings('/path/to/settings.json');
+
+    expect(result?.servers[0].permissions).toMatchObject({
+      command: 'cmd',
+      args: ['-v'],
+      envKeys: [...EXPECTED_BASELINE_ENV_KEYS].sort(),
+      clusterDependent: false,
+    });
+    expect(result?.servers[0].permissions?.approvedAt).toBeDefined();
+    expect(result?.permissionsMigrated).toBe(true);
+    // the migration is persisted so it only needs to run once
+    expect(saveSettings).toHaveBeenCalledWith('/path/to/settings.json', raw);
+  });
+
+  it('loadMCPSettings does not auto-approve a permissionless server added after migration', () => {
+    // Simulates a settings.json that already went through the legacy migration, and then
+    // had a new server added afterwards by directly editing the file (a supported
+    // workflow). That new server has no `permissions` field, but it must not be silently
+    // auto-approved the way pre-existing legacy servers were.
+    const raw = {
+      mcp: {
+        enabled: true,
+        permissionsMigrated: true,
+        servers: [{ name: 'added-later', command: 'cmd', args: ['-v'], enabled: true }],
+      },
+    };
+    (loadSettings as Mock).mockReturnValue(raw);
+
+    const result = loadMCPSettings('/path/to/settings.json');
+
+    expect(result?.servers[0].permissions).toBeUndefined();
+    expect(saveSettings).not.toHaveBeenCalled();
   });
 
   it('loadMCPSettings returns null when no mcp settings', () => {
@@ -63,8 +137,79 @@ describe('MCPSettings', () => {
     saveMCPSettings('/cfg', newMCP);
 
     expect(loadSettings).toHaveBeenCalledWith('/cfg');
-    expect((existing as any).mcp).toBe(newMCP);
+    expect((existing as any).mcp).toMatchObject(newMCP);
+    expect((existing as any).mcp.servers[0].permissions).toMatchObject({
+      command: 'c',
+      args: [],
+      envKeys: [...EXPECTED_BASELINE_ENV_KEYS].sort(),
+      clusterDependent: false,
+      restart: {
+        enabled: true,
+        maxAttempts: 3,
+        delayMs: 2000,
+      },
+    });
     expect(saveSettings).toHaveBeenCalledWith('/cfg', existing);
+  });
+
+  it('saveMCPSettings preserves approvedAt when effective permissions are unchanged', () => {
+    const existing = { someKey: 'value' };
+    (loadSettings as Mock).mockReturnValue(existing);
+
+    const originalApprovedAt = '2026-01-01T00:00:00.000Z';
+    const newMCP = {
+      enabled: true,
+      servers: [
+        {
+          name: 's',
+          command: 'c',
+          args: [],
+          enabled: true,
+          permissions: {
+            command: 'c',
+            args: [],
+            envKeys: [...EXPECTED_BASELINE_ENV_KEYS].sort(),
+            clusterDependent: false,
+            restart: { enabled: true, maxAttempts: 3, delayMs: 2000 },
+            approvedAt: originalApprovedAt,
+          },
+        },
+      ],
+    };
+
+    saveMCPSettings('/cfg', newMCP);
+
+    expect((existing as any).mcp.servers[0].permissions.approvedAt).toBe(originalApprovedAt);
+  });
+
+  it('saveMCPSettings stamps a fresh approvedAt when effective permissions changed', () => {
+    const existing = { someKey: 'value' };
+    (loadSettings as Mock).mockReturnValue(existing);
+
+    const originalApprovedAt = '2026-01-01T00:00:00.000Z';
+    const newMCP = {
+      enabled: true,
+      servers: [
+        {
+          name: 's',
+          command: 'c',
+          args: ['--new-arg'],
+          enabled: true,
+          permissions: {
+            command: 'c',
+            args: [],
+            envKeys: [...EXPECTED_BASELINE_ENV_KEYS].sort(),
+            clusterDependent: false,
+            restart: { enabled: true, maxAttempts: 3, delayMs: 2000 },
+            approvedAt: originalApprovedAt,
+          },
+        },
+      ],
+    };
+
+    saveMCPSettings('/cfg', newMCP);
+
+    expect((existing as any).mcp.servers[0].permissions.approvedAt).not.toBe(originalApprovedAt);
   });
 });
 
@@ -198,7 +343,9 @@ describe('MultiServerMCPClient', () => {
       ],
     };
 
-    (loadSettings as Mock).mockReturnValue({ mcp: mcpSettings });
+    (loadSettings as Mock).mockReturnValue({
+      mcp: MCP.withApprovedMCPPermissions(mcpSettings as any),
+    });
 
     const result = MCP.makeMcpServersFromSettings('/cfg', ['clusterA']);
 
@@ -209,14 +356,60 @@ describe('MultiServerMCPClient', () => {
     expect(entry.transport).toBe('stdio');
     expect(entry.command).toBe('cmd');
     expect(entry.args).toEqual(['arg1']);
-    // env should include process.env and server.env overrides
+    // env should include only approved explicit server.env values
     expect(entry.env.MCP_VAR).toBe('mcp');
-    expect(entry.env.TEST_ORIG_ENV).toBe('orig');
+    expect(entry.env.TEST_ORIG_ENV).toBeUndefined();
     // restart settings
     expect(entry.restart).toBeDefined();
     expect(entry.restart.enabled).toBe(true);
     expect(entry.restart.maxAttempts).toBe(3);
     expect(entry.restart.delayMs).toBe(2000);
+  });
+
+  it('skips enabled servers with unapproved broadened permissions', () => {
+    const approved = MCP.withApprovedMCPPermissions({
+      enabled: true,
+      servers: [
+        {
+          name: 'changed',
+          command: 'cmd',
+          args: ['old'],
+          enabled: true,
+          env: { SAFE_VAR: 'ok' },
+        },
+      ],
+    } as any);
+    approved.servers[0].env = { SAFE_VAR: 'ok', NEW_SECRET: 'secret' };
+
+    (loadSettings as Mock).mockReturnValue({ mcp: approved });
+
+    const result = MCP.makeMcpServersFromSettings('/cfg', ['clusterA']);
+
+    expect(result).toEqual({});
+  });
+
+  it('allows enabled servers with narrowed approved permissions', () => {
+    const approved = MCP.withApprovedMCPPermissions({
+      enabled: true,
+      servers: [
+        {
+          name: 'narrowed',
+          command: 'cmd',
+          args: ['run'],
+          enabled: true,
+          env: { SAFE_VAR: 'ok', OPTIONAL_VAR: 'ok' },
+        },
+      ],
+    } as any);
+    approved.servers[0].env = { SAFE_VAR: 'ok' };
+
+    (loadSettings as Mock).mockReturnValue({ mcp: approved });
+
+    const result = MCP.makeMcpServersFromSettings('/cfg', ['clusterA']);
+
+    expect(result).toHaveProperty('narrowed');
+    // env should include the inherited baseline env plus the approved explicit var
+    expect((result['narrowed'] as any).env).toEqual({ ...expectedBaselineEnv(), SAFE_VAR: 'ok' });
   });
 
   it('expands HEADLAMP_CURRENT_CLUSTER placeholder using provided clusters[0]', () => {
@@ -232,7 +425,9 @@ describe('MultiServerMCPClient', () => {
       ],
     };
 
-    (loadSettings as Mock).mockReturnValue({ mcp: mcpSettings });
+    (loadSettings as Mock).mockReturnValue({
+      mcp: MCP.withApprovedMCPPermissions(mcpSettings as any),
+    });
 
     const result = MCP.makeMcpServersFromSettings('/cfg', ['my-current-cluster']);
 
@@ -240,6 +435,68 @@ describe('MultiServerMCPClient', () => {
     const entry = result['withCluster'] as any;
     // the expand function should have replaced the placeholder
     expect(entry.args).toEqual(['connect', 'my-current-cluster']);
+  });
+});
+
+describe('mcpPermissionsCenter', () => {
+  it('reports effective server permissions and recent tool usage', () => {
+    const mcpSettings = MCP.withApprovedMCPPermissions({
+      enabled: true,
+      servers: [
+        {
+          name: 'cluster-tools',
+          command: 'node',
+          args: ['server.js', 'HEADLAMP_CURRENT_CLUSTER'],
+          enabled: true,
+          env: { TOKEN: 'value', PATH: '/bin' },
+        },
+      ],
+    } as any);
+
+    const result = MCP.mcpPermissionsCenter(mcpSettings, {
+      'cluster-tools': {
+        list: {
+          enabled: true,
+          lastUsed: '2026-07-23T10:00:00.000Z',
+          usageCount: 2,
+        },
+        get: {
+          enabled: true,
+          lastUsed: new Date('2026-07-23T11:00:00.000Z'),
+          usageCount: 1,
+        },
+      },
+    });
+
+    expect(result).toEqual([
+      expect.objectContaining({
+        serverName: 'cluster-tools',
+        enabled: true,
+        approved: true,
+        command: 'node',
+        args: ['server.js', 'HEADLAMP_CURRENT_CLUSTER'],
+        envKeys: [...new Set([...EXPECTED_BASELINE_ENV_KEYS, 'TOKEN'])].sort(),
+        approvedAt: expect.any(String),
+        clusterDependent: true,
+        restart: {
+          enabled: true,
+          maxAttempts: 3,
+          delayMs: 2000,
+        },
+        recentToolUsage: [
+          {
+            toolName: 'get',
+            lastUsed: '2026-07-23T11:00:00.000Z',
+            usageCount: 1,
+          },
+          {
+            toolName: 'list',
+            lastUsed: '2026-07-23T10:00:00.000Z',
+            usageCount: 2,
+          },
+        ],
+      }),
+    ]);
   });
 });
 
@@ -325,10 +582,10 @@ describe('settingsChanges', () => {
   });
 
   it('returns empty array when there are no changes', () => {
-    const s = {
+    const s = MCP.withApprovedMCPPermissions({
       enabled: true,
       servers: [{ name: 's', command: 'c', args: ['x'], enabled: true, env: { K: 'v' } }],
-    };
+    } as any);
 
     const result = MCP.settingsChanges(s as any, s as any);
     expect(result).toEqual([]);
