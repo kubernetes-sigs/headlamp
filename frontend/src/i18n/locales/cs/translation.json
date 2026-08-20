@@ -1046,5 +1046,13 @@
   "Toggle Table Filters": "Přepnout filtry tabulky",
   "Toggle column filters in tables": "Přepnout filtry sloupců v tabulkách",
   "Log Viewer Search": "Hledání v prohlížeči protokolů",
-  "Toggle search in log viewer": "Přepnout hledání v prohlížeči protokolů"
+  "Toggle search in log viewer": "Přepnout hledání v prohlížeči protokolů",
+  "Close Details Drawer": "",
+  "Close the active details drawer": "",
+  "Navigate to Pods": "",
+  "Go to the Pods list page": "",
+  "Navigate to Deployments": "",
+  "Go to the Deployments list page": "",
+  "Show Shortcuts Help": "",
+  "Show the keyboard shortcuts cheat sheet": ""
 }
