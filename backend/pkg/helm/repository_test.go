@@ -396,53 +396,6 @@ func testUpdateRepo(t *testing.T, helmHandler *helm.Handler) {
 	}
 }
 
-func TestUpdateRepositoryPreservesAuth(t *testing.T) {
-	helmHandler := newIsolatedHelmHandler(t)
-
-	ts := newAuthRepoIndexServer(t)
-	defer ts.Close()
-
-	username := testUsername
-	password := testPassword
-
-	addRepo := helm.AddUpdateRepoRequest{
-		Name:     "auth_update_repo",
-		URL:      ts.URL,
-		Username: &username,
-		Password: &password,
-	}
-
-	req, err := http.NewRequestWithContext(context.Background(), "POST",
-		"/clusters/minikube/helm/repositories/charts", mustJSONBody(t, addRepo))
-	require.NoError(t, err)
-
-	rr := httptest.NewRecorder()
-	helmHandler.AddRepo(rr, req)
-	require.Equal(t, http.StatusOK, rr.Code)
-
-	updateRepo := helm.AddUpdateRepoRequest{
-		Name: "auth_update_repo",
-		URL:  ts.URL,
-	}
-
-	updateReq, err := http.NewRequestWithContext(context.Background(), "PUT",
-		"/clusters/minikube/helm/repositories", mustJSONBody(t, updateRepo))
-	require.NoError(t, err)
-
-	rr = httptest.NewRecorder()
-	helmHandler.UpdateRepository(rr, updateReq)
-	assert.Equal(t, http.StatusOK, rr.Code)
-
-	repoFile, err := repo.LoadFile(helmHandler.RepositoryConfig)
-	require.NoError(t, err)
-
-	updatedEntry := repoFile.Get("auth_update_repo")
-	require.NotNil(t, updatedEntry)
-
-	assert.Equal(t, testUsername, updatedEntry.Username)
-	assert.Equal(t, testPassword, updatedEntry.Password)
-}
-
 // newHelmHandlerWithRepoFile creates a Handler whose repository config is
 // seeded with the given entries, so tests can set server-side fields
 // (credentials, TLS file paths) that the HTTP API does not accept.
@@ -595,7 +548,8 @@ func TestCreateFileIfNotThere(t *testing.T) {
 		helmHandler.AddRepo(rr, req)
 		assert.Equal(t, http.StatusOK, rr.Code)
 
-		_, statErr := os.Stat(customSettings.RepositoryConfig)
+		fileInfo, statErr := os.Stat(customSettings.RepositoryConfig)
 		assert.NoError(t, statErr, "repository config file should have been created by createFileIfNotThere")
+		assert.Equal(t, os.FileMode(0o600), fileInfo.Mode().Perm(), "repository config file should have 0o600 permissions")
 	})
 }
