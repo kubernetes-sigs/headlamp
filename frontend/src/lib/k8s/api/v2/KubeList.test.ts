@@ -156,6 +156,84 @@ describe('KubeList.applyUpdate', () => {
     consoleErrorSpy.mockRestore();
   });
 
+  it('should keep the list resource version when an ERROR event carries none', () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const update = {
+      type: 'ERROR',
+      object: { apiVersion: 'v1', kind: 'Status', metadata: {} },
+    } as any;
+
+    const updatedList = KubeList.applyUpdate(initialList, update, itemClass, cluster);
+
+    expect(updatedList.metadata.resourceVersion).toBe('1');
+    consoleSpy.mockRestore();
+  });
+
+  it('should still skip stale updates after an ERROR event', () => {
+    const consoleSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const afterError = KubeList.applyUpdate(
+      initialList,
+      { type: 'ERROR', object: { apiVersion: 'v1', kind: 'Status', metadata: {} } } as any,
+      itemClass,
+      cluster
+    );
+
+    const stale = KubeList.applyUpdate(
+      afterError,
+      {
+        type: 'DELETED',
+        object: {
+          apiVersion: 'v1',
+          kind: 'MockKubeObject',
+          metadata: { uid: '1', resourceVersion: '1' },
+        },
+      } as any,
+      itemClass,
+      cluster
+    );
+
+    expect(stale.items).toHaveLength(1);
+    consoleSpy.mockRestore();
+  });
+
+  it('should advance the resource version on a BOOKMARK event', () => {
+    const update = {
+      type: 'BOOKMARK',
+      object: { apiVersion: 'v1', kind: 'MockKubeObject', metadata: { resourceVersion: '9' } },
+    } as any;
+
+    const updatedList = KubeList.applyUpdate(initialList, update, itemClass, cluster);
+
+    expect(updatedList.metadata.resourceVersion).toBe('9');
+    expect(updatedList.items).toEqual(initialList.items);
+  });
+
+  it('should ignore a BOOKMARK event with no resource version', () => {
+    const update = {
+      type: 'BOOKMARK',
+      object: { apiVersion: 'v1', kind: 'MockKubeObject', metadata: {} },
+    } as any;
+
+    expect(KubeList.applyUpdate(initialList, update, itemClass, cluster)).toBe(initialList);
+  });
+
+  it('should keep the list resource version when an event carries an empty one', () => {
+    const update = {
+      type: 'ADDED',
+      object: {
+        apiVersion: 'v1',
+        kind: 'MockKubeObject',
+        metadata: { uid: '2', resourceVersion: '' },
+      },
+    } as any;
+
+    const updatedList = KubeList.applyUpdate(initialList, update, itemClass, cluster);
+
+    expect(updatedList.metadata.resourceVersion).toBe('1');
+    expect(updatedList.items).toHaveLength(2);
+  });
+
   it('should log an error on unknown event type', () => {
     const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const updateEvent: KubeListUpdateEvent<MockKubeObject> = {

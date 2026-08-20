@@ -345,6 +345,73 @@ describe('useWatchKubeObjectLists', () => {
     ).toBe(objectB);
   });
 
+  it('should log and invalidate on an Expired ERROR message', () => {
+    const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const endpoint = { version: 'v1', resource: 'pods' };
+    const lists = [{ cluster: 'default', resourceVersion: '5', namespace: 'a' }];
+    const key = kubeObjectListQuery(mockClass, endpoint, 'a', 'default', {}).queryKey;
+
+    queryClient.setQueryData(key, {
+      list: { items: [], metadata: { resourceVersion: '5' } },
+      cluster: 'default',
+    });
+
+    renderHook(() => useWatchKubeObjectLists({ kubeObjectClass: mockClass, lists, endpoint }), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+
+    const update = {
+      type: 'ERROR',
+      object: { kind: 'Status', reason: 'Expired', code: 410, metadata: {} },
+    };
+    useWebSocketSpy.mock.calls[0][0].connections[0].onMessage(update);
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error in update', update);
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: key });
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('should report a non-expired ERROR message without invalidating', () => {
+    const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const endpoint = { version: 'v1', resource: 'pods' };
+    const lists = [{ cluster: 'default', resourceVersion: '5', namespace: 'a' }];
+    const key = kubeObjectListQuery(mockClass, endpoint, 'a', 'default', {}).queryKey;
+
+    queryClient.setQueryData(key, {
+      list: { items: [], metadata: { resourceVersion: '5' } },
+      cluster: 'default',
+    });
+
+    renderHook(() => useWatchKubeObjectLists({ kubeObjectClass: mockClass, lists, endpoint }), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+
+    const update = {
+      type: 'ERROR',
+      object: { kind: 'Status', reason: 'Forbidden', code: 403, metadata: {} },
+    };
+    useWebSocketSpy.mock.calls[0][0].connections[0].onMessage(update);
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error in update', update);
+    expect(invalidateSpy).not.toHaveBeenCalled();
+    expect((queryClient.getQueryData(key) as ListResponse<any>).list.metadata.resourceVersion).toBe(
+      '5'
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
   it('should not call WebSocketManager.subscribe when multiplexer is disabled', () => {
     renderHook(
       () =>
@@ -1232,6 +1299,64 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     );
 
     expect(spy).toHaveBeenCalledWith({ enabled: false, connections: [] });
+  });
+
+  it('should resubscribe from a refreshed cursor after an Expired ERROR message', async () => {
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const queryClient = new QueryClient();
+    mockClusterFetch
+      .mockResolvedValueOnce({
+        json: () =>
+          Promise.resolve(
+            makeListResponse({ items: [makePod('pod-1', '5')], resourceVersion: '5' })
+          ),
+      } as Response)
+      .mockResolvedValue({
+        json: () =>
+          Promise.resolve(
+            makeListResponse({ items: [makePod('pod-2', '9')], resourceVersion: '9' })
+          ),
+      } as Response);
+
+    renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [{ cluster: 'default' }],
+        }),
+      { wrapper: queryClientWrapper(queryClient) }
+    );
+
+    await waitFor(() =>
+      expect(
+        mockSubscribe.mock.calls.some(([, , query]) => query === 'watch=1&resourceVersion=5')
+      ).toBe(true)
+    );
+
+    const onUpdate = mockSubscribe.mock.calls[0][3];
+    const update = {
+      type: 'ERROR',
+      object: { kind: 'Status', reason: 'Expired', code: 410, metadata: {} },
+    };
+
+    await act(async () => {
+      onUpdate(update);
+    });
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error in update', update);
+
+    await waitFor(() =>
+      expect(
+        mockSubscribe.mock.calls.some(
+          ([cluster, pathname, query]) =>
+            cluster === 'default' &&
+            pathname === '/api/v1/pods' &&
+            query === 'watch=1&resourceVersion=9'
+        )
+      ).toBe(true)
+    );
+
+    consoleErrorSpy.mockRestore();
   });
 
   it('should omit pagination query params after loading all pages', async () => {
