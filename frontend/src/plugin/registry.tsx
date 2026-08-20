@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { type Breakpoints, useTheme } from '@mui/material/styles';
+import useMediaQuery from '@mui/material/useMediaQuery';
 import { has } from 'lodash';
 import React, { ReactNode } from 'react';
 import { AppLogoProps, AppLogoType } from '../components/App/AppLogo';
@@ -1371,6 +1373,50 @@ export function registerResourceRelationProvider(relation: Relation) {
     return;
   }
   store.dispatch(graphViewSlice.actions.addRelation(relation));
+}
+
+export interface LayoutBreakpoints {
+  /** Theme breakpoint pixel values (xs, sm, md, lg, xl) */
+  values: Breakpoints['values'];
+  /** Whether screen size is extra small (< sm) */
+  isXs: boolean;
+  /** Whether screen size is small (>= sm and < md) */
+  isSm: boolean;
+  /** Whether screen size is medium (>= md and < lg) */
+  isMd: boolean;
+  /** Whether screen size is large (>= lg and < xl) */
+  isLg: boolean;
+  /** Whether screen size is extra large (>= xl) */
+  isXl: boolean;
+  /** Convenience boolean indicating mobile view (< sm) */
+  isMobile: boolean;
+  /** Convenience boolean indicating tablet view (>= sm and < md) */
+  isTablet: boolean;
+}
+
+/**
+ * Utility hook that exposes the unified layout breakpoints system to custom plugins.
+ */
+export function useLayoutBreakpoints(): LayoutBreakpoints {
+  const theme = useTheme();
+  const isXs = useMediaQuery(theme.breakpoints.only('xs'));
+  const isSm = useMediaQuery(theme.breakpoints.only('sm'));
+  const isMd = useMediaQuery(theme.breakpoints.only('md'));
+  const isLg = useMediaQuery(theme.breakpoints.only('lg'));
+  const isXl = useMediaQuery(theme.breakpoints.up('xl'));
+  const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
+  const isTablet = useMediaQuery(theme.breakpoints.between('sm', 'md'));
+
+  return {
+    values: theme.breakpoints.values,
+    isXs,
+    isSm,
+    isMd,
+    isLg,
+    isXl,
+    isMobile,
+    isTablet,
+  };
 }
 
 export {

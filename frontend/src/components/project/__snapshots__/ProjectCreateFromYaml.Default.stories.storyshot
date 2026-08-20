@@ -16,7 +16,7 @@
             class="MuiGrid-root MuiGrid-container MuiGrid-spacing-xs-4 css-480o17-MuiGrid-root"
           >
             <div
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-3 css-15dcrri-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-3 css-1equabv-MuiGrid-root"
             >
               <p
                 class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
@@ -30,7 +30,7 @@
               </p>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-9 css-3vdko4-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-9 css-1qpzhgb-MuiGrid-root"
             >
               <div
                 class="MuiFormControl-root MuiTextField-root css-xbp7s-MuiFormControl-root-MuiTextField-root"
@@ -80,7 +80,7 @@
               </div>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-3 css-15dcrri-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-3 css-1equabv-MuiGrid-root"
             >
               <p
                 class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
@@ -94,7 +94,7 @@
               </p>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-9 css-3vdko4-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-9 css-1qpzhgb-MuiGrid-root"
             >
               <div
                 class="MuiAutocomplete-root MuiAutocomplete-hasPopupIcon css-ka7ti6-MuiAutocomplete-root"
@@ -178,7 +178,7 @@
               </div>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-3 css-15dcrri-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-3 css-1equabv-MuiGrid-root"
             >
               <p
                 class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
@@ -192,7 +192,7 @@
               </p>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-9 css-3vdko4-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-9 css-1qpzhgb-MuiGrid-root"
             >
               <div
                 class="MuiBox-root css-8atqhb"

@@ -46,12 +46,13 @@ export const drawerWidthClosed = 64;
 export { DefaultSidebars };
 
 export function useSidebarInfo() {
+  const theme = useTheme();
   const isSidebarOpen = useTypedSelector(state => state.sidebar.isSidebarOpen);
   const isSidebarOpenUserSelected = useTypedSelector(
     state => state.sidebar.isSidebarOpenUserSelected
   );
-  const isTemporary = useMediaQuery('(max-width:599px)');
-  const isNarrowOnly = useMediaQuery('(max-width:960px) and (min-width:600px)');
+  const isTemporary = useMediaQuery(theme.breakpoints.down('sm'));
+  const isNarrowOnly = useMediaQuery(theme.breakpoints.between('sm', 'md'));
   const temporarySideBarOpen =
     isSidebarOpen === true && isTemporary && isSidebarOpenUserSelected === true;
 
