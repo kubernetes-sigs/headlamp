@@ -15,11 +15,12 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { SnackbarProvider } from 'notistack';
 import { ComponentType, ReactNode } from 'react';
-import { MemoryRouter } from 'react-router-dom';
+import { MemoryRouter, useLocation } from 'react-router-dom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
+import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
 import { Cluster } from '../../../lib/k8s/cluster';
 import { createMuiTheme } from '../../../lib/themes';
 import ClusterContextMenu from './ClusterContextMenu';
@@ -27,9 +28,14 @@ import ClusterTable from './ClusterTable';
 
 const theme = createMuiTheme({ name: 'light', base: 'light' });
 let ClusterEmptyState: ComponentType<{ defaultContent: ReactNode }> | null = null;
+const { dispatchMock } = vi.hoisted(() => ({ dispatchMock: vi.fn() }));
 
 function renderWithTheme(ui: ReactNode) {
   return render(<ThemeProvider theme={theme}>{ui}</ThemeProvider>);
+}
+
+function LocationDisplay() {
+  return <div data-testid="location">{useLocation().pathname}</div>;
 }
 
 vi.mock('react-i18next', async importOriginal => {
@@ -43,7 +49,11 @@ vi.mock('react-i18next', async importOriginal => {
 });
 
 vi.mock('react-redux', () => ({
-  useDispatch: () => vi.fn(),
+  useDispatch: () => dispatchMock,
+}));
+
+vi.mock('../../../lib/k8s/api/v1/clusterApi', () => ({
+  deleteCluster: vi.fn(),
 }));
 
 vi.mock('../../../helpers', () => ({
@@ -421,6 +431,77 @@ describe('ClusterTable', () => {
 });
 
 describe('ClusterContextMenu', () => {
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('updates the config before notifying the page after deleting a cluster', async () => {
+    vi.mocked(deleteCluster).mockResolvedValue({} as Awaited<ReturnType<typeof deleteCluster>>);
+    const onClusterRemoved = vi.fn();
+
+    render(
+      <SnackbarProvider>
+        <MemoryRouter>
+          <ClusterContextMenu
+            onClusterRemoved={onClusterRemoved}
+            cluster={
+              {
+                name: 'spoke-a',
+                auth_type: '',
+                meta_data: {
+                  source: 'kubeconfig',
+                },
+              } as Cluster
+            }
+          />
+        </MemoryRouter>
+      </SnackbarProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    fireEvent.click(screen.getByText('Delete'));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    await waitFor(() => expect(onClusterRemoved).toHaveBeenCalledOnce());
+    expect(dispatchMock).toHaveBeenCalledOnce();
+    expect(dispatchMock.mock.invocationCallOrder[0]).toBeLessThan(
+      onClusterRemoved.mock.invocationCallOrder[0]
+    );
+  });
+
+  it('keeps the page open when deleting a cluster fails', async () => {
+    vi.mocked(deleteCluster).mockRejectedValue(new Error('request failed'));
+    const onClusterRemoved = vi.fn();
+
+    render(
+      <SnackbarProvider>
+        <MemoryRouter initialEntries={['/c/spoke-a']}>
+          <ClusterContextMenu
+            onClusterRemoved={onClusterRemoved}
+            cluster={
+              {
+                name: 'spoke-a',
+                auth_type: '',
+                meta_data: {
+                  source: 'dynamic_cluster',
+                },
+              } as Cluster
+            }
+          />
+          <LocationDisplay />
+        </MemoryRouter>
+      </SnackbarProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    fireEvent.click(screen.getByText('Delete'));
+    fireEvent.click(screen.getByRole('button', { name: 'Delete' }));
+
+    expect(await screen.findByRole('alert')).toHaveTextContent('Failed to delete cluster');
+    expect(onClusterRemoved).not.toHaveBeenCalled();
+    expect(screen.getByTestId('location')).toHaveTextContent('/c/spoke-a');
+  });
+
   it('does not show delete actions for Cluster Inventory clusters', () => {
     render(
       <SnackbarProvider>

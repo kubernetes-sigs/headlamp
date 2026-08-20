@@ -68,6 +68,7 @@ import (
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -145,6 +146,8 @@ const (
 	serverReadHeaderTimeout = 10 * time.Second
 	// serverIdleTimeout is the maximum time to wait for the next request on a keep-alive connection.
 	serverIdleTimeout = 120 * time.Second
+	// serviceAccountNamespacePath contains the namespace of an in-cluster pod.
+	serviceAccountNamespacePath = "/var/run/secrets/kubernetes.io/serviceaccount/namespace"
 )
 
 // maxProxyResponseSize is the maximum size (in bytes) for proxied responses.
@@ -331,8 +334,8 @@ func serveWithNoCacheHeader(fs http.Handler) http.HandlerFunc {
 	}
 }
 
-func defaultHeadlampKubeConfigFile() (string, error) {
-	return cfg.DefaultHeadlampKubeConfigFile()
+func defaultHeadlampKubeConfigFile(kubeConfigDir string) (string, error) {
+	return cfg.DefaultKubeConfigFile(kubeConfigDir)
 }
 
 // addPluginRoutes adds plugin routes to a router.
@@ -374,6 +377,10 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 	if config.StaticPluginDir != "" {
 		staticPluginsHandler := http.StripPrefix(config.BaseURL+"/static-plugins/",
 			spa.BrotliSidecars(config.StaticPluginDir, http.FileServer(http.Dir(config.StaticPluginDir))))
+		if !config.UseInCluster {
+			staticPluginsHandler = serveWithNoCacheHeader(staticPluginsHandler)
+		}
+
 		r.PathPrefix("/static-plugins/").Handler(staticPluginsHandler)
 	}
 }
@@ -497,29 +504,57 @@ func addPluginListRoute(config *HeadlampConfig, r *mux.Router) {
 	}).Methods("GET")
 }
 
+func readServiceAccountNamespace() (string, error) {
+	data, err := os.ReadFile(serviceAccountNamespacePath)
+	if err != nil {
+		return "", fmt.Errorf("read service account namespace: %w", err)
+	}
+
+	return validateServiceAccountNamespace(data)
+}
+
+func validateServiceAccountNamespace(data []byte) (string, error) {
+	namespace := strings.TrimSpace(string(data))
+	if errs := validation.IsDNS1123Label(namespace); len(errs) > 0 {
+		return "", fmt.Errorf("invalid service account namespace %q: %s", namespace, strings.Join(errs, "; "))
+	}
+
+	return namespace, nil
+}
+
 func startClusterInventory(ctx context.Context, config *HeadlampConfig) error {
 	if !config.EnableClusterInventory {
 		return nil
 	}
 
-	var hubConfig *rest.Config
+	var (
+		hubConfig    *rest.Config
+		hubNamespace string
+	)
 
 	if config.UseInCluster {
-		inClusterConfig, err := rest.InClusterConfig()
+		var err error
+
+		hubConfig, err = rest.InClusterConfig()
 		if err != nil {
 			return fmt.Errorf("get in-cluster config for cluster inventory: %w", err)
 		}
 
-		hubConfig = inClusterConfig
+		hubNamespace, err = readServiceAccountNamespace()
+		if err != nil {
+			return fmt.Errorf("get pod namespace for cluster inventory: %w", err)
+		}
 	}
 
 	runner, err := clusterinventory.NewRunner(clusterinventory.Options{
 		Store:                 config.KubeConfigStore,
 		ProviderFile:          config.ClusterInventoryProviderFile,
 		LabelSelector:         config.ClusterInventoryLabelSelector,
+		Namespaces:            config.ClusterInventoryNamespaces,
 		RootReconcileInterval: config.ClusterInventoryRootReconcileInterval,
 		NoCRDCacheTTL:         config.ClusterInventoryNoCRDCacheTTL,
 		HubConfig:             hubConfig,
+		HubNamespace:          hubNamespace,
 		DiscoverFromStore:     !config.UseInCluster,
 	})
 	if err != nil {
@@ -714,7 +749,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	}
 
 	// load dynamic clusters
-	kubeConfigPersistenceFile, err := defaultHeadlampKubeConfigFile()
+	kubeConfigPersistenceFile, err := defaultHeadlampKubeConfigFile(config.KubeConfigDir)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "getting default kubeconfig persistence file")
 	} else {
@@ -725,24 +760,49 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	// Setup port forwarding handlers.
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
+		contextKey, err := config.getContextKeyForRequest(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
 		portforward.StartPortForward(
 			config.KubeConfigStore,
 			config.Cache,
 			config.shouldUseUnsafeServiceAccountToken(),
+			contextKey,
 			w,
 			r,
 		)
 	}).Methods("POST")
 
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
-		portforward.StopOrDeletePortForward(config.Cache, w, r)
+		contextKey, err := config.getContextKeyForRequest(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		portforward.StopOrDeletePortForward(config.Cache, contextKey, w, r)
 	}).Methods("DELETE")
 
 	r.HandleFunc("/clusters/{clusterName}/portforward/list", func(w http.ResponseWriter, r *http.Request) {
-		portforward.GetPortForwards(config.Cache, w, r)
+		contextKey, err := config.getContextKeyForRequest(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		portforward.GetPortForwards(config.Cache, contextKey, w, r)
 	})
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
-		portforward.GetPortForwardByID(config.Cache, w, r)
+		contextKey, err := config.getContextKeyForRequest(r)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusBadRequest)
+			return
+		}
+
+		portforward.GetPortForwardByID(config.Cache, contextKey, w, r)
 	}).Methods("GET")
 
 	// Expose user info so the frontend can show the current user in the top bar using the per-cluster auth cookie.
@@ -1226,6 +1286,30 @@ func (c *HeadlampConfig) shouldUseUnsafeServiceAccountToken() bool {
 
 func (c *HeadlampConfig) shouldUseUnsafeServiceAccountTokenForContext(kContext *kubeconfig.Context) bool {
 	return c.shouldUseUnsafeServiceAccountToken() && kContext.UsesInClusterServiceAccountToken()
+}
+
+// getContextWithWebSocketFallback returns the requested context, falling back to the cluster
+// context when a WebSocket request references a missing user-specific context.
+func (c *HeadlampConfig) getContextWithWebSocketFallback(
+	r *http.Request,
+	contextKey string,
+) (string, *kubeconfig.Context, error) {
+	kContext, err := c.KubeConfigStore.GetContext(contextKey)
+	if err == nil {
+		return contextKey, kContext, nil
+	}
+
+	clusterName := mux.Vars(r)["clusterName"]
+	if strings.EqualFold(r.Header.Get("Upgrade"), "websocket") &&
+		contextKey != clusterName &&
+		errors.Is(err, cache.ErrNotFound) {
+		kContext, fallbackErr := c.KubeConfigStore.GetContext(clusterName)
+		if fallbackErr == nil {
+			return clusterName, kContext, nil
+		}
+	}
+
+	return contextKey, nil, err
 }
 
 func tokenFromCookie(r *http.Request, clusterName string) string {
@@ -1854,7 +1938,7 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 			return
 		}
 
-		kContext, err := c.KubeConfigStore.GetContext(contextKey)
+		contextKey, kContext, err := c.getContextWithWebSocketFallback(r, contextKey)
 		if err != nil {
 			c.handleError(w, ctx, span, err, "failed to get context", http.StatusNotFound)
 			return
@@ -2390,7 +2474,7 @@ func (c *HeadlampConfig) writeKubeConfig(kubeConfigBase64 string) error {
 		return fmt.Errorf("loading kubeconfig: %w", err)
 	}
 
-	kubeConfigPersistenceDir, err := cfg.MakeHeadlampKubeConfigsDir()
+	kubeConfigPersistenceDir, err := cfg.MakeKubeConfigsDir(c.KubeConfigDir)
 	if err != nil {
 		return fmt.Errorf("getting default kubeconfig persistence dir: %w", err)
 	}
@@ -2501,7 +2585,7 @@ func (c *HeadlampConfig) getKubeConfigPath(source string) (string, error) {
 		return c.KubeConfigPath, nil
 	}
 
-	return defaultHeadlampKubeConfigFile()
+	return defaultHeadlampKubeConfigFile(c.KubeConfigDir)
 }
 
 // Handler for renaming a stateless cluster.

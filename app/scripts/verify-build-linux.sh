@@ -19,6 +19,11 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 APP_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 DIST_DIR="$APP_DIR/dist"
+APP_EXECUTABLE_NAME=$(node -e "const path=require('path'); const d=process.argv[1]; const p=require(path.join(d, 'package.json')); const {derivePackageVerificationName}=require(path.join(d, 'scripts/package-verification-name.ts')); process.stdout.write(derivePackageVerificationName(p, 'linux'))" "$APP_DIR")
+if [ -z "$APP_EXECUTABLE_NAME" ]; then
+  echo "✗ Could not derive the app executable name"
+  exit 1
+fi
 
 echo "=== Verifying Linux Build Artifacts ==="
 echo ""
@@ -65,27 +70,39 @@ if [ ! -z "$TARBALL" ]; then
     exit 1
   fi
   echo "Backend version: $VERSION_OUTPUT"
-  if echo "$VERSION_OUTPUT" | grep -q "Headlamp"; then
-    echo "✓ Backend binary is working"
-  else
-    echo "✗ Backend version check failed"
+  if [ -z "$VERSION_OUTPUT" ]; then
+    echo "✗ Backend produced no version output"
     rm -rf "$EXTRACT_DIR"
     exit 1
   fi
+  echo "✓ Backend binary is working"
   echo ""
   
   # Step 3: Verify Electron app can run
   echo "=== Verifying Electron App ==="
   echo "Reusing extracted files for app testing..."
   
-  # Find the headlamp executable
-  HEADLAMP_EXEC=$(find "$EXTRACT_DIR" -name "headlamp" -type f -executable | head -n 1)
+  # Find the Electron executable
+  HEADLAMP_EXEC=$(find "$EXTRACT_DIR" -name "$APP_EXECUTABLE_NAME" -type f -executable | head -n 1)
   if [ -z "$HEADLAMP_EXEC" ]; then
-    echo "✗ Headlamp executable not found"
+    echo "✗ $APP_EXECUTABLE_NAME executable not found"
     rm -rf "$EXTRACT_DIR"
     exit 1
   fi
-  echo "Found Headlamp at: $HEADLAMP_EXEC"
+  HEADLAMP_EXEC=$(readlink -f "$HEADLAMP_EXEC")
+
+  find_electron_pids() {
+    local process
+    local executable
+    for process in /proc/[0-9]*; do
+      executable=$(readlink -f "$process/exe" 2>/dev/null || true)
+      if [ "$executable" = "$HEADLAMP_EXEC" ]; then
+        basename "$process"
+      fi
+    done
+  }
+
+  echo "Found $APP_EXECUTABLE_NAME at: $HEADLAMP_EXEC"
   
   # Create unique temporary file for output
   OUTPUT_FILE=$(mktemp)
@@ -116,9 +133,9 @@ if [ ! -z "$TARBALL" ]; then
   # Step 4: Verify headlamp-server is cleaned up when app closes
   echo "=== Verifying Server Cleanup After App Close ==="
 
-  # Record existing headlamp-server and headlamp PIDs to exclude them
+  # Record existing backend and Electron PIDs to exclude them
   EXISTING_SERVER_PIDS=$(pgrep -f headlamp-server 2>/dev/null || true)
-  EXISTING_HEADLAMP_PIDS=$(pgrep -x headlamp 2>/dev/null || true)
+  EXISTING_HEADLAMP_PIDS=$(find_electron_pids)
 
   # Start the app in the background (needs a virtual display on headless CI)
   if command -v xvfb-run &>/dev/null; then
@@ -153,7 +170,7 @@ if [ ! -z "$TARBALL" ]; then
     echo "⚠ headlamp-server did not start within 30 seconds, skipping cleanup test"
     # Kill the wrapper and any headlamp (Electron) processes we spawned
     kill -TERM "$WRAPPER_PID" 2>/dev/null || true
-    ALL_HEADLAMP_PIDS=$(pgrep -x headlamp 2>/dev/null || true)
+    ALL_HEADLAMP_PIDS=$(find_electron_pids)
     for pid in $ALL_HEADLAMP_PIDS; do
       if [ -z "$EXISTING_HEADLAMP_PIDS" ] || ! echo "$EXISTING_HEADLAMP_PIDS" | grep -qw "$pid"; then
         kill -TERM "$pid" 2>/dev/null || true
@@ -169,11 +186,11 @@ if [ ! -z "$TARBALL" ]; then
       fi
     done
   else
-    # Find the actual headlamp (Electron) PID — when launched via xvfb-run,
+    # Find the actual Electron PID — when launched via xvfb-run,
     # $WRAPPER_PID is the wrapper, not the Electron process. We need to SIGTERM
     # the Electron process directly so its quit handler fires.
     ELECTRON_PID=""
-    ALL_HEADLAMP_PIDS=$(pgrep -x headlamp 2>/dev/null || true)
+    ALL_HEADLAMP_PIDS=$(find_electron_pids)
     for pid in $ALL_HEADLAMP_PIDS; do
       if [ -z "$EXISTING_HEADLAMP_PIDS" ] || ! echo "$EXISTING_HEADLAMP_PIDS" | grep -qw "$pid"; then
         ELECTRON_PID="$pid"

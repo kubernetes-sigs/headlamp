@@ -42,6 +42,17 @@ vi.mock('../../../lib/k8s', () => ({
   useClustersConf: () => mockState.clustersConf,
 }));
 
+// Stub the selector resolver so the test does not pull in the real k8s model
+// graph (Namespace -> KubeObject -> ...), matching how lib/k8s is mocked above.
+vi.mock('../../../lib/k8s/allowedNamespaces', () => ({
+  useAllowedNamespacesFromSelector: () => ({
+    namespaces: [],
+    isFetching: false,
+    isSuccess: false,
+    error: null,
+  }),
+}));
+
 vi.mock('../../../lib/k8s/api/v1/clusterApi', () => ({ deleteCluster: mockDeleteCluster }));
 vi.mock('../../common/ConfirmButton', () => ({
   default: ({ children, onConfirm }: { children: React.ReactNode; onConfirm: () => void }) => (

@@ -45,6 +45,7 @@ import (
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/portforward"
 	"k8s.io/client-go/transport/spdy"
+	streamhttp "k8s.io/streaming/pkg/httpstream"
 )
 
 const (
@@ -139,6 +140,7 @@ func getFreePort() (int, error) {
 //nolint:funlen
 func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache[interface{}],
 	unsafeUseServiceAccountToken bool,
+	contextKey string,
 	w http.ResponseWriter, r *http.Request,
 ) {
 	var p portForwardRequest
@@ -154,20 +156,14 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		p.ID = uuid.New().String()
 	}
 
-	userID := r.Header.Get("X-HEADLAMP-USER-ID")
 	requestClusterName := mux.Vars(r)["clusterName"]
-	clusterName := requestClusterName
-
-	if userID != "" {
-		clusterName += userID
-	}
 
 	// Ensure we don't orphan an existing port-forward by overwriting its cache entry.
 	// This check happens before any resource allocation or blocking code so duplicates short-circuit
 	// deterministically and avoid unnecessary listener churn.
-	if existingPF, err := getPortForwardByID(cache, clusterName, p.ID); err == nil && existingPF.Status == RUNNING {
+	if existingPF, err := getPortForwardByID(cache, contextKey, p.ID); err == nil && existingPF.Status == RUNNING {
 		//nolint:goconst
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName, "id": p.ID},
+		logger.Log(logger.LevelError, map[string]string{"cluster": contextKey, "id": p.ID},
 			nil, "portforward ID already exists")
 		http.Error(w, "portforward with this ID is already running", http.StatusConflict)
 
@@ -175,9 +171,9 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 	}
 
 	// Reject duplicates before any resource-consuming work (port alloc, kubeconfig lookup).
-	inFlightKey := strings.Join([]string{requestClusterName, userID, p.ID}, "\x00")
+	inFlightKey := strings.Join([]string{contextKey, p.ID}, "\x00")
 	if _, loaded := inFlightPortForwards.LoadOrStore(inFlightKey, struct{}{}); loaded {
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName, "id": p.ID},
+		logger.Log(logger.LevelError, map[string]string{"cluster": contextKey, "id": p.ID},
 			nil, "portforward ID is already starting")
 		http.Error(w, "portforward with this ID is already starting", http.StatusConflict)
 
@@ -205,9 +201,9 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		p.Port = strconv.Itoa(freePort)
 	}
 
-	kContext, err := kubeConfigStore.GetContext(clusterName)
+	kContext, err := kubeConfigStore.GetContext(contextKey)
 	if err != nil {
-		logger.Log(logger.LevelError, map[string]string{"cluster": clusterName},
+		logger.Log(logger.LevelError, map[string]string{"cluster": contextKey},
 			err, "getting kubeconfig context")
 
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -220,7 +216,7 @@ func StartPortForward(kubeConfigStore kubeconfig.ContextStore, cache cache.Cache
 		token, _ = auth.GetTokenFromCookie(r, requestClusterName)
 	}
 
-	err = startPortForward(kContext, cache, p, token, clusterName, requestClusterName)
+	err = startPortForward(kContext, cache, p, token, contextKey, requestClusterName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "starting portforward")
 
@@ -298,15 +294,16 @@ func getKubeClientAndConfig(kContext *kubeconfig.Context, token string) (*kubern
 }
 
 // buildPortForwardDialer returns a dialer that performs the port-forward
-// upgrade. It tries WebSocket first (matching kubectl since v1.31) and falls
-// back to SPDY/3.1 over POST when WebSocket negotiation fails — the WebSocket
-// path is also required when the cluster is fronted by a reverse proxy (e.g.
-// Warpgate) that propagates WebSocket upgrades but drops SPDY upgrade headers.
+// upgrade. Direct API endpoints use SPDY, while path-routed proxies try
+// WebSocket first because proxies such as Warpgate can drop SPDY headers.
 func buildPortForwardDialer(
 	rConf *rest.Config, fullURL *url.URL,
 	upgrader spdy.Upgrader, roundTripper http.RoundTripper,
 ) httpstream.Dialer {
 	spdyDialer := spdy.NewDialer(upgrader, &http.Client{Transport: roundTripper}, http.MethodPost, fullURL)
+	if strings.HasPrefix(fullURL.Path, "/api/") {
+		return spdyDialer
+	}
 
 	tunnelingDialer, err := portforward.NewSPDYOverWebsocketDialer(fullURL, rConf)
 	if err != nil {
@@ -315,9 +312,13 @@ func buildPortForwardDialer(
 		return spdyDialer
 	}
 
-	return portforward.NewFallbackDialer(tunnelingDialer, spdyDialer, func(err error) bool {
-		return httpstream.IsUpgradeFailure(err) || httpstream.IsHTTPSProxyError(err)
-	})
+	return portforward.NewFallbackDialer(tunnelingDialer, spdyDialer, shouldFallbackToSPDY)
+}
+
+func shouldFallbackToSPDY(err error) bool {
+	return httpstream.IsUpgradeFailure(err) ||
+		streamhttp.IsUpgradeFailure(err) ||
+		httpstream.IsHTTPSProxyError(err)
 }
 
 // buildPortForwardURL constructs the upstream port-forward URL for a pod,
@@ -327,7 +328,7 @@ func buildPortForwardDialer(
 // `hostURL.ResolveReference(&url.URL{Path: …})` cannot be used here because
 // `ResolveReference` replaces the host path when the reference path is
 // absolute, dropping the prefix.
-func buildPortForwardURL(host, namespace, podName string) (*url.URL, error) {
+func buildPortForwardURL(host, namespace, podName, targetPort string) (*url.URL, error) {
 	hostURL, err := url.Parse(host)
 	if err != nil {
 		return nil, fmt.Errorf("invalid REST config host: %w", err)
@@ -351,6 +352,11 @@ func buildPortForwardURL(host, namespace, podName string) (*url.URL, error) {
 
 	prefix := strings.TrimSuffix(hostURL.Path, "/")
 	hostURL.Path = fmt.Sprintf("%s/api/v1/namespaces/%s/pods/%s/portforward", prefix, namespace, podName)
+	query := hostURL.Query()
+	// The API server decodes PodPortForwardOptions.ports and forwards each value
+	// to the kubelet's singular port query parameter.
+	query.Set("ports", targetPort)
+	hostURL.RawQuery = query.Encode()
 
 	return hostURL, nil
 }
@@ -358,7 +364,7 @@ func buildPortForwardURL(host, namespace, podName string) (*url.URL, error) {
 // initPortForwarder sets up the SPDY dialer and creates a new port forwarder.
 // It requires a REST config, namespace, pod name, and the port mapping string (e.g., "8080:80").
 // It returns the port forwarder instance, stop/ready channels, output/error buffers, or an error.
-func initPortForwarder(rConf *rest.Config, namespace, podName, portMapping string) (
+func initPortForwarder(rConf *rest.Config, namespace, podName, portMapping, targetPort string) (
 	*portforward.PortForwarder, chan struct{}, chan struct{}, *bytes.Buffer, *bytes.Buffer, error,
 ) {
 	roundTripper, upgrader, err := spdy.RoundTripperFor(rConf)
@@ -366,15 +372,12 @@ func initPortForwarder(rConf *rest.Config, namespace, podName, portMapping strin
 		return nil, nil, nil, nil, nil, fmt.Errorf("failed to create SPDY round tripper: %w", err)
 	}
 
-	fullURL, err := buildPortForwardURL(rConf.Host, namespace, podName)
+	fullURL, err := buildPortForwardURL(rConf.Host, namespace, podName, targetPort)
 	if err != nil {
 		return nil, nil, nil, nil, nil, err
 	}
 
-	// Try WebSocket-based port-forward first, fall back to SPDY/3.1 over POST.
-	// This mirrors `kubectl port-forward` behavior since v1.31 and is required
-	// for clusters fronted by reverse proxies (e.g. Warpgate) that handle WS
-	// upgrades but drop SPDY upgrade headers.
+	// Path-routed proxies use WebSocket first; direct API endpoints use SPDY.
 	dialer := buildPortForwardDialer(rConf, fullURL, upgrader, roundTripper)
 
 	stopChan, readyChan := make(chan struct{}), make(chan struct{}, 1)
@@ -644,7 +647,7 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 	)
 
 	forwarder, stopChan, readyChan, outBuffer, errOut, errInit = initPortForwarder(
-		rConf, p.Namespace, p.Pod, portMapping,
+		rConf, p.Namespace, p.Pod, portMapping, p.TargetPort,
 	)
 	if errInit != nil {
 		return fmt.Errorf("failed to initialize port forwarder: %w", errInit)
@@ -701,7 +704,9 @@ func (r *stopOrDeletePortForwardRequest) Validate() error {
 }
 
 // StopOrDeletePortForward handles stop or delete port forward request.
-func StopOrDeletePortForward(cache cache.Cache[interface{}], w http.ResponseWriter, r *http.Request) {
+func StopOrDeletePortForward(cache cache.Cache[interface{}], contextKey string,
+	w http.ResponseWriter, r *http.Request,
+) {
 	var p stopOrDeletePortForwardRequest
 
 	err := json.NewDecoder(r.Body).Decode(&p)
@@ -719,14 +724,7 @@ func StopOrDeletePortForward(cache cache.Cache[interface{}], w http.ResponseWrit
 		return
 	}
 
-	userID := r.Header.Get("X-HEADLAMP-USER-ID")
-	clusterName := mux.Vars(r)["clusterName"]
-
-	if userID != "" {
-		clusterName += userID
-	}
-
-	err = stopOrDeletePortForward(cache, clusterName, p.ID, p.StopOrDelete)
+	err = stopOrDeletePortForward(cache, contextKey, p.ID, p.StopOrDelete)
 	if err == nil {
 		if _, err := w.Write([]byte("stopped")); err != nil {
 			logger.Log(logger.LevelError, nil, err, "writing response")
@@ -740,7 +738,9 @@ func StopOrDeletePortForward(cache cache.Cache[interface{}], w http.ResponseWrit
 }
 
 // GetPortForwards handles get port forwards request.
-func GetPortForwards(cache cache.Cache[interface{}], w http.ResponseWriter, r *http.Request) {
+func GetPortForwards(cache cache.Cache[interface{}], contextKey string,
+	w http.ResponseWriter, r *http.Request,
+) {
 	cluster := mux.Vars(r)["clusterName"]
 	if cluster == "" {
 		logger.Log(logger.LevelError, nil, errors.New("cluster is required"), "getting portforwards")
@@ -749,14 +749,7 @@ func GetPortForwards(cache cache.Cache[interface{}], w http.ResponseWriter, r *h
 		return
 	}
 
-	userID := r.Header.Get("X-HEADLAMP-USER-ID")
-	clusterName := cluster
-
-	if userID != "" {
-		clusterName = cluster + userID
-	}
-
-	ports := getPortForwardList(cache, clusterName)
+	ports := getPortForwardList(cache, contextKey)
 
 	w.Header().Set("Content-Type", "application/json")
 
@@ -769,7 +762,9 @@ func GetPortForwards(cache cache.Cache[interface{}], w http.ResponseWriter, r *h
 }
 
 // GetPortForwardByID handles get port forward by id request.
-func GetPortForwardByID(cache cache.Cache[interface{}], w http.ResponseWriter, r *http.Request) {
+func GetPortForwardByID(cache cache.Cache[interface{}], contextKey string,
+	w http.ResponseWriter, r *http.Request,
+) {
 	cluster := mux.Vars(r)["clusterName"]
 	if cluster == "" {
 		logger.Log(logger.LevelError, nil, errors.New("cluster is required"), "getting portforward by id")
@@ -786,14 +781,7 @@ func GetPortForwardByID(cache cache.Cache[interface{}], w http.ResponseWriter, r
 		return
 	}
 
-	userID := r.Header.Get("X-HEADLAMP-USER-ID")
-	clusterName := cluster
-
-	if userID != "" {
-		clusterName = cluster + userID
-	}
-
-	p, err := getPortForwardByID(cache, clusterName, id)
+	p, err := getPortForwardByID(cache, contextKey, id)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "getting portforward by id")
 		http.Error(w, "no portforward running with id "+id, http.StatusNotFound)
@@ -813,7 +801,7 @@ func GetPortForwardByID(cache cache.Cache[interface{}], w http.ResponseWriter, r
 		ID:        p.ID,
 		Pod:       p.Pod,
 		Namespace: p.Namespace,
-		Cluster:   p.Cluster,
+		Cluster:   cluster,
 		Service:   p.Service,
 	}
 
