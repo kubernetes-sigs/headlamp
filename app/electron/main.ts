@@ -47,6 +47,7 @@ import {
 } from './legal-documents';
 import { runListPluginsCommand } from './list-plugins';
 import MCPClient from './mcp/MCPClient';
+import { AppMenu, menusToTemplate } from './menu';
 import { filterUserOwnedPids } from './ownedProcesses';
 import {
   addToPath,
@@ -1143,7 +1144,12 @@ function setMenu(appWindow: BrowserWindow | null, newAppMenu: AppMenu[] = []) {
   let menu: Electron.Menu;
   try {
     const menuTemplate: (MenuItemConstructorOptions | MenuItem)[] =
-      menusToTemplate(appWindow, appMenu) || [];
+      menusToTemplate(appWindow, appMenu, loadFullMenu, {
+        openExternal: url => shell.openExternal(url),
+        openAboutDialog: () => appWindow?.webContents.send('open-about-dialog'),
+        adjustZoom,
+        setZoom,
+      }) || [];
     menu = Menu.buildFromTemplate(menuTemplate);
   } catch (e) {
     console.error(`Failed to build menus from template ${appMenu}:`, e);
@@ -1192,55 +1198,6 @@ function updateMenuLabels(menus: AppMenu[]) {
       menu.label = defaultMenusObj[menu.id].label;
     }
   });
-}
-
-export interface AppMenu extends Omit<Partial<MenuItemConstructorOptions>, 'click'> {
-  /** A URL to open (if not starting with http, then it'll be opened in the external browser) */
-  url?: string;
-  /** The submenus of this menu */
-  submenu?: AppMenu[];
-  /** A string identifying this menu */
-  id: string;
-  /** Whether to render this menu only after plugins are loaded (to give it time for the plugins
-   * to override the menu) */
-  afterPlugins?: boolean;
-}
-
-function menusToTemplate(mainWindow: BrowserWindow | null, menusFromPlugins: AppMenu[]) {
-  const menusToDisplay: MenuItemConstructorOptions[] = [];
-  menusFromPlugins.forEach(appMenu => {
-    const { url, afterPlugins = false, ...otherProps } = appMenu;
-    const menu: MenuItemConstructorOptions = otherProps;
-
-    if (!loadFullMenu && !!afterPlugins) {
-      return;
-    }
-
-    // Handle the "About" menu item from the Help menu specially
-    if (appMenu.id === 'original-about-help') {
-      menu.click = () => {
-        mainWindow?.webContents.send('open-about-dialog');
-      };
-    } else if (!!url) {
-      menu.click = async () => {
-        // Open external links in the external browser.
-        if (!!mainWindow && !url.startsWith('http')) {
-          mainWindow.webContents.loadURL(url);
-        } else {
-          await shell.openExternal(url);
-        }
-      };
-    }
-
-    // If the menu has a submenu, then recursively convert it.
-    if (Array.isArray(otherProps.submenu)) {
-      menu.submenu = menusToTemplate(mainWindow, otherProps.submenu);
-    }
-
-    menusToDisplay.push(menu);
-  });
-
-  return menusToDisplay;
 }
 
 async function getRunningHeadlampPIDs() {
