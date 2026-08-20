@@ -357,7 +357,7 @@ export default function Terminal(props: TerminalProps) {
 
       return function cleanup() {
         xtermRef.current?.xterm.dispose();
-        fitAddonRef.current?.dispose();
+        fitAddonRef.current?.dispose?.();
         execOrAttachRef.current?.cancel();
         execOrAttachRef.current = null;
         window.removeEventListener('resize', handler);
