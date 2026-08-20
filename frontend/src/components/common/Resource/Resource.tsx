@@ -672,7 +672,7 @@ export function ConditionsTable(props: ConditionsTableProps) {
   function getColumns() {
     const cols: {
       label: string;
-      getter: (arg: KubeCondition) => void;
+      getter: (arg: KubeCondition) => React.ReactNode;
       hide?: boolean;
     }[] = [
       {
