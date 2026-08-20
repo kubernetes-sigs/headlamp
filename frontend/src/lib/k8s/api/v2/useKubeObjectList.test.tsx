@@ -437,6 +437,103 @@ describe('useWatchKubeObjectLists', () => {
     ).toBe(objectB);
   });
 
+  it('should relist when the watch resource version expires', () => {
+    const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const endpoint = { version: 'v1', resource: 'pods' };
+    const lists = [{ cluster: 'default', resourceVersion: '5', namespace: 'a' }];
+    const key = kubeObjectListQuery(mockClass, endpoint, 'a', 'default', {}).queryKey;
+
+    queryClient.setQueryData(key, {
+      list: { items: [], metadata: { resourceVersion: '5' } },
+      cluster: 'default',
+    });
+
+    renderHook(() => useWatchKubeObjectLists({ kubeObjectClass: mockClass, lists, endpoint }), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+
+    const update = {
+      type: 'ERROR',
+      object: { kind: 'Status', reason: 'Expired', code: 410, metadata: {} },
+    };
+    useWebSocketSpy.mock.calls[0][0].connections[0].onMessage(update);
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: key });
+  });
+
+  it('should report a non-expired ERROR message without invalidating', () => {
+    const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+    const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const endpoint = { version: 'v1', resource: 'pods' };
+    const lists = [{ cluster: 'default', resourceVersion: '5', namespace: 'a' }];
+    const key = kubeObjectListQuery(mockClass, endpoint, 'a', 'default', {}).queryKey;
+
+    queryClient.setQueryData(key, {
+      list: { items: [], metadata: { resourceVersion: '5' } },
+      cluster: 'default',
+    });
+
+    renderHook(() => useWatchKubeObjectLists({ kubeObjectClass: mockClass, lists, endpoint }), {
+      wrapper: ({ children }) => (
+        <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+      ),
+    });
+
+    const update = {
+      type: 'ERROR',
+      object: { kind: 'Status', reason: 'Forbidden', code: 403, metadata: {} },
+    };
+    useWebSocketSpy.mock.calls[0][0].connections[0].onMessage(update);
+
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Error in update', update);
+    expect(invalidateSpy).not.toHaveBeenCalled();
+    expect((queryClient.getQueryData(key) as ListResponse<any>).list.metadata.resourceVersion).toBe(
+      '5'
+    );
+
+    consoleErrorSpy.mockRestore();
+  });
+
+  it.each([{ type: 'ERROR', object: null }, { type: 'ERROR' }])(
+    'should report an ERROR message without an object: %j',
+    update => {
+      const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+      const consoleErrorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const queryClient = new QueryClient();
+      const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+      const endpoint = { version: 'v1', resource: 'pods' };
+      const lists = [{ cluster: 'default', resourceVersion: '5', namespace: 'a' }];
+      const key = kubeObjectListQuery(mockClass, endpoint, 'a', 'default', {}).queryKey;
+
+      queryClient.setQueryData(key, {
+        list: { items: [], metadata: { resourceVersion: '5' } },
+        cluster: 'default',
+      });
+
+      renderHook(() => useWatchKubeObjectLists({ kubeObjectClass: mockClass, lists, endpoint }), {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      });
+
+      useWebSocketSpy.mock.calls[0][0].connections[0].onMessage(update);
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith('Error in update', update);
+      expect(invalidateSpy).not.toHaveBeenCalled();
+      expect(
+        (queryClient.getQueryData(key) as ListResponse<any>).list.metadata.resourceVersion
+      ).toBe('5');
+
+      consoleErrorSpy.mockRestore();
+    }
+  );
+
   it('should not call WebSocketManager.subscribe when multiplexer is disabled', () => {
     renderHook(
       () =>
