@@ -15,6 +15,13 @@
  */
 
 /**
+ * Capture intrinsic Reflect methods at module load time to defend against prototype pollution.
+ */
+const safeReflectApply = Reflect.apply;
+const safeReflectConstruct = Reflect.construct;
+const safeReflectDefineProperty = Reflect.defineProperty;
+
+/**
  * This is as a list of parameters to be passed to the `runPlugin` function.
  * To reduce the ability of overridden prototypes from snooping on data,
  * if it is destructured.
@@ -193,17 +200,54 @@ export function runPlugin(
   args: string[],
   values: unknown[]
 ): void {
-  // We use PrivateFunction here instead of global Function so people can't
-  //   override Function and snoop on it.
-  const executePlugin = new PrivateFunction(...args, adjustSourceMapOffsetForFunction(source));
+  // Copy args and values using safeReflectDefineProperty to avoid inherited numeric setter interception
+  const finalArgs: string[] = [];
+  const finalValues: unknown[] = [];
+  for (let i = 0; i < args.length; i++) {
+    safeReflectDefineProperty(finalArgs, i, {
+      value: args[i],
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
+    safeReflectDefineProperty(finalValues, i, {
+      value: values[i],
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
+  }
+
+  // Ensure strict mode execution so 'this' does not default to the global window.
+  // Always prepend the directive without consulting plugin-modifiable String prototypes.
+  const strictSource = `'use strict';\n${adjustSourceMapOffsetForFunction(source)}`;
 
   try {
-    // This executes in the global scope,
-    //   so the plugin can't access variables in this scope.
-    // Meaning, it can NOT access "permissionSecrets".
-    // Each plugin gets its own "pluginPermissionSecrets" which contains only the secrets
-    //   that it is allowed to access.
-    executePlugin(...values);
+    // Avoid inherited accessor vulnerabilities during constructor argument array creation
+    const constructorArgs: string[] = [];
+    for (let i = 0; i < finalArgs.length; i++) {
+      safeReflectDefineProperty(constructorArgs, i, {
+        value: finalArgs[i],
+        enumerable: true,
+        configurable: true,
+        writable: true,
+      });
+    }
+    safeReflectDefineProperty(constructorArgs, finalArgs.length, {
+      value: strictSource,
+      enumerable: true,
+      configurable: true,
+      writable: true,
+    });
+
+    // We use PrivateFunction here instead of global Function so people can't
+    //   override Function and snoop on it.
+    // Use the captured safeReflectConstruct to prevent interception via mutated prototypes.
+    const executePlugin = safeReflectConstruct(PrivateFunction, constructorArgs);
+
+    // This executes the plugin code within a functionally scoped environment
+    // Note: This does not guarantee perfect isolation from the global window (e.g. prototype chain escapes are still possible).
+    safeReflectApply(executePlugin, undefined, finalValues);
   } catch (e) {
     handleError(e, packageName, packageVersion);
   }
