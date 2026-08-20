@@ -27,6 +27,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
@@ -80,7 +81,19 @@ func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.Response
 
 	freshURL := *r.URL
 
-	freshReq, err := http.NewRequestWithContext(r.Context(), http.MethodGet, freshURL.String(), nil) //nolint:gosec
+	// Use context.WithoutCancel(r.Context()) instead of r.Context() so the cache repopulation
+	// request is not cancelled if the client disconnects before the fresh GET
+	// completes, while preserving request-scoped variables like mux route values.
+	// We wrap it in a finite timeout to prevent unresponsive upstream servers
+	// from leaking goroutines.
+	detachedCtx := context.WithoutCancel(r.Context())
+	timeoutCtx, timeoutCancel := context.WithTimeout(detachedCtx, 60*time.Second)
+
+	defer timeoutCancel()
+
+	freshReq, err := http.NewRequestWithContext( //nolint:gosec
+		timeoutCtx, http.MethodGet, freshURL.String(), nil,
+	)
 	if err != nil {
 		return err
 	}
