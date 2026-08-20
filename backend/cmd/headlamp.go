@@ -82,6 +82,7 @@ type HeadlampConfig struct {
 	proxyURLMu        sync.Mutex
 	compiledProxyURLs []glob.Glob
 	oidcStateReader   io.Reader
+	PluginRegistry    *plugins.PluginRegistry
 }
 
 func compileProxyURLPatterns(patterns []string) ([]glob.Glob, error) {
@@ -351,6 +352,15 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 
 	addPluginListRoute(config, r)
 
+	// SSE endpoint for live plugin event notifications
+	r.HandleFunc("/plugins/events", func(w http.ResponseWriter, r *http.Request) {
+		if config.PluginRegistry != nil {
+			config.PluginRegistry.ServeSSE(w, r)
+		} else {
+			http.Error(w, "Plugin registry not initialized", http.StatusServiceUnavailable)
+		}
+	}).Methods("GET")
+
 	// Serve development plugins
 	pluginHandler := http.StripPrefix(config.BaseURL+"/plugins/",
 		spa.BrotliSidecars(config.PluginDir, http.FileServer(http.Dir(config.PluginDir))))
@@ -387,6 +397,8 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 
 // addPluginDeleteRoute registers a DELETE endpoint handler at "/plugins/{name}" for plugin deletion.
 // This endpoint is only available when running in local (non-cluster) mode.
+//
+//nolint:funlen
 func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 	r.HandleFunc("/plugins/{name}", func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
@@ -440,6 +452,10 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 			}
 
 			return
+		}
+
+		if config.PluginRegistry != nil {
+			_ = config.PluginRegistry.Deregister(pluginName)
 		}
 
 		logger.Log(logger.LevelInfo, nil, nil, "Plugin deleted successfully: "+pluginName)
@@ -686,6 +702,15 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	plugins.PopulatePluginsCache(config.StaticPluginDir, config.UserPluginDir, config.PluginDir, config.Cache)
 
+	if config.PluginRegistry == nil {
+		config.PluginRegistry = plugins.NewPluginRegistry(
+			config.StaticPluginDir,
+			config.UserPluginDir,
+			config.PluginDir,
+			config.Cache,
+		)
+	}
+
 	skipFunc := kubeconfig.SkipKubeContextInCommaSeparatedString(config.SkippedKubeContexts)
 
 	if !config.UseInCluster || config.WatchPluginsChanges {
@@ -705,7 +730,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			}()
 		}
 
-		go plugins.HandlePluginEvents(
+		go plugins.HandlePluginEventsWithRegistry(
+			config.PluginRegistry,
 			config.StaticPluginDir,
 			config.UserPluginDir,
 			config.PluginDir,
