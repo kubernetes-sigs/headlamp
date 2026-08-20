@@ -10,7 +10,7 @@
   "license": "Apache-2.0",
   "engines": {
     "npm": ">=11.0.0",
-    "node": ">=22.0.0"
+    "node": ">=22.6.0"
   },
   "scripts": {
     "install:all": "npm install && npm run frontend:install && npm run backend:build && npm run app:install && npm run tools:install",
@@ -57,8 +57,8 @@
     "i18n:extract": "cd tools/i18n && npm run extract --",
     "i18n:copy": "cd tools/i18n && npm run copy --",
     "app:install": "cd app && npm install",
-    "app:build": "npm run frontend:build && cd app && node ./scripts/setup-plugins.js && npm run build",
-    "app:build:dir": "npm run frontend:build && cd app && node ./scripts/setup-plugins.js && npm run build -- --dir",
+    "app:build": "npm run frontend:build && cd app && node --experimental-strip-types ./scripts/setup-plugins.ts && npm run build",
+    "app:build:dir": "npm run frontend:build && cd app && node --experimental-strip-types ./scripts/setup-plugins.ts && npm run build -- --dir",
     "app:package": "npm run app:build && cd app && npm run package -- --win --linux --mac",
     "app:package:win": "npm run app:build && cd app && npm run package -- --win",
     "app:package:win:msi": "npm run app:build && cd app && npm run package-msi",
@@ -72,7 +72,7 @@
     "app:format": "cd app && npm run format",
     "app:lint": "cd app && npm run lint",
     "app:lint:fix": "cd app && npm run lint-fix",
-    "app:start": "cd app && node ./scripts/setup-plugins.js && npm run start",
+    "app:start": "cd app && node --experimental-strip-types ./scripts/setup-plugins.ts && npm run start",
     "app:start:client": "cd app && npm run dev-only-app",
     "app:start:client:debug": "cd app && npm run dev-only-app:debug",
     "start:with-app": "concurrently \"npm run backend:start\" \"npm run frontend:start\" \"npm run app:start:client\" --names \"backend,frontend,app\" --prefix-colors \"blue,green,yellow\"",
