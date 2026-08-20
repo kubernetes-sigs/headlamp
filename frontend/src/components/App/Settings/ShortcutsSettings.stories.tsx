@@ -17,6 +17,7 @@
 import { Meta, StoryFn } from '@storybook/react';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
+import { setShortcut, setShortcutsDialogOpen } from '../../../redux/shortcutsSlice';
 import store from '../../../redux/stores/store';
 import ShortcutsSettings from './ShortcutsSettings';
 
@@ -35,9 +36,15 @@ export default {
 } as Meta<typeof ShortcutsSettings>;
 
 const Template: StoryFn<typeof ShortcutsSettings> = () => {
-  store.dispatch({ type: 'shortcuts/setShortcutsDialogOpen', payload: true });
+  store.dispatch(setShortcutsDialogOpen(true));
   return <ShortcutsSettings />;
 };
 
 export const Default = Template.bind({});
 Default.args = {};
+
+export const ModifiedShortcut: StoryFn<typeof ShortcutsSettings> = () => {
+  store.dispatch(setShortcutsDialogOpen(true));
+  store.dispatch(setShortcut({ id: 'GLOBAL_SEARCH', key: 'ctrl+k' }));
+  return <ShortcutsSettings />;
+};
