@@ -50,6 +50,11 @@ function DocsViewer(props: DocsViewerProps) {
   const { t } = useTranslation();
 
   React.useEffect(() => {
+    // Guards against a slower, earlier fetch resolving after a newer one and
+    // overwriting docs/docsLoading with stale data (e.g. rapid docSpecs changes
+    // as the user switches resource kind then reopens the Docs tab).
+    let isActive = true;
+
     setDocsLoading(true);
     // fetch docSpecs for all the resources specified
     Promise.allSettled(
@@ -58,6 +63,9 @@ function DocsViewer(props: DocsViewerProps) {
       })
     )
       .then(values => {
+        if (!isActive) {
+          return;
+        }
         const docSpecsFromApi = values.map((value, index) => {
           if (value.status === 'fulfilled') {
             return {
@@ -77,8 +85,15 @@ function DocsViewer(props: DocsViewerProps) {
         setDocs(docSpecsFromApi);
       })
       .catch(() => {
+        if (!isActive) {
+          return;
+        }
         setDocsLoading(false);
       });
+
+    return () => {
+      isActive = false;
+    };
   }, [docSpecs]);
 
   function makeItems(name: string, value: any, key: string) {
