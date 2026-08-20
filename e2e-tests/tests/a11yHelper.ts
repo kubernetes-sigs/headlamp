@@ -38,11 +38,6 @@ export async function runA11yScan(
   const seriousViolations = (violations: AxeViolations) =>
     violations.filter(v => v.impact === 'critical' || v.impact === 'serious');
 
-  // Filter for critical and serious violations only for improved test stability,
-  // excluding color-contrast which is a known issue.
-  const violations = accessibilityResults.violations.filter(
-    v => (v.impact === 'critical' || v.impact === 'serious') && v.id !== 'color-contrast'
-  );
   let violations: AxeViolations;
   if (regionExclusions.length === 0) {
     violations = seriousViolations((await new AxeBuilder({ page }).analyze()).violations);

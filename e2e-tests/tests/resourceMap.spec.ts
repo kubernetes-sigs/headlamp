@@ -149,7 +149,7 @@ test('keeps a simplified namespace expanded while resizing', async ({ page }) =>
   await page.waitForSelector('.react-flow', { timeout: 30_000 });
   await page.waitForSelector('.react-flow__nodes', { timeout: 30_000 });
   await expect(namespaceNode.first()).toBeVisible({ timeout: 30_000 });
-  await namespaceNode.first().click();
+  await namespaceNode.first().getByRole('button').click();
 
   const assertExpandedTopology = async () => {
     const parent = page.locator(
@@ -188,6 +188,6 @@ test('groups scheduled and unscheduled pods by node', async ({ page }) => {
   await expect.poll(() => [...mockedResources].sort()).toEqual(['namespaces', 'pods']);
   await page.getByRole('button', { name: 'Node', exact: true }).click();
 
-  await expect(page.locator('[data-id="Node-worker-1"]')).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('[data-id="Node-Unscheduled"]')).toBeVisible();
+  await expect(page.locator('[data-id*="Node-worker-1"]')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-id*="Node-Unscheduled"]')).toBeVisible();
 });
