@@ -25,7 +25,7 @@ import ListItemIcon from '@mui/material/ListItemIcon';
 import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
-import Select from '@mui/material/Select';
+import Select, { type SelectChangeEvent } from '@mui/material/Select';
 import { useTheme } from '@mui/material/styles';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { FitAddon } from '@xterm/addon-fit';
@@ -397,7 +397,7 @@ export default function Terminal(props: TerminalProps) {
     return ['bash', '/bin/bash', 'sh', '/bin/sh', 'powershell.exe', 'cmd.exe'];
   }
 
-  function handleContainerChange(event: any) {
+  function handleContainerChange(event: SelectChangeEvent<string>) {
     setContainer(event.target.value);
   }
 
