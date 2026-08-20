@@ -93,6 +93,7 @@ function CrInstancesView({ classified }: { classified: ClassifiedCrd[] }) {
         </Alert>
       )}
       <ResourceListView
+        reflectInURL
         title={t('translation|Custom Resource Instances')}
         headerProps={{
           noNamespaceFilter: false,

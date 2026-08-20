@@ -32,6 +32,7 @@ export default function VolumeList() {
         noNamespaceFilter: true,
       }}
       resourceClass={PersistentVolume}
+      reflectInURL
       columns={[
         'name',
         {

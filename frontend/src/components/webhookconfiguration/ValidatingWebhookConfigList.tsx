@@ -25,6 +25,7 @@ export default function ValidatingWebhookConfigurationList() {
     <ResourceListView
       title={t('Validating Webhook Configurations')}
       resourceClass={ValidatingWebhookConfiguration}
+      reflectInURL
       columns={[
         'name',
         'cluster',

@@ -28,6 +28,7 @@ export default function VolumeClaimList() {
     <ResourceListView
       title={t('Persistent Volume Claims')}
       resourceClass={PersistentVolumeClaim}
+      reflectInURL
       columns={[
         'name',
         'namespace',

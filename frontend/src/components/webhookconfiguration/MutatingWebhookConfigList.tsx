@@ -25,6 +25,7 @@ export default function MutatingWebhookConfigurationList() {
     <ResourceListView
       title={t('Mutating Webhook Configurations')}
       resourceClass={MutatingWebhookConfiguration}
+      reflectInURL
       columns={[
         'name',
         {

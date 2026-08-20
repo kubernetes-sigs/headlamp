@@ -32,6 +32,7 @@ export default function EndpointList() {
     <ResourceListView
       title={t('glossary|Endpoints')}
       resourceClass={Endpoints}
+      reflectInURL
       filterFunction={filterFunc}
       columns={[
         'name',

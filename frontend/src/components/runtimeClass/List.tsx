@@ -25,6 +25,7 @@ export function RuntimeClassList() {
     <ResourceListView
       title={t('glossary|RuntimeClass')}
       resourceClass={RuntimeClass}
+      reflectInURL
       columns={[
         'name',
         'cluster',

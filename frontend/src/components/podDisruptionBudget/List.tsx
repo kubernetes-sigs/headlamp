@@ -25,6 +25,7 @@ export default function PDBList() {
     <ResourceListView
       title={t('glossary|Pod Disruption Budget')}
       resourceClass={PDB}
+      reflectInURL
       columns={[
         'name',
         'namespace',

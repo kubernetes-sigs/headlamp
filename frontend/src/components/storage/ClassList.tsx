@@ -28,6 +28,7 @@ export default function ClassList() {
         noNamespaceFilter: true,
       }}
       resourceClass={StorageClass}
+      reflectInURL
       columns={[
         'name',
         {

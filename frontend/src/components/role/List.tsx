@@ -53,6 +53,7 @@ export default function RoleList({ namespaces }: { namespaces?: string[] }) {
 
   return (
     <ResourceListView
+      reflectInURL
       title={t('Roles')}
       errors={allErrors}
       columns={[

@@ -26,6 +26,7 @@ export default function ReferenceGrantList() {
     <ResourceListView
       title={t('Reference Grants')}
       resourceClass={ReferenceGrant}
+      reflectInURL
       columns={[
         'name',
         'namespace',

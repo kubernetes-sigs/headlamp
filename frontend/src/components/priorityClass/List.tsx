@@ -25,6 +25,7 @@ export default function PriorityClassList() {
     <ResourceListView
       title={t('glossary|PriorityClass')}
       resourceClass={PriorityClass}
+      reflectInURL
       columns={[
         'name',
         'cluster',

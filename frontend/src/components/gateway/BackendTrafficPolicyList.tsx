@@ -26,6 +26,7 @@ export default function BackendTrafficPolicyList() {
     <ResourceListView
       title={t('Backend Traffic Policies')}
       resourceClass={BackendTrafficPolicy}
+      reflectInURL
       columns={[
         'name',
         'namespace',

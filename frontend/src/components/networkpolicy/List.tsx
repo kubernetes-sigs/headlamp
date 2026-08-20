@@ -26,6 +26,7 @@ export function NetworkPolicyList() {
     <ResourceListView
       title={t('Network Policies')}
       resourceClass={NetworkPolicy}
+      reflectInURL
       columns={[
         'name',
         'namespace',

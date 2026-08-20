@@ -68,6 +68,7 @@ export default function GatewayClassList() {
         noNamespaceFilter: true,
       }}
       resourceClass={GatewayClass}
+      reflectInURL
       columns={[
         'name',
         'cluster',

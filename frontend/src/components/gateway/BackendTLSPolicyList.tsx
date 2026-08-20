@@ -26,6 +26,7 @@ export default function BackendTLSPolicyList() {
     <ResourceListView
       title={t('Backend TLS Policies')}
       resourceClass={BackendTLSPolicy}
+      reflectInURL
       columns={[
         'name',
         'namespace',

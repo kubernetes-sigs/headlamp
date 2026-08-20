@@ -28,6 +28,7 @@ export default function IngressClassList() {
         noNamespaceFilter: true,
       }}
       resourceClass={IngressClass}
+      reflectInURL
       columns={[
         'name',
         {

@@ -24,6 +24,7 @@ export function LeaseList() {
     <ResourceListView
       title={t('glossary|Lease')}
       resourceClass={Lease}
+      reflectInURL
       columns={[
         'name',
         'namespace',

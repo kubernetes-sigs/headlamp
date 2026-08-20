@@ -218,6 +218,7 @@ function CustomResourceTableInner(
         ),
       }}
       resourceClass={CRClass}
+      reflectInURL
       columns={cols}
     />
   );

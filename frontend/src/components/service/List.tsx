@@ -27,6 +27,7 @@ export default function ServiceList() {
     <ResourceListView
       title={t('Services')}
       resourceClass={Service}
+      reflectInURL
       columns={[
         'name',
         'namespace',
