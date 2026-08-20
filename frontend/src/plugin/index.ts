@@ -105,6 +105,12 @@ window.pluginLib = {
   useTranslation,
   ...registryToExport,
   Activity,
+  /**
+   * @deprecated Internal implementation detail of Headlamp core (IndexedDB-backed
+   * kubeconfig storage for stateless clusters). Not part of the supported plugin API:
+   * it's absent from @kinvolk/headlamp-plugin's externals mapping and no plugin should
+   * rely on it. Kept for backwards compatibility; do not use in new plugin code.
+   */
   stateless,
 };
 
