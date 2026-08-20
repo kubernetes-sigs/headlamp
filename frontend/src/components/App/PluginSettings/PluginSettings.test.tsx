@@ -22,13 +22,14 @@ import { PluginInfo, setPluginSettings } from '../../../plugin/pluginsSlice';
 import { HeadlampEventType } from '../../../redux/headlampEventSlice';
 import store from '../../../redux/stores/store';
 import { recordHeadlampEvents, TestContext } from '../../../test';
+import { lightTheme } from '../defaultAppThemes';
 import PluginSettings, { PluginSettingsPure } from './PluginSettings';
 
 vi.mock('../../../helpers/isElectron', () => ({
   isElectron: () => true,
 }));
 
-const theme = createMuiTheme({ name: 'Light', base: 'light' });
+const theme = createMuiTheme({ name: lightTheme.name, base: 'light' });
 
 function createPlugins(count: number): PluginInfo[] {
   return Array.from({ length: count }, (_, i) => ({
