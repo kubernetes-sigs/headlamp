@@ -278,6 +278,7 @@ describe('GraphSourceManager', () => {
         target: 'second-node',
         label: undefined,
         nonGroupingSide: 'source',
+        data: { isCrossCluster: false },
       },
     ]);
   });
@@ -318,6 +319,7 @@ describe('GraphSourceManager', () => {
         source: 'first-node',
         target: 'second-node',
         label: undefined,
+        data: { isCrossCluster: false },
       },
     ]);
   });
