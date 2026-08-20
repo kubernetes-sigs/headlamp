@@ -2729,6 +2729,14 @@ func (c *HeadlampConfig) renameCluster(w http.ResponseWriter, r *http.Request) {
 	c.TelemetryHandler.RecordEvent(span, "Rename cluster request started")
 	c.TelemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", clusterName))
 
+	if err := c.checkHeadlampBackendToken(w, r); err != nil {
+		c.TelemetryHandler.RecordError(span, err, "invalid backend token")
+		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "invalid_token"))
+		logger.Log(logger.LevelError, nil, err, "invalid token")
+
+		return
+	}
+
 	// Parse request and validate
 	var reqBody RenameClusterRequest
 	if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
