@@ -75,6 +75,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 
 	"golang.org/x/oauth2"
+	"golang.org/x/time/rate"
 )
 
 type HeadlampConfig struct {
@@ -657,6 +658,70 @@ func loadDynamicClusters(config *HeadlampConfig, path string, skipFunc func(kube
 	}
 }
 
+type authLimiterEntry struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
+}
+
+var (
+	authLimiterMu   sync.Mutex
+	authLimiters    = make(map[string]*authLimiterEntry)
+	authLimiterOnce sync.Once
+)
+
+func getAuthLimiter(ip string) *rate.Limiter {
+	authLimiterOnce.Do(func() {
+		go func() {
+			for {
+				time.Sleep(5 * time.Minute)
+				cleanupAuthLimiters(10 * time.Minute)
+			}
+		}()
+	})
+
+	authLimiterMu.Lock()
+	defer authLimiterMu.Unlock()
+
+	entry, exists := authLimiters[ip]
+	if !exists {
+		entry = &authLimiterEntry{
+			limiter: rate.NewLimiter(5, 10),
+		}
+		authLimiters[ip] = entry
+	}
+	entry.lastSeen = time.Now()
+	return entry.limiter
+}
+
+func cleanupAuthLimiters(ttl time.Duration) {
+	cutoff := time.Now().Add(-ttl)
+
+	authLimiterMu.Lock()
+	defer authLimiterMu.Unlock()
+
+	for ip, entry := range authLimiters {
+		if entry.lastSeen.Before(cutoff) {
+			delete(authLimiters, ip)
+		}
+	}
+}
+
+func authRateLimitMiddleware(next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ip, _, err := net.SplitHostPort(r.RemoteAddr)
+		if err != nil {
+			ip = r.RemoteAddr
+		}
+
+		if !getAuthLimiter(strings.TrimSpace(ip)).Allow() {
+			http.Error(w, "Too many requests", http.StatusTooManyRequests)
+			return
+		}
+		next.ServeHTTP(w, r)
+
+	}
+}
+
 //nolint:gocognit,funlen,gocyclo
 func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
@@ -954,7 +1019,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	r.HandleFunc("/config", config.getConfig).Methods("GET")
 
 	// Auth token management
-	r.HandleFunc("/auth/set-token", config.handleSetToken).Methods("POST")
+	r.HandleFunc("/auth/set-token", authRateLimitMiddleware(config.handleSetToken)).Methods("POST")
 
 	// Websocket connections
 	if config.Multiplexer != nil {
@@ -2021,7 +2086,7 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 // It parses the request and creates a proxy request to the cluster.
 // That proxy is saved in the cache with the context key.
 func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
-	router.HandleFunc("/clusters/{clusterName}/set-token", c.handleSetToken).Methods("POST")
+	router.HandleFunc("/clusters/{clusterName}/set-token", authRateLimitMiddleware(c.handleSetToken)).Methods("POST")
 
 	handler := clusterRequestHandler(c)
 	if c.CacheEnabled {
