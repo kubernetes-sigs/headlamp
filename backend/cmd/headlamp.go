@@ -194,7 +194,10 @@ type OauthConfig struct {
 	Ctx          context.Context
 	CodeVerifier string // PKCE code verifier
 	Cluster      string // cluster context name this is associated with
-	createdAt    time.Time
+	// ClientAssertionFile is the path to the JWT client assertion (RFC 7523)
+	// used to authenticate at the token endpoint.
+	ClientAssertionFile string
+	createdAt           time.Time
 }
 
 // evictExpiredOidcStates removes entries from m whose createdAt timestamp is
@@ -581,6 +584,7 @@ func setupInClusterContext(config *HeadlampConfig) {
 		config.InClusterContextName,
 		config.OidcIdpIssuerURL,
 		config.OidcClientID, config.OidcClientSecret,
+		config.OidcClientAssertionFile,
 		strings.Join(config.OidcScopes, ","),
 		config.OidcSkipTLSVerify,
 		config.OidcCACert,
@@ -1069,6 +1073,18 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
+		clientAssertionFile := oidcAuthConfig.ClientAssertionFile
+
+		clientSecret := oidcAuthConfig.ClientSecret
+		if clientAssertionFile != "" {
+			// Config validation rejects setting both values through flags/env, but
+			// kubeconfig auth-provider entries bypass that validation. Prefer the
+			// assertion so client_secret is never sent with client_assertion.
+			clientSecret = ""
+		}
+
+		endpoint := auth.SetClientAssertionAuthStyle(provider.Endpoint(), clientAssertionFile)
+
 		validatorClientID := oidcAuthConfig.ClientID
 		if config.OidcValidatorClientID != "" {
 			validatorClientID = config.OidcValidatorClientID
@@ -1081,8 +1097,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		verifier := provider.Verifier(oidcConfig)
 		oauthConfig := &oauth2.Config{
 			ClientID:     oidcAuthConfig.ClientID,
-			ClientSecret: oidcAuthConfig.ClientSecret,
-			Endpoint:     provider.Endpoint(),
+			ClientSecret: clientSecret,
+			Endpoint:     endpoint,
 			RedirectURL:  getOidcCallbackURL(r, config),
 			Scopes:       append([]string{oidc.ScopeOpenID}, oidcAuthConfig.Scopes...),
 		}
@@ -1102,11 +1118,12 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		entry := &OauthConfig{
-			Config:    oauthConfig,
-			Verifier:  verifier,
-			Ctx:       ctx,
-			Cluster:   cluster,
-			createdAt: time.Now(),
+			Config:              oauthConfig,
+			Verifier:            verifier,
+			Ctx:                 ctx,
+			Cluster:             cluster,
+			ClientAssertionFile: clientAssertionFile,
+			createdAt:           time.Now(),
 		}
 
 		var authURL string
@@ -1162,24 +1179,29 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 
-		var oauth2Token *oauth2.Token
-
-		// Exchange authorization code for token, with or without PKCE
+		var exchangeOpts []oauth2.AuthCodeOption
+		// Use PKCE code verifier for token exchange
 		if config.OidcUsePKCE && oauthConfig.CodeVerifier != "" {
-			// Use PKCE code verifier for token exchange
-			oauth2Token, err = oauthConfig.Config.Exchange(
-				oauthConfig.Ctx,
-				r.URL.Query().Get("code"),
-				oauth2.SetAuthURLParam("code_verifier", oauthConfig.CodeVerifier),
-			)
-		} else {
-			// Standard token exchange without PKCE
-			oauth2Token, err = oauthConfig.Config.Exchange(
-				oauthConfig.Ctx,
-				r.URL.Query().Get("code"),
-			)
+			exchangeOpts = append(exchangeOpts, oauth2.SetAuthURLParam("code_verifier", oauthConfig.CodeVerifier))
 		}
 
+		// Authenticate the client with a JWT assertion instead of a secret,
+		// when one is configured
+		assertionOpts, err := auth.ClientAssertionAuthCodeOptions(oauthConfig.ClientAssertionFile)
+		if err != nil {
+			logger.Log(logger.LevelError, nil, err, "failed to read client assertion")
+			http.Error(w, "Failed to read client assertion: "+err.Error(), http.StatusInternalServerError)
+
+			return
+		}
+
+		exchangeOpts = append(exchangeOpts, assertionOpts...)
+
+		oauth2Token, err := oauthConfig.Config.Exchange(
+			oauthConfig.Ctx,
+			r.URL.Query().Get("code"),
+			exchangeOpts...,
+		)
 		if err != nil {
 			logger.Log(logger.LevelError, nil, err, "failed to exchange token")
 			http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
@@ -2441,7 +2463,7 @@ func (c *HeadlampConfig) processManualConfig(clusterReq ClusterReq) ([]kubeconfi
 		},
 	}
 
-	return kubeconfig.LoadContextsFromAPIConfig(conf, false)
+	return kubeconfig.LoadContextsFromAPIConfig(conf, kubeconfig.DynamicCluster, false)
 }
 
 // handleLoadErrors handles the load errors.
@@ -2657,9 +2679,21 @@ func customNameToExtensions(config *api.Config, contextName, newClusterName, pat
 	return nil
 }
 
+// contextSourceFor maps a request's source string to its context source constant.
+// It mirrors getKubeConfigPath, which picks the file from the same string.
+func contextSourceFor(source string) int {
+	if source == kubeConfigSource {
+		return kubeconfig.KubeConfig
+	}
+
+	return kubeconfig.DynamicCluster
+}
+
 // updateCustomContextToCache updates the custom context to the cache.
-func (c *HeadlampConfig) updateCustomContextToCache(config *api.Config, clusterName string) []error {
-	contexts, errs := kubeconfig.LoadContextsFromAPIConfig(config, false)
+// source is where config was loaded from; dropping it on reload would clear the
+// DynamicCluster mark on a renamed cluster.
+func (c *HeadlampConfig) updateCustomContextToCache(config *api.Config, clusterName string, source int) []error {
+	contexts, errs := kubeconfig.LoadContextsFromAPIConfig(config, source, false)
 	if len(contexts) == 0 {
 		logger.Log(logger.LevelError, nil, errs, "no contexts found in kubeconfig")
 		errs = append(errs, errors.New("no contexts found in kubeconfig"))
@@ -2781,7 +2815,7 @@ func (c *HeadlampConfig) handleClusterRename(w http.ResponseWriter, r *http.Requ
 		return err
 	}
 
-	if errs := c.updateCustomContextToCache(config, clusterName); len(errs) > 0 {
+	if errs := c.updateCustomContextToCache(config, clusterName, contextSourceFor(reqBody.Source)); len(errs) > 0 {
 		cacheErr := errors.Join(errs...)
 		c.handleError(w, ctx, span, cacheErr, "failed to update context to cache", http.StatusInternalServerError)
 

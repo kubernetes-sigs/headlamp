@@ -77,6 +77,7 @@ type Config struct {
 	OidcClientID                 string `koanf:"oidc-client-id"`
 	OidcValidatorClientID        string `koanf:"oidc-validator-client-id"`
 	OidcClientSecret             string `koanf:"oidc-client-secret"`
+	OidcClientAssertionFile      string `koanf:"oidc-client-assertion-file"`
 	OidcIdpIssuerURL             string `koanf:"oidc-idp-issuer-url"`
 	OidcCallbackURL              string `koanf:"oidc-callback-url"`
 	OidcValidatorIdpIssuerURL    string `koanf:"oidc-validator-idp-issuer-url"`
@@ -129,10 +130,11 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	if !c.InCluster && !c.OidcUseCookie && (c.OidcClientID != "" || c.OidcClientSecret != "" || c.OidcIdpIssuerURL != "" ||
+	if !c.InCluster && !c.OidcUseCookie && (c.OidcClientID != "" || c.OidcClientSecret != "" ||
+		c.OidcClientAssertionFile != "" || c.OidcIdpIssuerURL != "" ||
 		c.OidcValidatorClientID != "" || c.OidcValidatorIdpIssuerURL != "") {
-		return errors.New("oidc-client-id, oidc-client-secret, oidc-idp-issuer-url, " +
-			"oidc-validator-client-id, oidc-validator-idp-issuer-url, flags are only " +
+		return errors.New("oidc-client-id, oidc-client-secret, oidc-client-assertion-file, " +
+			"oidc-idp-issuer-url, oidc-validator-client-id, oidc-validator-idp-issuer-url, flags are only " +
 			"meant to be used in inCluster mode or with --oidc-use-cookie")
 	}
 
@@ -152,6 +154,10 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if err := c.validateOIDCClientAssertionFile(); err != nil {
+		return err
+	}
+
 	if c.BaseURL != "" && !strings.HasPrefix(c.BaseURL, "/") {
 		return errors.New("base-url needs to start with a '/' or be empty")
 	}
@@ -165,21 +171,8 @@ func (c *Config) Validate() error {
 		return errors.New("session-ttl cannot be greater than 1 year")
 	}
 
-	if c.TracingEnabled != nil && *c.TracingEnabled {
-		if c.ServiceName == "" {
-			return errors.New("service-name is required when tracing is enabled")
-		}
-
-		if (c.JaegerEndpoint != nil && *c.JaegerEndpoint == "") &&
-			(c.OTLPEndpoint != nil && *c.OTLPEndpoint == "") &&
-			(c.StdoutTraceEnabled != nil && *c.StdoutTraceEnabled) {
-			return errors.New("at least one tracing exporter (jaeger, otlp, or stdout) must be configured")
-		}
-
-		if (c.UseOTLPHTTP != nil && *c.UseOTLPHTTP) &&
-			(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") {
-			return errors.New("otlp-endpoint must be configured when use-otlp-http is enabled")
-		}
+	if err := c.validateTracing(); err != nil {
+		return err
 	}
 
 	if err := c.validateClusterInventory(); err != nil {
@@ -201,6 +194,32 @@ func (c *Config) validateAppName() error {
 	return nil
 }
 
+// validateTracing checks the telemetry flags that only apply when tracing is
+// enabled. Extracted to keep Validate's cyclomatic complexity within the
+// linter limit.
+func (c *Config) validateTracing() error {
+	if c.TracingEnabled == nil || !*c.TracingEnabled {
+		return nil
+	}
+
+	if c.ServiceName == "" {
+		return errors.New("service-name is required when tracing is enabled")
+	}
+
+	if (c.JaegerEndpoint != nil && *c.JaegerEndpoint == "") &&
+		(c.OTLPEndpoint != nil && *c.OTLPEndpoint == "") &&
+		(c.StdoutTraceEnabled != nil && *c.StdoutTraceEnabled) {
+		return errors.New("at least one tracing exporter (jaeger, otlp, or stdout) must be configured")
+	}
+
+	if (c.UseOTLPHTTP != nil && *c.UseOTLPHTTP) &&
+		(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") {
+		return errors.New("otlp-endpoint must be configured when use-otlp-http is enabled")
+	}
+
+	return nil
+}
+
 func (c *Config) validateOIDCCAFile() error {
 	if c.OidcCAFile == "" {
 		return nil
@@ -214,6 +233,18 @@ func (c *Config) validateOIDCCAFile() error {
 	caCertPool := x509.NewCertPool()
 	if !caCertPool.AppendCertsFromPEM(caFileContents) {
 		return errors.New("invalid oidc-ca-file")
+	}
+
+	return nil
+}
+
+func (c *Config) validateOIDCClientAssertionFile() error {
+	if c.OidcClientAssertionFile == "" {
+		return nil
+	}
+
+	if c.OidcClientSecret != "" {
+		return errors.New("oidc-client-assertion-file is mutually exclusive with oidc-client-secret")
 	}
 
 	return nil
@@ -652,6 +683,10 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 func addOIDCFlags(f *flag.FlagSet) {
 	f.String("oidc-client-id", "", "ClientID for OIDC")
 	f.String("oidc-client-secret", "", "ClientSecret for OIDC")
+	f.String("oidc-client-assertion-file", "", "Path to a file holding a JWT sent as client_assertion to "+
+		"authenticate at the OIDC token endpoint (RFC 7523) instead of a client secret. The file is read on "+
+		"every token request, so it can hold a credential rotated in place, such as a Kubernetes projected "+
+		"service account token. Mutually exclusive with oidc-client-secret")
 	f.String("oidc-validator-client-id", "", "Override ClientID for OIDC during validation")
 	f.String("oidc-idp-issuer-url", "", "Identity provider issuer URL for OIDC")
 	f.String("oidc-callback-url", "", "Callback URL for OIDC")

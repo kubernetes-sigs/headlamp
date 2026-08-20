@@ -11,6 +11,7 @@ To use OIDC, Headlamp needs to know how to configure it, so you have to provide 
 
 - the client ID: `-oidc-client-id` or env var `HEADLAMP_CONFIG_OIDC_CLIENT_ID`
 - the client secret: `-oidc-client-secret` or env var `HEADLAMP_CONFIG_OIDC_CLIENT_SECRET`
+  (or, instead of a secret, a [JWT client assertion](#jwt-bearer-client-authentication))
 - the issuer URL: `-oidc-idp-issuer-url` or env var `HEADLAMP_CONFIG_OIDC_IDP_ISSUER_URL`
 - (optionally) the OpenId scopes: `-oidc-scopes` or env var `HEADLAMP_CONFIG_OIDC_SCOPES`
 
@@ -64,6 +65,88 @@ then add them all to the option:
 **Note:** Before Headlamp 0.3.0, a scope _groups_ was also included, as it's
 used by Dex and other services, but since it's not part of the default spec,
 it was removed in the mentioned version.
+
+### JWT bearer client authentication
+
+Instead of a client secret, Headlamp can authenticate at the token endpoint with
+a JWT client assertion, as specified by
+[RFC 7523](https://datatracker.ietf.org/doc/html/rfc7523). This removes the need
+to manage a static credential, which is useful in Kubernetes where a projected
+service account token can be used as the assertion.
+
+- `-oidc-client-assertion-file=<path to the JWT>` or env var `HEADLAMP_CONFIG_OIDC_CLIENT_ASSERTION_FILE`
+
+The file must contain the JWT only. It is read on every token request, both when
+redeeming the authorization code and when refreshing a token, so a credential
+rotated in place is picked up without restarting Headlamp.
+
+The flag is mutually exclusive with `-oidc-client-secret`, and it requires an
+identity provider that accepts assertions issued by a third party, such as
+Keycloak 26.4 or later, whose realm trusts the cluster's service account issuer
+through [federated client authentication](https://www.keycloak.org/2026/01/federated-client-authentication)
+(GAed since 26.6).
+
+Example (Kubernetes manifest snippet):
+
+```yaml
+containers:
+  - name: headlamp
+    image: ...
+    args:
+      ...
+      - "-oidc-client-id=your-client-id"
+      - "-oidc-client-assertion-file=/var/run/secrets/headlamp/oidc-client-assertion/token"
+    volumeMounts:
+      - name: oidc-client-assertion
+        mountPath: /var/run/secrets/headlamp/oidc-client-assertion
+        readOnly: true
+serviceAccountName: headlamp
+volumes:
+  - name: oidc-client-assertion
+    projected:
+      sources:
+        - serviceAccountToken:
+            path: token
+            audience: https://your-issuer.example.com
+            expirationSeconds: 3600
+```
+
+Example (Helm chart):
+
+```yaml
+config:
+  oidc:
+    secret:
+      create: false
+    clientID: "your-client-id"
+    issuerURL: https://your-issuer.example.com
+    scopes: "openid profile email"
+    clientAssertionFile: /var/run/secrets/headlamp/oidc-client-assertion/token
+
+volumeMounts:
+  - name: oidc-client-assertion
+    mountPath: /var/run/secrets/headlamp/oidc-client-assertion
+    readOnly: true
+
+volumes:
+  - name: oidc-client-assertion
+    projected:
+      sources:
+        - serviceAccountToken:
+            path: token
+            audience: https://your-issuer.example.com
+            expirationSeconds: 3600
+```
+
+For clusters configured from a kubeconfig instead of in-cluster flags, the same
+credential can be set per context with the `client-assertion-file` key of the
+`oidc` auth provider config, alongside `client-id` and `idp-issuer-url`.
+
+The key names a path on the machine running Headlamp, so it is only honored for
+kubeconfigs Headlamp loads itself, such as those passed with `-kubeconfig`. It is
+rejected in kubeconfigs supplied by clients at request time, which is how dynamic
+clusters (`-enable-dynamic-clusters`) are configured; a context using it there
+fails to log in instead of having the server read the file.
 
 ### Token Validation Overrides
 
