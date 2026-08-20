@@ -47,6 +47,7 @@ type HeadlampConfig struct {
 }
 
 type HeadlampCFG struct {
+	AppName                string
 	UseInCluster           bool
 	InClusterContextName   string
 	ListenAddr             string

@@ -729,7 +729,12 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
 
   actualPort = await findAvailablePort(defaultPort);
 
-  let serverArgs: string[] = ['--listen-addr=localhost', `--port=${actualPort}`];
+  let serverArgs: string[] = [
+    '--listen-addr=localhost',
+    `--port=${actualPort}`,
+    '--app-name',
+    app.getName(),
+  ];
   if (!!args.kubeconfig) {
     serverArgs = serverArgs.concat(['--kubeconfig', args.kubeconfig]);
   }
