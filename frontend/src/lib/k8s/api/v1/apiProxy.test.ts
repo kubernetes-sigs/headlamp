@@ -733,6 +733,7 @@ describe('apiProxy', () => {
     it('Successfully creates a new resource with POST', async () => {
       nock(baseApiUrl)
         .post(`/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps`)
+        .query({ fieldValidation: 'Strict' })
         .reply(201, mockConfigMap);
 
       const response = await apiProxy.apply(mockConfigMap);
@@ -742,7 +743,7 @@ describe('apiProxy', () => {
     it('Successfully creates a new resource with POST dry-run query params', async () => {
       nock(baseApiUrl)
         .post(`/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps`)
-        .query({ dryRun: 'All' })
+        .query({ fieldValidation: 'Strict', dryRun: 'All' })
         .reply(201, mockConfigMap);
 
       const response = await apiProxy.apply(mockConfigMap, undefined, { dryRun: true });
@@ -752,12 +753,14 @@ describe('apiProxy', () => {
     it('Successfully updates an existing resource with PUT', async () => {
       nock(baseApiUrl)
         .post(`/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps`)
+        .query({ fieldValidation: 'Strict' })
         .reply(409, errorMessage);
 
       nock(baseApiUrl)
         .put(
           `/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps/${mockConfigMap.metadata.name}`
         )
+        .query({ fieldValidation: 'Strict' })
         .reply(200, modifiedConfigMap);
 
       const response = await apiProxy.apply(mockConfigMap);
@@ -767,14 +770,14 @@ describe('apiProxy', () => {
     it('Successfully updates an existing resource with PUT dry-run query params', async () => {
       nock(baseApiUrl)
         .post(`/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps`)
-        .query({ dryRun: 'All' })
+        .query({ fieldValidation: 'Strict', dryRun: 'All' })
         .reply(409, errorMessage);
 
       nock(baseApiUrl)
         .put(
           `/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps/${mockConfigMap.metadata.name}`
         )
-        .query({ dryRun: 'All' })
+        .query({ fieldValidation: 'Strict', dryRun: 'All' })
         .reply(200, modifiedConfigMap);
 
       const response = await apiProxy.apply(mockConfigMap, undefined, { dryRun: true });
@@ -784,15 +787,33 @@ describe('apiProxy', () => {
     it('Successfully handles failing POST and PUT requests', async () => {
       nock(baseApiUrl)
         .post(`/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps`)
+        .query({ fieldValidation: 'Strict' })
         .reply(409, errorMessage);
 
       nock(baseApiUrl)
         .put(
           `/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps/${mockConfigMap.metadata.name}`
         )
+        .query({ fieldValidation: 'Strict' })
         .reply(500, errorResponse500);
 
       await expect(apiProxy.apply(mockConfigMap)).rejects.toThrow(errorResponse500.error);
+    });
+
+    it('Sends fieldValidation=Strict so unknown fields are rejected, not dropped', async () => {
+      const strictError = {
+        kind: 'Status',
+        status: 'Failure',
+        message: 'strict decoding error: unknown field "spec.replics"',
+        code: 400,
+      };
+
+      nock(baseApiUrl)
+        .post(`/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps`)
+        .query({ fieldValidation: 'Strict' })
+        .reply(400, strictError);
+
+      await expect(apiProxy.apply(mockConfigMap)).rejects.toThrow();
     });
 
     it('Successfully assigns default namespace if not given', async () => {
@@ -803,6 +824,7 @@ describe('apiProxy', () => {
 
       nock(baseApiUrl)
         .post(`/clusters/${clusterName}/api/v1/namespaces/${namespace}/configmaps`)
+        .query({ fieldValidation: 'Strict' })
         .reply(201, mockConfigMap);
 
       const response = await apiProxy.apply(configMapWithoutNamespace);
