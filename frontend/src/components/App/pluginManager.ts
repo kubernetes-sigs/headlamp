@@ -55,27 +55,27 @@ export class PluginManager {
           parsedResponse = JSON.parse(response);
         } catch (error) {
           clearTimeout(timeoutId);
-          window.desktopApi.removeListener('plugin-manager', handleResponse);
+          unsubscribe();
           reject(error);
           return;
         }
 
         if (parsedResponse.identifier === identifier) {
           clearTimeout(timeoutId);
-          window.desktopApi.removeListener('plugin-manager', handleResponse);
+          unsubscribe();
           resolve(parsedResponse);
         } else if (++count >= waitCount) {
           clearTimeout(timeoutId);
-          window.desktopApi.removeListener('plugin-manager', handleResponse);
+          unsubscribe();
           reject(new Error('Message limit exceeded without a matching response'));
         }
       };
 
-      window.desktopApi.receive('plugin-manager', handleResponse);
+      const unsubscribe = window.desktopApi.receive('plugin-manager', handleResponse);
 
       // Add a timeout to ensure the promise is rejected if no response is received within a reasonable time
       const timeoutId = setTimeout(() => {
-        window.desktopApi.removeListener('plugin-manager', handleResponse);
+        unsubscribe();
         reject(new Error('Timeout exceeded without a matching response'));
       }, 10000);
     });
