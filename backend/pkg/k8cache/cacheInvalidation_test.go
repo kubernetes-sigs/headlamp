@@ -130,6 +130,31 @@ func TestDeleteKeys(t *testing.T) { //nolint:funlen
 				},
 			},
 		},
+		{
+			name: "base key and all query variants are deleted, unrelated keys are kept",
+			beforemockCache: &MockCache{
+				store: map[string]string{
+					"+pods+default+test-context":                     "base-value",
+					"+pods+default+test-context+labelSelector=app=a": "variant-1",
+					"+pods+default+test-context+limit=50":            "variant-2",
+					"+pods++test-context":                            "namespace-stripped-base",
+					"+pods++test-context+limit=50":                   "namespace-stripped-variant",
+					"+pods2+default+test-context":                    "unrelated-kind",
+					"+pods+default2+test-context":                    "unrelated-namespace",
+					"+pods+default+test-context-2":                   "unrelated-context",
+					"apps+deployments+default+test-context":          "unrelated-group",
+				},
+			},
+			key: "+pods+default+test-context+limit=50", // Invalidation can be triggered by any variant
+			aftermockCache: &MockCache{
+				store: map[string]string{
+					"+pods2+default+test-context":           "unrelated-kind",
+					"+pods+default2+test-context":           "unrelated-namespace",
+					"+pods+default+test-context-2":          "unrelated-context",
+					"apps+deployments+default+test-context": "unrelated-group",
+				},
+			},
+		},
 	}
 
 	for _, tc := range tests {
