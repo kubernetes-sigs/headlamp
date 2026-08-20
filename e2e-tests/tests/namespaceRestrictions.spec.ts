@@ -310,6 +310,30 @@ test('a global project route resolves configured cluster selectors', async ({ pa
   await expect(page).toHaveTitle(/Project Details/);
 });
 
+test('the home Projects view resolves configured cluster selectors', async ({ page }) => {
+  const selectorRequests = new Set<string>();
+
+  await page.addInitScript(selector => {
+    for (const cluster of ['test', 'test2']) {
+      localStorage.setItem(
+        `cluster_settings.${cluster}`,
+        JSON.stringify({ allowedNamespacesSelector: selector })
+      );
+    }
+  }, selector);
+  await mockHeadlamp(page, ['test', 'test2'], async cluster => {
+    selectorRequests.add(cluster);
+    return ['project-namespace'];
+  });
+
+  await page.goto('/');
+  await page.getByRole('tab', { name: 'Projects' }).click();
+
+  await expect
+    .poll(() => [...selectorRequests].sort(), { timeout: 10_000 })
+    .toEqual(['test', 'test2']);
+});
+
 test('a cluster route does not resolve unselected cluster selectors', async ({ page }) => {
   const selectorRequests = new Set<string>();
 
