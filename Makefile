@@ -83,7 +83,7 @@ frontend/build:
 
 .PHONY: app
 app-build: frontend/build
-	cd app && npm ci && node ./scripts/setup-plugins.js && npm run build
+	cd app && npm ci && node --experimental-strip-types ./scripts/setup-plugins.ts && npm run build
 app: app-build
 	cd app && npm run package -- --win --linux --mac
 app-win: app-build
@@ -332,10 +332,10 @@ else
 endif
 
 run-app:
-	cd app && npm install && node ./scripts/setup-plugins.js && npm run start
+	cd app && npm install && node --experimental-strip-types ./scripts/setup-plugins.ts && npm run start
 
 run-only-app:
-	cd app && npm install && node ./scripts/setup-plugins.js && npm run dev-only-app
+	cd app && npm install && node --experimental-strip-types ./scripts/setup-plugins.ts && npm run dev-only-app
 
 frontend-lint:
 	cd frontend && npm run lint && npm run format-check

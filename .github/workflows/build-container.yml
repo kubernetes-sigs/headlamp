@@ -208,6 +208,7 @@ jobs:
         echo "-----------------------------Running playwright e2e tests-----------------------------"
         cd e2e-tests
         npm ci
+        npm run test:unit:coverage
         npx playwright install --with-deps
         npx playwright test
         exit_code=$?
