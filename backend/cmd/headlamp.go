@@ -414,7 +414,7 @@ func addPluginDeleteRoute(config *HeadlampConfig, r *mux.Router) {
 
 		logger.Log(logger.LevelInfo, nil, nil, "Received DELETE request for plugin: "+mux.Vars(r)["name"])
 
-		if err := config.checkHeadlampBackendToken(w, r); err != nil {
+		if err := auth.CheckBackendToken(config.UseInCluster, w, r); err != nil {
 			if config.TelemetryHandler != nil {
 				config.TelemetryHandler.RecordError(span, err, "Invalid backend token")
 			}
@@ -759,54 +759,66 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	addPluginRoutes(config, r)
 
 	// Setup port forwarding handlers.
-	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
-		contextKey, err := config.getContextKeyForRequest(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+	r.Handle(
+		"/clusters/{clusterName}/portforward",
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			contextKey, err := config.getContextKeyForRequest(r)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 
-		portforward.StartPortForward(
-			config.KubeConfigStore,
-			config.Cache,
-			config.shouldUseUnsafeServiceAccountToken(),
-			contextKey,
-			w,
-			r,
-		)
-	}).Methods("POST")
+			portforward.StartPortForward(
+				config.KubeConfigStore,
+				config.Cache,
+				config.shouldUseUnsafeServiceAccountToken(),
+				contextKey,
+				w,
+				r,
+			)
+		})),
+	).Methods("POST")
 
-	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
-		contextKey, err := config.getContextKeyForRequest(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+	r.Handle(
+		"/clusters/{clusterName}/portforward",
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			contextKey, err := config.getContextKeyForRequest(r)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 
-		portforward.StopOrDeletePortForward(config.Cache, contextKey, w, r)
-	}).Methods("DELETE")
+			portforward.StopOrDeletePortForward(config.Cache, contextKey, w, r)
+		})),
+	).Methods("DELETE")
 
-	r.HandleFunc("/clusters/{clusterName}/portforward/list", func(w http.ResponseWriter, r *http.Request) {
-		contextKey, err := config.getContextKeyForRequest(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+	r.Handle(
+		"/clusters/{clusterName}/portforward/list",
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			contextKey, err := config.getContextKeyForRequest(r)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 
-		portforward.GetPortForwards(config.Cache, contextKey, w, r)
-	})
-	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
-		contextKey, err := config.getContextKeyForRequest(r)
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusBadRequest)
-			return
-		}
+			portforward.GetPortForwards(config.Cache, contextKey, w, r)
+		})),
+	)
+	r.Handle(
+		"/clusters/{clusterName}/portforward",
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			contextKey, err := config.getContextKeyForRequest(r)
+			if err != nil {
+				http.Error(w, err.Error(), http.StatusBadRequest)
+				return
+			}
 
-		portforward.GetPortForwardByID(config.Cache, contextKey, w, r)
-	}).Methods("GET")
+			portforward.GetPortForwardByID(config.Cache, contextKey, w, r)
+		})),
+	).Methods("GET")
 
 	// Expose user info so the frontend can show the current user in the top bar using the per-cluster auth cookie.
-	r.HandleFunc("/clusters/{clusterName}/me",
+	r.Handle("/clusters/{clusterName}/me", auth.NewBackendTokenMiddleware(config.UseInCluster)(
 		auth.HandleMe(auth.MeHandlerOptions{
 			UsernamePaths:           config.MeUsernamePaths,
 			EmailPaths:              config.MeEmailPaths,
@@ -817,11 +829,11 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			ProxyAuthGroupHeader:    config.ProxyAuthGroupHeader,
 			ProxyAuthEmailHeader:    config.ProxyAuthEmailHeader,
 		}),
-	).Methods("GET")
+	)).Methods("GET")
 
 	config.handleClusterRequests(r)
 
-	r.HandleFunc("/externalproxy", func(w http.ResponseWriter, r *http.Request) {
+	externalProxyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		proxyURL := r.Header.Get("proxy-to")
 		if proxyURL == "" && r.Header.Get("Forward-to") != "" {
 			proxyURL = r.Header.Get("Forward-to")
@@ -949,16 +961,21 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 			return
 		}
 	})
+	r.Handle("/externalproxy", auth.NewBackendTokenMiddleware(config.UseInCluster)(externalProxyHandler))
 
 	// Configuration
-	r.HandleFunc("/config", config.getConfig).Methods("GET")
+	r.Handle("/config", auth.NewBackendTokenMiddleware(config.UseInCluster)(
+		http.HandlerFunc(config.getConfig))).Methods("GET")
 
 	// Auth token management
-	r.HandleFunc("/auth/set-token", config.handleSetToken).Methods("POST")
+	r.Handle("/auth/set-token", auth.NewBackendTokenMiddleware(config.UseInCluster)(
+		http.HandlerFunc(config.handleSetToken))).Methods("POST")
 
 	// Websocket connections
 	if config.Multiplexer != nil {
-		r.HandleFunc("/wsMultiplexer", config.Multiplexer.HandleClientWebSocket)
+		r.Handle("/wsMultiplexer", auth.NewBackendTokenMiddleware(config.UseInCluster)(
+			http.HandlerFunc(config.Multiplexer.HandleClientWebSocket),
+		))
 	}
 
 	config.addClusterSetupRoute(r)
@@ -1109,9 +1126,11 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		http.Redirect(w, r, authURL, http.StatusFound)
 	}).Queries("cluster", "{cluster}")
 
-	r.HandleFunc("/drain-node", config.handleNodeDrain).Methods("POST")
-	r.HandleFunc("/drain-node-status",
-		config.handleNodeDrainStatus).Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
+	r.Handle("/drain-node",
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(config.handleNodeDrain))).Methods("POST")
+	r.Handle("/drain-node-status",
+		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(
+			config.handleNodeDrainStatus))).Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
 
 	r.HandleFunc("/oidc-callback", func(w http.ResponseWriter, r *http.Request) {
 		// Shadow createHeadlampHandler's outer-scope err so any log call in
@@ -1701,63 +1720,40 @@ func getHelmHandler(c *HeadlampConfig, w http.ResponseWriter, r *http.Request) (
 	return helmHandler, nil
 }
 
-// Check request for header "X-HEADLAMP_BACKEND-TOKEN" matches HEADLAMP_BACKEND_TOKEN env
-// This check is to prevent access except for from the app.
-// The app sets HEADLAMP_BACKEND_TOKEN, and gives the token to the frontend.
-func (c *HeadlampConfig) checkHeadlampBackendToken(w http.ResponseWriter, r *http.Request) error {
-	if c.UseInCluster {
-		return nil
-	}
-
-	backendToken := r.Header.Get("X-HEADLAMP_BACKEND-TOKEN")
-	backendTokenEnv := os.Getenv("HEADLAMP_BACKEND_TOKEN")
-
-	if backendToken != backendTokenEnv || backendTokenEnv == "" {
-		http.Error(w, "access denied", http.StatusForbidden)
-		return errors.New("X-HEADLAMP_BACKEND-TOKEN does not match HEADLAMP_BACKEND_TOKEN")
-	}
-
-	return nil
-}
-
 // handleClusterServiceProxy registers a new route for the path serviceproxy/{namespace}/{name}
 // to proxy requests to in-cluster services.
 func handleClusterServiceProxy(c *HeadlampConfig, router *mux.Router) {
-	router.HandleFunc("/clusters/{clusterName}/serviceproxy/{namespace}/{name}",
-		func(w http.ResponseWriter, r *http.Request) {
+	router.Handle("/clusters/{clusterName}/serviceproxy/{namespace}/{name}",
+		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			serviceproxy.RequestHandler(c.KubeConfigStore, c.shouldUseUnsafeServiceAccountToken(), w, r)
-		}).Queries("request", "{request}").
+		}))).Queries("request", "{request}").
 		Methods("GET")
 }
 
 func handleClusterHelm(c *HeadlampConfig, router *mux.Router) {
-	router.PathPrefix("/clusters/{clusterName}/helm/{.*}").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
-		path := r.URL.Path
-		clusterName := mux.Vars(r)["clusterName"]
+	router.PathPrefix("/clusters/{clusterName}/helm/{.*}").Handler(
+		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			path := r.URL.Path
+			clusterName := mux.Vars(r)["clusterName"]
 
-		_, span := telemetry.CreateSpan(ctx, r, "helm", "handleClusterHelm",
-			attribute.String("cluster", clusterName),
-		)
+			_, span := telemetry.CreateSpan(ctx, r, "helm", "handleClusterHelm",
+				attribute.String("cluster", clusterName),
+			)
 
-		c.TelemetryHandler.RecordEvent(span, "Starting Helm operation request")
-		defer span.End()
+			c.TelemetryHandler.RecordEvent(span, "Starting Helm operation request")
+			defer span.End()
 
-		c.TelemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", clusterName))
+			c.TelemetryHandler.RecordRequestCount(ctx, r, attribute.String("cluster", clusterName))
 
-		if err := c.checkHeadlampBackendToken(w, r); err != nil {
-			c.handleError(w, ctx, span, err, "failed to check headlamp backend token", http.StatusForbidden)
-			return
-		}
+			helmHandler, err := getHelmHandler(c, w, r)
+			if err != nil {
+				c.handleError(w, ctx, span, err, "failed to get helm handler", http.StatusForbidden)
+				return
+			}
 
-		helmHandler, err := getHelmHandler(c, w, r)
-		if err != nil {
-			c.handleError(w, ctx, span, err, "failed to get helm handler", http.StatusForbidden)
-			return
-		}
-
-		c.dispatchHelmRoute(ctx, span, w, r, path, clusterName, helmHandler)
-	})
+			c.dispatchHelmRoute(ctx, span, w, r, path, clusterName, helmHandler)
+		})))
 }
 
 func (c *HeadlampConfig) helmRouteReleaseHandler(
@@ -2021,14 +2017,15 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 // It parses the request and creates a proxy request to the cluster.
 // That proxy is saved in the cache with the context key.
 func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
-	router.HandleFunc("/clusters/{clusterName}/set-token", c.handleSetToken).Methods("POST")
+	router.Handle("/clusters/{clusterName}/set-token",
+		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.handleSetToken))).Methods("POST")
 
 	handler := clusterRequestHandler(c)
 	if c.CacheEnabled {
 		handler = CacheMiddleWare(c)(handler)
 	}
 
-	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(handler)
+	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(auth.NewBackendTokenMiddleware(c.UseInCluster)(handler))
 }
 
 func recordRequestCompletion(c *HeadlampConfig, ctx context.Context,
@@ -2307,7 +2304,7 @@ func (c *HeadlampConfig) addCluster(w http.ResponseWriter, r *http.Request) { //
 
 	c.TelemetryHandler.RecordRequestCount(ctx, r)
 
-	if err := c.checkHeadlampBackendToken(w, r); err != nil {
+	if err := auth.CheckBackendToken(c.UseInCluster, w, r); err != nil {
 		c.TelemetryHandler.RecordError(span, err, "invalid backend token")
 		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "invalid token"))
 		logger.Log(logger.LevelError, nil, err, "invalid token")
@@ -2516,7 +2513,7 @@ func (c *HeadlampConfig) deleteCluster(w http.ResponseWriter, r *http.Request) {
 
 	name := mux.Vars(r)["name"]
 
-	if err := c.checkHeadlampBackendToken(w, r); err != nil {
+	if err := auth.CheckBackendToken(c.UseInCluster, w, r); err != nil {
 		c.TelemetryHandler.RecordError(span, err, "invalid backend token")
 		c.TelemetryHandler.RecordErrorCount(ctx, attribute.String("error.type", "invalid_token"))
 		logger.Log(logger.LevelError, nil, err, "invalid token")
@@ -2909,7 +2906,8 @@ func (c *HeadlampConfig) addClusterSetupRoute(r *mux.Router) {
 		return
 	}
 	// Get stateless cluster
-	r.HandleFunc("/parseKubeConfig", c.parseKubeConfig).Methods("POST")
+	r.Handle("/parseKubeConfig", auth.NewBackendTokenMiddleware(c.UseInCluster)(
+		http.HandlerFunc(c.parseKubeConfig))).Methods("POST")
 
 	// POST a cluster
 	r.HandleFunc("/cluster", c.addCluster).Methods("POST")
@@ -2918,7 +2916,8 @@ func (c *HeadlampConfig) addClusterSetupRoute(r *mux.Router) {
 	r.HandleFunc("/cluster/{name}", c.deleteCluster).Methods("DELETE")
 
 	// Rename a cluster
-	r.HandleFunc("/cluster/{name}", c.renameCluster).Methods("PUT")
+	r.Handle("/cluster/{name}",
+		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.renameCluster))).Methods("PUT")
 }
 
 /*
