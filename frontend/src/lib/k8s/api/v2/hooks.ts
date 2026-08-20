@@ -253,7 +253,7 @@ export function useKubeObject<K extends KubeObject>({
  * @throws {ApiError}
  * When no endpoints are working
  */
-const getWorkingEndpoint = async (
+export const getWorkingEndpoint = async (
   endpoints: KubeObjectEndpoint[],
   cluster: string,
   namespace?: string,
