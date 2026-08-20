@@ -370,7 +370,9 @@ func (c *Connection) safeClose() {
 		}
 
 		if c.WSConn != nil {
+			c.writeMu.Lock()
 			_ = c.WSConn.Close()
+			c.writeMu.Unlock()
 		}
 	})
 }
@@ -568,7 +570,11 @@ func (m *Multiplexer) monitorConnection(conn *Connection) {
 
 			return
 		case <-heartbeat.C:
-			if err := conn.WSConn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			conn.writeMu.Lock()
+			err := conn.WSConn.WriteMessage(websocket.PingMessage, nil)
+			conn.writeMu.Unlock()
+
+			if err != nil {
 				conn.updateStatus(StateError, fmt.Errorf("heartbeat failed: %w", err))
 
 				if newConn, err := m.reconnect(conn); err != nil {
@@ -588,7 +594,9 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 	}
 
 	if conn.WSConn != nil {
+		conn.writeMu.Lock()
 		_ = conn.WSConn.Close()
+		conn.writeMu.Unlock()
 	}
 
 	newConn, err := m.establishClusterConnection(
@@ -858,7 +866,10 @@ func (m *Multiplexer) handleConnectionError(clientConn *WSConnLock, msg Message,
 
 // writeMessageToCluster writes a message to the cluster WebSocket connection.
 func (m *Multiplexer) writeMessageToCluster(conn *Connection, data []byte) error {
+	conn.writeMu.Lock()
 	err := conn.WSConn.WriteMessage(websocket.BinaryMessage, data)
+	conn.writeMu.Unlock()
+
 	if err != nil {
 		conn.updateStatus(StateError, err)
 		logger.Log(
