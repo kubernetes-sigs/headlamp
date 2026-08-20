@@ -354,9 +354,12 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 	// Serve development plugins
 	pluginHandler := http.StripPrefix(config.BaseURL+"/plugins/",
 		spa.BrotliSidecars(config.PluginDir, http.FileServer(http.Dir(config.PluginDir))))
-	// If we're running locally, then do not cache the plugins. This ensures that reloading them (development,
-	// update) will actually get the new content.
-	if !config.UseInCluster {
+	// Disable caching so that reloading plugins (development, or an update) actually serves the
+	// new content. This applies when running locally, and also in-cluster when plugin watching is
+	// enabled (--watch-plugins-changes): the server picks up the swapped bundle on disk, but
+	// without this header the browser keeps serving the stale main.js it cached earlier. Gate on the
+	// same condition as the plugin watcher below so the two stay in lockstep.
+	if !config.UseInCluster || config.WatchPluginsChanges {
 		pluginHandler = serveWithNoCacheHeader(pluginHandler)
 	}
 
@@ -366,7 +369,7 @@ func addPluginRoutes(config *HeadlampConfig, r *mux.Router) {
 	if config.UserPluginDir != "" {
 		userPluginsHandler := http.StripPrefix(config.BaseURL+"/user-plugins/",
 			spa.BrotliSidecars(config.UserPluginDir, http.FileServer(http.Dir(config.UserPluginDir))))
-		if !config.UseInCluster {
+		if !config.UseInCluster || config.WatchPluginsChanges {
 			userPluginsHandler = serveWithNoCacheHeader(userPluginsHandler)
 		}
 
