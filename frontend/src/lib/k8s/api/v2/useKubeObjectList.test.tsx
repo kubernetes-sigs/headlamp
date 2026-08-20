@@ -71,7 +71,7 @@ describe('makeListRequests', () => {
     it('should not make a cluster-wide request when a namespace restriction resolves empty', () => {
       const requests = makeListRequests(
         ['default'],
-        () => [],
+        () => withNamespaces([]),
         true,
         [],
         () => true
@@ -82,7 +82,7 @@ describe('makeListRequests', () => {
     it('should reject requested namespaces when a namespace restriction resolves empty', () => {
       const requests = makeListRequests(
         ['default'],
-        () => [],
+        () => withNamespaces([]),
         true,
         ['namespace-a'],
         () => true
@@ -106,7 +106,7 @@ describe('makeListRequests', () => {
     it('should skip a cluster when requested namespaces do not intersect its allow-list', () => {
       const requests = makeListRequests(
         ['cluster-a', 'cluster-b'],
-        cluster => (cluster === 'cluster-a' ? ['namespace-a'] : ['namespace-b']),
+        cluster => withNamespaces(cluster === 'cluster-a' ? ['namespace-a'] : ['namespace-b']),
         true,
         ['namespace-a'],
         () => true
