@@ -30,8 +30,13 @@ func ResetForTesting() {
 
 func clearWatcherRegistriesForTesting() {
 	contextCancel.Range(func(key, value interface{}) bool {
-		if cancel, ok := value.(context.CancelFunc); ok {
-			cancel()
+		switch v := value.(type) {
+		case *watcherToken:
+			if v.cancel != nil {
+				v.cancel()
+			}
+		case context.CancelFunc:
+			v()
 		}
 
 		contextCancel.Delete(key)
