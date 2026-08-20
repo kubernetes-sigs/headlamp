@@ -92,6 +92,41 @@ func writeTestTokenFile(t *testing.T) string {
 	return tokenFile
 }
 
+func TestValidateServiceAccountNamespace(t *testing.T) {
+	tests := []struct {
+		name        string
+		contents    string
+		want        string
+		wantErrText string
+	}{
+		{name: "valid namespace is trimmed", contents: " team-a\n", want: "team-a"},
+		{
+			name:        "empty namespace is rejected",
+			contents:    " \n",
+			wantErrText: "invalid service account namespace",
+		},
+		{
+			name:        "invalid namespace is rejected",
+			contents:    "Team_A",
+			wantErrText: "invalid service account namespace",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := validateServiceAccountNamespace([]byte(tt.contents))
+			if tt.wantErrText != "" {
+				require.ErrorContains(t, err, tt.wantErrText)
+
+				return
+			}
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
+		})
+	}
+}
+
 func TestCreateHeadlampHandlerSkipsInClusterContextWhenConfigUnavailable(t *testing.T) {
 	t.Setenv("KUBERNETES_SERVICE_HOST", "")
 	t.Setenv("KUBERNETES_SERVICE_PORT", "")
@@ -122,6 +157,188 @@ func TestCreateHeadlampHandlerSkipsInClusterContextWhenConfigUnavailable(t *test
 
 	_, err := kubeConfigStore.GetContext(kubeconfig.DefaultInClusterContextName)
 	require.Error(t, err)
+}
+
+//nolint:funlen
+func TestLoadKubeConfigClustersLogging(t *testing.T) {
+	tests := []struct {
+		name          string
+		useInCluster  bool
+		path          string
+		expectedMsg   string
+		expectedLevel uint
+	}{
+		{
+			name:          "no kubeconfig",
+			expectedMsg:   "No kubeconfig set",
+			expectedLevel: logger.LevelInfo,
+		},
+		{
+			name:          "no in-cluster kubeconfig",
+			useInCluster:  true,
+			expectedMsg:   "No kubeconfig set, using only the in-cluster context",
+			expectedLevel: logger.LevelInfo,
+		},
+		{
+			name:          "missing kubeconfig",
+			path:          filepath.Join(t.TempDir(), "missing-kubeconfig"),
+			expectedMsg:   "kubeconfig not found, set -kubeconfig or the KUBECONFIG env var",
+			expectedLevel: logger.LevelError,
+		},
+		{
+			name:          "missing in-cluster kubeconfig",
+			useInCluster:  true,
+			path:          filepath.Join(t.TempDir(), "missing-in-cluster-kubeconfig"),
+			expectedMsg:   "kubeconfig not found, set -kubeconfig or HEADLAMP_CONFIG_KUBECONFIG and mount the file into the pod",
+			expectedLevel: logger.LevelError,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var logs []struct {
+				level uint
+				msg   string
+			}
+
+			originalLogFunc := logger.SetLogFunc(func(level uint, _ map[string]string, _ interface{}, msg string) {
+				logs = append(logs, struct {
+					level uint
+					msg   string
+				}{level: level, msg: msg})
+			})
+			defer logger.SetLogFunc(originalLogFunc)
+
+			config := &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						UseInCluster:    test.useInCluster,
+						KubeConfigStore: kubeconfig.NewContextStore(),
+					},
+				},
+			}
+
+			loadKubeConfigClusters(config, test.path, nil)
+
+			require.Len(t, logs, 1)
+			assert.Equal(t, test.expectedLevel, logs[0].level)
+			assert.Equal(t, test.expectedMsg, logs[0].msg)
+		})
+	}
+}
+
+func TestLoadDynamicClustersLogging(t *testing.T) {
+	invalidKubeconfig := filepath.Join(t.TempDir(), "invalid-kubeconfig")
+	require.NoError(t, os.WriteFile(invalidKubeconfig, []byte("contexts: ["), 0o600))
+
+	tests := []struct {
+		name          string
+		path          string
+		expectedLevel uint
+		expectedMsg   string
+	}{
+		{name: "empty path"},
+		{
+			name:          "missing kubeconfig",
+			path:          filepath.Join(t.TempDir(), "missing-dynamic-kubeconfig"),
+			expectedLevel: logger.LevelInfo,
+			expectedMsg:   "No kubeconfig for dynamically added clusters",
+		},
+		{
+			name:          "invalid kubeconfig",
+			path:          invalidKubeconfig,
+			expectedLevel: logger.LevelError,
+			expectedMsg:   "loading the kubeconfig of dynamically added clusters",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var logs []struct {
+				level uint
+				msg   string
+			}
+
+			originalLogFunc := logger.SetLogFunc(func(level uint, _ map[string]string, _ interface{}, msg string) {
+				logs = append(logs, struct {
+					level uint
+					msg   string
+				}{level: level, msg: msg})
+			})
+			defer logger.SetLogFunc(originalLogFunc)
+
+			config := &HeadlampConfig{
+				HeadlampConfig: &headlampconfig.HeadlampConfig{
+					HeadlampCFG: &headlampconfig.HeadlampCFG{
+						KubeConfigStore: kubeconfig.NewContextStore(),
+					},
+				},
+			}
+
+			loadDynamicClusters(config, test.path, nil)
+
+			if test.expectedMsg == "" {
+				assert.Empty(t, logs)
+
+				return
+			}
+
+			require.Len(t, logs, 1)
+			assert.Equal(t, test.expectedLevel, logs[0].level)
+			assert.Equal(t, test.expectedMsg, logs[0].msg)
+		})
+	}
+}
+
+func TestCreateHeadlampHandlerLoadsDynamicClustersFromKubeConfigDir(t *testing.T) {
+	kubeConfigDir := t.TempDir()
+	kubeConfigFile := filepath.Join(kubeConfigDir, "config")
+	primaryKubeConfigFile := filepath.Join(t.TempDir(), "config")
+
+	dynamicKubeConfig, err := clientcmd.LoadFromFile("./headlamp_testdata/kubeconfig")
+	require.NoError(t, err)
+	require.NoError(t, clientcmd.WriteToFile(*dynamicKubeConfig, kubeConfigFile))
+	require.NoError(t, clientcmd.WriteToFile(api.Config{
+		Clusters: map[string]*api.Cluster{
+			"primary": {Server: "https://primary.example"},
+		},
+		Contexts: map[string]*api.Context{
+			"primary": {Cluster: "primary", AuthInfo: "primary"},
+		},
+		AuthInfos: map[string]*api.AuthInfo{
+			"primary": {Token: "token"},
+		},
+		CurrentContext: "primary",
+	}, primaryKubeConfigFile))
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	cfg := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigPath:  primaryKubeConfigFile,
+				KubeConfigDir:   kubeConfigDir,
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	handler := createHeadlampHandler(ctx, cfg)
+	require.NotNil(t, handler)
+
+	primaryContext, err := kubeConfigStore.GetContext("primary")
+	require.NoError(t, err)
+	assert.Equal(t, kubeconfig.KubeConfig, primaryContext.Source)
+
+	loadedContext, err := kubeConfigStore.GetContext(minikubeName)
+	require.NoError(t, err)
+	assert.Equal(t, kubeconfig.DynamicCluster, loadedContext.Source)
+	assert.Equal(t, kubeConfigFile, loadedContext.KubeConfigPath)
 }
 
 func getResponse(handler http.Handler, method, url string, body interface{}) (*httptest.ResponseRecorder, error) {
@@ -3846,6 +4063,66 @@ func TestClusterRequestHandlerUsesServiceAccountToken(t *testing.T) { //nolint:f
 	assert.Equal(t, "Bearer "+testServiceAccountToken, receivedAuth)
 	assert.Empty(t, receivedCookie)
 	assert.Empty(t, receivedProxyAuthToken)
+}
+
+func TestClusterRequestHandlerFallsBackToClusterContextForWebSocketCookie(t *testing.T) {
+	const cluster = "main"
+
+	var receivedAuth, receivedProtocol string
+
+	kubeAPI := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		receivedProtocol = r.Header.Get("Sec-Websocket-Protocol")
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"kind":"PodList","items":[]}`))
+	}))
+	t.Cleanup(kubeAPI.Close)
+
+	kubeConfigStore := kubeconfig.NewContextStore()
+	require.NoError(t, kubeConfigStore.AddContext(&kubeconfig.Context{
+		Name: cluster,
+		Cluster: &api.Cluster{
+			Server:                kubeAPI.URL,
+			InsecureSkipTLSVerify: true,
+		},
+		AuthInfo: &api.AuthInfo{},
+	}))
+
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				KubeConfigStore: kubeConfigStore,
+			},
+			Cache:            cache.New[interface{}](),
+			TelemetryConfig:  GetDefaultTestTelemetryConfig(),
+			TelemetryHandler: &telemetry.RequestHandler{},
+		},
+	}
+
+	router := mux.NewRouter()
+	handleClusterAPI(c, router)
+
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/main/api/v1/pods", nil)
+	req.Header.Set("Upgrade", "websocket")
+	req.Header.Set(
+		"Sec-Websocket-Protocol",
+		"base64url.headlamp.authorization.k8s.io.stale-user, v4.channel.k8s.io",
+	)
+	req.AddCookie(&http.Cookie{
+		Name:     "headlamp-auth-main.0",
+		Value:    "cookie-token",
+		HttpOnly: true,
+		Secure:   true,
+		SameSite: http.SameSiteStrictMode,
+	})
+
+	rr := httptest.NewRecorder()
+	router.ServeHTTP(rr, req)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Equal(t, "Bearer cookie-token", receivedAuth)
+	assert.Equal(t, "v4.channel.k8s.io", receivedProtocol)
 }
 
 func TestClusterRequestHandlerStripsProxyAuthTokenHeader(t *testing.T) {

@@ -61,6 +61,7 @@ import { SectionBox } from '../../common/SectionBox';
 import SimpleTable, { NameValueTable } from '../../common/SimpleTable';
 import {
   DefaultDetailsViewSection,
+  DetailsGridContext,
   DetailsViewSection,
 } from '../../DetailsViewSection/detailsViewSectionSlice';
 import { JobsListRenderer } from '../../job/List';
@@ -171,6 +172,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
   const { t } = useTranslation();
   const location = useLocation<{ backLink: NavLinkProps['location'] }>();
   const hasPreviousRoute = useHasPreviousRoute();
+  const { isInPanel } = React.useContext(DetailsGridContext);
   const detailViews = useTypedSelector(state => state.detailsViewSection.detailsViewSections);
   const detailViewsProcessors = useTypedSelector(
     state => state.detailsViewSection.detailsViewSectionsProcessors
@@ -224,6 +226,11 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
   }, [item, error]);
 
   const actualBackLink: string | Location | undefined = React.useMemo(() => {
+    // No back link in side panels
+    if (isInPanel) {
+      return undefined;
+    }
+
     if (!!backLink || backLink === '') {
       return backLink;
     }
@@ -257,7 +264,7 @@ export function DetailsGrid<T extends KubeObjectClass>(props: DetailsGridProps<T
 
     return createRouteURL(route);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [item]);
+  }, [item, isInPanel]);
 
   const sections: (DetailsViewSection | ReactNode)[] = [];
 

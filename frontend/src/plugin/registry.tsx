@@ -71,14 +71,19 @@ import {
   addClusterStatus,
   addDialog,
   addMenuItem,
+  ClusterEmptyStateComponent,
   ClusterProviderInfo,
   ClusterStatusComponent,
   DialogComponent,
   MenuItemComponent,
+  setClusterEmptyState,
 } from '../redux/clusterProviderSlice';
 import {
   addEventCallback,
+  ClusterSettingsViewLoadedEvent,
+  CreateProjectEvent,
   CreateResourceEvent,
+  DeleteProjectEvent,
   DeleteResourceEvent,
   EditResourceEvent,
   ErrorBoundaryEvent,
@@ -87,13 +92,19 @@ import {
   HeadlampEventCallback,
   HeadlampEventType,
   LogsEvent,
+  PluginDetailsViewLoadedEvent,
+  PluginListViewLoadedEvent,
   PluginLoadingErrorEvent,
   PluginsLoadedEvent,
   PodAttachEvent,
+  ProjectDetailsTabChangeEvent,
+  ProjectDetailsViewLoadedEvent,
+  ProjectListViewLoadedEvent,
   ResourceDetailsViewLoadedEvent,
   ResourceListViewLoadedEvent,
   RestartResourceEvent,
   ScaleResourceEvent,
+  SettingsViewLoadedEvent,
   TerminalEvent,
 } from '../redux/headlampEventSlice';
 import { addOverviewChartsProcessor, OverviewChartsProcessor } from '../redux/overviewChartsSlice';
@@ -150,6 +161,15 @@ export type {
   ResourceDetailsViewLoadedEvent,
   ResourceListViewLoadedEvent,
   EventListEvent,
+  ProjectListViewLoadedEvent,
+  ProjectDetailsViewLoadedEvent,
+  ProjectDetailsTabChangeEvent,
+  CreateProjectEvent,
+  DeleteProjectEvent,
+  SettingsViewLoadedEvent,
+  ClusterSettingsViewLoadedEvent,
+  PluginListViewLoadedEvent,
+  PluginDetailsViewLoadedEvent,
   PluginSettingsDetailsProps,
   PluginSettingsComponentType,
   GraphSource,
@@ -946,6 +966,32 @@ export function registerClusterStatus(item: ClusterStatusComponent) {
 }
 
 /**
+ * Replace the empty state shown on the Home page when no clusters are configured.
+ *
+ * The component receives Headlamp's default content so a product can wrap it.
+ * Registering another component replaces the previous registration.
+ *
+ * @param component - Product-owned empty state component.
+ * @returns Nothing.
+ *
+ * @example
+ *
+ * ```tsx
+ * import { registerClusterEmptyState } from '@kinvolk/headlamp-plugin/lib';
+ *
+ * registerClusterEmptyState(({ defaultContent }) => (
+ *   <section>
+ *     <p>Choose how to connect your first cluster.</p>
+ *     {defaultContent}
+ *   </section>
+ * ));
+ * ```
+ */
+export function registerClusterEmptyState(component: ClusterEmptyStateComponent): void {
+  store.dispatch(setClusterEmptyState(component));
+}
+
+/**
  * Register a new cluster provider dialog.
  *
  * These dialogs are used to show actions that can be performed on a cluster.
@@ -1148,13 +1194,16 @@ export function registerProjectDetailsTab(projectDetailsTab: ProjectDetailsTab) 
  *
  * @param projectOverviewSection - The section configuration to register
  * @param projectOverviewSection.id - Unique identifier for the section
- * @param projectOverviewSection.component - React component to render in the section
+ * @param projectOverviewSection.component - React component receiving the current project and its loaded resources
+ * @param projectOverviewSection.isEnabled - Optional asynchronous predicate receiving the project being evaluated
+ * @returns void
  *
  * @example
  * ```tsx
  * registerProjectOverviewSection({
  *   id: 'resource-usage',
- *   component: ({ project }) => <ResourceUsageChart project={project} />
+ *   component: ({ project }) => <ResourceUsageChart project={project} />,
+ *   isEnabled: async ({ project }) => project.clusters.length > 1,
  * });
  * ```
  */
@@ -1180,16 +1229,16 @@ export function registerProjectDeleteButton(projectDeleteButton: ProjectDeleteBu
  *
  * @param projectHeaderAction - The action configuration to register
  * @param projectHeaderAction.id - Unique identifier for the action
- * @param projectHeaderAction.component - React component to render as the action button
+ * @param projectHeaderAction.component - React component to render as the action button. It receives the project and an optional `setSelectedTab?: (tabId: string) => void` callback.
  * @param projectHeaderAction.isEnabled - Optional function to determine if action is displayed
  *
  * @example
  * ```tsx
  * registerProjectHeaderAction({
- *   id: 'deploy-app',
- *   component: ({ project }) => (
- *     <Button onClick={() => navigate(`/deploy/${project.id}`)}>
- *       Deploy App
+ *   id: 'view-resources',
+ *   component: ({ setSelectedTab }) => (
+ *     <Button onClick={() => setSelectedTab?.('headlamp-projects.tabs.resources')}>
+ *       View resources
  *     </Button>
  *   )
  * });

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import { ChildProcessWithoutNullStreams, exec, execSync, spawn } from 'child_process';
+import { ChildProcessWithoutNullStreams, execFileSync, spawn } from 'child_process';
 import { randomBytes } from 'crypto';
 import dotenv from 'dotenv';
 import {
@@ -32,9 +32,6 @@ import { IpcMainEvent, MenuItemConstructorOptions } from 'electron/main';
 import find_process from 'find-process';
 import * as fsPromises from 'fs/promises';
 import * as net from 'net';
-import fs from 'node:fs';
-import { userInfo } from 'node:os';
-import { promisify } from 'node:util';
 import { platform } from 'os';
 import path from 'path';
 import url from 'url';
@@ -42,16 +39,24 @@ import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
 import { setupCustomCAs, setupSystemCAs } from './certificates';
 import i18n from './i18next.config';
+import {
+  getLegalDocumentsResourcePath,
+  loadLegalDocuments,
+  readLegalDocument,
+} from './legal-documents';
+import { runListPluginsCommand } from './list-plugins';
 import MCPClient from './mcp/MCPClient';
 import { filterUserOwnedPids } from './ownedProcesses';
 import {
   addToPath,
   ArtifactHubHeadlampPkg,
+  defaultKubeConfigsDir,
   defaultPluginsDir,
   defaultUserPluginsDir,
   getMatchingExtraFiles,
   getPluginBinDirectories,
   PluginManager,
+  setAppConfigDirName,
 } from './plugin-management';
 import {
   addRunCmdConsent,
@@ -61,6 +66,7 @@ import {
   setupRunCmdHandlers,
 } from './runCmd';
 import { loadSettings, SETTINGS_PATH } from './settings';
+import { getShellEnv } from './shellEnv';
 import {
   cleanupHeadlampTray,
   createHeadlampTray,
@@ -69,10 +75,19 @@ import {
   setTrayIconEnabled,
 } from './tray';
 import windowSize from './windowSize';
+import {
+  clampZoom,
+  DEFAULT_ZOOM_FACTOR,
+  flushZoomFactorSave,
+  loadZoomFactor,
+  saveZoomFactor,
+} from './zoom';
 
 if (process.env.APPIMAGE) {
   app.commandLine.appendSwitch('disable-setuid-sandbox');
 }
+
+setAppConfigDirName(app.getName());
 
 // On Linux, force the GTK 3 backend. Electron 36+ defaults to GTK 4, which
 // conflicts with GTK 2/3 symbols pulled into the process by IM modules and
@@ -130,15 +145,7 @@ const args = yargs(hideBin(process.argv))
     'List all static and user-added plugins.',
     () => {},
     () => {
-      try {
-        const backendPath = path.join(process.resourcesPath, 'headlamp-server');
-        const stdout = execSync(`${backendPath} list-plugins`);
-        process.stdout.write(stdout);
-        process.exit(0);
-      } catch (error) {
-        console.error(`Error listing plugins: ${error}`);
-        process.exit(1);
-      }
+      process.exit(runListPluginsCommand(process.resourcesPath));
     }
   )
   .options({
@@ -192,6 +199,9 @@ const MAX_PORT_ATTEMPTS = Math.abs(Number(process.env.HEADLAMP_MAX_PORT_ATTEMPTS
 
 const useExternalServer = process.env.EXTERNAL_SERVER || false;
 const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false';
+const legalDocumentsResourcePath = getLegalDocumentsResourcePath(isDev, process.resourcesPath);
+const appBuildManifestPath = path.join(legalDocumentsResourcePath, 'app-build-manifest.json');
+const legalDocuments = loadLegalDocuments(appBuildManifestPath);
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
@@ -632,100 +642,6 @@ class PluginManagerEventListeners {
   }
 }
 
-/**
- * Returns the user's preferred shell or a fallback shell.
- * @returns A promise that resolves to the shell path.
- */
-async function getShell(): Promise<string> {
-  // Fallback chain
-  const shells = ['/bin/zsh', '/bin/bash', '/bin/sh'];
-  let userShell = '';
-
-  try {
-    userShell = userInfo().shell || process.env.SHELL || '';
-    if (userShell) shells.unshift(userShell);
-  } catch (error) {
-    console.error('Failed to get user shell:', error);
-  }
-
-  for (const shell of shells) {
-    try {
-      await fsPromises.stat(shell);
-      return shell;
-    } catch (error) {
-      console.error(`Shell not found: ${shell}, error: ${error}`);
-    }
-  }
-
-  console.error('No valid shell found, defaulting to /bin/sh');
-  return '/bin/sh';
-}
-
-/**
- * Retrieves the environment variables from the user's shell.
- * @returns A promise that resolves to the shell environment.
- */
-async function getShellEnv(): Promise<NodeJS.ProcessEnv> {
-  const execPromisify = promisify(exec);
-  const shell = await getShell();
-  const isWindows = process.platform === 'win32';
-
-  // For Windows, just return the current environment
-  if (isWindows) {
-    return { ...process.env };
-  }
-
-  // For Unix-like systems
-  const isZsh = shell.includes('zsh');
-  // interactive is supported only on zsh
-  const shellArgs = isZsh ? ['--login', '--interactive', '-c'] : ['--login', '-c'];
-
-  try {
-    const env = { ...process.env, DISABLE_AUTO_UPDATE: 'true' };
-    let stdout: string;
-    let isEnvNull = false;
-
-    try {
-      // Try env -0 first
-      const command = 'env -0';
-      ({ stdout } = await execPromisify(`${shell} ${shellArgs.join(' ')} '${command}'`, {
-        encoding: 'utf8',
-        timeout: 10000,
-        env,
-      }));
-      isEnvNull = true;
-    } catch (error) {
-      // If env -0 fails, fall back to env
-      console.log('env -0 failed, falling back to env');
-      const command = 'env';
-      ({ stdout } = await execPromisify(`${shell} ${shellArgs.join(' ')} '${command}'`, {
-        encoding: 'utf8',
-        timeout: 10000,
-        env,
-      }));
-    }
-
-    const processLines = (separator: string) => {
-      return stdout.split(separator).reduce((acc, line) => {
-        const firstEqualIndex = line.indexOf('=');
-        if (firstEqualIndex > 0) {
-          const key = line.slice(0, firstEqualIndex);
-          const value = line.slice(firstEqualIndex + 1);
-          acc[key] = value;
-        }
-        return acc;
-      }, {} as NodeJS.ProcessEnv);
-    };
-
-    const envVars = isEnvNull ? processLines('\0') : processLines('\n');
-    const mergedEnv = { ...process.env, ...envVars };
-    return mergedEnv;
-  } catch (error) {
-    console.error('Failed to get shell environment:', error);
-    return process.env;
-  }
-}
-
 let shellEnvironmentPromise: Promise<NodeJS.ProcessEnv> | null = null;
 
 /** Returns the cached login-shell changes merged with the current process environment. */
@@ -811,11 +727,9 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
     serverArgs = serverArgs.concat(['--kubeconfig', args.kubeconfig]);
   }
 
-  const manifestDir = isDev ? path.resolve('./') : process.resourcesPath;
-  const manifestFile = path.join(manifestDir, 'app-build-manifest.json');
   let buildManifest: Record<string, any> = {};
   try {
-    const manifestContent = await fsPromises.readFile(manifestFile, 'utf8');
+    const manifestContent = await fsPromises.readFile(appBuildManifestPath, 'utf8');
     buildManifest = JSON.parse(manifestContent);
   } catch (err) {
     // If the manifest doesn't exist or can't be read, fall back to empty object
@@ -856,6 +770,15 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   } catch (err) {
     // Directory doesn't exist or is not readable — ignore and continue.
   }
+
+  serverArgs = serverArgs.concat([
+    '--plugins-dir',
+    defaultPluginsDir(),
+    '--user-plugins-dir',
+    defaultUserPluginsDir(),
+    '--kubeconfig-dir',
+    defaultKubeConfigsDir(),
+  ]);
 
   serverArgs = serverArgs.concat(flags);
   console.log('arguments passed to backend server', serverArgs);
@@ -1383,48 +1306,82 @@ async function getHeadlampPIDsOnPort(port: number): Promise<number[] | null> {
 function killProcess(pid: number) {
   if (process.platform === 'win32') {
     // Otherwise on Windows the process will stick around.
-    execSync('taskkill /pid ' + pid + ' /T /F');
+    execFileSync('taskkill', ['/pid', String(pid), '/T', '/F']);
   } else {
     process.kill(pid, 'SIGHUP');
   }
 }
 
 const ZOOM_FILE_PATH = path.join(app.getPath('userData'), 'headlamp-config.json');
-let cachedZoom: number = 1.0;
+let cachedZoom: number = DEFAULT_ZOOM_FACTOR;
 
-function saveZoomFactor(factor: number) {
-  try {
-    fs.writeFileSync(ZOOM_FILE_PATH, JSON.stringify({ zoomFactor: factor }), 'utf-8');
-  } catch (err) {
-    console.error('Failed to save zoom factor:', err);
+function applyZoom(forceRefresh = false) {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    return;
   }
+
+  const wc = mainWindow.webContents;
+  // The window may be mid-close (e.g. deferred scheduleApplyZoom callbacks);
+  // setZoomFactor on a destroyed WebContents throws.
+  if (!wc || wc.isDestroyed()) {
+    return;
+  }
+
+  // Chromium's renderer process skips re-calculating layout and re-scaling
+  // newly painted DOM elements if it believes the zoom factor is already set
+  // to cachedZoom (e.g. on in-page SPA navigation or window focus/restore).
+  // Nudging the zoomFactor slightly (±0.001) forces Chromium to recognize
+  // a factor change and re-layout/repaint the page, then we immediately restore
+  // it to the target cachedZoom.
+  if (forceRefresh && cachedZoom !== DEFAULT_ZOOM_FACTOR) {
+    let nudge = clampZoom(cachedZoom + 0.001);
+    if (nudge === cachedZoom) {
+      nudge = clampZoom(cachedZoom - 0.001);
+    }
+    wc.setZoomFactor(nudge);
+  }
+  wc.setZoomFactor(cachedZoom);
 }
 
-async function loadZoomFactor(): Promise<number> {
-  try {
-    const content = await fsPromises.readFile(ZOOM_FILE_PATH, 'utf-8');
-    const { zoomFactor = 1.0 } = JSON.parse(content);
-    return typeof zoomFactor === 'number' ? zoomFactor : 1.0;
-  } catch (err) {
-    console.error('Failed to load zoom factor, defaulting to 1.0:', err);
-    return 1.0;
-  }
-}
+function scheduleApplyZoom(forceRefresh = false) {
+  applyZoom(forceRefresh);
+  setImmediate(() => {
+    applyZoom(forceRefresh);
 
-// The zoom factor should respect the fixed limits set by Electron.
-function clampZoom(factor: number) {
-  return Math.min(5.0, Math.max(0.25, factor));
+    // Re-grab webContents: the window may have closed since scheduling.
+    if (!mainWindow || mainWindow.isDestroyed()) {
+      return;
+    }
+    const wc = mainWindow.webContents;
+    if (!wc || wc.isDestroyed()) {
+      return;
+    }
+
+    wc.executeJavaScript(
+      'new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))'
+    )
+      .then(() => applyZoom(forceRefresh))
+      .catch(() => {});
+  });
 }
 
 function setZoom(factor: number) {
-  cachedZoom = factor;
-  mainWindow?.webContents.setZoomFactor(cachedZoom);
+  cachedZoom = clampZoom(factor);
+  applyZoom(false);
+  saveZoomFactor(ZOOM_FILE_PATH, cachedZoom);
 }
 
 function adjustZoom(delta: number) {
-  const newZoom = clampZoom(cachedZoom + delta);
-  setZoom(newZoom);
+  setZoom(cachedZoom + delta);
 }
+
+// React Router in the frontend renderer sends 'route-changed' after rendering
+// and painting a new route; re-apply zoom with forceRefresh to ensure the new view
+// is rendered at the correct scale. Registered outside createWindow so it is not
+// re-attached multiple times when the window is reopened (e.g. on macOS activate).
+ipcMain.on('route-changed', () => {
+  scheduleApplyZoom(true);
+});
 
 function startElectron() {
   console.info('App starting...');
@@ -1591,6 +1548,15 @@ function startElectron() {
     const withMargin = await isWSL();
     const { width, height } = windowSize(screen.getPrimaryDisplay().workAreaSize, withMargin);
 
+    // Flush any pending debounced zoom save before reading so reopening the
+    // window immediately after a zoom change reads the latest factor.
+    flushZoomFactorSave();
+
+    // Load before constructing the window so no await sits between window
+    // creation and the 'closed' handler; closing during the read would
+    // otherwise leave a destroyed window that later loadURL/menu calls throw on.
+    cachedZoom = await loadZoomFactor(ZOOM_FILE_PATH);
+
     mainWindow = new BrowserWindow({
       width,
       height,
@@ -1600,6 +1566,8 @@ function startElectron() {
         preload: `${__dirname}/preload.js`,
       },
     });
+
+    applyZoom();
 
     // Load the frontend
     mainWindow.loadURL(startUrl);
@@ -1629,15 +1597,34 @@ function startElectron() {
       }
     });
 
-    mainWindow.webContents.on('did-finish-load', async () => {
-      const startZoom = await loadZoomFactor();
-      if (startZoom !== 1.0) {
-        setZoom(startZoom);
-      }
-
+    mainWindow.webContents.on('did-finish-load', () => {
+      scheduleApplyZoom(true);
       // Inject the backend port into the window object
       mainWindow?.webContents.executeJavaScript(`window.headlampBackendPort = ${actualPort};`);
     });
+
+    mainWindow.webContents.on('did-frame-finish-load', (_event, isMainFrame) => {
+      if (isMainFrame) {
+        scheduleApplyZoom(true);
+      }
+    });
+
+    mainWindow.webContents.on('zoom-changed', (_event, zoomDirection) => {
+      if (!mainWindow || mainWindow.isDestroyed()) {
+        return;
+      }
+      const wc = mainWindow.webContents;
+      if (!wc || wc.isDestroyed()) {
+        return;
+      }
+
+      const delta = zoomDirection === 'in' ? 0.1 : -0.1;
+      adjustZoom(delta);
+    });
+
+    // Electron can visually reset zoom after SPA navigation or when the window regains focus.
+    mainWindow.on('focus', () => scheduleApplyZoom(true));
+    mainWindow.on('show', () => scheduleApplyZoom(true));
 
     mainWindow.webContents.on('dom-ready', () => {
       const defaultMenu = getDefaultAppMenu();
@@ -1739,6 +1726,13 @@ function startElectron() {
         appVersion,
       });
     });
+
+    ipcMain.handle('get-legal-documents', () =>
+      legalDocuments.map(({ id, title }) => ({ id, title }))
+    );
+    ipcMain.handle('get-legal-document', (_event, id: unknown) =>
+      readLegalDocument(legalDocumentsResourcePath, legalDocuments, id)
+    );
 
     ipcMain.on('pluginsLoaded', () => {
       loadFullMenu = true;
@@ -1909,9 +1903,10 @@ function startElectron() {
 
   app.once('before-quit', async () => {
     isQuitting = true;
+    // Persist any zoom change still waiting on the debounced save.
+    flushZoomFactorSave();
     cleanupHeadlampTray();
     hasTray = false;
-    saveZoomFactor(cachedZoom);
     i18n.off('languageChanged');
     if (mainWindow) {
       mainWindow.removeAllListeners('close');

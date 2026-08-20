@@ -125,6 +125,42 @@ const QueryParamRedirect = () => {
 
   return null;
 };
+
+/**
+ * Notify Electron main process after React renders and paints a new route (issue #3948).
+ *
+ * Electron's WebContents 'did-navigate-in-page' event fires immediately when
+ * the URL hash changes, before React has committed the new route components
+ * to the DOM. As a result, applying zoom on 'did-navigate-in-page' can miss
+ * the newly mounted DOM elements, causing them to paint at default 100% scale.
+ * RouteZoomSync waits for double-requestAnimationFrame after location changes
+ * to ensure React has fully rendered and painted the new route before notifying
+ * Electron to enforce the cached zoom factor.
+ */
+export function RouteZoomSync() {
+  const location = useLocation();
+
+  useEffect(() => {
+    if (!isElectron() || !window.desktopApi) {
+      return;
+    }
+
+    let innerFrame = 0;
+    const outerFrame = requestAnimationFrame(() => {
+      innerFrame = requestAnimationFrame(() => {
+        window.desktopApi?.send('route-changed');
+      });
+    });
+
+    return () => {
+      cancelAnimationFrame(outerFrame);
+      cancelAnimationFrame(innerFrame);
+    };
+  }, [location.pathname, location.search, location.hash]);
+
+  return null;
+}
+
 const Router = ({ children }: React.PropsWithChildren<{}>) =>
   isElectron() ? (
     <HashRouter>{children}</HashRouter>
@@ -156,6 +192,7 @@ export default function AppContainer() {
       />
       <Router>
         <PreviousRouteProvider>
+          <RouteZoomSync />
           <MonacoEditorLoaderInitializer>
             <Plugins />
             <Layout />

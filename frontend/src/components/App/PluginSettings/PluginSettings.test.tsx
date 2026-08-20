@@ -18,9 +18,11 @@ import { ThemeProvider } from '@mui/material/styles';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createMuiTheme } from '../../../lib/themes';
-import { PluginInfo } from '../../../plugin/pluginsSlice';
-import { TestContext } from '../../../test';
-import { PluginSettingsPure } from './PluginSettings';
+import { PluginInfo, setPluginSettings } from '../../../plugin/pluginsSlice';
+import { HeadlampEventType } from '../../../redux/headlampEventSlice';
+import store from '../../../redux/stores/store';
+import { recordHeadlampEvents, TestContext } from '../../../test';
+import PluginSettings, { PluginSettingsPure } from './PluginSettings';
 
 vi.mock('../../../helpers/isElectron', () => ({
   isElectron: () => true,
@@ -196,6 +198,28 @@ describe('PluginSettingsPure', () => {
     // Wait for the async onDelete rejection to be handled and the row to be restored.
     await waitFor(() => {
       expect(screen.getAllByLabelText('Delete Plugin')).toHaveLength(2);
+    });
+  });
+});
+
+describe('PluginSettings events', () => {
+  it('dispatches PLUGIN_LIST_VIEW with the configured plugins', async () => {
+    const plugins = createPlugins(2);
+    store.dispatch(setPluginSettings(plugins));
+    const events = recordHeadlampEvents();
+
+    render(
+      <TestContext>
+        <ThemeProvider theme={theme}>
+          <PluginSettings />
+        </ThemeProvider>
+      </TestContext>
+    );
+
+    await waitFor(() => {
+      expect(events.filter(e => e.type === HeadlampEventType.PLUGIN_LIST_VIEW)).toEqual([
+        { type: HeadlampEventType.PLUGIN_LIST_VIEW, data: { plugins } },
+      ]);
     });
   });
 });

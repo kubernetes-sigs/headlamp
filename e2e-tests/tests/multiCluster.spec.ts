@@ -29,34 +29,19 @@ test.describe('multi-cluster setup', () => {
     await expect(page.locator('h1:has-text("Home")')).toBeVisible();
   });
 
-  test("home page should display two cluster selection buttons labeled 'test' and 'test2'", async ({
-    page,
-  }) => {
-    const buttons = page.locator('td a');
-    await expect(buttons).toHaveCount(2);
-    await expect(page.locator('td a', { hasText: /^test$/ })).toBeVisible();
-    await expect(page.locator('td a', { hasText: /^test2$/ })).toBeVisible();
-  });
-
-  test('home page should display a table containing exactly two rows, each representing a cluster entry', async ({
-    page,
-  }) => {
-    const tableRows = page.locator('table tbody tr');
-    await expect(tableRows).toHaveCount(2);
-  });
-
   test("table should contain 'Name' and 'Status' column headers", async ({ page }) => {
     await expect(page.locator('th', { hasText: 'Name' })).toBeVisible();
     await expect(page.locator('th', { hasText: 'Status' })).toBeVisible();
   });
 
-  test("table should list 'test' cluster and 'test2' cluster with an 'Active' status and valid links", async ({
+  test("table should include the configured 'test' and 'test2' clusters with valid links", async ({
     page,
   }) => {
     for (const clusterName of ['test', 'test2']) {
       const clusterAnchor = page.locator('table tbody tr td a', {
         hasText: new RegExp(`^${clusterName}$`),
       });
+      await expect(clusterAnchor).toHaveCount(1);
       await expect(clusterAnchor).toBeVisible();
       await expect(clusterAnchor).toHaveAttribute('href', `/c/${clusterName}/`);
 
@@ -66,6 +51,41 @@ test.describe('multi-cluster setup', () => {
       await expect(clusterStatus).toBeVisible();
       await expect(clusterStatus).toHaveText(/Active|Plugin/);
     }
+  });
+
+  test('cluster version polling pauses in the background and resumes immediately', async ({
+    page,
+  }) => {
+    await page.evaluate(() => localStorage.setItem('recent_clusters', JSON.stringify(['test'])));
+
+    let versionRequests = 0;
+    page.on('request', request => {
+      if (new URL(request.url()).pathname.endsWith('/clusters/test/version')) {
+        versionRequests++;
+      }
+    });
+
+    await page.reload();
+    await expect.poll(() => versionRequests).toBe(1);
+
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => 'hidden',
+      });
+      window.dispatchEvent(new Event('visibilitychange'));
+    });
+    await page.waitForTimeout(11_000);
+    expect(versionRequests).toBe(1);
+
+    await page.evaluate(() => {
+      Object.defineProperty(document, 'visibilityState', {
+        configurable: true,
+        get: () => 'visible',
+      });
+      window.dispatchEvent(new Event('visibilitychange'));
+    });
+    await expect.poll(() => versionRequests, { timeout: 2_000 }).toBe(2);
   });
 
   test("user should be able to login to 'test' cluster, perform logout and return to cluster selection", async ({

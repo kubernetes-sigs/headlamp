@@ -39,6 +39,7 @@ import { Activity } from '../components/activity/Activity';
 import { runCommand } from '../components/App/runCommand';
 import { applyBackendThemeConfig, ensureValidThemeName } from '../components/App/themeSlice';
 import * as CommonComponents from '../components/common';
+import * as ResourceMap from '../components/resourceMap';
 import { addBackstageAuthHeaders } from '../helpers/addBackstageAuthHeaders';
 import { getAppUrl } from '../helpers/getAppUrl';
 import { isElectron } from '../helpers/isElectron';
@@ -74,6 +75,7 @@ window.pluginLib = {
     __esModule: true,
   },
   CommonComponents,
+  ResourceMap,
   MuiMaterial: {
     ...MuiMaterial,
     styles: MuiMaterialStyles,
@@ -602,6 +604,10 @@ export async function fetchAndExecutePlugins(
         getAllowedPermissions: (pluginName, pluginPath, secrets): Record<string, number> => {
           const secretsToReturn: Record<string, number> = {};
           const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
+          if (isPackage['az-auth']) {
+            secretsToReturn['runCmd-scriptjs-az-auth/azure-api.js'] =
+              +secrets['runCmd-scriptjs-az-auth/azure-api.js'];
+          }
           if (isPackage['@headlamp-k8s/minikube']) {
             secretsToReturn['runCmd-minikube'] = secrets['runCmd-minikube'];
             if (isDevelopmentMode) {
@@ -617,6 +623,11 @@ export async function fetchAndExecutePlugins(
           if (isPackage['@headlamp-k8s/ai-assistant']) {
             secretsToReturn['runCmd-gh'] = secrets['runCmd-gh'];
             secretsToReturn['runCmd-az'] = secrets['runCmd-az'];
+          }
+
+          if (isPackage['azure-aks']) {
+            secretsToReturn['runCmd-scriptjs-azure-aks/azure-api.js'] =
+              secrets['runCmd-scriptjs-azure-aks/azure-api.js'];
           }
 
           return secretsToReturn;
@@ -651,6 +662,27 @@ export async function fetchAndExecutePlugins(
           if (isPackage['@headlamp-k8s/ai-assistant']) {
             function pluginRunCommand(
               command: 'gh' | 'az',
+              args: string[],
+              options: {}
+            ): ReturnType<typeof internalRunCommand> {
+              return internalRunCommand(
+                command,
+                args,
+                options,
+                allowedPermissions,
+                pluginDesktopApiSend,
+                pluginDesktopApiReceive
+              );
+            }
+            return [
+              ['pluginRunCommand', 'pluginPath'],
+              [pluginRunCommand, pluginPath],
+            ];
+          }
+
+          if (isPackage['azure-aks']) {
+            function pluginRunCommand(
+              command: 'scriptjs',
               args: string[],
               options: {}
             ): ReturnType<typeof internalRunCommand> {

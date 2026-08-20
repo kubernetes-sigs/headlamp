@@ -15,6 +15,7 @@
  */
 
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import type { ReactNode } from 'react';
 import type { ApiError } from '../lib/k8s/api/v2/ApiError';
 
 export interface DialogProps {
@@ -34,9 +35,19 @@ export interface ClusterStatusProps {
   error: ApiError | null | undefined;
 }
 
+/** Props passed to a custom Home page cluster empty-state component. */
+export interface ClusterEmptyStateProps {
+  /** Headlamp's standard empty state, for products that want to wrap rather than replace it. */
+  defaultContent: ReactNode;
+}
+
 export type DialogComponent = (props: DialogProps) => React.ReactElement | null;
 export type MenuItemComponent = (props: MenuItemProps) => React.ReactElement | null;
 export type ClusterStatusComponent = (props: ClusterStatusProps) => React.ReactElement | null;
+/** A component that replaces or wraps the Home page cluster empty state. */
+export type ClusterEmptyStateComponent = (
+  props: ClusterEmptyStateProps
+) => React.ReactElement | null;
 
 /**
  * Information about a cluster provider, that is shown on the add cluster page.
@@ -61,6 +72,8 @@ export interface ClusterProviderSliceState {
   clusterProviders: ClusterProviderInfo[];
   /** Cluster statuses for the Home page. */
   clusterStatuses: ClusterStatusComponent[];
+  /** Optional product-owned replacement for the Home page's empty cluster state. */
+  clusterEmptyState: ClusterEmptyStateComponent | null;
 }
 
 export const initialState: ClusterProviderSliceState = {
@@ -68,6 +81,7 @@ export const initialState: ClusterProviderSliceState = {
   dialogs: [],
   clusterProviders: [],
   clusterStatuses: [],
+  clusterEmptyState: null,
 };
 
 const clusterProviderSlice = createSlice({
@@ -86,10 +100,18 @@ const clusterProviderSlice = createSlice({
     addClusterStatus(state, action: PayloadAction<ClusterStatusComponent>) {
       state.clusterStatuses.push(action.payload);
     },
+    setClusterEmptyState(state, action: PayloadAction<ClusterEmptyStateComponent>) {
+      state.clusterEmptyState = action.payload;
+    },
   },
 });
 
-export const { addDialog, addMenuItem, addAddClusterProvider, addClusterStatus } =
-  clusterProviderSlice.actions;
+export const {
+  addDialog,
+  addMenuItem,
+  addAddClusterProvider,
+  addClusterStatus,
+  setClusterEmptyState,
+} = clusterProviderSlice.actions;
 
 export default clusterProviderSlice.reducer;
