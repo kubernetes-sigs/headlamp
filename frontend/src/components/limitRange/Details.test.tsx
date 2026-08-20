@@ -37,7 +37,7 @@ vi.mock('../../lib/k8s/limitRange', () => ({
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({
-    t: (key: string) => key,
+    t: (key: string) => key.replace(/^translation\|/, ''),
   }),
 }));
 
@@ -136,10 +136,10 @@ describe('LimitRangeDetails', () => {
 
     render(<>{extraInfo[0].value}</>);
 
-    expect(screen.getByText('translation|Default')).toBeInTheDocument();
-    expect(screen.getByText('translation|Default Request')).toBeInTheDocument();
-    expect(screen.getByText('translation|Max')).toBeInTheDocument();
-    expect(screen.getByText('translation|Min')).toBeInTheDocument();
+    expect(screen.getByText('Default')).toBeInTheDocument();
+    expect(screen.getByText('Default Request')).toBeInTheDocument();
+    expect(screen.getByText('Max')).toBeInTheDocument();
+    expect(screen.getByText('Min')).toBeInTheDocument();
   });
 
   it('returns a falsy value when no limit range resource is available', () => {
