@@ -27,6 +27,8 @@ import (
 const (
 	// chunkSize is the size of each token chunk, less than 4KB because of the size limit.
 	chunkSize = 3800
+	// maxCookieChunks is the maximum number of token chunk cookies to clear.
+	maxCookieChunks = 10
 )
 
 // GetCookiePath returns the full cookie path including baseURL.
@@ -39,15 +41,28 @@ func GetCookiePath(baseURL, cluster string) string {
 	return "/clusters/" + cluster
 }
 
+// fnvHash computes a 32-bit FNV-1a hash formatted as an 8-character hex string.
+func fnvHash(s string) string {
+	var h uint32 = 2166136261
+	for i := 0; i < len(s); i++ {
+		h ^= uint32(s[i])
+		h *= 16777619
+	}
+
+	return fmt.Sprintf("%08x", h)
+}
+
 // SanitizeClusterName ensures cluster names are safe for use in cookie names.
 func SanitizeClusterName(cluster string) string {
 	// Only allow alphanumeric characters, hyphens, and underscores
 	reg := regexp.MustCompile(`[^a-zA-Z0-9\-_]`)
 	sanitized := reg.ReplaceAllString(cluster, "")
 
-	// Limit length to prevent issues
+	// Limit length to prevent issues and use a deterministic hash suffix if truncated
+	// to avoid cookie name collisions for clusters sharing a long prefix.
 	if len(sanitized) > 50 {
-		sanitized = sanitized[:50]
+		hashSuffix := fnvHash(cluster)
+		sanitized = sanitized[:41] + "-" + hashSuffix
 	}
 
 	return sanitized
@@ -86,13 +101,11 @@ func SetTokenCookie(w http.ResponseWriter, r *http.Request, cluster, token, base
 		return
 	}
 
-	// Clear any existing cookies
-	ClearTokenCookie(w, r, cluster, baseURL)
-
 	secure := IsSecureContext(r)
 
 	// if token is larger than maxCookieSize, split it into multiple cookies
 	chunks := splitToken(token, chunkSize)
+
 	for i, chunk := range chunks {
 		// G124: Secure is set from IsSecureContext so localhost development still works;
 		// HttpOnly and SameSite are set unconditionally.
@@ -108,6 +121,9 @@ func SetTokenCookie(w http.ResponseWriter, r *http.Request, cluster, token, base
 
 		http.SetCookie(w, cookie)
 	}
+
+	// Clear any leftover higher-index cookies from previous longer tokens
+	ClearTokenCookieFrom(w, r, cluster, baseURL, len(chunks))
 }
 
 // GetTokenFromCookie retrieves an authentication cookie for a specific cluster.
@@ -138,6 +154,11 @@ func GetTokenFromCookie(r *http.Request, cluster string) (string, error) {
 
 // ClearTokenCookie clears an authentication cookie for a specific cluster.
 func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL string) {
+	ClearTokenCookieFrom(w, r, cluster, baseURL, 0)
+}
+
+// ClearTokenCookieFrom clears authentication cookies starting from startChunk up to maxCookieChunks.
+func ClearTokenCookieFrom(w http.ResponseWriter, r *http.Request, cluster, baseURL string, startChunk int) {
 	sanitizedCluster := SanitizeClusterName(cluster)
 	if sanitizedCluster == "" {
 		return
@@ -145,15 +166,10 @@ func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL s
 
 	secure := IsSecureContext(r)
 
-	// clear chunked cookies
-	for i := 0; ; i++ {
+	// Clear chunked cookies starting from startChunk up to maxCookieChunks to ensure potential
+	// stale chunks are invalidated even when request URL path does not match cookie path.
+	for i := startChunk; i < maxCookieChunks; i++ {
 		cookieName := fmt.Sprintf("headlamp-auth-%s.%d", sanitizedCluster, i)
-
-		_, err := r.Cookie(cookieName)
-		if err != nil {
-			// No more cookies for this cluster
-			break
-		}
 
 		// G124: Secure is set from IsSecureContext so localhost development still works;
 		// HttpOnly and SameSite are set unconditionally.
@@ -166,6 +182,7 @@ func ClearTokenCookie(w http.ResponseWriter, r *http.Request, cluster, baseURL s
 			Path:     GetCookiePath(baseURL, cluster),
 			MaxAge:   -1,
 		}
+
 		http.SetCookie(w, cookie)
 	}
 }
