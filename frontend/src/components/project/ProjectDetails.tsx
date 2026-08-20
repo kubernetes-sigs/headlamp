@@ -602,7 +602,12 @@ export function ProjectDetailsContent({ project }: { project: ProjectDefinition 
   return (
     <ProjectDetailsContext.Provider value={contextValue}>
       <Box
-        sx={{ display: 'flex', flexDirection: 'column', height: '100%', alignItems: 'flex-start' }}
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: '100%',
+          alignItems: 'flex-start',
+        }}
       >
         <SectionBox
           outterBoxProps={{

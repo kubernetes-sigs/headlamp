@@ -44,9 +44,13 @@ export function ResourceCategoriesList({
 }) {
   return (
     <Box
-      sx={{
+      sx={theme => ({
         flexShrink: 0,
-      }}
+        [theme.breakpoints.down('md')]: {
+          maxHeight: '200px',
+          overflowY: 'auto',
+        },
+      })}
     >
       <List dense>
         {categoryList.map(({ category, items, health }) => {

@@ -409,7 +409,7 @@ export function ProjectResourcesTab({
           borderColor: theme.palette.divider,
           borderTop: 0,
           flexGrow: 1,
-          minHeight: 0,
+          minHeight: '300px',
           flexBasis: 0,
           [theme.breakpoints.down('md')]: {
             flexDirection: 'column',
