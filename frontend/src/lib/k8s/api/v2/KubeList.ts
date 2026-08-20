@@ -31,7 +31,7 @@ export interface KubeList<T extends KubeObjectInterface> {
 }
 
 export interface KubeListUpdateEvent<T extends KubeObjectInterface> {
-  type: 'ADDED' | 'MODIFIED' | 'DELETED' | 'ERROR';
+  type: 'ADDED' | 'MODIFIED' | 'DELETED' | 'BOOKMARK' | 'ERROR';
   object: T;
 }
 
@@ -79,18 +79,30 @@ export const KubeList = {
           newItems.splice(index, 1);
         }
         break;
+      case 'BOOKMARK':
+        if (!update.object.metadata.resourceVersion) {
+          return list;
+        }
+        return {
+          ...list,
+          metadata: {
+            ...list.metadata,
+            resourceVersion: update.object.metadata.resourceVersion,
+          },
+        };
       case 'ERROR':
         console.error('Error in update', update);
-        break;
+        return list;
       default:
         console.error('Unknown update type', update);
+        return list;
     }
 
     return {
       ...list,
       metadata: {
         ...list.metadata,
-        resourceVersion: update.object.metadata.resourceVersion!,
+        resourceVersion: update.object.metadata.resourceVersion || list.metadata.resourceVersion,
       },
       items: newItems,
     };

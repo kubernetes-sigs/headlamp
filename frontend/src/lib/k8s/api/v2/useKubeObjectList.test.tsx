@@ -345,6 +345,40 @@ describe('useWatchKubeObjectLists', () => {
     ).toBe(objectB);
   });
 
+  it('should invalidate and drop the cursor on an Expired ERROR message', () => {
+    const useWebSocketSpy = vi.spyOn(websocket, 'useWebSockets');
+    const queryClient = new QueryClient();
+    const invalidateSpy = vi.spyOn(queryClient, 'invalidateQueries');
+    const endpoint = { version: 'v1', resource: 'pods' };
+    const lists = [{ cluster: 'default', resourceVersion: '5', namespace: 'a' }];
+    const key = kubeObjectListQuery(mockClass, endpoint, 'a', 'default', {}).queryKey;
+
+    queryClient.setQueryData(key, {
+      list: { items: [], metadata: { resourceVersion: '5' } },
+      cluster: 'default',
+    });
+
+    const { rerender } = renderHook(
+      () => useWatchKubeObjectLists({ kubeObjectClass: mockClass, lists, endpoint }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    useWebSocketSpy.mock.calls[0][0].connections[0].onMessage({
+      type: 'ERROR',
+      object: { kind: 'Status', reason: 'Expired', code: 410, metadata: {} },
+    });
+
+    expect(invalidateSpy).toHaveBeenCalledWith({ queryKey: key });
+
+    rerender();
+    const lastCall = useWebSocketSpy.mock.calls[useWebSocketSpy.mock.calls.length - 1][0];
+    expect(lastCall.connections[0].url).toBe('api/v1/namespaces/a/pods?watch=1&resourceVersion=5');
+  });
+
   it('should not call WebSocketManager.subscribe when multiplexer is disabled', () => {
     renderHook(
       () =>
