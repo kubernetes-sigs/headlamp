@@ -27,6 +27,7 @@ import React, {
 } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import { useClustersConf } from '../../lib/k8s';
 import { KubeObject } from '../../lib/k8s/KubeObject';
 import ResourceQuota from '../../lib/k8s/resourceQuota';
 import Role from '../../lib/k8s/role';
@@ -40,6 +41,7 @@ import {
   ProjectOverviewSection,
 } from '../../redux/projectsSlice';
 import { Activity } from '../activity/Activity';
+import AllowedNamespacesSelectorGate from '../App/AllowedNamespacesSelectorGate';
 import { ButtonStyle, EditButton, EditorDialog, Loader, StatusLabel } from '../common';
 import Link from '../common/Link';
 import ResourceTable from '../common/Resource/ResourceTable';
@@ -95,7 +97,7 @@ const DEFAULT_TABS: Record<string, ProjectDetailsTab> = {
   },
 };
 
-export default function ProjectDetails() {
+function ProjectDetailsPage() {
   const { t } = useTranslation();
   const { name } = useParams<ProjectDetailsParams>();
   const { project, isLoading: isProjectLoading } = useProject(name);
@@ -109,6 +111,22 @@ export default function ProjectDetails() {
   // which is required because useProjectItems → useKubeLists calls hooks
   // per resource in a loop (the array length must stay stable per mount).
   return <ProjectDetailsContent key={`${name}-${pluginApiResources.length}`} project={project} />;
+}
+
+/**
+ * Resolves configured namespace selectors before querying the project details.
+ *
+ * @returns The gated project details page.
+ */
+export default function ProjectDetails() {
+  const clusterConf = useClustersConf();
+  const clusters = Object.values(clusterConf ?? {}).map(cluster => cluster.name);
+
+  return (
+    <AllowedNamespacesSelectorGate clusters={clusters}>
+      <ProjectDetailsPage />
+    </AllowedNamespacesSelectorGate>
+  );
 }
 
 function ProjectOverview({
