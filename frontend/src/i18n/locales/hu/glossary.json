@@ -32,6 +32,7 @@
   "Ephemeral Containers": "Rövid élettartamú tárolók",
   "Owner": "Tulajdonos",
   "Container": "Tároló",
+  "Pod": "",
   "Config Maps": "Konfigurációs térképek",
   "Definition": "Definíció",
   "CRD: {{ crdName }}": "CRD: {{ crdName }}",
