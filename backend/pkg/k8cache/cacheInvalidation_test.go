@@ -735,6 +735,56 @@ func TestHandleNonGETCacheInvalidation_PostOnResourceNamedVersion(t *testing.T) 
 	assert.NotContains(t, cachedValue, "stale")
 }
 
+var allAllowedGVRs = []schema.GroupVersionResource{
+	{Group: "", Version: "v1", Resource: "pods"},
+	{Group: "", Version: "v1", Resource: "services"},
+	{Group: "apps", Version: "v1", Resource: "deployments"},
+	{Group: "apps", Version: "v1", Resource: "replicasets"},
+	{Group: "apps", Version: "v1", Resource: "statefulsets"},
+	{Group: "apps", Version: "v1", Resource: "daemonsets"},
+	{Group: "batch", Version: "v1", Resource: "jobs"},
+	{Group: "batch", Version: "v1", Resource: "cronjobs"},
+	{Group: "jobset.x-k8s.io", Version: "v1alpha2", Resource: "jobsets"},
+	{Group: "leaderworkerset.x-k8s.io", Version: "v1", Resource: "leaderworkersets"},
+	{Group: "", Version: "v1", Resource: "nodes"},
+	{Group: "", Version: "v1", Resource: "configmaps"},
+	{Group: "", Version: "v1", Resource: "secrets"},
+	{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
+	{Group: "networking.k8s.io", Version: "v1", Resource: "ingressclasses"},
+	{Group: "networking.k8s.io", Version: "v1", Resource: "networkpolicies"},
+	{Group: "", Version: "v1", Resource: "endpoints"},
+	{Group: "discovery.k8s.io", Version: "v1", Resource: "endpointslices"},
+	{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "gateways"},
+	{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "gatewayclasses"},
+	{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "httproutes"},
+	{Group: "gateway.networking.k8s.io", Version: "v1", Resource: "grpcroutes"},
+	{Group: "gateway.networking.k8s.io", Version: "v1alpha2", Resource: "tcproutes"},
+	{Group: "gateway.networking.k8s.io", Version: "v1alpha2", Resource: "udproutes"},
+	{Group: "gateway.networking.k8s.io", Version: "v1beta1", Resource: "referencegrants"},
+	{Group: "gateway.networking.k8s.io", Version: "v1alpha3", Resource: "backendtlspolicies"},
+	{Group: "gateway.networking.x-k8s.io", Version: "v1alpha1", Resource: "xbackendtrafficpolicies"},
+	{Group: "", Version: "v1", Resource: "persistentvolumeclaims"},
+	{Group: "", Version: "v1", Resource: "persistentvolumes"},
+	{Group: "storage.k8s.io", Version: "v1", Resource: "storageclasses"},
+	{Group: "storage.k8s.io", Version: "v1alpha1", Resource: "volumeattributesclasses"},
+	{Group: "", Version: "v1", Resource: "serviceaccounts"},
+	{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "roles"},
+	{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "rolebindings"},
+	{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "clusterroles"},
+	{Group: "rbac.authorization.k8s.io", Version: "v1", Resource: "clusterrolebindings"},
+	{Group: "autoscaling", Version: "v2", Resource: "horizontalpodautoscalers"},
+	{Group: "autoscaling.k8s.io", Version: "v1", Resource: "verticalpodautoscalers"},
+	{Group: "policy", Version: "v1", Resource: "poddisruptionbudgets"},
+	{Group: "", Version: "v1", Resource: "resourcequotas"},
+	{Group: "", Version: "v1", Resource: "limitranges"},
+	{Group: "scheduling.k8s.io", Version: "v1", Resource: "priorityclasses"},
+	{Group: "node.k8s.io", Version: "v1", Resource: "runtimeclasses"},
+	{Group: "admissionregistration.k8s.io", Version: "v1", Resource: "mutatingwebhookconfigurations"},
+	{Group: "admissionregistration.k8s.io", Version: "v1", Resource: "validatingwebhookconfigurations"},
+	{Group: "", Version: "v1", Resource: "namespaces"},
+	{Group: "apiextensions.k8s.io", Version: "v1", Resource: "customresourcedefinitions"},
+}
+
 var filterImportantResourcesTests = []struct {
 	name  string
 	input []schema.GroupVersionResource
@@ -755,7 +805,9 @@ var filterImportantResourcesTests = []struct {
 		},
 		want: []schema.GroupVersionResource{
 			{Group: "", Version: "v1", Resource: "pods"},
+			{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
 			{Group: "apps", Version: "v1", Resource: "deployments"},
+			{Group: "", Version: "v1", Resource: "namespaces"},
 		},
 	},
 	{
@@ -770,33 +822,19 @@ var filterImportantResourcesTests = []struct {
 		},
 	},
 	{
-		name: "keeps all allowlisted resource kinds",
+		name: "rejects allowlisted resource names from unrelated groups",
 		input: []schema.GroupVersionResource{
-			{Group: "", Version: "v1", Resource: "pods"},
-			{Group: "", Version: "v1", Resource: "services"},
-			{Group: "apps", Version: "v1", Resource: "deployments"},
-			{Group: "apps", Version: "v1", Resource: "replicasets"},
-			{Group: "apps", Version: "v1", Resource: "statefulsets"},
-			{Group: "apps", Version: "v1", Resource: "daemonsets"},
-			{Group: "", Version: "v1", Resource: "nodes"},
-			{Group: "", Version: "v1", Resource: "configmaps"},
-			{Group: "", Version: "v1", Resource: "secrets"},
-			{Group: "batch", Version: "v1", Resource: "jobs"},
-			{Group: "batch", Version: "v1", Resource: "cronjobs"},
+			{Group: "example.com", Version: "v1", Resource: "gateways"},
+			{Group: "example.com", Version: "v1", Resource: "httproutes"},
+			{Group: "", Version: "v1", Resource: "deployments"},
+			{Group: "example.com", Version: "v1", Resource: "leases"},
 		},
-		want: []schema.GroupVersionResource{
-			{Group: "", Version: "v1", Resource: "pods"},
-			{Group: "", Version: "v1", Resource: "services"},
-			{Group: "apps", Version: "v1", Resource: "deployments"},
-			{Group: "apps", Version: "v1", Resource: "replicasets"},
-			{Group: "apps", Version: "v1", Resource: "statefulsets"},
-			{Group: "apps", Version: "v1", Resource: "daemonsets"},
-			{Group: "", Version: "v1", Resource: "nodes"},
-			{Group: "", Version: "v1", Resource: "configmaps"},
-			{Group: "", Version: "v1", Resource: "secrets"},
-			{Group: "batch", Version: "v1", Resource: "jobs"},
-			{Group: "batch", Version: "v1", Resource: "cronjobs"},
-		},
+		want: []schema.GroupVersionResource{},
+	},
+	{
+		name:  "keeps all allowlisted resource kinds",
+		input: allAllowedGVRs,
+		want:  allAllowedGVRs,
 	},
 }
 
@@ -822,6 +860,11 @@ func TestReturnGVRList_FiltersImportantResources(t *testing.T) {
 			GroupVersion: "v1",
 			APIResources: []metav1.APIResource{
 				{Name: "pods", Kind: "Pod", Verbs: []string{"list", "watch", "get"}},
+			},
+		},
+		{
+			GroupVersion: "networking.k8s.io/v1",
+			APIResources: []metav1.APIResource{
 				{Name: "ingresses", Kind: "Ingress", Verbs: []string{"list", "watch", "get"}},
 			},
 		},
@@ -844,6 +887,7 @@ func TestReturnGVRList_FiltersImportantResources(t *testing.T) {
 
 	want := []schema.GroupVersionResource{
 		{Group: "", Version: "v1", Resource: "pods"},
+		{Group: "networking.k8s.io", Version: "v1", Resource: "ingresses"},
 		{Group: "apps", Version: "v1", Resource: "deployments"},
 	}
 

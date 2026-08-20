@@ -608,6 +608,58 @@ func TestFilterToCache(t *testing.T) {
 	}
 }
 
+// TestIsLeaseAPIPath verifies that only coordination.k8s.io Lease paths are
+// identified for cache bypass.
+func TestIsLeaseAPIPath(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+		want bool
+	}{
+		{
+			name: "cluster-scoped lease list",
+			path: "/clusters/minikube/apis/coordination.k8s.io/v1/leases",
+			want: true,
+		},
+		{
+			name: "namespaced lease list",
+			path: "/clusters/minikube/apis/coordination.k8s.io/v1/namespaces/kube-system/leases",
+			want: true,
+		},
+		{
+			name: "named lease",
+			path: "/clusters/minikube/apis/coordination.k8s.io/v1/namespaces/kube-node-lease/leases/master-1",
+			want: true,
+		},
+		{
+			name: "other coordination.k8s.io resource",
+			path: "/clusters/minikube/apis/coordination.k8s.io/v1alpha1/leasecandidates",
+			want: false,
+		},
+		{
+			name: "unrelated group with leases segment",
+			path: "/clusters/minikube/apis/example.com/v1/leases",
+			want: false,
+		},
+		{
+			name: "core api pods",
+			path: "/clusters/minikube/api/v1/pods",
+			want: false,
+		},
+		{
+			name: "non kubernetes path",
+			path: "/plugins",
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, k8cache.IsLeaseAPIPath(tc.path))
+		})
+	}
+}
+
 // TestLoadFromCache tests whether the cache data is being served to the
 // client correctly.
 func TestLoadFromCache(t *testing.T) {
