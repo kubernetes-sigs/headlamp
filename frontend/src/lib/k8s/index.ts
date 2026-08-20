@@ -147,6 +147,8 @@ export function useClustersConf(): ConfigState['allClusters'] {
 
 export { useCluster, useConnectApi, useSelectedClusters } from './api/v1/hooks';
 export type { CancellablePromise } from './api/v1/hooks';
+export { useKubeGet, useKubeList } from './KubeObject';
+export { useNodeMetrics, useNodeSummaryStats } from './node';
 
 /**
  * Gets the version of the cluster given by the parameter.

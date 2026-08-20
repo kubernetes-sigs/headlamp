@@ -17,7 +17,7 @@
 import Box from '@mui/material/Box';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import Node from '../../lib/k8s/node';
+import Node, { useNodeMetrics } from '../../lib/k8s/node';
 import { getResourceMetrics } from '../../lib/util';
 import { HoverInfoLabel, StatusLabel } from '../common/Label';
 import ResourceListView from '../common/Resource/ResourceListView';
@@ -27,7 +27,7 @@ import UpgradeVisualizationPanel from './UpgradeVisualizationPanel';
 import { formatTaint, isNodeCordoned, NodeTaintsLabel } from './utils';
 
 export default function NodeList() {
-  const [nodeMetrics, metricsError] = Node.useMetrics();
+  const [nodeMetrics, metricsError] = useNodeMetrics();
   const { items } = Node.useList();
   const { t } = useTranslation(['glossary', 'translation']);
 
