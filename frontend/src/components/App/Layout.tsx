@@ -26,7 +26,6 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { useLocation } from 'react-router-dom';
 import {
   getTrustedBackstageOrigins,
   setRuntimeBackstageOrigins,
@@ -231,7 +230,6 @@ export default function Layout({}: LayoutProps) {
   const isFullWidth = useTypedSelector(state => state.ui.isFullWidth);
   const { t } = useTranslation();
   const allClusters = useClustersConf();
-  const location = useLocation();
 
   useClusterDefinedSettings();
 
@@ -318,11 +316,7 @@ export default function Layout({}: LayoutProps) {
   }, [backstageOrigin]);
 
   const selectedClusters = useSelectedClusters();
-  const { pathname } = location;
-  const configuredClusters = pathname.startsWith('/project/') ? Object.keys(allClusters || {}) : [];
-  const clustersToResolve = [
-    ...new Set([...configuredClusters, cluster || '', ...selectedClusters].filter(Boolean)),
-  ];
+  const clustersToResolve = [...new Set([cluster || '', ...selectedClusters].filter(Boolean))];
 
   const urlClusters = getSelectedClusters();
   const clustersNotInURL =
@@ -336,7 +330,7 @@ export default function Layout({}: LayoutProps) {
 
   const panels = useUIPanelsGroupedBySide();
 
-  if (!arePluginsLoaded || !isThemeConfigReady) {
+  if (!arePluginsLoaded || !isThemeConfigReady || allClusters === null) {
     return <Loader title={t('Loading')} color="inherit" style={{ color: 'GrayText' }} />;
   }
 
@@ -444,17 +438,7 @@ export default function Layout({}: LayoutProps) {
                 <Div />
                 <Container {...containerProps} sx={{ height: '100%' }}>
                   <NavigationTabs />
-                  {clustersToResolve.length > 0 ? (
-                    <AllowedNamespacesSelectorGate clusters={clustersToResolve}>
-                      <RouteSwitcher
-                        requiresToken={() => {
-                          const clusterName = getCluster() || '';
-                          const cluster = clusters ? clusters[clusterName] : undefined;
-                          return cluster?.useToken === undefined || cluster?.useToken;
-                        }}
-                      />
-                    </AllowedNamespacesSelectorGate>
-                  ) : (
+                  <AllowedNamespacesSelectorGate clusters={clustersToResolve}>
                     <RouteSwitcher
                       requiresToken={() => {
                         const clusterName = getCluster() || '';
@@ -462,7 +446,7 @@ export default function Layout({}: LayoutProps) {
                         return cluster?.useToken === undefined || cluster?.useToken;
                       }}
                     />
-                  )}
+                  </AllowedNamespacesSelectorGate>
                 </Container>
               </Box>
             </Main>
