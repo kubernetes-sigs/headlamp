@@ -156,6 +156,8 @@
   "Example: mdi:kubernetes, mdi:cloud-outline": "",
   "Namespaces must contain only lowercase alphanumeric characters or '-', and must start and end with an alphanumeric character.": "네임스페이스는 소문자 영숫자 또는 '-'만 포함할 수 있으며, 영숫자로 시작하고 끝나야 합니다.",
   "Node Shell Settings": "",
+  "Start the Node Shell with chroot /host.": "",
+  "Chroot to host": "",
   "The default image is used for dropping a shell into a node (when not specified directly).": "",
   "Linux image": "",
   "The default namespace is {{ namespace }}.": "",
