@@ -29,7 +29,6 @@ import {
   shell,
 } from 'electron';
 import { IpcMainEvent, MenuItemConstructorOptions } from 'electron/main';
-import find_process from 'find-process';
 import * as fsPromises from 'fs/promises';
 import * as net from 'net';
 import { platform } from 'os';
@@ -37,7 +36,9 @@ import path from 'path';
 import url from 'url';
 import yargs from 'yargs';
 import { hideBin } from 'yargs/helpers';
-import { setupCustomCAs, setupSystemCAs } from './certificates';
+import { withBackendMemoryDefaults } from './backendMemory';
+import { createCertificateSetup } from './certificates';
+import { startWindowsVMDetection, waitForWindowsVMDetection } from './hardwareAcceleration';
 import i18n from './i18next.config';
 import {
   getLegalDocumentsResourcePath,
@@ -109,11 +110,7 @@ const ENABLE_MCP = process.env.HEADLAMP_MCP_ENABLE !== 'false';
 dotenv.config({ path: path.join(process.resourcesPath, '.env') });
 
 const settings = loadSettings(SETTINGS_PATH);
-setupSystemCAs(settings);
-
-if (settings.customCAPath) {
-  setupCustomCAs(settings.customCAPath);
-}
+const ensureCertificates = createCertificateSetup(settings);
 
 const isDev = !!process.env.ELECTRON_DEV;
 let frontendPath = '';
@@ -192,7 +189,12 @@ if ('remote-debugging-port' in args) {
 }
 
 const isHeadlessMode = args.headless === true;
-let disableGPU = args['disable-gpu'] === true;
+const disableGPU = args['disable-gpu'];
+const windowsVMDetection = startWindowsVMDetection(disableGPU);
+if (disableGPU === true) {
+  console.info('Disabling GPU hardware acceleration. Reason: related flag is set.');
+  app.disableHardwareAcceleration();
+}
 const defaultPort = args.port || 4466;
 let actualPort = defaultPort; // Will be updated when backend starts
 const MAX_PORT_ATTEMPTS = Math.abs(Number(process.env.HEADLAMP_MAX_PORT_ATTEMPTS) || 100); // Maximum number of ports to try
@@ -361,6 +363,7 @@ class PluginManagerEventListeners {
 
     let pluginInfo: ArtifactHubHeadlampPkg | undefined = undefined;
     try {
+      ensureCertificates();
       pluginInfo = await PluginManager.fetchPluginInfo(URL, { signal: controller.signal });
     } catch (error) {
       console.error('Error fetching plugin info:', error);
@@ -456,6 +459,7 @@ class PluginManagerEventListeners {
       controller,
     };
 
+    ensureCertificates();
     PluginManager.update(
       pluginName,
       destinationFolder,
@@ -688,6 +692,17 @@ async function isPortAvailable(port: number): Promise<boolean> {
 async function findAvailablePort(startPort: number): Promise<number> {
   for (let i = 0; i < MAX_PORT_ATTEMPTS; i++) {
     const port = startPort + i;
+    // Probe the socket first so normal startup does not load and retain the
+    // process-inspection dependency when the preferred port is free.
+    const available = await isPortAvailable(port);
+
+    if (available) {
+      if (port !== startPort) {
+        console.info(`Port ${startPort} is in use, using port ${port} instead`);
+      }
+      return port;
+    }
+
     // Skip ports already used by another Headlamp instance.
     const headlampPIDs = await getHeadlampPIDsOnPort(port);
     if (headlampPIDs && headlampPIDs.length > 0) {
@@ -697,14 +712,6 @@ async function findAvailablePort(startPort: number): Promise<number> {
         )}, trying next port...`
       );
       continue;
-    }
-    const available = await isPortAvailable(port);
-
-    if (available) {
-      if (port !== startPort) {
-        console.info(`Port ${startPort} is in use, using port ${port} instead`);
-      }
-      return port;
     }
 
     console.info(`Port ${port} is occupied by another process, trying next port...`);
@@ -794,9 +801,7 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   const options = {
     detached: true,
     windowsHide: true,
-    env: {
-      ...extendedEnv,
-    },
+    env: withBackendMemoryDefaults(extendedEnv),
   };
 
   return spawn(serverFilePath, serverArgs, options);
@@ -1239,7 +1244,9 @@ function menusToTemplate(mainWindow: BrowserWindow | null, menusFromPlugins: App
 }
 
 async function getRunningHeadlampPIDs() {
-  const processes = await find_process('name', 'headlamp-server.*');
+  // Process inspection is only needed during cleanup, not normal startup.
+  const { default: findProcess } = await import('find-process');
+  const processes = await findProcess('name', 'headlamp-server.*');
   // Only consider processes owned by the current user: on shared machines
   // (e.g. Windows remote desktop servers) other users run their own
   // headlamp-server and we must never touch those.
@@ -1258,7 +1265,9 @@ async function getRunningHeadlampPIDs() {
 async function getHeadlampPIDsOnPort(port: number): Promise<number[] | null> {
   try {
     // Get all Headlamp processes
-    const headlampProcesses = await find_process('name', 'headlamp-server');
+    // Keep process inspection unloaded unless a port is actually occupied.
+    const { default: findProcess } = await import('find-process');
+    const headlampProcesses = await findProcess('name', 'headlamp-server');
     if (headlampProcesses.length === 0) {
       return null;
     }
@@ -1833,26 +1842,14 @@ function startElectron() {
     if (ENABLE_MCP) {
       const configPath = path.join(app.getPath('userData'), 'mcp-tools-config.json');
       const settingsPath = path.join(app.getPath('userData'), 'mcp-tools-settings.json');
-      mcpClient = new MCPClient(configPath, settingsPath);
+      mcpClient = new MCPClient(configPath, settingsPath, ensureCertificates);
       await mcpClient.initialize();
       mcpClient.setMainWindow(mainWindow);
     }
   }
 
-  if (disableGPU) {
-    console.info('Disabling GPU hardware acceleration. Reason: related flag is set.');
-  } else if (
-    disableGPU === undefined &&
-    process.platform === 'linux' &&
-    ['arm', 'arm64'].includes(process.arch)
-  ) {
-    console.info(
-      'Disabling GPU hardware acceleration. Reason: known graphical issues in Linux on ARM (use --disable-gpu=false to force it if needed).'
-    );
-    disableGPU = true;
-  }
-
-  if (disableGPU) {
+  if (waitForWindowsVMDetection(windowsVMDetection)) {
+    console.info('Disabling GPU hardware acceleration. Reason: running in a Windows VM.');
     app.disableHardwareAcceleration();
   }
 
