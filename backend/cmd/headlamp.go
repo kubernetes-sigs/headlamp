@@ -2270,11 +2270,61 @@ func parseClusterFromKubeConfig(kubeConfigs []string) ([]Cluster, []error) {
 	return clusters, setupErrors
 }
 
+// sensitiveMetadataKeys are meta_data keys that reveal internal infrastructure
+// details (API server paths, kubeconfig locations, internal IDs) and must not
+// be included in GET /config responses.
+var sensitiveMetadataKeys = []string{
+	"source",
+	"namespace",
+	"extensions",
+	"origin",
+	"originalName",
+	logFieldClusterID,
+}
+
+// stripSensitiveClusterFields returns a copy of clusters with the server field,
+// error field, and sensitive meta_data keys omitted from GET /config responses.
+// Non-sensitive meta_data entries (e.g. clusterInventory health conditions) are
+// preserved so the frontend can display cluster status before authentication.
+func stripSensitiveClusterFields(clusters []Cluster) []Cluster {
+	stripped := make([]Cluster, len(clusters))
+
+	for i, cl := range clusters {
+		var meta map[string]interface{}
+
+		if len(cl.Metadata) > 0 {
+			meta = make(map[string]interface{}, len(cl.Metadata))
+
+			for k, v := range cl.Metadata {
+				meta[k] = v
+			}
+
+			for _, key := range sensitiveMetadataKeys {
+				delete(meta, key)
+			}
+
+			if len(meta) == 0 {
+				meta = nil
+			}
+		}
+
+		stripped[i] = Cluster{
+			Name:     cl.Name,
+			AuthType: cl.AuthType,
+			Metadata: meta,
+		}
+	}
+
+	return stripped
+}
+
 func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
+	clusters := stripSensitiveClusterFields(c.getClusters())
+
 	clientConfig := clientConfig{
-		Clusters:                  c.getClusters(),
+		Clusters:                  clusters,
 		IsDynamicClusterEnabled:   c.EnableDynamicClusters,
 		AllowKubeconfigChanges:    c.AllowKubeconfigChanges,
 		DefaultPodDebugImage:      c.PodDebugImage,
