@@ -690,6 +690,42 @@ void
 
 ___
 
+### registerProjectGrouping
+
+▸ **registerProjectGrouping**(`projectGrouping`): `void`
+
+Register custom grouping for project namespaces.
+
+The returned key is opaque and only distinguishes entries that share a project ID.
+Return the project ID to retain Headlamp's default cross-cluster grouping.
+
+**`example`**
+
+```tsx
+registerProjectGrouping({
+  getProjectKey: ({ namespace, projectId }) =>
+    namespace.metadata.labels?.['example.com/separate-by-cluster'] === 'true'
+      ? `${projectId}:${namespace.cluster}`
+      : projectId,
+});
+```
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `projectGrouping` | `ProjectGrouping` | Project grouping definition |
+
+#### Returns
+
+`void`
+
+#### Defined in
+
+[plugin/registry.tsx:1139](https://github.com/kubernetes-sigs/headlamp/blob/85131ccb0/frontend/src/plugin/registry.tsx#L1139)
+
+___
+
 ### registerResourceTableColumnsProcessor
 
 ▸ **registerResourceTableColumnsProcessor**(`processor`): `void`

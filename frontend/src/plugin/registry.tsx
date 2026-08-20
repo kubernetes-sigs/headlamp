@@ -117,9 +117,11 @@ import {
   CustomCreateProject,
   ProjectDeleteButton,
   ProjectDetailsTab,
+  ProjectGrouping,
   ProjectHeaderAction,
   ProjectOverviewSection,
   setProjectDeleteButton,
+  setProjectGrouping,
 } from '../redux/projectsSlice';
 import { setRoute, setRouteFilter } from '../redux/routesSlice';
 import store from '../redux/stores/store';
@@ -1158,6 +1160,30 @@ export function registerUIPanel(panel: UIPanel) {
  */
 export function registerCustomCreateProject(customCreateProject: CustomCreateProject) {
   store.dispatch(addCustomCreateProject(customCreateProject));
+}
+
+/**
+ * Register custom grouping for project namespaces.
+ *
+ * The returned key is opaque and only distinguishes entries that share a project ID.
+ * Return the project ID to retain Headlamp's default cross-cluster grouping.
+ *
+ * @param projectGrouping - Project grouping definition
+ *
+ * @example
+ * ```tsx
+ * registerProjectGrouping({
+ *   getProjectKey: ({ namespace, projectId }) =>
+ *     namespace.metadata.labels?.['example.com/separate-by-cluster'] === 'true'
+ *       ? `${projectId}:${namespace.cluster}`
+ *       : projectId,
+ * });
+ * ```
+ *
+ * @returns Nothing.
+ */
+export function registerProjectGrouping(projectGrouping: ProjectGrouping) {
+  store.dispatch(setProjectGrouping(projectGrouping));
 }
 
 /**

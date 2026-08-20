@@ -15,7 +15,11 @@
  */
 
 import { expect, Page } from '@playwright/test';
+import YAML from 'yaml';
 import { runA11yScan } from './a11yHelper';
+
+/** Indicates whether an e2e test created a namespace or reused an existing one. */
+export type NamespaceSetupStatus = 'created' | 'reused';
 
 export class NamespacesPage {
   constructor(private page: Page) {}
@@ -32,24 +36,35 @@ export class NamespacesPage {
     await this.page.waitForLoadState('load');
   }
 
-  async createNamespace(name: string) {
-    const yaml = `
-    apiVersion: v1
-    kind: Namespace
-    metadata:
-      name: ${name}
-    `;
+  /**
+   * Creates a namespace or validates the requested labels on an existing namespace.
+   *
+   * @param name - Namespace name to create or reuse.
+   * @param labels - Labels required when creating or reusing the namespace.
+   * @returns Whether the namespace was created by this call or reused.
+   */
+  async createNamespace(
+    name: string,
+    labels?: Record<string, string>
+  ): Promise<NamespaceSetupStatus> {
+    const yaml = YAML.stringify({
+      apiVersion: 'v1',
+      kind: 'Namespace',
+      metadata: { name, ...(labels ? { labels } : {}) },
+    });
     const page = this.page;
 
     await page.waitForSelector('span:has-text("Namespaces")');
     await page.click('span:has-text("Namespaces")');
     await page.waitForLoadState('load');
 
-    // If the namespace already exists, return.
-    // This makes it a bit more resilient to flakiness.
-    const pageContent = await this.page.content();
-    if (pageContent.includes(name)) {
-      return;
+    const namespaceLink = page.getByRole('link', { name, exact: true });
+    if ((await namespaceLink.count()) > 0) {
+      const namespaceRow = namespaceLink.locator('xpath=ancestor::tr');
+      for (const [key, value] of Object.entries(labels ?? {})) {
+        await expect(namespaceRow).toContainText(`${key}: ${value}`);
+      }
+      return 'reused';
     }
 
     await expect(page.getByRole('button', { name: 'Create', exact: true })).toBeVisible();
@@ -69,6 +84,7 @@ export class NamespacesPage {
     await page.waitForSelector(`text=Applied ${name}`);
 
     await this.a11y();
+    return 'created';
   }
 
   async deleteNamespace(name: string) {

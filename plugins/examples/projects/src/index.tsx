@@ -20,9 +20,18 @@ import {
   registerProjectApiResource,
   registerProjectDeleteButton,
   registerProjectDetailsTab,
+  registerProjectGrouping,
   registerProjectHeaderAction,
   registerProjectOverviewSection,
 } from '@kinvolk/headlamp-plugin/lib';
+
+// Headlamp normally combines namespaces with the same project ID across clusters.
+// Keep them separate when each cluster represents a distinct environment, tenant,
+// or ownership boundary whose resources, health, and actions should be viewed alone.
+// Returning the project ID instead preserves Headlamp's default grouping.
+registerProjectGrouping({
+  getProjectKey: ({ namespace, projectId }) => `${projectId}:${namespace.cluster}`,
+});
 
 // Register a custom CRD resource so it appears in project resource counts,
 // health status, and the Resources tab. This example registers Argo CD
