@@ -23,7 +23,7 @@ import Link from '@mui/material/Link';
 import { styled } from '@mui/material/styles';
 import { Dispatch, UnknownAction } from '@reduxjs/toolkit';
 import { useQuery } from '@tanstack/react-query';
-import { ReactNode, useCallback, useEffect, useState } from 'react';
+import { useEffect } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory, useLocation } from 'react-router-dom';
@@ -31,8 +31,6 @@ import { loadClusterSettings, loadResolvedAllowedNamespaces } from '../../helper
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
-import { useAllowedNamespacesFromSelector } from '../../lib/k8s/allowedNamespaces';
-import { AllowedNamespacesResolutionContext } from '../../lib/k8s/allowedNamespacesContext';
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { Cluster } from '../../lib/k8s/cluster';
 import { createRouteURL } from '../../lib/router/createRouteURL';
@@ -52,6 +50,7 @@ import ActionsNotifier from '../common/ActionsNotifier';
 import AlertNotification from '../common/AlertNotification';
 import DetailsDrawer from '../common/Resource/DetailsDrawer';
 import Sidebar, { NavigationTabs } from '../Sidebar';
+import AllowedNamespacesSelectorGate from './AllowedNamespacesSelectorGate';
 import RouteSwitcher from './RouteSwitcher';
 import ShortcutsSettings from './Settings/ShortcutsSettings';
 import { applyBackendThemeConfig } from './themeSlice';
@@ -202,109 +201,6 @@ const fetchConfig = (dispatch: Dispatch<UnknownAction>) => {
 };
 
 const disableBackendLoader = true;
-
-/**
- * Resolves and caches the namespaces matching a single cluster's allowed
- * namespaces label selector. Rendered once per relevant cluster so the resolution
- * (which relies on a hook) runs for every cluster whose resources may be listed.
- */
-interface SelectorResolution {
-  /** Selector associated with the result. */
-  selector: string;
-  /** Stable key for the selector result or error. */
-  resultKey: string;
-  /** Whether selector resolution failed. */
-  isError: boolean;
-}
-
-/**
- * Resolves one cluster's namespace selector and reports stable result changes.
- *
- * @param props - Cluster and result callback.
- * @returns No rendered content.
- */
-function AllowedNamespacesSelectorResolver({
-  cluster,
-  onResolved,
-}: {
-  cluster: string;
-  onResolved: (cluster: string, resolution: SelectorResolution) => void;
-}) {
-  const selector = (loadClusterSettings(cluster).allowedNamespacesSelector || '').trim();
-  const resolution = useAllowedNamespacesFromSelector(cluster, selector);
-  const resultKey = resolution.error
-    ? JSON.stringify([selector, 'error', resolution.error.message])
-    : resolution.isSuccess
-    ? JSON.stringify([selector, 'success', resolution.namespaces])
-    : '';
-
-  useEffect(() => {
-    if (selector && resultKey) {
-      onResolved(cluster, { selector, resultKey, isError: Boolean(resolution.error) });
-    }
-  }, [cluster, selector, resultKey, resolution.error, onResolved]);
-
-  return null;
-}
-
-/**
- * Delays route rendering until every relevant namespace selector has resolved.
- *
- * @param props - Relevant clusters and routed content.
- * @returns Selector resolvers followed by a loader or the routed content.
- */
-function AllowedNamespacesSelectorGate({
-  clusters,
-  children,
-}: {
-  clusters: string[];
-  children: ReactNode;
-}) {
-  const { t } = useTranslation();
-  const [resolutions, setResolutions] = useState<Record<string, SelectorResolution>>({});
-  const onResolved = useCallback((cluster: string, resolution: SelectorResolution) => {
-    setResolutions(current =>
-      current[cluster]?.resultKey === resolution.resultKey
-        ? current
-        : { ...current, [cluster]: resolution }
-    );
-  }, []);
-
-  const resolutionKeys = clusters.map(cluster => {
-    const selector = (loadClusterSettings(cluster).allowedNamespacesSelector || '').trim();
-    const cache = selector ? loadResolvedAllowedNamespaces(cluster) : null;
-    const cachedResultKey =
-      cache?.selector === selector ? JSON.stringify([selector, 'success', cache.namespaces]) : '';
-    const resolution = resolutions[cluster];
-
-    if (!selector || cachedResultKey) {
-      return cachedResultKey;
-    }
-
-    return resolution?.selector === selector && resolution.isError ? resolution.resultKey : null;
-  });
-  const waiting = resolutionKeys.some(key => key === null);
-  const resolutionKey = JSON.stringify(resolutionKeys);
-
-  return (
-    <>
-      {clusters.map(cluster => (
-        <AllowedNamespacesSelectorResolver
-          key={cluster}
-          cluster={cluster}
-          onResolved={onResolved}
-        />
-      ))}
-      {waiting ? (
-        <Loader title={t('Loading')} />
-      ) : (
-        <AllowedNamespacesResolutionContext.Provider value={resolutionKey}>
-          {children}
-        </AllowedNamespacesResolutionContext.Provider>
-      )}
-    </>
-  );
-}
 
 export default function Layout({}: LayoutProps) {
   const arePluginsLoaded = useTypedSelector(state => state.plugins.loaded);
