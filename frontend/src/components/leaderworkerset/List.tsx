@@ -19,6 +19,7 @@ import Paper from '@mui/material/Paper';
 import Typography from '@mui/material/Typography';
 import { useEffect, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
+import { useSelectedClusters } from '../../lib/k8s';
 import { getTopCondition } from '../../lib/k8s/conditions';
 import LeaderWorkerSet from '../../lib/k8s/leaderWorkerSet';
 import Empty from '../common/EmptyContent';
@@ -41,15 +42,42 @@ function getGroupSize(leaderWorkerSet: LeaderWorkerSet): number | string {
 
 export default function LeaderWorkerSetList() {
   const { t } = useTranslation(['glossary', 'translation']);
+  const selectedClusters = useSelectedClusters();
+  const selectedClustersKey = selectedClusters.join(',');
   const [lwsEnabled, setLwsEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
-    LeaderWorkerSet.isEnabled().then(setLwsEnabled);
-  }, []);
+    let cancelled = false;
+    setLwsEnabled(null);
+
+    const clusters = selectedClustersKey ? selectedClustersKey.split(',') : [];
+
+    const checkStatus = async () => {
+      // ANY selected cluster serving LWS ⇒ show the list so multi-cluster
+      // selections still surface objects from clusters where the CRD exists.
+      // Gateway L4 availability uses ALL/intersection for map sources, which
+      // is a different UX (hide a kind unless every selected cluster has it).
+      const enabled =
+        clusters.length === 0
+          ? await LeaderWorkerSet.isEnabled()
+          : (await Promise.all(clusters.map(cluster => LeaderWorkerSet.isEnabled(cluster)))).some(
+              Boolean
+            );
+
+      if (!cancelled) {
+        setLwsEnabled(enabled);
+      }
+    };
+    checkStatus();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedClustersKey]);
 
   if (lwsEnabled === null) {
     return (
-      <SectionBox title={t('glossary|Leader Worker Sets')}>
+      <SectionBox title={t('glossary|Leader Worker Sets')} headerProps={{ headerStyle: 'main' }}>
         <Paper variant="outlined">
           <Empty>
             <Typography style={{ textAlign: 'center' }}>
@@ -63,21 +91,25 @@ export default function LeaderWorkerSetList() {
 
   if (!lwsEnabled) {
     return (
-      <SectionBox title={t('glossary|Leader Worker Sets')}>
+      <SectionBox title={t('glossary|Leader Worker Sets')} headerProps={{ headerStyle: 'main' }}>
         <Paper variant="outlined">
           <Empty>
             <Typography style={{ textAlign: 'center' }}>
-              <Trans t={t}>
-                LeaderWorkerSet is not enabled on this cluster.&nbsp;
-                <Link
-                  href="https://github.com/kubernetes-sigs/lws#installation"
-                  target="_blank"
-                  rel="noopener"
-                  sx={{ textDecoration: 'underline' }}
-                >
-                  Learn More
-                </Link>
-              </Trans>
+              <Trans
+                t={t}
+                ns="glossary"
+                i18nKey="LeaderWorkerSet is not enabled. <1>Learn More</1>"
+                components={{
+                  1: (
+                    <Link
+                      href="https://github.com/kubernetes-sigs/lws#installation"
+                      target="_blank"
+                      rel="noopener"
+                      sx={{ textDecoration: 'underline' }}
+                    />
+                  ),
+                }}
+              />
             </Typography>
           </Empty>
         </Paper>

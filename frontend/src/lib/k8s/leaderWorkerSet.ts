@@ -15,6 +15,7 @@
  */
 
 import { request } from './api/v1/clusterRequests';
+import type { ApiError } from './api/v2/ApiError';
 import { isConditionTrue } from './conditions';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
@@ -113,16 +114,41 @@ class LeaderWorkerSet extends KubeObject<KubeLeaderWorkerSet> {
     return 'degraded';
   }
 
-  static async isEnabled(): Promise<boolean> {
-    let res;
+  /**
+   * Whether the LeaderWorkerSet API is available on a cluster.
+   *
+   * A 404 (API group/resource missing) means LWS is not installed and is
+   * returned as false without logging. Other failures (auth, network, 5xx)
+   * are still treated as false so the UI can degrade, but they are logged so
+   * they are not silently confused with "not installed". Discovery uses
+   * `autoLogoutOnAuthError: false` so a background probe cannot force logout.
+   *
+   * @param cluster - Cluster to probe; defaults to the current URL cluster.
+   */
+  static async isEnabled(cluster?: string): Promise<boolean> {
     try {
-      res = await request('/apis/leaderworkerset.x-k8s.io/v1');
+      const res = await request(
+        `/apis/${LeaderWorkerSet.apiVersion}`,
+        {
+          ...(cluster ? { cluster } : {}),
+          autoLogoutOnAuthError: false,
+        },
+        false
+      );
+      return !!res?.resources?.some((r: { name?: string }) => r?.name === LeaderWorkerSet.apiName);
     } catch (e) {
+      const status = (e as ApiError)?.status;
+      // Missing API group is the expected "not installed" case.
+      if (status !== 404) {
+        console.error(
+          `Failed to check LeaderWorkerSet availability${
+            cluster ? ` on cluster "${cluster}"` : ''
+          }:`,
+          e
+        );
+      }
       return false;
     }
-    return !!res?.resources?.find(
-      (r: { name: string; [key: string]: any }) => r?.name === 'leaderworkersets'
-    );
   }
 
   static getBaseObject(): KubeLeaderWorkerSet {

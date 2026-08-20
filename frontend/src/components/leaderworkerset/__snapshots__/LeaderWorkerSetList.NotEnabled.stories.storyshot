@@ -12,11 +12,11 @@
           <div
             class="MuiBox-root css-70qvj9"
           >
-            <h2
-              class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
+            <h1
+              class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
             >
               Leader Worker Sets
-            </h2>
+            </h1>
             <div
               class="MuiBox-root css-ldp2l3"
             />
@@ -36,7 +36,7 @@
               class="MuiTypography-root MuiTypography-body1 css-1ezega9-MuiTypography-root"
               style="text-align: center;"
             >
-              LeaderWorkerSet is not enabled on this cluster. 
+              LeaderWorkerSet is not enabled. 
               <a
                 class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-147kpcx-MuiTypography-root-MuiLink-root"
                 href="https://github.com/kubernetes-sigs/lws#installation"
