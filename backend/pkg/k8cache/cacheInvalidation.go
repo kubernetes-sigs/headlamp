@@ -37,8 +37,24 @@ import (
 	"k8s.io/client-go/discovery"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/dynamic/dynamicinformer"
+	"k8s.io/client-go/rest"
 	watchCache "k8s.io/client-go/tools/cache"
 )
+
+// discoveryClientCreator builds the discovery client for a watcher; tests replace it to simulate
+// discovery failures.
+var discoveryClientCreator = func(c *rest.Config) (discovery.DiscoveryInterface, error) {
+	return discovery.NewDiscoveryClientForConfig(c)
+}
+
+// currentDiscoveryClientCreator returns the discovery client creator under hookMu, so tests can
+// swap it while watchers are running.
+func currentDiscoveryClientCreator() func(*rest.Config) (discovery.DiscoveryInterface, error) {
+	hookMu.RLock()
+	defer hookMu.RUnlock()
+
+	return discoveryClientCreator
+}
 
 // DeleteKeys deletes keys from the cache if data is present
 // in cache, this delete keys having namespace non-empty and
@@ -179,6 +195,10 @@ func filterImportantResources(gvrList []schema.GroupVersionResource) []schema.Gr
 	return filtered
 }
 
+type watcherInstance struct {
+	cancel context.CancelFunc
+}
+
 // Corrected CheckForChanges.
 var (
 	watcherRegistry sync.Map
@@ -193,15 +213,17 @@ func CheckForChanges(
 	contextKey string,
 	kContext kubeconfig.Context,
 ) {
-	if _, loaded := watcherRegistry.LoadOrStore(contextKey, struct{}{}); loaded {
+	ctx, cancel := context.WithCancel(context.Background())
+	watcher := &watcherInstance{cancel: cancel}
+
+	if _, loaded := contextCancel.LoadOrStore(contextKey, watcher); loaded {
+		cancel()
 		return
 	}
 
-	ctx, cancel := context.WithCancel(context.Background())
+	watcherRegistry.Store(contextKey, struct{}{})
 
-	contextCancel.Store(contextKey, cancel)
-
-	go runWatcher(ctx, k8scache, contextKey, kContext)
+	go runWatcher(ctx, watcher, k8scache, contextKey, kContext)
 }
 
 // SyncWatchers stops watchers for contexts that are no longer active and purges
@@ -224,11 +246,14 @@ func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
 		}
 
 		if !activeMap[contextKey] {
-			if cancel, ok := value.(context.CancelFunc); ok {
+			if watcher, ok := value.(*watcherInstance); ok {
 				logger.Log(logger.LevelInfo, nil, nil, "canceling watcher for removed context: "+redactContextKey(contextKey))
-				cancel()
-				watcherRegistry.Delete(contextKey)
-				contextCancel.Delete(contextKey)
+				watcher.cancel()
+
+				if contextCancel.CompareAndDelete(contextKey, watcher) {
+					watcherRegistry.Delete(contextKey)
+				}
+
 				cleanupRemovedContext(k8scache, contextKey)
 				cleaned[contextKey] = struct{}{}
 			}
@@ -255,13 +280,17 @@ func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
 // This function will only exit when its context is cancelled.
 func runWatcher(
 	ctx context.Context,
+	watcher *watcherInstance,
 	k8scache cache.Cache[string],
 	contextKey string,
 	kContext kubeconfig.Context,
 ) {
 	defer func() {
-		watcherRegistry.Delete(contextKey)
-		contextCancel.Delete(contextKey)
+		watcher.cancel()
+
+		if contextCancel.CompareAndDelete(contextKey, watcher) {
+			watcherRegistry.Delete(contextKey)
+		}
 	}()
 
 	logger.Log(logger.LevelInfo, nil, nil, "running runWatcher for watching k8s resource: "+redactContextKey(contextKey))
@@ -278,7 +307,11 @@ func runWatcher(
 		return
 	}
 
-	discoveryClient := discovery.NewDiscoveryClientForConfigOrDie(config)
+	discoveryClient, err := currentDiscoveryClientCreator()(config)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "error creating discovery client for context: "+redactContextKey(contextKey))
+		return
+	}
 
 	apiResourceLists, err := discoveryClient.ServerPreferredResources()
 	if apiResourceLists == nil && err != nil {
