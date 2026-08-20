@@ -18,7 +18,6 @@ import type { QueryObserverOptions } from '@tanstack/react-query';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
-  getCombinedAllowedNamespaces,
   hasAllowedNamespacesRestriction,
   loadClusterSettings,
 } from '../../../../helpers/clusterSettings';
@@ -72,12 +71,28 @@ export interface ListResponse<K extends KubeObject> {
   skipWatch?: boolean;
 }
 
+/**
+ * Builds a restricted Namespace query without broadening RBAC requirements.
+ * Manually configured namespaces use per-name GET requests, while selector-based
+ * restrictions retain LIST requests and intersect any selector from the caller.
+ *
+ * @param kubeObjectClass - Class used to instantiate Namespace objects.
+ * @param cluster - Cluster to query.
+ * @param queryParams - Additional Namespace list filters.
+ * @param refetchInterval - Optional query refetch interval.
+ * @returns Query options for the synthesized restricted Namespace list.
+ */
 function allowedNamespaceListQuery<K extends KubeObject>(
   kubeObjectClass: KubeObjectClass,
   cluster: string,
+  queryParams: QueryParameters,
   refetchInterval?: number
 ): QueryObserverOptions<ListResponse<K> | undefined | null, ApiError> {
-  const allowedNamespaces = getCombinedAllowedNamespaces(cluster);
+  const settings = loadClusterSettings(cluster);
+  const allowedNamespaces = settings.allowedNamespaces ?? [];
+  const configuredSelector = settings.allowedNamespacesSelector?.trim();
+  const requestedSelector = queryParams.labelSelector?.trim();
+  const selector = [configuredSelector, requestedSelector].filter(Boolean).join(',');
 
   return {
     placeholderData: null,
@@ -90,37 +105,68 @@ function allowedNamespaceListQuery<K extends KubeObject>(
       kubeObjectClass.apiName,
       cluster,
       '',
-      { allowedNamespaces },
+      { allowedNamespaces, selector },
     ],
     queryFn: async () => {
-      const items = await Promise.all(
-        allowedNamespaces.map(async name => {
-          try {
-            const item = await clusterFetch(makeUrl(['api', 'v1', 'namespaces', name]), {
+      const [manualItems, selectorList] = await Promise.all([
+        Promise.all(
+          allowedNamespaces.map(async name => {
+            try {
+              const item = await clusterFetch(makeUrl(['api', 'v1', 'namespaces', name]), {
+                cluster,
+              }).then(response => response.json());
+              if (item.metadata?.managedFields) {
+                delete item.metadata.managedFields;
+              }
+              const kubeObject = new kubeObjectClass(item) as K;
+              kubeObject.cluster = cluster;
+              return kubeObject;
+            } catch (error) {
+              if (error instanceof ApiError) {
+                error.cluster = cluster;
+                error.namespace = name;
+              }
+              throw error;
+            }
+          })
+        ),
+        configuredSelector
+          ? clusterFetch(makeUrl(['api', 'v1', 'namespaces'], { labelSelector: selector }), {
               cluster,
-            }).then(response => response.json());
-            if (item.metadata?.managedFields) {
-              delete item.metadata.managedFields;
-            }
-            const kubeObject = new kubeObjectClass(item) as K;
-            kubeObject.cluster = cluster;
-            return kubeObject;
-          } catch (error) {
-            if (error instanceof ApiError) {
-              error.cluster = cluster;
-              error.namespace = name;
-            }
-            throw error;
-          }
-        })
+            })
+              .then(response => response.json())
+              .catch(error => {
+                if (error instanceof ApiError) {
+                  error.cluster = cluster;
+                }
+                throw error;
+              })
+          : Promise.resolve(null),
+      ]);
+
+      const selectorItems = (selectorList?.items ?? []).map((item: any) => {
+        if (item.metadata?.managedFields) {
+          delete item.metadata.managedFields;
+        }
+        item.kind = selectorList.kind.replace(/List$/, '');
+        item.apiVersion = selectorList.apiVersion;
+        const kubeObject = new kubeObjectClass(item) as K;
+        kubeObject.cluster = cluster;
+        return kubeObject;
+      });
+      const items = [...manualItems, ...selectorItems].filter(
+        (item, index, allItems) =>
+          allItems.findIndex(
+            candidate => candidate.jsonData.metadata.name === item.jsonData.metadata.name
+          ) === index
       );
 
       return {
         list: {
           items,
-          kind: 'NamespaceList',
-          apiVersion: 'v1',
-          metadata: { resourceVersion: '0' },
+          kind: selectorList?.kind ?? 'NamespaceList',
+          apiVersion: selectorList?.apiVersion ?? 'v1',
+          metadata: { resourceVersion: selectorList?.metadata?.resourceVersion ?? '0' },
         } as KubeList<K>,
         cluster,
         skipWatch: true,
@@ -157,7 +203,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
     !isResolvingAllowedNamespaces &&
     hasAllowedNamespacesRestriction(cluster)
   ) {
-    return allowedNamespaceListQuery<K>(kubeObjectClass, cluster, refetchInterval);
+    return allowedNamespaceListQuery<K>(kubeObjectClass, cluster, queryParams, refetchInterval);
   }
 
   return {
