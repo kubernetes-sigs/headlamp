@@ -30,6 +30,9 @@ type AuthErrResponse struct {
 	Code       int      `json:"code"`       // The HTTP status code, typically 403.
 }
 
+// ExtraAuthBypassURLs allows configuring additional URLs that bypass authorization.
+var ExtraAuthBypassURLs []string
+
 // IsAuthBypassURL returns true if the given URL path should be checked for authorization errors,
 // excluding known public, health-check, or self-subject review endpoints.
 func IsAuthBypassURL(urlPath string) bool {
@@ -39,6 +42,13 @@ func IsAuthBypassURL(urlPath string) bool {
 		isDirectOrProxiedEndpoint(urlPath, "healthz") ||
 		IsSelfSubjectReviewAPIPath(urlPath) {
 		return false
+	}
+
+	for _, bypass := range ExtraAuthBypassURLs {
+		bypass = strings.TrimLeft(bypass, "/")
+		if isDirectOrProxiedEndpoint(urlPath, bypass) {
+			return false
+		}
 	}
 
 	return true
