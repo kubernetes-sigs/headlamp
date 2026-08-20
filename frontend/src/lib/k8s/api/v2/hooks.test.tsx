@@ -474,4 +474,97 @@ describe('useKubeObject watch wiring', () => {
       expect(lastCall.connections[0]?.url).not.toContain('metadata.name%3Dpod-a');
     });
   });
+
+  it('preserves the cluster on the instance built from a legacy WebSocket update', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'false');
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns' },
+      })
+    );
+
+    const { result } = renderHook(
+      () =>
+        useKubeObject({
+          kubeObjectClass: MockPod,
+          name: 'my-pod',
+          namespace: 'my-ns',
+          cluster: 'non-default-cluster',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data?.cluster).toBe('non-default-cluster');
+    });
+
+    expect(mockUseWebSockets).toHaveBeenCalled();
+    const connections = mockUseWebSockets.mock.calls.at(-1)![0].connections;
+    expect(connections).toHaveLength(1);
+
+    connections[0].onMessage({
+      type: 'MODIFIED',
+      object: {
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: 'updated-rv' },
+      },
+    });
+
+    // Wait for the update to land (a distinct resourceVersion proves the
+    // instance was actually replaced, not left over from the initial fetch),
+    // then confirm the replacement instance still carries the cluster.
+    await waitFor(() => {
+      expect(result.current.data?.jsonData?.metadata?.resourceVersion).toBe('updated-rv');
+    });
+    expect(result.current.data?.cluster).toBe('non-default-cluster');
+  });
+
+  it('preserves the cluster on the instance built from a multiplexer WebSocket update', async () => {
+    vi.stubEnv('REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER', 'true');
+    mockClusterFetch.mockResolvedValue(
+      mockJsonResponse({
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns' },
+      })
+    );
+
+    const { result } = renderHook(
+      () =>
+        useKubeObject({
+          kubeObjectClass: MockPod,
+          name: 'my-pod',
+          namespace: 'my-ns',
+          cluster: 'non-default-cluster',
+        }),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.data?.cluster).toBe('non-default-cluster');
+    });
+
+    expect(mockUseWebSocket).toHaveBeenCalled();
+    const lastCall = mockUseWebSocket.mock.calls.at(-1)![0];
+
+    lastCall.onMessage({
+      type: 'MODIFIED',
+      object: {
+        apiVersion: 'v1',
+        kind: 'Pod',
+        metadata: { name: 'my-pod', namespace: 'my-ns', resourceVersion: 'updated-rv' },
+      },
+    });
+
+    // Wait for the update to land (a distinct resourceVersion proves the
+    // instance was actually replaced, not left over from the initial fetch),
+    // then confirm the replacement instance still carries the cluster.
+    await waitFor(() => {
+      expect(result.current.data?.jsonData?.metadata?.resourceVersion).toBe('updated-rv');
+    });
+    expect(result.current.data?.cluster).toBe('non-default-cluster');
+  });
 });
