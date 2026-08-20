@@ -162,6 +162,7 @@ export default function Overview() {
               <WorkloadCircleChart
                 workloadData={workloadsData[workload.className] || null}
                 title={<ChartLink workload={workload} />}
+                routeName={workload.pluralName}
                 partialLabel={t('translation|Failed')}
                 totalLabel={
                   workload === Pod || perItemHealth[workload.className]

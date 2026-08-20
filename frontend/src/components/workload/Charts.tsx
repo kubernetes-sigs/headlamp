@@ -18,7 +18,9 @@ import Box from '@mui/material/Box';
 import { useTheme } from '@mui/material/styles';
 import { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import { useHistory } from 'react-router-dom';
 import type { Workload, WorkloadHealthCategory } from '../../lib/k8s/Workload';
+import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getPercentStr, getReadyReplicas, getTotalReplicas } from '../../lib/util';
 import type { ChartDataPoint, PercentageCircleProps } from '../common/Chart';
 import TileChart from '../common/TileChart';
@@ -27,6 +29,8 @@ export interface WorkloadCircleChartProps extends Omit<PercentageCircleProps, 'd
   workloadData: Workload[] | null;
   partialLabel: string;
   totalLabel: string;
+  /** Optional target route name (e.g. 'deployments', 'pods') for filtering on click. */
+  routeName?: string;
   /**
    * Optional per-item health classifier. When provided, the chart renders a
    * multi-segment ring (healthy / degraded / transitional / failed) instead of
@@ -38,9 +42,17 @@ export interface WorkloadCircleChartProps extends Omit<PercentageCircleProps, 'd
 
 export function WorkloadCircleChart(props: WorkloadCircleChartProps) {
   const theme = useTheme();
+  const history = useHistory();
   const { t } = useTranslation();
 
-  const { workloadData, partialLabel = '', totalLabel = '', categorize, ...other } = props;
+  const {
+    workloadData,
+    partialLabel = '',
+    totalLabel = '',
+    routeName,
+    categorize,
+    ...other
+  } = props;
 
   // Binary path: a workload counts as "partial" (failed) when its ready replicas
   // don't match its total replicas. Correct for Deployments, StatefulSets, etc.
@@ -69,19 +81,43 @@ export function WorkloadCircleChart(props: WorkloadCircleChartProps) {
   }, [workloadData, categorize]);
 
   function makeData(): ChartDataPoint[] {
-    // Empty state: PercentageCircle divides each segment by total, so returning
-    // any data point here would produce 0/0 = NaN percentages. Return nothing
-    // and let it render the default full "total" ring instead.
     if (total === 0) {
       return [];
     }
     if (counts) {
-      // Order around the ring: healthy → degraded → transitional → failed.
       return [
-        { name: 'healthy', value: counts.healthy, fill: theme.palette.success.main },
-        { name: 'degraded', value: counts.degraded, fill: theme.palette.warning.main },
-        { name: 'transitional', value: counts.transitional, fill: theme.palette.grey[500] },
-        { name: 'failed', value: counts.failed, fill: theme.palette.error.main },
+        {
+          name: 'healthy',
+          value: counts.healthy,
+          fill: theme.palette.success.main,
+          onClick: routeName
+            ? () => history.push(createRouteURL(routeName) + '?filter=Healthy')
+            : undefined,
+        },
+        {
+          name: 'degraded',
+          value: counts.degraded,
+          fill: theme.palette.warning.main,
+          onClick: routeName
+            ? () => history.push(createRouteURL(routeName) + '?filter=Degraded')
+            : undefined,
+        },
+        {
+          name: 'transitional',
+          value: counts.transitional,
+          fill: theme.palette.grey[500],
+          onClick: routeName
+            ? () => history.push(createRouteURL(routeName) + '?filter=Other')
+            : undefined,
+        },
+        {
+          name: 'failed',
+          value: counts.failed,
+          fill: theme.palette.error.main,
+          onClick: routeName
+            ? () => history.push(createRouteURL(routeName) + '?filter=Failed')
+            : undefined,
+        },
       ];
     }
     return [
@@ -89,6 +125,9 @@ export function WorkloadCircleChart(props: WorkloadCircleChartProps) {
         name: 'failed',
         value: partial,
         fill: theme.palette.error.main,
+        onClick: routeName
+          ? () => history.push(createRouteURL(routeName) + '?filter=Failed')
+          : undefined,
       },
     ];
   }
