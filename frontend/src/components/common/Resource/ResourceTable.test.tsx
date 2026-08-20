@@ -15,13 +15,16 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
+import { configureStore } from '@reduxjs/toolkit';
 import { act, render } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadTableSettings, storeTableSettings } from '../../../helpers/tableSettings';
 import { createMuiTheme } from '../../../lib/themes';
+import reducers from '../../../redux/reducers/reducers';
 import { TestContext } from '../../../test';
 import ResourceTable from './ResourceTable';
+import { addResourceTableColumnsProcessor } from './resourceTableSlice';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
@@ -86,10 +89,11 @@ describe('ResourceTable Column Visibility', () => {
   });
 
   const renderTable = (props: any) => {
+    const { store, ...tableProps } = props;
     return render(
-      <TestContext>
+      <TestContext store={store}>
         <ThemeProvider theme={theme}>
-          <ResourceTable {...props} />
+          <ResourceTable {...tableProps} />
         </ThemeProvider>
       </TestContext>
     );
@@ -225,5 +229,47 @@ describe('ResourceTable Column Visibility', () => {
     );
 
     expect(lastTablePropsHolder.current.enableFacetedValues).toBe(true);
+  });
+
+  it('keeps namespace filter options when faceted values are disabled', () => {
+    const columns = ['namespace'] as const;
+    const data = Array.from({ length: 501 }, (_, index) => ({
+      metadata: { name: `pod-${index}` },
+      getNamespace: () => (index % 2 === 0 ? 'namespace-a' : 'namespace-b'),
+    })) as any[];
+
+    renderTable({ id: 'large-namespace-table', columns, data });
+
+    expect(lastTablePropsHolder.current.enableFacetedValues).toBe(false);
+    expect(lastTablePropsHolder.current.columns[0].filterSelectOptions).toEqual([
+      'namespace-a',
+      'namespace-b',
+    ]);
+  });
+
+  it('keeps namespace filter options for processor-added namespace columns', () => {
+    const store = configureStore({
+      reducer: reducers,
+      middleware: getDefaultMiddleware => getDefaultMiddleware({ serializableCheck: false }),
+    });
+    store.dispatch(
+      addResourceTableColumnsProcessor({
+        id: 'add-namespace-column',
+        processor: ({ columns }) => [...columns, 'namespace'],
+      })
+    );
+
+    const columns: Array<'name'> = ['name'];
+    const data = Array.from({ length: 501 }, (_, index) => ({
+      metadata: { name: `pod-${index}` },
+      getNamespace: () => (index % 2 === 0 ? 'namespace-a' : 'namespace-b'),
+    })) as any[];
+
+    renderTable({ id: 'processor-namespace-table', columns, data, store });
+
+    const namespaceColumn = lastTablePropsHolder.current.columns.find(
+      (column: { id: string }) => column.id === 'namespace'
+    );
+    expect(namespaceColumn.filterSelectOptions).toEqual(['namespace-a', 'namespace-b']);
   });
 });
