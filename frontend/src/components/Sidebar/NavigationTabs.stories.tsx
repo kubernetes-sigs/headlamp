@@ -122,7 +122,7 @@ const createMockStoryStore = (sidebarConfig: Partial<SidebarState>) => {
       sidebar: createSlice({ name: 'sidebar', initialState: fullSidebarState, reducers: {} })
         .reducer,
       config: (state = configInitialState) => state,
-      filter: (state = { namespaces: new Set() }) => state,
+      filter: (state = { namespaces: [] }) => state,
       routes: (state = { routes: {}, routeFilters: [] }) => state,
       ui: (state = { functionsToOverride: {} }) => state,
       projects: (state = { projects: {} }) => state,
