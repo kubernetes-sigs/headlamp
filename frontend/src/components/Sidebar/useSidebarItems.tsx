@@ -382,6 +382,14 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
                 },
               ]
             : []),
+          ...(gatewayKinds.has('TLSRoute')
+            ? [
+                {
+                  name: 'tlsroutes',
+                  label: t('glossary|TLS Routes'),
+                },
+              ]
+            : []),
           {
             name: 'referencegrants',
             label: t('glossary|Reference Grants'),

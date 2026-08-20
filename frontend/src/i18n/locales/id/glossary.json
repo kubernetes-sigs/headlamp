@@ -103,6 +103,7 @@
   "To": "Kepada",
   "Reference Grants": "Pemberian Izin Referensi",
   "TCPRoutes": "",
+  "TLS Routes": "",
   "UDPRoutes": "",
   "Horizontal Pod Autoscalers": "Horizontal Pod Autoscalers",
   "Ingress Classes": "Kelas Ingress",

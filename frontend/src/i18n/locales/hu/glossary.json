@@ -103,6 +103,7 @@
   "To": "Vége:",
   "Reference Grants": "Referencia-engedélyek",
   "TCPRoutes": "",
+  "TLS Routes": "",
   "UDPRoutes": "",
   "Horizontal Pod Autoscalers": "Podok automatikus horizontális skálázói",
   "Ingress Classes": "Bejövő forgalom osztályai",
