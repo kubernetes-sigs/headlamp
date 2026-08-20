@@ -47,6 +47,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/audit"
 	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
@@ -955,6 +956,11 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	// Auth token management
 	r.HandleFunc("/auth/set-token", config.handleSetToken).Methods("POST")
+
+	// Audit Logs
+	auditStreamer := audit.NewStreamer()
+	r.HandleFunc("/audit/webhook", auditStreamer.HandleWebhook).Methods("POST")
+	r.HandleFunc("/audit/stream", auditStreamer.HandleWebSocket)
 
 	// Websocket connections
 	if config.Multiplexer != nil {

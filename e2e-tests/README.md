@@ -198,21 +198,21 @@ Two modes are supported:
    npx playwright test tests/dexOauth2Proxy.spec.ts
    ```
 
-    The test runs
-    `../docs/installation/in-cluster/dex/test-scripts/run.sh`
-    in `beforeAll` and `cleanup.sh` in `afterAll`.
+   The test runs
+   `../docs/installation/in-cluster/dex/test-scripts/run.sh`
+   in `beforeAll` and `cleanup.sh` in `afterAll`.
 
 2. **Use a stack you already brought up:**
 
-    ```shell
-    cd ../docs/installation/in-cluster/dex/test-scripts
-    ./run.sh
-    cd -
-    export HEADLAMP_TEST_DEX_OAUTH2_PROXY=1
-    npx playwright test tests/dexOauth2Proxy.spec.ts
-    # …when done:
-    ../docs/installation/in-cluster/dex/test-scripts/cleanup.sh
-    ```
+   ```shell
+   cd ../docs/installation/in-cluster/dex/test-scripts
+   ./run.sh
+   cd -
+   export HEADLAMP_TEST_DEX_OAUTH2_PROXY=1
+   npx playwright test tests/dexOauth2Proxy.spec.ts
+   # …when done:
+   ../docs/installation/in-cluster/dex/test-scripts/cleanup.sh
+   ```
 
 The test points at `http://localhost:8080` (the port `run.sh`
 port-forwards to OAuth2-Proxy) and signs in to Dex as
