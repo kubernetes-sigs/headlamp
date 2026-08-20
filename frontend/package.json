@@ -10,6 +10,8 @@
   "type": "module",
   "dependencies": {
     "@apidevtools/swagger-parser": "^10.0.3",
+    "@emnapi/core": "1.10.0",
+    "@emnapi/runtime": "1.10.0",
     "@emotion/react": "^11.11.1",
     "@emotion/styled": "^11.11.0",
     "@headlamp-k8s/eslint-config": "^0.6.0",
