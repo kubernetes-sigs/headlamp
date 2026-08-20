@@ -31,6 +31,13 @@ const electronExecutable = process.platform === 'win32' ? 'electron.cmd' : 'elec
 const electronPath = path.resolve(__dirname, `../../node_modules/.bin/${electronExecutable}`);
 const appPath = path.resolve(__dirname, '../../');
 const backendPath = path.resolve(appPath, '../backend/headlamp-server');
+const pluginCatalogSourcePath = path.resolve(appPath, '../.plugins/plugin-catalog');
+const electronDistPath = path.join(appPath, 'node_modules', 'electron', 'dist');
+const electronResourcesPath =
+  process.platform === 'darwin'
+    ? path.join(electronDistPath, 'Electron.app', 'Contents', 'Resources')
+    : path.join(electronDistPath, 'resources');
+const pluginCatalogPath = path.join(electronResourcesPath, '.plugins', 'plugin-catalog');
 const backendProtocolPrefix = 'base64url.headlamp.backend.authorization.k8s.io.';
 const multiplexerProtocol = 'headlamp.multiplexer.k8s.io';
 const reusableClusterContext = process.env.HEADLAMP_APP_E2E_CONTEXT;
@@ -223,6 +230,7 @@ test.beforeAll(async () => {
   test.setTimeout(4 * 60 * 1000);
 
   fs.accessSync(backendPath, fs.constants.X_OK);
+  fs.cpSync(pluginCatalogSourcePath, pluginCatalogPath, { recursive: true });
   setupCertificateBackedCluster();
   electronApp = await _electron.launch({
     cwd: appPath,
@@ -244,6 +252,7 @@ test.afterAll(async () => {
   test.setTimeout(2 * 60 * 1000);
 
   await electronApp?.close();
+  fs.rmSync(pluginCatalogPath, { force: true, recursive: true });
   if (fs.existsSync(appKubeconfig)) {
     run(
       'kubectl',
@@ -261,6 +270,22 @@ test.afterAll(async () => {
 });
 
 test.describe('desktop backend token', () => {
+  test('loads the bundled plugin catalog through the authenticated proxy', async () => {
+    await waitForBackend();
+    await expect(electronPage.getByText('Plugin Catalog', { exact: true }).first()).toBeVisible();
+
+    const responsePromise = electronPage.waitForResponse(response => {
+      return new URL(response.url()).pathname === '/externalproxy';
+    });
+    await electronPage.evaluate(() => {
+      window.location.hash = '#/plugin-catalog';
+    });
+
+    const response = await responsePromise;
+    expect(response.request().headers()['x-headlamp_backend-token']).toBeTruthy();
+    expect(response.status()).toBe(200);
+  });
+
   test('rejects missing and wrong tokens for REST and multiplexer requests', async () => {
     const backendPort = await waitForBackend();
 

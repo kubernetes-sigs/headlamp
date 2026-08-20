@@ -1400,6 +1400,10 @@ function startElectron() {
   // Default is 10, setting to 20 provides headroom for future additions
   ipcMain.setMaxListeners(20);
 
+  ipcMain.on('request-backend-token', () => {
+    mainWindow?.webContents.send('backend-token', backendToken);
+  });
+
   let appVersion: string;
   if (isDev && process.env.HEADLAMP_APP_VERSION) {
     appVersion = process.env.HEADLAMP_APP_VERSION;
@@ -1776,10 +1780,6 @@ function startElectron() {
       if (!!newLocale && i18n.language !== newLocale) {
         i18n.changeLanguage(newLocale);
       }
-    });
-
-    ipcMain.on('request-backend-token', () => {
-      mainWindow?.webContents.send('backend-token', backendToken);
     });
 
     ipcMain.on('request-backend-port', () => {
