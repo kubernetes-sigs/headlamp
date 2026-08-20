@@ -6,11 +6,12 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.44.0
+    helm.sh/chart: headlamp-0.45.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.44.0"
+    app.kubernetes.io/version: "0.45.0"
     app.kubernetes.io/managed-by: Helm
+
 ---
 # Source: headlamp/templates/secret.yaml
 apiVersion: v1
@@ -20,6 +21,7 @@ metadata:
   namespace: default
 type: Opaque
 data:
+
 ---
 # Source: headlamp/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
@@ -27,10 +29,10 @@ kind: ClusterRoleBinding
 metadata:
   name: headlamp-admin
   labels:
-    helm.sh/chart: headlamp-0.44.0
+    helm.sh/chart: headlamp-0.45.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.44.0"
+    app.kubernetes.io/version: "0.45.0"
     app.kubernetes.io/managed-by: Helm
 roleRef:
   apiGroup: rbac.authorization.k8s.io
@@ -40,6 +42,7 @@ subjects:
 - kind: ServiceAccount
   name: headlamp
   namespace: default
+
 ---
 # Source: headlamp/templates/service.yaml
 apiVersion: v1
@@ -48,10 +51,10 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.44.0
+    helm.sh/chart: headlamp-0.45.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.44.0"
+    app.kubernetes.io/version: "0.45.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   type: NodePort
@@ -74,6 +77,7 @@ spec:
   selector:
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
+
 ---
 # Source: headlamp/templates/deployment.yaml
 # This block of code is used to extract the values from the env.
@@ -85,10 +89,10 @@ metadata:
   name: headlamp
   namespace: default
   labels:
-    helm.sh/chart: headlamp-0.44.0
+    helm.sh/chart: headlamp-0.45.0
     app.kubernetes.io/name: headlamp
     app.kubernetes.io/instance: headlamp
-    app.kubernetes.io/version: "0.44.0"
+    app.kubernetes.io/version: "0.45.0"
     app.kubernetes.io/managed-by: Helm
 spec:
   replicas: 1
@@ -114,7 +118,7 @@ spec:
             runAsGroup: 101
             runAsNonRoot: true
             runAsUser: 100
-          image: "ghcr.io/headlamp-k8s/headlamp:v0.44.0"
+          image: "ghcr.io/headlamp-k8s/headlamp:v0.45.0"
           imagePullPolicy: IfNotPresent
           
           env:
