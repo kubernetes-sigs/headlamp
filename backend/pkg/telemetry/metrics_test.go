@@ -94,6 +94,11 @@ func TestNewMetrics(t *testing.T) {
 	assert.NotNil(t, metrics.ClusterProxyRequests)
 	assert.NotNil(t, metrics.PluginLoadCount)
 	assert.NotNil(t, metrics.ErrorCounter)
+	assert.NotNil(t, metrics.CacheHitCount)
+	assert.NotNil(t, metrics.CacheMissCount)
+	assert.NotNil(t, metrics.CacheStoreCount)
+	assert.NotNil(t, metrics.CacheEvictionCount)
+	assert.NotNil(t, metrics.CacheInvalidationCount)
 
 	ctx := context.Background()
 	metrics.RequestCounter.Add(ctx, 1, metric.WithAttributes(attribute.String("test", "value")))
@@ -430,4 +435,23 @@ func TestInitApplicationMetrics(t *testing.T) {
 	require.NotNil(t, metrics.PluginLoadCount, "PluginLoadCount should be initialized")
 	require.NotNil(t, metrics.PluginDeleteCount, "PluginDeleteCount should be initialized")
 	require.NotNil(t, metrics.ErrorCounter, "ErrorCounter should be initialized")
+}
+
+func TestInitCacheMetrics(t *testing.T) {
+	provider, _ := setupTestMeter(t)
+	t.Cleanup(func() {
+		_ = provider.Shutdown(context.Background())
+	})
+
+	meter := otel.Meter("headlamp-test")
+	metrics := &tel.Metrics{}
+
+	err := tel.InitCacheMetricsForTest(meter, metrics)
+	require.NoError(t, err)
+
+	require.NotNil(t, metrics.CacheHitCount, "CacheHitCount should be initialized")
+	require.NotNil(t, metrics.CacheMissCount, "CacheMissCount should be initialized")
+	require.NotNil(t, metrics.CacheStoreCount, "CacheStoreCount should be initialized")
+	require.NotNil(t, metrics.CacheEvictionCount, "CacheEvictionCount should be initialized")
+	require.NotNil(t, metrics.CacheInvalidationCount, "CacheInvalidationCount should be initialized")
 }

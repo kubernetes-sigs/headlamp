@@ -344,3 +344,138 @@ func TestRecordRequestCount(t *testing.T) {
 		})
 	})
 }
+
+func TestRecordCacheHit(t *testing.T) {
+	t.Run("increments cache hit counter", func(t *testing.T) {
+		metrics := setupMetrics(t)
+		handler := tel.NewRequestHandler(nil, metrics)
+
+		assert.NotPanics(t, func() {
+			handler.RecordCacheHit(context.Background())
+		})
+	})
+
+	t.Run("handles nil handler", func(t *testing.T) {
+		var handler *tel.RequestHandler
+
+		assert.NotPanics(t, func() {
+			handler.RecordCacheHit(context.Background())
+		})
+	})
+
+	t.Run("handles nil metrics", func(t *testing.T) {
+		handler := tel.NewRequestHandler(nil, nil)
+
+		assert.NotPanics(t, func() {
+			handler.RecordCacheHit(context.Background())
+		})
+	})
+}
+
+func TestRecordCacheMiss(t *testing.T) {
+	t.Run("increments cache miss counter", func(t *testing.T) {
+		metrics := setupMetrics(t)
+		handler := tel.NewRequestHandler(nil, metrics)
+
+		assert.NotPanics(t, func() {
+			handler.RecordCacheMiss(context.Background())
+		})
+	})
+
+	t.Run("handles nil handler", func(t *testing.T) {
+		var handler *tel.RequestHandler
+
+		assert.NotPanics(t, func() {
+			handler.RecordCacheMiss(context.Background())
+		})
+	})
+
+	t.Run("handles nil metrics", func(t *testing.T) {
+		handler := tel.NewRequestHandler(nil, nil)
+
+		assert.NotPanics(t, func() {
+			handler.RecordCacheMiss(context.Background())
+		})
+	})
+}
+
+func TestRecordCacheStore(t *testing.T) {
+	t.Run("increments cache store counter", func(t *testing.T) {
+		metrics := setupMetrics(t)
+		handler := tel.NewRequestHandler(nil, metrics)
+
+		assert.NotPanics(t, func() {
+			handler.RecordCacheStore(context.Background())
+		})
+	})
+
+	t.Run("handles nil handler", func(t *testing.T) {
+		var handler *tel.RequestHandler
+
+		assert.NotPanics(t, func() {
+			handler.RecordCacheStore(context.Background())
+		})
+	})
+
+	t.Run("handles nil metrics", func(t *testing.T) {
+		handler := tel.NewRequestHandler(nil, nil)
+
+		assert.NotPanics(t, func() {
+			handler.RecordCacheStore(context.Background())
+		})
+	})
+}
+
+func TestRecordCacheEviction(t *testing.T) {
+	t.Run("increments cache eviction counter", func(t *testing.T) {
+		metrics := setupMetrics(t)
+		handler := tel.NewRequestHandler(nil, metrics)
+
+		assert.NotPanics(t, func() {
+			handler.RecordCacheEviction(context.Background())
+		})
+	})
+
+	t.Run("handles nil handler", func(t *testing.T) {
+		var handler *tel.RequestHandler
+
+		assert.NotPanics(t, func() {
+			handler.RecordCacheEviction(context.Background())
+		})
+	})
+
+	t.Run("handles nil metrics", func(t *testing.T) {
+		handler := tel.NewRequestHandler(nil, nil)
+
+		assert.NotPanics(t, func() {
+			handler.RecordCacheEviction(context.Background())
+		})
+	})
+}
+
+func TestRecordCacheInvalidation(t *testing.T) {
+	t.Run("increments cache invalidation counter", func(t *testing.T) {
+		metrics := setupMetrics(t)
+		handler := tel.NewRequestHandler(nil, metrics)
+
+		assert.NotPanics(t, func() {
+			handler.RecordCacheInvalidation(context.Background())
+		})
+	})
+
+	t.Run("handles nil handler", func(t *testing.T) {
+		var handler *tel.RequestHandler
+
+		assert.NotPanics(t, func() {
+			handler.RecordCacheInvalidation(context.Background())
+		})
+	})
+
+	t.Run("handles nil metrics", func(t *testing.T) {
+		handler := tel.NewRequestHandler(nil, nil)
+
+		assert.NotPanics(t, func() {
+			handler.RecordCacheInvalidation(context.Background())
+		})
+	})
+}
