@@ -136,6 +136,56 @@ Set a cluster dynamically, instead of from a configuration file, with
 - Example plugin: [How To Dynamically Set a Cluster](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/dynamic-clusters)
 - API reference: [Headlamp.setCluster](../../api/plugin/lib/classes/Headlamp.md#setcluster)
 
+### Secure Storage
+
+Desktop plugins can save small local credentials with the `pluginSecureStorage`
+argument that Headlamp injects when it runs the plugin. Values are encrypted by
+Electron `safeStorage` and scoped to the plugin's trusted installation identity.
+The plugin chooses only a key within its own storage area; it cannot choose or
+name another plugin's namespace.
+
+Declare the injected argument in TypeScript and check every operation result:
+
+```ts
+interface PluginSecureStorage {
+  save(key: string, value: string): Promise<{ success: boolean; error?: string }>;
+  load(key: string): Promise<{ success: boolean; value?: string | null; error?: string }>;
+  delete(key: string): Promise<{ success: boolean; error?: string }>;
+}
+
+declare const pluginSecureStorage: PluginSecureStorage;
+
+const saved = await pluginSecureStorage.save('oauth-token', token);
+if (!saved.success) {
+  throw new Error(saved.error);
+}
+
+const loaded = await pluginSecureStorage.load('oauth-token');
+if (!loaded.success) {
+  throw new Error(loaded.error);
+}
+const tokenOrNull = loaded.value ?? null;
+
+const deleted = await pluginSecureStorage.delete('oauth-token');
+if (!deleted.success) {
+  throw new Error(deleted.error);
+}
+```
+
+`load` returns `value: null` when the key does not exist. A failed operation
+returns `success: false` and an `error`; plugins should not treat a failure as a
+missing value. Headlamp may reject an operation when the operating-system key
+store is unavailable, when persisted data cannot be read safely, or when an
+input or storage limit is exceeded.
+
+This API is available only in the Headlamp desktop app. Check
+`Headlamp.isRunningAsApp()` before registering UI that uses it. It stores data
+on the computer running Headlamp and does not synchronize across computers or
+create a Kubernetes Secret. Use the Kubernetes API when a credential needs to
+be shared with workloads or other cluster users.
+
+- Example plugin: [How To Use Plugin Secure Storage](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/secure-storage)
+
 ### Route
 
 Show a component in the main area at a given URL with
@@ -246,32 +296,32 @@ returns whether two graph nodes should be connected. Use a plugin-prefixed
 relation ID to avoid colliding with Headlamp's built-in relations.
 
 ```tsx
-import { registerResourceRelationProvider } from "@kinvolk/headlamp-plugin/lib";
+import { registerResourceRelationProvider } from '@kinvolk/headlamp-plugin/lib';
 
 registerResourceRelationProvider({
-  id: "my-plugin.deployment-secret",
-  fromSource: "apps/Deployment",
-  toSource: "Secret",
-  label: "Uses Secret",
+  id: 'my-plugin.deployment-secret',
+  fromSource: 'apps/Deployment',
+  toSource: 'Secret',
+  label: 'Uses Secret',
   predicate: (from, to) => {
     // predicate receives GraphNode objects; access K8s data via kubeObject.
     return (
-      from.kubeObject?.jsonData.metadata.name === "my-deployment" &&
-      to.kubeObject?.jsonData.metadata.name === "my-secret"
+      from.kubeObject?.jsonData.metadata.name === 'my-deployment' &&
+      to.kubeObject?.jsonData.metadata.name === 'my-secret'
     );
   },
 });
 
 registerResourceRelationProvider({
-  id: "my-plugin.custom-source-deployment",
-  fromSource: "my-source",
-  toSource: "apps/Deployment",
-  label: "Depends On",
+  id: 'my-plugin.custom-source-deployment',
+  fromSource: 'my-source',
+  toSource: 'apps/Deployment',
+  label: 'Depends On',
   predicate: (from, to) => {
     // `my-source` is the ID passed to registerMapSource.
     return (
-      from.kubeObject?.jsonData.metadata.name === "my-test-resource" &&
-      to.kubeObject?.jsonData.metadata.name === "my-deployment"
+      from.kubeObject?.jsonData.metadata.name === 'my-test-resource' &&
+      to.kubeObject?.jsonData.metadata.name === 'my-deployment'
     );
   },
 });

@@ -65,6 +65,7 @@ import {
   runScript,
   setupRunCmdHandlers,
 } from './runCmd';
+import { setupSecureStorageHandlers } from './secureStorage';
 import { loadSettings, SETTINGS_PATH } from './settings';
 import { getShellEnv } from './shellEnv';
 import {
@@ -1789,6 +1790,7 @@ function startElectron() {
     });
 
     setupRunCmdHandlers(mainWindow, ipcMain);
+    setupSecureStorageHandlers(mainWindow, startUrl);
 
     new PluginManagerEventListeners().setupEventHandlers();
 
