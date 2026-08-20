@@ -416,7 +416,7 @@ func TestStatelessContextKeyCollision(t *testing.T) {
 }
 
 func TestStatelessContextKeyWithoutUserID(t *testing.T) {
-	assert.Equal(t, "cluster-a", statelessContextKey("cluster-a", ""))
+	assert.Equal(t, "cluster-a"+statelessContextKeySep, statelessContextKey("cluster-a", ""))
 }
 
 func TestWebsocketConnContextKey(t *testing.T) {
@@ -432,6 +432,13 @@ func TestWebsocketConnContextKey(t *testing.T) {
 			protocols:      "base64url.headlamp.authorization.k8s.io.user123, v4.channel.k8s.io",
 			clusterName:    "test-cluster",
 			expectedKey:    statelessContextKey("test-cluster", "user123"),
+			expectedHeader: "v4.channel.k8s.io",
+		},
+		{
+			name:           "With empty user authorization protocol",
+			protocols:      "base64url.headlamp.authorization.k8s.io., v4.channel.k8s.io",
+			clusterName:    "test-cluster",
+			expectedKey:    statelessContextKey("test-cluster", ""),
 			expectedHeader: "v4.channel.k8s.io",
 		},
 		{
@@ -455,6 +462,18 @@ func TestWebsocketConnContextKey(t *testing.T) {
 	}
 }
 
+func TestWebsocketConnContextKeyStatelessStore(t *testing.T) {
+	clusterName := "my-stateless-cluster"
+	statelessKey := statelessContextKey(clusterName, "")
+
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/", nil)
+	req.Header.Set("Sec-Websocket-Protocol", "base64url.headlamp.authorization.k8s.io., v4.channel.k8s.io")
+
+	key := websocketConnContextKey(req, clusterName)
+	assert.Equal(t, statelessKey, key)
+	assert.Equal(t, "v4.channel.k8s.io", req.Header.Get("Sec-Websocket-Protocol"))
+}
+
 func TestMarshalCustomObject_InvalidJSON(t *testing.T) {
 	mockInfo := &runtime.Unknown{
 		Raw: []byte(`{invalid-json`),
@@ -462,4 +481,9 @@ func TestMarshalCustomObject_InvalidJSON(t *testing.T) {
 
 	_, err := MarshalCustomObject(mockInfo, "test-context")
 	assert.Error(t, err)
+}
+
+func TestStatelessContextKeyFormat(t *testing.T) {
+	assert.Equal(t, "ab"+statelessContextKeySep+"c", statelessContextKey("ab", "c"))
+	assert.Equal(t, "a"+statelessContextKeySep+"bc", statelessContextKey("a", "bc"))
 }
