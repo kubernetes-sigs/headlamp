@@ -3374,13 +3374,19 @@ func TestCacheMiddleware_AuthErrorResponse(t *testing.T) {
 	assert.Equal(t, http.StatusForbidden, resp1.StatusCode)
 }
 
-// TestCacheMiddlware_CacheInvalidation test if the request is modifying
-// it should delete the keys, making new fresh request to k8s server and store
-// into the cache if the request is same it should return response from the client.
+// TestCacheMiddleware_CacheInvalidation tests that a modifying request evicts what a warm
+// cache was serving, and that the next GET repopulates it.
+//
+//nolint:funlen // Integration test requires setup, requests, and assertions in one function
 func TestCacheMiddleware_CacheInvalidation(t *testing.T) {
 	if os.Getenv("HEADLAMP_RUN_INTEGRATION_TESTS") != strconv.FormatBool(istrue) {
 		t.Skip("skipping integration test")
 	}
+
+	oldCache := k8sResponseCache
+	k8sResponseCache = cache.New[string]()
+
+	t.Cleanup(func() { k8sResponseCache = oldCache })
 
 	fakeK8s := newFakeK8sServer(true)
 	defer fakeK8s.Close()
@@ -3417,26 +3423,37 @@ func TestCacheMiddleware_CacheInvalidation(t *testing.T) {
 
 	ctx := context.Background()
 
-	expectedResponse := fakeK8sResourceListResponse
+	resourceURL := ts.URL + "/clusters/test/api/v1/resource"
 
-	resp, err := httpRequestWithContext(ctx, ts.URL+"/clusters/test/api/v1/resource", "POST")
-	assert.NoError(t, err)
+	assertGET := func(fromCache string) {
+		t.Helper()
+
+		resp, err := httpRequestWithContext(ctx, resourceURL, http.MethodGet)
+		require.NoError(t, err)
+
+		defer func() { _ = resp.Body.Close() }()
+
+		body, err := stringResponse(resp)
+		require.NoError(t, err)
+
+		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, fakeK8sResourceListResponse, body)
+		assert.Equal(t, fromCache, resp.Header.Get("X-HEADLAMP-CACHE"))
+	}
+
+	assertGET("")     // cold: served by the k8s server and stored
+	assertGET("true") // warm
+
+	resp, err := httpRequestWithContext(ctx, resourceURL, http.MethodPost)
+	require.NoError(t, err)
 
 	defer func() { _ = resp.Body.Close() }()
 
-	assert.Equal(t, "", resp.Header.Get("X-HEADLAMP-CACHE"))
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, "", resp.Header.Get("X-HEADLAMP-CACHE"))
 
-	resp1, err := httpRequestWithContext(ctx, ts.URL+"/clusters/test/api/v1/resource", "GET")
-	assert.NoError(t, err)
-
-	defer func() { _ = resp1.Body.Close() }()
-
-	resp1String, err := stringResponse(resp1)
-	assert.NoError(t, err)
-	assert.Equal(t, expectedResponse, resp1String)
-	assert.Equal(t, "true", resp1.Header.Get("X-HEADLAMP-CACHE"))
-	assert.Equal(t, http.StatusOK, resp1.StatusCode)
+	assertGET("")     // the modifying request evicted the entry
+	assertGET("true") // and the miss repopulated it
 }
 
 // newRealK8sHeadlampConfig creates a HeadlampConfig for integration tests

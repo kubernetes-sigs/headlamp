@@ -18,7 +18,6 @@ package main
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -290,7 +289,8 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 		return
 	}
 
-	if !k8cache.IsKubernetesAPIPath(r.URL.Path) || k8cache.IsSelfSubjectReviewAPIPath(r.URL.Path) {
+	apiRequest, ok := k8cache.NewAPIRequest(r)
+	if !ok || (!apiRequest.Cacheable() && !k8cache.InvalidatesCache(r)) {
 		next.ServeHTTP(w, r)
 		return
 	}
@@ -300,24 +300,18 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 		return
 	}
 
-	if err := k8cache.HandleNonGETCacheInvalidation(k8sResponseCache, w, r, next, contextKey); err != nil {
-		if errors.Is(err, k8cache.ErrHandled) {
-			// Request was already handled (response written), return early
-			return
-		}
+	key := apiRequest.Key(contextKey)
 
-		c.handleError(w, ctx, span, err, "error while invalidating keys", http.StatusInternalServerError)
+	if k8cache.HandleNonGETCacheInvalidation(k8sResponseCache, w, r, next, key) {
+		return
+	}
 
+	if !apiRequest.Cacheable() {
+		next.ServeHTTP(w, r)
 		return
 	}
 
 	rcw := k8cache.NewResponseCapture(w)
-
-	key, err := k8cache.GenerateKey(r.URL, contextKey)
-	if err != nil {
-		c.handleError(w, ctx, span, err, "failed to generate key", http.StatusBadRequest)
-		return
-	}
 
 	handled := handleCacheAuthorization(c, next, w, r, rcw, ctx, span, contextKey, kContext, key)
 	if handled {
