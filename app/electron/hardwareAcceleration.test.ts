@@ -14,64 +14,99 @@
  * limitations under the License.
  */
 
+import { Worker } from 'node:worker_threads';
 import { describe, expect, it, vi } from 'vitest';
-import { getHardwareAccelerationDisableReason, isWindowsVM } from './hardwareAcceleration';
+import {
+  startWindowsVMDetection,
+  waitForWindowsVMDetection,
+  WindowsVMDetectionDependencies,
+} from './hardwareAcceleration';
 
-describe('isWindowsVM', () => {
-  it.each([
-    'SystemManufacturer    REG_SZ    Microsoft Corporation\nSystemProductName    REG_SZ    Virtual Machine',
-    'SystemManufacturer    REG_SZ    VMware, Inc.',
-    'SystemProductName    REG_SZ    VirtualBox',
-    'SystemManufacturer    REG_SZ    QEMU',
-  ])('detects a virtual machine from Windows BIOS data', bios => {
-    expect(isWindowsVM('win32', () => bios)).toBe(true);
+function dependencies(
+  overrides: Partial<WindowsVMDetectionDependencies> = {}
+): WindowsVMDetectionDependencies {
+  return {
+    platform: 'win32',
+    systemRoot: 'C:\\Windows',
+    createWorker: vi.fn(() => ({ on: vi.fn(), unref: vi.fn() })),
+    ...overrides,
+  };
+}
+
+describe('startWindowsVMDetection', () => {
+  it('starts an unreferenced worker on Windows when no flag is set', () => {
+    const worker = { on: vi.fn(), unref: vi.fn() };
+    const createWorker = vi.fn(() => worker);
+
+    const detection = startWindowsVMDetection(undefined, dependencies({ createWorker }));
+
+    expect(detection).not.toBeNull();
+    expect(createWorker).toHaveBeenCalledWith(
+      expect.stringContaining('execFileSync'),
+      expect.objectContaining({ systemRoot: 'C:\\Windows' })
+    );
+    expect(worker.unref).toHaveBeenCalledTimes(1);
+    expect(worker.on).toHaveBeenCalledWith('error', expect.any(Function));
   });
 
-  it('does not identify physical Windows hardware as a VM', () => {
+  it.each([true, false])('skips detection when disable-gpu is %s', disableGPU => {
+    const createWorker = vi.fn(() => ({ on: vi.fn(), unref: vi.fn() }));
+
+    expect(startWindowsVMDetection(disableGPU, dependencies({ createWorker }))).toBeNull();
+    expect(createWorker).not.toHaveBeenCalled();
+  });
+
+  it('skips detection outside Windows', () => {
+    const createWorker = vi.fn(() => ({ on: vi.fn(), unref: vi.fn() }));
+
     expect(
-      isWindowsVM(
-        'win32',
-        () =>
-          'SystemManufacturer    REG_SZ    Microsoft Corporation\nSystemProductName    REG_SZ    Surface Pro 9'
-      )
-    ).toBe(false);
+      startWindowsVMDetection(undefined, dependencies({ createWorker, platform: 'linux' }))
+    ).toBeNull();
+    expect(createWorker).not.toHaveBeenCalled();
   });
 
-  it('does not query the BIOS on other platforms', () => {
-    const readBIOS = vi.fn();
+  it('falls back to the standard Windows directory for an invalid root', () => {
+    const createWorker = vi.fn(() => ({ on: vi.fn(), unref: vi.fn() }));
 
-    expect(isWindowsVM('linux', readBIOS)).toBe(false);
-    expect(readBIOS).not.toHaveBeenCalled();
+    startWindowsVMDetection(undefined, dependencies({ createWorker, systemRoot: 'relative' }));
+
+    expect(createWorker).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ systemRoot: 'C:\\Windows' })
+    );
   });
 
-  it('returns false and keeps GPU enabled when the BIOS cannot be queried', () => {
-    expect(
-      isWindowsVM('win32', () => {
-        throw new Error('reg.exe failed');
+  it('signals failure when the registry executable is unavailable', () => {
+    const detection = startWindowsVMDetection(
+      undefined,
+      dependencies({
+        createWorker(source, workerData) {
+          return new Worker(source, { eval: true, workerData });
+        },
+        systemRoot: 'Z:\\missing-windows',
       })
-    ).toBe(false);
+    );
+
+    expect(waitForWindowsVMDetection(detection)).toBe(false);
+    expect(Atomics.load(detection!.state, 0)).not.toBe(0);
   });
 });
 
-describe('getHardwareAccelerationDisableReason', () => {
-  it('disables GPU acceleration in a Windows VM', () => {
-    expect(getHardwareAccelerationDisableReason(undefined, 'win32', 'x64', () => true)).toContain(
-      'Windows virtual machine'
-    );
+describe('waitForWindowsVMDetection', () => {
+  it('returns true only for virtual-machine results', () => {
+    const virtualState = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
+    const physicalState = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
+    Atomics.store(virtualState, 0, 2);
+    Atomics.store(physicalState, 0, 1);
+
+    expect(waitForWindowsVMDetection({ state: virtualState })).toBe(true);
+    expect(waitForWindowsVMDetection({ state: physicalState })).toBe(false);
+    expect(waitForWindowsVMDetection(null)).toBe(false);
   });
 
-  it('allows --disable-gpu=false to override automatic detection', () => {
-    const detectWindowsVM = vi.fn(() => true);
+  it('returns false when detection exceeds its bounded wait', () => {
+    const state = new Int32Array(new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT));
 
-    expect(getHardwareAccelerationDisableReason(false, 'win32', 'x64', detectWindowsVM)).toBe(
-      undefined
-    );
-    expect(detectWindowsVM).not.toHaveBeenCalled();
-  });
-
-  it('preserves Linux ARM detection', () => {
-    expect(getHardwareAccelerationDisableReason(undefined, 'linux', 'arm64')).toContain(
-      'Linux on ARM'
-    );
+    expect(waitForWindowsVMDetection({ state }, 1)).toBe(false);
   });
 });

@@ -68,4 +68,22 @@ describe('createJsonBackend', () => {
       })
     ).rejects.toBeInstanceOf(SyntaxError);
   });
+
+  it('reports missing locale resources', async () => {
+    const localesDir = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-i18n-'));
+    tempDirs.push(localesDir);
+    const backend = createJsonBackend(localesDir);
+
+    await expect(
+      new Promise((resolve, reject) => {
+        backend.read('en', 'missing', (error, data) => {
+          if (error) {
+            reject(error);
+          } else {
+            resolve(data);
+          }
+        });
+      })
+    ).rejects.toMatchObject({ code: 'ENOENT' });
+  });
 });

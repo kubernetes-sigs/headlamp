@@ -84,6 +84,22 @@ describe('certificates', () => {
       expect(mockGetCACertificates).toHaveBeenCalledTimes(2);
       expect(mockSetDefaultCACertificates).toHaveBeenCalledTimes(1);
     });
+
+    it('loads a configured custom CA on first use', () => {
+      mockGetCACertificates.mockReturnValue([]);
+      mockReadFileSync.mockReturnValue(
+        '-----BEGIN CERTIFICATE-----\ncustom-ca\n-----END CERTIFICATE-----'
+      );
+
+      const ensureCertificates = createCertificateSetup({
+        useSystemCAs: false,
+        customCAPath: '/path/to/custom-ca.crt',
+      });
+      ensureCertificates();
+
+      expect(mockReadFileSync).toHaveBeenCalledWith('/path/to/custom-ca.crt', 'utf8');
+      expect(mockSetDefaultCACertificates).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('setupSystemCAs', () => {
