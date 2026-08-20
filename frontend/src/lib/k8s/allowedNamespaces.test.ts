@@ -64,6 +64,22 @@ describe('useAllowedNamespacesFromSelector', () => {
     expect(result.current.namespaces).toEqual([]);
   });
 
+  it('does not query when no cluster is selected', () => {
+    mockList({ items: [], isFetching: true });
+
+    const { result } = renderHook(() => useAllowedNamespacesFromSelector('', 'team=frontend'));
+
+    expect(mockUseList).toHaveBeenCalledWith(
+      expect.objectContaining({ clusters: [], labelSelector: undefined })
+    );
+    expect(result.current).toEqual({
+      namespaces: [],
+      isFetching: false,
+      isSuccess: false,
+      error: null,
+    });
+  });
+
   it('caches the resolved namespaces on success, tagged with the selector', () => {
     mockList({ items: [ns('b'), ns('a')], isFetching: false });
 
@@ -108,5 +124,15 @@ describe('useAllowedNamespacesFromSelector', () => {
 
     expect(loadResolvedAllowedNamespaces('prod')?.namespaces).toEqual(['keep']);
     expect(result.current.isFetching).toBe(true);
+  });
+
+  it('keeps a fresh cache when the resolved namespaces are unchanged', () => {
+    storeResolvedAllowedNamespaces('prod', 'team=frontend', ['a']);
+    const resolvedAt = loadResolvedAllowedNamespaces('prod')?.resolvedAt;
+    mockList({ items: [ns('a')] });
+
+    renderHook(() => useAllowedNamespacesFromSelector('prod', 'team=frontend'));
+
+    expect(loadResolvedAllowedNamespaces('prod')?.resolvedAt).toBe(resolvedAt);
   });
 });
