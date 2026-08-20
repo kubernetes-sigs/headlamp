@@ -67,6 +67,7 @@ type Config struct {
 	NodeShellImage         string `koanf:"node-shell-image"`
 	NodeShellNamespace     string `koanf:"node-shell-namespace"`
 	ProxyURLs              string `koanf:"proxy-urls"`
+	AllowedFrameAncestors  string `koanf:"allowed-frame-ancestors"`
 
 	ClusterInventoryProviderFile          string        `koanf:"cluster-inventory-provider-file"`
 	ClusterInventoryLabelSelector         string        `koanf:"cluster-inventory-label-selector"`
@@ -647,6 +648,9 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.String("service-account-token-path", "",
 		"Path to the service account token. "+
 			"Only used when --unsafe-use-service-account-token is set and in-cluster")
+	f.String("allowed-frame-ancestors", "", "Comma-separated list of origins allowed to embed Headlamp "+
+		"in an iframe (e.g., 'https://example.com,https://app.example.com'). If set, emits Content-Security-Policy "+
+		"with frame-ancestors and skips X-Frame-Options.")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {
