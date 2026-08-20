@@ -941,6 +941,8 @@
   "Zoom in": "Nagyítás",
   "Zoom out": "Kicsinyítés",
   "No data to be shown. Try to change filters or select a different namespace.": "Nincs megjeleníthető adat. Próbálja meg módosítani a szűrőket, vagy válasszon másik névteret.",
+  "Resource Types": "",
+  "Labels (e.g. app=nginx)": "",
   "Group By": "Csoportosítási szempont",
   "Instance": "Példány",
   "Status: Error or Warning": "Állapot: Hiba vagy figyelmeztetés",

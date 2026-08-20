@@ -948,6 +948,8 @@
   "Zoom in": "Aumentar",
   "Zoom out": "Disminuir",
   "No data to be shown. Try to change filters or select a different namespace.": "Sin datos para mostrar. Intente cambiar los filtros o seleccione un espacio de nombre diferente.",
+  "Resource Types": "",
+  "Labels (e.g. app=nginx)": "",
   "Group By": "Agrupar por",
   "Instance": "Instancia",
   "Status: Error or Warning": "Estado: Error o Aviso",

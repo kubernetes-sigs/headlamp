@@ -941,6 +941,8 @@
   "Zoom in": "Yakınlaştır",
   "Zoom out": "Uzaklaştır",
   "No data to be shown. Try to change filters or select a different namespace.": "Gösterilecek veri yok. Filtreleri değiştirmeyi veya farklı bir ad alanı seçmeyi deneyin.",
+  "Resource Types": "",
+  "Labels (e.g. app=nginx)": "",
   "Group By": "Gruplandırma Ölçütü",
   "Instance": "Örnek",
   "Status: Error or Warning": "Durum: Hata veya Uyarı",

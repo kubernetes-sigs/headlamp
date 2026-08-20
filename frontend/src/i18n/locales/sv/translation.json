@@ -941,6 +941,8 @@
   "Zoom in": "Zooma in",
   "Zoom out": "Zooma ut",
   "No data to be shown. Try to change filters or select a different namespace.": "Det finns inga data att visa. Prova att ändra filter eller välj en annan namnrymd.",
+  "Resource Types": "",
+  "Labels (e.g. app=nginx)": "",
   "Group By": "Gruppera efter",
   "Instance": "Instans",
   "Status: Error or Warning": "Status: Fel eller varning",
