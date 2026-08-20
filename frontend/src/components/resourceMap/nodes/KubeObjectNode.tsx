@@ -57,15 +57,21 @@ const Container = styled('div')<{
   ':hover': {
     borderColor: isSelected ? undefined : alpha(theme.palette.action.active, 0.2),
     boxShadow: '4px 4px 6px rgba(0,0,0,0.06)',
-    zIndex: 10,
     '& .label-container': {
+      overflow: 'visible',
+    },
+    '& .node-title': {
+      WebkitLineClamp: 'unset',
       overflow: 'visible',
     },
   },
 
   ':focus-within': {
-    zIndex: 10,
     '& .label-container': {
+      overflow: 'visible',
+    },
+    '& .node-title': {
+      WebkitLineClamp: 'unset',
       overflow: 'visible',
     },
   },
@@ -148,6 +154,10 @@ const Subtitle = styled('div')({
 const Title = styled('div')({
   whiteSpace: 'normal',
   wordBreak: 'break-word',
+  display: '-webkit-box',
+  WebkitLineClamp: 2,
+  WebkitBoxOrient: 'vertical',
+  overflow: 'hidden',
 });
 
 const EXPAND_DELAY = 450;
@@ -289,7 +299,7 @@ export const KubeObjectNodeComponent = memo(({ id }: NodeProps) => {
         {icon}
         <LabelContainer className="label-container" isCollapsed={isCollapsed}>
           <Subtitle>{subtitle}</Subtitle>
-          <Title>{label}</Title>
+          <Title className="node-title">{label}</Title>
         </LabelContainer>
       </TextContainer>
       {isExpanded && <NodeGlance node={node} />}
