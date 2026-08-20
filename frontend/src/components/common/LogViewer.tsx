@@ -130,8 +130,33 @@ export function LogViewer(props: LogViewerProps) {
 
     return function cleanup() {
       window.removeEventListener('resize', pageResizeHandler);
-      xtermRef.current?.dispose();
-      searchAddonRef.current?.dispose();
+      if (xtermRef.current && typeof xtermRef.current.dispose === 'function') {
+        try {
+          xtermRef.current.dispose();
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn('Error disposing xterm terminal:', e);
+        }
+      }
+
+      if (searchAddonRef.current && typeof searchAddonRef.current.dispose === 'function') {
+        try {
+          searchAddonRef.current.dispose();
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn('Error disposing search addon:', e);
+        }
+      }
+
+      if (fitAddonRef.current && typeof fitAddonRef.current.dispose === 'function') {
+        try {
+          fitAddonRef.current.dispose();
+        } catch (e) {
+          // eslint-disable-next-line no-console
+          console.warn('Error disposing fit addon:', e);
+        }
+      }
+
       xtermRef.current = null;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -256,7 +281,9 @@ export function LogViewer(props: LogViewerProps) {
       title={title}
       onFullScreenToggled={() => {
         setTimeout(() => {
-          fitAddonRef.current!.fit();
+          if (fitAddonRef.current && typeof fitAddonRef.current.fit === 'function') {
+            fitAddonRef.current.fit();
+          }
         }, 1);
       }}
       withFullScreen
