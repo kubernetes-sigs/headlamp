@@ -1008,6 +1008,7 @@
   "resource {{resourceName}} on pods": "ポッドのリソース {{resourceName}} on pods",
   "resource {{resourceName}} of container {{containerName}} on pods": "ポッドのコンテナー {{containerName}} のリソース {{resourceName}}",
   "Warning. Incompatible plugins disabled: ({{ pluginList }})": "警告。互換性のないプラグインを無効にしました: ({{ pluginList }})",
+  "The following plugins failed to initialize: {{ pluginList }}": "",
   "Failed to load plugins. Please try reloading the app.": "",
   "Global Search": "",
   "Open the global search dialog": "",

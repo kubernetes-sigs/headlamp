@@ -24,6 +24,20 @@ const { mockFetchAndExecutePlugins, mockEnqueueSnackbar } = vi.hoisted(() => ({
   mockEnqueueSnackbar: vi.fn(),
 }));
 
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, options: any) => {
+      let text = key.split('|').pop() ?? key;
+      if (options && typeof options === 'object') {
+        for (const [k, v] of Object.entries(options)) {
+          text = text.replace(`{{ ${k} }}`, String(v));
+        }
+      }
+      return text;
+    },
+  }),
+}));
+
 vi.mock('./index', () => ({
   fetchAndExecutePlugins: mockFetchAndExecutePlugins,
 }));
@@ -82,5 +96,24 @@ describe('Plugins', () => {
       expect.anything(),
       expect.objectContaining({ variant: 'error' })
     );
+  });
+
+  test('shows an error snackbar when some plugins fail to initialize', async () => {
+    mockFetchAndExecutePlugins.mockResolvedValue(['badPlugin1', 'badPlugin2']);
+
+    render(
+      <TestContext>
+        <Plugins />
+      </TestContext>
+    );
+
+    await waitFor(() => {
+      expect(mockEnqueueSnackbar).toHaveBeenCalledWith(
+        expect.stringMatching(
+          /The following plugins failed to initialize:.*badPlugin1.*badPlugin2/
+        ),
+        expect.objectContaining({ variant: 'error' })
+      );
+    });
   });
 });
