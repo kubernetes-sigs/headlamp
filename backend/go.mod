@@ -2,7 +2,7 @@ module github.com/kubernetes-sigs/headlamp/backend
 
 go 1.26.0
 
-toolchain go1.26.5
+toolchain go1.26.7
 
 require (
 	github.com/fsnotify/fsnotify v1.10.1
@@ -49,6 +49,7 @@ require (
 	golang.org/x/term v0.44.0
 	gopkg.in/yaml.v2 v2.4.0
 	k8s.io/klog/v2 v2.140.0
+	k8s.io/streaming v0.36.1
 	sigs.k8s.io/cluster-inventory-api v0.1.3
 )
 
@@ -170,7 +171,6 @@ require (
 	k8s.io/apiextensions-apiserver v0.36.1 // indirect
 	k8s.io/apiserver v0.36.1 // indirect
 	k8s.io/component-base v0.36.1 // indirect
-	k8s.io/streaming v0.36.1 // indirect
 	oras.land/oras-go/v2 v2.6.2 // indirect
 	sigs.k8s.io/controller-runtime v0.24.1 // indirect
 	sigs.k8s.io/json v0.0.0-20250730193827-2d320260d730 // indirect
