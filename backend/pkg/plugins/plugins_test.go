@@ -411,8 +411,7 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 	require.EqualError(t, err, cache.ErrNotFound.Error())
 	require.Nil(t, pluginRefresh)
 
-	// send event
-	events <- "test"
+	events <- packageJSONPath + ":CREATE"
 
 	// wait for the plugin list and refresh keys to be set
 	for {
@@ -442,8 +441,7 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 
 	go plugins.HandlePluginEvents("", "", testDirPath, events, ch)
 
-	// send event
-	events <- "test"
+	events <- packageJSONPath + ":WRITE"
 
 	// wait for the plugin list and refresh keys to be set
 	for {
@@ -475,6 +473,38 @@ func TestHandlePluginEvents(t *testing.T) { //nolint:funlen
 	// clean up
 	err = os.RemoveAll(testDirPath)
 	require.NoError(t, err)
+}
+
+func TestHandlePluginEventsIgnoresIntermediateCopyEvents(t *testing.T) {
+	tempDir := t.TempDir()
+	pluginDir := filepath.Join(tempDir, "plugin")
+	require.NoError(t, os.Mkdir(pluginDir, 0o750))
+
+	mainJSPath := filepath.Join(pluginDir, "main.js")
+	packageJSONPath := filepath.Join(pluginDir, "package.json")
+
+	require.NoError(t, os.WriteFile(mainJSPath, nil, 0o600))
+
+	events := make(chan string)
+	pluginCache := cache.New[interface{}]()
+
+	go plugins.HandlePluginEvents("", "", tempDir, events, pluginCache)
+
+	events <- "test"
+
+	events <- mainJSPath + ":CREATE"
+
+	_, err := pluginCache.Get(context.Background(), plugins.PluginListKey)
+	require.EqualError(t, err, cache.ErrNotFound.Error())
+
+	require.NoError(t, os.WriteFile(packageJSONPath, nil, 0o600))
+
+	events <- packageJSONPath + ":CREATE"
+
+	require.Eventually(t, func() bool {
+		_, err := pluginCache.Get(context.Background(), plugins.PluginListKey)
+		return err == nil
+	}, time.Second, 10*time.Millisecond)
 }
 
 func TestHandlePluginReload(t *testing.T) {

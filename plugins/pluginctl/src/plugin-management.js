@@ -49,7 +49,28 @@ const envPaths = require('env-paths');
  */
 function moveDirs(currentPath, newPath) {
   try {
-    fs.cpSync(currentPath, newPath, { recursive: true, force: true });
+    fs.mkdirSync(newPath, { recursive: true });
+
+    for (const entry of fs.readdirSync(newPath, { withFileTypes: true })) {
+      if (entry.name !== 'package.json') {
+        fs.rmSync(path.join(newPath, entry.name), { recursive: true, force: true });
+      }
+    }
+
+    const entries = fs.readdirSync(currentPath, { withFileTypes: true });
+    for (const entry of entries) {
+      if (entry.name === 'package.json') {
+        continue;
+      }
+
+      const srcPath = path.join(currentPath, entry.name);
+      const destPath = path.join(newPath, entry.name);
+      fs.cpSync(srcPath, destPath, { recursive: true, force: true });
+    }
+
+    const packageJsonPath = path.join(currentPath, 'package.json');
+    const destPackageJsonPath = path.join(newPath, 'package.json');
+    fs.copyFileSync(packageJsonPath, destPackageJsonPath);
     fs.rmSync(currentPath, { recursive: true });
     console.log(`Moved directory from ${currentPath} to ${newPath}`);
   } catch (err) {
@@ -157,12 +178,6 @@ class PluginManager {
       if (!fs.existsSync(destinationFolder)) {
         fs.mkdirSync(destinationFolder, { recursive: true });
       }
-
-      // remove the existing plugin folder
-      fs.rmSync(pluginDir, { recursive: true, force: true });
-
-      // create the plugin folder
-      fs.mkdirSync(pluginDir, { recursive: true });
 
       // move the plugin to the destination folder
       moveDirs(tempFolder, pluginDir);
