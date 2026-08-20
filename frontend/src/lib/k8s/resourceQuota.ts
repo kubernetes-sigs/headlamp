@@ -66,13 +66,65 @@ class ResourceQuota extends KubeObject<KubeResourceQuota> {
     return this.jsonData.status;
   }
 
-  get requests(): string[] {
-    const req: string[] = [];
+  /**
+   * Classifies a `spec.hard` key as a compute request, a compute limit, or an
+   * object count.
+   *
+   * A `requests.` or `limits.` prefix on the key decides the category on its
+   * own, which keeps qualified extended resources such as
+   * `requests.nvidia.com/gpu` out of the object counts.
+   *
+   * Otherwise, storage class scoped keys carry the resource after a `/`, as in
+   * `gold.storageclass.storage.k8s.io/requests.storage`, so that part is what
+   * decides. `cpu`, `memory`, `ephemeral-storage` and `hugepages-<size>` are
+   * shorthands for their `requests.` counterparts.
+   *
+   * @param key - a key of the quota's `spec.hard` map.
+   * @returns the category the key belongs to.
+   *
+   * @see {@link https://kubernetes.io/docs/concepts/policy/resource-quotas/} Kubernetes resource quota reference
+   */
+  private static quotaKind(key: string): 'request' | 'limit' | 'count' {
+    // Extended resources are qualified with a domain, as in
+    // `requests.nvidia.com/gpu`, so the whole key is checked before the
+    // storage class prefix is stripped below.
+    if (key.startsWith('limits.')) {
+      return 'limit';
+    }
+    if (key.startsWith('requests.')) {
+      return 'request';
+    }
+
+    const resource = key.includes('/') ? key.slice(key.indexOf('/') + 1) : key;
+
+    if (resource.startsWith('limits.')) {
+      return 'limit';
+    }
+    if (
+      resource.startsWith('requests.') ||
+      resource.startsWith('hugepages-') ||
+      resource === 'cpu' ||
+      resource === 'memory' ||
+      resource === 'ephemeral-storage'
+    ) {
+      return 'request';
+    }
+    return 'count';
+  }
+
+  /**
+   * Formats the `spec.hard` entries of a single category as `key: used/hard`.
+   *
+   * @param kind - the category to report, as classified by {@link quotaKind}.
+   * @returns one formatted entry per matching key, in `spec.hard` order.
+   */
+  private quotasOfKind(kind: 'request' | 'limit' | 'count'): string[] {
+    const quotas: string[] = [];
     const used = this.jsonData.status?.used ?? {};
     this.spec.hard &&
       Object.keys(this.spec.hard).forEach(key => {
-        if (key === 'cpu' || key === 'memory' || key.startsWith('requests.')) {
-          req.push(
+        if (ResourceQuota.quotaKind(key) === kind) {
+          quotas.push(
             `${key}: ${normalizeUnit(key, used[key] ?? '0')}/${normalizeUnit(
               key,
               this.spec.hard[key]
@@ -80,24 +132,25 @@ class ResourceQuota extends KubeObject<KubeResourceQuota> {
           );
         }
       });
-    return req;
+    return quotas;
+  }
+
+  get requests(): string[] {
+    return this.quotasOfKind('request');
   }
 
   get limits(): string[] {
-    const limits: string[] = [];
-    const used = this.jsonData.status?.used ?? {};
-    this.spec.hard &&
-      Object.keys(this.spec.hard).forEach(key => {
-        if (key.startsWith('limits.')) {
-          limits.push(
-            `${key}: ${normalizeUnit(key, used[key] ?? '0')}/${normalizeUnit(
-              key,
-              this.spec.hard[key]
-            )}`
-          );
-        }
-      });
-    return limits;
+    return this.quotasOfKind('limit');
+  }
+
+  /**
+   * Object count quotas, such as `pods`, `services` or `count/deployments.apps`.
+   *
+   * These are the entries that are neither compute requests nor compute limits,
+   * so they are not reported by {@link requests} or {@link limits}.
+   */
+  get counts(): string[] {
+    return this.quotasOfKind('count');
   }
 
   get resourceStats() {
