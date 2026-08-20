@@ -185,6 +185,207 @@ function moveDirs(currentPath: string, newPath: string) {
   }
 }
 
+/**
+ * Name of the directory inside a plugins directory used for update
+ * transactions.
+ *
+ * Staging and backup directories for an update live under this directory.
+ * Installed plugins never use it, so recovery can unambiguously identify
+ * update transactions without having to distinguish them from legitimate
+ * plugin directories: everything under this directory is owned by the update
+ * flow, while plugin directories always live directly in the plugins
+ * directory.
+ */
+const UPDATE_TXN_DIR_NAME = '.headlamp-txn';
+
+/**
+ * Matches transaction directories created by PluginManager.update().
+ *
+ * Transaction directories are named `<pluginName>.(backup|staging).<txnId>`
+ * where `<txnId>` is a random 16-character hex string unique to each update
+ * attempt. They only ever appear under UPDATE_TXN_DIR_NAME, so a legitimate
+ * plugin whose name happens to end in `.backup` or `.staging` (or even
+ * `.staging.<16 hex chars>`) can never be mistaken for an interrupted update
+ * transaction.
+ */
+const UPDATE_TXN_DIR_PATTERN = /^(.+)\.(backup|staging)\.([0-9a-f]{16})$/;
+
+/** Suffix of a transaction lock file, which is named `<txnId>.lock`. */
+const UPDATE_TXN_LOCK_SUFFIX = '.lock';
+
+/** Matches a transaction lock file, named `<txnId>.lock`. */
+const UPDATE_TXN_LOCK_PATTERN = /^([0-9a-f]{16})\.lock$/;
+
+/**
+ * Checks whether a process is currently running.
+ *
+ * @param pid - The process id to check.
+ * @returns true if a process with the given pid exists.
+ */
+function isProcessAlive(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch (err) {
+    // EPERM means the process exists but we cannot signal it.
+    return (err as NodeJS.ErrnoException).code === 'EPERM';
+  }
+}
+
+/**
+ * Reads the pid recorded in a transaction lock file.
+ *
+ * @param lockFile - The path to the lock file.
+ * @returns The recorded pid, or null if the file is missing or unreadable.
+ */
+function lockOwnerPid(lockFile: string): number | null {
+  try {
+    const lock = JSON.parse(fs.readFileSync(lockFile, 'utf8'));
+    return typeof lock.pid === 'number' ? lock.pid : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Checks whether a transaction is still owned by a live process.
+ *
+ * @param lockFile - The path to the transaction's lock file.
+ * @returns true if the lock file exists and its recorded pid is alive.
+ */
+function isActiveTransaction(lockFile: string): boolean {
+  const pid = lockOwnerPid(lockFile);
+  return pid !== null && isProcessAlive(pid);
+}
+
+/**
+ * Recovers plugins left broken by an update that crashed mid-swap.
+ *
+ * The swap renames the plugin to `<txnDir>/<name>.backup.<txnId>` before
+ * renaming the staged content into place, so a crash between those two
+ * renames leaves the backup behind with no plugin directory. On the next
+ * listing or app startup, restore the backup so the previous version is
+ * usable again. Stale `<txnDir>/<name>.staging.<txnId>` directories are
+ * removed. Transaction directories live under a dedicated `.headlamp-txn`
+ * subdirectory, so recovery never inspects user-controlled plugin directory
+ * names.
+ *
+ * A transaction is only recovered when its `<txnId>.lock` file is missing or
+ * records a pid that is no longer alive. A live owner means the update is
+ * still in progress (possibly from another process, such as the
+ * headlamp-plugin CLI), so recovery leaves the transaction untouched. This is
+ * deliberately conservative: a stale lock whose pid has been reused by an
+ * unrelated process leaves the transaction in place (a leak, not a loss), and
+ * the update flow never reads these locks, so such a leak cannot block future
+ * updates.
+ *
+ * Note that this recovery cannot make the swap itself atomic: the plugin
+ * directory is briefly absent between the two renames, so a concurrent reader
+ * such as the backend serving the user plugins directory may observe the
+ * plugin as missing in that window. Calling this function at startup (before
+ * the backend starts serving) and on every plugin listing keeps that window
+ * from turning into a permanent break.
+ */
+export function recoverInterruptedUpdate(pluginsDir: string) {
+  const txnRoot = path.join(pluginsDir, UPDATE_TXN_DIR_NAME);
+  let entries: fs.Dirent[];
+
+  try {
+    entries = fs.readdirSync(txnRoot, { withFileTypes: true });
+  } catch {
+    return;
+  }
+
+  // If a plugin directory occupies the transaction directory name, never
+  // touch its contents.
+  if (fs.existsSync(path.join(txnRoot, 'package.json'))) {
+    return;
+  }
+
+  for (const entry of entries) {
+    if (!entry.isDirectory()) {
+      continue;
+    }
+
+    const txnMatch = UPDATE_TXN_DIR_PATTERN.exec(entry.name);
+    if (!txnMatch) {
+      continue;
+    }
+
+    const lockFile = path.join(txnRoot, `${txnMatch[3]}${UPDATE_TXN_LOCK_SUFFIX}`);
+    if (isActiveTransaction(lockFile)) {
+      // The update owning this transaction is still running; leave it alone.
+      continue;
+    }
+
+    const pluginDir = path.join(pluginsDir, txnMatch[1]);
+    const txnDir = path.join(txnRoot, entry.name);
+
+    if (txnMatch[2] === 'backup') {
+      if (!fs.existsSync(pluginDir)) {
+        try {
+          fs.renameSync(txnDir, pluginDir);
+          console.log(`Recovered plugin directory ${pluginDir} from interrupted update`);
+        } catch (err) {
+          console.error(`Error recovering plugin directory ${pluginDir}:`, err);
+        }
+      } else {
+        // The updated plugin is already in place, so the backup is stale.
+        try {
+          fs.rmSync(txnDir, { recursive: true, force: true });
+          console.log(`Removed stale backup directory for ${pluginDir}`);
+        } catch (err) {
+          console.error(`Error removing stale backup directory for ${pluginDir}:`, err);
+        }
+      }
+    } else {
+      // Staging content is never put into place until the final rename, so
+      // any staging directory left behind is incomplete and safe to remove.
+      try {
+        fs.rmSync(txnDir, { recursive: true, force: true });
+        console.log(`Removed stale staging directory for ${pluginDir}`);
+      } catch (err) {
+        console.error(`Error removing stale staging directory for ${pluginDir}:`, err);
+      }
+    }
+
+    // Clean up the lock file of the recovered transaction.
+    try {
+      fs.rmSync(lockFile, { force: true });
+    } catch {
+      // Ignore: the lock file may already be gone.
+    }
+  }
+
+  // Remove lock files left behind by transactions whose directories are
+  // already gone, but leave locks owned by live processes untouched.
+  for (const entry of entries) {
+    if (entry.isDirectory()) {
+      continue;
+    }
+
+    if (!UPDATE_TXN_LOCK_PATTERN.exec(entry.name)) {
+      continue;
+    }
+
+    const lockFile = path.join(txnRoot, entry.name);
+    if (!isActiveTransaction(lockFile)) {
+      try {
+        fs.rmSync(lockFile, { force: true });
+      } catch {
+        // Ignore: the lock file may already be gone.
+      }
+    }
+  }
+
+  // Remove the transaction directory if it is now empty.
+  try {
+    fs.rmdirSync(txnRoot);
+  } catch {
+    // Ignore: the directory either does not exist or still has content.
+  }
+}
+
 export class PluginManager {
   /**
    * Installs a plugin from the specified URL.
@@ -333,14 +534,98 @@ export class PluginManager {
         fs.mkdirSync(destinationFolder, { recursive: true });
       }
 
-      // remove the existing plugin folder
-      fs.rmSync(pluginDir, { recursive: true, force: true });
+      // Stage the new content alongside the existing plugin directory so
+      // a failure during the move does not leave the plugin in a broken
+      // state. The individual rename from the staging directory to the real
+      // plugin directory is atomic when both reside on the same filesystem,
+      // but the swap as a whole is not: the plugin directory is briefly
+      // absent between the two renames. A crash in that window is repaired
+      // by recoverInterruptedUpdate() on the next app startup or plugin
+      // listing. Transaction directories live under a dedicated
+      // `.headlamp-txn` subdirectory with a random id, so recovery never
+      // mistakes a real plugin directory (e.g. `foo.backup` or
+      // `foo.staging.<id>`) for a transaction.
+      const txnId = crypto.randomBytes(8).toString('hex');
+      const txnRoot = path.join(destinationFolder, UPDATE_TXN_DIR_NAME);
+      const stagingDir = path.join(txnRoot, `${plugin.folderName}.staging.${txnId}`);
+      const backupDir = path.join(txnRoot, `${plugin.folderName}.backup.${txnId}`);
+      const lockFile = path.join(txnRoot, `${txnId}${UPDATE_TXN_LOCK_SUFFIX}`);
 
-      // create the plugin folder
-      fs.mkdirSync(pluginDir, { recursive: true });
+      // The transaction directory is reserved for update transactions; if a
+      // plugin directory occupies its name, refuse rather than mixing the two.
+      if (fs.existsSync(path.join(txnRoot, 'package.json'))) {
+        throw new Error(
+          `Cannot update plugin: '${UPDATE_TXN_DIR_NAME}' is occupied by a plugin directory`
+        );
+      }
 
-      // move the plugin to the destination folder
-      moveDirs(tempFolder, pluginDir);
+      fs.mkdirSync(txnRoot, { recursive: true });
+
+      try {
+        // Mark the transaction as active so recovery never treats it as an
+        // interrupted one while this process is still working on it.
+        fs.writeFileSync(lockFile, JSON.stringify({ pid: process.pid }));
+
+        if (fs.existsSync(stagingDir)) {
+          fs.rmSync(stagingDir, { recursive: true, force: true });
+        }
+        fs.mkdirSync(stagingDir, { recursive: true });
+
+        moveDirs(tempFolder, stagingDir);
+
+        if (fs.existsSync(backupDir)) {
+          fs.rmSync(backupDir, { recursive: true, force: true });
+        }
+
+        if (fs.existsSync(pluginDir)) {
+          fs.renameSync(pluginDir, backupDir);
+        }
+
+        try {
+          fs.renameSync(stagingDir, pluginDir);
+        } catch (err) {
+          // Roll the previous version back so the update failure leaves the
+          // plugin usable. A rollback failure must not mask the original
+          // error, so log it and rethrow the original one.
+          try {
+            if (fs.existsSync(backupDir)) {
+              fs.renameSync(backupDir, pluginDir);
+            }
+          } catch (rollbackErr) {
+            console.error(`Error rolling back backup directory ${backupDir}:`, rollbackErr);
+          }
+          throw err;
+        }
+
+        if (fs.existsSync(backupDir)) {
+          try {
+            fs.rmSync(backupDir, { recursive: true, force: true });
+          } catch (err) {
+            console.error(`Error cleaning up backup directory ${backupDir}:`, err);
+          }
+        }
+      } finally {
+        if (fs.existsSync(stagingDir)) {
+          try {
+            fs.rmSync(stagingDir, { recursive: true, force: true });
+          } catch (err) {
+            console.error(`Error cleaning up staging directory ${stagingDir}:`, err);
+          }
+        }
+        // The transaction is done; release its lock.
+        try {
+          fs.rmSync(lockFile, { force: true });
+        } catch (err) {
+          console.error(`Error cleaning up transaction lock file ${lockFile}:`, err);
+        }
+        // Remove the transaction directory if it is now empty.
+        try {
+          fs.rmdirSync(txnRoot);
+        } catch {
+          // Ignore: the directory either does not exist or still has content.
+        }
+      }
+
       if (progressCallback) {
         progressCallback({ type: 'success', message: 'Plugin Updated' });
       }
@@ -407,6 +692,9 @@ export class PluginManager {
   static list(folder = defaultPluginsDir(), progressCallback: null | ProgressCallback = null) {
     try {
       const pluginsData: PluginData[] = [];
+
+      // Restore plugins left broken by an update that crashed mid-swap.
+      recoverInterruptedUpdate(folder);
 
       // Read all entries in the specified folder
       const entries = fs.readdirSync(folder, { withFileTypes: true });
