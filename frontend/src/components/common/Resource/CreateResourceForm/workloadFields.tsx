@@ -214,7 +214,7 @@ export function ContainerTextField(props: ContainerTextFieldProps) {
         if (field === 'containerPort') {
           const portNum = parseInt(newVal, 10);
           const rest = _.omit(c, ['containerPort', 'ports']);
-          if (!isNaN(portNum) && portNum > 0) {
+          if (!isNaN(portNum) && portNum > 0 && portNum <= 65535) {
             return { ...rest, ports: [{ containerPort: portNum }] };
           }
           return rest;
