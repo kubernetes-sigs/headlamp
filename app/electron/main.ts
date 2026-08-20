@@ -75,6 +75,7 @@ import {
   isTrayIconEnabled,
   setTrayIconEnabled,
 } from './tray';
+import { isAppInternalUrl, isSafeExternalUrl } from './urlValidation';
 import windowSize from './windowSize';
 import {
   clampZoom,
@@ -1223,10 +1224,10 @@ function menusToTemplate(mainWindow: BrowserWindow | null, menusFromPlugins: App
       };
     } else if (!!url) {
       menu.click = async () => {
-        // Open external links in the external browser.
-        if (!!mainWindow && !url.startsWith('http')) {
-          mainWindow.webContents.loadURL(url);
-        } else {
+        // Only follow http/https menu links, opened in the external browser.
+        // Other schemes (file://, data:, javascript:, …) are ignored so a menu
+        // URL can't navigate the app window to untrusted content.
+        if (isSafeExternalUrl(url)) {
           await shell.openExternal(url);
         }
       };
@@ -1585,11 +1586,15 @@ function startElectron() {
 
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
       // allow all urls starting with app startUrl to open in electron
-      if (url.startsWith(startUrl)) {
+      if (isAppInternalUrl(url, startUrl)) {
         return { action: 'allow' };
       }
-      // otherwise open url in a browser and prevent default
-      shell.openExternal(url);
+      // otherwise open http/https urls in a browser and prevent default. Other
+      // schemes (file://, smb://, custom protocols) are dropped so an untrusted
+      // URL can't reach the OS handler.
+      if (isSafeExternalUrl(url)) {
+        shell.openExternal(url);
+      }
       return { action: 'deny' };
     });
 
@@ -1694,11 +1699,13 @@ function startElectron() {
     */
     mainWindow.webContents.on('will-navigate', (event, encodedUrl) => {
       const url = decodeURI(encodedUrl);
-      if (url.startsWith(startUrl)) {
+      if (isAppInternalUrl(url, startUrl)) {
         return;
       }
       event.preventDefault();
-      shell.openExternal(url);
+      if (isSafeExternalUrl(url)) {
+        shell.openExternal(url);
+      }
     });
 
     app.on('open-url', (event, url) => {
