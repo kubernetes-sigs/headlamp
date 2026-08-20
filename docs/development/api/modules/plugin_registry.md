@@ -175,6 +175,25 @@ ___
 
 ## Variables
 
+### DefaultCreateProject
+
+• `Const` **DefaultCreateProject**: `Object`
+
+IDs plugins can register to replace Headlamp's built-in project creation options.
+
+#### Type declaration
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `FROM_YAML` | ``"headlamp.projects.from-yaml"`` | Replace the built-in YAML project creation flow. |
+| `NEW_PROJECT` | ``"headlamp.projects.new-project"`` | Replace the built-in project form that uses existing or new namespaces. |
+
+#### Defined in
+
+[redux/projectsSlice.ts:32](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/redux/projectsSlice.ts#L32)
+
+___
+
 ### DefaultHeadlampEvents
 
 • **DefaultHeadlampEvents**: typeof `HeadlampEventType` = `HeadlampEventType`
@@ -357,6 +376,50 @@ registerClusterEmptyState(({ defaultContent }) => (
 #### Defined in
 
 [plugin/registry.tsx:972](https://github.com/kubernetes-sigs/headlamp/blob/558672b5a/frontend/src/plugin/registry.tsx#L972)
+
+___
+
+### registerCustomCreateProject
+
+▸ **registerCustomCreateProject**(`customCreateProject`): `void`
+
+Register a new way to create Headlamp 'Projects'.
+
+**`example`**
+
+```tsx
+import {
+  DefaultCreateProject,
+  registerCustomCreateProject,
+} from '@kinvolk/headlamp-plugin/lib';
+
+registerCustomCreateProject({
+  id: DefaultCreateProject.NEW_PROJECT,
+  name: 'Create Managed Project',
+  description: 'Create a project managed by the platform',
+  icon: 'mdi:folder-plus',
+  component: ({ onBack }) => (
+    <div>
+      Create project
+      <button onClick={onBack}>Back</button>
+    </div>
+  ),
+});
+```
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `customCreateProject` | `CustomCreateProject` | Definition for custom creator |
+
+#### Returns
+
+`void`
+
+#### Defined in
+
+[plugin/registry.tsx:1167](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/plugin/registry.tsx#L1167)
 
 ___
 

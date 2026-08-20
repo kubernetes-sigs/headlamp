@@ -176,6 +176,39 @@ This lets you add, remove, update, or move table columns.
 - Example plugin: [How to add a context menu to each row in the pods list table](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/tables)
 - API reference: [registerResourceTableColumnsProcessor](../../api/plugin/registry/functions/registerresourcetablecolumnsprocessor)
 
+### Project Creation
+
+Add a project creation choice with
+[registerCustomCreateProject](../../api/plugin/registry/functions/registercustomcreateproject).
+To replace one of Headlamp's built-in choices in the same position, use its ID
+from `DefaultCreateProject`:
+
+```tsx
+import { DefaultCreateProject, registerCustomCreateProject } from '@kinvolk/headlamp-plugin/lib';
+
+registerCustomCreateProject({
+  id: DefaultCreateProject.NEW_PROJECT,
+  name: 'Create Managed Project',
+  description: 'Create a project managed by the platform',
+  icon: 'mdi:folder-plus',
+  component: ManagedProjectForm,
+});
+```
+
+Use `DefaultCreateProject.NEW_PROJECT` to replace the namespace-based project
+form, or `DefaultCreateProject.FROM_YAML` to replace the YAML creation flow.
+Use a unique ID to append another choice without replacing either built-in
+choice. The custom component receives an `onBack` callback for returning to the
+project creation menu.
+
+**Mobile (375 x 812)**
+
+| Default choices                                                                                                 | Plugin replacements                                                                                                           |
+| --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| ![Default project creation choices on a mobile viewport](../images/project-creation/default-choices-mobile.png) | ![Project creation choices replaced by a plugin on a mobile viewport](../images/project-creation/replaced-choices-mobile.png) |
+
+- API reference: [registerCustomCreateProject](../../api/plugin/registry/functions/registercustomcreateproject)
+
 ### Headlamp Events
 
 Headlamp fires events when something important happens.
@@ -246,32 +279,32 @@ returns whether two graph nodes should be connected. Use a plugin-prefixed
 relation ID to avoid colliding with Headlamp's built-in relations.
 
 ```tsx
-import { registerResourceRelationProvider } from "@kinvolk/headlamp-plugin/lib";
+import { registerResourceRelationProvider } from '@kinvolk/headlamp-plugin/lib';
 
 registerResourceRelationProvider({
-  id: "my-plugin.deployment-secret",
-  fromSource: "apps/Deployment",
-  toSource: "Secret",
-  label: "Uses Secret",
+  id: 'my-plugin.deployment-secret',
+  fromSource: 'apps/Deployment',
+  toSource: 'Secret',
+  label: 'Uses Secret',
   predicate: (from, to) => {
     // predicate receives GraphNode objects; access K8s data via kubeObject.
     return (
-      from.kubeObject?.jsonData.metadata.name === "my-deployment" &&
-      to.kubeObject?.jsonData.metadata.name === "my-secret"
+      from.kubeObject?.jsonData.metadata.name === 'my-deployment' &&
+      to.kubeObject?.jsonData.metadata.name === 'my-secret'
     );
   },
 });
 
 registerResourceRelationProvider({
-  id: "my-plugin.custom-source-deployment",
-  fromSource: "my-source",
-  toSource: "apps/Deployment",
-  label: "Depends On",
+  id: 'my-plugin.custom-source-deployment',
+  fromSource: 'my-source',
+  toSource: 'apps/Deployment',
+  label: 'Depends On',
   predicate: (from, to) => {
     // `my-source` is the ID passed to registerMapSource.
     return (
-      from.kubeObject?.jsonData.metadata.name === "my-test-resource" &&
-      to.kubeObject?.jsonData.metadata.name === "my-deployment"
+      from.kubeObject?.jsonData.metadata.name === 'my-test-resource' &&
+      to.kubeObject?.jsonData.metadata.name === 'my-deployment'
     );
   },
 });

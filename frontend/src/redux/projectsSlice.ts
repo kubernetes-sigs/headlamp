@@ -28,6 +28,14 @@ export interface ProjectDefinition {
   clusters: string[];
 }
 
+/** IDs plugins can register to replace Headlamp's built-in project creation options. */
+export const DefaultCreateProject = {
+  /** Replace the built-in project form that uses existing or new namespaces. */
+  NEW_PROJECT: 'headlamp.projects.new-project',
+  /** Replace the built-in YAML project creation flow. */
+  FROM_YAML: 'headlamp.projects.from-yaml',
+} as const;
+
 /** Define custom way to create new Projects */
 export interface CustomCreateProject {
   id: string;

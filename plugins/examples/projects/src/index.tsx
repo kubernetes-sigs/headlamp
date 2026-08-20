@@ -16,6 +16,7 @@
 
 import {
   ApiProxy,
+  DefaultCreateProject,
   registerCustomCreateProject,
   registerProjectApiResource,
   registerProjectDeleteButton,
@@ -60,8 +61,10 @@ function DeployApp({ onBack }) {
   );
 }
 
+// Use a DefaultCreateProject ID to replace that built-in choice in place.
+// Use a unique ID instead when the plugin should append an additional choice.
 registerCustomCreateProject({
-  id: 'my-custom-creator',
+  id: DefaultCreateProject.NEW_PROJECT,
   name: 'Deploy Custom project',
   description: 'Custom way to create resources',
   icon: 'mdi:star',
