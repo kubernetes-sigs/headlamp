@@ -73,6 +73,7 @@ describe('useAllowedNamespacesFromSelector', () => {
       expect.objectContaining({ clusters: ['prod'], labelSelector: 'team=frontend' })
     );
     expect(result.current.namespaces).toEqual(['a', 'b']);
+    expect(result.current.isSuccess).toBe(true);
     const cache = loadResolvedAllowedNamespaces('prod');
     expect(cache?.selector).toBe('team=frontend');
     expect(cache?.namespaces).toEqual(['a', 'b']);

@@ -66,6 +66,28 @@ describe('makeListRequests', () => {
       expect(requests).toEqual([{ cluster: 'default', namespaces: [] }]);
     });
 
+    it('should not make a cluster-wide request when a namespace restriction resolves empty', () => {
+      const requests = makeListRequests(
+        ['default'],
+        () => [],
+        true,
+        [],
+        () => true
+      );
+      expect(requests).toEqual([]);
+    });
+
+    it('should reject requested namespaces when a namespace restriction resolves empty', () => {
+      const requests = makeListRequests(
+        ['default'],
+        () => [],
+        true,
+        ['namespace-a'],
+        () => true
+      );
+      expect(requests).toEqual([]);
+    });
+
     it('should make requests for allowed namespaces only', () => {
       const requests = makeListRequests(['default'], () => ['namespace-a'], true);
       expect(requests).toEqual([{ cluster: 'default', namespaces: ['namespace-a'] }]);
@@ -77,6 +99,17 @@ describe('makeListRequests', () => {
         'namespace-b',
       ]);
       expect(requests).toEqual([{ cluster: 'default', namespaces: ['namespace-a'] }]);
+    });
+
+    it('should skip a cluster when requested namespaces do not intersect its allow-list', () => {
+      const requests = makeListRequests(
+        ['cluster-a', 'cluster-b'],
+        cluster => (cluster === 'cluster-a' ? ['namespace-a'] : ['namespace-b']),
+        true,
+        ['namespace-a'],
+        () => true
+      );
+      expect(requests).toEqual([{ cluster: 'cluster-a', namespaces: ['namespace-a'] }]);
     });
 
     it('should make requests for allowed namespaces per cluster', () => {
@@ -370,6 +403,46 @@ describe('useKubeObjectList', () => {
     localStorage.clear();
   });
 
+  it('returns an empty result without fetching when no list requests are allowed', () => {
+    const result = renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: mockClass,
+          requests: [],
+          emptyWhenNoRequests: true,
+        }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
+    );
+
+    expect(result.result.current.items).toEqual([]);
+    expect(mockClusterFetch).not.toHaveBeenCalled();
+  });
+
+  it('does not probe endpoints when no list requests are allowed', async () => {
+    const multiVersionClass = class {
+      static apiVersion = 'v1';
+      static apiName = 'ingresses';
+      static apiEndpoint = {
+        apiInfo: [
+          { group: 'networking.k8s.io', resource: 'ingresses', version: 'v1' },
+          { group: 'extensions', resource: 'ingresses', version: 'v1beta1' },
+        ],
+      };
+    } as any;
+
+    renderHook(
+      () =>
+        useKubeObjectList({
+          kubeObjectClass: multiVersionClass,
+          requests: [],
+          emptyWhenNoRequests: true,
+        }),
+      { wrapper: queryClientWrapper(new QueryClient()) }
+    );
+
+    await waitFor(() => expect(mockClusterFetch).not.toHaveBeenCalled());
+  });
+
   it('fetches allowed namespaces individually without starting a cluster-wide watch', async () => {
     const namespaceClass = class {
       static apiVersion = 'v1';
@@ -490,6 +563,108 @@ describe('useKubeObjectList', () => {
       cluster: 'unrestricted',
     });
     expect(response.skipWatch).toBeUndefined();
+  });
+
+  it('returns an empty namespace list without fetching when a selector resolves empty', async () => {
+    const namespaceClass = class {
+      static apiVersion = 'v1';
+      static apiName = 'namespaces';
+      static kind = 'Namespace';
+
+      constructor(public jsonData: any) {}
+    } as any;
+    localStorage.setItem(
+      'cluster_settings.restricted',
+      JSON.stringify({ allowedNamespacesSelector: 'team=frontend' })
+    );
+    localStorage.setItem(
+      'cluster_allowed_namespaces_selector_cache.restricted',
+      JSON.stringify({
+        selector: 'team=frontend',
+        namespaces: [],
+        resolvedAt: Date.now(),
+      })
+    );
+
+    const query = kubeObjectListQuery(
+      namespaceClass,
+      { version: 'v1', resource: 'namespaces' },
+      undefined,
+      'restricted',
+      {}
+    );
+    const response = await (query.queryFn as any)();
+
+    expect(response.list.items).toEqual([]);
+    expect(response.skipWatch).toBe(true);
+    expect(mockClusterFetch).not.toHaveBeenCalled();
+  });
+
+  it('uses the labeled namespace query while resolving a selector', async () => {
+    const namespaceClass = class {
+      static apiVersion = 'v1';
+      static apiName = 'namespaces';
+      static kind = 'Namespace';
+
+      constructor(public jsonData: any) {}
+    } as any;
+    localStorage.setItem(
+      'cluster_settings.restricted',
+      JSON.stringify({
+        allowedNamespaces: ['manual'],
+        allowedNamespacesSelector: 'team=frontend',
+      })
+    );
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () => Promise.resolve(makeListResponse({ kind: 'NamespaceList' })),
+    } as Response);
+
+    const query = kubeObjectListQuery(
+      namespaceClass,
+      { version: 'v1', resource: 'namespaces' },
+      undefined,
+      'restricted',
+      { labelSelector: 'team=frontend' }
+    );
+    await (query.queryFn as any)();
+
+    expect(mockClusterFetch).toHaveBeenCalledWith(
+      'api/v1/namespaces?labelSelector=team%3Dfrontend',
+      { cluster: 'restricted' }
+    );
+  });
+
+  it('does not use a cluster-wide query for an unrelated namespace selector', async () => {
+    const namespaceClass = class {
+      static apiVersion = 'v1';
+      static apiName = 'namespaces';
+      static kind = 'Namespace';
+
+      constructor(public jsonData: any) {}
+    } as any;
+    localStorage.setItem(
+      'cluster_settings.restricted',
+      JSON.stringify({
+        allowedNamespaces: ['manual'],
+        allowedNamespacesSelector: 'team=frontend',
+      })
+    );
+    mockClusterFetch.mockResolvedValueOnce({
+      json: () => Promise.resolve({ metadata: { name: 'manual' } }),
+    } as Response);
+
+    const query = kubeObjectListQuery(
+      namespaceClass,
+      { version: 'v1', resource: 'namespaces' },
+      undefined,
+      'restricted',
+      { labelSelector: 'headlamp.dev/project-id' }
+    );
+    await (query.queryFn as any)();
+
+    expect(mockClusterFetch).toHaveBeenCalledWith('api/v1/namespaces/manual', {
+      cluster: 'restricted',
+    });
   });
 
   it('does not watch the synthesized allowed namespace list', async () => {
