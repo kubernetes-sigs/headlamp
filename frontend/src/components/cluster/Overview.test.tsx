@@ -52,6 +52,7 @@ vi.mock('../../lib/k8s/node', () => ({
     useList: nodeUseList,
     useMetrics: nodeUseMetrics,
   },
+  useNodeMetrics: nodeUseMetrics,
 }));
 
 vi.mock('../../lib/k8s/pod', () => ({

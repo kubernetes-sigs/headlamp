@@ -26,7 +26,7 @@ import Typography from '@mui/material/Typography';
 import useAutocomplete from '@mui/material/useAutocomplete';
 import { UseAutocompleteReturnValue } from '@mui/material/useAutocomplete';
 import Fuse, { Expression, FuseResultMatch } from 'fuse.js';
-import { lazy, Suspense, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation, useRouteMatch } from 'react-router';
@@ -41,7 +41,7 @@ import EndpointSlice from '../../lib/k8s/endpointSlices';
 import Ingress from '../../lib/k8s/ingress';
 import Job from '../../lib/k8s/job';
 import JobSet from '../../lib/k8s/jobSet';
-import { KubeObject, KubeObjectClass } from '../../lib/k8s/KubeObject';
+import { KubeObject, KubeObjectClass, useKubeList } from '../../lib/k8s/KubeObject';
 import LeaderWorkerSet from '../../lib/k8s/leaderWorkerSet';
 import Namespace from '../../lib/k8s/namespace';
 import Node from '../../lib/k8s/node';
@@ -113,23 +113,83 @@ const classes: KubeObjectClass[] = [
   LeaderWorkerSet,
 ];
 
+interface SearchResourceFetcherProps {
+  cls: KubeObjectClass;
+  clusters: string[] | undefined;
+  onUpdate: (kind: string, data: { isLoading: boolean; items: KubeObject<any>[] | null }) => void;
+}
+
+function SearchResourceFetcher(props: SearchResourceFetcherProps) {
+  const { cls, clusters, onUpdate } = props;
+  const result = useKubeList(cls, { clusters });
+
+  useEffect(() => {
+    onUpdate(cls.kind, {
+      isLoading: result.isFetching,
+      items: result.items,
+    });
+  }, [cls.kind, result.isFetching, result.data, onUpdate]);
+
+  return null;
+}
+
+interface SearchResourceItem {
+  isLoading: boolean;
+  items: KubeObject<any>[] | null;
+  kind: string;
+}
+
 /**
  * Loads lists of Kubernetes objects for searching
  */
 function useSearchResources() {
   const inACluster = useSelectedClusters().length > 0;
-  const results = classes.map(cls => cls.useList({ clusters: inACluster ? undefined : [] }));
+  const clusters = useMemo(() => (inACluster ? undefined : []), [inACluster]);
+  const [resourceMap, setResourceMap] = useState<
+    Record<string, { isLoading: boolean; items: KubeObject<any>[] | null }>
+  >({});
 
-  return useMemo(() => {
-    return results.map((result, index) => {
+  const handleUpdate = useCallback(
+    (kind: string, data: { isLoading: boolean; items: KubeObject<any>[] | null }) => {
+      setResourceMap(prev => {
+        const existing = prev[kind];
+        if (existing && existing.items === data.items && existing.isLoading === data.isLoading) {
+          return prev;
+        }
+        return {
+          ...prev,
+          [kind]: data,
+        };
+      });
+    },
+    []
+  );
+
+  const fetchers = useMemo(
+    () =>
+      classes.map(cls => (
+        <SearchResourceFetcher
+          key={cls.kind || cls.apiName}
+          cls={cls}
+          clusters={clusters}
+          onUpdate={handleUpdate}
+        />
+      )),
+    [clusters, handleUpdate]
+  );
+
+  const resources: SearchResourceItem[] = useMemo(() => {
+    return classes.map(cls => {
+      const entry = resourceMap[cls.kind];
       return {
-        isLoading: result.isFetching,
-        items: result.items,
-        kind: classes[index].kind,
+        isLoading: entry ? entry.isLoading : true,
+        items: entry ? entry.items : null,
+        kind: cls.kind,
       };
     });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [results.map(it => it.data)]);
+  }, [resourceMap]);
+
+  return { resources, fetchers };
 }
 
 function makeKubeObjectResults(
@@ -190,7 +250,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
   const [recent, bump] = useRecent('search-recent-items');
 
   // Resource search items
-  const resources = useSearchResources();
+  const { resources, fetchers } = useSearchResources();
   const loading = resources.filter(it => it.isLoading).map(it => it.kind);
   const namespaceItems = useMemo(() => {
     const namespaceResource = resources.find(resource => resource.kind === Namespace.kind);
@@ -516,6 +576,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
 
   return (
     <Box {...autocomplete.getRootProps()}>
+      {fetchers}
       <TextField
         fullWidth
         size="small"
