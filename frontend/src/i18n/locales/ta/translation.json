@@ -766,6 +766,7 @@
   "Max": "மாக்ஸ்",
   "Min": "மின்",
   "Max Limit/Request Ratio": "",
+  "Dialog": "",
   "Namespaces must be under 64 characters.": "நேம்ஸ்பேஸ்கள் 64 எழுத்துகளுக்கு குறைவாக இருக்க வேண்டும்.",
   "A namespace with this name already exists.": "இந்த பெயரில் ஒரு நேம்ஸ்பேஸ் ஏற்கனவே உள்ளது.",
   "Create Namespace": "நேம்ஸ்பேஸ் உருவாக்கு",

@@ -771,6 +771,7 @@
   "Max": "Máx.",
   "Min": "Mín.",
   "Max Limit/Request Ratio": "",
+  "Dialog": "",
   "Namespaces must be under 64 characters.": "Los espacios de nombre deben tener menos de 64 caracteres.",
   "A namespace with this name already exists.": "Un espacio de nombre con este nombre ya existe.",
   "Create Namespace": "Crear Espacio de Nombre",

@@ -761,6 +761,7 @@
   "Max": "最大",
   "Min": "最小",
   "Max Limit/Request Ratio": "",
+  "Dialog": "",
   "Namespaces must be under 64 characters.": "ネームスペースは 64 文字未満である必要があります。",
   "A namespace with this name already exists.": "この名前のネームスペースは既に存在します。",
   "Create Namespace": "ネームスペースの作成",

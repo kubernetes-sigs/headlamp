@@ -771,6 +771,7 @@
   "Max": "Máx.",
   "Min": "Mín.",
   "Max Limit/Request Ratio": "",
+  "Dialog": "",
   "Namespaces must be under 64 characters.": "Os namespaces devem ter menos de 64 caracteres.",
   "A namespace with this name already exists.": "Um namespace com este nome já existe.",
   "Create Namespace": "Criar Namespace",
