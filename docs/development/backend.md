@@ -27,6 +27,25 @@ Once built, it can be run in development mode (insecure / don't use in productio
 npm run backend:start
 ```
 
+## Backend token protection
+
+`HEADLAMP_BACKEND_TOKEN` enables a local trust boundary around protected backend
+routes. The desktop app generates a random token for each launch and sends it to
+its backend and renderer. Development commands such as `npm run backend:start`
+set a predictable token for local use.
+
+When `HEADLAMP_BACKEND_TOKEN` is unset or empty, backend-token enforcement is
+disabled. This opt-in behavior preserves standalone development and test setups
+that start the backend directly. Do not expose a non-in-cluster server with an
+empty token: protected cluster, plugin, Helm, and proxy routes are then available
+without this additional credential check.
+
+When the variable is non-empty, clients must send the same value in the
+`X-HEADLAMP_BACKEND-TOKEN` header. WebSocket clients use Headlamp's private
+backend-token subprotocol instead. In-cluster mode does not use this desktop
+token boundary and continues to rely on its configured authentication and
+authorization mechanisms.
+
 ## Telemetry
 
 Headlamp's backend supports OpenTelemetry for distributed tracing and Prometheus metrics. See the [Telemetry guide](./telemetry.md) for configuration, local setup with Jaeger and Prometheus, and in-cluster deployment.
@@ -36,12 +55,14 @@ Headlamp's backend supports OpenTelemetry for distributed tracing and Prometheus
 Headlamp’s backend supports configurable log levels to control verbosity.
 
 Log level can be configured using either a flag or an environment variable:
+
 - the log level: `--log-level` or env var `HEADLAMP_CONFIG_LOG_LEVEL`
 
 Supported Values:
+
 - `debug`
 - `info` (default)
-- `warn` 
+- `warn`
 - `error`
 
 > **Note:** Headlamp uses zerolog defaults.  
@@ -90,6 +111,7 @@ npm run backend:coverage:html
 ```
 
 To just print a simpler coverage report to the console.
+
 ```bash
 npm run backend:coverage
 ```
