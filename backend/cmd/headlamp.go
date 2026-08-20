@@ -760,7 +760,6 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 	addPluginRoutes(config, r)
 
-
 	// Setup port forwarding handlers.
 	r.HandleFunc("/clusters/{clusterName}/portforward", func(w http.ResponseWriter, r *http.Request) {
 		portforward.StartPortForward(
