@@ -77,11 +77,7 @@ export const useProject = (name: string) => {
     () => ({
       isLoading,
       project: namespaces
-        ? ({
-            clusters: uniq(namespaces.map(it => it.cluster)),
-            namespaces: uniq(namespaces.map(it => it.metadata.name)),
-            id: name,
-          } as ProjectDefinition)
+        ? groupNamespacesIntoProjects(namespaces).find(project => project.id === name)
         : undefined,
     }),
     [namespaces, name, isLoading]
