@@ -167,6 +167,7 @@
   "Ephemeral debug containers cannot be removed via Kubernetes API. They will remain in the pod specification even after the terminal closes. To remove them, the pod must be recreated.": "Kısa süreli hata ayıklama kapsayıcıları Kubernetes API'si ile kaldırılamaz. Bunlar terminal kapatıldıktan sonra bile pod belirtiminde kalır. Bunları kaldırmak için pod yeniden oluşturulmalıdır.",
   "Debug Image": "Hata Ayıklama Görüntüsü",
   "The default image is used for creating ephemeral debug containers.": "Kısa süreli hata ayıklama kapsayıcıları oluşturmak için varsayılan görüntü kullanılır.",
+  "Set by your administrator": "",
   "General Settings": "Genel Ayarlar",
   "Version": "Sürüm",
   "Language": "Dil",

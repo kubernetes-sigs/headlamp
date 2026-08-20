@@ -167,6 +167,7 @@
   "Ephemeral debug containers cannot be removed via Kubernetes API. They will remain in the pod specification even after the terminal closes. To remove them, the pod must be recreated.": "Contêineres efêmeros de depuração não podem ser removidos por meio da API do Kubernetes. Eles permanecerão na especificação do pod mesmo após o fechamento do terminal. Para removê-los, o pod deverá ser recriado.",
   "Debug Image": "Depurar\u00a0Imagem",
   "The default image is used for creating ephemeral debug containers.": "A imagem padrão é usada para criar contêineres de depuração efêmeros.",
+  "Set by your administrator": "",
   "General Settings": "Definições Gerais",
   "Version": "Versão",
   "Language": "Idioma",
