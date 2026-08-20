@@ -3054,28 +3054,21 @@ func (c *HeadlampConfig) drainNodePods(
 	cacheKey string,
 	cacheItemTTL time.Duration,
 ) {
-	var gracePeriod int64 = 0
+	// Preflight: reject the drain if any active pod uses emptyDir storage.
+	// This matches kubectl drain's default behaviour when DeleteEmptyDirData
+	// is false — the operation aborts before deleting anything.
+	if localStoragePods := findLocalStoragePods(pods); len(localStoragePods) > 0 {
+		errMsg := fmt.Sprintf("error: cannot delete pods with local storage: %s",
+			strings.Join(localStoragePods, ", "))
+		logger.Log(logger.LevelError, nil, nil,
+			fmt.Sprintf("node drain: %s", errMsg))
 
-	var deleteErrors []string
+		_ = c.Cache.SetWithTTL(ctx, cacheKey, errMsg, cacheItemTTL)
 
-	for i := range pods {
-		if ctx.Err() != nil {
-			return
-		}
-
-		pod := &pods[i]
-
-		// ignore daemonsets
-		if isDaemonSetPod(pod) {
-			continue
-		}
-
-		if err := clientset.CoreV1().Pods(pod.Namespace).Delete(ctx,
-			pod.Name, v1.DeleteOptions{GracePeriodSeconds: &gracePeriod}); err != nil &&
-			!apierrors.IsNotFound(err) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
-			deleteErrors = append(deleteErrors, fmt.Sprintf("%s/%s: %v", pod.Namespace, pod.Name, err))
-		}
+		return
 	}
+
+	deleteErrors := deleteDrainablePods(ctx, clientset, pods)
 
 	if ctx.Err() != nil {
 		return
@@ -3093,6 +3086,61 @@ func (c *HeadlampConfig) drainNodePods(
 	}
 }
 
+// findLocalStoragePods returns the namespace/name of active (non-terminal)
+// pods that use emptyDir volumes, skipping DaemonSet and mirror pods.
+func findLocalStoragePods(pods []corev1.Pod) []string {
+	var local []string
+
+	for i := range pods {
+		pod := &pods[i]
+		if isDaemonSetPod(pod) || isMirrorPod(pod) {
+			continue
+		}
+
+		if pod.Status.Phase == corev1.PodSucceeded || pod.Status.Phase == corev1.PodFailed {
+			continue
+		}
+
+		if hasEmptyDirVolume(pod) {
+			local = append(local, fmt.Sprintf("%s/%s", pod.Namespace, pod.Name))
+		}
+	}
+
+	return local
+}
+
+// deleteDrainablePods deletes all pods except DaemonSet and mirror pods,
+// returning any errors as formatted strings.
+func deleteDrainablePods(
+	ctx context.Context,
+	clientset kubernetes.Interface,
+	pods []corev1.Pod,
+) []string {
+	var gracePeriod int64 = 0
+
+	var deleteErrors []string
+
+	for i := range pods {
+		if ctx.Err() != nil {
+			return deleteErrors
+		}
+
+		pod := &pods[i]
+
+		if isDaemonSetPod(pod) || isMirrorPod(pod) {
+			continue
+		}
+
+		if err := clientset.CoreV1().Pods(pod.Namespace).Delete(ctx,
+			pod.Name, v1.DeleteOptions{GracePeriodSeconds: &gracePeriod}); err != nil &&
+			!apierrors.IsNotFound(err) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
+			deleteErrors = append(deleteErrors, fmt.Sprintf("%s/%s: %v", pod.Namespace, pod.Name, err))
+		}
+	}
+
+	return deleteErrors
+}
+
 func isDaemonSetPod(pod *corev1.Pod) bool {
 	controllerRef := v1.GetControllerOf(pod)
 	if controllerRef == nil {
@@ -3100,6 +3148,27 @@ func isDaemonSetPod(pod *corev1.Pod) bool {
 	}
 
 	return controllerRef.Kind == "DaemonSet"
+}
+
+// isMirrorPod reports whether the pod is a mirror pod (a static pod managed
+// directly by the kubelet). Mirror pods carry the annotation
+// kubernetes.io/config.mirror and cannot be deleted via the API server.
+func isMirrorPod(pod *corev1.Pod) bool {
+	_, ok := pod.Annotations["kubernetes.io/config.mirror"]
+	return ok
+}
+
+// hasEmptyDirVolume reports whether any of the pod's volumes use an emptyDir
+// source. Such pods risk data loss when deleted during a drain because
+// emptyDir contents are not persisted beyond the pod's lifetime.
+func hasEmptyDirVolume(pod *corev1.Pod) bool {
+	for _, vol := range pod.Spec.Volumes {
+		if vol.EmptyDir != nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 /*

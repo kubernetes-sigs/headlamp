@@ -55,6 +55,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	k8sruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/fake"
@@ -1467,6 +1468,312 @@ func TestDrainNodeSkipsDaemonSetPods(t *testing.T) {
 	}, 2*time.Second, 50*time.Millisecond)
 
 	assert.False(t, deleted.Load(), "DaemonSet pod should not be deleted during drain")
+}
+
+func TestIsDaemonSetPod(t *testing.T) {
+	tests := []struct {
+		name string
+		pod  *corev1.Pod
+		want bool
+	}{
+		{
+			name: "pod owned by DaemonSet returns true",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "apps/v1",
+							Kind:       "DaemonSet",
+							Name:       "my-ds",
+							Controller: func() *bool { b := true; return &b }(),
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "pod owned by ReplicaSet returns false",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					OwnerReferences: []metav1.OwnerReference{
+						{
+							APIVersion: "apps/v1",
+							Kind:       "ReplicaSet",
+							Name:       "my-rs",
+							Controller: func() *bool { b := true; return &b }(),
+						},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "pod with no owner returns false",
+			pod:  &corev1.Pod{},
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, isDaemonSetPod(tc.pod))
+		})
+	}
+}
+
+func TestIsMirrorPod(t *testing.T) {
+	tests := []struct {
+		name string
+		pod  *corev1.Pod
+		want bool
+	}{
+		{
+			name: "pod with mirror annotation returns true",
+			pod: &corev1.Pod{
+				ObjectMeta: metav1.ObjectMeta{
+					Annotations: map[string]string{
+						"kubernetes.io/config.mirror": "abc123",
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "pod without mirror annotation returns false",
+			pod:  &corev1.Pod{},
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, isMirrorPod(tc.pod))
+		})
+	}
+}
+
+func TestHasEmptyDirVolume(t *testing.T) {
+	tests := []struct {
+		name string
+		pod  *corev1.Pod
+		want bool
+	}{
+		{
+			name: "pod with emptyDir volume returns true",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Volumes: []corev1.Volume{
+						{
+							Name:         "tmp",
+							VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+						},
+					},
+				},
+			},
+			want: true,
+		},
+		{
+			name: "pod with only configMap volume returns false",
+			pod: &corev1.Pod{
+				Spec: corev1.PodSpec{
+					Volumes: []corev1.Volume{
+						{
+							Name: "config",
+							VolumeSource: corev1.VolumeSource{
+								ConfigMap: &corev1.ConfigMapVolumeSource{},
+							},
+						},
+					},
+				},
+			},
+			want: false,
+		},
+		{
+			name: "pod with no volumes returns false",
+			pod:  &corev1.Pod{},
+			want: false,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, hasEmptyDirVolume(tc.pod))
+		})
+	}
+}
+
+// TestDrainNodeFailsOnActiveEmptyDirPods verifies that the drain operation
+// returns an error when active pods with emptyDir volumes are present,
+// matching kubectl drain's default contract.
+func TestDrainNodeFailsOnActiveEmptyDirPods(t *testing.T) {
+	normalPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "normal", Namespace: "default"},
+		Spec:       corev1.PodSpec{NodeName: "test-node"},
+		Status:     corev1.PodStatus{Phase: corev1.PodRunning},
+	}
+	emptyDirPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "emptydir", Namespace: "default"},
+		Spec: corev1.PodSpec{
+			NodeName: "test-node",
+			Volumes: []corev1.Volume{
+				{
+					Name:         "scratch",
+					VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+				},
+			},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodRunning},
+	}
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-node"},
+	}
+
+	fakeClient := fake.NewClientset(node, normalPod, emptyDirPod)
+
+	testCache := cache.New[interface{}]()
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			Cache: testCache,
+		},
+	}
+
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
+	ctx := context.Background()
+
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+
+	// Wait for the drain goroutine to complete and write to cache.
+	require.Eventually(t, func() bool {
+		item, err := testCache.Get(ctx, cacheKey)
+		if err != nil {
+			return false
+		}
+
+		_, ok := item.(string)
+
+		return ok
+	}, 2*time.Second, 50*time.Millisecond)
+
+	item, err := testCache.Get(ctx, cacheKey)
+	require.NoError(t, err)
+
+	status, ok := item.(string)
+	require.True(t, ok)
+	assert.Contains(t, status, "cannot delete pods with local storage",
+		"drain should fail when active emptyDir pods are present")
+
+	// Verify NO pods were deleted (drain aborted before deleting).
+	_, err = fakeClient.CoreV1().Pods("default").Get(ctx, "normal", metav1.GetOptions{})
+	assert.NoError(t, err, "normal pod must not be deleted when drain is aborted")
+
+	_, err = fakeClient.CoreV1().Pods("default").Get(ctx, "emptydir", metav1.GetOptions{})
+	assert.NoError(t, err, "emptyDir pod must not be deleted")
+}
+
+// TestDrainNodeSkipsMirrorPods verifies that mirror pods are silently
+// skipped during drain and the operation succeeds.
+func TestDrainNodeSkipsMirrorPods(t *testing.T) {
+	normalPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "normal", Namespace: "default"},
+		Spec:       corev1.PodSpec{NodeName: "test-node"},
+	}
+	mirrorPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "mirror",
+			Namespace: "kube-system",
+			Annotations: map[string]string{
+				"kubernetes.io/config.mirror": "sha256abc",
+			},
+		},
+		Spec: corev1.PodSpec{NodeName: "test-node"},
+	}
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-node"},
+	}
+
+	fakeClient := fake.NewClientset(node, normalPod, mirrorPod)
+
+	testCache := cache.New[interface{}]()
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			Cache: testCache,
+		},
+	}
+
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
+	ctx := context.Background()
+
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+
+	require.Eventually(t, func() bool {
+		item, err := testCache.Get(ctx, cacheKey)
+		if err != nil {
+			return false
+		}
+
+		status, ok := item.(string)
+
+		return ok && status == "success"
+	}, 2*time.Second, 50*time.Millisecond)
+
+	// Normal pod was deleted.
+	_, err := fakeClient.CoreV1().Pods("default").Get(ctx, "normal", metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "normal pod should have been deleted")
+
+	// Mirror pod was NOT deleted.
+	_, err = fakeClient.CoreV1().Pods("kube-system").Get(ctx, "mirror", metav1.GetOptions{})
+	assert.NoError(t, err, "mirror pod must not be deleted")
+}
+
+// TestDrainNodeAllowsTerminalEmptyDirPods verifies that completed/failed
+// pods with emptyDir volumes do not block the drain.
+func TestDrainNodeAllowsTerminalEmptyDirPods(t *testing.T) {
+	terminatedPod := &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{Name: "done", Namespace: "default"},
+		Spec: corev1.PodSpec{
+			NodeName: "test-node",
+			Volumes: []corev1.Volume{
+				{
+					Name:         "scratch",
+					VolumeSource: corev1.VolumeSource{EmptyDir: &corev1.EmptyDirVolumeSource{}},
+				},
+			},
+		},
+		Status: corev1.PodStatus{Phase: corev1.PodSucceeded},
+	}
+	node := &corev1.Node{
+		ObjectMeta: metav1.ObjectMeta{Name: "test-node"},
+	}
+
+	fakeClient := fake.NewClientset(node, terminatedPod)
+
+	testCache := cache.New[interface{}]()
+	c := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			Cache: testCache,
+		},
+	}
+
+	cacheKey := uuid.NewSHA1(uuid.Nil, []byte("test-node"+"\x00"+"test-cluster")).String()
+	ctx := context.Background()
+
+	c.drainNode(ctx, fakeClient, "test-node", "test-cluster")
+
+	require.Eventually(t, func() bool {
+		item, err := testCache.Get(ctx, cacheKey)
+		if err != nil {
+			return false
+		}
+
+		status, ok := item.(string)
+
+		return ok && status == "success"
+	}, 2*time.Second, 50*time.Millisecond)
+
+	// Terminal pod was deleted (emptyDir on terminated pod doesn't block drain).
+	_, err := fakeClient.CoreV1().Pods("default").Get(ctx, "done", metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "terminal emptyDir pod should be deleted")
 }
 
 func TestDeletePlugin(t *testing.T) {
