@@ -288,6 +288,9 @@ export async function handleRunCommand(
   const [isValid, errorMessage] = validateCommandData(eventData);
   if (!isValid) {
     console.error(errorMessage);
+    if (typeof eventData?.id === 'string') {
+      event.sender.send('command-exit', eventData.id, -1);
+    }
     return;
   }
   const commandData = eventData as CommandData;
@@ -295,10 +298,12 @@ export async function handleRunCommand(
   const [permissionsValid, permissionError] = checkPermissionSecret(commandData, permissionSecrets);
   if (!permissionsValid) {
     console.error(permissionError);
+    event.sender.send('command-exit', commandData.id, -2);
     return;
   }
 
   if (!checkCommandConsent(commandData.command, commandData.args, mainWindow)) {
+    event.sender.send('command-exit', commandData.id, -3);
     return;
   }
 
@@ -448,6 +453,9 @@ type CommandDataPartial = Partial<CommandData>;
 export function validateCommandData(eventData: CommandDataPartial): [boolean, string] {
   if (!eventData || typeof eventData !== 'object' || eventData === null) {
     return [false, `Invalid eventData data received: ${eventData}`];
+  }
+  if (typeof eventData.id !== 'string' || !eventData.id) {
+    return [false, `Invalid eventData.id: ${eventData.id}`];
   }
   if (typeof eventData.command !== 'string' || !eventData.command) {
     return [false, `Invalid eventData.command: ${eventData.command}`];
