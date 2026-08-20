@@ -29,6 +29,8 @@ export type GatewayL4Route = KubeObject<KubeGatewayL4Route> & {
   rules: GatewayL4RouteRule[];
   parentRefs: GatewayParentReference[];
   parents: GatewayRouteParentStatus[];
+  /** Present on TLSRoute for SNI hostname matching; omitted by TCP/UDP. */
+  hostnames?: string[];
 };
 
 export type GatewayL4RouteClass = KubeObjectClass & {

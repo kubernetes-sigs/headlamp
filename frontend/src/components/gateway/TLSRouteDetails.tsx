@@ -15,6 +15,7 @@
  */
 
 import TLSRoute from '../../lib/k8s/tlsRoute';
+import LabelListItem from '../common/LabelListItem';
 import L4RouteDetails from './L4RouteDetails';
 
 export default function TLSRouteDetails(props: {
@@ -22,5 +23,18 @@ export default function TLSRouteDetails(props: {
   namespace?: string;
   cluster?: string;
 }) {
-  return <L4RouteDetails resourceClass={TLSRoute} {...props} />;
+  return (
+    <L4RouteDetails
+      resourceClass={TLSRoute}
+      {...props}
+      extraInfo={item =>
+        item && [
+          {
+            name: 'Hostnames',
+            value: <LabelListItem labels={(item.hostnames || []).map(hostname => `${hostname}`)} />,
+          },
+        ]
+      }
+    />
+  );
 }

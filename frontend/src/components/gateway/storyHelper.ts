@@ -21,6 +21,7 @@ import { KubeGatewayClass } from '../../lib/k8s/gatewayClass';
 import { KubeGRPCRoute } from '../../lib/k8s/grpcRoute';
 import { KubeHTTPRoute } from '../../lib/k8s/httpRoute';
 import { KubeReferenceGrant } from '../../lib/k8s/referenceGrant';
+import type { KubeTLSRoute } from '../../lib/k8s/tlsRoute';
 
 export const DEFAULT_GATEWAY: KubeGateway = {
   apiVersion: 'gateway.networking.k8s.io/v1',
@@ -264,7 +265,7 @@ export const EMPTY_UDP_ROUTE: KubeGatewayL4Route = {
   spec: {},
 };
 
-export const DEFAULT_TLS_ROUTE: KubeGatewayL4Route = {
+export const DEFAULT_TLS_ROUTE: KubeTLSRoute = {
   apiVersion: 'gateway.networking.k8s.io/v1',
   kind: 'TLSRoute',
   metadata: {
@@ -303,7 +304,7 @@ export const DEFAULT_TLS_ROUTE: KubeGatewayL4Route = {
   },
 };
 
-export const EMPTY_TLS_ROUTE: KubeGatewayL4Route = {
+export const EMPTY_TLS_ROUTE: KubeTLSRoute = {
   apiVersion: 'gateway.networking.k8s.io/v1alpha2',
   kind: 'TLSRoute',
   metadata: {

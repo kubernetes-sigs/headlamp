@@ -16,10 +16,11 @@
 
 import type {
   GatewayL4RouteRule,
+  GatewayL4RouteStatus,
   GatewayParentReference,
   GatewayRouteParentStatus,
-  KubeGatewayL4Route,
 } from './gateway';
+import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 
 /**
@@ -29,13 +30,23 @@ import { KubeObject } from './KubeObject';
  *
  * @see {@link https://gateway-api.sigs.k8s.io/reference/api-types/tlsroute/} Gateway API definition for TLSRoute
  */
-class TLSRoute extends KubeObject<KubeGatewayL4Route> {
+export interface KubeTLSRoute extends KubeObjectInterface {
+  spec: {
+    hostnames?: string[];
+    parentRefs?: GatewayParentReference[];
+    rules?: GatewayL4RouteRule[];
+    [key: string]: any;
+  };
+  status?: GatewayL4RouteStatus;
+}
+
+class TLSRoute extends KubeObject<KubeTLSRoute> {
   static kind = 'TLSRoute';
   static apiName = 'tlsroutes';
   static apiVersion = ['gateway.networking.k8s.io/v1', 'gateway.networking.k8s.io/v1alpha2'];
   static isNamespaced = true;
 
-  get spec(): KubeGatewayL4Route['spec'] {
+  get spec(): KubeTLSRoute['spec'] {
     return this.jsonData.spec;
   }
 
@@ -52,7 +63,7 @@ class TLSRoute extends KubeObject<KubeGatewayL4Route> {
   }
 
   get hostnames(): string[] {
-    return (this.jsonData.spec as any).hostnames || [];
+    return this.jsonData.spec.hostnames || [];
   }
 
   static get pluralName() {

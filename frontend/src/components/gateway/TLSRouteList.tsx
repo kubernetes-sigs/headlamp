@@ -16,10 +16,39 @@
 
 import { useTranslation } from 'react-i18next';
 import TLSRoute from '../../lib/k8s/tlsRoute';
-import L4RouteList from './L4RouteList';
+import LabelListItem from '../common/LabelListItem';
+import ResourceListView from '../common/Resource/ResourceListView';
 
 export default function TLSRouteList() {
   const { t } = useTranslation(['glossary', 'translation']);
 
-  return <L4RouteList resourceClass={TLSRoute} title={t('glossary|TLSRoutes')} />;
+  return (
+    <ResourceListView
+      title={t('glossary|TLSRoutes')}
+      resourceClass={TLSRoute}
+      headerProps={{ titleSideActions: [] }}
+      enableRowActions={false}
+      enableRowSelection={false}
+      columns={[
+        'name',
+        'namespace',
+        'cluster',
+        {
+          id: 'hostnames',
+          label: t('Hostnames'),
+          getValue: (tlsRoute: TLSRoute) => tlsRoute.hostnames.join(''),
+          render: (tlsRoute: TLSRoute) => (
+            <LabelListItem labels={tlsRoute.hostnames.map(host => host || '*')} />
+          ),
+        },
+        {
+          id: 'rules',
+          label: t('glossary|Rules'),
+          getValue: (tlsRoute: TLSRoute) => tlsRoute.rules.length,
+        },
+        'labels',
+        'age',
+      ]}
+    />
+  );
 }
