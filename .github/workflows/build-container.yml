@@ -183,6 +183,8 @@ jobs:
         kubectl config use-context test
         kubectl get services --all-namespaces
         kubectl get deployments -n kube-system
+        echo "------------------Waiting for headlamp deployment to be available...------------------"
+        kubectl wait deployment -n kube-system headlamp --for condition=Available=True --timeout=120s
         echo "----------------------------------Opening the service----------------------------------"
         echo "${HEADLAMP_TEST_URL}"
         curl -fL --connect-timeout 5 --max-time 30 "${HEADLAMP_TEST_URL}" | grep -q "Headlamp: Kubernetes Web UI"
