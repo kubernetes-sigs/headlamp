@@ -24,7 +24,7 @@ vi.mock('react-i18next', () => ({
   }),
 }));
 
-const desktopApiBase = { platform: 'darwin' as NodeJS.Platform };
+const desktopApiBase = { platform: 'darwin' as NodeJS.Platform } as any;
 
 /** A promise whose completion is controlled by the test. */
 interface Deferred<T> {

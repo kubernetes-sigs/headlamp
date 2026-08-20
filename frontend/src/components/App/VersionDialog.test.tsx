@@ -34,7 +34,7 @@ vi.mock('../../helpers/getProductInfo', () => ({
   getVersion: () => ({ VERSION: 'unused', GIT_VERSION: 'unused' }),
 }));
 
-const desktopApiBase = { platform: 'darwin' as NodeJS.Platform };
+const desktopApiBase = { platform: 'darwin' as NodeJS.Platform } as any;
 
 function renderVersionDialog(useDefaultVersion = false) {
   const store = configureStore({ reducer: { ui: uiReducer } });
