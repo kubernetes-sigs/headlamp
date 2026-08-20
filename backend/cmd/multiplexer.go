@@ -207,18 +207,72 @@ func (conn *WSConnLock) Close() error {
 }
 
 // NewMultiplexer creates a new Multiplexer instance.
-func NewMultiplexer(kubeConfigStore kubeconfig.ContextStore, unsafeUseServiceAccountToken bool) *Multiplexer {
+func NewMultiplexer(
+	kubeConfigStore kubeconfig.ContextStore,
+	unsafeUseServiceAccountToken bool,
+	devMode bool,
+) *Multiplexer {
+	upgrader := websocket.Upgrader{
+		CheckOrigin: makeCheckOrigin(devMode),
+	}
+
 	return &Multiplexer{
 		connections:                  make(map[string]*Connection),
 		kubeConfigStore:              kubeConfigStore,
 		unsafeUseServiceAccountToken: unsafeUseServiceAccountToken,
 		saTokenCache:                 make(map[string]saTokenCacheEntry),
-		upgrader: websocket.Upgrader{
-			CheckOrigin: func(r *http.Request) bool {
-				return true
-			},
-		},
+		upgrader:                     upgrader,
 	}
+}
+
+// makeCheckOrigin returns a CheckOrigin function for the WebSocket upgrader.
+//
+// Three-tier origin policy:
+//  1. devMode=true           → allow all origins (developer convenience).
+//  2. HEADLAMP_BACKEND_TOKEN set AND origin is a hostless file:// → allow (Electron desktop app).
+//     Electron loads the UI from file:// so Gorilla's same-origin check would compare
+//     "file:///…" against "localhost:<port>" and return 403. We gate this bypass on the
+//     presence of the backend token (injected by Electron before spawning the process)
+//     so that a vanilla web deployment without the token cannot exploit this path.
+//     The host must be empty (i.e. "file:///…" not "file://remote-host/…") to prevent
+//     remote/UNC file origins from widening the carve-out.
+//  3. Otherwise             → strict same-origin (web deployment default).
+func makeCheckOrigin(devMode bool) func(r *http.Request) bool {
+	return func(r *http.Request) bool {
+		if devMode {
+			return true
+		}
+
+		// Allow Electron desktop origins (file://) when the backend token is present,
+		// which indicates the process was launched by the desktop app.
+		origin := r.Header.Get("Origin")
+		if origin != "" && os.Getenv("HEADLAMP_BACKEND_TOKEN") != "" {
+			parsed, err := url.Parse(origin)
+			if err == nil && parsed.Scheme == "file" && parsed.Host == "" {
+				return true
+			}
+		}
+
+		// Default: enforce same-origin for web deployments.
+		return defaultCheckOrigin(r)
+	}
+}
+
+// defaultCheckOrigin replicates Gorilla's built-in same-origin check so we can
+// fall through to it after the desktop-origin bypass above.
+func defaultCheckOrigin(r *http.Request) bool {
+	origin := r.Header.Get("Origin")
+	if origin == "" {
+		return true
+	}
+
+	parsed, err := url.Parse(origin)
+	if err != nil {
+		return false
+	}
+
+	// Compare origin host to the request host (same as gorilla/websocket default).
+	return strings.EqualFold(parsed.Host, r.Host)
 }
 
 // readServiceAccountToken reads the service account token from path, caching the value

@@ -203,7 +203,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 	kubeConfigStore := kubeconfig.NewContextStore()
 	setupKubeConfigStoreWatcher(kubeConfigStore)
 
-	multiplexer := NewMultiplexer(kubeConfigStore, conf.InCluster && conf.UnsafeUseServiceAccountToken)
+	multiplexer := NewMultiplexer(kubeConfigStore, conf.InCluster && conf.UnsafeUseServiceAccountToken, conf.DevMode)
 
 	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),
