@@ -40,11 +40,17 @@ import (
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
+	"golang.org/x/sync/singleflight"
 )
 
 const (
 	oldTokenTTL   = time.Second * 10 // seconds
 	oidcKeyPrefix = "oidc-token-"
+
+	// tokenRefreshTimeout bounds the lifetime of a shared OIDC token refresh.
+	// It is intentionally longer than a single HTTP round-trip so that slow
+	// IdPs do not time out, but short enough to release resources promptly.
+	tokenRefreshTimeout = 30 * time.Second
 )
 
 const JWTExpirationTTL = 10 * time.Second // seconds
@@ -285,41 +291,71 @@ func ConfigureTLSContext(ctx context.Context, skipTLSVerify *bool, caCert *strin
 	return ctx
 }
 
+var tokenRefreshGroup singleflight.Group
+
 // RefreshAndCacheNewToken obtains a fresh OIDC token using the cached refresh token
-// and re-populates the cache so subsequent requests can reuse it. The provided ctx
-// controls cancellation and deadlines for all outbound requests during the refresh.
+// and re-populates the cache so subsequent requests can reuse it.
+//
+// The shared refresh runs under its own bounded background context so that one
+// caller's HTTP request cancellation cannot abort the refresh for all waiters.
+// callerCtx is used only to let individual callers bail out early; it never
+// controls the outbound OIDC/token-endpoint requests.
+//
 // validatorIssuerURL overrides the issuer expected by provider discovery when the
 // discovery URL and returned issuer differ.
-func RefreshAndCacheNewToken(ctx context.Context, oidcAuthConfig *kubeconfig.OidcConfig,
+func RefreshAndCacheNewToken(callerCtx context.Context, oidcAuthConfig *kubeconfig.OidcConfig,
 	cache cache.Cache[interface{}],
 	tokenType, token, issuerURL, validatorIssuerURL string,
 ) (*oauth2.Token, error) {
-	ctx = ConfigureTLSContext(ctx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
+	// ch is the shared result channel returned by DoChan. All concurrent callers
+	// for the same token key receive the same channel and therefore the same result.
+	ch := tokenRefreshGroup.DoChan(token, func() (interface{}, error) {
+		// refreshCtx is independent of any HTTP request. It will not be cancelled
+		// when individual callers disconnect, but it is bounded by tokenRefreshTimeout
+		// so resources are always released eventually.
+		refreshCtx, cancel := context.WithTimeout(context.Background(), tokenRefreshTimeout)
+		defer cancel()
 
-	if validatorIssuerURL != "" {
-		ctx = oidc.InsecureIssuerURLContext(ctx, validatorIssuerURL)
-	}
+		refreshCtx = ConfigureTLSContext(refreshCtx, oidcAuthConfig.SkipTLSVerify, oidcAuthConfig.CACert)
 
-	// get provider
-	provider, err := oidc.NewProvider(ctx, issuerURL)
-	if err != nil {
-		return nil, fmt.Errorf("getting provider: %w", err)
-	}
-	// get refresh token
-	newToken, err := GetNewToken(
-		oidcAuthConfig.ClientID,
-		oidcAuthConfig.ClientSecret,
-		cache,
-		tokenType,
-		token,
-		provider.Endpoint().TokenURL,
-		ctx,
-	)
-	if err != nil {
-		return nil, fmt.Errorf("refreshing token: %w", err)
-	}
+		if validatorIssuerURL != "" {
+			refreshCtx = oidc.InsecureIssuerURLContext(refreshCtx, validatorIssuerURL)
+		}
 
-	return newToken, nil
+		// get provider
+		provider, err := oidc.NewProvider(refreshCtx, issuerURL)
+		if err != nil {
+			return nil, fmt.Errorf("getting provider: %w", err)
+		}
+		// get refresh token
+		newToken, err := GetNewToken(
+			oidcAuthConfig.ClientID,
+			oidcAuthConfig.ClientSecret,
+			cache,
+			tokenType,
+			token,
+			provider.Endpoint().TokenURL,
+			refreshCtx,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("refreshing token: %w", err)
+		}
+
+		return newToken, nil
+	})
+
+	// Wait for either the shared refresh to finish or this caller to be cancelled.
+	// Either way the shared refresh goroutine keeps running unaffected.
+	select {
+	case <-callerCtx.Done():
+		return nil, callerCtx.Err()
+	case res := <-ch:
+		if res.Err != nil {
+			return nil, res.Err
+		}
+
+		return res.Val.(*oauth2.Token), nil
+	}
 }
 
 type MeHandlerOptions struct {
