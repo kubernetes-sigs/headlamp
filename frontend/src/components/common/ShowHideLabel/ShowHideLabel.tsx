@@ -41,11 +41,13 @@ export default function ShowHideLabel(props: ShowHideLabelProps) {
       return ['', false];
     }
 
+    const isLong = children.length > maxChars;
+
     if (expanded) {
-      return [children, true];
+      return [children, isLong];
     }
 
-    return [children.substr(0, maxChars), children.length > maxChars];
+    return [children.substr(0, maxChars), isLong];
   }, [children, expanded, maxChars]);
 
   if (!children) {
