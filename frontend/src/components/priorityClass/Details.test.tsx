@@ -72,7 +72,7 @@ describe('PriorityClassDetails', () => {
     );
 
     expect(byName['Value']).toBe(1000000);
-    expect(byName['Global Default']).toBe(true);
+    expect(byName['Global Default']).toContain('Yes');
     expect(byName['Preemption Policy']).toBe('PreemptLowerPriority');
     expect(byName['Description']).toBe('Mission Critical apps.');
   });
@@ -87,6 +87,6 @@ describe('PriorityClassDetails', () => {
     const props = mockDetailsGrid.mock.calls[0][0];
     const extraInfo = props.extraInfo({ ...priorityClass, globalDefault: false });
     const globalDefault = extraInfo.find((f: any) => f.name.includes('Global Default'));
-    expect(globalDefault.value).toBe('False');
+    expect(globalDefault.value).toContain('No');
   });
 });
