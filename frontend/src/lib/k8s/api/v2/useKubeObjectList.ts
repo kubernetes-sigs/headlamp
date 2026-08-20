@@ -22,6 +22,7 @@ import {
   loadClusterSettings,
 } from '../../../../helpers/clusterSettings';
 import type { KubeObject, KubeObjectClass } from '../../KubeObject';
+import { matchesLabelSelector } from '../../labelSelectorMatch';
 import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError } from './ApiError';
 import { clusterFetch } from './fetch';
@@ -76,6 +77,24 @@ export interface ListResponse<K extends KubeObject> {
  * Manually configured namespaces use per-name GET requests, while selector-based
  * restrictions retain LIST requests and intersect any selector from the caller.
  *
+ * The result is the intersection `(manual ∪ configured) ∩ requested`: manually
+ * configured namespaces are only included if their labels match the caller's
+ * `queryParams.labelSelector` (the selector-based LIST branch already intersects
+ * server-side, since its query joins the configured and requested selectors).
+ *
+ * Per-name GETs may fail individually (e.g. a manually-restricted user commonly
+ * lacks cluster-scoped `list namespaces` RBAC but may also lack `get` on some
+ * names). A single failure does not fail the whole query:
+ * - If no caller selector is active, a failed GET is replaced by a name-only
+ *   placeholder object so the namespace still appears (matching prior
+ *   behavior of callers that rendered these rows unconditionally).
+ * - If a caller selector is active, a failed GET is omitted instead, since we
+ *   cannot evaluate the selector without knowing the namespace's labels and
+ *   would rather fail closed than show a possibly non-matching row.
+ * If every manually configured namespace fails and the selector LIST yields no
+ * items, the first rejection is rethrown so a fully broken configuration still
+ * surfaces as an error.
+ *
  * @param kubeObjectClass - Class used to instantiate Namespace objects.
  * @param cluster - Cluster to query.
  * @param queryParams - Additional Namespace list filters.
@@ -108,8 +127,8 @@ function allowedNamespaceListQuery<K extends KubeObject>(
       { allowedNamespaces, selector },
     ],
     queryFn: async () => {
-      const [manualItems, selectorList] = await Promise.all([
-        Promise.all(
+      const [manualResults, selectorList] = await Promise.all([
+        Promise.allSettled(
           allowedNamespaces.map(async name => {
             try {
               const item = await clusterFetch(makeUrl(['api', 'v1', 'namespaces', name]), {
@@ -118,9 +137,7 @@ function allowedNamespaceListQuery<K extends KubeObject>(
               if (item.metadata?.managedFields) {
                 delete item.metadata.managedFields;
               }
-              const kubeObject = new kubeObjectClass(item) as K;
-              kubeObject.cluster = cluster;
-              return kubeObject;
+              return item;
             } catch (error) {
               if (error instanceof ApiError) {
                 error.cluster = cluster;
@@ -154,6 +171,69 @@ function allowedNamespaceListQuery<K extends KubeObject>(
         kubeObject.cluster = cluster;
         return kubeObject;
       });
+
+      const manualItems: K[] = [];
+      const selectorItemNames = new Set(
+        selectorItems.map((item: K) => item.jsonData.metadata.name)
+      );
+      manualResults.forEach((result, index) => {
+        if (result.status === 'fulfilled') {
+          const item = result.value;
+          // Intersect with the caller's selector: manual namespaces don't go
+          // through the server-side LIST filter, so we must check labels ourselves.
+          if (!matchesLabelSelector(item.metadata?.labels, requestedSelector)) {
+            return;
+          }
+          const kubeObject = new kubeObjectClass(item) as K;
+          kubeObject.cluster = cluster;
+          manualItems.push(kubeObject);
+          return;
+        }
+
+        // A failed per-name GET (commonly missing RBAC on that name) shouldn't
+        // fail the whole query. When no caller selector is active we can still
+        // show a name-only placeholder row, matching prior behavior. When a
+        // selector is active we can't evaluate it without labels, so we fail
+        // closed and omit the namespace rather than risk showing a
+        // non-matching row.
+        const name = allowedNamespaces[index];
+        // Don't shadow a real object: if the configured-selector LIST already
+        // returned this namespace (with real status/labels), prefer that over
+        // a placeholder.
+        if (!requestedSelector && !selectorItemNames.has(name)) {
+          const placeholder = new kubeObjectClass({
+            kind: 'Namespace',
+            apiVersion: 'v1',
+            // The creation timestamp is genuinely unknown since the GET
+            // failed, so it is left unset rather than invented -- a fabricated
+            // date would render as a real age and misrepresent the namespace.
+            // Views that surface these rows render the age as unknown.
+            metadata: { name },
+            // Likewise, Namespace list views read status.phase directly;
+            // an empty status resolves to a defined-but-empty phase so
+            // consumers can fall back to an "Unknown" label instead of
+            // throwing on `undefined.phase`.
+            status: {},
+          }) as K;
+          placeholder.cluster = cluster;
+          manualItems.push(placeholder);
+        }
+      });
+
+      // If every manually configured namespace failed and the selector LIST
+      // (if any) produced nothing, this is a genuinely broken configuration
+      // rather than a partial failure -- surface it as an error.
+      if (
+        allowedNamespaces.length > 0 &&
+        selectorItems.length === 0 &&
+        manualResults.every(result => result.status === 'rejected')
+      ) {
+        const firstRejected = manualResults.find(
+          (result): result is PromiseRejectedResult => result.status === 'rejected'
+        );
+        throw firstRejected!.reason;
+      }
+
       const items = [...manualItems, ...selectorItems].filter(
         (item, index, allItems) =>
           allItems.findIndex(
