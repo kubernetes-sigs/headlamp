@@ -829,6 +829,7 @@
   "Start Debug": "",
   "Pod debug is disabled in settings": "Debugowanie zasobnika jest wyłączone w ustawieniach",
   "Attaching to existing debug container...": "Trwa dołączanie do istniejącego kontenera debugowania...",
+  "Reattaching to debug container...": "",
   "Creating ephemeral debug container...": "Trwa tworzenie efemeryczny kontener debugowania...",
   "Targeting container: {{container}}": "",
   "Failed to create debug container: {{message}}": "Nie można utworzyć kontenera debugowania: {{message}}",

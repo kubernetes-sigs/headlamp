@@ -817,6 +817,7 @@
   "Start Debug": "",
   "Pod debug is disabled in settings": "سیٹنگز میں پوڈ ڈیبگ غیر فعال ہے",
   "Attaching to existing debug container...": "موجودہ ڈیبگ کنٹینر سے منسلک ہو رہا ہے...",
+  "Reattaching to debug container...": "",
   "Creating ephemeral debug container...": "عارضی ڈیبگ کنٹینر بنایا جا رہا ہے...",
   "Targeting container: {{container}}": "",
   "Failed to create debug container: {{message}}": "ڈیبگ کنٹینر بنانے میں ناکامی: {{message}}",

@@ -829,6 +829,7 @@
   "Start Debug": "",
   "Pod debug is disabled in settings": "Ladění podů je v nastaveních zakázané.",
   "Attaching to existing debug container...": "Připojování k existujícímu kontejneru ladění...",
+  "Reattaching to debug container...": "",
   "Creating ephemeral debug container...": "Vytváří se dočasný kontejner ladění...",
   "Targeting container: {{container}}": "",
   "Failed to create debug container: {{message}}": "Nepovedlo se vytvořit kontejner ladění: {{message}}.",
