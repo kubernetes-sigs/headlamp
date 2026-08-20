@@ -499,19 +499,33 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
               header: t('translation|Age'),
               gridTemplate: 'min-content',
               responsivePriority: 1,
-              accessorFn: (item: RowItem) => -new Date(item.metadata.creationTimestamp).getTime(),
+              // Some rows (e.g. a namespace placeholder shown when its
+              // per-name GET was denied) have no known creationTimestamp.
+              // Sort them as null rather than computing -new Date(undefined)
+              // .getTime(), which is NaN and breaks sorting.
+              accessorFn: (item: RowItem) =>
+                item.metadata.creationTimestamp
+                  ? -new Date(item.metadata.creationTimestamp).getTime()
+                  : null,
               enableColumnFilter: false,
               muiTableBodyCellProps: {
                 align: 'right',
               },
-              Cell: ({ row }: { row: MRT_Row<RowItem> }) =>
-                row.original && (
+              Cell: ({ row }: { row: MRT_Row<RowItem> }) => {
+                if (!row.original) {
+                  return null;
+                }
+                if (!row.original.metadata.creationTimestamp) {
+                  return <>{t('translation|Unknown')}</>;
+                }
+                return (
                   <DateLabel
                     date={row.original.metadata.creationTimestamp}
                     format="mini"
                     iconProps={{ color: theme.palette.text.primary }}
                   />
-                ),
+                );
+              },
             };
 
           case 'labels':
