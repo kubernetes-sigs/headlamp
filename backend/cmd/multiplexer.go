@@ -584,17 +584,22 @@ func (m *Multiplexer) reconnect(conn *Connection) (*Connection, error) {
 		return nil, fmt.Errorf("cannot reconnect closed connection")
 	}
 
-	if conn.WSConn != nil {
-		_ = conn.WSConn.Close()
+	conn.mu.RLock()
+	clusterID, userID, path, query := conn.ClusterID, conn.UserID, conn.Path, conn.Query
+	client, token, wsConn := conn.Client, conn.Token, conn.WSConn
+	conn.mu.RUnlock()
+
+	if wsConn != nil {
+		_ = wsConn.Close()
 	}
 
 	newConn, err := m.establishClusterConnection(
-		conn.ClusterID,
-		conn.UserID,
-		conn.Path,
-		conn.Query,
-		conn.Client,
-		conn.Token,
+		clusterID,
+		userID,
+		path,
+		query,
+		client,
+		token,
 	)
 	if err != nil {
 		logger.Log(logger.LevelError, map[string]string{logFieldClusterID: conn.ClusterID}, err, "reconnecting to cluster")
@@ -700,7 +705,11 @@ func (m *Multiplexer) processClientMessage(
 		return
 	}
 
-	if msg.Type == "REQUEST" && conn.Status.State == StateConnected {
+	conn.mu.RLock()
+	state := conn.Status.State
+	conn.mu.RUnlock()
+
+	if msg.Type == "REQUEST" && state == StateConnected {
 		_ = m.writeMessageToCluster(conn, []byte(msg.Data))
 	}
 }
