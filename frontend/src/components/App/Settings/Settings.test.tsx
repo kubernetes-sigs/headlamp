@@ -16,6 +16,8 @@
 
 import { ThemeProvider } from '@mui/material/styles';
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { render, waitFor } from '@testing-library/react';
 import { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../../App';
@@ -36,9 +38,11 @@ const theme = createMuiTheme({ name: 'Light', base: 'light' });
 
 function renderWithProviders(children: ReactNode) {
   return render(
-    <TestContext>
-      <ThemeProvider theme={theme}>{children}</ThemeProvider>
-    </TestContext>
+    <QueryClientProvider client={new QueryClient()}>
+      <TestContext>
+        <ThemeProvider theme={theme}>{children}</ThemeProvider>
+      </TestContext>
+    </QueryClientProvider>
   );
 }
 

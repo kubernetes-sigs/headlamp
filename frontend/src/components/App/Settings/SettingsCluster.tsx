@@ -30,6 +30,7 @@ import { useHistory, useLocation } from 'react-router-dom';
 import { sanitizeCssColor } from '../../../helpers/clusterAppearance';
 import { isElectron } from '../../../helpers/isElectron';
 import { useCluster, useClustersConf } from '../../../lib/k8s';
+import { useAllowedNamespacesFromSelector } from '../../../lib/k8s/allowedNamespaces';
 import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
 import { setConfig } from '../../../redux/configSlice';
 import { HeadlampEventType, useEventCallback } from '../../../redux/headlampEventSlice';
@@ -60,6 +61,9 @@ export default function SettingsCluster() {
   const [clusterSettings, setClusterSettings] = useClusterSettings(cluster);
 
   const [newAllowedNamespace, setNewAllowedNamespace] = React.useState('');
+  const [namespacesSelectorInput, setNamespacesSelectorInput] = React.useState(
+    clusterSettings.allowedNamespacesSelector || ''
+  );
   const [colorPickerOpen, setColorPickerOpen] = React.useState(false);
   const [iconPickerOpen, setIconPickerOpen] = React.useState(false);
 
@@ -140,6 +144,45 @@ export default function SettingsCluster() {
     setDefaultNamespaceInput(defaultNamespace);
   }, [defaultNamespace]);
 
+  const allowedNamespacesSelector = clusterSettings.allowedNamespacesSelector || '';
+  React.useEffect(() => {
+    setNamespacesSelectorInput(allowedNamespacesSelector);
+  }, [allowedNamespacesSelector, cluster]);
+
+  // Resolve the configured selector (via Namespace.useList) and keep the cache in
+  // sync. The resolution is keyed on the persisted selector, so it re-runs after
+  // applyNamespacesSelector persists a new value.
+  const namespacesSelectorResolution = useAllowedNamespacesFromSelector(
+    cluster,
+    allowedNamespacesSelector
+  );
+  const namespacesSelectorError = namespacesSelectorResolution.error
+    ? t('translation|Failed to fetch namespaces for this selector: {{ error }}', {
+        error: namespacesSelectorResolution.error.message,
+      })
+    : '';
+  // A valid selector that resolved to no namespaces: warn the user so an empty
+  // list is not mistaken for a still-loading or misconfigured state.
+  const namespacesSelectorMatchedNothing =
+    !!allowedNamespacesSelector &&
+    namespacesSelectorResolution.isSuccess &&
+    namespacesSelectorResolution.namespaces.length === 0;
+
+  function applyNamespacesSelector(selector: string) {
+    const trimmedSelector = selector.trim();
+    // Persist the selector only; the resolution (and cache update) is handled by
+    // useAllowedNamespacesFromSelector, which reacts to this change.
+    setClusterSettings(settings => {
+      const newSettings = { ...settings };
+      if (trimmedSelector) {
+        newSettings.allowedNamespacesSelector = trimmedSelector;
+      } else {
+        delete newSettings.allowedNamespacesSelector;
+      }
+      return newSettings;
+    });
+  }
+
   function storeNewAllowedNamespace(namespace: string) {
     setNewAllowedNamespace('');
     setClusterSettings(settings => {
@@ -198,6 +241,7 @@ export default function SettingsCluster() {
 
   const defaultNamespaceLabelID = 'default-namespace-label';
   const allowedNamespaceLabelID = 'allowed-namespace-label';
+  const allowedNamespacesSelectorLabelID = 'allowed-namespaces-selector-label';
   const appearanceLabelID = 'cluster-appearance-label';
   const accentColorLabelID = 'accent-color-label';
   const clusterIconLabelID = 'cluster-icon-label';
@@ -441,6 +485,81 @@ export default function SettingsCluster() {
                         }}
                       />
                     ))}
+                  </Box>
+                </>
+              ),
+            },
+            {
+              name: (
+                <Typography id={allowedNamespacesSelectorLabelID}>
+                  {t('translation|Allowed namespaces label selector')}
+                </Typography>
+              ),
+              value: (
+                <>
+                  <TextField
+                    onChange={event => {
+                      setNamespacesSelectorInput(event.target.value);
+                    }}
+                    placeholder={'team=frontend,env=prod'}
+                    error={!!namespacesSelectorError}
+                    value={namespacesSelectorInput}
+                    helperText={
+                      namespacesSelectorError ||
+                      t(
+                        'translation|A label selector used to automatically find the namespaces you are allowed to access in this cluster. Press Enter or the apply button to resolve it. The resolved namespaces are combined with the allowed namespaces list above.'
+                      )
+                    }
+                    autoComplete="off"
+                    inputProps={{
+                      'aria-labelledby': allowedNamespacesSelectorLabelID,
+                    }}
+                    variant="outlined"
+                    size="small"
+                    InputProps={{
+                      endAdornment: (
+                        <IconButton
+                          onClick={() => {
+                            applyNamespacesSelector(namespacesSelectorInput);
+                          }}
+                          disabled={
+                            namespacesSelectorResolution.isFetching ||
+                            namespacesSelectorInput.trim() === allowedNamespacesSelector
+                          }
+                          size="medium"
+                          aria-label={t('translation|Apply label selector')}
+                        >
+                          <InlineIcon icon="mdi:check-circle" />
+                        </IconButton>
+                      ),
+                      onKeyDown: event => {
+                        if (event.key === 'Enter') {
+                          applyNamespacesSelector(namespacesSelectorInput);
+                        }
+                      },
+                      autoComplete: 'off',
+                      sx: { maxWidth: 250 },
+                    }}
+                  />
+                  <Box
+                    sx={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      '& > *': {
+                        margin: theme.spacing(0.5),
+                      },
+                      marginTop: theme.spacing(1),
+                    }}
+                  >
+                    {namespacesSelectorMatchedNothing ? (
+                      <Typography variant="body2" sx={{ color: 'warning.main' }}>
+                        {t('translation|No namespaces match this selector')}
+                      </Typography>
+                    ) : (
+                      namespacesSelectorResolution.namespaces.map(namespace => (
+                        <Chip key={namespace} label={namespace} size="small" clickable={false} />
+                      ))
+                    )}
                   </Box>
                 </>
               ),

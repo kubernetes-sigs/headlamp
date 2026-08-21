@@ -16,6 +16,7 @@
 
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
+import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { ApiError } from './ApiError';
@@ -79,6 +80,11 @@ export async function backendFetch(url: string | URL, init: RequestInit = {}) {
  */
 export async function clusterFetch(url: string | URL, init: RequestInit & { cluster: string }) {
   init.headers = new Headers(init.headers);
+  if (init.cluster) {
+    for (const [name, value] of Object.entries(getHeadlampAPIHeaders())) {
+      init.headers.set(name, value);
+    }
+  }
 
   // Set stateless kubeconfig if exists
   const kubeconfig = await findKubeconfigByClusterName(init.cluster);

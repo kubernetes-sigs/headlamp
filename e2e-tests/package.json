@@ -4,6 +4,8 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "test:unit": "vitest run",
+    "test:unit:coverage": "vitest run --coverage",
     "test:storybook": "playwright test --config playwright.storybook.config.ts"
   },
   "keywords": [],
@@ -12,7 +14,10 @@
   "devDependencies": {
     "@axe-core/playwright": "^4.10.1",
     "@playwright/test": "^1.42.1",
-    "@types/node": "^20.12.2"
+    "@types/node": "^20.12.2",
+    "@vitest/coverage-istanbul": "3.2.6",
+    "vite": "6.4.3",
+    "vitest": "3.2.6"
   },
   "dependencies": {
     "yaml": "^2.3.4"

@@ -264,7 +264,8 @@ jobs:
       - name: Install Playwright browsers
         run: |
           cd e2e-tests
-          npx playwright install --with-deps chromium
+          # GitHub-hosted Ubuntu runners already provide the browser runtime libraries.
+          npx playwright install chromium
 
       - name: Run storybook mock tests
         run: |

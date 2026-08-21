@@ -21,11 +21,46 @@ type Listener = () => void;
 interface StorageEntry {
   value: unknown;
   listeners: Set<Listener>;
+  serializedDefaultValue: string;
 }
 
 // localStorage does not notify listeners in the same window, so hook instances
 // using the same key share an in-memory entry.
 const storageEntries = new Map<string, StorageEntry>();
+
+if (typeof window !== 'undefined') {
+  window.addEventListener('storage', (event: StorageEvent) => {
+    if (event.storageArea !== window.localStorage) return;
+
+    if (event.key === null) {
+      // localStorage.clear() was called. Reset all entries to their default values.
+      for (const entry of storageEntries.values()) {
+        entry.value = JSON.parse(entry.serializedDefaultValue);
+        for (const listener of entry.listeners) {
+          listener();
+        }
+      }
+      return;
+    }
+    const entry = storageEntries.get(event.key);
+    if (entry) {
+      if (event.newValue === null) {
+        // localStorage.removeItem() was called for this key.
+        entry.value = JSON.parse(entry.serializedDefaultValue);
+      } else {
+        try {
+          entry.value = JSON.parse(event.newValue);
+        } catch (error) {
+          // Ignore parse errors from other tabs
+          return;
+        }
+      }
+      for (const listener of entry.listeners) {
+        listener();
+      }
+    }
+  });
+}
 
 function readStoredValue<T>(key: string, serializedDefaultValue: string): T {
   let serializedValue: string | null;
@@ -52,11 +87,13 @@ function readStoredValue<T>(key: string, serializedDefaultValue: string): T {
   }
 }
 
-function writeStoredValue(key: string, value: unknown) {
+function writeStoredValue(key: string, value: unknown): boolean {
   try {
     localStorage.setItem(key, JSON.stringify(value));
+    return true;
   } catch (error) {
     console.error(`Error occurred while setting ${key} in local storage:`, error);
+    return false;
   }
 }
 
@@ -69,6 +106,7 @@ function getStorageEntry<T>(key: string, serializedDefaultValue: string): Storag
   const newEntry: StorageEntry = {
     value: readStoredValue<T>(key, serializedDefaultValue),
     listeners: new Set(),
+    serializedDefaultValue,
   };
   storageEntries.set(key, newEntry);
 
@@ -85,8 +123,9 @@ function subscribe(key: string, entry: StorageEntry, listener: Listener) {
   };
 }
 
-function updateEntry<T>(key: string, entry: StorageEntry, updater: (oldValue: T) => T) {
-  const newValue = updater(entry.value as T);
+function updateEntry<T>(key: string, entry: StorageEntry, updater: T | ((oldValue: T) => T)) {
+  const isFunction = (val: any): val is (oldValue: T) => T => typeof val === 'function';
+  const newValue = isFunction(updater) ? updater(entry.value as T) : updater;
   entry.value = newValue;
 
   for (const listener of entry.listeners) {
@@ -127,7 +166,7 @@ export function useLocalStorageState<T>(key: string, defaultValue: T) {
   const getSnapshot = useCallback(() => entry.value as T, [entry]);
   const state = useSyncExternalStore(subscribeToEntry, getSnapshot, getSnapshot);
   const setState = useCallback(
-    (updater: (oldValue: T) => T) => updateEntry(key, entry, updater),
+    (updater: T | ((oldValue: T) => T)) => updateEntry(key, entry, updater),
     [entry, key]
   );
 

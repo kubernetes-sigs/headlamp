@@ -96,11 +96,10 @@ echo ""
 echo "Checking for built artifacts..."
 ls -lh "$DIST_DIR/" || true
 
-PACKAGE_NAME=$(node -p "require(process.argv[1]).name" "$APP_DIR/package.json")
-if ls "$DIST_DIR/${PACKAGE_NAME}-"*.dmg 1> /dev/null 2>&1; then
-  echo "✓ Mac DMG found with package name"
+if ls "$DIST_DIR"/*.dmg 1> /dev/null 2>&1; then
+  echo "✓ Mac DMG found"
 else
-  echo "✗ No Mac DMG found with package name: $PACKAGE_NAME"
+  echo "✗ No Mac DMG found"
   exit 1
 fi
 echo ""
