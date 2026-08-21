@@ -498,6 +498,7 @@
       "StatefulSet": [Function],
       "StorageClass": [Function],
       "TCPRoute": [Function],
+      "TLSRoute": [Function],
       "UDPRoute": [Function],
       "VolumeAttributesClass": [Function],
       "Workload": [Function],

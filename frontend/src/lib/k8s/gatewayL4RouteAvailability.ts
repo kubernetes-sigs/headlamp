@@ -20,7 +20,7 @@ import { clusterFetch } from './api/v2/fetch';
 
 const GATEWAY_API_GROUP = 'gateway.networking.k8s.io';
 const GATEWAY_L4_VERSIONS = ['v1', 'v1alpha2'] as const;
-const GATEWAY_L4_KINDS = ['TCPRoute', 'UDPRoute'] as const;
+const GATEWAY_L4_KINDS = ['TCPRoute', 'TLSRoute', 'UDPRoute'] as const;
 
 export type GatewayL4RouteKind = (typeof GATEWAY_L4_KINDS)[number];
 

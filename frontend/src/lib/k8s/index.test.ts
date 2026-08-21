@@ -343,6 +343,7 @@ const namespacedClasses = [
   'ServiceAccount',
   'StatefulSet',
   'TCPRoute',
+  'TLSRoute',
   'UDPRoute',
   'PodDisruptionBudget',
   'PersistentVolumeClaim',
