@@ -66,7 +66,7 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
   const { t } = useTranslation();
   const { pathname } = useLocation();
 
-  function registerSetInterval(): NodeJS.Timeout {
+  function registerSetInterval(isActive: () => boolean): NodeJS.Timeout {
     return setInterval(() => {
       if (!window.navigator.onLine) {
         setError(t('translation|Offline') as string);
@@ -80,6 +80,9 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
 
       checkerFunction()
         .then(() => {
+          if (!isActive()) {
+            return;
+          }
           setError(false);
           // Reset the backoff so polling returns to the normal cadence once the
           // cluster recovers; otherwise the interval stays elevated for the rest
@@ -87,6 +90,9 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
           setNetworkStatusCheckTimeFactor(0);
         })
         .catch(err => {
+          if (!isActive()) {
+            return;
+          }
           const message = err instanceof Error ? err.message : String(err);
           setError(message);
           setNetworkStatusCheckTimeFactor(
@@ -107,15 +113,6 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
     setDismissed(false);
   }, [error]);
 
-  React.useEffect(
-    () => {
-      const id = registerSetInterval();
-      return () => clearInterval(id);
-    },
-    // eslint-disable-next-line
-    [networkStatusCheckTimeFactor]
-  );
-
   const showOnRoute = React.useMemo(() => {
     for (const routeName of ROUTES_WITHOUT_ALERT) {
       const maybeRoute = getRoute(routeName);
@@ -130,6 +127,30 @@ export function PureAlertNotification({ checkerFunction }: PureAlertNotification
     }
     return true;
   }, [pathname]);
+
+  React.useEffect(
+    () => {
+      // Routes in ROUTES_WITHOUT_ALERT hide the alert, so they get no health
+      // polling. On the login route the checks fail while the session has no
+      // credentials, and that stale error plus backoff would render as a
+      // "lost connection" banner right after sign-in.
+      if (!showOnRoute) {
+        setError(null);
+        setNetworkStatusCheckTimeFactor(0);
+        return;
+      }
+      // A check that is still in flight after cleanup must not write state;
+      // its late rejection would restore the stale error.
+      let active = true;
+      const id = registerSetInterval(() => active);
+      return () => {
+        active = false;
+        clearInterval(id);
+      };
+    },
+    // eslint-disable-next-line
+    [networkStatusCheckTimeFactor, showOnRoute]
+  );
 
   if (!error || !showOnRoute || dismissed) {
     return null;
