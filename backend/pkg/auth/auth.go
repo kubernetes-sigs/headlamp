@@ -395,6 +395,40 @@ func WithClientTimeout(ctx context.Context, timeout time.Duration) context.Conte
 	return oidc.ClientContext(ctx, &clientWithTimeout)
 }
 
+// BuildProvider constructs an OIDC provider for the given auth config.
+//
+// When the static OIDC endpoint URLs (authorization, token and JWK Set) are all
+// present on oidcAuthConfig, the provider is built directly via
+// oidc.ProviderConfig.NewProvider, so no OIDC discovery HTTP request is made.
+// Otherwise it falls back to oidc.NewProvider, which fetches the provider metadata
+// from the issuer's /.well-known/openid-configuration document (existing behaviour).
+//
+// issuerURL is the issuer identity used to verify ID tokens. validatorIssuerURL, when
+// set, overrides that identity; this mirrors the effect oidc.InsecureIssuerURLContext
+// has on the discovery path so the two construction modes stay consistent.
+func BuildProvider(ctx context.Context, oidcAuthConfig *kubeconfig.OidcConfig,
+	issuerURL, validatorIssuerURL string,
+) (*oidc.Provider, error) {
+	if oidcAuthConfig.HasStaticOIDCEndpoints() {
+		staticIssuerURL := issuerURL
+		if validatorIssuerURL != "" {
+			staticIssuerURL = validatorIssuerURL
+		}
+
+		providerConfig := &oidc.ProviderConfig{
+			IssuerURL:   staticIssuerURL,
+			AuthURL:     oidcAuthConfig.AuthURL,
+			TokenURL:    oidcAuthConfig.TokenURL,
+			JWKSURL:     oidcAuthConfig.JWKSURL,
+			UserInfoURL: oidcAuthConfig.UserInfoURL,
+		}
+
+		return providerConfig.NewProvider(ctx), nil
+	}
+
+	return oidc.NewProvider(ctx, issuerURL)
+}
+
 // RefreshAndCacheNewToken obtains a fresh OIDC token using the cached refresh token
 // and re-populates the cache so subsequent requests can reuse it. The provided ctx
 // controls cancellation and deadlines for all outbound requests during the refresh.
@@ -412,7 +446,7 @@ func RefreshAndCacheNewToken(ctx context.Context, oidcAuthConfig *kubeconfig.Oid
 	}
 
 	// get provider
-	provider, err := oidc.NewProvider(ctx, issuerURL)
+	provider, err := BuildProvider(ctx, oidcAuthConfig, issuerURL, validatorIssuerURL)
 	if err != nil {
 		return nil, fmt.Errorf("getting provider: %w", err)
 	}

@@ -797,6 +797,12 @@ func setupInClusterContext(config *HeadlampConfig) {
 		strings.Join(config.OidcScopes, ","),
 		config.OidcSkipTLSVerify,
 		config.OidcCACert,
+		kubeconfig.OidcStaticEndpoints{
+			AuthURL:     config.OidcAuthURL,
+			TokenURL:    config.OidcTokenURL,
+			JWKSURL:     config.OidcJWKSURL,
+			UserInfoURL: config.OidcUserinfoURL,
+		},
 		config.UnsafeUseServiceAccountToken,
 		config.ServiceAccountTokenPath,
 	)
@@ -1411,7 +1417,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		// its HTTP client and not on the context.
 		ctx = auth.WithClientTimeout(ctx, oidcRequestTimeout)
 
-		provider, err := oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
+		provider, err := auth.BuildProvider(ctx, oidcAuthConfig,
+			oidcAuthConfig.IdpIssuerURL, config.OidcValidatorIdpIssuerURL)
 		if err != nil {
 			logger.Log(logger.LevelError, map[string]string{"idpIssuerURL": oidcAuthConfig.IdpIssuerURL},
 				err, "failed to get provider")
