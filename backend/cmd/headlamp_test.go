@@ -4581,3 +4581,152 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, int(maxProxyResponseSize), rr.Body.Len())
 }
+
+func setupTestServer(t *testing.T, ctx context.Context) (net.Listener, uint) {
+	t.Helper()
+
+	listener, err := (&net.ListenConfig{}).Listen(ctx, "tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	port := listener.Addr().(*net.TCPAddr).Port
+
+	return listener, uint(port)
+}
+
+func startServerGoroutine(
+	config *HeadlampConfig,
+	cancel context.CancelFunc,
+	handler http.Handler,
+	listener net.Listener,
+) chan struct{} {
+	serverExited := make(chan struct{})
+
+	go func() {
+		runServer(config, cancel, handler, listener)
+		close(serverExited)
+	}()
+
+	return serverExited
+}
+
+func waitForServerUp(t *testing.T, port uint) {
+	t.Helper()
+
+	require.Eventually(t, func() bool {
+		dialer := &net.Dialer{}
+
+		conn, dialErr := dialer.DialContext(context.Background(), "tcp", fmt.Sprintf("127.0.0.1:%d", port))
+		if dialErr == nil {
+			_ = conn.Close()
+
+			return true
+		}
+
+		return false
+	}, 2*time.Second, 100*time.Millisecond)
+}
+
+func startInFlightRequest(serverURL string) chan struct{} {
+	reqDone := make(chan struct{})
+
+	go func() {
+		req, reqErr := http.NewRequestWithContext(context.Background(), http.MethodGet, serverURL, nil)
+		if reqErr == nil {
+			resp, doErr := http.DefaultClient.Do(req)
+			if doErr == nil {
+				_ = resp.Body.Close()
+			}
+		}
+
+		close(reqDone)
+	}()
+
+	return reqDone
+}
+
+func setupGracefulShutdownEnv(t *testing.T) (*os.File, chan struct{}, chan struct{}, http.Handler) {
+	t.Helper()
+
+	r, w, err := os.Pipe()
+	require.NoError(t, err)
+
+	oldStdin := os.Stdin
+	os.Stdin = r
+
+	t.Setenv("HEADLAMP_ELECTRON", "true")
+
+	t.Cleanup(func() {
+		os.Stdin = oldStdin
+		_ = r.Close()
+		_ = w.Close()
+	})
+
+	handlerDone := make(chan struct{})
+	inFlightStarted := make(chan struct{})
+
+	handler := http.HandlerFunc(func(rw http.ResponseWriter, req *http.Request) {
+		close(inFlightStarted)
+		<-handlerDone
+		rw.WriteHeader(http.StatusOK)
+	})
+
+	return w, handlerDone, inFlightStarted, handler
+}
+
+func TestGracefulShutdownOnEOF(t *testing.T) {
+	w, handlerDone, inFlightStarted, handler := setupGracefulShutdownEnv(t)
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	listener, port := setupTestServer(t, ctx)
+
+	config := &HeadlampConfig{
+		HeadlampConfig: &headlampconfig.HeadlampConfig{
+			HeadlampCFG: &headlampconfig.HeadlampCFG{
+				ListenAddr: "127.0.0.1",
+				Port:       port,
+			},
+		},
+	}
+
+	_, serverCancel := context.WithCancel(context.Background())
+	defer serverCancel()
+
+	serverExited := startServerGoroutine(config, serverCancel, handler, listener)
+	serverURL := fmt.Sprintf("http://127.0.0.1:%d", port)
+
+	waitForServerUp(t, port)
+
+	reqDone := startInFlightRequest(serverURL)
+
+	<-inFlightStarted
+
+	_ = w.Close()
+
+	select {
+	case <-serverExited:
+		t.Fatal("server exited prematurely while a request was in-flight")
+	case <-time.After(500 * time.Millisecond):
+		// Expected
+	}
+
+	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, serverURL, nil)
+
+	resp, err := http.DefaultClient.Do(req)
+	if err == nil {
+		_ = resp.Body.Close()
+	}
+
+	require.Error(t, err, "new connections should be rejected during graceful shutdown")
+
+	close(handlerDone)
+	<-reqDone
+
+	select {
+	case <-serverExited:
+		// success
+	case <-time.After(2 * time.Second):
+		t.Fatal("server failed to exit after in-flight request completed")
+	}
+}
