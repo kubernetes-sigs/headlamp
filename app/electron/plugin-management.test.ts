@@ -92,6 +92,27 @@ describe('default plugin directories', () => {
   );
 });
 
+describe('plugin management loading', () => {
+  it('defers installation-only dependencies', async () => {
+    const tarFactory = vi.fn(() => ({}));
+    const semverFactory = vi.fn(() => ({}));
+
+    vi.resetModules();
+    vi.doMock('tar', tarFactory);
+    vi.doMock('semver', semverFactory);
+
+    try {
+      await import('./plugin-management');
+
+      expect(tarFactory).not.toHaveBeenCalled();
+      expect(semverFactory).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('tar');
+      vi.doUnmock('semver');
+    }
+  });
+});
+
 /**
  * Creates a unique test directory for a test
  * @param basePath Base directory path

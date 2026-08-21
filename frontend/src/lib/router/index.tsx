@@ -27,7 +27,6 @@ import Settings from '../../components/App/Settings';
 import SettingsCluster from '../../components/App/Settings/SettingsCluster';
 import SettingsClusters from '../../components/App/Settings/SettingsClusters';
 import AuthChooser from '../../components/authchooser';
-import KubeConfigLoader from '../../components/cluster/KubeConfigLoader';
 import Overview from '../../components/cluster/Overview';
 import { PageGrid } from '../../components/common/Resource/Resource';
 import ConfigDetails from '../../components/configmap/Details';
@@ -37,8 +36,6 @@ import { CrInstanceList } from '../../components/crd/CustomResourceInstancesList
 import CustomResourceList from '../../components/crd/CustomResourceList';
 import CustomResourceDefinitionDetails from '../../components/crd/Details';
 import CustomResourceDefinitionList from '../../components/crd/List';
-import CronJobDetails from '../../components/cronjob/Details';
-import CronJobList from '../../components/cronjob/List';
 import DaemonSetList from '../../components/daemonset/List';
 import DeploymentsList from '../../components/deployments/List';
 import EndpointDetails from '../../components/endpoints/Details';
@@ -148,9 +145,13 @@ export type { Route, RouteURLProps };
 
 export { getDefaultRoutes, getRouteUseClusterURL, getRoutePath, getRoute, createRouteURL };
 
+// Keep infrequently visited route modules out of the initial renderer heap.
 const LazyGraphView = React.lazy(() =>
   import('../../components/resourceMap/GraphView').then(it => ({ default: it.GraphView }))
 );
+const CronJobDetails = React.lazy(() => import('../../components/cronjob/Details'));
+const CronJobList = React.lazy(() => import('../../components/cronjob/List'));
+const KubeConfigLoader = React.lazy(() => import('../../components/cluster/KubeConfigLoader'));
 
 function SettingsClusterRedirect() {
   const cluster = useCluster();

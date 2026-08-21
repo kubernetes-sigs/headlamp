@@ -16,7 +16,7 @@
 
 import { ThemeProvider } from '@mui/material/styles';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { render, waitFor } from '@testing-library/react';
+import { render, renderHook, waitFor } from '@testing-library/react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('./useProjectResources', () => ({
@@ -28,7 +28,7 @@ import Namespace from '../../lib/k8s/namespace';
 import { createMuiTheme } from '../../lib/themes';
 import { HeadlampEventType } from '../../redux/headlampEventSlice';
 import { recordHeadlampEvents, TestContext } from '../../test';
-import ProjectList, { groupNamespacesIntoProjects } from './ProjectList';
+import ProjectList, { groupNamespacesIntoProjects, useProject } from './ProjectList';
 import { PROJECT_ID_LABEL } from './projectUtils';
 
 // cyclic imports fix
@@ -95,6 +95,24 @@ describe('groupNamespacesIntoProjects', () => {
       ns('mine', { project: 'app' }),
     ]);
     expect(projects).toEqual([{ id: 'app', namespaces: ['mine'], clusters: ['cluster-a'] }]);
+  });
+});
+
+describe('useProject', () => {
+  it('returns a loaded empty project when no matching namespaces exist', () => {
+    vi.spyOn(Namespace, 'useList').mockReturnValue({
+      items: [],
+      isLoading: false,
+    } as any);
+
+    const { result } = renderHook(() => useProject('missing-project'), {
+      wrapper: ({ children }) => <TestContext>{children}</TestContext>,
+    });
+
+    expect(result.current).toEqual({
+      isLoading: false,
+      project: { id: 'missing-project', clusters: [], namespaces: [] },
+    });
   });
 });
 

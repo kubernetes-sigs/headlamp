@@ -18,9 +18,15 @@ import { EventEmitter } from 'events';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
-const { getShellEnvironmentMock, spawnMock } = vi.hoisted(() => ({
+const { getShellEnvironmentMock, spawnMock, showMessageBoxSyncMock } = vi.hoisted(() => ({
   getShellEnvironmentMock: vi.fn(),
   spawnMock: vi.fn(),
+  showMessageBoxSyncMock: vi.fn(),
+}));
+
+vi.mock('electron', () => ({
+  BrowserWindow: class {},
+  dialog: { showMessageBoxSync: showMessageBoxSyncMock },
 }));
 
 vi.mock('child_process', () => ({
@@ -477,5 +483,55 @@ describe('addRunCmdConsent', () => {
     for (const cmd of AI_ASSISTANT_COMMANDS) {
       expect(savedSettings?.confirmedCommands?.[cmd]).toBeUndefined();
     }
+  });
+});
+
+describe('command consent', () => {
+  const fakeMainWindow = { id: 1 } as any;
+  const permissionSecrets = { 'runCmd-gh': 99 };
+  const eventData = {
+    id: 'test-id',
+    command: 'gh',
+    args: ['auth', 'token'],
+    options: {},
+    permissionSecrets: { 'runCmd-gh': 99 },
+  };
+  let fakeEvent: any;
+
+  beforeEach(async () => {
+    const { loadSettings } = await import('./settings');
+    // No saved answer for "gh auth", so the consent dialog is shown.
+    vi.mocked(loadSettings).mockReturnValue({ confirmedCommands: {} });
+    getShellEnvironmentMock.mockReset();
+    getShellEnvironmentMock.mockResolvedValue(shellEnvironment);
+    spawnMock.mockReset();
+    spawnMock.mockReturnValue(
+      Object.assign(new EventEmitter(), {
+        stdout: new EventEmitter(),
+        stderr: new EventEmitter(),
+      })
+    );
+    showMessageBoxSyncMock.mockReset();
+    fakeEvent = { sender: { send: vi.fn() } } as any;
+  });
+
+  it('does not run the command when the user denies consent', async () => {
+    // Second button is Deny.
+    showMessageBoxSyncMock.mockReturnValue(1);
+
+    await handleRunCommand(fakeEvent, eventData, fakeMainWindow, permissionSecrets);
+
+    expect(showMessageBoxSyncMock).toHaveBeenCalled();
+    expect(spawnMock).not.toHaveBeenCalled();
+  });
+
+  it('runs the command when the user allows it', async () => {
+    // First button is Allow.
+    showMessageBoxSyncMock.mockReturnValue(0);
+
+    await handleRunCommand(fakeEvent, eventData, fakeMainWindow, permissionSecrets);
+
+    expect(showMessageBoxSyncMock).toHaveBeenCalled();
+    expect(spawnMock).toHaveBeenCalled();
   });
 });

@@ -22,6 +22,16 @@ import path from 'node:path';
 
 const appPath = path.resolve(__dirname, '../..');
 
+test('keeps the MCP adapter out of the Electron startup bundle', () => {
+  const mainBundle = fs.readFileSync(path.join(appPath, 'build', 'main.js'), 'utf8');
+  const adapterBundlePath = path.join(appPath, 'build', 'mcp', 'MCPAdapter.js');
+
+  expect(fs.existsSync(adapterBundlePath)).toBe(true);
+  expect(mainBundle).toContain('./mcp/MCPAdapter.js');
+  expect(mainBundle).not.toContain('@modelcontextprotocol/sdk');
+  expect(fs.statSync(adapterBundlePath).size).toBeGreaterThan(100_000);
+});
+
 test('custom platform metadata reaches the Electron Builder configuration', () => {
   const manifestDir = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-build-manifest-'));
   const manifestFile = path.join(manifestDir, 'app-build-manifest.json');
