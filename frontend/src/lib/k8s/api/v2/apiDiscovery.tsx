@@ -254,15 +254,40 @@ function processLegacyApiResourceList(
 }
 
 /**
+ * Thrown when discovery produced nothing for any requested cluster because every
+ * source failed. Distinguishing this from an empty result matters: a resolved
+ * empty array reads as "these clusters serve no API resources", which no reachable
+ * cluster does, so callers that cannot tell the two apart render "nothing found"
+ * for a cluster they never reached.
+ */
+export class ApiDiscoveryUnavailableError extends Error {
+  constructor(clusters: string[]) {
+    super(`API discovery failed for every requested cluster: ${clusters.join(', ')}`);
+    this.name = 'ApiDiscoveryUnavailableError';
+  }
+}
+
+/**
  * Discovers available API resources from Kubernetes clusters.
  * - Only resources that support the 'list' verb are included in the results
  *
+ * Partial failures are tolerated and logged: a cluster, group or version that
+ * could not be fetched is skipped and whatever else was discovered is returned.
+ *
  * @param clusters - An array of cluster names to discover API resources from
  * @returns list of API resources
+ * @throws {ApiDiscoveryUnavailableError} if no discovery source succeeded for any
+ * of the requested clusters. An empty `clusters` array is not a failure and
+ * resolves to an empty list.
  *
  */
 export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
   const resultMap = new Map<string, ApiResource>();
+  // Tracks whether any discovery source answered for any cluster. A source
+  // "answered" when its fetch and parse both succeeded, even if it reported no
+  // groups: an empty answer from a reachable cluster is information, whereas a
+  // failed fetch is not.
+  let anyClusterAnswered = false;
 
   for (const cluster of clusters) {
     let useFallback = false;
@@ -303,6 +328,10 @@ export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
         apisAggregatedOk = true;
       }
 
+      if (apiAggregatedOk || apisAggregatedOk) {
+        anyClusterAnswered = true;
+      }
+
       if (!apiAggregatedOk) {
         logAggregatedUnusable('/api', cluster, apiAggregatedResult);
       }
@@ -326,6 +355,13 @@ export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
           fetchLegacyOrLogFailure('/api', cluster),
           fetchLegacyOrLogFailure('/apis', cluster),
         ]);
+
+        // Symmetric with the aggregated check above, which requires an `items`
+        // array: a body that carries the expected list is an answer even when the
+        // list is empty, whereas a failed fetch or an unrecognisable body is not.
+        if (Array.isArray(coreApiVersionsData?.versions) || Array.isArray(apiGroupsData?.groups)) {
+          anyClusterAnswered = true;
+        }
 
         if (coreApiVersionsData && Array.isArray(coreApiVersionsData.versions)) {
           const coreResourceFetchPromises = coreApiVersionsData.versions.map(async (v: any) => {
@@ -396,6 +432,12 @@ export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
         console.debug(`Failed to fetch legacy API resources for cluster ${cluster}:`, legacyError);
       }
     }
+  }
+
+  // Only the total-failure case throws. Anything that was discovered is returned,
+  // so one unreachable cluster in a multi-cluster call still yields the others.
+  if (clusters.length > 0 && !anyClusterAnswered) {
+    throw new ApiDiscoveryUnavailableError(clusters);
   }
 
   return Array.from(resultMap.values());
