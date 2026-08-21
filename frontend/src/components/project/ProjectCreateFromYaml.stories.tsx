@@ -17,6 +17,7 @@
 import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
+import { initialState as configInitialState } from '../../redux/configSlice';
 import reducers from '../../redux/reducers/reducers';
 import { API_BASE, TestContext } from '../../test';
 import { CreateNew } from './ProjectCreateFromYaml';
@@ -34,17 +35,12 @@ const makeStore = () => {
     reducer: reducers,
     preloadedState: {
       config: {
-        clusters: null,
-        statelessClusters: null,
+        ...configInitialState,
         allClusters: {
           'cluster-a': { name: 'cluster-a' },
           'cluster-b': { name: 'cluster-b' },
         } as any,
         isDynamicClusterEnabled: true,
-        allowKubeconfigChanges: false,
-        defaultPodDebugImage: '',
-        defaultNodeShellImage: '',
-        defaultNodeShellNamespace: '',
         settings: {
           tableRowsPerPageOptions: [15, 25, 50],
           timezone: 'UTC',

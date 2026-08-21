@@ -15,11 +15,13 @@
  */
 
 import { Cluster } from '../lib/k8s/cluster';
+import { makeRegisteredCluster } from '../test/clusterRegistration';
 import configReducer, {
   ConfigState,
   defaultTableRowsPerPageOptions,
   initialState,
   setAppSettings,
+  setClusterRegistrations,
   setConfig,
   setStatelessConfig,
 } from './configSlice';
@@ -131,6 +133,19 @@ describe('configSlice', () => {
     expect(nextState.defaultNodeShellNamespace).toBe('');
   });
 
+  it('should preserve clusterRegistrationsEnabled when setConfig is called without it', () => {
+    let state = configReducer(
+      initialState,
+      setConfig({ clusters: {}, clusterRegistrationsEnabled: true })
+    );
+
+    expect(state.clusterRegistrationsEnabled).toBe(true);
+
+    state = configReducer(state, setConfig({ clusters: {} }));
+
+    expect(state.clusterRegistrationsEnabled).toBe(true);
+  });
+
   it('should preserve isDynamicClusterEnabled when setConfig is called without it', () => {
     let state = configReducer(
       initialState,
@@ -156,6 +171,17 @@ describe('configSlice', () => {
     };
     const nextState = configReducer(initialState, setStatelessConfig({ statelessClusters }));
     expect(nextState.statelessClusters).toEqual(statelessClusters);
+  });
+
+  it('should handle setClusterRegistrations', () => {
+    const registration = makeRegisteredCluster();
+    const registrations: ConfigState['clusterRegistrations'] = { [registration.id]: registration };
+
+    let nextState = configReducer(initialState, setClusterRegistrations(registrations));
+    expect(nextState.clusterRegistrations).toEqual(registrations);
+
+    nextState = configReducer(nextState, setClusterRegistrations(null));
+    expect(nextState.clusterRegistrations).toBeNull();
   });
 
   describe('setAppSettings', () => {

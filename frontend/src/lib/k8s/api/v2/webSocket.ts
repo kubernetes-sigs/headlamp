@@ -20,6 +20,7 @@ import { getHeadlampWebSocketProtocol } from '../../../../helpers/getHeadlampAPI
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
+import { getClusterRoute } from '../../../clusterRegistration';
 import { makeUrl } from './makeUrl';
 
 /**
@@ -110,7 +111,7 @@ export async function openWebSocket<T>(
   }
 
   if (cluster) {
-    path.unshift('clusters', cluster);
+    path.unshift('clusters', getClusterRoute(cluster));
 
     try {
       const kubeconfig = await findKubeconfigByClusterName(cluster);

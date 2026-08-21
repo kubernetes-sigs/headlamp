@@ -29,6 +29,7 @@ import { useDispatch } from 'react-redux';
 import { useLocation } from 'react-router-dom';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
+import { startClusterRegistrationStream } from '../../lib/clusterRegistrationStream';
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { Cluster } from '../../lib/k8s/cluster';
@@ -228,6 +229,13 @@ export default function Layout({}: LayoutProps) {
   useEffect(() => {
     document.body.removeAttribute('style');
   }, []);
+
+  const registrationsEnabled = useTypedSelector(state => state.config.clusterRegistrationsEnabled);
+  useEffect(() => {
+    if (!registrationsEnabled) return;
+
+    return startClusterRegistrationStream();
+  }, [registrationsEnabled]);
 
   const cluster = useCluster();
   useEffect(() => {
