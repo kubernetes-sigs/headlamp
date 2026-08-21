@@ -24,7 +24,12 @@ import {
   MockInstance,
   vi,
 } from 'vitest';
-import { apiDiscovery, MAX_SUMMARY_KEYS, type PayloadSummary } from './apiDiscovery';
+import {
+  apiDiscovery,
+  ApiDiscoveryUnavailableError,
+  MAX_SUMMARY_KEYS,
+  type PayloadSummary,
+} from './apiDiscovery';
 import { clusterFetch } from './fetch';
 
 // Reused across tests that need a Response whose body fails to parse as JSON.
@@ -635,6 +640,69 @@ describe('apiDiscovery', () => {
       ]
     `);
     expect(sortedResult).toHaveLength(2);
+  });
+
+  // A resolved empty array used to mean two different things: the cluster
+  // answered and listed nothing, or nothing answered at all. Consumers render
+  // the first as "no resources" and had no way to tell the second apart, so a
+  // cluster that was never reached looked like a cluster with no APIs.
+  describe('total discovery failure', () => {
+    let debugSpy: MockInstance<Console['debug']>;
+
+    beforeEach(() => {
+      debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      debugSpy.mockRestore();
+    });
+
+    it('rejects when no discovery source answers for the only cluster', async () => {
+      // Every call rejects, which is what `clusterFetch` does in production for
+      // a non-OK response or a dropped connection.
+      mockClusterFetch
+        .mockRejectedValueOnce(new Error('agg /api'))
+        .mockRejectedValueOnce(new Error('agg /apis'))
+        .mockRejectedValueOnce(new Error('legacy /api'))
+        .mockRejectedValueOnce(new Error('legacy /apis'));
+
+      await expect(apiDiscovery(['cluster1'])).rejects.toThrow(ApiDiscoveryUnavailableError);
+    });
+
+    it('names the clusters it could not reach', async () => {
+      mockClusterFetch.mockRejectedValue(new Error('unreachable'));
+
+      await expect(apiDiscovery(['cluster1', 'cluster2'])).rejects.toThrow(/cluster1, cluster2/);
+    });
+
+    it('resolves empty when the cluster answers and lists nothing', async () => {
+      // The aggregated endpoints are unavailable but legacy discovery replies,
+      // reporting no core versions and no groups. That is an answer, so it must
+      // stay a resolved empty list rather than becoming an error.
+      mockClusterFetch
+        .mockRejectedValueOnce(new Error('agg /api'))
+        .mockRejectedValueOnce(new Error('agg /apis'))
+        .mockResolvedValueOnce(mockJsonResponse({ versions: [] }))
+        .mockResolvedValueOnce(mockJsonResponse({ groups: [] }));
+
+      await expect(apiDiscovery(['cluster1'])).resolves.toEqual([]);
+    });
+
+    it('returns what it has when one cluster of several fails outright', async () => {
+      mockClusterFetch
+        // cluster1: nothing answers
+        .mockRejectedValueOnce(new Error('agg /api'))
+        .mockRejectedValueOnce(new Error('agg /apis'))
+        .mockRejectedValueOnce(new Error('legacy /api'))
+        .mockRejectedValueOnce(new Error('legacy /apis'))
+        // cluster2: aggregated discovery works
+        .mockResolvedValueOnce(mockJsonResponse(mockAggregatedApi))
+        .mockResolvedValueOnce(mockJsonResponse(mockAggregatedApis));
+
+      const result = await apiDiscovery(['cluster1', 'cluster2']);
+
+      expect(result.length).toBeGreaterThan(0);
+    });
   });
 
   // #4840: critical network and parsing failures used to be swallowed without
