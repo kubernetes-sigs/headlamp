@@ -261,7 +261,12 @@ func runWatcher(
 ) {
 	defer func() {
 		watcherRegistry.Delete(contextKey)
-		contextCancel.Delete(contextKey)
+
+		if cancelVal, loaded := contextCancel.LoadAndDelete(contextKey); loaded {
+			if cancel, ok := cancelVal.(context.CancelFunc); ok {
+				cancel()
+			}
+		}
 	}()
 
 	logger.Log(logger.LevelInfo, nil, nil, "running runWatcher for watching k8s resource: "+redactContextKey(contextKey))
@@ -278,7 +283,11 @@ func runWatcher(
 		return
 	}
 
-	discoveryClient := discovery.NewDiscoveryClientForConfigOrDie(config)
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(config)
+	if err != nil {
+		logger.Log(logger.LevelError, nil, err, "error creating discovery client for context: "+redactContextKey(contextKey))
+		return
+	}
 
 	apiResourceLists, err := discoveryClient.ServerPreferredResources()
 	if apiResourceLists == nil && err != nil {
