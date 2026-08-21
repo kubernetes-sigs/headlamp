@@ -17,6 +17,8 @@
 import type { QueryObserverOptions } from '@tanstack/react-query';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { loadClusterSettings } from '../../../../helpers/clusterSettings';
+import { useAppSelector } from '../../../../redux/hooks';
 import {
   hasAllowedNamespacesRestriction,
   loadClusterSettings,
@@ -991,10 +993,34 @@ export function useKubeObjectList<K extends KubeObject>({
     perRequestQueryParams,
     refetchInterval,
   ]);
+  const optimisticUpdates = useAppSelector(state => state.optimisticUpdates);
+
+  const itemsWithOptimistic = useMemo(() => {
+    if (endpointError || !query.items) return endpointError ? [] : query.items;
+    let changed = false;
+    const mapped = query.items.map(item => {
+      const uid = item.metadata?.uid;
+      const update = uid && optimisticUpdates ? optimisticUpdates[uid] : undefined;
+      if (update) {
+        changed = true;
+        const clone = Object.assign(Object.create(Object.getPrototypeOf(item)), item);
+        clone.jsonData = { ...clone.jsonData, _optimisticState: update };
+        if (update.action === 'scale' && update.patch?.spec) {
+          clone.jsonData = {
+            ...clone.jsonData,
+            spec: { ...clone.jsonData.spec, ...update.patch.spec },
+          };
+        }
+        return clone as K;
+      }
+      return item;
+    });
+    return changed ? mapped : query.items;
+  }, [endpointError, query.items, optimisticUpdates]);
 
   // @ts-ignore - TS compiler gets confused with iterators
   return {
-    items: endpointError ? [] : query.items,
+    items: itemsWithOptimistic,
     errors: endpointError ? [endpointError] : errors.length > 0 ? errors : null,
     error: endpointError ?? paginationError ?? query.errors.find(it => it !== null) ?? null,
     clusterResults: query.clusterResults,
@@ -1006,7 +1032,7 @@ export function useKubeObjectList<K extends KubeObject>({
     remainingItemCount: query.remainingItemCount,
     loadMore: query.hasMore ? loadMore : undefined,
     *[Symbol.iterator](): ArrayIterator<ApiError | K[] | null> {
-      yield query.items;
+      yield itemsWithOptimistic;
       yield endpointError ?? paginationError ?? query.errors.find(it => it !== null) ?? null;
     },
   };

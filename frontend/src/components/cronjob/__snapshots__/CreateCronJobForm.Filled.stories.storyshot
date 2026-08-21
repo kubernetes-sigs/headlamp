@@ -11,7 +11,7 @@
           class="MuiBox-root css-jh9hvo"
         >
           <legend
-            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-subtitle1 css-1pwxuvc-MuiTypography-root"
           >
             Metadata
           </legend>
@@ -25,10 +25,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-r6ef99"
+                  class="MuiBox-root css-1chh4gh"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
                   >
                     Name
                      *
@@ -74,10 +74,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-r6ef99"
+                  class="MuiBox-root css-1chh4gh"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
                   >
                     Namespace
                   </span>
@@ -156,10 +156,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-r6ef99"
+                  class="MuiBox-root css-1chh4gh"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
                   >
                     Labels
                   </span>
@@ -283,7 +283,7 @@
           class="MuiBox-root css-jh9hvo"
         >
           <legend
-            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-subtitle1 css-1pwxuvc-MuiTypography-root"
           >
             Spec
           </legend>
@@ -297,10 +297,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-r6ef99"
+                  class="MuiBox-root css-1chh4gh"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
                   >
                     Schedule
                   </span>
@@ -355,10 +355,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-r6ef99"
+                  class="MuiBox-root css-1chh4gh"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
                   >
                     Time Zone
                   </span>
@@ -413,10 +413,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-r6ef99"
+                  class="MuiBox-root css-1chh4gh"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
                   >
                     Concurrency Policy
                   </span>
@@ -519,7 +519,7 @@
                     </span>
                   </label>
                   <div
-                    class="MuiBox-root css-r6ef99"
+                    class="MuiBox-root css-1chh4gh"
                   >
                     <button
                       aria-label="If set, no new Jobs will be scheduled."
@@ -543,10 +543,10 @@
                 class="MuiBox-root css-j0ozid"
               >
                 <div
-                  class="MuiBox-root css-xrxduh"
+                  class="MuiBox-root css-1lk0ag"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
                   >
                     Starting Deadline (s)
                   </span>
@@ -596,10 +596,10 @@
                 class="MuiBox-root css-j0ozid"
               >
                 <div
-                  class="MuiBox-root css-xrxduh"
+                  class="MuiBox-root css-1lk0ag"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
                   >
                     Successful Jobs History Limit
                   </span>
@@ -649,10 +649,10 @@
                 class="MuiBox-root css-j0ozid"
               >
                 <div
-                  class="MuiBox-root css-xrxduh"
+                  class="MuiBox-root css-1lk0ag"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
                   >
                     Failed Jobs History Limit
                   </span>
@@ -701,7 +701,7 @@
           class="MuiBox-root css-jh9hvo"
         >
           <legend
-            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-subtitle1 css-1pwxuvc-MuiTypography-root"
           >
             Job Template
           </legend>
@@ -715,10 +715,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-r6ef99"
+                  class="MuiBox-root css-1chh4gh"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
                   >
                     Pod Labels
                   </span>
@@ -757,10 +757,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-r6ef99"
+                  class="MuiBox-root css-1chh4gh"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
                   >
                     Containers
                      *
@@ -900,10 +900,10 @@
                       class="MuiBox-root css-nn3smo"
                     >
                       <div
-                        class="MuiBox-root css-r6ef99"
+                        class="MuiBox-root css-1chh4gh"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
                         >
                           Command
                         </span>
@@ -1043,10 +1043,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-r6ef99"
+                  class="MuiBox-root css-1chh4gh"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
                   >
                     Restart Policy
                      *
