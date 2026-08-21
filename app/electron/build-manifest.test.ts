@@ -209,6 +209,15 @@ describe('product metadata', () => {
     );
   });
 
+  it.each([undefined, null, [], 'example', [''], [1], ['example', 2]])(
+    'rejects protocols without a usable schemes list: %j',
+    schemes => {
+      expect(() =>
+        applyProductMetadata({}, { product: { protocols: { name: 'example', schemes } } })
+      ).toThrow('Build manifest product.protocols.schemes must be a non-empty array of strings');
+    }
+  );
+
   it.each([null, [], 'metadata'])(
     'replaces malformed inherited extra metadata: %j',
     extraMetadata => {

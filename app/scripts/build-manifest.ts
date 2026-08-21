@@ -161,6 +161,21 @@ export function applyProductMetadata<T extends object>(config: T, manifest: unkn
   ) {
     throw new Error('Build manifest product.protocols must be an object');
   }
+  if (product.protocols !== undefined) {
+    // The app reads this same field at runtime to decide which deep links to
+    // accept, so an unusable value would silently fall back to the Headlamp
+    // scheme while the installer registers something else.
+    const schemes = (product.protocols as Record<string, unknown>).schemes;
+    if (
+      !Array.isArray(schemes) ||
+      schemes.length === 0 ||
+      schemes.some(scheme => typeof scheme !== 'string' || scheme === '')
+    ) {
+      throw new Error(
+        'Build manifest product.protocols.schemes must be a non-empty array of strings'
+      );
+    }
+  }
 
   const metadata = product as ProductMetadata;
   const configRecord = config as Record<string, unknown>;
