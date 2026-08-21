@@ -15,11 +15,13 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
+import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { render, waitFor } from '@testing-library/react';
 import { ReactNode } from 'react';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import App from '../../../App';
+import * as configExportImport from '../../../lib/configExportImport';
 import { createMuiTheme } from '../../../lib/themes';
 import { HeadlampEventType } from '../../../redux/headlampEventSlice';
 import store from '../../../redux/stores/store';
@@ -73,6 +75,98 @@ describe('Settings events', () => {
       expect(events.filter(e => e.type === HeadlampEventType.CLUSTER_SETTINGS_VIEW)).toEqual([
         { type: HeadlampEventType.CLUSTER_SETTINGS_VIEW, data: { cluster: 'cluster-1' } },
       ]);
+    });
+  });
+});
+
+describe('Settings Import Configuration', () => {
+  let alertMock: any;
+  let reloadMock: any;
+  let importConfigMock: any;
+
+  beforeEach(() => {
+    alertMock = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    Object.defineProperty(window, 'location', {
+      writable: true,
+      value: { reload: vi.fn() },
+    });
+    reloadMock = window.location.reload;
+    importConfigMock = vi.spyOn(configExportImport, 'importConfig');
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('handles cancel properly', async () => {
+    renderWithProviders(<Settings />);
+
+    // Open import dialog
+    const importBtn = screen.getByLabelText('Import Configuration');
+    fireEvent.click(importBtn);
+
+    // Confirm dialog appears
+    const cancelBtn = screen.getByText('Cancel');
+    fireEvent.click(cancelBtn);
+
+    // Dialog closes
+    await waitFor(() => {
+      expect(screen.queryByText('Import')).not.toBeInTheDocument();
+    });
+  });
+
+  it('handles invalid input and failure', async () => {
+    importConfigMock.mockReturnValue(false);
+    renderWithProviders(<Settings />);
+
+    // Open import dialog
+    const importBtn = screen.getByLabelText('Import Configuration');
+    fireEvent.click(importBtn);
+
+    // Confirm dialog
+    const confirmBtn = screen.getByText('Import');
+    fireEvent.click(confirmBtn);
+
+    // Trigger file input
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['invalid'], 'test.json', { type: 'application/json' });
+    Object.defineProperty(fileInput, 'files', {
+      value: [file],
+    });
+    fireEvent.change(fileInput);
+
+    await waitFor(() => {
+      expect(importConfigMock).toHaveBeenCalled();
+      expect(alertMock).toHaveBeenCalledWith(
+        'Failed to import configuration. The file might be corrupted or invalid.'
+      );
+      expect(reloadMock).not.toHaveBeenCalled();
+    });
+  });
+
+  it('handles successful import and reload', async () => {
+    importConfigMock.mockReturnValue(true);
+    renderWithProviders(<Settings />);
+
+    // Open import dialog
+    const importBtn = screen.getByLabelText('Import Configuration');
+    fireEvent.click(importBtn);
+
+    // Confirm dialog
+    const confirmBtn = screen.getByText('Import');
+    fireEvent.click(confirmBtn);
+
+    // Trigger file input
+    const fileInput = document.querySelector('input[type="file"]') as HTMLInputElement;
+    const file = new File(['{"key": "value"}'], 'test.json', { type: 'application/json' });
+    Object.defineProperty(fileInput, 'files', {
+      value: [file],
+    });
+    fireEvent.change(fileInput);
+
+    await waitFor(() => {
+      expect(importConfigMock).toHaveBeenCalled();
+      expect(reloadMock).toHaveBeenCalled();
     });
   });
 });
