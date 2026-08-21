@@ -27,6 +27,10 @@ vi.mock('./fetch', () => ({
   clusterFetch: vi.fn(),
 }));
 
+vi.mock('../../../../redux/hooks', () => ({
+  useAppSelector: vi.fn(() => ({})),
+}));
+
 const mockUseWebSocket = vi.fn();
 const mockUseWebSockets = vi.fn();
 

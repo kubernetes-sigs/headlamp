@@ -16,6 +16,7 @@
 
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useLayoutEffect, useMemo, useState } from 'react';
+import { useAppSelector } from '../../../../redux/hooks';
 import { getCluster } from '../../../cluster';
 import type { QueryParameters } from '../../api/v1/queryParameters';
 import type { KubeObject, KubeObjectInterface } from '../../KubeObject';
@@ -176,7 +177,28 @@ export function useKubeObject<K extends KubeObject>({
   }, [client, endpoint, initialData, queryKey]);
 
   const queryData: Instance | null = query.error ? null : query.data ?? null;
-  const data = initialData && seededInitialData !== initialData ? initialData : queryData;
+  const rawData = initialData && seededInitialData !== initialData ? initialData : queryData;
+
+  const optimisticUpdates = useAppSelector(state => state.optimisticUpdates);
+
+  const data = useMemo(() => {
+    if (!rawData) return rawData;
+    const uid = rawData.metadata?.uid;
+    const update = uid && optimisticUpdates ? optimisticUpdates[uid] : undefined;
+
+    if (update) {
+      const clone = Object.assign(Object.create(Object.getPrototypeOf(rawData)), rawData);
+      clone.jsonData = { ...clone.jsonData, _optimisticState: update };
+      if (update.action === 'scale' && update.patch?.spec) {
+        clone.jsonData = {
+          ...clone.jsonData,
+          spec: { ...clone.jsonData.spec, ...update.patch.spec },
+        };
+      }
+      return clone as Instance;
+    }
+    return rawData;
+  }, [rawData, optimisticUpdates]);
 
   const handleMessage = useCallback(
     (update: KubeListUpdateEvent<K>) => {

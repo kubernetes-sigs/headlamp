@@ -15,6 +15,7 @@
  */
 
 import Box from '@mui/material/Box';
+import CircularProgress from '@mui/material/CircularProgress';
 import { useTranslation } from 'react-i18next';
 import { KubeContainer } from '../../lib/k8s/cluster';
 import Deployment from '../../lib/k8s/deployment';
@@ -27,8 +28,27 @@ export default function DeploymentsList() {
 
   function renderPods(deployment: Deployment) {
     const { replicas, availableReplicas } = deployment.status;
+    const isScaleOptimistic = (deployment as any)._optimisticState?.action === 'scale';
+    const isDeleteOptimistic = (deployment as any)._optimisticState?.action === 'delete';
 
-    return `${availableReplicas || 0}/${replicas || 0}`;
+    if (isDeleteOptimistic) {
+      return (
+        <Box display="flex" alignItems="center" gap={1} sx={{ opacity: 0.5 }}>
+          <CircularProgress size={14} />
+          {t('translation|Deleting...')}
+        </Box>
+      );
+    }
+
+    const text = `${availableReplicas || 0}/${replicas || 0}`;
+    return isScaleOptimistic ? (
+      <Box display="flex" alignItems="center" gap={1}>
+        <CircularProgress size={14} />
+        {text}
+      </Box>
+    ) : (
+      text
+    );
   }
 
   function sortByPods(d1: Deployment, d2: Deployment) {
@@ -103,6 +123,18 @@ export default function DeploymentsList() {
           id: 'replicas',
           label: t('Replicas'),
           getValue: deployment => deployment.spec.replicas || 0,
+          render: deployment => {
+            const isScaleOptimistic = (deployment as any)._optimisticState?.action === 'scale';
+            const text = deployment.spec.replicas || 0;
+            return isScaleOptimistic ? (
+              <Box display="flex" alignItems="center" gap={1}>
+                <CircularProgress size={14} />
+                {text}
+              </Box>
+            ) : (
+              text
+            );
+          },
           gridTemplate: 'min-content',
         },
         {
