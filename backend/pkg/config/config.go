@@ -16,6 +16,8 @@ import (
 	"github.com/knadh/koanf/providers/basicflag"
 	"github.com/knadh/koanf/providers/env"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterregistration"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/spa"
 	"k8s.io/apimachinery/pkg/labels"
@@ -51,6 +53,7 @@ type Config struct {
 	EnableHelm             bool   `koanf:"enable-helm"`
 	EnableDynamicClusters  bool   `koanf:"enable-dynamic-clusters"`
 	EnableClusterInventory bool   `koanf:"enable-cluster-inventory"`
+	EnableClusterAPI       bool   `koanf:"enable-cluster-api"`
 	AllowKubeconfigChanges bool   `koanf:"allow-kubeconfig-changes"`
 	ListenAddr             string `koanf:"listen-addr"`
 	WatchPluginsChanges    bool   `koanf:"watch-plugins-changes"`
@@ -69,10 +72,14 @@ type Config struct {
 	ProxyURLs              string `koanf:"proxy-urls"`
 
 	ClusterInventoryProviderFile          string        `koanf:"cluster-inventory-provider-file"`
+	ClusterInventoryAuthType              string        `koanf:"cluster-inventory-auth-type"`
+	ClusterInventoryAccessProviders       string        `koanf:"cluster-inventory-access-providers"`
 	ClusterInventoryLabelSelector         string        `koanf:"cluster-inventory-label-selector"`
 	ClusterInventoryNamespaces            string        `koanf:"cluster-inventory-namespaces"`
 	ClusterInventoryRootReconcileInterval time.Duration `koanf:"cluster-inventory-root-reconcile-interval"`
 	ClusterInventoryNoCRDCacheTTL         time.Duration `koanf:"cluster-inventory-no-crd-cache-ttl"`
+	ClusterAPILabelSelector               string        `koanf:"cluster-api-label-selector"`
+	ClusterAPINamespaces                  string        `koanf:"cluster-api-namespaces"`
 
 	OidcClientID                 string `koanf:"oidc-client-id"`
 	OidcValidatorClientID        string `koanf:"oidc-validator-client-id"`
@@ -186,7 +193,7 @@ func (c *Config) Validate() error {
 		return err
 	}
 
-	return nil
+	return c.validateClusterAPI()
 }
 
 // validateAppName ensures the application name is safe for use in Kubernetes User-Agent headers.
@@ -224,8 +231,46 @@ func (c *Config) validateClusterInventory() error {
 		return nil
 	}
 
+	if c.ClusterInventoryAuthType != kubeconfig.AuthTypeOIDC &&
+		c.ClusterInventoryAuthType != clusterinventory.AuthTypeAccessProvider {
+		return fmt.Errorf("invalid cluster-inventory-auth-type %q", c.ClusterInventoryAuthType)
+	}
+
+	if strings.TrimSpace(c.ClusterInventoryAccessProviders) == "" {
+		return errors.New("cluster-inventory-access-providers is required when cluster inventory is enabled")
+	}
+
+	if err := validateDiscoverySelectors("cluster-inventory",
+		c.ClusterInventoryLabelSelector, c.ClusterInventoryNamespaces); err != nil {
+		return err
+	}
+
+	if c.ClusterInventoryAuthType == clusterinventory.AuthTypeAccessProvider {
+		return c.validateClusterInventoryProviderFile()
+	}
+
+	return nil
+}
+
+// validateDiscoverySelectors validates the label selector and namespace list of one
+// discovery source. flagPrefix names the source's flags, such as "cluster-inventory".
+func validateDiscoverySelectors(flagPrefix, labelSelector, namespaces string) error {
+	if _, err := labels.Parse(labelSelector); err != nil {
+		return fmt.Errorf("invalid %s-label-selector: %w", flagPrefix, err)
+	}
+
+	if _, err := clusterregistration.ParseNamespaces(namespaces); err != nil {
+		return fmt.Errorf("invalid %s-namespaces: %w", flagPrefix, err)
+	}
+
+	return nil
+}
+
+// validateClusterInventoryProviderFile ensures the access provider configuration file
+// exists and can be parsed.
+func (c *Config) validateClusterInventoryProviderFile() error {
 	if c.ClusterInventoryProviderFile == "" {
-		return errors.New("cluster-inventory-provider-file is required when cluster inventory is enabled")
+		return errors.New("cluster-inventory-provider-file is required for access-provider authentication")
 	}
 
 	info, err := os.Stat(c.ClusterInventoryProviderFile)
@@ -241,20 +286,19 @@ func (c *Config) validateClusterInventory() error {
 		return fmt.Errorf("invalid cluster-inventory-provider-file: %w", err)
 	}
 
-	labelSelector := strings.TrimSpace(c.ClusterInventoryLabelSelector)
-	if labelSelector != "" {
-		if _, err := labels.Parse(labelSelector); err != nil {
-			return fmt.Errorf("invalid cluster-inventory-label-selector: %w", err)
-		}
-	}
-
-	c.ClusterInventoryLabelSelector = labelSelector
-
-	if err := clusterinventory.ValidateNamespaces(c.ClusterInventoryNamespaces); err != nil {
-		return err
-	}
-
 	return nil
+}
+
+func (c *Config) validateClusterAPI() error {
+	if !c.EnableClusterAPI {
+		return nil
+	}
+
+	if !c.InCluster {
+		return errors.New("enable-cluster-api requires in-cluster mode")
+	}
+
+	return validateDiscoverySelectors("cluster-api", c.ClusterAPILabelSelector, c.ClusterAPINamespaces)
 }
 
 func (c *Config) validateServiceAccountTokenFlags() error {
@@ -626,18 +670,7 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.Uint("port", defaultPort, "Port to listen from")
 	f.String("proxy-urls", "", "Allow proxy requests to specified URLs")
 	f.Bool("enable-helm", false, "Enable Helm operations")
-	f.Bool("enable-cluster-inventory", false,
-		"Enable experimental/alpha automatic discovery of clusters from ClusterProfile resources")
-	f.String("cluster-inventory-provider-file", "",
-		"Path to the JSON configuration file for experimental/alpha Cluster Inventory access providers")
-	f.String("cluster-inventory-label-selector", "",
-		"Label selector used to filter ClusterProfile resources for experimental/alpha Cluster Inventory")
-	f.String("cluster-inventory-namespaces", "",
-		"Comma-separated namespaces watched for experimental/alpha ClusterProfile resources; \"*\" watches all")
-	f.Duration("cluster-inventory-root-reconcile-interval", clusterinventory.DefaultRootReconcileInterval,
-		"Interval for reconciling experimental/alpha Cluster Inventory roots")
-	f.Duration("cluster-inventory-no-crd-cache-ttl", clusterinventory.DefaultNoCRDCacheTTL,
-		"How long to cache that an API server has no experimental/alpha ClusterProfile CRD")
+	addClusterDiscoveryFlags(f)
 	f.String("default-light-theme", "", "Default theme to use when user prefers light mode")
 	f.String("default-dark-theme", "", "Default theme to use when user prefers dark mode")
 	f.String("force-theme", "", "Force a specific theme, overriding user preferences")
@@ -647,6 +680,31 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.String("service-account-token-path", "",
 		"Path to the service account token. "+
 			"Only used when --unsafe-use-service-account-token is set and in-cluster")
+}
+
+func addClusterDiscoveryFlags(f *flag.FlagSet) {
+	f.Bool("enable-cluster-inventory", false,
+		"Enable experimental/alpha automatic discovery of clusters from ClusterProfile resources")
+	f.Bool("enable-cluster-api", false,
+		"Enable experimental/alpha automatic discovery of clusters from Cluster API resources")
+	f.String("cluster-inventory-provider-file", "",
+		"Path to the JSON configuration file for experimental/alpha Cluster Inventory access providers")
+	f.String("cluster-inventory-auth-type", kubeconfig.AuthTypeOIDC,
+		"Authentication for Cluster Inventory registrations: oidc or access-provider")
+	f.String("cluster-inventory-access-providers", "",
+		"Ordered, comma-separated allowlist of ClusterProfile access provider names")
+	f.String("cluster-inventory-label-selector", "",
+		"Label selector used to filter ClusterProfile resources for experimental/alpha Cluster Inventory")
+	f.String("cluster-inventory-namespaces", "",
+		"Comma-separated namespaces watched for experimental/alpha ClusterProfile resources; \"*\" watches all")
+	f.Duration("cluster-inventory-root-reconcile-interval", clusterinventory.DefaultRootReconcileInterval,
+		"Interval for reconciling experimental/alpha Cluster Inventory roots")
+	f.Duration("cluster-inventory-no-crd-cache-ttl", clusterinventory.DefaultNoCRDCacheTTL,
+		"How long to cache that an API server has no experimental/alpha ClusterProfile CRD")
+	f.String("cluster-api-label-selector", "",
+		"Label selector used to filter experimental/alpha Cluster API Cluster resources")
+	f.String("cluster-api-namespaces", "",
+		"Comma-separated namespaces watched for experimental/alpha Cluster API resources; \"*\" watches all")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {

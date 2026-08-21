@@ -831,5 +831,6 @@
     "storeStatelessClusterKubeconfig": [Function],
     "toStatelessConfigState": [Function],
   },
+  "useRegisteredClusters": [Function],
   "useTranslation": [Function],
 }

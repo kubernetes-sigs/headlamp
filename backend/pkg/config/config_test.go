@@ -10,6 +10,7 @@ import (
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -586,6 +587,7 @@ func TestParseClusterInventoryFlags(t *testing.T) {
 		"go run ./cmd",
 		"--enable-cluster-inventory",
 		"--cluster-inventory-provider-file=" + providerFile,
+		"--cluster-inventory-access-providers=static-token,oidc",
 		"--cluster-inventory-label-selector=environment=prod,!headlamp.dev/ignore",
 		"--cluster-inventory-namespaces=team-a,team-b",
 		"--cluster-inventory-root-reconcile-interval=15s",
@@ -594,6 +596,8 @@ func TestParseClusterInventoryFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, conf.EnableClusterInventory)
+	assert.Equal(t, kubeconfig.AuthTypeOIDC, conf.ClusterInventoryAuthType)
+	assert.Equal(t, "static-token,oidc", conf.ClusterInventoryAccessProviders)
 	assert.Equal(t, providerFile, conf.ClusterInventoryProviderFile)
 	assert.Equal(t, "environment=prod,!headlamp.dev/ignore", conf.ClusterInventoryLabelSelector)
 	assert.Equal(t, "team-a,team-b", conf.ClusterInventoryNamespaces)
@@ -605,6 +609,7 @@ func TestParseClusterInventoryEnv(t *testing.T) {
 	providerFile := writeClusterInventoryProviderFile(t)
 	t.Setenv("HEADLAMP_CONFIG_ENABLE_CLUSTER_INVENTORY", "true")
 	t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_PROVIDER_FILE", providerFile)
+	t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_ACCESS_PROVIDERS", "static-token")
 	t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_LABEL_SELECTOR", "!headlamp.dev/ignore")
 	t.Setenv("HEADLAMP_CONFIG_CLUSTER_INVENTORY_NAMESPACES", "*")
 
@@ -612,6 +617,7 @@ func TestParseClusterInventoryEnv(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.True(t, conf.EnableClusterInventory)
+	assert.Equal(t, kubeconfig.AuthTypeOIDC, conf.ClusterInventoryAuthType)
 	assert.Equal(t, providerFile, conf.ClusterInventoryProviderFile)
 	assert.Equal(t, "!headlamp.dev/ignore", conf.ClusterInventoryLabelSelector)
 	assert.Equal(t, "*", conf.ClusterInventoryNamespaces)
@@ -624,6 +630,7 @@ func TestParseClusterInventoryDefaultIntervals(t *testing.T) {
 		"go run ./cmd",
 		"--enable-cluster-inventory",
 		"--cluster-inventory-provider-file=" + providerFile,
+		"--cluster-inventory-access-providers=static-token",
 	})
 	require.NoError(t, err)
 
@@ -641,88 +648,142 @@ func TestClusterInventoryValidation(t *testing.T) {
 		assert.False(t, conf.EnableClusterInventory)
 	})
 
-	t.Run("enabled requires provider file", func(t *testing.T) {
+	t.Run("oidc is the default and does not require a provider file", func(t *testing.T) {
+		conf, err := config.Parse([]string{
+			"go run ./cmd",
+			"--enable-cluster-inventory",
+			"--cluster-inventory-access-providers=oidc",
+		})
+		require.NoError(t, err)
+		require.NotNil(t, conf)
+		assert.Equal(t, kubeconfig.AuthTypeOIDC, conf.ClusterInventoryAuthType)
+	})
+
+	t.Run("enabled rejects an unknown auth type", func(t *testing.T) {
+		conf, err := config.Parse([]string{
+			"go run ./cmd",
+			"--enable-cluster-inventory",
+			"--cluster-inventory-auth-type=basic",
+			"--cluster-inventory-access-providers=oidc",
+		})
+		require.Error(t, err)
+		require.Nil(t, conf)
+		assert.Contains(t, err.Error(), "invalid cluster-inventory-auth-type")
+	})
+
+	t.Run("enabled requires access providers", func(t *testing.T) {
 		conf, err := config.Parse([]string{"go run ./cmd", "--enable-cluster-inventory"})
 		require.Error(t, err)
 		require.Nil(t, conf)
-		assert.Contains(t, err.Error(), "cluster-inventory-provider-file is required")
-	})
-
-	t.Run("enabled rejects missing provider file", func(t *testing.T) {
-		conf, err := config.Parse([]string{
-			"go run ./cmd",
-			"--enable-cluster-inventory",
-			"--cluster-inventory-provider-file=/does/not/exist",
-		})
-		require.Error(t, err)
-		require.Nil(t, conf)
-		assert.Contains(t, err.Error(), "error reading cluster-inventory-provider-file")
-	})
-
-	t.Run("enabled rejects directory provider file", func(t *testing.T) {
-		conf, err := config.Parse([]string{
-			"go run ./cmd",
-			"--enable-cluster-inventory",
-			"--cluster-inventory-provider-file=" + t.TempDir(),
-		})
-		require.Error(t, err)
-		require.Nil(t, conf)
-		assert.Contains(t, err.Error(), "cluster-inventory-provider-file must be a regular file")
-	})
-
-	t.Run("enabled rejects invalid provider file", func(t *testing.T) {
-		providerFile := filepath.Join(t.TempDir(), "providers.json")
-		require.NoError(t, os.WriteFile(providerFile, []byte(`{`), 0o600))
-
-		conf, err := config.Parse([]string{
-			"go run ./cmd",
-			"--enable-cluster-inventory",
-			"--cluster-inventory-provider-file=" + providerFile,
-		})
-		require.Error(t, err)
-		require.Nil(t, conf)
-		assert.Contains(t, err.Error(), "invalid cluster-inventory-provider-file")
+		assert.Contains(t, err.Error(), "cluster-inventory-access-providers is required")
 	})
 }
 
-func TestClusterInventoryRejectsInvalidNamespaces(t *testing.T) {
-	invalidNamespaces := []struct {
-		name       string
-		namespaces string
+func TestClusterInventoryProviderFileValidation(t *testing.T) {
+	unparsableProviderFile := filepath.Join(t.TempDir(), "providers.json")
+	require.NoError(t, os.WriteFile(unparsableProviderFile, []byte(`{`), 0o600))
+
+	providerFiles := []struct {
+		name          string
+		providerFile  string
+		errorContains string
 	}{
-		{name: "invalid DNS label", namespaces: "Team_A"},
-		{name: "empty list entry", namespaces: "team-a,,team-b"},
-		{name: "repeated wildcard", namespaces: "*,*"},
+		{name: "unset", providerFile: "", errorContains: "cluster-inventory-provider-file is required"},
+		{
+			name:          "missing",
+			providerFile:  "/does/not/exist",
+			errorContains: "error reading cluster-inventory-provider-file",
+		},
+		{
+			name:          "directory",
+			providerFile:  t.TempDir(),
+			errorContains: "cluster-inventory-provider-file must be a regular file",
+		},
+		{
+			name:          "unparsable",
+			providerFile:  unparsableProviderFile,
+			errorContains: "invalid cluster-inventory-provider-file",
+		},
 	}
 
-	for _, tt := range invalidNamespaces {
-		t.Run("enabled rejects "+tt.name, func(t *testing.T) {
-			providerFile := writeClusterInventoryProviderFile(t)
+	for _, tt := range providerFiles {
+		t.Run("access-provider rejects a "+tt.name+" provider file", func(t *testing.T) {
 			conf, err := config.Parse([]string{
 				"go run ./cmd",
 				"--enable-cluster-inventory",
-				"--cluster-inventory-provider-file=" + providerFile,
-				"--cluster-inventory-namespaces=" + tt.namespaces,
+				"--cluster-inventory-auth-type=access-provider",
+				"--cluster-inventory-access-providers=static-token",
+				"--cluster-inventory-provider-file=" + tt.providerFile,
 			})
 			require.Error(t, err)
 			require.Nil(t, conf)
-			assert.Contains(t, err.Error(), "invalid cluster-inventory-namespaces")
+			assert.Contains(t, err.Error(), tt.errorContains)
 		})
 	}
 }
 
-func TestClusterInventoryRejectsInvalidLabelSelector(t *testing.T) {
-	providerFile := writeClusterInventoryProviderFile(t)
+func TestDiscoverySelectorValidation(t *testing.T) {
+	clusterInventory := []string{
+		"--enable-cluster-inventory",
+		"--cluster-inventory-access-providers=static-token",
+	}
+	clusterAPI := []string{"--in-cluster", "--enable-cluster-api"}
 
+	selectors := []struct {
+		name          string
+		args          []string
+		errorContains string
+	}{
+		{
+			name:          "cluster inventory rejects an invalid namespace",
+			args:          append(clusterInventory, "--cluster-inventory-namespaces=Team_A"),
+			errorContains: "invalid cluster-inventory-namespaces",
+		},
+		{
+			name:          "cluster inventory rejects an invalid label selector",
+			args:          append(clusterInventory, "--cluster-inventory-label-selector=headlamp.dev/ignore in ("),
+			errorContains: "invalid cluster-inventory-label-selector",
+		},
+		{
+			name:          "cluster api rejects an invalid namespace",
+			args:          append(clusterAPI, "--cluster-api-namespaces=Team_A"),
+			errorContains: "invalid cluster-api-namespaces",
+		},
+		{
+			name:          "cluster api rejects an invalid label selector",
+			args:          append(clusterAPI, "--cluster-api-label-selector=headlamp.dev/ignore in ("),
+			errorContains: "invalid cluster-api-label-selector",
+		},
+	}
+
+	for _, tt := range selectors {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(append([]string{"go run ./cmd"}, tt.args...))
+			require.Error(t, err)
+			require.Nil(t, conf)
+			assert.Contains(t, err.Error(), tt.errorContains)
+		})
+	}
+}
+
+func TestParseClusterAPIFlags(t *testing.T) {
 	conf, err := config.Parse([]string{
 		"go run ./cmd",
-		"--enable-cluster-inventory",
-		"--cluster-inventory-provider-file=" + providerFile,
-		"--cluster-inventory-label-selector=headlamp.dev/ignore in (",
+		"--in-cluster",
+		"--enable-cluster-api",
+		"--cluster-api-label-selector=environment=prod",
+		"--cluster-api-namespaces=team-a,team-b",
 	})
-	require.Error(t, err)
-	require.Nil(t, conf)
-	assert.Contains(t, err.Error(), "invalid cluster-inventory-label-selector")
+	require.NoError(t, err)
+	assert.True(t, conf.EnableClusterAPI)
+	assert.Equal(t, "environment=prod", conf.ClusterAPILabelSelector)
+	assert.Equal(t, "team-a,team-b", conf.ClusterAPINamespaces)
+}
+
+func TestClusterAPIRequiresInClusterMode(t *testing.T) {
+	conf, err := config.Parse([]string{"go run ./cmd", "--enable-cluster-api"})
+	require.ErrorContains(t, err, "enable-cluster-api requires in-cluster mode")
+	assert.Nil(t, conf)
 }
 
 func TestOIDCTLSValidation(t *testing.T) {

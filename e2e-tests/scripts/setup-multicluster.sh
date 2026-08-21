@@ -120,14 +120,15 @@ trap 'exit 130' INT TERM
 # expected is asserted by tests/clusterInventory.spec.ts, not here.
 wait_for_inventory() {
   local service_url="$1"
-  local config=""
+  local registrations=""
   local attempt
 
   for ((attempt = 0; attempt < 120; attempt++)); do
-    config="$(curl -fsS --connect-timeout 2 --max-time 5 "${service_url}/config" 2>/dev/null || true)"
+    registrations="$(curl -fsS --connect-timeout 2 --max-time 5 \
+      "${service_url}/cluster-registrations" 2>/dev/null || true)"
     if jq -e '
-      [.clusters[] | select(.meta_data.source == "cluster_inventory")] | length == 1
-    ' <<<"${config}" >/dev/null 2>&1; then
+      [.items[]? | select(.source == "cluster-inventory")] | length == 1
+    ' <<<"${registrations}" >/dev/null 2>&1; then
       return
     fi
 
@@ -135,8 +136,8 @@ wait_for_inventory() {
   done
 
   printf 'error: timed out waiting for a discovered ClusterProfile\n' >&2
-  jq -c '[.clusters[] | select(.meta_data.source == "cluster_inventory")]' \
-    <<<"${config}" >&2 || printf '%s\n' "${config}" >&2
+  jq -c '[.items[]? | select(.source == "cluster-inventory")]' \
+    <<<"${registrations}" >&2 || printf '%s\n' "${registrations}" >&2
   return 1
 }
 
