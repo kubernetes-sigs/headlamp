@@ -474,6 +474,22 @@ var parseFlagTests = []parseFlagTest{
 		},
 	},
 	{
+		name: "static_oidc_endpoint_flags",
+		args: []string{
+			"go run ./cmd",
+			"--oidc-auth-url=https://idp.example.com/authorize",
+			"--oidc-token-url=https://idp.example.com/token",
+			"--oidc-jwks-url=https://idp.example.com/keys",
+			"--oidc-userinfo-url=https://idp.example.com/userinfo",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, "https://idp.example.com/authorize", conf.OidcAuthURL)
+			assert.Equal(t, "https://idp.example.com/token", conf.OidcTokenURL)
+			assert.Equal(t, "https://idp.example.com/keys", conf.OidcJWKSURL)
+			assert.Equal(t, "https://idp.example.com/userinfo", conf.OidcUserinfoURL)
+		},
+	},
+	{
 		name: "enable_helm",
 		args: []string{"go run ./cmd", "--enable-helm"},
 		verify: func(t *testing.T, conf *config.Config) {
@@ -762,6 +778,64 @@ func TestOIDCTLSValidation(t *testing.T) {
 				"--oidc-ca-file=" + filepath.Join(getTestDataPath(), "valid_ca.pem"),
 			},
 			expectError: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf, err := config.Parse(tt.args)
+			if tt.expectError {
+				require.Error(t, err)
+				require.Nil(t, conf)
+				assert.Contains(t, err.Error(), tt.errorContains)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, conf)
+			}
+		})
+	}
+}
+
+func TestStaticOIDCEndpointsValidation(t *testing.T) {
+	const (
+		authURL = "--oidc-auth-url=https://idp.example.com/authorize"
+		tokURL  = "--oidc-token-url=https://idp.example.com/token"
+		jwksURL = "--oidc-jwks-url=https://idp.example.com/keys"
+		infoURL = "--oidc-userinfo-url=https://idp.example.com/userinfo"
+	)
+
+	tests := []struct {
+		name          string
+		args          []string
+		expectError   bool
+		errorContains string
+	}{
+		{
+			name:        "no_static_endpoints",
+			args:        []string{"go run ./cmd"},
+			expectError: false,
+		},
+		{
+			name:        "all_required_static_endpoints",
+			args:        []string{"go run ./cmd", authURL, tokURL, jwksURL},
+			expectError: false,
+		},
+		{
+			name:        "all_endpoints_including_optional_userinfo",
+			args:        []string{"go run ./cmd", authURL, tokURL, jwksURL, infoURL},
+			expectError: false,
+		},
+		{
+			name:          "only_auth_url",
+			args:          []string{"go run ./cmd", authURL},
+			expectError:   true,
+			errorContains: "must all be set together",
+		},
+		{
+			name:          "userinfo_without_required_endpoints",
+			args:          []string{"go run ./cmd", infoURL},
+			expectError:   true,
+			errorContains: "oidc-userinfo-url requires",
 		},
 	}
 
