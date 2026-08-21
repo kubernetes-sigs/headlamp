@@ -41,6 +41,9 @@ type PluginSource = {
   /** Safe single path segment used as the plugin installation directory. */
   name: string;
 
+  /** Expected npm package name in the extracted plugin metadata. */
+  packageName?: string;
+
   /** HTTPS URL from which to download the plugin archive. */
   archive?: string;
 
@@ -49,6 +52,9 @@ type PluginSource = {
 
   /** Expected hexadecimal SHA-256 digest of the selected archive. */
   sha256?: string;
+
+  /** Whether the bundled plugin is enabled when first discovered. */
+  enabledByDefault?: boolean;
 };
 
 /** Parsed subset of an app build manifest used during plugin setup. */
@@ -83,6 +89,9 @@ const manifest = loadBuildManifest(MANIFEST_FILE) as BuildManifest;
 // The reviewed in-repo manifest predates digest metadata; externally selected manifests are
 // untrusted and must pin every plugin source.
 const externalManifest = !pathsReferToSameFile(MANIFEST_FILE, DEFAULT_MANIFEST_FILE);
+const VALID_PACKAGE_NAME = /^(?:@[a-z0-9][a-z0-9._-]*\/)?[a-z0-9][a-z0-9._-]*$/;
+const WINDOWS_RESERVED_NAME = /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i;
+const WINDOWS_INVALID_NAME_CHARACTERS = /[<>:"|?*\u0000-\u001f]/;
 
 /**
  * Checks whether two paths identify the same file after filesystem canonicalization.
@@ -117,25 +126,42 @@ function validateDigestFormat(digest: string): void {
 }
 
 /**
+ * Checks whether a plugin name is safe as a cross-platform directory name.
+ *
+ * @param name Plugin destination directory name to validate.
+ * @returns Whether the name is a single portable path segment.
+ */
+function isSafePluginName(name: unknown): name is string {
+  return (
+    typeof name === 'string' &&
+    name !== '' &&
+    name !== '.' &&
+    name !== '..' &&
+    name === path.basename(name) &&
+    !name.includes('/') &&
+    !name.includes('\\') &&
+    !name.endsWith('.') &&
+    !name.endsWith(' ') &&
+    !WINDOWS_RESERVED_NAME.test(name) &&
+    !WINDOWS_INVALID_NAME_CHARACTERS.test(name)
+  );
+}
+
+/**
  * Ensures a plugin source satisfies the integrity policy for its manifest.
  *
  * @param plugin Plugin source declaration to validate.
- * @param requireDigest Whether remote archives must declare a SHA-256 digest.
+ * @param isExternalManifest Whether the source comes from an external product manifest.
  * @returns Nothing when the plugin source is valid.
  * @throws When the plugin name or source is unsafe, ambiguous, or incomplete.
- * @throws When a remote archive requires a digest but does not declare a valid one.
+ * @throws When an external source lacks a required digest or package name, or declares malformed
+ * integrity metadata.
  */
 export function validatePluginSource(
   plugin: PluginSource,
-  requireDigest: boolean = externalManifest
+  isExternalManifest: boolean = externalManifest
 ): void {
-  if (
-    typeof plugin.name !== 'string' ||
-    plugin.name.trim() === '' ||
-    plugin.name === '.' ||
-    plugin.name === '..' ||
-    /[\\/]/.test(plugin.name)
-  ) {
+  if (!isSafePluginName(plugin.name)) {
     throw new Error(`Invalid plugin name: ${String(plugin.name)}`);
   }
 
@@ -147,11 +173,91 @@ export function validatePluginSource(
     throw new Error(`Plugin ${plugin.name} source must not be empty`);
   }
 
-  if (requireDigest && plugin.sha256 === undefined) {
+  if (isExternalManifest && plugin.sha256 === undefined) {
     throw new Error(`External plugin ${plugin.name} must declare a SHA-256 digest`);
   }
   if (plugin.sha256 !== undefined) {
     validateDigestFormat(plugin.sha256);
+  }
+  if (
+    isExternalManifest &&
+    (typeof plugin.packageName !== 'string' || !VALID_PACKAGE_NAME.test(plugin.packageName))
+  ) {
+    throw new Error(`External plugin ${plugin.name} must declare a valid package name`);
+  }
+  if (plugin.enabledByDefault !== undefined && typeof plugin.enabledByDefault !== 'boolean') {
+    throw new Error(`Plugin ${plugin.name} enabledByDefault must be a boolean`);
+  }
+}
+
+/**
+ * Verifies that an extracted plugin matches its declared package identity.
+ *
+ * @param packageJsonPath Path to the extracted plugin package metadata.
+ * @param expectedPackageName Package name declared by the build manifest.
+ * @returns Nothing when no identity is declared or the identity matches.
+ * @throws When the extracted package name differs from the declared identity.
+ */
+export function verifyPluginIdentity(packageJsonPath: string, expectedPackageName?: string): void {
+  if (expectedPackageName === undefined) {
+    return;
+  }
+  let packageJson: { name?: string };
+  try {
+    packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as { name?: string };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`Plugin identity verification failed for ${expectedPackageName}: ${reason}`, {
+      cause: error,
+    });
+  }
+  if (packageJson.name !== expectedPackageName) {
+    throw new Error(
+      `Plugin package name mismatch: expected ${expectedPackageName}, got ${packageJson.name}`
+    );
+  }
+}
+
+/**
+ * Atomically writes a bundled plugin's explicit initial enabled state.
+ *
+ * @param pluginRoot Root directory containing extracted bundled plugins.
+ * @param name Plugin installation directory name.
+ * @param enabledByDefault Explicit initial enabled state from the build manifest.
+ * @throws When the extracted package metadata is missing, invalid, or cannot be replaced.
+ */
+export function applyEnabledByDefault(
+  pluginRoot: string,
+  name: string,
+  enabledByDefault?: boolean
+): void {
+  if (enabledByDefault === undefined) return;
+
+  const packageJsonPath = path.join(pluginRoot, name, 'package.json');
+  if (!fs.existsSync(packageJsonPath)) {
+    throw new Error(`Plugin ${name} package.json is missing; cannot apply enabledByDefault`);
+  }
+
+  const temporaryPath = `${packageJsonPath}.tmp-${process.pid}-${crypto.randomUUID()}`;
+  try {
+    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as Record<
+      string,
+      unknown
+    >;
+    const headlamp =
+      typeof packageJson.headlamp === 'object' &&
+      packageJson.headlamp !== null &&
+      !Array.isArray(packageJson.headlamp)
+        ? (packageJson.headlamp as Record<string, unknown>)
+        : {};
+    headlamp.enabledByDefault = enabledByDefault;
+    packageJson.headlamp = headlamp;
+
+    fs.writeFileSync(temporaryPath, JSON.stringify(packageJson, null, 2), { flag: 'wx' });
+    fs.renameSync(temporaryPath, packageJsonPath);
+  } catch (error) {
+    fs.rmSync(temporaryPath, { force: true });
+    throw new Error(`Failed to apply enabledByDefault for plugin ${name}`, { cause: error });
   }
 }
 
@@ -521,7 +627,7 @@ export async function main(): Promise<void> {
 
   const stagingFolder = fs.mkdtempSync(path.join(path.dirname(PLUGIN_FOLDER), '.plugins-stage-'));
   try {
-    for (const { name, archive, file, sha256 } of plugins) {
+    for (const { name, packageName, archive, file, sha256, enabledByDefault } of plugins) {
       if (archive) {
         await fetchArchive(name, archive, sha256, stagingFolder);
       }
@@ -540,6 +646,9 @@ export async function main(): Promise<void> {
           fs.rmSync(privateArchive.directory, { recursive: true, force: true });
         }
       }
+      const packageJsonPath = path.join(stagingFolder, name, 'package.json');
+      verifyPluginIdentity(packageJsonPath, packageName);
+      applyEnabledByDefault(stagingFolder, name, enabledByDefault);
     }
     replacePluginFolder(stagingFolder);
   } finally {

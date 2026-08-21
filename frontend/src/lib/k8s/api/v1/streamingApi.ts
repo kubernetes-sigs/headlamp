@@ -16,6 +16,7 @@
 
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
+import { getHeadlampWebSocketProtocol } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
@@ -441,6 +442,10 @@ export async function connectStreamWithParams<T>(
   const userID = getUserIdFromLocalStorage();
 
   const protocols = ['base64.binary.k8s.io', ...additionalProtocols];
+  const backendTokenProtocol = getHeadlampWebSocketProtocol();
+  if (backendTokenProtocol !== null) {
+    protocols.push(backendTokenProtocol);
+  }
 
   let fullPath = path;
   let url = '';

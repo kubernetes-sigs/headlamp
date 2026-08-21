@@ -20,6 +20,7 @@ import type { OpPatch } from 'json-patch';
 import { addBackstageAuthHeaders } from '../../../../helpers/addBackstageAuthHeaders';
 import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
+import { getHeadlampAPIHeaders } from '../../../../helpers/getHeadlampAPIHeaders';
 import { isBackstage } from '../../../../helpers/isBackstage';
 import store from '../../../../redux/stores/store';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
@@ -141,7 +142,14 @@ export async function clusterRequest(
   } = params;
 
   const userID = getUserIdFromLocalStorage();
-  const opts: { headers: RequestHeaders } = Object.assign({ headers: {} }, otherParams);
+  const headers: RequestHeaders = {};
+  new Headers(otherParams.headers).forEach((value, key) => {
+    headers[key] = value;
+  });
+  Object.entries(getHeadlampAPIHeaders()).forEach(([name, value]) => {
+    headers[name.toLowerCase()] = value;
+  });
+  const opts = { ...otherParams, headers };
   const cluster = paramsCluster || '';
 
   let fullPath = path;
@@ -190,7 +198,7 @@ export async function clusterRequest(
 
   if (!response.ok) {
     const { status, statusText } = response;
-    if (autoLogoutOnAuthError && status === 401 && opts.headers.Authorization) {
+    if (autoLogoutOnAuthError && status === 401 && opts.headers.authorization) {
       console.error('Logging out due to auth error', { status, statusText, path });
       logout(cluster);
     }

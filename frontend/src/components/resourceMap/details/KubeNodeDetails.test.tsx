@@ -170,7 +170,7 @@ describe('KubeObjectDetails', () => {
     consoleErrorSpy.mockRestore();
   });
 
-  it.each(dispatchCases)('dispatches %s to its details component', (kind, label) => {
+  it.each(dispatchCases)('dispatches %s to its details component', async (kind, label) => {
     render(
       <KubeObjectDetails
         resource={{
@@ -181,7 +181,7 @@ describe('KubeObjectDetails', () => {
       />
     );
 
-    expect(screen.getByText(`${label}:resource-a:default:cluster-a`)).toBeInTheDocument();
+    expect(await screen.findByText(`${label}:resource-a:default:cluster-a`)).toBeInTheDocument();
   });
 
   it('matches details components case-insensitively', () => {
