@@ -110,6 +110,10 @@ describe('GraphSources helpers', () => {
 describe('GraphSourceManager', () => {
   let context: ReturnType<typeof useSources>;
 
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   const Probe = () => {
     const value = useSources();
     useEffect(() => {
@@ -395,5 +399,38 @@ describe('GraphSourceManager', () => {
         label: undefined,
       },
     ]);
+  });
+
+  it('persists selection to localStorage and loads it on initialization', async () => {
+    const first = source('first', { nodes: [] });
+    const second = source('second', { nodes: [] });
+    const group: GraphSource = { id: 'group', label: 'Group', sources: [first, second] };
+
+    // Initially all are selected
+    const { unmount } = render(
+      <GraphSourceManager sources={[group]} relations={[]}>
+        <Probe />
+      </GraphSourceManager>
+    );
+    await waitFor(() => expect(context.isLoading).toBe(false));
+    expect(context.selectedSources).toEqual(new Set(['group', 'first', 'second']));
+
+    // Deselect 'first'
+    act(() => context.toggleSelection(first));
+    expect(context.selectedSources).toEqual(new Set(['group', 'second']));
+
+    // Check localStorage contains the disabled source ID
+    expect(localStorage.getItem('headlamp_resource_map_disabled_sources')).toContain('first');
+
+    unmount();
+
+    // Re-render and check that selection was restored
+    render(
+      <GraphSourceManager sources={[group]} relations={[]}>
+        <Probe />
+      </GraphSourceManager>
+    );
+    await waitFor(() => expect(context.isLoading).toBe(false));
+    expect(context.selectedSources).toEqual(new Set(['group', 'second']));
   });
 });
