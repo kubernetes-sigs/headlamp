@@ -17,6 +17,7 @@ limitations under the License.
 package main
 
 import (
+	"context"
 	"crypto/tls"
 	"encoding/base64"
 	"encoding/json"
@@ -1934,4 +1935,87 @@ func BenchmarkCreateConnectionKey(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		benchConnectionKeySink = m.createConnectionKey(clusterID, path, userID)
 	}
+}
+
+func TestReconnectDoesNotRaceWithTokenRefresh(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	initialToken := "initial-token"
+	conn := &Connection{
+		ClusterID: "cluster-a",
+		UserID:    "user-a",
+		Path:      "/api/v1/pods",
+		Query:     "watch=1",
+		Token:     &initialToken,
+		Done:      make(chan struct{}),
+	}
+
+	refreshedToken := "refreshed-token"
+
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+
+		_, _ = m.reconnect(conn)
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		require.NoError(t, m.refreshConnectionToken(conn, &refreshedToken))
+	}()
+
+	wg.Wait()
+}
+
+func TestProcessClientMessageDoesNotRaceWithStatusUpdate(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+
+	token := "token"
+	conn := &Connection{
+		ClusterID: "cluster-a",
+		UserID:    "user-a",
+		Path:      "/api/v1/pods",
+		Token:     &token,
+		Done:      make(chan struct{}),
+	}
+	conn.Status.State = StateConnected
+
+	m.connections[m.createConnectionKey("cluster-a", "/api/v1/pods", "user-a")] = conn
+
+	msg := Message{
+		Type:      "REQUEST",
+		ClusterID: "cluster-a",
+		Path:      "/api/v1/pods",
+		UserID:    "user-a",
+		Data:      "{}",
+	}
+	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
+
+	var wg sync.WaitGroup
+
+	wg.Add(2)
+
+	go func() {
+		defer wg.Done()
+
+		m.processClientMessage(req, nil, msg)
+	}()
+
+	go func() {
+		defer wg.Done()
+
+		conn.updateStatus(StateError, nil)
+	}()
+
+	wg.Wait()
+
+	conn.mu.RLock()
+	state := conn.Status.State
+	conn.mu.RUnlock()
+
+	require.Equal(t, StateError, state)
 }
