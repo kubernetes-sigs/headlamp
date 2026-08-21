@@ -121,6 +121,8 @@
   "Checking if JobSet is enabled…": "",
   "JobSet is not enabled. <1>Learn More</1>": "",
   "Leader Worker Sets": "",
+  "Checking if LeaderWorkerSet is enabled…": "",
+  "LeaderWorkerSet is not enabled. <1>Learn More</1>": "",
   "Lease": "リース",
   "LimitRange": "制限範囲",
   "Ingress": "イングレス",
