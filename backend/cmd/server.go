@@ -207,6 +207,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 
 	cfg := &headlampconfig.HeadlampConfig{
 		HeadlampCFG:               buildHeadlampCFG(conf, kubeConfigStore),
+		OidcAutoLogin:             conf.OidcAutoLogin,
 		OidcClientID:              conf.OidcClientID,
 		OidcValidatorClientID:     conf.OidcValidatorClientID,
 		OidcClientSecret:          conf.OidcClientSecret,
