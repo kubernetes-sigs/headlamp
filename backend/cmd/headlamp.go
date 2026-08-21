@@ -808,6 +808,13 @@ func globalOidcConfig(config *HeadlampConfig) *kubeconfig.OidcConfig {
 		Scopes:        config.OidcScopes,
 		SkipTLSVerify: &skipTLSVerify,
 		CACert:        caCert,
+		// Static endpoints are inherited by discovered contexts too, so login and
+		// refresh skip discovery here for the same reason they do in-cluster.
+		AuthURL:           config.OidcAuthURL,
+		TokenURL:          config.OidcTokenURL,
+		JWKSURL:           config.OidcJWKSURL,
+		UserInfoURL:       config.OidcUserinfoURL,
+		SigningAlgorithms: config.OidcSigningAlgorithms,
 	}
 }
 
@@ -832,6 +839,13 @@ func setupInClusterContext(config *HeadlampConfig) {
 		config.OidcAPIProxy,
 		config.OidcAPIProxyCACert,
 		config.OidcAPIProxySkipTLSVerify,
+		kubeconfig.OidcStaticEndpoints{
+			AuthURL:           config.OidcAuthURL,
+			TokenURL:          config.OidcTokenURL,
+			JWKSURL:           config.OidcJWKSURL,
+			UserInfoURL:       config.OidcUserinfoURL,
+			SigningAlgorithms: config.OidcSigningAlgorithms,
+		},
 		config.UnsafeUseServiceAccountToken,
 		config.ServiceAccountTokenPath,
 	)
@@ -1422,7 +1436,8 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		// its HTTP client and not on the context.
 		ctx = auth.WithClientTimeout(ctx, oidcRequestTimeout)
 
-		provider, err := oidc.NewProvider(ctx, oidcAuthConfig.IdpIssuerURL)
+		provider, err := auth.BuildProvider(ctx, oidcAuthConfig,
+			oidcAuthConfig.IdpIssuerURL, config.OidcValidatorIdpIssuerURL)
 		if err != nil {
 			logger.Log(logger.LevelError, map[string]string{"idpIssuerURL": oidcAuthConfig.IdpIssuerURL},
 				err, "failed to get provider")

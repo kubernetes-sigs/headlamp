@@ -390,6 +390,35 @@ func TestOIDCContextFromClusterProfile(t *testing.T) {
 	require.ErrorContains(t, err, "access provider has no server URL")
 }
 
+// TestOIDCStaticEndpointsPropagateToDiscoveredContexts checks that the static OIDC
+// endpoints configured globally reach discovered cluster contexts, whose login and
+// refresh would otherwise fall back to discovery.
+func TestOIDCStaticEndpointsPropagateToDiscoveredContexts(t *testing.T) {
+	oidcConf := testOIDCOptions()
+	oidcConf.AuthURL = "https://idp.example.com/authorize"
+	oidcConf.TokenURL = "https://idp.example.com/token"
+	oidcConf.JWKSURL = "https://idp.example.com/keys"
+	oidcConf.UserInfoURL = "https://idp.example.com/userinfo"
+	oidcConf.SigningAlgorithms = []string{"RS256", "ES256"}
+
+	headlampContext, err := oidcContextFromAccessProvider(
+		&apisv1alpha1.AccessProvider{
+			Name:    "provider",
+			Cluster: clientcmdv1.Cluster{Server: "https://spoke-a.example.com"},
+		},
+		"in-cluster/default/spoke-a", oidcConf,
+	)
+	require.NoError(t, err)
+
+	require.NotNil(t, headlampContext.OidcConf)
+	assert.True(t, headlampContext.OidcConf.HasStaticOIDCEndpoints())
+	assert.Equal(t, oidcConf.AuthURL, headlampContext.OidcConf.AuthURL)
+	assert.Equal(t, oidcConf.TokenURL, headlampContext.OidcConf.TokenURL)
+	assert.Equal(t, oidcConf.JWKSURL, headlampContext.OidcConf.JWKSURL)
+	assert.Equal(t, oidcConf.UserInfoURL, headlampContext.OidcConf.UserInfoURL)
+	assert.Equal(t, oidcConf.SigningAlgorithms, headlampContext.OidcConf.SigningAlgorithms)
+}
+
 func TestInformerSyncOIDCMode(t *testing.T) {
 	store := kubeconfig.NewContextStore()
 	runner := newTestRunner(t, Options{

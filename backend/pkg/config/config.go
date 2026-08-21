@@ -26,6 +26,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"strings"
 
 	"github.com/knadh/koanf"
@@ -87,15 +88,26 @@ type Config struct {
 
 	DiscoverySources map[string]clusterdiscovery.Settings `koanf:"-"`
 
-	OidcClientID                 string `koanf:"oidc-client-id"`
-	OidcClientIDFile             string `koanf:"oidc-client-id-file"`
-	OidcValidatorClientID        string `koanf:"oidc-validator-client-id"`
-	OidcClientSecret             string `koanf:"oidc-client-secret"`
-	OidcClientSecretFile         string `koanf:"oidc-client-secret-file"`
-	OidcIdpIssuerURL             string `koanf:"oidc-idp-issuer-url"`
-	OidcCallbackURL              string `koanf:"oidc-callback-url"`
-	OidcValidatorIdpIssuerURL    string `koanf:"oidc-validator-idp-issuer-url"`
-	OidcScopes                   string `koanf:"oidc-scopes"`
+	OidcClientID              string `koanf:"oidc-client-id"`
+	OidcClientIDFile          string `koanf:"oidc-client-id-file"`
+	OidcValidatorClientID     string `koanf:"oidc-validator-client-id"`
+	OidcClientSecret          string `koanf:"oidc-client-secret"`
+	OidcClientSecretFile      string `koanf:"oidc-client-secret-file"`
+	OidcIdpIssuerURL          string `koanf:"oidc-idp-issuer-url"`
+	OidcCallbackURL           string `koanf:"oidc-callback-url"`
+	OidcValidatorIdpIssuerURL string `koanf:"oidc-validator-idp-issuer-url"`
+	OidcScopes                string `koanf:"oidc-scopes"`
+	// Static OIDC endpoint URLs. When oidc-auth-url, oidc-token-url and oidc-jwks-url
+	// are all provided, Headlamp builds the provider from these endpoints directly
+	// instead of performing OIDC discovery against the issuer's
+	// /.well-known/openid-configuration document. oidc-userinfo-url is optional, and
+	// oidc-signing-algorithms optionally overrides the accepted ID-token signing
+	// algorithms that discovery would otherwise advertise.
+	OidcAuthURL                  string `koanf:"oidc-auth-url"`
+	OidcTokenURL                 string `koanf:"oidc-token-url"`
+	OidcJWKSURL                  string `koanf:"oidc-jwks-url"`
+	OidcUserinfoURL              string `koanf:"oidc-userinfo-url"`
+	OidcSigningAlgorithms        string `koanf:"oidc-signing-algorithms"`
 	OidcUseAccessToken           bool   `koanf:"oidc-use-access-token"`
 	OidcUseCookie                bool   `koanf:"oidc-use-cookie"`
 	OidcUseTokenBroadcast        bool   `koanf:"oidc-use-token-broadcast"`
@@ -221,6 +233,10 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if err := c.validateStaticOIDCEndpoints(); err != nil {
+		return err
+	}
+
 	// Extracted to keep Validate's cognitive complexity within the linter limit.
 	c.warnRedundantThemeDefaults()
 
@@ -241,21 +257,8 @@ func (c *Config) Validate() error {
 		return errors.New("session-ttl cannot be greater than 1 year")
 	}
 
-	if c.TracingEnabled != nil && *c.TracingEnabled {
-		if c.ServiceName == "" {
-			return errors.New("service-name is required when tracing is enabled")
-		}
-
-		if (c.JaegerEndpoint != nil && *c.JaegerEndpoint == "") &&
-			(c.OTLPEndpoint != nil && *c.OTLPEndpoint == "") &&
-			(c.StdoutTraceEnabled != nil && *c.StdoutTraceEnabled) {
-			return errors.New("at least one tracing exporter (jaeger, otlp, or stdout) must be configured")
-		}
-
-		if (c.UseOTLPHTTP != nil && *c.UseOTLPHTTP) &&
-			(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") {
-			return errors.New("otlp-endpoint must be configured when use-otlp-http is enabled")
-		}
+	if err := c.validateTracing(); err != nil {
+		return err
 	}
 
 	if err := c.validateClusterInventory(); err != nil {
@@ -264,6 +267,31 @@ func (c *Config) Validate() error {
 
 	if err := c.validateDiscoverySources(); err != nil {
 		return err
+	}
+
+	return nil
+}
+
+// validateTracing ensures the telemetry tracing flags are internally consistent
+// when tracing is enabled.
+func (c *Config) validateTracing() error {
+	if c.TracingEnabled == nil || !*c.TracingEnabled {
+		return nil
+	}
+
+	if c.ServiceName == "" {
+		return errors.New("service-name is required when tracing is enabled")
+	}
+
+	if (c.JaegerEndpoint != nil && *c.JaegerEndpoint == "") &&
+		(c.OTLPEndpoint != nil && *c.OTLPEndpoint == "") &&
+		(c.StdoutTraceEnabled != nil && *c.StdoutTraceEnabled) {
+		return errors.New("at least one tracing exporter (jaeger, otlp, or stdout) must be configured")
+	}
+
+	if (c.UseOTLPHTTP != nil && *c.UseOTLPHTTP) &&
+		(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") {
+		return errors.New("otlp-endpoint must be configured when use-otlp-http is enabled")
 	}
 
 	return nil
@@ -337,6 +365,58 @@ func (c *Config) loadOIDCSecretFiles(explicitFlags map[string]bool) error {
 		}
 
 		c.OidcClientSecret = clientSecret
+	}
+
+	return nil
+}
+
+// validateStaticOIDCEndpoints ensures that when any of the static OIDC endpoint
+// URLs is configured, the three required ones (auth, token and JWKS) are all
+// provided. A partial configuration is rejected so Headlamp never silently falls
+// back to discovery with an incomplete static setup. oidc-userinfo-url is optional.
+//
+// Static endpoints are only meaningful for in-cluster deployments and are rejected
+// outside that mode so they are not silently ignored.
+func (c *Config) validateStaticOIDCEndpoints() error {
+	provided := 0
+
+	for _, url := range []string{c.OidcAuthURL, c.OidcTokenURL, c.OidcJWKSURL} {
+		if url != "" {
+			provided++
+		}
+	}
+
+	hasSigningAlgorithms := slices.ContainsFunc(strings.Split(c.OidcSigningAlgorithms, ","),
+		func(alg string) bool { return strings.TrimSpace(alg) != "" })
+
+	anyStatic := provided > 0 || c.OidcUserinfoURL != "" || hasSigningAlgorithms
+
+	// Static OIDC endpoints are only supported in in-cluster mode.
+	if anyStatic && !c.InCluster {
+		return errors.New("oidc-auth-url, oidc-token-url, oidc-jwks-url, oidc-userinfo-url and " +
+			"oidc-signing-algorithms flags are only meant to be used in in-cluster mode")
+	}
+
+	const requiredStaticEndpoints = 3
+
+	// oidc-userinfo-url on its own is not enough to enable static mode.
+	if provided == 0 {
+		if c.OidcUserinfoURL != "" {
+			return errors.New("oidc-userinfo-url requires oidc-auth-url, oidc-token-url and " +
+				"oidc-jwks-url to be set")
+		}
+
+		if hasSigningAlgorithms {
+			return errors.New("oidc-signing-algorithms requires oidc-auth-url, oidc-token-url and " +
+				"oidc-jwks-url to be set")
+		}
+
+		return nil
+	}
+
+	if provided != requiredStaticEndpoints {
+		return errors.New("oidc-auth-url, oidc-token-url and oidc-jwks-url must all be set together " +
+			"to configure static OIDC endpoints")
 	}
 
 	return nil
@@ -756,6 +836,18 @@ func addOIDCFlags(f *flag.FlagSet) {
 	f.String("oidc-callback-url", "", "OIDC callback URL and trusted logout return origin")
 	f.String("oidc-validator-idp-issuer-url", "", "Override Identity provider issuer URL for OIDC during validation")
 	f.String("oidc-scopes", "profile,email", "A comma separated list of scopes needed from the OIDC provider")
+	f.String("oidc-auth-url", "",
+		"Static OIDC authorization endpoint URL. When set together with oidc-token-url and "+
+			"oidc-jwks-url, Headlamp skips OIDC discovery")
+	f.String("oidc-token-url", "",
+		"Static OIDC token endpoint URL. Required alongside oidc-auth-url and oidc-jwks-url for static mode")
+	f.String("oidc-jwks-url", "",
+		"Static OIDC JWK Set endpoint URL. Required alongside oidc-auth-url and oidc-token-url for static mode")
+	f.String("oidc-userinfo-url", "",
+		"Static OIDC UserInfo endpoint URL. Optional; only used when the static OIDC endpoints are configured")
+	f.String("oidc-signing-algorithms", "",
+		"Comma separated list of JWT signing algorithms accepted for static OIDC ID tokens "+
+			"(for example RS256,ES256). Defaults to RS256 when empty")
 	f.Bool("oidc-skip-tls-verify", false, "Skip TLS verification for OIDC")
 	f.Bool("oidc-skip-logout", false, "Skip logout from OIDC provider")
 	f.String("oidc-ca-file", "", "CA file for OIDC")

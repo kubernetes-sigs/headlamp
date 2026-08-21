@@ -175,6 +175,25 @@ When a single Headlamp instance serves several Kubernetes clusters that all trus
 - Each target cluster receives one or more `Set-Cookie` headers per login, so enabling this with very large multi-cluster kubeconfigs may approach browser and proxy cookie count / size limits.
 - Pre-existing chunk-cookie limitation: stale chunk cookies on cluster paths are not actively cleared during login because cookies live under `/clusters/<cluster>` while OIDC login completes on `/oidc-callback`. In the rare case a re-issued token uses fewer chunks than the previous one, the affected cluster(s) may need a one-time re-login.
 
+### Static OIDC Endpoints (bypassing discovery)
+
+By default, Headlamp discovers the OIDC provider's authorization, token, JWKS and UserInfo endpoints automatically by fetching the issuer's `/.well-known/openid-configuration` document. In some in-cluster deployments the discovery endpoint may not be reachable from the Headlamp pod (e.g. the issuer URL is only valid for browser redirects). In that case you can supply the endpoint URLs directly so Headlamp skips the discovery request.
+
+- `-oidc-auth-url` or env var `HEADLAMP_CONFIG_OIDC_AUTH_URL` — the authorization endpoint
+- `-oidc-token-url` or env var `HEADLAMP_CONFIG_OIDC_TOKEN_URL` — the token endpoint
+- `-oidc-jwks-url` or env var `HEADLAMP_CONFIG_OIDC_JWKS_URL` — the JWK Set endpoint
+- `-oidc-userinfo-url` or env var `HEADLAMP_CONFIG_OIDC_USERINFO_URL` — the UserInfo endpoint (optional)
+- `-oidc-signing-algorithms` or env var `HEADLAMP_CONFIG_OIDC_SIGNING_ALGORITHMS` — comma separated allowlist of JWT signing algorithms accepted for ID tokens, for example `RS256,ES256` (optional)
+
+**Rules:**
+
+- All three required endpoints (`oidc-auth-url`, `oidc-token-url`, `oidc-jwks-url`) must be set together. Providing only a subset is a configuration error.
+- `oidc-userinfo-url` is optional and only takes effect when the three required endpoints are configured.
+- `oidc-signing-algorithms` is optional and only takes effect when the three required endpoints are configured. Because discovery is bypassed, the provider's advertised signing algorithms are unknown, so Headlamp accepts only `RS256` by default; set this flag when your provider signs ID tokens with another algorithm such as `ES256` or `RS384`.
+- When all three required endpoints are configured, login and token refresh use them directly and do not perform OIDC discovery. Provider logout still requires discovery (it reads the provider's `end_session_endpoint`); set `-oidc-skip-logout=true` (or `HEADLAMP_CONFIG_OIDC_SKIP_LOGOUT=true`) to skip that request and clear Headlamp cookies only. This does not end the session at the identity provider.
+- When they are not configured, Headlamp continues to use OIDC discovery as before.
+- These flags are only accepted in in-cluster mode (`--in-cluster`). Providing them outside in-cluster mode results in a configuration error.
+
 ### Example: OIDC with Keycloak in Minikube
 
 If you are interested in a comprehensive example of using OIDC and Headlamp,
