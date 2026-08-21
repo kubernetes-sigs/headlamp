@@ -78,6 +78,7 @@ export function SearchSettings({
             }
             defaultValue={maxItemsPerResource}
             type="number"
+            inputProps={{ min: 1 }}
           />
 
           <FormControl fullWidth variant="outlined" size="small">
@@ -109,8 +110,17 @@ export function SearchSettings({
             sx={{ alignSelf: 'flex-end' }}
             onClick={() => {
               if (maxItemsInputRef.current && refetchInputRef.current) {
-                setMaxItemsPerResource(parseInt(maxItemsInputRef.current.value));
-                setRefetchIntervalMs(parseInt(refetchInputRef.current.value));
+                const maxItems = Number(maxItemsInputRef.current.value);
+                const refetchInterval = parseInt(refetchInputRef.current.value, 10);
+
+                if (Number.isInteger(maxItems) && maxItems > 0) {
+                  setMaxItemsPerResource(maxItems);
+                }
+
+                if (Number.isFinite(refetchInterval)) {
+                  setRefetchIntervalMs(refetchInterval);
+                }
+
                 setAnchorEl(null);
               }
             }}
