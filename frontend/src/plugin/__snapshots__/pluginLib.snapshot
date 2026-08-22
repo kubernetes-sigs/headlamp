@@ -567,6 +567,7 @@
         "eks.amazonaws.com/nodegroup",
         "kops.k8s.io/instancegroup",
         "cluster.x-k8s.io/deployment-name",
+        "karpenter.sh/nodepool",
       ],
       "default": [Function],
     },
