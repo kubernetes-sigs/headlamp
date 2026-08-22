@@ -522,7 +522,9 @@ export function groupGraph(
           namespace => namespace.metadata.name === component.label
         );
         if (component.kubeObject) {
-          component.id = component.kubeObject.metadata.uid;
+          component.id = component.kubeObject.cluster
+            ? `${component.kubeObject.cluster}_${component.kubeObject.metadata.uid}`
+            : component.kubeObject.metadata.uid;
         }
       }
     });
@@ -556,7 +558,9 @@ export function groupGraph(
       if (!component.kubeObject && component.label !== UNSCHEDULED_GROUP) {
         component.kubeObject = k8sNodes.find(node => node.metadata.name === component.label);
         if (component.kubeObject) {
-          component.id = component.kubeObject.metadata.uid;
+          component.id = component.kubeObject.cluster
+            ? `${component.kubeObject.cluster}_${component.kubeObject.metadata.uid}`
+            : component.kubeObject.metadata.uid;
         }
       }
     });
