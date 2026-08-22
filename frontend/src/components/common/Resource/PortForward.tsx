@@ -58,6 +58,7 @@ type PortForwardProps = PortForwardKubeObjectProps | PortForwardLegacyProps;
 export const PORT_FORWARDS_STORAGE_KEY = 'portforwards';
 export const PORT_FORWARD_STOP_STATUS = 'Stopped';
 export const PORT_FORWARD_RUNNING_STATUS = 'Running';
+export const PORT_FORWARD_RECONNECTING_STATUS = 'Reconnecting';
 export const DOCKER_DESKTOP_MIN_PORT = 30000;
 export const DOCKER_DESKTOP_MAX_PORT = 32000;
 
@@ -477,6 +478,17 @@ function PortForwardContent(props: PortForwardProps) {
                 }}
                 width={'25'}
               />
+            </Box>
+          ) : portForward.status === PORT_FORWARD_RECONNECTING_STATUS ? (
+            <Box display={'flex'} alignItems="center" gap={1}>
+              <CircularProgress size={16} />
+              <Typography
+                style={{
+                  color: grey[500],
+                }}
+              >
+                {t('translation|Reconnecting...')}
+              </Typography>
             </Box>
           ) : (
             <>
