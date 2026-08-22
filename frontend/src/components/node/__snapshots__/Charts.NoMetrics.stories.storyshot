@@ -6,7 +6,9 @@
       4000m
     </p>
     <div
+      aria-label="Install the metrics-server to get usage data."
       class="MuiContainer-root MuiContainer-maxWidthLg css-64uahr-MuiContainer-root"
+      data-mui-internal-clone-element="true"
     />
   </div>
 </body>
