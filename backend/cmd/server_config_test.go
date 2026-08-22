@@ -29,18 +29,23 @@ func TestBuildHeadlampCFG(t *testing.T) {
 
 	t.Run("maps basic fields and splits proxy urls", func(t *testing.T) {
 		conf := &config.Config{
-			Port:                       4444,
-			InCluster:                  true,
-			InClusterContextName:       "test-incluster",
-			InsecureSsl:                true,
-			KubeConfigDir:              "/kubeconfigs",
-			PluginsDir:                 "/plugins",
-			UserPluginsDir:             "/user-plugins",
-			AllowKubeconfigChanges:     true,
-			WatchPluginsChanges:        false,
-			BaseURL:                    "/headlamp",
-			ProxyURLs:                  "http://proxy1,http://proxy2",
-			ClusterInventoryNamespaces: "team-a,team-b",
+			Port:                            4444,
+			InCluster:                       true,
+			InClusterContextName:            "test-incluster",
+			InsecureSsl:                     true,
+			KubeConfigDir:                   "/kubeconfigs",
+			PluginsDir:                      "/plugins",
+			UserPluginsDir:                  "/user-plugins",
+			AllowKubeconfigChanges:          true,
+			WatchPluginsChanges:             false,
+			BaseURL:                         "/headlamp",
+			ProxyURLs:                       "http://proxy1,http://proxy2",
+			ClusterInventoryNamespaces:      "team-a,team-b",
+			ClusterInventoryAuthType:        "oidc",
+			ClusterInventoryAccessProviders: "trusted-a,trusted-b",
+			EnableClusterAPI:                true,
+			ClusterAPILabelSelector:         "environment=prod",
+			ClusterAPINamespaces:            "clusters-a,clusters-b",
 		}
 
 		headlampCFG := buildHeadlampCFG(conf, store)
@@ -58,6 +63,11 @@ func TestBuildHeadlampCFG(t *testing.T) {
 		assert.Equal(t, []string{"http://proxy1", "http://proxy2"}, headlampCFG.ProxyURLs)
 		assert.Equal(t, store, headlampCFG.KubeConfigStore)
 		assert.Equal(t, "team-a,team-b", headlampCFG.ClusterInventoryNamespaces)
+		assert.Equal(t, "oidc", headlampCFG.ClusterInventoryAuthType)
+		assert.Equal(t, "trusted-a,trusted-b", headlampCFG.ClusterInventoryAccessProviders)
+		assert.True(t, headlampCFG.EnableClusterAPI)
+		assert.Equal(t, "environment=prod", headlampCFG.ClusterAPILabelSelector)
+		assert.Equal(t, "clusters-a,clusters-b", headlampCFG.ClusterAPINamespaces)
 	})
 
 	t.Run("empty proxy urls yields empty slice", func(t *testing.T) {

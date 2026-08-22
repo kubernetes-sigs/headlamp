@@ -188,6 +188,8 @@ spec:
         - "-in-cluster"
         - "-in-cluster-context-name=main"
         - "-enable-cluster-inventory"
+        - "-cluster-inventory-auth-type=access-provider"
+        - "-cluster-inventory-access-providers=headlamp-e2e-token"
         - "-cluster-inventory-provider-file=/etc/cluster-inventory/config.json"
         - "-cluster-inventory-label-selector=!headlamp.dev/ignore"
         - "-cluster-inventory-root-reconcile-interval=2s"

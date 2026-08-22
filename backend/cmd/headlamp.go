@@ -49,6 +49,7 @@ import (
 	"github.com/gorilla/mux"
 	auth "github.com/kubernetes-sigs/headlamp/backend/pkg/auth"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterapi"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
@@ -177,15 +178,16 @@ const (
 )
 
 type clientConfig struct {
-	Clusters                  []Cluster `json:"clusters"`
-	IsDynamicClusterEnabled   bool      `json:"isDynamicClusterEnabled"`
-	AllowKubeconfigChanges    bool      `json:"allowKubeconfigChanges"`
-	DefaultPodDebugImage      string    `json:"defaultPodDebugImage"`
-	DefaultNodeShellImage     string    `json:"defaultNodeShellImage"`
-	DefaultNodeShellNamespace string    `json:"defaultNodeShellNamespace"`
-	DefaultLightTheme         string    `json:"defaultLightTheme,omitempty"`
-	DefaultDarkTheme          string    `json:"defaultDarkTheme,omitempty"`
-	ForceTheme                string    `json:"forceTheme,omitempty"`
+	Clusters                    []Cluster `json:"clusters"`
+	IsDynamicClusterEnabled     bool      `json:"isDynamicClusterEnabled"`
+	AllowKubeconfigChanges      bool      `json:"allowKubeconfigChanges"`
+	ClusterRegistrationsEnabled bool      `json:"clusterRegistrationsEnabled"`
+	DefaultPodDebugImage        string    `json:"defaultPodDebugImage"`
+	DefaultNodeShellImage       string    `json:"defaultNodeShellImage"`
+	DefaultNodeShellNamespace   string    `json:"defaultNodeShellNamespace"`
+	DefaultLightTheme           string    `json:"defaultLightTheme,omitempty"`
+	DefaultDarkTheme            string    `json:"defaultDarkTheme,omitempty"`
+	ForceTheme                  string    `json:"forceTheme,omitempty"`
 }
 
 type OauthConfig struct {
@@ -522,40 +524,115 @@ func validateServiceAccountNamespace(data []byte) (string, error) {
 	return namespace, nil
 }
 
-func startClusterInventory(ctx context.Context, config *HeadlampConfig) error {
+// discoveryHub is the in-cluster config, namespace and identity the discovery sources share.
+type discoveryHub struct {
+	restConfig *rest.Config
+	namespace  string
+	cluster    string
+	oidcConfig *kubeconfig.OidcConfig
+}
+
+func (c *HeadlampConfig) resolveDiscoveryHub() (discoveryHub, error) {
+	var hub discoveryHub
+
+	if !c.UseInCluster {
+		return hub, nil
+	}
+
+	restConfig, err := rest.InClusterConfig()
+	if err != nil {
+		return hub, fmt.Errorf("get in-cluster config: %w", err)
+	}
+
+	namespace, err := readServiceAccountNamespace()
+	if err != nil {
+		return hub, fmt.Errorf("get pod namespace: %w", err)
+	}
+
+	hub.restConfig, hub.namespace = restConfig, namespace
+
+	contexts, err := c.KubeConfigStore.GetContexts()
+	if err != nil {
+		return hub, fmt.Errorf("read the in-cluster context: %w", err)
+	}
+
+	for _, headlampContext := range contexts {
+		if headlampContext.Source == kubeconfig.InCluster {
+			hub.cluster, hub.oidcConfig = headlampContext.Name, headlampContext.OidcConf
+
+			break
+		}
+	}
+
+	return hub, nil
+}
+
+// startClusterDiscovery starts the enabled discovery sources.
+func startClusterDiscovery(ctx context.Context, config *HeadlampConfig) error {
+	if config.ClusterRegistrationStore == nil {
+		return nil
+	}
+
+	hub, err := config.resolveDiscoveryHub()
+	if err != nil {
+		return err
+	}
+
+	if err := startClusterInventory(ctx, config, hub); err != nil {
+		return err
+	}
+
+	return startClusterAPI(ctx, config, hub)
+}
+
+func startClusterInventory(ctx context.Context, config *HeadlampConfig, hub discoveryHub) error {
 	if !config.EnableClusterInventory {
 		return nil
 	}
 
-	var (
-		hubConfig    *rest.Config
-		hubNamespace string
-	)
-
-	if config.UseInCluster {
-		var err error
-
-		hubConfig, err = rest.InClusterConfig()
-		if err != nil {
-			return fmt.Errorf("get in-cluster config for cluster inventory: %w", err)
-		}
-
-		hubNamespace, err = readServiceAccountNamespace()
-		if err != nil {
-			return fmt.Errorf("get pod namespace for cluster inventory: %w", err)
-		}
-	}
-
-	runner, err := clusterinventory.NewRunner(clusterinventory.Options{
-		Store:                 config.KubeConfigStore,
+	opts := clusterinventory.Options{
+		Registry:              config.ClusterRegistrationStore,
 		ProviderFile:          config.ClusterInventoryProviderFile,
+		AuthType:              config.ClusterInventoryAuthType,
+		AccessProviders:       config.ClusterInventoryAccessProviders,
+		OIDCConfig:            hub.oidcConfig,
 		LabelSelector:         config.ClusterInventoryLabelSelector,
 		Namespaces:            config.ClusterInventoryNamespaces,
 		RootReconcileInterval: config.ClusterInventoryRootReconcileInterval,
 		NoCRDCacheTTL:         config.ClusterInventoryNoCRDCacheTTL,
-		HubConfig:             hubConfig,
-		HubNamespace:          hubNamespace,
-		DiscoverFromStore:     !config.UseInCluster,
+		HubConfig:             hub.restConfig,
+		HubNamespace:          hub.namespace,
+		HubCluster:            hub.cluster,
+	}
+
+	// Outside a cluster there is no hub, so the configured contexts are the discovery roots.
+	if !config.UseInCluster {
+		opts.SeedStore = config.KubeConfigStore
+	}
+
+	runner, err := clusterinventory.NewRunner(opts)
+	if err != nil {
+		return err
+	}
+
+	go runner.Run(ctx)
+
+	return nil
+}
+
+func startClusterAPI(ctx context.Context, config *HeadlampConfig, hub discoveryHub) error {
+	if !config.EnableClusterAPI {
+		return nil
+	}
+
+	runner, err := clusterapi.NewRunner(clusterapi.Options{
+		Registry:         config.ClusterRegistrationStore,
+		RESTConfig:       hub.restConfig,
+		OriginCluster:    hub.cluster,
+		DefaultNamespace: hub.namespace,
+		Namespaces:       config.ClusterAPINamespaces,
+		LabelSelector:    config.ClusterAPILabelSelector,
+		OIDCConfig:       hub.oidcConfig,
 	})
 	if err != nil {
 		return err
@@ -967,6 +1044,13 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 	r.Handle("/config", auth.NewBackendTokenMiddleware(config.UseInCluster)(
 		http.HandlerFunc(config.getConfig))).Methods("GET")
 
+	if config.ClusterRegistrationStore != nil {
+		r.Handle("/cluster-registrations", auth.NewBackendTokenMiddleware(config.UseInCluster)(
+			http.HandlerFunc(config.ClusterRegistrationStore.ServeSnapshot))).Methods("GET")
+		r.Handle("/cluster-registrations/events", auth.NewBackendTokenMiddleware(config.UseInCluster)(
+			http.HandlerFunc(config.ClusterRegistrationStore.ServeEvents))).Methods("GET")
+	}
+
 	// Auth token management
 	r.Handle("/auth/set-token", auth.NewBackendTokenMiddleware(config.UseInCluster)(
 		http.HandlerFunc(config.handleSetToken))).Methods("POST")
@@ -1360,11 +1444,15 @@ func (c *HeadlampConfig) requestTokenForContext(
 	return token
 }
 
-func applyRequestTokenToContext(r *http.Request, clusterName string, context *kubeconfig.Context) {
+func setTokenFromCookieIfUnset(r *http.Request, clusterName string) {
 	// Only promote a cookie token when the request does not already provide Authorization.
 	if strings.TrimSpace(r.Header.Get("Authorization")) == "" {
 		auth.SetTokenFromCookie(r, clusterName)
 	}
+}
+
+func applyRequestTokenToContext(r *http.Request, clusterName string, context *kubeconfig.Context) {
+	setTokenFromCookieIfUnset(r, clusterName)
 
 	bearerToken := auth.BearerTokenValue(r.Header.Get("Authorization"))
 	if bearerToken == "" {
@@ -1514,7 +1602,7 @@ func hostValidationMiddleware(listenAddr string, port uint) func(http.Handler) h
 func serverHandler(ctx context.Context, config *HeadlampConfig) (http.Handler, error) {
 	handler := createHeadlampHandler(ctx, config)
 
-	if err := startClusterInventory(ctx, config); err != nil {
+	if err := startClusterDiscovery(ctx, config); err != nil {
 		return nil, err
 	}
 
@@ -1564,7 +1652,7 @@ func StartHeadlampServer(config *HeadlampConfig) {
 
 	handler, err := serverHandler(ctx, config)
 	if err != nil {
-		logger.Log(logger.LevelError, nil, err, "starting cluster inventory discovery")
+		logger.Log(logger.LevelError, nil, err, "starting cluster discovery")
 		return
 	}
 
@@ -1975,23 +2063,7 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 		// Process WebSocket protocol headers if present
 		processWebSocketProtocolHeader(r)
 
-		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
-			clearRequestAuthorization(r)
-		} else {
-			var token string
-
-			if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
-				token = strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader))
-			}
-
-			if token == "" {
-				token, _ = auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
-			}
-
-			if token != "" {
-				r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
-			}
-		}
+		c.authorizeClusterRequest(r, kContext)
 
 		clearConfiguredProxyTokenHeader(r, c.ProxyAuthTokenHeader)
 
@@ -2025,7 +2097,49 @@ func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
 		handler = CacheMiddleWare(c)(handler)
 	}
 
+	if c.ClusterRegistrationStore != nil {
+		router.PathPrefix("/clusters/{clusterName}/federated/{targetName}/{api:.*}").Handler(
+			auth.NewBackendTokenMiddleware(c.UseInCluster)(federatedClusterMiddleware(c)(handler)),
+		)
+	}
+
 	router.PathPrefix("/clusters/{clusterName}/{api:.*}").Handler(auth.NewBackendTokenMiddleware(c.UseInCluster)(handler))
+}
+
+// federatedClusterMiddleware routes a request to the target registration it names, if that
+// registration was discovered from the origin cluster.
+func federatedClusterMiddleware(c *HeadlampConfig) mux.MiddlewareFunc {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			vars := mux.Vars(r)
+			originCluster, targetCluster := vars["clusterName"], vars["targetName"]
+
+			registration, found := c.ClusterRegistrationStore.Get(targetCluster)
+			if !found || registration.Origin.Cluster != originCluster {
+				http.NotFound(w, r)
+
+				return
+			}
+
+			c.delegateOriginToken(r, originCluster, targetCluster)
+
+			next.ServeHTTP(w, mux.SetURLVars(r, map[string]string{
+				"clusterName": targetCluster,
+				"api":         vars["api"],
+			}))
+		})
+	}
+}
+
+// delegateOriginToken authorizes a federated request with the origin cluster's auth cookie,
+// which is only safe when the target authenticates the end user.
+func (c *HeadlampConfig) delegateOriginToken(r *http.Request, originCluster, targetCluster string) {
+	kContext, err := c.KubeConfigStore.GetContext(targetCluster)
+	if err != nil || kContext.AuthType() != kubeconfig.AuthTypeOIDC {
+		return
+	}
+
+	setTokenFromCookieIfUnset(r, originCluster)
 }
 
 func recordRequestCompletion(c *HeadlampConfig, ctx context.Context,
@@ -2076,6 +2190,24 @@ func processWebSocketProtocolHeader(r *http.Request) {
 	} else {
 		r.Header.Del("Sec-WebSocket-Protocol")
 	}
+}
+
+func (c *HeadlampConfig) authorizeClusterRequest(r *http.Request, kContext *kubeconfig.Context) {
+	if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
+		clearRequestAuthorization(r)
+
+		return
+	}
+
+	if c.ProxyAuthEnabled && c.ProxyAuthTokenHeader != "" {
+		if token := strings.TrimSpace(r.Header.Get(c.ProxyAuthTokenHeader)); token != "" {
+			r.Header.Set("Authorization", "Bearer "+token)
+
+			return
+		}
+	}
+
+	auth.SetTokenFromCookie(r, mux.Vars(r)["clusterName"])
 }
 
 // processTokenProtocol extracts a bearer token from a WebSocket protocol string
@@ -2135,7 +2267,7 @@ func (c *HeadlampConfig) getClusters() []Cluster {
 			continue
 		}
 
-		// Dynamic clusters should not be visible to other users.
+		// Dynamic clusters and registrations should not be visible to other users.
 		if context.Internal {
 			continue
 		}
@@ -2274,15 +2406,16 @@ func (c *HeadlampConfig) getConfig(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
 	clientConfig := clientConfig{
-		Clusters:                  c.getClusters(),
-		IsDynamicClusterEnabled:   c.EnableDynamicClusters,
-		AllowKubeconfigChanges:    c.AllowKubeconfigChanges,
-		DefaultPodDebugImage:      c.PodDebugImage,
-		DefaultNodeShellImage:     c.NodeShellImage,
-		DefaultNodeShellNamespace: c.NodeShellNamespace,
-		DefaultLightTheme:         c.DefaultLightTheme,
-		DefaultDarkTheme:          c.DefaultDarkTheme,
-		ForceTheme:                c.ForceTheme,
+		Clusters:                    c.getClusters(),
+		IsDynamicClusterEnabled:     c.EnableDynamicClusters,
+		AllowKubeconfigChanges:      c.AllowKubeconfigChanges,
+		ClusterRegistrationsEnabled: c.ClusterRegistrationStore != nil,
+		DefaultPodDebugImage:        c.PodDebugImage,
+		DefaultNodeShellImage:       c.NodeShellImage,
+		DefaultNodeShellNamespace:   c.NodeShellNamespace,
+		DefaultLightTheme:           c.DefaultLightTheme,
+		DefaultDarkTheme:            c.DefaultDarkTheme,
+		ForceTheme:                  c.ForceTheme,
 	}
 
 	if err := json.NewEncoder(w).Encode(&clientConfig); err != nil {

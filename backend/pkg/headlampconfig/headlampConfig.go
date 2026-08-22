@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterregistration"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/telemetry"
@@ -44,6 +45,7 @@ type HeadlampConfig struct {
 	ProxyAuthEmailHeader      string
 	ProxyAuthTokenHeader      string
 	ServerCtx                 context.Context
+	ClusterRegistrationStore  *clusterregistration.Registry
 }
 
 type HeadlampCFG struct {
@@ -86,8 +88,14 @@ type HeadlampCFG struct {
 
 	EnableClusterInventory                bool
 	ClusterInventoryProviderFile          string
+	ClusterInventoryAuthType              string
+	ClusterInventoryAccessProviders       string
 	ClusterInventoryLabelSelector         string
 	ClusterInventoryNamespaces            string
 	ClusterInventoryRootReconcileInterval time.Duration
 	ClusterInventoryNoCRDCacheTTL         time.Duration
+
+	EnableClusterAPI        bool
+	ClusterAPILabelSelector string
+	ClusterAPINamespaces    string
 }

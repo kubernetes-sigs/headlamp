@@ -19,6 +19,8 @@ import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
+import { makeRegisteredCluster } from '../../../../test/clusterRegistration';
+import { setRegisteredClusterSnapshot } from '../../../clusterRegistration';
 import { getClusterAuthType } from '../v1/clusterRequests';
 import { BASE_HTTP_URL, clusterFetch } from './fetch';
 
@@ -60,6 +62,7 @@ describe('clusterFetch', () => {
 
   afterEach(() => {
     setBackendToken(null);
+    setRegisteredClusterSnapshot(undefined);
     nock.cleanAll();
   });
 
@@ -70,6 +73,16 @@ describe('clusterFetch', () => {
     const responseBody = await response.json();
 
     expect(responseBody).toEqual(mockResponse);
+  });
+
+  it('routes a registration through its origin cluster without changing the caller API', async () => {
+    setRegisteredClusterSnapshot({ items: [makeRegisteredCluster()] });
+    nock(BASE_HTTP_URL)
+      .get(`/clusters/hub/federated/hr-v1-spoke${testUrl}`)
+      .reply(200, mockResponse);
+
+    const response = await clusterFetch(testUrl, { cluster: 'hr-v1-spoke' });
+    expect(await response.json()).toEqual(mockResponse);
   });
 
   it('does not add backend credentials to non-cluster requests', async () => {

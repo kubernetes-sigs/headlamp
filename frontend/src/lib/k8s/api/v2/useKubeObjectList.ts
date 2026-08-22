@@ -16,11 +16,13 @@
 
 import type { QueryObserverOptions } from '@tanstack/react-query';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
+import { partition } from 'lodash';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   hasAllowedNamespacesRestriction,
   loadClusterSettings,
 } from '../../../../helpers/clusterSettings';
+import { getClusterRegistration } from '../../../clusterRegistration';
 import type { KubeObject, KubeObjectClass } from '../../KubeObject';
 import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError } from './ApiError';
@@ -39,12 +41,27 @@ import { BASE_WS_URL, useWebSockets } from './webSocket';
  * @returns true if the websocket multiplexer is enabled.
  * defaults to true. This is a feature flag to enable the websocket multiplexer.
  */
-export function getWebsocketMultiplexerEnabled(): boolean {
+function getWebsocketMultiplexerEnabled(): boolean {
   return import.meta.env.REACT_APP_ENABLE_WEBSOCKET_MULTIPLEXER === 'true';
+}
+
+/**
+ * Registrations use a path-scoped cookie the multiplexer endpoint never receives.
+ *
+ * @param cluster - Name of the cluster the watch is for.
+ * @returns true if watches for the given cluster go over the multiplexed connection.
+ */
+export function shouldMultiplexCluster(cluster: string): boolean {
+  return getWebsocketMultiplexerEnabled() && !getClusterRegistration(cluster);
 }
 
 /** Default page size for list consumers that opt in to pagination. */
 export const DEFAULT_LIST_LIMIT = 1000;
+
+/** A cluster and namespace to watch, at the resource version its list was fetched at. */
+type WatchList = { cluster: string; namespace?: string; resourceVersion: string };
+
+const emptyLists: WatchList[] = [];
 
 function toPaginationApiError(error: unknown, cluster: string, namespace?: string): ApiError {
   const apiError =
@@ -285,26 +302,27 @@ export function useWatchKubeObjectLists<K extends KubeObject>({
   /** Kube resource API endpoint information */
   endpoint?: KubeObjectEndpoint | null;
   /** Which clusters and namespaces to watch */
-  lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
+  lists: WatchList[];
 }) {
-  const multiplexerEnabled = getWebsocketMultiplexerEnabled();
+  const [multiplexedLists, legacyLists] = useMemo(
+    () => partition(lists, list => shouldMultiplexCluster(list.cluster)),
+    [lists]
+  );
 
   useWatchKubeObjectListsMultiplexed({
     kubeObjectClass,
     endpoint,
-    lists: multiplexerEnabled ? lists : [],
-    queryParams: multiplexerEnabled ? queryParams : undefined,
-    watchQueryParams: multiplexerEnabled ? watchQueryParams : undefined,
-    enabled: multiplexerEnabled,
+    lists: multiplexedLists,
+    queryParams,
+    watchQueryParams,
   });
 
   useWatchKubeObjectListsLegacy({
     kubeObjectClass,
     endpoint,
-    lists: !multiplexerEnabled ? lists : [],
-    queryParams: !multiplexerEnabled ? queryParams : undefined,
-    watchQueryParams: !multiplexerEnabled ? watchQueryParams : undefined,
-    enabled: !multiplexerEnabled,
+    lists: legacyLists,
+    queryParams,
+    watchQueryParams,
   });
 }
 
@@ -325,16 +343,15 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
   lists,
   queryParams,
   watchQueryParams,
-  enabled = true,
 }: {
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
   endpoint?: KubeObjectEndpoint | null;
-  lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
+  lists: WatchList[];
   queryParams?: QueryParameters;
   watchQueryParams?: QueryParameters;
-  enabled?: boolean;
 }): void {
   const client = useQueryClient();
+  const enabled = lists.length > 0;
 
   // Track the latest resource versions to prevent duplicate updates
   const latestResourceVersions = useRef<Record<string, string>>({});
@@ -476,7 +493,6 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
   lists,
   queryParams,
   watchQueryParams,
-  enabled = true,
 }: {
   /** KubeObject class of the watched resource list */
   kubeObjectClass: (new (...args: any) => K) & typeof KubeObject<any>;
@@ -487,10 +503,10 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
   /** Kube resource API endpoint information */
   endpoint?: KubeObjectEndpoint | null;
   /** Which clusters and namespaces to watch */
-  lists: Array<{ cluster: string; namespace?: string; resourceVersion: string }>;
-  enabled?: boolean;
+  lists: WatchList[];
 }) {
   const client = useQueryClient();
+  const enabled = lists.length > 0;
 
   const stableQueryParamsKey = enabled ? JSON.stringify(queryParams) : '__disabled__';
   const stableWatchQueryParamsKey = enabled
@@ -783,9 +799,7 @@ export function useKubeObjectList<K extends KubeObject>({
   // for resources outside our fetched page, causing the list to grow unboundedly.
   const shouldWatch = watch && !refetchInterval && !query.isLoading && !query.hasMore;
 
-  const [listsToWatch, setListsToWatch] = useState<
-    { cluster: string; namespace?: string; resourceVersion: string }[]
-  >([]);
+  const [listsToWatch, setListsToWatch] = useState<WatchList[]>([]);
 
   useEffect(() => {
     setListsToWatch(currentListsToWatch => {
@@ -832,7 +846,7 @@ export function useKubeObjectList<K extends KubeObject>({
   }, [query.data, requests, shouldWatch]);
 
   useWatchKubeObjectLists({
-    lists: shouldWatch ? listsToWatch : [],
+    lists: shouldWatch ? listsToWatch : emptyLists,
     endpoint,
     kubeObjectClass,
     queryParams: perRequestQueryParams,
