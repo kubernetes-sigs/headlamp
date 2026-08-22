@@ -300,7 +300,13 @@ export interface KubeContainer {
    */
   imagePullPolicy: string;
 
-  // @todo: Add lifecycle field.
+  /**
+   * Actions that the management system should take in response to container lifecycle events.
+   * Cannot be updated.
+   *
+   * @see {@link https://kubernetes.io/docs/concepts/containers/container-lifecycle-hooks/ | more info}
+   */
+  lifecycle?: KubeContainerLifecycle;
 
   /**
    * Periodic probe of container liveness. Container will be restarted if the probe fails.
@@ -416,9 +422,24 @@ export interface KubeContainer {
    */
   restartPolicy?: string;
 
-  // @todo:
-  // securityContext SecurityContext	SecurityContext defines the security options the container should be run with. If set, the fields of SecurityContext override the equivalent fields of PodSecurityContext. More info: https://kubernetes.io/docs/tasks/configure-pod-container/security-context/
-  // startupProbe Probe	StartupProbe indicates that the Pod has successfully initialized. If specified, no other probes are executed until this completes successfully. If this probe fails, the Pod will be restarted, just as if the livenessProbe failed. This can be used to provide different probe parameters at the beginning of a Pod's lifecycle, when it might take a long time to load data or warm a cache, than during steady-state operation. This cannot be updated. More info: https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes
+  /**
+   * SecurityContext defines the security options the container should be run with. If set,
+   * the fields of SecurityContext override the equivalent fields of PodSecurityContext.
+   *
+   * @see {@link https://kubernetes.io/docs/tasks/configure-pod-container/security-context/ | more info}
+   */
+  securityContext?: KubeSecurityContext;
+
+  /**
+   * StartupProbe indicates that the Pod has successfully initialized. If specified, no other
+   * probes are executed until this completes successfully. If this probe fails, the Pod will
+   * be restarted, just as if the livenessProbe failed. This can be used to provide different
+   * probe parameters at the beginning of a Pod's lifecycle, when it might take a long time
+   * to load data or warm a cache, than during steady-state operation. Cannot be updated.
+   *
+   * @see {@link https://kubernetes.io/docs/concepts/workloads/pods/pod-lifecycle#container-probes | more info}
+   */
+  startupProbe?: KubeContainerProbe;
 
   /**
    * Path at which the file to which the container's termination message will be written is mounted
@@ -502,6 +523,61 @@ export interface KubeContainer {
    * Only applies to ephemeral containers.
    */
   targetContainerName?: string;
+}
+
+export interface KubeLifecycleHandler {
+  exec?: {
+    command?: string[];
+  };
+  httpGet?: {
+    host?: string;
+    httpHeaders?: {
+      name: string;
+      value: string;
+    }[];
+    path?: string;
+    port: number | string;
+    scheme?: string;
+  };
+  tcpSocket?: {
+    host?: string;
+    port: number | string;
+  };
+}
+
+export interface KubeContainerLifecycle {
+  postStart?: KubeLifecycleHandler;
+  preStop?: KubeLifecycleHandler;
+}
+
+export interface KubeSecurityContext {
+  allowPrivilegeEscalation?: boolean;
+  capabilities?: {
+    add?: string[];
+    drop?: string[];
+  };
+  privileged?: boolean;
+  procMount?: string;
+  readOnlyRootFilesystem?: boolean;
+  runAsGroup?: number;
+  runAsNonRoot?: boolean;
+  runAsUser?: number;
+  seLinuxOptions?: {
+    level?: string;
+    role?: string;
+    type?: string;
+    user?: string;
+  };
+  seccompProfile?: {
+    localhostProfile?: string;
+    type: string;
+  };
+  windowsOptions?: {
+    gmsaCredentialSpec?: string;
+    gmsaCredentialSpecName?: string;
+    hostProcess?: boolean;
+    runAsUserName?: string;
+  };
 }
 
 export interface KubeContainerProbe {
