@@ -181,10 +181,15 @@ export function useKubeObject<K extends KubeObject>({
   const handleMessage = useCallback(
     (update: KubeListUpdateEvent<K>) => {
       if (update.type !== 'ADDED' && update.object) {
-        client.setQueryData(queryKey, new kubeObjectClass(update.object));
+        // Pass the cluster this hook was called with, the same way queryFn does.
+        // KubeObject's constructor falls back to `getCluster()` when it is omitted,
+        // which reads the cluster the user is currently viewing. That is the wrong
+        // one whenever this hook watches a different cluster, and `_clusterName` is
+        // what later delete, put and patch calls are addressed to.
+        client.setQueryData(queryKey, new kubeObjectClass(update.object, cluster));
       }
     },
-    [client, queryKey, kubeObjectClass]
+    [client, queryKey, kubeObjectClass, cluster]
   );
 
   const connectionsRequests = useMemo(() => {
