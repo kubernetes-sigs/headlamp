@@ -467,6 +467,7 @@
   "from": "from",
   "I/O": "I/O",
   "Ready": "준비 완료",
+  "Not Ready": "",
   "Waiting": "대기 중",
   "Running": "실행 중",
   "Exit Code": "종료 코드",
