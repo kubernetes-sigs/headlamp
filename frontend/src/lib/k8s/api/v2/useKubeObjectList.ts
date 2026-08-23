@@ -17,7 +17,6 @@
 import type { QueryObserverOptions } from '@tanstack/react-query';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { loadClusterSettings } from '../../../../helpers/clusterSettings';
 import {
   hasAllowedNamespacesRestriction,
   loadClusterSettings,
