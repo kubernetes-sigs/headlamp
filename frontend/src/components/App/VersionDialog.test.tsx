@@ -95,6 +95,13 @@ describe('VersionDialog', () => {
     expect(screen.queryByRole('tab', { name: 'Legal' })).not.toBeInTheDocument();
   });
 
+  it('falls back to Headlamp as title when getProductName is undefined', () => {
+    vi.mocked(getProductName).mockReturnValueOnce(undefined);
+    renderVersionDialog();
+
+    expect(screen.getByRole('dialog', { name: 'Headlamp' })).toHaveTextContent('1.2.3');
+  });
+
   it('uses the product version provider by default', () => {
     renderVersionDialog({ useDefaultVersion: true });
 
