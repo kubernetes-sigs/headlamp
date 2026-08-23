@@ -979,6 +979,7 @@
   "Expand sidebar": "Zijbalk uitvouwen",
   "Main Navigation": "Hoofdnavigatie",
   "Navigation Tabs": "Navigatietabbladen",
+  "RBAC Visualizer": "",
   "Instances": "Exemplaren",
   "Cluster version upgraded to {{ gitVersion }}": "Clusterversie bijgewerkt naar {{ gitVersion }}",
   "Cluster version downgraded to {{ gitVersion }}": "Clusterversie gedowngraded naar {{ gitVersion }}",

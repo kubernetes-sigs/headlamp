@@ -969,6 +969,7 @@
   "Expand sidebar": "サイドバーを展開",
   "Main Navigation": "メインナビゲーション",
   "Navigation Tabs": "ナビゲーションタブ",
+  "RBAC Visualizer": "",
   "Instances": "インスタンス",
   "Cluster version upgraded to {{ gitVersion }}": "クラスターバージョンは {{ gitVersion }} にアップグレードされました",
   "Cluster version downgraded to {{ gitVersion }}": "クラスターバージョンは {{ gitVersion }} にダウングレードされました",

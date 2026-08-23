@@ -989,6 +989,7 @@
   "Expand sidebar": "Espandi barra laterale",
   "Main Navigation": "Navigazione Principale",
   "Navigation Tabs": "Schede di Navigazione",
+  "RBAC Visualizer": "",
   "Instances": "Istanze",
   "Cluster version upgraded to {{ gitVersion }}": "Versione del cluster aggiornata a {{ gitVersion }}",
   "Cluster version downgraded to {{ gitVersion }}": "Versione del cluster retrocessa a {{ gitVersion }}",

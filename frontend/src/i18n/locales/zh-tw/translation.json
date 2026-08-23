@@ -969,6 +969,7 @@
   "Expand sidebar": "展開側邊欄",
   "Main Navigation": "主導航",
   "Navigation Tabs": "導航標籤",
+  "RBAC Visualizer": "",
   "Instances": "實例",
   "Cluster version upgraded to {{ gitVersion }}": "叢集版本升級到 {{ gitVersion }}",
   "Cluster version downgraded to {{ gitVersion }}": "叢集版本降級到 {{ gitVersion }}",

@@ -999,6 +999,7 @@
   "Expand sidebar": "Rozwiń pasek boczny",
   "Main Navigation": "Główna nawigacja",
   "Navigation Tabs": "Karty nawigacji",
+  "RBAC Visualizer": "",
   "Instances": "Wystąpienia",
   "Cluster version upgraded to {{ gitVersion }}": "Uaktualniono wersję klastra do {{ gitVersion }}",
   "Cluster version downgraded to {{ gitVersion }}": "Wersja klastra została obniżona do {{ gitVersion }}",

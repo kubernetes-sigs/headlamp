@@ -979,6 +979,7 @@
   "Expand sidebar": "Visa sidofält",
   "Main Navigation": "Huvudnavigering",
   "Navigation Tabs": "Navigeringsflikar",
+  "RBAC Visualizer": "",
   "Instances": "Instanser",
   "Cluster version upgraded to {{ gitVersion }}": "Klusterversionen har uppgraderats till {{ gitVersion }}",
   "Cluster version downgraded to {{ gitVersion }}": "Klusterversionen har nedgraderats till {{ gitVersion }}",

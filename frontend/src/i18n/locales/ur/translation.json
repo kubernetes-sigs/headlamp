@@ -979,6 +979,7 @@
   "Expand sidebar": "سائیڈ بار پھیلائیں",
   "Main Navigation": "مرکزی نیویگیشن",
   "Navigation Tabs": "نیویگیشن ٹیبز",
+  "RBAC Visualizer": "",
   "Instances": "انسٹینسز",
   "Cluster version upgraded to {{ gitVersion }}": "کلسٹر ورژن {{ gitVersion }} تک اپ گریڈ ہو گیا",
   "Cluster version downgraded to {{ gitVersion }}": "کلسٹر ورژن {{ gitVersion }} تک ڈاؤن گریڈ ہو گیا",

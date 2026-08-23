@@ -999,6 +999,7 @@
   "Expand sidebar": "Rozbalit boční panel",
   "Main Navigation": "Hlavní navigace",
   "Navigation Tabs": "Navigační karty",
+  "RBAC Visualizer": "",
   "Instances": "Instance",
   "Cluster version upgraded to {{ gitVersion }}": "Verze clusteru se upgradovala na {{ gitVersion }}.",
   "Cluster version downgraded to {{ gitVersion }}": "Verze clusteru byla downgradována na {{ gitVersion }}.",

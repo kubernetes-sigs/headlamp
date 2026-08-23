@@ -979,6 +979,7 @@
   "Expand sidebar": "Oldalsáv kibontása",
   "Main Navigation": "Fő navigáció",
   "Navigation Tabs": "Navigációs lapok",
+  "RBAC Visualizer": "",
   "Instances": "Példányok",
   "Cluster version upgraded to {{ gitVersion }}": "A fürt {{ gitVersion }} verzióra frissítve",
   "Cluster version downgraded to {{ gitVersion }}": "A fürt {{ gitVersion }} verziója visszaváltva",

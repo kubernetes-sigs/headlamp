@@ -979,6 +979,7 @@
   "Expand sidebar": "Kenar çubuğunu genişlet",
   "Main Navigation": "Ana Gezinti",
   "Navigation Tabs": "Gezinti Sekmeleri",
+  "RBAC Visualizer": "",
   "Instances": "Örnekler",
   "Cluster version upgraded to {{ gitVersion }}": "Küme sürümü {{ gitVersion }} sürümüne yükseltildi",
   "Cluster version downgraded to {{ gitVersion }}": "Küme sürümü {{ gitVersion }} sürümüne düşürüldü",

@@ -969,6 +969,7 @@
   "Expand sidebar": "Luaskan bilah sisi",
   "Main Navigation": "Navigasi Utama",
   "Navigation Tabs": "Tab Navigasi",
+  "RBAC Visualizer": "",
   "Instances": "Instans",
   "Cluster version upgraded to {{ gitVersion }}": "Versi kluster ditingkatkan ke {{ gitVersion }}",
   "Cluster version downgraded to {{ gitVersion }}": "Versi kluster diturunkan ke {{ gitVersion }}",
