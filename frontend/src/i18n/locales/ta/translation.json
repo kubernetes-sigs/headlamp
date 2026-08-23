@@ -226,6 +226,7 @@
   "Getting auth info: {{ clusterName }}": "அங்கீகாரத் தகவல் பெறுகிறது: {{ clusterName }}",
   "Getting auth info": "அங்கீகாரத் தகவல் பெறுகிறது",
   "Testing auth": "அங்கீகாரத்தைச் சோதிக்கிறது",
+  "The cluster did not accept your sign-in. Its API server may not trust this OIDC provider (issuer, client ID, or audience), or your token may be expired or lack the required permissions. Please check the cluster API server OIDC configuration.": "",
   "Headlamp Cluster Authentication": "ஹெட்லேம்ப் க்ளஸ்டர் அங்கீகாரம்",
   "Sign In": "உள்நுழை",
   "Use A Token": "ஒரு டோக்கன் பயன்படுத்து",

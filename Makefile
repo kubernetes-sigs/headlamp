@@ -35,7 +35,7 @@ EMBED_BINARY_NAME := headlamp_app
 APP_VERSION ?= $(shell node -p "require('./app/package.json').version" 2>/dev/null || echo "unknown")
 APP_NAME ?= $(shell node -p "require('./app/package.json').productName" 2>/dev/null || echo "Headlamp")
 # Build flags with version and app name
-BUILD_VERSION_FLAGS := -ldflags="-X github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.Version=$(APP_VERSION) -X 'github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.AppName=$(APP_NAME)'"
+BUILD_VERSION_FLAGS := -trimpath -ldflags="-s -w -X github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.Version=$(APP_VERSION) -X 'github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.AppName=$(APP_NAME)'"
 # embed build flags
 EMBED_BUILD_FLAGS := -trimpath -ldflags="-s -w -X github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.Version=$(APP_VERSION) -X 'github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig.AppName=$(APP_NAME)'" -tags embed
 

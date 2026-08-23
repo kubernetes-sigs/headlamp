@@ -18,6 +18,7 @@ import GlobalStyles from '@mui/material/GlobalStyles';
 import { SnackbarProvider } from 'notistack';
 import React, { useEffect } from 'react';
 import { BrowserRouter, HashRouter, useHistory, useLocation } from 'react-router-dom';
+import { installBackendTokenFetch } from '../../helpers/backendTokenFetch';
 import { getBaseUrl } from '../../helpers/getBaseUrl';
 import { setBackendToken } from '../../helpers/getHeadlampAPIHeaders';
 import { isElectron } from '../../helpers/isElectron';
@@ -28,11 +29,6 @@ import ReleaseNotes from '../common/ReleaseNotes/ReleaseNotes';
 import { MonacoEditorLoaderInitializer } from '../monaco/MonacoEditorLoaderInitializer';
 import Layout from './Layout';
 import { PreviousRouteProvider } from './RouteSwitcher';
-
-window.desktopApi?.send('request-backend-token');
-window.desktopApi?.receive('backend-token', (token: string) => {
-  setBackendToken(token);
-});
 
 // Listen for the open-about-dialog event from the Electron app menu
 window.desktopApi?.receive('open-about-dialog', () => {
@@ -169,6 +165,27 @@ const Router = ({ children }: React.PropsWithChildren<{}>) =>
   );
 
 export default function AppContainer() {
+  const [backendTokenReady, setBackendTokenReady] = React.useState(!window.desktopApi);
+
+  useEffect(() => {
+    if (!window.desktopApi) {
+      return;
+    }
+
+    installBackendTokenFetch();
+    const unsubscribe = window.desktopApi.receive('backend-token', (token: string) => {
+      setBackendToken(token);
+      setBackendTokenReady(true);
+    });
+    window.desktopApi.send('request-backend-token');
+
+    return () => unsubscribe?.();
+  }, []);
+
+  if (!backendTokenReady) {
+    return null;
+  }
+
   return (
     <SnackbarProvider
       anchorOrigin={{

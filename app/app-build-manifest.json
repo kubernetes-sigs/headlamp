@@ -3,15 +3,18 @@
   "plugins": [
     {
       "name": "app-catalog",
-      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/app-catalog-0.9.1/app-catalog-0.9.1.tar.gz"
+      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/app-catalog-0.9.1/app-catalog-0.9.1.tar.gz",
+      "sha256": "e6f7869ec17d182ea6d654cd6152f89b13fb731c89640323facd794a00c640c8"
     },
     {
       "name": "plugin-catalog",
-      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/plugin-catalog-0.4.4/headlamp-k8s-plugin-catalog-0.4.4.tar.gz"
+      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/plugin-catalog-0.4.4/headlamp-k8s-plugin-catalog-0.4.4.tar.gz",
+      "sha256": "03bf713e4b4acb790fc2f10dcb985c9a66ce8c0828c69ffddcfb476aa28470fb"
     },
     {
       "name": "prometheus",
-      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/prometheus-0.9.1/prometheus-0.9.1.tar.gz"
+      "archive": "https://github.com/headlamp-k8s/plugins/releases/download/prometheus-0.9.1/prometheus-0.9.1.tar.gz",
+      "sha256": "06afabe42da69e8e0c5c2632acc3fee020566825d2ae71ff8e4f3dd7f78fc4ae"
     }
   ],
   "legalDocuments": [

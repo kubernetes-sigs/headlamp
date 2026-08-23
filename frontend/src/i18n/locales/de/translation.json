@@ -226,6 +226,7 @@
   "Getting auth info: {{ clusterName }}": "Rufe Authentifizierungsinformationen für {{ clusterName }} ab",
   "Getting auth info": "Rufe Authentifizierungsinformationen ab",
   "Testing auth": "Prüfe Authentifizierungsinformationen",
+  "The cluster did not accept your sign-in. Its API server may not trust this OIDC provider (issuer, client ID, or audience), or your token may be expired or lack the required permissions. Please check the cluster API server OIDC configuration.": "",
   "Headlamp Cluster Authentication": "Headlamp Cluster-Authentifizierung",
   "Sign In": "Anmelden",
   "Use A Token": "Token verwenden",

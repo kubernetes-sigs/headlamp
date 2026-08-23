@@ -24,11 +24,13 @@ import * as tar from 'tar';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   applyPlatformMetadata,
+  applyProductMetadata,
   DEFAULT_MANIFEST_FILE,
   loadBuildManifest,
   resolveBuildManifestPath,
 } from '../scripts/build-manifest.ts';
 import {
+  applyEnabledByDefault,
   downloadFile,
   extractArchive,
   getArchiveFileName,
@@ -36,12 +38,12 @@ import {
   resolveLocalPluginArchive,
   validatePluginSource,
   verifyArchiveDigest,
+  verifyPluginIdentity,
 } from '../scripts/setup-plugins.ts';
 
 const require = createRequire(import.meta.url);
 const { getConfig } = require('app-builder-lib/out/util/config/config');
 const appPath = path.resolve(__dirname, '..');
-
 describe('platform metadata', () => {
   afterEach(() => {
     delete process.env.HEADLAMP_BUILD_MANIFEST;
@@ -122,12 +124,124 @@ describe('platform metadata', () => {
       './fixtures/platform-build-manifest.json'
     );
 
+    vi.resetModules();
+    const { default: config } = await import('../electron-builder.config.ts');
+
+    expect(config.linux).toMatchObject({
+      executableName: 'example-headlamp',
+      category: 'Network',
+    });
+    expect(config.mac).toMatchObject({ appId: 'io.example.headlamp' });
+    expect(config.win).toMatchObject({ icon: 'build/icons/example.ico' });
+  });
+});
+
+describe('product metadata', () => {
+  it.each([null, [], 'manifest'])('rejects an invalid manifest value: %j', manifest => {
+    expect(() => applyProductMetadata({}, manifest)).toThrow('Build manifest must be an object');
+  });
+
+  it('preserves the configuration when product metadata is absent', () => {
+    const defaults = { appId: 'io.headlamp', productName: 'Headlamp' };
+
+    expect(applyProductMetadata(defaults, {})).toBe(defaults);
+  });
+
+  it.each([null, [], 'headlamp'])('rejects an invalid product value: %j', product => {
+    expect(() => applyProductMetadata({}, { product })).toThrow(
+      'Build manifest product must be an object'
+    );
+  });
+
+  it('applies product identity while preserving unrelated defaults', () => {
+    const defaults = {
+      appId: 'io.headlamp',
+      productName: 'Headlamp',
+      category: 'Network',
+      extraMetadata: { channel: 'stable' },
+    };
+
+    expect(
+      applyProductMetadata(defaults, {
+        product: {
+          name: 'example-desktop',
+          productName: 'Example Desktop',
+          version: '1.2.3',
+          appId: 'io.example.desktop',
+          artifactName: '${name}-${version}.${ext}',
+          protocols: { name: 'example', schemes: ['example'] },
+        },
+      })
+    ).toEqual({
+      appId: 'io.example.desktop',
+      productName: 'Example Desktop',
+      category: 'Network',
+      artifactName: '${name}-${version}.${ext}',
+      protocols: { name: 'example', schemes: ['example'] },
+      buildVersion: '1.2.3',
+      extraMetadata: {
+        channel: 'stable',
+        name: 'example-desktop',
+        productName: 'Example Desktop',
+        version: '1.2.3',
+      },
+    });
+    expect(defaults).toEqual({
+      appId: 'io.headlamp',
+      productName: 'Headlamp',
+      category: 'Network',
+      extraMetadata: { channel: 'stable' },
+    });
+  });
+
+  it.each(['name', 'productName', 'version', 'appId', 'artifactName'])(
+    'rejects a non-string product.%s',
+    field => {
+      expect(() => applyProductMetadata({}, { product: { [field]: 1 } })).toThrow(
+        `Build manifest product.${field} must be a string`
+      );
+    }
+  );
+
+  it.each([null, [], 'example'])('rejects invalid product protocols: %j', protocols => {
+    expect(() => applyProductMetadata({}, { product: { protocols } })).toThrow(
+      'Build manifest product.protocols must be an object'
+    );
+  });
+
+  it.each([null, [], 'metadata'])(
+    'replaces malformed inherited extra metadata: %j',
+    extraMetadata => {
+      expect(
+        applyProductMetadata({ extraMetadata }, { product: { name: 'example-desktop' } })
+          .extraMetadata
+      ).toEqual({ name: 'example-desktop' });
+    }
+  );
+
+  it('applies a selected product manifest to the Electron Builder configuration', async () => {
+    const manifestFile = temporaryFile(
+      JSON.stringify({
+        product: {
+          name: 'example-desktop',
+          productName: 'Example Desktop',
+          version: '1.2.3',
+          appId: 'io.example.desktop',
+        },
+      })
+    );
+    process.env.HEADLAMP_BUILD_MANIFEST = manifestFile;
+
     const config = await getConfig(appPath, 'electron-builder.config.ts', {});
 
-    expect(config.linux.executableName).toBe('example-headlamp');
-    expect(config.linux.category).toBe('Network');
-    expect(config.mac.appId).toBe('io.example.headlamp');
-    expect(config.win.icon).toBe('build/icons/example.ico');
+    expect(config.appId).toBe('io.example.desktop');
+    expect(config.productName).toBe('Example Desktop');
+    expect(config.buildVersion).toBe('1.2.3');
+    expect(config.extraMetadata).toMatchObject({
+      name: 'example-desktop',
+      productName: 'Example Desktop',
+      version: '1.2.3',
+    });
   });
 });
 
@@ -166,6 +280,10 @@ describe('build manifest selection', () => {
     expect(loadBuildManifest(manifestFile)).toEqual({ plugins: [{ name: 'example' }] });
   });
 
+  it('loads the default manifest when no path is supplied', () => {
+    expect(loadBuildManifest()).toEqual(expect.objectContaining({ plugins: expect.any(Array) }));
+  });
+
   it('rejects unsafe proxy URL patterns', () => {
     for (const proxyUrls of [
       ['file:///etc/passwd'],
@@ -202,6 +320,18 @@ describe('build manifest selection', () => {
 
     vi.resetModules();
     await expect(import('../electron-builder.config.ts')).rejects.toThrow('proxy-urls');
+  });
+
+  it('pins SHA-256 digests for every bundled plugin archive', () => {
+    const bundledManifest = loadBuildManifest(DEFAULT_MANIFEST_FILE) as {
+      plugins?: Array<{ archive?: string; sha256?: string }>;
+    };
+    const bundledArchives = bundledManifest.plugins?.filter(plugin => plugin.archive) ?? [];
+
+    expect(bundledArchives.length).toBeGreaterThan(0);
+    for (const plugin of bundledArchives) {
+      expect(plugin.sha256).toMatch(/^[a-f0-9]{64}$/);
+    }
   });
 });
 
@@ -285,6 +415,7 @@ describe('plugin archive integrity', () => {
       validatePluginSource(
         {
           name: 'example',
+          packageName: 'example-plugin',
           archive: 'https://plugins.example/plugin.tar.gz',
           sha256: '0'.repeat(64),
         },
@@ -295,7 +426,15 @@ describe('plugin archive integrity', () => {
       'must declare a SHA-256 digest'
     );
     expect(() =>
-      validatePluginSource({ name: 'local', file: './plugin.tar.gz', sha256: '0'.repeat(64) }, true)
+      validatePluginSource(
+        {
+          name: 'local',
+          packageName: 'local-plugin',
+          file: './plugin.tar.gz',
+          sha256: '0'.repeat(64),
+        },
+        true
+      )
     ).not.toThrow();
     expect(() =>
       validatePluginSource(
@@ -327,11 +466,26 @@ describe('plugin archive integrity', () => {
     ).toThrow('Invalid SHA-256');
   });
 
+  it('rejects non-boolean default enabled states', () => {
+    expect(() =>
+      validatePluginSource(
+        {
+          name: 'example',
+          file: './plugin.tar.gz',
+          enabledByDefault: 'false' as unknown as boolean,
+        },
+        false
+      )
+    ).toThrow('enabledByDefault must be a boolean');
+  });
+
   it('accepts matching digests and manifests without digests', () => {
     const archive = temporaryFile('plugin archive');
     const digest = crypto.createHash('sha256').update('plugin archive').digest('hex');
+    const readFile = vi.spyOn(fs, 'readFileSync');
 
     expect(() => verifyArchiveDigest(archive, digest.toUpperCase())).not.toThrow();
+    expect(readFile).not.toHaveBeenCalled();
     expect(() => verifyArchiveDigest(archive, undefined)).not.toThrow();
   });
 
@@ -373,6 +527,122 @@ describe('plugin archive integrity', () => {
     expect(() => resolveLocalPluginArchive(manifestFile, './linked.tar.gz')).toThrow(
       'within the manifest directory'
     );
+  });
+
+  it('requires valid package names only for external manifests', () => {
+    const validPlugin = {
+      name: 'example',
+      packageName: '@example/plugin',
+      file: './plugin.tar.gz',
+      sha256: '0'.repeat(64),
+    };
+
+    expect(() => validatePluginSource(validPlugin, true)).not.toThrow();
+    expect(() => validatePluginSource({ ...validPlugin, packageName: undefined }, true)).toThrow(
+      'must declare a valid package name'
+    );
+    expect(() =>
+      validatePluginSource({ ...validPlugin, packageName: 'invalid package' }, true)
+    ).toThrow('must declare a valid package name');
+    expect(() =>
+      validatePluginSource({ ...validPlugin, packageName: '@Example/plugin' }, true)
+    ).toThrow('must declare a valid package name');
+    expect(() =>
+      validatePluginSource(
+        { name: 'bundled', archive: 'https://plugins.example/plugin.tar.gz' },
+        false
+      )
+    ).not.toThrow();
+  });
+
+  it.each(['CON', 'nul.txt', 'COM1', 'lpt9.log', 'plugin.', 'plugin '])(
+    'rejects an unsafe external plugin name: %j',
+    name => {
+      expect(() =>
+        validatePluginSource(
+          {
+            name,
+            packageName: 'example-plugin',
+            file: './plugin.tar.gz',
+            sha256: '0'.repeat(64),
+          },
+          true
+        )
+      ).toThrow('Invalid plugin name');
+    }
+  );
+  it('accepts matching package identities and rejects mismatches', () => {
+    const packageJson = temporaryFile('{"name":"@example/plugin"}');
+
+    expect(() => verifyPluginIdentity(packageJson, '@example/plugin')).not.toThrow();
+    expect(() => verifyPluginIdentity(packageJson, '@other/plugin')).toThrow(
+      'Plugin package name mismatch'
+    );
+    expect(() => verifyPluginIdentity(packageJson, undefined)).not.toThrow();
+  });
+
+  it('reports package metadata errors with identity context', () => {
+    const malformedPackageJson = temporaryFile('{not-json');
+    const missingPackageJson = path.join(path.dirname(malformedPackageJson), 'missing.json');
+
+    expect(() => verifyPluginIdentity(malformedPackageJson, '@example/plugin')).toThrow(
+      'Plugin identity verification failed for @example/plugin'
+    );
+    expect(() => verifyPluginIdentity(missingPackageJson, '@example/plugin')).toThrow(
+      'Plugin identity verification failed for @example/plugin'
+    );
+  });
+});
+
+describe('bundled plugin default metadata', () => {
+  function pluginPackage(contents: string = '{"name":"example"}') {
+    const pluginRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugin-default-'));
+    temporaryDirectories.push(pluginRoot);
+    const pluginDirectory = path.join(pluginRoot, 'example');
+    fs.mkdirSync(pluginDirectory);
+    const packageJsonPath = path.join(pluginDirectory, 'package.json');
+    fs.writeFileSync(packageJsonPath, contents);
+    return { pluginRoot, packageJsonPath };
+  }
+
+  it('atomically preserves package metadata while applying a disabled default', () => {
+    const { pluginRoot, packageJsonPath } = pluginPackage(
+      '{"name":"example","headlamp":{"i18n":["en"]}}'
+    );
+    const rename = vi.spyOn(fs, 'renameSync');
+
+    applyEnabledByDefault(pluginRoot, 'example', false);
+
+    expect(rename).toHaveBeenCalledWith(expect.stringContaining('.tmp-'), packageJsonPath);
+    expect(JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'))).toEqual({
+      name: 'example',
+      headlamp: { i18n: ['en'], enabledByDefault: false },
+    });
+    expect(fs.readdirSync(path.dirname(packageJsonPath))).toEqual(['package.json']);
+    rename.mockRestore();
+  });
+
+  it('fails closed when an explicit default cannot be applied', () => {
+    const missingRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugin-default-'));
+    temporaryDirectories.push(missingRoot);
+    expect(() => applyEnabledByDefault(missingRoot, 'missing', false)).toThrow(
+      'package.json is missing'
+    );
+
+    const { pluginRoot, packageJsonPath } = pluginPackage('{invalid json');
+    expect(() => applyEnabledByDefault(pluginRoot, 'example', false)).toThrow(
+      'Failed to apply enabledByDefault'
+    );
+    expect(fs.readFileSync(packageJsonPath, 'utf8')).toBe('{invalid json');
+    expect(fs.readdirSync(path.dirname(packageJsonPath))).toEqual(['package.json']);
+  });
+
+  it('leaves package metadata unchanged when no default is declared', () => {
+    const { pluginRoot, packageJsonPath } = pluginPackage();
+
+    applyEnabledByDefault(pluginRoot, 'example');
+
+    expect(fs.readFileSync(packageJsonPath, 'utf8')).toBe('{"name":"example"}');
   });
 });
 
