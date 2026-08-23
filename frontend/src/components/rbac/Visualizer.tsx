@@ -16,20 +16,28 @@
 
 import '@xyflow/react/dist/style.css';
 import { Box, MenuItem, Select, Typography } from '@mui/material';
-import { Background, Controls, ReactFlow, useEdgesState, useNodesState } from '@xyflow/react';
+import {
+  Background,
+  Controls,
+  Edge,
+  Node,
+  ReactFlow,
+  useEdgesState,
+  useNodesState,
+} from '@xyflow/react';
 import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import ClusterRole from '../../../lib/k8s/clusterRole';
-import ClusterRoleBinding from '../../../lib/k8s/clusterRoleBinding';
-import Role from '../../../lib/k8s/role';
-import RoleBinding from '../../../lib/k8s/roleBinding';
-import ServiceAccount from '../../../lib/k8s/serviceAccount';
-import { SectionBox } from '../../common/SectionBox';
+import ClusterRole from '../../lib/k8s/clusterRole';
+import ClusterRoleBinding from '../../lib/k8s/clusterRoleBinding';
+import Role from '../../lib/k8s/role';
+import RoleBinding from '../../lib/k8s/roleBinding';
+import ServiceAccount from '../../lib/k8s/serviceAccount';
+import { SectionBox } from '../common/SectionBox';
 
 export default function RBACVisualizer() {
   const { t } = useTranslation('glossary');
-  const [nodes, setNodes, onNodesChange] = useNodesState([]);
-  const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+  const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
+  const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
   const { items: serviceAccounts } = ServiceAccount.useList();
   const { items: roleBindings } = RoleBinding.useList();
@@ -46,8 +54,8 @@ export default function RBACVisualizer() {
       return;
     }
 
-    const newNodes: any[] = [];
-    const newEdges: any[] = [];
+    const newNodes: Node[] = [];
+    const newEdges: Edge[] = [];
 
     // 1. Add Subject Node
     const subjectId = `subject-${selectedSubject}`;
@@ -68,7 +76,7 @@ export default function RBACVisualizer() {
     // 2. Find Bindings for this Subject
     const allBindings = [...(roleBindings || []), ...(clusterRoleBindings || [])];
     const matchingBindings = allBindings.filter(b =>
-      b.subjects?.some(s => `${s.kind}:${s.name}` === selectedSubject)
+      b.subjects?.some((s: any) => `${s.kind}:${s.name}` === selectedSubject)
     );
 
     matchingBindings.forEach((binding, idx) => {
@@ -171,7 +179,7 @@ export default function RBACVisualizer() {
           <MenuItem value="" disabled>
             {t('Select a ServiceAccount')}
           </MenuItem>
-          {serviceAccounts?.map(sa => (
+          {serviceAccounts?.map((sa: any) => (
             <MenuItem key={sa.metadata.uid} value={`ServiceAccount:${sa.metadata.name}`}>
               {sa.metadata.namespace} / {sa.metadata.name}
             </MenuItem>
