@@ -49,6 +49,21 @@ jobs:
         make app-linux
     - name: Verify Linux build
       run: npm run app:verify-build-linux
+    - name: Start Minikube
+      uses: medyagh/setup-minikube@d8c0eb871f6f455542491d86a574477bd3894533 # latest
+    - name: Verify Minikube
+      run: |
+        minikube status
+        kubectl config use-context minikube
+        kubectl get nodes
+    - name: Run app e2e tests
+      env:
+        HEADLAMP_APP_E2E_CONTEXT: minikube
+      run: |
+        make backend
+        npm --prefix app/e2e-tests ci
+        npm --prefix app/e2e-tests exec -- playwright install --with-deps chromium
+          xvfb-run npm run app:test:e2e -- backendToken.spec.ts
   build-windows:
     strategy:
       matrix:

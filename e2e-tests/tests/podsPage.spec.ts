@@ -114,6 +114,37 @@ test('loads the next page of pods', async ({ page }) => {
   expect(listRequests[1].searchParams.get('continue')).toBe('next-page');
 });
 
+test('changes column visibility with the keyboard', async ({ page }) => {
+  const headlampPage = new HeadlampPage(page);
+  await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+  await headlampPage.navigateTopage('/c/test/pods', /Pods/);
+
+  const columnSelector = page.getByRole('button', { name: 'Show/Hide columns' });
+  await columnSelector.focus();
+  await page.keyboard.press('Enter');
+
+  await expect(page.getByRole('menuitem', { name: 'Hide all' })).toBeFocused();
+
+  const columnItem = page.locator('[role="menuitemcheckbox"]:not([aria-disabled="true"])').first();
+  const initialChecked = await columnItem.getAttribute('aria-checked');
+  expect(initialChecked).toMatch(/^(true|false)$/);
+
+  const menuItemCount = await page.locator('[role="menuitem"], [role="menuitemcheckbox"]').count();
+  for (let index = 0; index < menuItemCount; index++) {
+    await page.keyboard.press('ArrowDown');
+    if (await columnItem.evaluate(element => element === document.activeElement)) {
+      break;
+    }
+  }
+  await expect(columnItem).toBeFocused();
+
+  await page.keyboard.press('Space');
+  await expect(columnItem).toHaveAttribute(
+    'aria-checked',
+    initialChecked === 'true' ? 'false' : 'true'
+  );
+});
+
 test('multi tab create delete pod', async ({ browser }) => {
   // This test may be slow to create and delete a pod
   test.setTimeout(60000);
@@ -455,4 +486,45 @@ test('opens aggregated logs for a workload', async ({ page }) => {
   await expect(page.locator('#xterm-container')).toBeVisible();
   await expect(page.getByLabel('Select Pod')).toBeVisible();
   await expect(page.getByRole('combobox', { name: /^Container/ })).toBeVisible();
+});
+
+test('checks pod accessibility with a visible status tooltip', async ({ page }) => {
+  const headlampPage = new HeadlampPage(page);
+  await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+
+  await page.route('**/clusters/test/apis/metrics.k8s.io/v1beta1/pods?*', async route => {
+    await route.fulfill({ json: { apiVersion: 'v1', kind: 'PodMetricsList', items: [] } });
+  });
+  await page.route('**/clusters/test/api/v1/pods?*', async route => {
+    const pod = {
+      ...makePod('tooltip-test-pod', '1'),
+      status: {
+        phase: 'Pending',
+        conditions: [{ type: 'Ready', status: 'False' }],
+        containerStatuses: [
+          {
+            name: 'main',
+            ready: false,
+            restartCount: 0,
+            state: {
+              waiting: {
+                reason: 'ImagePullBackOff',
+                message: 'Waiting to pull the container image',
+              },
+            },
+          },
+        ],
+      },
+    };
+    await route.fulfill({
+      json: { apiVersion: 'v1', kind: 'PodList', metadata: {}, items: [pod] },
+    });
+  });
+  await headlampPage.navigateTopage('/c/test/pods', /Pods/);
+
+  const podsTable = page.getByRole('table');
+  await podsTable.getByText('ImagePullBackOff', { exact: true }).hover();
+  await expect(page.getByRole('tooltip')).toContainText('Waiting to pull the container image');
+
+  await new podsPage(page).a11y();
 });

@@ -16,6 +16,7 @@
 
 import { useEffect } from 'react';
 import { getAppUrl } from '../../../../helpers/getAppUrl';
+import { getHeadlampWebSocketProtocol } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
@@ -103,6 +104,10 @@ export async function openWebSocket<T>(
   const connectionKey = cluster + url;
   const path = [url];
   const protocols = ['base64.binary.k8s.io', ...(moreProtocols ?? [])];
+  const backendTokenProtocol = getHeadlampWebSocketProtocol();
+  if (backendTokenProtocol !== null) {
+    protocols.push(backendTokenProtocol);
+  }
 
   if (cluster) {
     path.unshift('clusters', cluster);

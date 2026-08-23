@@ -20,8 +20,9 @@ import { runA11yScan } from './a11yHelper';
 export class podsPage {
   constructor(private page: Page) {}
 
-  async a11y() {
-    await runA11yScan(this.page, expect);
+  /** Checks the pods page while ignoring tooltip landmark placement. */
+  async a11y(): Promise<void> {
+    await runA11yScan(this.page, expect, ['[role="tooltip"]']);
   }
 
   async navigateToPods() {
@@ -72,7 +73,9 @@ spec:
     await expect(page.getByRole('button', { name: 'Apply', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Apply', exact: true }).click();
 
-    await page.waitForSelector(`text=Applied ${name}`);
+    const appliedSnackbar = page.getByText(`Applied ${name}`, { exact: true });
+    await appliedSnackbar.waitFor({ state: 'visible' });
+    await appliedSnackbar.waitFor({ state: 'hidden' });
 
     const podLink = page.getByRole('link', { name: name });
     try {

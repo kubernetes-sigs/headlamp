@@ -38,11 +38,11 @@ const { expandMsiArtifactName } = require('../windows/msi/artifact-name.js') as 
 };
 
 describe('desktop package configuration', () => {
-  it('uses the package name for artifact filenames', () => {
-    expect(packageJson.build.artifactName).toBe('${name}-${version}-${os}-${arch}.${ext}');
+  it('uses the product name for artifact filenames', () => {
+    expect(packageJson.build.artifactName).toBe('${productName}-${version}-${os}-${arch}.${ext}');
   });
 
-  it('expands the package name in Windows MSI filenames', () => {
+  it('expands the product name in Windows MSI filenames', () => {
     expect(
       expandMsiArtifactName(packageJson.build.artifactName, {
         name: packageJson.name,
@@ -51,7 +51,7 @@ describe('desktop package configuration', () => {
         os: 'win',
         arch: 'x64',
       })
-    ).toBe(`${packageJson.name}-${packageJson.version}-win-x64.msi`);
+    ).toBe(`${packageJson.productName}-${packageJson.version}-win-x64.msi`);
   });
 
   it('derives the Linux executable name from package metadata', () => {

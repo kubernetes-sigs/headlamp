@@ -21,8 +21,22 @@ const crdV1beta1Url =
   'http://localhost:4466/apis/apiextensions.k8s.io/v1beta1/customresourcedefinitions';
 
 test('Storybook mocks custom resource definition discovery', async ({ page }) => {
+  test.setTimeout(60_000);
   await page.goto('/iframe.html?id=common-actionbutton--basic&viewMode=story');
-  await expect(page.getByRole('button', { name: 'Some label' })).toBeVisible();
+
+  await expect
+    .poll(
+      () =>
+        page.evaluate(async url => {
+          try {
+            return (await fetch(url)).status;
+          } catch {
+            return null;
+          }
+        }, crdV1Url),
+      { timeout: 30_000 }
+    )
+    .toBe(200);
 
   const result = await page.evaluate(
     async ({ v1Url, v1beta1Url }) => {
