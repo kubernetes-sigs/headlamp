@@ -134,10 +134,10 @@ export function useKubeObject<K extends KubeObject>({
 
   const queryParamsString = JSON.stringify(queryParams);
   const cleanedUpQueryParams = useMemo(() => {
+    const params = queryParamsString ? JSON.parse(queryParamsString) : {};
     return Object.fromEntries(
-      Object.entries(queryParams ?? {}).filter(([, value]) => value !== undefined && value !== '')
+      Object.entries(params).filter(([, value]) => value !== undefined && value !== '')
     );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [queryParamsString]);
 
   const queryKey = useMemo(
