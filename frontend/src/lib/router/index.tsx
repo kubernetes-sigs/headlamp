@@ -152,6 +152,8 @@ const LazyGraphView = React.lazy(() =>
   import('../../components/resourceMap/GraphView').then(it => ({ default: it.GraphView }))
 );
 
+const LazyRBACVisualizer = React.lazy(() => import('../../components/rbac/Visualizer'));
+
 function SettingsClusterRedirect() {
   const cluster = useCluster();
   const history = useHistory();
@@ -704,6 +706,13 @@ const defaultRoutes: { [routeName: string]: Route } = {
     exact: true,
     sidebar: 'roleBindings',
     component: () => <RoleBindingDetails />,
+  },
+  rbacVisualizer: {
+    path: '/rbac-visualizer',
+    exact: true,
+    name: 'RBAC Visualizer',
+    sidebar: 'rbacVisualizer',
+    component: () => <LazyRBACVisualizer />,
   },
   secrets: {
     path: '/secrets',
