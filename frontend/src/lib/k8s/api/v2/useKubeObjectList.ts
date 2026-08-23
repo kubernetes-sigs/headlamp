@@ -18,11 +18,11 @@ import type { QueryObserverOptions } from '@tanstack/react-query';
 import { useQueries, useQueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { loadClusterSettings } from '../../../../helpers/clusterSettings';
-import { useAppSelector } from '../../../../redux/hooks';
 import {
   hasAllowedNamespacesRestriction,
   loadClusterSettings,
 } from '../../../../helpers/clusterSettings';
+import { useAppSelector } from '../../../../redux/hooks';
 import type { KubeObject, KubeObjectClass } from '../../KubeObject';
 import type { QueryParameters } from '../v1/queryParameters';
 import { ApiError } from './ApiError';
