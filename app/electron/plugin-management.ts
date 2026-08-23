@@ -27,9 +27,7 @@ import crypto from 'crypto';
 import fs from 'fs';
 import os from 'os';
 import path from 'path';
-import semver from 'semver';
 import stream from 'stream';
-import * as tar from 'tar';
 import zlib from 'zlib';
 import envPaths from './env-paths';
 
@@ -313,6 +311,8 @@ export class PluginManager {
 
       const latestVersion = pluginData.version;
       const currentVersion = packageJson.artifacthub.version;
+      // Keep semver out of the main-process heap until a plugin update is requested.
+      const { default: semver } = await import('semver');
 
       if (semver.lte(latestVersion, currentVersion)) {
         throw new Error('No updates available');
@@ -534,6 +534,8 @@ async function downloadExtractArchive(
 
   // Check if the plugin is compatible with the current Headlamp version
   if (headlampVersion) {
+    // Compatibility checks are optional, so load semver only when one is required.
+    const { default: semver } = await import('semver');
     if (progressCallback) {
       progressCallback({ type: 'info', message: 'Checking compatibility with Headlamp version' });
     }
@@ -821,6 +823,8 @@ async function downloadAndExtractSingleArchive(
     archiveURL.includes('.tar?');
 
   if (isTarGz) {
+    // Keep tar's module graph unloaded until an archive actually needs extraction.
+    const tar = await import('tar');
     if (progressCallback) {
       progressCallback({
         type: 'info',

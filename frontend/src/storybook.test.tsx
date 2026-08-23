@@ -202,6 +202,11 @@ describe('Storybook Tests', () => {
             await act(async () => {
               await story.run();
             });
+            if (story.parameters?.storyshots?.waitForDynamicImports) {
+              await act(async () => {
+                await vi.dynamicImportSettled();
+              });
+            }
 
             // There are a bunch of waterfall requests in the stories
             // So to make sure all requests are sent we need to skip over some ticks

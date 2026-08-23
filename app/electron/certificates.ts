@@ -44,6 +44,30 @@ export interface CertificateSettings {
 }
 
 /**
+ * Creates a function that initializes certificate trust on first use.
+ * Deferring CA enumeration and parsing avoids retaining certificate material
+ * when no plugin or MCP network request is made.
+ *
+ * @param settings - Certificate sources to initialize.
+ * @returns An idempotent certificate initialization function.
+ */
+export function createCertificateSetup(settings: CertificateSettings = {}): () => void {
+  let initialized = false;
+
+  return () => {
+    if (initialized) {
+      return;
+    }
+
+    setupSystemCAs(settings);
+    if (settings.customCAPath) {
+      setupCustomCAs(settings.customCAPath);
+    }
+    initialized = true;
+  };
+}
+
+/**
  * Merges system CA certificates with Node's bundled CA list.
  *
  * This function attempts to retrieve system CA certificates and merge them

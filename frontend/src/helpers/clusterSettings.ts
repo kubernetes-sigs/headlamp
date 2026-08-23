@@ -224,3 +224,17 @@ export function getCombinedAllowedNamespaces(cluster: string): string[] {
   const resolved = cache && cache.selector === selector ? cache.namespaces : [];
   return [...new Set([...(settings.allowedNamespaces || []), ...resolved])].sort();
 }
+
+/**
+ * Checks whether a cluster has an explicit or selector-based namespace restriction.
+ *
+ * @param cluster - Cluster whose settings should be checked.
+ * @returns Whether namespace access is restricted, including when a selector resolves empty.
+ */
+export function hasAllowedNamespacesRestriction(cluster: string): boolean {
+  const settings = loadClusterSettings(cluster);
+  return (
+    (settings.allowedNamespaces?.length ?? 0) > 0 ||
+    Boolean(settings.allowedNamespacesSelector?.trim())
+  );
+}

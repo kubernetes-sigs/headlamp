@@ -25,7 +25,12 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  testMatch: ['clusterRename.spec.ts', 'namespaces.spec.ts', 'clusterAutoConnect.spec.ts'],
+  testMatch: [
+    'backendToken.spec.ts',
+    'clusterRename.spec.ts',
+    'namespaces.spec.ts',
+    'clusterAutoConnect.spec.ts',
+  ],
   timeout: 60 * 1000,
   expect: {
     timeout: 120000,

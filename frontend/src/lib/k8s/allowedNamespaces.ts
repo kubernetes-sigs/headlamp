@@ -61,7 +61,7 @@ export function useAllowedNamespacesFromSelector(
   const trimmedSelector = (selector ?? '').trim();
   const enabled = Boolean(cluster && trimmedSelector);
 
-  const { items, error, isError, isFetching, isSuccess } = Namespace.useList({
+  const { items, error, isError, isFetching } = Namespace.useList({
     clusters: enabled ? [cluster] : [],
     labelSelector: enabled ? trimmedSelector : undefined,
   });
@@ -98,7 +98,7 @@ export function useAllowedNamespacesFromSelector(
   return {
     namespaces: enabled ? namespaces : [],
     isFetching: enabled && isFetching,
-    isSuccess: enabled && isSuccess && !isError,
+    isSuccess: enabled && items !== null && !isError,
     error: isError ? error : null,
   };
 }
