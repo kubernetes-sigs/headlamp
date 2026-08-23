@@ -656,6 +656,7 @@
   "Replicas": "",
   "Desired number of pod replicas": "",
   "Selects which pods belong to this Deployment. Entries are mirrored read-only into the pod template labels below; extra pod-template-only labels can be added there.": "",
+  "Deleting...": "",
   "Init container": "",
   "Ephemeral container": "",
   "Previous logs may be available for restarted containers": "",

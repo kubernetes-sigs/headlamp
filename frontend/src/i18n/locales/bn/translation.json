@@ -646,6 +646,7 @@
   "Replicas": "প্রতিলিপি",
   "Desired number of pod replicas": "Pod প্রতিলিপির কাঙ্ক্ষিত সংখ্যা",
   "Selects which pods belong to this Deployment. Entries are mirrored read-only into the pod template labels below; extra pod-template-only labels can be added there.": "কোন পডগুলো এই ডিপ্লয়মেন্টের অন্তর্গত তা নির্বাচন করে। এন্ট্রিগুলো নিচের Pod টেমপ্লেট লেবেলে শুধুমাত্র-পড়ার জন্য প্রতিফলিত হয়; অতিরিক্ত Pod-টেমপ্লেট-শুধু লেবেল সেখানে যোগ করা যায়।",
+  "Deleting...": "",
   "Init container": "Init কনটেইনার",
   "Ephemeral container": "অস্থায়ী কনটেইনার",
   "Previous logs may be available for restarted containers": "পুনরায় চালু কনটেইনারের জন্য পূর্ববর্তী Log উপলব্ধ থাকতে পারে",
