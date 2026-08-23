@@ -28,7 +28,7 @@ export interface TooltipIconProps {
 const IconReffed = React.forwardRef((props: any, ref: any) => {
   const { icon, ...otherProps } = props;
   return (
-    <Container ref={ref} sx={{ display: 'inline', padding: '0 .3rem' }} {...otherProps}>
+    <Container ref={ref} role="img" sx={{ display: 'inline', padding: '0 .3rem' }} {...otherProps}>
       <Icon icon={icon!} />
     </Container>
   );
