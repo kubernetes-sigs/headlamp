@@ -11,7 +11,7 @@
           class="MuiBox-root css-jh9hvo"
         >
           <legend
-            class="MuiTypography-root MuiTypography-subtitle1 css-1pwxuvc-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
           >
             Metadata
           </legend>
@@ -25,10 +25,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-1chh4gh"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Name
                      *
@@ -74,10 +74,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-1chh4gh"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Namespace
                   </span>
@@ -156,10 +156,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-1chh4gh"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Labels
                   </span>
@@ -283,7 +283,7 @@
           class="MuiBox-root css-jh9hvo"
         >
           <legend
-            class="MuiTypography-root MuiTypography-subtitle1 css-1pwxuvc-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
           >
             Spec
           </legend>
@@ -297,10 +297,10 @@
                 class="MuiBox-root css-j0ozid"
               >
                 <div
-                  class="MuiBox-root css-1lk0ag"
+                  class="MuiBox-root css-xrxduh"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Completions
                   </span>
@@ -361,10 +361,10 @@
                 class="MuiBox-root css-j0ozid"
               >
                 <div
-                  class="MuiBox-root css-1lk0ag"
+                  class="MuiBox-root css-xrxduh"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Parallelism
                   </span>
@@ -425,10 +425,10 @@
                 class="MuiBox-root css-j0ozid"
               >
                 <div
-                  class="MuiBox-root css-1lk0ag"
+                  class="MuiBox-root css-xrxduh"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Backoff Limit
                   </span>
@@ -488,7 +488,7 @@
           class="MuiBox-root css-jh9hvo"
         >
           <legend
-            class="MuiTypography-root MuiTypography-subtitle1 css-1pwxuvc-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
           >
             Pod Template
           </legend>
@@ -502,10 +502,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-1chh4gh"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Labels
                   </span>
@@ -641,10 +641,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-1chh4gh"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Containers
                      *
@@ -784,10 +784,10 @@
                       class="MuiBox-root css-nn3smo"
                     >
                       <div
-                        class="MuiBox-root css-1chh4gh"
+                        class="MuiBox-root css-r6ef99"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                         >
                           Command
                         </span>
@@ -927,10 +927,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-1chh4gh"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Restart Policy
                      *
@@ -1010,10 +1010,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-1chh4gh"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Node Name
                   </span>
