@@ -1,9 +1,7 @@
 <body>
   <div>
     <div
-      aria-label="Some other text"
       class="MuiContainer-root MuiContainer-maxWidthLg css-64uahr-MuiContainer-root"
-      data-mui-internal-clone-element="true"
     />
   </div>
 </body>
