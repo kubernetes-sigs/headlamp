@@ -416,12 +416,7 @@ export default function CreateResourceForm(props: CreateResourceFormProps) {
       >
         {sections.map(section => (
           <Box component="fieldset" key={section.title} sx={{ border: 'none', m: 0, p: 0 }}>
-            <Typography
-              component="legend"
-              variant="subtitle1"
-              sx={{ fontWeight: 'bold', mb: 1 }}
-              color="text.primary"
-            >
+            <Typography component="legend" variant="subtitle1" sx={{ fontWeight: 'bold', mb: 1 }}>
               {section.title}
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pl: 1 }}>
@@ -474,16 +469,7 @@ export function FieldLabel(props: FieldLabelProps) {
   const { label, required, helperText, htmlFor, id, sx } = props;
   if (!label && !helperText) return null;
   return (
-    <Box
-      sx={{
-        display: 'flex',
-        alignItems: 'center',
-        gap: 0.5,
-        mb: 0.5,
-        color: 'text.primary',
-        ...sx,
-      }}
-    >
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 0.5, mb: 0.5, ...sx }}>
       {label && (
         <Typography
           id={id}
@@ -491,7 +477,6 @@ export function FieldLabel(props: FieldLabelProps) {
           // htmlFor is only valid on label elements.
           {...(htmlFor ? ({ htmlFor } as any) : {})}
           variant="body2"
-          color="text.primary"
           sx={{ lineHeight: 1 }}
         >
           {label}
