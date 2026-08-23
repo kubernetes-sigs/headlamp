@@ -24,7 +24,7 @@
     "lint": "npm run backend:lint && npm run frontend:lint && npm run app:lint",
     "lint:fix": "npm run backend:lint:fix && npm run frontend:lint:fix && npm run app:lint:fix",
     "clean": "rm -rf frontend/build frontend/node_modules app/node_modules app/dist backend/headlamp-server backend/headlamp-server.exe node_modules",
-    "backend:build": "cd backend && go build -o ./headlamp-server ./cmd",
+    "backend:build": "cd backend && go build -trimpath -ldflags=\"-s -w\" -o ./headlamp-server ./cmd",
     "backend:lint": "npm run backend:install:linter && cd backend && ./tools/golangci-lint run",
     "backend:lint:fix": "npm run backend:install:linter && cd backend && ./tools/golangci-lint run --fix",
     "backend:install:linter": "GOBIN=`pwd`/backend/tools go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2",

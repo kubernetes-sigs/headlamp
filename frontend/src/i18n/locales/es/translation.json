@@ -226,6 +226,7 @@
   "Getting auth info: {{ clusterName }}": "Obteniendo información de autenticación: {{ clusterName }}",
   "Getting auth info": "Obteniendo información de autenticación",
   "Testing auth": "Comprobando autenticación",
+  "The cluster did not accept your sign-in. Its API server may not trust this OIDC provider (issuer, client ID, or audience), or your token may be expired or lack the required permissions. Please check the cluster API server OIDC configuration.": "",
   "Headlamp Cluster Authentication": "Autenticación de cluster Headlamp",
   "Sign In": "Iniciar sesión",
   "Use A Token": "Use un token",

@@ -199,6 +199,24 @@ describe('KubeObjectNodeComponent', () => {
     expect(screen.queryByTestId('kube-icon')).not.toBeInTheDocument();
   });
 
+  it('allows long labels to wrap without clipping', () => {
+    mocks.node = {
+      id: 'deployment',
+      kubeObject: makeKubeObject({
+        apiVersion: 'apps/v1',
+        kind: 'Deployment',
+        name: 'frontend-deployment-with-a-long-name',
+      }),
+      status: 'success',
+    };
+
+    render(<KubeObjectNodeComponent {...nodeProps('deployment')} />);
+
+    const label = screen.getByText('frontend-deployment-with-a-long-name');
+    expect(label).toHaveStyle({ whiteSpace: 'normal', wordBreak: 'break-word' });
+    expect(label.parentElement).toHaveClass('label-container');
+  });
+
   it('uses the highest-weight child object and shows a collapsed warning and count', () => {
     mocks.node = {
       id: 'group',

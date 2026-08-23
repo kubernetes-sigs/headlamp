@@ -49,7 +49,12 @@ vi.mock('node:tls', async importOriginal => {
   };
 });
 
-import { loadCustomCAs, setupCustomCAs, setupSystemCAs } from './certificates';
+import {
+  createCertificateSetup,
+  loadCustomCAs,
+  setupCustomCAs,
+  setupSystemCAs,
+} from './certificates';
 
 describe('certificates', () => {
   beforeEach(() => {
@@ -57,6 +62,44 @@ describe('certificates', () => {
     mockGetCACertificates.mockReset();
     mockSetDefaultCACertificates.mockReset();
     mockReadFileSync.mockReset();
+  });
+
+  describe('createCertificateSetup', () => {
+    it('defers certificate loading and initializes it only once', () => {
+      const mockSystemCAs = [
+        '-----BEGIN CERTIFICATE-----\nmock-system-ca\n-----END CERTIFICATE-----',
+      ];
+      mockGetCACertificates.mockImplementation((type: string) => {
+        if (type === 'system') return mockSystemCAs;
+        if (type === 'default') return [];
+        return [];
+      });
+
+      const ensureCertificates = createCertificateSetup();
+      expect(mockGetCACertificates).not.toHaveBeenCalled();
+
+      ensureCertificates();
+      ensureCertificates();
+
+      expect(mockGetCACertificates).toHaveBeenCalledTimes(2);
+      expect(mockSetDefaultCACertificates).toHaveBeenCalledTimes(1);
+    });
+
+    it('loads a configured custom CA on first use', () => {
+      mockGetCACertificates.mockReturnValue([]);
+      mockReadFileSync.mockReturnValue(
+        '-----BEGIN CERTIFICATE-----\ncustom-ca\n-----END CERTIFICATE-----'
+      );
+
+      const ensureCertificates = createCertificateSetup({
+        useSystemCAs: false,
+        customCAPath: '/path/to/custom-ca.crt',
+      });
+      ensureCertificates();
+
+      expect(mockReadFileSync).toHaveBeenCalledWith('/path/to/custom-ca.crt', 'utf8');
+      expect(mockSetDefaultCACertificates).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('setupSystemCAs', () => {
