@@ -37,6 +37,12 @@ export const WebSocketManager = {
   /** Flag to track if we're reconnecting after a disconnect */
   isReconnecting: false,
 
+  /** Pending reconnect timer scheduled after a connection drop */
+  reconnectTimer: null as NodeJS.Timeout | null,
+
+  /** Number of consecutive failed reconnect attempts, for backoff */
+  reconnectAttempts: 0,
+
   /** Map of message handlers for each subscription path */
   listeners: new Map<string, Set<(data: any) => void>>(),
 
@@ -122,6 +128,7 @@ export const WebSocketManager = {
       socket.onopen = () => {
         this.socketMultiplexer = socket;
         this.connecting = false;
+        this.reconnectAttempts = 0;
 
         // Only resubscribe if we're reconnecting after a disconnect
         if (this.isReconnecting) {
@@ -298,6 +305,33 @@ export const WebSocketManager = {
   },
 
   /**
+   * Schedules a reconnect attempt after a connection drop, with exponential
+   * backoff. Existing subscriptions are replayed once the connection is
+   * re-established (see connect()'s onopen handler).
+   */
+  scheduleReconnect(): void {
+    if (this.reconnectTimer !== null) {
+      return;
+    }
+
+    const delay = Math.min(30_000, 1000 * 2 ** this.reconnectAttempts);
+    this.reconnectAttempts++;
+
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+
+      // Everyone unsubscribed while we were waiting; nothing to restore.
+      if (this.activeSubscriptions.size === 0) {
+        return;
+      }
+
+      this.connect().catch(() => {
+        this.scheduleReconnect();
+      });
+    }, delay);
+  },
+
+  /**
    * Handles WebSocket connection close event
    * Sets up state for potential reconnection
    */
@@ -308,6 +342,13 @@ export const WebSocketManager = {
 
     // Only log reconnecting if we have active subscriptions
     this.isReconnecting = this.activeSubscriptions.size > 0;
+
+    // Without this, mounted views would never receive updates again: the
+    // socket is gone and resubscribeAll only runs when a NEW subscriber
+    // triggers a successful connect().
+    if (this.isReconnecting) {
+      this.scheduleReconnect();
+    }
   },
 
   /**
