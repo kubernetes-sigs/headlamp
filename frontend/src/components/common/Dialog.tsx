@@ -30,7 +30,9 @@ import ActionButton from './ActionButton';
 export { ConfirmDialog } from './ConfirmDialog';
 export type { ConfirmDialogProps } from './ConfirmDialog';
 
-export interface OurDialogTitleProps extends DialogTitleProps {
+// Omit 'component' so the div wrapper can't be overridden; omit 'ref' to
+// resolve a type conflict with the component="div" overload.
+export interface OurDialogTitleProps extends Omit<DialogTitleProps, 'component' | 'ref'> {
   /** true if you want the title focused in the dialog */
   focusTitle?: boolean;
   buttons?: React.ReactNode[];
@@ -63,7 +65,8 @@ export function DialogTitle(props: OurDialogTitleProps) {
   }
 
   return (
-    <MuiDialogTitle style={{ display: 'flex' }} {...other}>
+    // MuiDialogTitle renders as an h2 by default; render as div to avoid heading violations
+    <MuiDialogTitle component="div" style={{ display: 'flex' }} {...other}>
       <Grid container justifyContent="space-between" alignItems="center">
         {children && (
           <Grid item>
