@@ -99,6 +99,10 @@ export function PodLogViewer(props: PodLogViewerProps) {
   const [showReconnectButton, setShowReconnectButton] = React.useState(false);
   const [cancelLogsStream, setCancelLogsStream] = React.useState<(() => void) | null>(null);
   const xtermRef = React.useRef<XTerminal | null>(null);
+  // Last log line written to the terminal; a ref so live writes don't wait on a re-render.
+  const lastWrittenLineRef = React.useRef<number>(-1);
+  // Guards the "logs are paused" notice so it's shown once per stream.
+  const pausedNoticeShownRef = React.useRef<boolean>(false);
   const { t } = useTranslation();
   const [selectedSeverities, setSelectedSeverities] = useLocalStorageState<LogSeverity[]>(
     'headlamp.logs.severityFilter',
@@ -123,70 +127,76 @@ export function PodLogViewer(props: PodLogViewerProps) {
       const filteredLogs = filterLogsBySeverity(displayLogs, selectedSeverities);
       xtermRef.current.write(filteredLogs.join('').replaceAll('\n', '\r\n'));
 
+      // Keep the live writer's cursor in sync with this full rewrite.
+      lastWrittenLineRef.current = logs.logs.length - 1;
       // Update lastLineShown just in case, though it shouldn't be strictly necessary here
       setLogs(current => ({ ...current, lastLineShown: current.logs.length - 1 }));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedSeverities]);
 
-  const options = { leading: true, trailing: true, maxWait: 1000 };
-
-  function setLogsDebounced({
-    logs: logLines,
-    hasJsonLogs,
-  }: {
-    logs: string[];
-    hasJsonLogs: boolean;
-  }) {
-    setHasJsonLogs(hasJsonLogs);
-
-    setLogs(current => {
-      if (current.lastLineShown >= logLines.length) {
-        // Full re-render
-        const displayLogs = logLines.map(logEntry => {
-          if (prettifyLogs && hasJsonLogs) {
-            return colorizePrettifiedLog(logEntry);
-          }
-          return logEntry;
-        });
-        const filteredLogs = filterLogsBySeverity(displayLogs, selectedSeveritiesRef.current);
-        xtermRef.current?.clear();
-        xtermRef.current?.write(filteredLogs.join('').replaceAll('\n', '\r\n'));
-      } else {
-        // Incremental write: slice raw lines first, then format and filter
-        const newRawLines = logLines.slice(current.lastLineShown + 1);
-        const displayLogs = newRawLines.map(logEntry => {
-          if (prettifyLogs && hasJsonLogs) {
-            return colorizePrettifiedLog(logEntry);
-          }
-          return logEntry;
-        });
-        const filteredLogs = filterLogsBySeverity(displayLogs, selectedSeveritiesRef.current);
-
-        if (filteredLogs.length > 0) {
-          xtermRef.current?.write(filteredLogs.join('').replaceAll('\n', '\r\n'));
-        }
+  // Write new lines to xterm on every message (xterm batches its own rendering,
+  // so this is cheap and real-time). Only the React re-render is debounced below.
+  const writeLogsToTerminal = React.useCallback(
+    (logLines: string[], hasJson: boolean) => {
+      if (!xtermRef.current) {
+        return;
       }
 
-      return {
-        logs: logLines,
-        lastLineShown: logLines.length - 1,
-      };
-    });
+      // Array didn't grow (reset / reconnect / container switch): repaint from scratch.
+      if (lastWrittenLineRef.current >= logLines.length - 1) {
+        lastWrittenLineRef.current = -1;
+        xtermRef.current.clear();
+      }
 
-    // If we stopped following the logs and we have logs already,
-    // then we don't need to fetch them again.
-    if (!follow && logs.logs.length > 0) {
-      xtermRef.current?.write(
-        '\n\n' +
-          t('translation|Logs are paused. Click the follow button to resume following them.') +
-          '\r\n'
+      const newRawLines = logLines.slice(lastWrittenLineRef.current + 1);
+      if (newRawLines.length === 0) {
+        return;
+      }
+
+      const displayLogs = newRawLines.map(logEntry =>
+        prettifyLogs && hasJson ? colorizePrettifiedLog(logEntry) : logEntry
       );
-      return;
-    }
-  }
+      const filteredLogs = filterLogsBySeverity(displayLogs, selectedSeveritiesRef.current);
 
-  const debouncedSetState = _.debounce(setLogsDebounced, 500, options);
+      if (filteredLogs.length > 0) {
+        xtermRef.current.write(filteredLogs.join('').replaceAll('\n', '\r\n'));
+      }
+
+      lastWrittenLineRef.current = logLines.length - 1;
+    },
+    [prettifyLogs]
+  );
+
+  const debouncedSetLogsState = React.useMemo(
+    () =>
+      _.debounce(
+        (logLines: string[]) => setLogs({ logs: logLines, lastLineShown: logLines.length - 1 }),
+        500,
+        { leading: true, trailing: true, maxWait: 1000 }
+      ),
+    []
+  );
+
+  const handleLogs = React.useCallback(
+    ({ logs: logLines, hasJsonLogs: hasJson }: { logs: string[]; hasJsonLogs: boolean }) => {
+      setHasJsonLogs(hasJson);
+      writeLogsToTerminal(logLines, hasJson); // real-time paint
+      debouncedSetLogsState(logLines); // throttled re-render (for download/search)
+
+      // Not following: stream is a static snapshot, so show the paused notice once.
+      if (!follow && logLines.length > 0 && !pausedNoticeShownRef.current) {
+        pausedNoticeShownRef.current = true;
+        xtermRef.current?.write(
+          '\n\n' +
+            t('translation|Logs are paused. Click the follow button to resume following them.') +
+            '\r\n'
+        );
+      }
+    },
+    [writeLogsToTerminal, debouncedSetLogsState, follow, t]
+  );
+
   React.useEffect(() => {
     const next = getDefaultContainer(item);
     if (next && !container) {
@@ -201,10 +211,12 @@ export function PodLogViewer(props: PodLogViewerProps) {
 
       if (props.open) {
         xtermRef.current?.clear();
+        lastWrittenLineRef.current = -1;
+        pausedNoticeShownRef.current = false;
         setLogs({ logs: [], lastLineShown: -1 });
         setHasJsonLogs(false);
 
-        callback = item.getLogs(container, debouncedSetState, {
+        callback = item.getLogs(container, handleLogs, {
           tailLines: lines,
           showPrevious,
           showTimestamps,
@@ -225,6 +237,7 @@ export function PodLogViewer(props: PodLogViewerProps) {
         if (callback) {
           callback();
         }
+        debouncedSetLogsState.cancel(); // drop pending update after reset/unmount
       };
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -281,8 +294,14 @@ export function PodLogViewer(props: PodLogViewerProps) {
       cancelLogsStream();
     }
 
+    // Clear the terminal and reset the cursor so the reconnected stream (which
+    // restarts from index zero) repaints cleanly instead of duplicating old logs.
+    xtermRef.current?.clear();
+    lastWrittenLineRef.current = -1;
+    pausedNoticeShownRef.current = false;
+
     // Start a new log stream
-    const newCancelLogsStream = item.getLogs(container, debouncedSetState, {
+    const newCancelLogsStream = item.getLogs(container, handleLogs, {
       tailLines: lines,
       showPrevious,
       showTimestamps,

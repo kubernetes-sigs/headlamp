@@ -426,7 +426,6 @@
                       autocorrect="off"
                       class="xterm-helper-textarea"
                       spellcheck="false"
-                      style="left: 0px; top: 0px; width: 0px; height: 0px; line-height: 0px; z-index: -5;"
                       tabindex="0"
                     />
                     <span
@@ -479,212 +478,96 @@
                       style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
                     >
                       <span>
-                        rocessing request
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        2024-02-15T00:00:00.000Z [INFO] Log entry #86 from main-container: Application p
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        rocessing request
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        2024-02-15T00:00:00.000Z [INFO] Log entry #87 from main-container: Application p
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        rocessing request
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        2024-02-15T00:00:00.000Z [INFO] Log entry #88 from main-container: Application p
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        rocessing request
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        2024-02-15T00:00:00.000Z [INFO] Log entry #89 from main-container: Application p
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        rocessing request
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        2024-02-15T00:00:00.000Z [INFO] Log entry #90 from main-container: Application p
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        rocessing request
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        2024-02-15T00:00:00.000Z [INFO] Log entry #91 from main-container: Application p
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        rocessing request
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        2024-02-15T00:00:00.000Z [INFO] Log entry #92 from main-container: Application p
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        rocessing request
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        2024-02-15T00:00:00.000Z [INFO] Log entry #93 from main-container: Application p
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        rocessing request
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        2024-02-15T00:00:00.000Z [INFO] Log entry #94 from main-container: Application p
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        rocessing request
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        2024-02-15T00:00:00.000Z [INFO] Log entry #95 from main-container: Application p
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        rocessing request
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        2024-02-15T00:00:00.000Z [INFO] Log entry #96 from main-container: Application p
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        rocessing request
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        2024-02-15T00:00:00.000Z [INFO] Log entry #97 from main-container: Application p
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        rocessing request
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        2024-02-15T00:00:00.000Z [INFO] Log entry #98 from main-container: Application p
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        rocessing request
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        2024-02-15T00:00:00.000Z [INFO] Log entry #99 from main-container: Application p
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
-                        rocessing request
-                      </span>
-                    </div>
-                    <div
-                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
-                    >
-                      <span>
                          
                       </span>
                     </div>
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
+                    <div
+                      style="width: 0px; height: 0px; line-height: 0px; overflow: hidden;"
+                    />
                   </div>
                   <div
                     aria-hidden="true"
