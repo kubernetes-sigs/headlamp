@@ -19,7 +19,12 @@ import { isDebugVerbose } from '../../../../helpers/debugVerbose';
 import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
-import { connectStreamWithParams } from './streamingApi';
+import { clusterRequest } from './clusterRequests';
+import { connectStreamWithParams, streamResult, streamResultsForCluster } from './streamingApi';
+
+vi.mock('./clusterRequests', () => ({
+  clusterRequest: vi.fn(),
+}));
 
 vi.mock('../../../../stateless/findKubeconfigByClusterName', () => ({
   findKubeconfigByClusterName: vi.fn(),
@@ -145,5 +150,156 @@ describe('connectStreamWithParams protocols', () => {
     listeners.message(new MessageEvent('message', { data: 'binary-data' }));
 
     expect(onMessage).toHaveBeenCalledWith('binary-data');
+  });
+
+  describe('streamResultsForCluster ERROR handling', () => {
+    afterEach(() => {
+      setBackendToken(null);
+      vi.unstubAllGlobals();
+      vi.restoreAllMocks();
+    });
+
+    function stubWebSocketCollector() {
+      const sockets: {
+        url: string;
+        listeners: Record<string, ((ev: any) => void)[]>;
+        close: ReturnType<typeof vi.fn>;
+        emit: (type: string, event: any) => void;
+        addEventListener: (type: string, listener: (ev: any) => void) => void;
+        removeEventListener: (type: string, listener: (ev: any) => void) => void;
+      }[] = [];
+      const WebSocketMock = vi.fn(function (url: string) {
+        const instance = {
+          url,
+          binaryType: '',
+          listeners: {} as Record<string, ((ev: any) => void)[]>,
+          close: vi.fn(),
+          addEventListener: (type: string, listener: (ev: any) => void) => {
+            instance.listeners[type] = instance.listeners[type] ?? [];
+            instance.listeners[type].push(listener);
+          },
+          removeEventListener: (type: string, listener: (ev: any) => void) => {
+            instance.listeners[type] = (instance.listeners[type] ?? []).filter(
+              it => it !== listener
+            );
+          },
+          emit: (type: string, event: any) => {
+            (instance.listeners[type] ?? []).forEach(listener => listener(event));
+          },
+        };
+        sockets.push(instance);
+
+        return instance;
+      });
+      vi.stubGlobal('WebSocket', WebSocketMock);
+
+      return { sockets };
+    }
+
+    it('relists and restarts the watch on 410 Gone', async () => {
+      const { sockets } = stubWebSocketCollector();
+      const listResponse = (resourceVersion: string) => ({
+        kind: 'PodList',
+        items: [],
+        metadata: { resourceVersion },
+      });
+      vi.mocked(clusterRequest)
+        .mockResolvedValueOnce(listResponse('1') as any)
+        .mockResolvedValueOnce(listResponse('2') as any);
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+
+      streamResultsForCluster('/api/v1/pods', {
+        cb: vi.fn(),
+        errCb: vi.fn(),
+        cluster: 'test-cluster',
+      });
+
+      // Initial LIST pins resourceVersion=1 into the watch URL.
+      await vi.waitFor(() => expect(sockets.length).toBe(1));
+      expect(sockets[0].url).toContain('resourceVersion=1');
+
+      // Server reports 410 Gone for the pinned resourceVersion.
+      sockets[0].emit(
+        'message',
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'ERROR', object: { code: 410, message: 'too old' } }),
+        })
+      );
+
+      // The client relists and starts a new watch from a fresh
+      // resourceVersion instead of reconnecting to the expired one.
+      await vi.waitFor(() => expect(sockets.length).toBe(2));
+      expect(clusterRequest).toHaveBeenCalledTimes(2);
+      expect(sockets[1].url).toContain('resourceVersion=2');
+      expect(sockets[1].url).not.toContain('resourceVersion=1');
+    });
+
+    it('refetches a single object and restarts its watch on 410 Gone', async () => {
+      const { sockets } = stubWebSocketCollector();
+      const pod = (resourceVersion: string) => ({
+        kind: 'Pod',
+        metadata: { name: 'pod-1', uid: 'pod-1-uid', resourceVersion },
+      });
+      vi.mocked(clusterRequest)
+        .mockResolvedValueOnce(pod('1') as any)
+        .mockResolvedValueOnce(pod('2') as any);
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const cb = vi.fn();
+      const errCb = vi.fn();
+
+      streamResult('/api/v1/pods', 'pod-1', cb, errCb, {}, 'test-cluster');
+
+      await vi.waitFor(() => expect(sockets.length).toBe(1));
+      expect(cb).toHaveBeenCalledTimes(1);
+
+      sockets[0].emit(
+        'message',
+        new MessageEvent('message', {
+          data: JSON.stringify({ type: 'ERROR', object: { code: 410, message: 'too old' } }),
+        })
+      );
+
+      // The Status object must not be delivered as the watched resource; the
+      // object is re-fetched and a new watch replaces the dead one.
+      await vi.waitFor(() => expect(sockets.length).toBe(2));
+      expect(clusterRequest).toHaveBeenCalledTimes(2);
+      expect(cb).toHaveBeenCalledTimes(2);
+      expect(cb).toHaveBeenLastCalledWith(pod('2'));
+      expect(errCb).not.toHaveBeenCalled();
+    });
+
+    it('reports a non-410 single-object watch error through errCb', async () => {
+      const { sockets } = stubWebSocketCollector();
+      vi.mocked(clusterRequest).mockResolvedValueOnce({
+        kind: 'Pod',
+        metadata: { name: 'pod-1', uid: 'pod-1-uid', resourceVersion: '1' },
+      } as any);
+      vi.spyOn(console, 'error').mockImplementation(() => {});
+      const cb = vi.fn();
+      const errCb = vi.fn();
+
+      streamResult('/api/v1/pods', 'pod-1', cb, errCb, {}, 'test-cluster');
+
+      await vi.waitFor(() => expect(sockets.length).toBe(1));
+
+      sockets[0].emit(
+        'message',
+        new MessageEvent('message', {
+          data: JSON.stringify({
+            type: 'ERROR',
+            object: { code: 500, reason: 'InternalError', message: 'boom' },
+          }),
+        })
+      );
+
+      await vi.waitFor(() => expect(errCb).toHaveBeenCalled());
+      expect(errCb).toHaveBeenCalledWith(
+        expect.objectContaining({ reason: 'InternalError' }),
+        expect.any(Function)
+      );
+      // Only the initial GET reached cb; the Status object did not.
+      expect(cb).toHaveBeenCalledTimes(1);
+      expect(clusterRequest).toHaveBeenCalledTimes(1);
+    });
   });
 });
