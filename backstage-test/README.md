@@ -23,7 +23,7 @@ make backend-embed
 Execute the binary with the required parameters:
 
 ```bash
-./backend/headlamp-server --base-url="/api/headlamp" --enable-dynamic-clusters
+./backend/headlamp-server --base-url="/api/headlamp" --enable-dynamic-clusters --allowed-frame-ancestors="http://localhost:8000"
 ```
 
 ### 3. Serve the Frontend
