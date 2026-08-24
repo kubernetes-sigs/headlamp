@@ -27,7 +27,6 @@ import { useEffect } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
-import { loadClusterSettings, loadResolvedAllowedNamespaces } from '../../helpers/clusterSettings';
 import { useLocation } from 'react-router-dom';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
