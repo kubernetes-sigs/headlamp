@@ -35,7 +35,7 @@ import ServiceAccount from '../../lib/k8s/serviceAccount';
 import { SectionBox } from '../common/SectionBox';
 
 export default function RBACVisualizer() {
-  const { t } = useTranslation('glossary');
+  const { t } = useTranslation();
   const [nodes, setNodes, onNodesChange] = useNodesState<Node>([]);
   const [edges, setEdges, onEdgesChange] = useEdgesState<Edge>([]);
 
