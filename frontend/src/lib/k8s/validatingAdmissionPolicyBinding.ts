@@ -35,7 +35,7 @@ export interface KubeValidatingAdmissionPolicyBinding extends KubeObjectInterfac
       resourceRules?: KubeNamedRuleWithOperations[];
       excludeResourceRules?: KubeNamedRuleWithOperations[];
     };
-    validationActions?: string[];
+    validationActions: string[];
   };
 }
 

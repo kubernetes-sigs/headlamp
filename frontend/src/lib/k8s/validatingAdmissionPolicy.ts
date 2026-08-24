@@ -30,7 +30,7 @@ export interface KubeValidatingAdmissionPolicy extends KubeObjectInterface {
       apiVersion: string;
       kind: string;
     };
-    matchConstraints?: {
+    matchConstraints: {
       matchPolicy?: string;
       namespaceSelector?: LabelSelector;
       objectSelector?: LabelSelector;

@@ -37,7 +37,8 @@ export default function ValidatingAdmissionPolicyBindingList() {
           render: binding => (
             <Link
               routeName="validatingAdmissionPolicy"
-              params={{ name: binding.spec?.policyName, cluster: binding.cluster }}
+              params={{ name: binding.spec?.policyName }}
+              activeCluster={binding.cluster}
             >
               {binding.spec?.policyName}
             </Link>
