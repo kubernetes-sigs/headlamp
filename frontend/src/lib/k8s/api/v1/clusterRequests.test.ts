@@ -156,4 +156,110 @@ describe('clusterRequest transports', () => {
 
     await expectation;
   });
+
+  it('does not log the kubeconfig header when the error body fails to parse', async () => {
+    vi.mocked(findKubeconfigByClusterName).mockResolvedValue('secret-encoded-kubeconfig');
+    // A fetch rejection becomes a synthetic body-less 502 response, whose
+    // .json() always rejects — the exact path that used to log requestData
+    // including credential-bearing headers.
+    (fetch as Mock).mockRejectedValue(new TypeError('Failed to fetch'));
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(
+      clusterRequest('/api/v1/pods', { cluster: 'desktop-cluster' })
+    ).rejects.toMatchObject({ status: 502 });
+
+    expect(errorSpy).toHaveBeenCalled();
+    for (const call of errorSpy.mock.calls) {
+      expect(JSON.stringify(call)).not.toContain('secret-encoded-kubeconfig');
+      expect(JSON.stringify(call)).not.toContain('"KUBECONFIG"');
+    }
+    expect(errorSpy.mock.calls.at(-1)?.[2]).toMatchObject({
+      method: 'GET',
+      status: 502,
+    });
+  });
+
+  it('does not log the response body through the JSON parse error', async () => {
+    // A parse failure reports a fragment of the offending body in its message
+    // ("secret-token-abc"... is not valid JSON), so the error itself must not
+    // be logged either -- only its type.
+    (fetch as Mock).mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      headers: new Headers(),
+      json: () => Promise.reject(new SyntaxError('"secret-token-abc" is not valid JSON')),
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(clusterRequest('/api/v1/pods')).rejects.toMatchObject({ status: 500 });
+
+    expect(errorSpy).toHaveBeenCalled();
+    for (const call of errorSpy.mock.calls) {
+      for (const arg of call) {
+        if (arg instanceof Error) {
+          expect(arg.message).not.toContain('secret-token-abc');
+          expect(arg.stack).not.toContain('secret-token-abc');
+        } else if (typeof arg === 'object' && arg !== null) {
+          expect(JSON.stringify(arg)).not.toContain('secret-token-abc');
+          for (const val of Object.values(arg)) {
+            if (val instanceof Error) {
+              expect(val.message).not.toContain('secret-token-abc');
+              expect(val.stack).not.toContain('secret-token-abc');
+            }
+          }
+        } else {
+          expect(String(arg)).not.toContain('secret-token-abc');
+        }
+      }
+    }
+    expect(errorSpy.mock.calls.at(-1)?.[2]).toEqual({
+      errorType: 'SyntaxError',
+      method: 'GET',
+      status: 500,
+      statusText: 'Internal Server Error',
+    });
+  });
+
+  it('logs the explicit request method when provided and json parsing fails', async () => {
+    (fetch as Mock).mockResolvedValue({
+      ok: false,
+      status: 500,
+      statusText: 'Internal Server Error',
+      headers: new Headers(),
+      json: () => Promise.reject(new SyntaxError('"secret-token-abc" is not valid JSON')),
+    });
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    await expect(clusterRequest('/api/v1/pods', { method: 'POST' })).rejects.toMatchObject({
+      status: 500,
+    });
+
+    expect(errorSpy).toHaveBeenCalled();
+    for (const call of errorSpy.mock.calls) {
+      for (const arg of call) {
+        if (arg instanceof Error) {
+          expect(arg.message).not.toContain('secret-token-abc');
+          expect(arg.stack).not.toContain('secret-token-abc');
+        } else if (typeof arg === 'object' && arg !== null) {
+          expect(JSON.stringify(arg)).not.toContain('secret-token-abc');
+          for (const val of Object.values(arg)) {
+            if (val instanceof Error) {
+              expect(val.message).not.toContain('secret-token-abc');
+              expect(val.stack).not.toContain('secret-token-abc');
+            }
+          }
+        } else {
+          expect(String(arg)).not.toContain('secret-token-abc');
+        }
+      }
+    }
+    expect(errorSpy.mock.calls.at(-1)?.[2]).toEqual({
+      errorType: 'SyntaxError',
+      method: 'POST',
+      status: 500,
+      statusText: 'Internal Server Error',
+    });
+  });
 });
