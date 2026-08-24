@@ -21,7 +21,7 @@ import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfi
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface } from '../../KubeObject';
-import type { ApiError } from '../v2/ApiError';
+import { ApiError } from '../v2/ApiError';
 import { clusterRequest } from './clusterRequests';
 import { CLUSTERS_PREFIX } from './constants';
 import { asQuery, combinePath } from './formatUrl';
@@ -44,6 +44,53 @@ export type StreamUpdatesCb<T = any> = (data: T | StreamUpdate<T>) => void;
 export type StreamErrCb = (err: Error & { status?: number }, cancelStreamFunc?: () => void) => void;
 
 /**
+ * Normalizes a watch ERROR object (typically a Kubernetes Status object)
+ * into an ApiError with a numeric status code and Error prototype.
+ */
+export function toApiError(object: unknown): ApiError {
+  if (object instanceof ApiError) {
+    if (typeof (object as any).code === 'number' && typeof object.status !== 'number') {
+      object.status = (object as any).code;
+    }
+    return object;
+  }
+
+  const raw = (typeof object === 'object' && object !== null ? object : {}) as Record<string, any>;
+  const message =
+    raw.message ||
+    (typeof raw.reason === 'string'
+      ? raw.reason
+      : object instanceof Error
+      ? object.message
+      : typeof object === 'string'
+      ? object
+      : 'Watch error');
+
+  const statusCode =
+    typeof raw.code === 'number'
+      ? raw.code
+      : typeof raw.status === 'number'
+      ? raw.status
+      : typeof raw.code === 'string' && !isNaN(parseInt(raw.code, 10))
+      ? parseInt(raw.code, 10)
+      : undefined;
+
+  const error = new ApiError(message, { status: statusCode });
+
+  if (typeof statusCode === 'number') {
+    (error as any).code = statusCode;
+  }
+  if (raw.reason) {
+    (error as any).reason = raw.reason;
+  }
+  if (raw.details) {
+    (error as any).details = raw.details;
+  }
+
+  return error;
+}
+
+/**
  * Fetches the data and watches for changes to the data.
  *
  * @param url - The URL of the Kubernetes API endpoint.
@@ -64,6 +111,9 @@ export function streamResult<T extends KubeObjectInterface>(
 ) {
   let isCancelled = false;
   let socket: ReturnType<typeof stream>;
+  let retryTimer: NodeJS.Timeout | number | null = null;
+  let consecutive410Count = 0;
+  const currentQueryParams: QueryParameters = { ...(queryParams || {}) };
   const clusterName = cluster || getCluster() || '';
 
   if (isDebugVerbose('k8s/apiProxy@streamResult')) {
@@ -76,7 +126,7 @@ export function streamResult<T extends KubeObjectInterface>(
 
   async function run() {
     try {
-      const item = await clusterRequest(`${url}/${name}` + asQuery(queryParams), {
+      const item = await clusterRequest(`${url}/${name}` + asQuery(currentQueryParams), {
         cluster: clusterName,
       });
 
@@ -88,11 +138,15 @@ export function streamResult<T extends KubeObjectInterface>(
 
       cb(item);
 
-      const watchUrl =
-        url +
-        asQuery({ ...queryParams, ...{ watch: '1', fieldSelector: `metadata.name=${name}` } });
+      const watchParams: QueryParameters = {
+        ...currentQueryParams,
+        watch: '1',
+        fieldSelector: `metadata.name=${name}`,
+      };
 
-      socket = stream(watchUrl, (x: any) => cb(x.object), { isJson: true, cluster: clusterName });
+      const watchUrl = url + asQuery(watchParams);
+
+      socket = stream(watchUrl, update, { isJson: true, cluster: clusterName });
     } catch (err) {
       console.error('Error in api request', { err, url });
       // @todo: sometimes errCb is {}, the typing for apiProxy needs improving.
@@ -101,10 +155,59 @@ export function streamResult<T extends KubeObjectInterface>(
     }
   }
 
+  function update({ type, object }: StreamUpdate) {
+    // An ERROR event carries a Status object rather than the watched resource,
+    // so it must never reach cb as if the object itself had changed.
+    if (type === 'ERROR') {
+      const statusCode = (object as { code?: number })?.code;
+
+      // 410 Gone means the version this watch started from has expired (etcd
+      // compaction, proxy restart). Re-fetch the object and start a fresh
+      // watch rather than reconnecting to a version the server no longer has.
+      if (statusCode === 410) {
+        console.error('Watch resourceVersion expired, refetching', { url, name });
+
+        if (socket) socket.cancel();
+        if (retryTimer) clearTimeout(retryTimer);
+
+        delete currentQueryParams.resourceVersion;
+        delete currentQueryParams.resourceVersionMatch;
+
+        consecutive410Count++;
+        const delay =
+          consecutive410Count > 1
+            ? Math.min(1000 * Math.pow(2, consecutive410Count - 2), 30000)
+            : 0;
+
+        if (delay === 0) {
+          run();
+        } else {
+          retryTimer = setTimeout(() => {
+            if (!isCancelled) run();
+          }, delay);
+        }
+
+        return;
+      }
+
+      console.error('Error in update', { type, object });
+
+      if (errCb && typeof errCb === 'function') {
+        errCb(toApiError(object), cancel);
+      }
+
+      return;
+    }
+
+    consecutive410Count = 0;
+    cb(object as T);
+  }
+
   function cancel() {
     if (isCancelled) return;
     isCancelled = true;
 
+    if (retryTimer) clearTimeout(retryTimer);
     if (socket) socket.cancel();
   }
 }
@@ -160,6 +263,9 @@ export function streamResultsForCluster(
   const results: Record<string, any> = {};
   let isCancelled = false;
   let socket: ReturnType<typeof stream>;
+  let retryTimer: NodeJS.Timeout | number | null = null;
+  let consecutive410Count = 0;
+  const currentQueryParams: QueryParameters = { ...(queryParams || {}) };
 
   if (isDebugVerbose('k8s/apiProxy@streamResults')) {
     console.debug('k8s/apiProxy@streamResults', { url, queryParams });
@@ -167,9 +273,9 @@ export function streamResultsForCluster(
 
   // -1 means unlimited.
   const maxResources =
-    typeof queryParams?.limit === 'number'
-      ? queryParams.limit
-      : parseInt(queryParams?.limit ?? '-1');
+    typeof currentQueryParams?.limit === 'number'
+      ? currentQueryParams.limit
+      : parseInt(currentQueryParams?.limit ?? '-1');
 
   run();
 
@@ -177,7 +283,7 @@ export function streamResultsForCluster(
 
   async function run() {
     try {
-      const { kind, items, metadata } = await clusterRequest(url + asQuery(queryParams), {
+      const { kind, items, metadata } = await clusterRequest(url + asQuery(currentQueryParams), {
         cluster: clusterName,
       });
 
@@ -187,7 +293,11 @@ export function streamResultsForCluster(
 
       const watchUrl =
         url +
-        asQuery({ ...queryParams, ...{ watch: '1', resourceVersion: metadata.resourceVersion } });
+        asQuery({
+          ...currentQueryParams,
+          watch: '1',
+          resourceVersion: metadata.resourceVersion,
+        });
       socket = stream(watchUrl, update, { isJson: true, cluster: clusterName });
     } catch (err) {
       console.error('Error in api request', { err, url });
@@ -201,6 +311,7 @@ export function streamResultsForCluster(
     if (isCancelled) return;
     isCancelled = true;
 
+    if (retryTimer) clearTimeout(retryTimer);
     if (socket) socket.cancel();
   }
 
@@ -219,9 +330,11 @@ export function streamResultsForCluster(
 
     switch (type) {
       case 'ADDED':
+        consecutive410Count = 0;
         results[object.metadata.uid] = object;
         break;
       case 'MODIFIED': {
+        consecutive410Count = 0;
         const existing = results[object.metadata.uid];
 
         if (existing) {
@@ -241,11 +354,47 @@ export function streamResultsForCluster(
         break;
       }
       case 'DELETED':
+        consecutive410Count = 0;
         delete results[object.metadata.uid];
         break;
-      case 'ERROR':
+      case 'ERROR': {
+        // 410 Gone means the resourceVersion the watch was started from has
+        // expired (etcd compaction, proxy restarts). Reconnects to the same
+        // URL would keep failing forever, so relist and restart the watch
+        // from a fresh resourceVersion instead.
+        const statusCode = (object as { code?: number })?.code;
+        if (statusCode === 410) {
+          console.error('Watch resourceVersion expired, relisting', { url });
+          socket?.cancel();
+          if (retryTimer) clearTimeout(retryTimer);
+          Object.keys(results).forEach(uid => delete results[uid]);
+
+          delete currentQueryParams.resourceVersion;
+          delete currentQueryParams.resourceVersionMatch;
+
+          consecutive410Count++;
+          const delay =
+            consecutive410Count > 1
+              ? Math.min(1000 * Math.pow(2, consecutive410Count - 2), 30000)
+              : 0;
+
+          if (delay === 0) {
+            run();
+          } else {
+            retryTimer = setTimeout(() => {
+              if (!isCancelled) run();
+            }, delay);
+          }
+
+          return;
+        }
+
         console.error('Error in update', { type, object });
-        break;
+        if (errCb && typeof errCb === 'function') {
+          errCb(toApiError(object), cancel);
+        }
+        return;
+      }
       default:
         console.error('Unknown update type', type);
     }
