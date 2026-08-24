@@ -12,9 +12,7 @@
           name
         </p>
         <div
-          aria-label="tooltip"
           class="MuiContainer-root MuiContainer-maxWidthLg css-64uahr-MuiContainer-root"
-          data-mui-internal-clone-element="true"
         />
       </div>
       <div

@@ -11,7 +11,7 @@
           class="MuiBox-root css-jh9hvo"
         >
           <legend
-            class="MuiTypography-root MuiTypography-subtitle1 css-1pwxuvc-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
           >
             Metadata
           </legend>
@@ -25,10 +25,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-1chh4gh"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Name
                      *
@@ -74,10 +74,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-1chh4gh"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Namespace
                   </span>
@@ -156,10 +156,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-1chh4gh"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Labels
                   </span>
@@ -197,7 +197,7 @@
           class="MuiBox-root css-jh9hvo"
         >
           <legend
-            class="MuiTypography-root MuiTypography-subtitle1 css-1pwxuvc-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
           >
             Spec
           </legend>
@@ -211,10 +211,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-1chh4gh"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Update Strategy
                   </span>
@@ -296,10 +296,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-1chh4gh"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Service Name
                      *
@@ -345,10 +345,10 @@
                 class="MuiBox-root css-j0ozid"
               >
                 <div
-                  class="MuiBox-root css-1lk0ag"
+                  class="MuiBox-root css-xrxduh"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Partition
                   </span>
@@ -409,10 +409,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-1chh4gh"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Selector
                   </span>
@@ -547,7 +547,7 @@
           class="MuiBox-root css-jh9hvo"
         >
           <legend
-            class="MuiTypography-root MuiTypography-subtitle1 css-1pwxuvc-MuiTypography-root"
+            class="MuiTypography-root MuiTypography-subtitle1 css-rbe1dk-MuiTypography-root"
           >
             Pod Template
           </legend>
@@ -561,10 +561,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-1chh4gh"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Labels
                   </span>
@@ -692,10 +692,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-1chh4gh"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Containers
                      *
@@ -735,10 +735,10 @@
                 class="MuiBox-root css-0"
               >
                 <div
-                  class="MuiBox-root css-1chh4gh"
+                  class="MuiBox-root css-r6ef99"
                 >
                   <span
-                    class="MuiTypography-root MuiTypography-body2 css-1bc18no-MuiTypography-root"
+                    class="MuiTypography-root MuiTypography-body2 css-1dfo0r1-MuiTypography-root"
                   >
                     Node Name
                   </span>

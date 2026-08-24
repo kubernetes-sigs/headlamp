@@ -18,9 +18,7 @@
               My chart
             </p>
             <div
-              aria-label="This is a tooltip"
               class="MuiContainer-root MuiContainer-maxWidthLg css-64uahr-MuiContainer-root"
-              data-mui-internal-clone-element="true"
             />
           </div>
           <p
