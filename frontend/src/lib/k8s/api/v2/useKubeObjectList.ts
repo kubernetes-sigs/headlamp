@@ -69,6 +69,16 @@ export interface ListResponse<K extends KubeObject> {
   namespace?: string;
   /** Whether this synthesized list must not start a cluster-wide watch */
   skipWatch?: boolean;
+  /**
+   * resourceVersion of the LIST snapshot this response was built from.
+   *
+   * Distinct from `list.metadata.resourceVersion`, which KubeList.applyUpdate
+   * bumps for every applied watch event. This one changes only when a new LIST
+   * response is committed, which is what makes it usable as the watch identity:
+   * a fresh snapshot can discard events the open watch already consumed, so the
+   * watch has to restart, while applied events must leave it alone.
+   */
+  listResourceVersion?: string;
 }
 
 /**
@@ -170,6 +180,7 @@ function allowedNamespaceListQuery<K extends KubeObject>(
         } as KubeList<K>,
         cluster,
         skipWatch: true,
+        listResourceVersion: selectorList?.metadata?.resourceVersion ?? '0',
       };
     },
   };
@@ -250,6 +261,7 @@ export function kubeObjectListQuery<K extends KubeObject>(
           list: list as KubeList<K>,
           cluster,
           namespace,
+          listResourceVersion: list.metadata?.resourceVersion,
         };
 
         return response;
@@ -263,6 +275,46 @@ export function kubeObjectListQuery<K extends KubeObject>(
       }
     },
   };
+}
+
+/** A cluster/namespace pair being watched, plus the versions it was derived from. */
+export interface WatchedList {
+  cluster: string;
+  namespace?: string;
+  /** Freshest resourceVersion known for the list, used to resume the watch. */
+  resourceVersion: string;
+  /** LIST generation the entry came from, see ListResponse.listResourceVersion. */
+  listResourceVersion?: string;
+}
+
+/**
+ * Whether two sets of watched lists are equivalent, i.e. the open watch
+ * connections can be kept instead of being torn down and re-established.
+ *
+ * `resourceVersion` is deliberately not compared: KubeList.applyUpdate bumps it
+ * for every applied watch event, so comparing it rebuilt every connection on
+ * each event — one WebSocket teardown and resubscribe per event.
+ *
+ * `listResourceVersion` is compared instead, because it only changes when a new
+ * LIST response is committed. A fresh snapshot replaces the cached list
+ * wholesale and can drop an event the open watch already consumed; that event is
+ * never replayed on the existing connection, so the watch has to restart from
+ * the new snapshot to resync.
+ *
+ * @param current - Lists currently being watched.
+ * @param next - Lists derived from the latest query data.
+ * @returns true when the current connections can be kept as they are.
+ */
+export function isSameWatchedLists(current: WatchedList[], next: WatchedList[]): boolean {
+  return (
+    next.length === current.length &&
+    next.every(
+      (nextList, index) =>
+        current[index].cluster === nextList.cluster &&
+        current[index].namespace === nextList.namespace &&
+        current[index].listResourceVersion === nextList.listResourceVersion
+    )
+  );
 }
 
 /**
@@ -783,9 +835,7 @@ export function useKubeObjectList<K extends KubeObject>({
   // for resources outside our fetched page, causing the list to grow unboundedly.
   const shouldWatch = watch && !refetchInterval && !query.isLoading && !query.hasMore;
 
-  const [listsToWatch, setListsToWatch] = useState<
-    { cluster: string; namespace?: string; resourceVersion: string }[]
-  >([]);
+  const [listsToWatch, setListsToWatch] = useState<WatchedList[]>([]);
 
   useEffect(() => {
     setListsToWatch(currentListsToWatch => {
@@ -811,19 +861,10 @@ export function useKubeObjectList<K extends KubeObject>({
           cluster: data!.cluster,
           namespace: data!.namespace,
           resourceVersion: data!.list.metadata.resourceVersion,
+          listResourceVersion: data!.listResourceVersion,
         }));
 
-      if (
-        nextListsToWatch.length === currentListsToWatch.length &&
-        nextListsToWatch.every((nextList, index) => {
-          const currentList = currentListsToWatch[index];
-          return (
-            currentList.cluster === nextList.cluster &&
-            currentList.namespace === nextList.namespace &&
-            currentList.resourceVersion === nextList.resourceVersion
-          );
-        })
-      ) {
+      if (isSameWatchedLists(currentListsToWatch, nextListsToWatch)) {
         return currentListsToWatch;
       }
 
