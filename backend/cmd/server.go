@@ -324,7 +324,10 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 		return
 	}
 
-	k8cache.CheckForChanges(k8sResponseCache, contextKey, *kContext)
+	k8cache.CheckForChanges(k8sResponseCache, contextKey, kContext, func() bool {
+		current, err := c.KubeConfigStore.GetContext(contextKey)
+		return err == nil && current == kContext
+	})
 
 	next.ServeHTTP(rcw, r)
 
