@@ -1936,7 +1936,13 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 
 		contextKey, kContext, err := c.getContextWithWebSocketFallback(r, contextKey)
 		if err != nil {
-			c.handleError(w, ctx, span, err, "failed to get context", http.StatusNotFound)
+			// The store returns a bare "key not found" here, which reaches the client as
+			// the body of this 404 and reads like a problem on the cluster's side. Name
+			// the cluster the backend could not find instead.
+			c.handleError(w, ctx, span,
+				fmt.Errorf("cluster %q not found: %w", mux.Vars(r)["clusterName"], err),
+				"failed to get context", http.StatusNotFound)
+
 			return
 		}
 
