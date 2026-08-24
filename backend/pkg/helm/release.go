@@ -732,6 +732,10 @@ func (h *Handler) installRelease(req InstallRequest, actionConfig *action.Config
 	installClient.Version = req.Version
 
 	if !VerifyUser(actionConfig, req) {
+		// Mirror the other failure paths so the status doesn't stay at
+		// "processing" until the cache TTL expires.
+		h.setReleaseStatusSilent("install", req.Name, failed, errors.New("insufficient privileges or auth check failed"))
+
 		return
 	}
 
