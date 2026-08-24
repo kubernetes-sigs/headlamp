@@ -16,7 +16,15 @@
 
 import { Icon } from '@iconify/react';
 import { Box, Button, Card, CardContent, Grid, Tab, Tabs, Typography } from '@mui/material';
-import React, { createContext, ReactNode, useContext, useEffect, useMemo, useState } from 'react';
+import React, {
+  createContext,
+  ReactNode,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
 import { KubeObject } from '../../lib/k8s/KubeObject';
@@ -24,8 +32,13 @@ import ResourceQuota from '../../lib/k8s/resourceQuota';
 import Role from '../../lib/k8s/role';
 import RoleBinding from '../../lib/k8s/roleBinding';
 import { SelectedClustersContext } from '../../lib/k8s/SelectedClustersContext';
+import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../redux/hooks';
-import { ProjectDefinition, ProjectDetailsTab } from '../../redux/projectsSlice';
+import {
+  ProjectDefinition,
+  ProjectDetailsTab,
+  ProjectOverviewSection,
+} from '../../redux/projectsSlice';
 import { Activity } from '../activity/Activity';
 import { ButtonStyle, EditButton, EditorDialog, Loader, StatusLabel } from '../common';
 import Link from '../common/Link';
@@ -36,6 +49,7 @@ import { GraphView } from '../resourceMap/GraphView';
 import { ResourceQuotaTable } from '../resourceQuota/Details';
 import { ProjectDeleteButton } from './ProjectDeleteButton';
 import { useProject } from './ProjectList';
+import { getEnabledProjectOverviewSections } from './projectOverviewSections';
 import { ProjectResourcesTab, useResourceCategoriesList } from './ProjectResourcesTab';
 import { getHealthIcon, getResourcesHealth } from './projectUtils';
 import { ResourceCategoriesList } from './ResourceCategoriesList';
@@ -110,9 +124,33 @@ function ProjectOverview({
     throw new Error('Missing ProjectDetailsContext');
   }
   const { setSelectedCategoryName, setSelectedTab } = detailsContext;
-  const additionalOverviewSections = Object.values(
-    useTypedSelector(state => state.projects.overviewSections)
-  );
+  const additionalOverviewSections = useTypedSelector(state => state.projects.overviewSections);
+  const [evaluatedSections, setEvaluatedSections] = useState<{
+    project: ProjectDefinition;
+    sections: ProjectOverviewSection[];
+  }>();
+
+  useEffect(() => {
+    let isCurrent = true;
+
+    async function loadSections() {
+      const enabledSections = await getEnabledProjectOverviewSections(
+        Object.values(additionalOverviewSections),
+        project
+      );
+
+      if (isCurrent) {
+        setEvaluatedSections({ project, sections: enabledSections });
+      }
+    }
+
+    loadSections();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [additionalOverviewSections, project]);
+
   const resourceQuotas = useMemo(
     () => (projectResources?.filter(it => it.kind === 'ResourceQuota') as ResourceQuota[]) ?? [],
     [projectResources]
@@ -121,6 +159,7 @@ function ProjectOverview({
   const categoryList = useResourceCategoriesList(projectResources);
 
   const projectHealth = useMemo(() => getResourcesHealth(projectResources), [projectResources]);
+  const projectSections = evaluatedSections?.project === project ? evaluatedSections.sections : [];
 
   return (
     <Grid container spacing={3} sx={{ pt: 2 }}>
@@ -292,15 +331,11 @@ function ProjectOverview({
         </Card>
       </Grid>
 
-      {additionalOverviewSections.map(section => (
-        <Grid item xs={12} md={4}>
+      {projectSections.map(section => (
+        <Grid key={section.id} item xs={12} md={4}>
           <Card sx={{ height: '100%' }}>
             <CardContent>
-              <section.component
-                key={section.id}
-                project={project}
-                projectResources={projectResources}
-              />
+              <section.component project={project} projectResources={projectResources} />
             </CardContent>
           </Card>
         </Grid>
@@ -371,7 +406,7 @@ const ProjectDetailsContext = createContext<
 /**
  * Project Details page
  */
-function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
+export function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
   const { t } = useTranslation();
   const registeredTabs = useTypedSelector(state => state.projects.detailsTabs);
   const customDeleteButton = useTypedSelector(state => state.projects.projectDeleteButton);
@@ -382,6 +417,9 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
   >(() => ProjectDeleteButton);
 
   const [headerActions, setHeaderActions] = useState<ReactNode[]>([]);
+  const [selectedTab, setSelectedTab] = useState<string>();
+  const [selectedCategoryName, setSelectedCategoryName] = React.useState<string>();
+  const [allTabs, setAllTabs] = useState<Record<string, ProjectDetailsTab>>(DEFAULT_TABS);
 
   // Load custom delete button
   useEffect(() => {
@@ -416,6 +454,11 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
 
     async function loadHeaderActions() {
       const actionsList = Object.values(registeredHeaderActions);
+      const selectAvailableTab = (tabId: string) => {
+        if (allTabs[tabId]?.component) {
+          setSelectedTab(tabId);
+        }
+      };
 
       // Get a list of enabled header actions
       const enabledActions = (
@@ -436,7 +479,15 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
 
       if (isCurrent) {
         const actions = enabledActions
-          .map(action => (action ? <action.component key={action.id} project={project} /> : null))
+          .map(action =>
+            action ? (
+              <action.component
+                key={action.id}
+                project={project}
+                setSelectedTab={selectAvailableTab}
+              />
+            ) : null
+          )
           .filter(Boolean);
         setHeaderActions(actions);
       }
@@ -447,14 +498,19 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
     return () => {
       isCurrent = false;
     };
-  }, [registeredHeaderActions, project]);
-
-  const [selectedTab, setSelectedTab] = useState<string>();
-  const [selectedCategoryName, setSelectedCategoryName] = React.useState<string>();
+  }, [registeredHeaderActions, project, allTabs]);
 
   const { items, isLoading } = useProjectItems(project);
 
-  const [allTabs, setAllTabs] = useState<Record<string, ProjectDetailsTab>>(DEFAULT_TABS);
+  const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.PROJECT_DETAILS_VIEW);
+
+  useEffect(() => {
+    if (isLoading) {
+      return;
+    }
+    dispatchHeadlampEvent({ project, resources: items });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [project, items, isLoading]);
 
   useEffect(() => {
     async function loadTabs() {
@@ -502,6 +558,30 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
   // Get the definition for the currently selected tab
   const selectedTabData = selectedTab ? allTabs[selectedTab] : undefined;
 
+  const dispatchTabChangeEvent = useEventCallback(HeadlampEventType.PROJECT_DETAILS_TAB_CHANGE);
+  const previousTabRef = useRef<ProjectDetailsTab>();
+
+  useEffect(() => {
+    if (!selectedTabData) {
+      return;
+    }
+    const previousTab = previousTabRef.current;
+    previousTabRef.current = selectedTabData;
+
+    // Only report actual user-driven transitions, not the initial tab selection.
+    if (previousTab === undefined || previousTab.id === selectedTabData.id) {
+      return;
+    }
+
+    dispatchTabChangeEvent({
+      project,
+      tab: selectedTabData,
+      previousTab,
+      resources: items,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedTabData, project, items]);
+
   const handleTabChange = (event: React.SyntheticEvent, newValue: string) => {
     setSelectedTab(newValue);
   };
@@ -547,7 +627,12 @@ function ProjectDetailsContent({ project }: { project: ProjectDefinition }) {
           }
         >
           <Box sx={{ borderBottom: 1, borderColor: 'divider' }}>
-            <Tabs value={selectedTab} onChange={handleTabChange}>
+            <Tabs
+              value={selectedTab}
+              onChange={handleTabChange}
+              variant="scrollable"
+              scrollButtons="auto"
+            >
               {Object.values(allTabs)
                 .filter(tab => tab.component)
                 .map(tab => (
@@ -607,6 +692,7 @@ function ProjectGraph({ project: { namespaces, clusters } }: { project: ProjectD
         flexGrow: 1,
         display: 'flex',
         flexDirection: 'column',
+        minHeight: '600px',
       }}
     >
       <SelectedClustersContext.Provider value={clusters}>

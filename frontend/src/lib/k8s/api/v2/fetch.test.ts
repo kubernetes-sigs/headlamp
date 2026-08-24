@@ -16,6 +16,7 @@
 
 import nock from 'nock';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
+import { setBackendToken } from '../../../../helpers/getHeadlampAPIHeaders';
 import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfigByClusterName';
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getClusterAuthType } from '../v1/clusterRequests';
@@ -51,12 +52,14 @@ describe('clusterFetch', () => {
 
   beforeEach(() => {
     vi.resetAllMocks();
+    setBackendToken('desktop-token');
     (findKubeconfigByClusterName as Mock).mockResolvedValue(kubeconfig);
     (getUserIdFromLocalStorage as Mock).mockReturnValue(userID);
     (getClusterAuthType as Mock).mockReturnValue('serviceAccount');
   });
 
   afterEach(() => {
+    setBackendToken(null);
     nock.cleanAll();
   });
 
@@ -69,14 +72,42 @@ describe('clusterFetch', () => {
     expect(responseBody).toEqual(mockResponse);
   });
 
+  it('does not add backend credentials to non-cluster requests', async () => {
+    let backendTokenHeader: string | string[] | undefined;
+    nock(BASE_HTTP_URL)
+      .get(testUrl)
+      .reply(function () {
+        backendTokenHeader = this.req.headers['x-headlamp_backend-token'];
+        return [200, mockResponse];
+      });
+
+    await clusterFetch(testUrl, { cluster: '' });
+
+    expect(backendTokenHeader).toBeUndefined();
+  });
+
   it('Sets KUBECONFIG and X-HEADLAMP-USER-ID headers if kubeconfig exists', async () => {
     nock(BASE_HTTP_URL)
       .get(`/clusters/${clusterName}${testUrl}`)
       .matchHeader('KUBECONFIG', kubeconfig)
       .matchHeader('X-HEADLAMP-USER-ID', userID)
+      .matchHeader('X-HEADLAMP_BACKEND-TOKEN', 'desktop-token')
       .reply(200, mockResponse);
 
     await clusterFetch(testUrl, { cluster: clusterName });
+  });
+
+  it('preserves caller headers while adding the backend token', async () => {
+    nock(BASE_HTTP_URL)
+      .get(`/clusters/${clusterName}${testUrl}`)
+      .matchHeader('X-CUSTOM-HEADER', 'caller-value')
+      .matchHeader('X-HEADLAMP_BACKEND-TOKEN', 'desktop-token')
+      .reply(200, mockResponse);
+
+    await clusterFetch(testUrl, {
+      cluster: clusterName,
+      headers: { 'X-CUSTOM-HEADER': 'caller-value' },
+    });
   });
 
   it('Throws an error if response is not ok', async () => {

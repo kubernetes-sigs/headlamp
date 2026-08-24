@@ -14,9 +14,63 @@
  * limitations under the License.
  */
 
-import { test } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import { HeadlampPage } from './headlampPage';
 import { NamespacesPage } from './namespacesPage';
+
+test('lists allowed namespaces without cluster-wide namespace access', async ({ page }) => {
+  const allowedNamespaces = ['team-a', 'team-b'];
+  const namespaceRequests: string[] = [];
+  const namespaceWebSockets: string[] = [];
+
+  await page.addInitScript(namespaces => {
+    window.localStorage.setItem(
+      'cluster_settings.test',
+      JSON.stringify({ allowedNamespaces: namespaces })
+    );
+  }, allowedNamespaces);
+  page.on('websocket', socket => {
+    if (socket.url().includes('/api/v1/namespaces')) {
+      namespaceWebSockets.push(socket.url());
+    }
+  });
+  await page.route('**/clusters/test/api/v1/namespaces**', async route => {
+    const url = new URL(route.request().url());
+    namespaceRequests.push(`${url.pathname}${url.search}`);
+    const name = allowedNamespaces.find(namespace =>
+      url.pathname.endsWith(`/namespaces/${namespace}`)
+    );
+
+    if (!name) {
+      await route.fulfill({ status: 403, json: { message: 'namespace list is forbidden' } });
+      return;
+    }
+
+    await route.fulfill({
+      json: {
+        apiVersion: 'v1',
+        kind: 'Namespace',
+        metadata: {
+          name,
+          resourceVersion: '1',
+          creationTimestamp: '2026-01-01T00:00:00Z',
+        },
+        status: { phase: 'Active' },
+      },
+    });
+  });
+
+  const headlampPage = new HeadlampPage(page);
+  await headlampPage.navigateToCluster('test', process.env.HEADLAMP_TEST_TOKEN);
+
+  for (const namespace of allowedNamespaces) {
+    await expect
+      .poll(() => namespaceRequests.some(request => request.endsWith(`/namespaces/${namespace}`)))
+      .toBe(true);
+  }
+  expect(namespaceRequests.some(request => /\/namespaces(?:\?|$)/.test(request))).toBe(false);
+  expect(namespaceWebSockets).toEqual([]);
+});
 
 test('create a namespace with the minimal editor then delete it', async ({ page }) => {
   const name = 'testing-e2e';

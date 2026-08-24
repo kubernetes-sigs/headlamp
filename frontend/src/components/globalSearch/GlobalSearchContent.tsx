@@ -31,7 +31,7 @@ import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { generatePath, useHistory, useLocation, useRouteMatch } from 'react-router';
 import { FixedSizeList } from 'react-window';
-import { loadClusterSettings } from '../../helpers/clusterSettings';
+import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
 import { useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import ConfigMap from '../../lib/k8s/configMap';
 import CronJob from '../../lib/k8s/cronJob';
@@ -42,6 +42,7 @@ import Ingress from '../../lib/k8s/ingress';
 import Job from '../../lib/k8s/job';
 import JobSet from '../../lib/k8s/jobSet';
 import { KubeObject, KubeObjectClass } from '../../lib/k8s/KubeObject';
+import LeaderWorkerSet from '../../lib/k8s/leaderWorkerSet';
 import Namespace from '../../lib/k8s/namespace';
 import Node from '../../lib/k8s/node';
 import PersistentVolumeClaim from '../../lib/k8s/persistentVolumeClaim';
@@ -109,6 +110,7 @@ const classes: KubeObjectClass[] = [
   ServiceAccount,
   Node,
   JobSet,
+  LeaderWorkerSet,
 ];
 
 /**
@@ -198,7 +200,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
     const knownNamespaces = new Set<string>(
       [
         ...namespaceItems.map(n => n.metadata.name),
-        ...selectedClusters.flatMap(c => loadClusterSettings(c)?.allowedNamespaces ?? []),
+        ...selectedClusters.flatMap(c => getCombinedAllowedNamespaces(c)),
       ].filter(Boolean)
     );
 
@@ -342,6 +344,8 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [appThemes]);
 
+  const [, setAdvancedSearchQueryKey] = useLocalStorageState(ADVANCED_SEARCH_QUERY_KEY, '');
+
   // Advanced Search
   const advancedSearchSuggestion = useMemo(() => {
     if (!query.trim() || selectedClusters.length === 0) return;
@@ -352,7 +356,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
       label: `Search "${query}" with Advanced Search`,
       onClick: () => {
         // Set the search query in localStorage for the Advanced Search
-        useLocalStorageState.update(ADVANCED_SEARCH_QUERY_KEY, `metadata.name === "${query}"`);
+        setAdvancedSearchQueryKey(() => `metadata.name === "${query}"`);
 
         const params = new URLSearchParams(history.location.search);
         history.push(createRouteURL('advancedSearch') + '?' + params.toString());

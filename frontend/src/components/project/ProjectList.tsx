@@ -17,12 +17,14 @@
 import { Icon } from '@iconify/react';
 import { Box, Button, Typography } from '@mui/material';
 import { groupBy, uniq } from 'lodash';
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useClustersConf } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
+import { HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../redux/hooks';
 import { ProjectDefinition } from '../../redux/projectsSlice';
+import AllowedNamespacesSelectorGate from '../App/AllowedNamespacesSelectorGate';
 import { StatusLabel } from '../common';
 import Link from '../common/Link';
 import Table, { TableColumn } from '../common/Table/Table';
@@ -76,23 +78,29 @@ export const useProject = (name: string) => {
     () => ({
       isLoading,
       project: namespaces
-        ? ({
-            clusters: uniq(namespaces.map(it => it.cluster)),
-            namespaces: uniq(namespaces.map(it => it.metadata.name)),
+        ? groupNamespacesIntoProjects(namespaces).find(project => project.id === name) ?? {
             id: name,
-          } as ProjectDefinition)
+            clusters: [],
+            namespaces: [],
+          }
         : undefined,
     }),
     [namespaces, name, isLoading]
   );
 };
 
-export default function ProjectList() {
+function ProjectListContent() {
   const { t } = useTranslation();
   const [showCreate, setShowCreate] = useState(false);
   const pluginApiResources = useTypedSelector(state => state.projects.apiResources);
 
   const projects = useProjects();
+  const dispatchHeadlampEvent = useEventCallback(HeadlampEventType.PROJECT_LIST_VIEW);
+
+  useEffect(() => {
+    dispatchHeadlampEvent({ projects });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [projects]);
 
   const handleCreateProject = () => {
     setShowCreate(true);
@@ -224,5 +232,21 @@ export default function ProjectList() {
 
       <Table key={pluginApiResources.length} columns={columns} data={projects} />
     </>
+  );
+}
+
+/**
+ * Resolves configured namespace selectors before querying the project list.
+ *
+ * @returns The gated project list.
+ */
+export default function ProjectList() {
+  const clusterConf = useClustersConf();
+  const clusters = Object.values(clusterConf ?? {}).map(cluster => cluster.name);
+
+  return (
+    <AllowedNamespacesSelectorGate clusters={clusters}>
+      <ProjectListContent />
+    </AllowedNamespacesSelectorGate>
   );
 }
