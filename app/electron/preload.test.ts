@@ -93,4 +93,24 @@ describe('desktop preload API', () => {
     expect(electronMocks.removeListener).toHaveBeenNthCalledWith(1, 'currentMenu', listener);
     expect(electronMocks.removeListener).toHaveBeenNthCalledWith(2, 'locale', expect.any(Function));
   });
+
+  it('exposes cluster provider capability registration and invocation', async () => {
+    const registrations = [{ pluginName: 'example', providers: ['example.cluster'] }];
+    const request = { cluster: 'demo' };
+
+    await desktopApi.clusterProviderCapabilities.register(registrations);
+    await desktopApi.clusterProviderCapabilities.invoke('opaque-capability', request);
+
+    expect(electronMocks.invoke).toHaveBeenNthCalledWith(
+      1,
+      'register-plugin-cluster-provider-capabilities',
+      registrations
+    );
+    expect(electronMocks.invoke).toHaveBeenNthCalledWith(
+      2,
+      'invoke-cluster-provider',
+      'opaque-capability',
+      request
+    );
+  });
 });
