@@ -734,6 +734,16 @@ func TestGetOrCreateConnection(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, conn, conn2, "Should return the same connection instance")
 
+	// Test getting connection when query changes (should close old and create new)
+	msgDifferentQuery := msg
+	msgDifferentQuery.Query = "watch=true&resourceVersion=200"
+
+	connNewQuery, err := m.getOrCreateConnection(msgDifferentQuery, clientConn, &token)
+	assert.NoError(t, err)
+	assert.NotNil(t, connNewQuery)
+	assert.NotEqual(t, conn, connNewQuery, "Should create a new connection when query changes")
+	assert.Equal(t, "watch=true&resourceVersion=200", connNewQuery.Query)
+
 	// Test with invalid cluster
 	msg.ClusterID = "non-existent-cluster"
 	conn3, err := m.getOrCreateConnection(msg, clientConn, &token)
