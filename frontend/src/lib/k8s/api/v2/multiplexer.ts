@@ -53,14 +53,61 @@ export const WebSocketManager = {
   pendingUnsubscribes: new Map<string, NodeJS.Timeout>(),
 
   /**
-   * Creates a unique key for identifying WebSocket subscriptions
+   * Creates a unique key for identifying WebSocket subscriptions.
+   * Normalizes the query by omitting `resourceVersion`, which is only
+   * the stream resume token and not part of the subscription identity.
+   *
    * @param clusterId - Cluster identifier
    * @param path - API resource path
    * @param query - Query parameters
    * @returns Unique subscription key
    */
   createKey(clusterId: string, path: string, query: string): string {
+    if (!query) {
+      return `${clusterId}:${path}:`;
+    }
+    try {
+      const params = new URLSearchParams(query);
+      if (params.has('resourceVersion')) {
+        params.delete('resourceVersion');
+        return `${clusterId}:${path}:${params.toString()}`;
+      }
+    } catch {
+      // Ignore
+    }
     return `${clusterId}:${path}:${query}`;
+  },
+
+  /**
+   * Updates the query parameters used when reconnecting an active subscription.
+   * This allows advancing the resourceVersion with each delivered watch event
+   * so that transport reconnects resume from the latest delivered version instead
+   * of the initial LIST resourceVersion.
+   *
+   * @param clusterId - Cluster identifier
+   * @param path - API resource path
+   * @param query - Query parameters (used to identify the subscription)
+   * @param resourceVersion - New resourceVersion to set for reconnection
+   */
+  updateSubscriptionResourceVersion(
+    clusterId: string,
+    path: string,
+    query: string,
+    resourceVersion: string
+  ): void {
+    const key = this.createKey(clusterId, path, query);
+    const sub = this.activeSubscriptions.get(key);
+    if (sub && resourceVersion) {
+      try {
+        const params = new URLSearchParams(sub.query);
+        if (params.has('resourceVersion')) {
+          params.set('resourceVersion', resourceVersion);
+          sub.query = params.toString();
+        }
+      } catch {
+        // Ignore malformed query string
+      }
+    }
   },
 
   /**
@@ -181,6 +228,15 @@ export const WebSocketManager = {
     onError?: (err: Error) => void
   ): Promise<() => void> {
     const key = this.createKey(clusterId, path, query);
+    const existing = this.activeSubscriptions.get(key);
+    const shouldRestart = Boolean(existing && existing.query !== query);
+
+    // Cancel any pending debounced unsubscription for this key
+    const pendingTimeout = this.pendingUnsubscribes.get(key);
+    if (pendingTimeout) {
+      clearTimeout(pendingTimeout);
+      this.pendingUnsubscribes.delete(key);
+    }
 
     // Add to active subscriptions
     this.activeSubscriptions.set(key, { clusterId, path, query });
@@ -200,6 +256,20 @@ export const WebSocketManager = {
     // Establish connection and send REQUEST
     const socket = await this.connect();
     const userId = getUserIdFromLocalStorage();
+
+    // If restarting an active subscription with a new query (e.g. from a LIST-generation change),
+    // explicitly CLOSE the existing backend connection first so the backend applies the new query.
+    if (shouldRestart && socket.readyState === WebSocket.OPEN) {
+      const closeMsg: WebSocketMessage = {
+        clusterId,
+        path,
+        query: existing?.query || query,
+        userId: userId || '',
+        type: 'CLOSE',
+      };
+      socket.send(JSON.stringify(closeMsg));
+    }
+
     const requestMsg: WebSocketMessage = {
       clusterId,
       path,
@@ -390,6 +460,22 @@ export const WebSocketManager = {
 
       // Notify listeners if update is valid
       if (update && typeof update === 'object') {
+        const rv = update.object?.metadata?.resourceVersion || update.metadata?.resourceVersion;
+        if (rv) {
+          const sub = this.activeSubscriptions.get(key);
+          if (sub) {
+            try {
+              const params = new URLSearchParams(sub.query);
+              if (params.has('resourceVersion')) {
+                params.set('resourceVersion', rv);
+                sub.query = params.toString();
+              }
+            } catch {
+              // Ignore malformed query string
+            }
+          }
+        }
+
         const listeners = this.listeners.get(key);
         if (listeners) {
           for (const listener of listeners) {

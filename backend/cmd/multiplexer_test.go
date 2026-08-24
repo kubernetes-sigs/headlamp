@@ -511,6 +511,29 @@ func TestCloseClientConnectionsClearsClientBeforeClosing(t *testing.T) {
 	assert.True(t, conn.closed)
 }
 
+func TestCleanupConnectionDoesNotDeleteReplacementConnection(t *testing.T) {
+	m := NewMultiplexer(kubeconfig.NewContextStore(), false)
+	clientConn, clientServer := createTestWebSocketConnection()
+
+	defer clientServer.Close()
+
+	oldConn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "generation=1", clientConn)
+	newConn := createTestConnection("test-cluster", "test-user", "/api/v1/pods", "generation=2", clientConn)
+
+	connKey := m.createConnectionKey("test-cluster", "/api/v1/pods", "test-user")
+
+	// Simulate CloseConnection closing oldConn and removing it,
+	// then a new REQUEST immediately installing newConn in m.connections
+	m.connections[connKey] = newConn
+
+	// Deferred cleanup of oldConn runs
+	m.cleanupConnection(oldConn)
+
+	// newConn must still be present in m.connections and not deleted
+	assert.Equal(t, newConn, m.connections[connKey])
+	assert.True(t, oldConn.closed)
+}
+
 func createTestConnection(
 	clusterID,
 	userID,

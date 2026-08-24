@@ -1061,9 +1061,12 @@ func (m *Multiplexer) sendDataMessage(
 func (m *Multiplexer) cleanupConnection(conn *Connection) {
 	conn.safeClose()
 
-	m.mutex.Lock()
 	connKey := m.createConnectionKey(conn.ClusterID, conn.Path, conn.UserID)
-	delete(m.connections, connKey)
+
+	m.mutex.Lock()
+	if m.connections[connKey] == conn {
+		delete(m.connections, connKey)
+	}
 	m.mutex.Unlock()
 }
 
