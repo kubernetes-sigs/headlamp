@@ -60,6 +60,11 @@ const (
 
 var inFlightPortForwards sync.Map
 
+// activePortForwards tracks live *portForward instances by their cache key,
+// so stop/delete requests can mark the live struct (not just its cached
+// value copy) before signalling shutdown.
+var activePortForwards sync.Map
+
 type portForwardRequest struct {
 	ID               string `json:"id"`
 	Namespace        string `json:"namespace"`
@@ -100,23 +105,6 @@ type portForward struct {
 	TargetPort       string `json:"targetPort"`
 	Status           string `json:"status"`
 	Error            string `json:"error"`
-}
-
-// setStatusAndSnapshot updates the Status and Error fields and returns a
-// snapshot of the struct. When mu is initialized (production path), both
-// the update and the snapshot are performed within a single critical section.
-// When mu is nil (e.g. test-only structs not accessed concurrently), the
-// update proceeds without locking.
-func (pf *portForward) setStatusAndSnapshot(status, errMsg string) portForward {
-	if pf.mu != nil {
-		pf.mu.Lock()
-		defer pf.mu.Unlock()
-	}
-
-	pf.Status = status
-	pf.Error = errMsg
-
-	return *pf
 }
 
 func getFreePort() (int, error) {
@@ -433,8 +421,13 @@ func monitorPodAndManagePortForward(
 				errMsg := fmt.Sprintf("Pod %s/%s check failed: %v", pfDetails.Namespace, pfDetails.Pod, err)
 				logger.Log(logger.LevelError, logParams, errors.New(errMsg), "stopping port-forward due to pod status")
 
-				pfSnapshot := pfDetails.setStatusAndSnapshot(STOPPED, errMsg)
-				portforwardstore(cache, pfSnapshot)
+				storeIfLive(cache, pfDetails, func(pf *portForward) bool {
+					pf.Status = STOPPED
+					pf.Error = errMsg
+
+					return true
+				})
+
 				safeCloseChan(pfDetails.closeChan)
 
 				return
@@ -455,9 +448,12 @@ func handlePortForwardError(
 ) error {
 	logger.Log(logger.LevelError, logParams, errors.New(errMsg), "portforward error")
 
-	pfSnapshot := pfDetails.setStatusAndSnapshot(STOPPED, errMsg)
+	storeIfLive(cache, pfDetails, func(pf *portForward) bool {
+		pf.Status = STOPPED
+		pf.Error = errMsg
 
-	portforwardstore(cache, pfSnapshot)
+		return true
+	})
 	safeCloseChan(pfDetails.closeChan)
 
 	return errors.New(errMsg)
@@ -469,8 +465,12 @@ func handlePortForwardSuccess(
 	pfDetails *portForward,
 	logParams map[string]string,
 ) {
-	pfSnapshot := pfDetails.setStatusAndSnapshot(RUNNING, "")
-	portforwardstore(cache, pfSnapshot)
+	storeIfLive(cache, pfDetails, func(pf *portForward) bool {
+		pf.Status = RUNNING
+		pf.Error = ""
+
+		return true
+	})
 	logger.Log(logger.LevelInfo, logParams, nil, "Port forward ready and running.")
 }
 
@@ -508,25 +508,18 @@ func handlePortForwardReadiness(
 	case <-pfDetails.closeChan:
 		msg := "portforward stopped before becoming ready"
 
-		if pfDetails.mu != nil {
-			pfDetails.mu.Lock()
-		}
+		storeIfLive(cache, pfDetails, func(pf *portForward) bool {
+			if pf.Status == RUNNING {
+				pf.Status = STOPPED
+			}
 
-		if pfDetails.Status == RUNNING {
-			pfDetails.Status = STOPPED
-		}
+			if pf.Error == "" {
+				pf.Error = msg
+			}
 
-		if pfDetails.Error == "" {
-			pfDetails.Error = msg
-		}
+			return true
+		})
 
-		pfSnapshot := *pfDetails
-
-		if pfDetails.mu != nil {
-			pfDetails.mu.Unlock()
-		}
-
-		portforwardstore(cache, pfSnapshot)
 		logger.Log(logger.LevelInfo, logParams, nil, msg)
 
 		return errors.New(msg)
@@ -544,8 +537,19 @@ func forwardPortsAsync(
 	forwardErrChan chan error,
 	logParams map[string]string,
 ) {
+	// Capture the key before the goroutine starts: a same-ID restart replaces
+	// the live instance under this key, and cleanup must remove only its own
+	// pointer, never the newer one.
+	activeKey := portforwardKeyGenerator(*pfDetails)
+
 	go func() {
 		defer func() {
+			func() {
+				defer lockLifecycle(activeKey)()
+
+				unregisterPortForward(activeKey, pfDetails)
+			}()
+
 			safeCloseChan(pfDetails.closeChan)
 			close(forwardErrChan)
 		}()
@@ -553,8 +557,12 @@ func forwardPortsAsync(
 		if err := forwarder.ForwardPorts(); err != nil {
 			logger.Log(logger.LevelError, logParams, err, "ForwardPorts() failed")
 
-			pfSnapshot := pfDetails.setStatusAndSnapshot(STOPPED, err.Error())
-			portforwardstore(cache, pfSnapshot)
+			storeIfLive(cache, pfDetails, func(pf *portForward) bool {
+				pf.Status = STOPPED
+				pf.Error = err.Error()
+
+				return true
+			})
 
 			select {
 			case forwardErrChan <- err:
@@ -566,30 +574,21 @@ func forwardPortsAsync(
 
 		logger.Log(logger.LevelInfo, logParams, nil, "ForwardPorts() exited.")
 
-		if pfDetails.mu != nil {
-			pfDetails.mu.Lock()
-		}
-
-		shouldStore := pfDetails.Status == RUNNING
-		if shouldStore {
-			pfDetails.Status = STOPPED
-			if pfDetails.Error == "" {
-				pfDetails.Error = "Port forward stopped."
+		// Only a forward still marked RUNNING gets a terminal status here; a
+		// stop or delete already recorded its own outcome.
+		storeIfLive(cache, pfDetails, func(pf *portForward) bool {
+			if pf.Status != RUNNING {
+				return false
 			}
-		}
 
-		var pfSnapshot portForward
-		if shouldStore {
-			pfSnapshot = *pfDetails
-		}
+			pf.Status = STOPPED
 
-		if pfDetails.mu != nil {
-			pfDetails.mu.Unlock()
-		}
+			if pf.Error == "" {
+				pf.Error = "Port forward stopped."
+			}
 
-		if shouldStore {
-			portforwardstore(cache, pfSnapshot)
-		}
+			return true
+		})
 	}()
 }
 
@@ -670,6 +669,15 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 		Port:             p.Port,
 		Error:            "",
 	}
+
+	// Register the live instance under the lifecycle lock so a stop or delete
+	// of a previous forward with this key cannot interleave and unregister the
+	// one being started.
+	func() {
+		defer lockLifecycle(portforwardKeyGenerator(*pfDetails))()
+
+		activePortForwards.Store(portforwardKeyGenerator(*pfDetails), pfDetails)
+	}()
 
 	return runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut)
 }

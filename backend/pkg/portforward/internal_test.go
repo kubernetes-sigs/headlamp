@@ -193,6 +193,183 @@ func TestStopOrDeletePortForward(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// TestStopOrDeleteMarksLiveForwardStopped verifies that stop/delete marks the
+// LIVE *portForward (tracked in activePortForwards) as STOPPED before the
+// close channel is signalled. Without this, the forwarding goroutine's
+// completion path still sees RUNNING and re-stores a ghost entry after a
+// delete removed it.
+func TestStopOrDeleteMarksLiveForwardStopped(t *testing.T) {
+	cache := cache.New[interface{}]()
+
+	live := &portForward{
+		mu:        &sync.Mutex{},
+		ID:        "id-live",
+		Cluster:   "cluster",
+		cacheKey:  "cluster",
+		closeChan: make(chan struct{}, 1),
+		Status:    RUNNING,
+	}
+	activePortForwards.Store(portforwardKeyGenerator(*live), live)
+
+	defer activePortForwards.Delete(portforwardKeyGenerator(*live))
+
+	err := cache.Set(context.Background(), portforwardKeyGenerator(*live), *live)
+	require.NoError(t, err)
+
+	err = stopOrDeletePortForward(cache, "cluster", "id-live", false)
+	require.NoError(t, err)
+
+	live.mu.Lock()
+	status := live.Status
+	live.mu.Unlock()
+	assert.Equal(t, STOPPED, status)
+
+	_, err = cache.Get(context.Background(), portforwardKeyGenerator(*live))
+	assert.Error(t, err)
+}
+
+// newLiveTestPortForward registers a RUNNING port-forward in the live instance
+// map and the cache, and unregisters it when the test ends.
+func newLiveTestPortForward(t *testing.T, c cache.Cache[interface{}], id string) *portForward {
+	t.Helper()
+
+	pf := &portForward{
+		mu:        &sync.Mutex{},
+		ID:        id,
+		Cluster:   "cluster",
+		cacheKey:  "cluster",
+		closeChan: make(chan struct{}, 1),
+		Status:    RUNNING,
+	}
+	key := portforwardKeyGenerator(*pf)
+
+	activePortForwards.Store(key, pf)
+	t.Cleanup(func() { activePortForwards.Delete(key) })
+
+	require.NoError(t, c.Set(context.Background(), key, *pf))
+
+	return pf
+}
+
+// TestTerminalWriteCannotInterleaveWithDelete pins the atomicity the lifecycle
+// lock provides: while a delete holds the lock, a terminal write from the
+// forwarding goroutine cannot land, so it can neither slip in before the
+// delete nor resurrect the entry afterwards. A bare cache-existence check
+// could not offer this, because the read and the write take separate cache
+// locks and a delete fits between them.
+func TestTerminalWriteCannotInterleaveWithDelete(t *testing.T) {
+	testCache := cache.New[interface{}]()
+	pf := newLiveTestPortForward(t, testCache, "id-race")
+	key := portforwardKeyGenerator(*pf)
+
+	// Take the lock the way stopOrDeletePortForward does, then start the
+	// goroutine that wants to record a terminal status.
+	unlock := lockLifecycle(key)
+
+	writeDone := make(chan struct{})
+
+	go func() {
+		defer close(writeDone)
+
+		storeIfLive(testCache, pf, func(p *portForward) bool {
+			p.Status = STOPPED
+			p.Error = "late write"
+
+			return true
+		})
+	}()
+
+	// The write must be blocked for as long as the lock is held.
+	select {
+	case <-writeDone:
+		t.Fatal("terminal write completed while the lifecycle lock was held")
+	case <-time.After(100 * time.Millisecond):
+	}
+
+	cached, err := getPortForwardByID(testCache, pf.cacheKey, pf.ID)
+	require.NoError(t, err)
+	assert.Equal(t, RUNNING, cached.Status)
+
+	// Complete the delete under the same lock, then release it.
+	tombstonePortForward(key)
+	require.NoError(t, testCache.Delete(context.Background(), key))
+	unlock()
+
+	<-writeDone
+
+	// The pending write saw the tombstone and skipped its store.
+	_, err = getPortForwardByID(testCache, pf.cacheKey, pf.ID)
+	assert.Error(t, err)
+}
+
+// TestSameIDRestartSurvivesOldGoroutine covers the restart case: a new forward
+// reusing the ID of one that is still shutting down. The old goroutine must
+// neither unregister the new instance nor overwrite its cache entry with the
+// stale snapshot it is holding.
+func TestSameIDRestartSurvivesOldGoroutine(t *testing.T) {
+	testCache := cache.New[interface{}]()
+	oldPF := newLiveTestPortForward(t, testCache, "id-restart")
+	key := portforwardKeyGenerator(*oldPF)
+
+	// The restart replaces the live instance under the same key.
+	newPF := &portForward{
+		mu:        &sync.Mutex{},
+		ID:        oldPF.ID,
+		Cluster:   oldPF.Cluster,
+		cacheKey:  oldPF.cacheKey,
+		closeChan: make(chan struct{}, 1),
+		Status:    RUNNING,
+	}
+	activePortForwards.Store(key, newPF)
+	require.NoError(t, testCache.Set(context.Background(), key, *newPF))
+
+	// The old goroutine's cleanup runs after the restart. It must remove only
+	// its own pointer; an unconditional delete would strand the new instance
+	// and let a later stop leave it RUNNING in the cache forever.
+	func() {
+		defer lockLifecycle(key)()
+
+		unregisterPortForward(key, oldPF)
+	}()
+
+	live, ok := activePortForwards.Load(key)
+	require.True(t, ok, "restarted instance must stay registered")
+	assert.Same(t, newPF, live)
+
+	// The old goroutine's terminal write must not clobber the restarted entry.
+	storeIfLive(testCache, oldPF, func(p *portForward) bool {
+		p.Status = STOPPED
+		p.Error = "stale snapshot"
+
+		return true
+	})
+
+	cached, err := getPortForwardByID(testCache, oldPF.cacheKey, oldPF.ID)
+	require.NoError(t, err)
+	assert.Equal(t, RUNNING, cached.Status)
+	assert.Empty(t, cached.Error)
+}
+
+// TestDeleteThenLateWriteKeepsEntryDeleted runs the whole delete path and then
+// lets the forwarding goroutine finish, which is the sequence reported in the
+// issue: the entry must stay gone.
+func TestDeleteThenLateWriteKeepsEntryDeleted(t *testing.T) {
+	testCache := cache.New[interface{}]()
+	pf := newLiveTestPortForward(t, testCache, "id-late")
+
+	require.NoError(t, stopOrDeletePortForward(testCache, "cluster", pf.ID, false))
+
+	storeIfLive(testCache, pf, func(p *portForward) bool {
+		p.Status = STOPPED
+		p.Error = "ForwardPorts() exited"
+
+		return true
+	})
+
+	_, err := getPortForwardByID(testCache, pf.cacheKey, pf.ID)
+	assert.Error(t, err)
+}
+
 // TestGetPortForwardList tests getPortForwardList function.
 func TestGetPortForwardList(t *testing.T) {
 	p1 := portForward{ID: "id1", Cluster: "cluster1"}
