@@ -15,7 +15,12 @@
             <p
               class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
             >
-              Nodes
+              <a
+                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                href="/c/story-cluster/nodes"
+              >
+                Nodes
+              </a>
             </p>
           </div>
           <p

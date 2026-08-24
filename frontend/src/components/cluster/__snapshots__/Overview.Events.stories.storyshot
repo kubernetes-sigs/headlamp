@@ -299,7 +299,12 @@
                             <p
                               class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
                             >
-                              Pods
+                              <a
+                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                                href="/"
+                              >
+                                Pods
+                              </a>
                             </p>
                           </div>
                           <p
@@ -425,7 +430,12 @@
                             <p
                               class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
                             >
-                              Nodes
+                              <a
+                                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                                href="/"
+                              >
+                                Nodes
+                              </a>
                             </p>
                           </div>
                           <p
@@ -494,12 +504,18 @@
                                     <g
                                       class="recharts-layer recharts-active-shape"
                                     >
-                                      <path
-                                        aria-label="notReady: 2 (100%)"
-                                        class="recharts-sector"
-                                        cx="61"
-                                        cy="61"
-                                        d="M 61,16.199999999999996
+                                      <g
+                                        aria-label="Not Ready: 2 (100%)"
+                                        role="button"
+                                        style="cursor: pointer;"
+                                        tabindex="0"
+                                      >
+                                        <path
+                                          aria-label="Not Ready: 2 (100%)"
+                                          class="recharts-sector"
+                                          cx="61"
+                                          cy="61"
+                                          d="M 61,16.199999999999996
     A 44.800000000000004,44.800000000000004,0,
     1,1,
     60.99921809249515,16.20000000682343
@@ -507,10 +523,11 @@
             A 33.800000000000004,33.800000000000004,0,
             1,0,
             61,27.199999999999996 Z"
-                                        fill="#c62828"
-                                        role="img"
-                                        stroke="#e0e0e0"
-                                      />
+                                          fill="#c62828"
+                                          role="img"
+                                          stroke="#e0e0e0"
+                                        />
+                                      </g>
                                     </g>
                                   </g>
                                   <g
