@@ -55,11 +55,6 @@ export const GraphEdgeComponent = memo((props: EdgeProps & { data: GraphEdge['da
     0.125 * (endPoint.y + dy);
 
   const label = data?.label;
-  const isCrossCluster = data?.data?.isCrossCluster;
-  const strokeColor = isCrossCluster
-    ? theme.palette.secondary.main
-    : alpha(theme.palette.action.active, 0.8);
-  const strokeDasharray = isCrossCluster ? '5,5' : 'none';
 
   return (
     <>
@@ -67,14 +62,12 @@ export const GraphEdgeComponent = memo((props: EdgeProps & { data: GraphEdge['da
         id={props.id}
         path={svgPath}
         style={{
-          stroke: strokeColor,
-          strokeDasharray: strokeDasharray,
+          stroke: alpha(theme.palette.action.active, 0.8),
         }}
       />
       {label && (
         <EdgeLabelRenderer>
           <div
-            title={isCrossCluster ? 'Cross-cluster Sync' : ''}
             style={{
               position: 'absolute',
               transform: `translate(-50%, -50%) translate(${labelX}px,${labelY}px)`,
@@ -82,11 +75,9 @@ export const GraphEdgeComponent = memo((props: EdgeProps & { data: GraphEdge['da
               padding: '2px 6px',
               borderRadius: '4px',
               fontSize: '10px',
-              color: isCrossCluster ? theme.palette.secondary.main : theme.palette.text.secondary,
-              border: `1px solid ${
-                isCrossCluster ? theme.palette.secondary.main : alpha(theme.palette.divider, 0.6)
-              }`,
-              pointerEvents: isCrossCluster ? 'auto' : 'none',
+              color: theme.palette.text.secondary,
+              border: `1px solid ${alpha(theme.palette.divider, 0.6)}`,
+              pointerEvents: 'none',
             }}
             className="nodrag nopan"
           >

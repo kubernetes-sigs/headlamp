@@ -74,17 +74,16 @@ export function getFlatSources(sources: GraphSource[], result: GraphSource[] = [
   return result;
 }
 
+/**
+ * Create Edges from object's ownerReferences
+ */
 export const kubeOwnersEdges = (obj: KubeObject): GraphEdge[] => {
-  const fromId = obj.cluster ? `${obj.cluster}_${obj.metadata.uid}` : obj.metadata.uid;
   return (
-    obj.metadata.ownerReferences?.map(owner => {
-      const toId = obj.cluster ? `${obj.cluster}_${owner.uid}` : owner.uid;
-      return {
-        id: `${fromId}-${toId}`,
-        source: fromId,
-        target: toId,
-      };
-    }) ?? []
+    obj.metadata.ownerReferences?.map(owner => ({
+      id: `${obj.metadata.uid}-${owner.uid}`,
+      source: obj.metadata.uid,
+      target: owner.uid,
+    })) ?? []
   );
 };
 
@@ -92,47 +91,44 @@ export const kubeOwnersEdges = (obj: KubeObject): GraphEdge[] => {
  * Create reverse Edges from object's ownerReferences
  */
 export const kubeOwnersEdgesReversed = (obj: KubeObject): GraphEdge[] => {
-  const toId = obj.cluster ? `${obj.cluster}_${obj.metadata.uid}` : obj.metadata.uid;
   return (
-    obj.metadata.ownerReferences?.map(owner => {
-      const fromId = obj.cluster ? `${obj.cluster}_${owner.uid}` : owner.uid;
-      return {
-        id: `${fromId}-${toId}`,
-        type: 'kubeRelation',
-        source: fromId,
-        target: toId,
-      };
-    }) ?? []
+    obj.metadata.ownerReferences?.map(owner => ({
+      id: `${owner.uid}-${obj.metadata.uid}`,
+      type: 'kubeRelation',
+      source: owner.uid,
+      target: obj.metadata.uid,
+    })) ?? []
   );
 };
 
+/**
+ * Create an object from any Kube object
+ */
 export const makeKubeObjectNode = (obj: KubeObject): GraphNode => {
   const apiGroup = resolveCRDApiGroup((obj.constructor as any)?.customResourceDefinition);
-  const id = obj.cluster ? `${obj.cluster}_${obj.metadata.uid}` : obj.metadata.uid;
   if (apiGroup) {
     const [group, , plural] = apiGroup;
     return {
-      id,
+      id: obj.metadata.uid,
       kubeObject: obj,
       customResourceDefinition: plural + '.' + group,
     };
   }
 
   return {
-    id,
+    id: obj.metadata.uid,
     kubeObject: obj,
   };
 };
 
-export const makeKubeToKubeEdge = (from: KubeObject, to: KubeObject): GraphEdge => {
-  const fromId = from.cluster ? `${from.cluster}_${from.metadata.uid}` : from.metadata.uid;
-  const toId = to.cluster ? `${to.cluster}_${to.metadata.uid}` : to.metadata.uid;
-  return {
-    id: `${fromId}-${toId}`,
-    source: fromId,
-    target: toId,
-  };
-};
+/**
+ * Make an edge connecting two Kube objects
+ */
+export const makeKubeToKubeEdge = (from: KubeObject, to: KubeObject): GraphEdge => ({
+  id: `${from.metadata.uid}-${to.metadata.uid}`,
+  source: from.metadata.uid,
+  target: to.metadata.uid,
+});
 
 /**
  * How long a single source is given to resolve before it's treated as
@@ -349,9 +345,9 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
         if (!nodesByUid) {
           nodesByUid = new Map();
           for (const node of nodes) {
-            const id = node.id;
-            if (id) {
-              nodesByUid.set(id, node);
+            const uid = node.kubeObject?.metadata?.uid;
+            if (uid) {
+              nodesByUid.set(uid, node);
             }
           }
         }
@@ -385,9 +381,6 @@ export function GraphSourceManager({ sources, children, relations }: GraphSource
                 id: from.id + '-' + to.id + '-' + relation.id,
                 source: from.id,
                 target: to.id,
-                data: {
-                  isCrossCluster: from.kubeObject?.cluster !== to.kubeObject?.cluster,
-                },
               });
             }
           });

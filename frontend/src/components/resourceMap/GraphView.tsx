@@ -523,11 +523,6 @@ function GraphViewContent({
                     isActive={groupBy === 'node'}
                     onClick={() => setGroupBy(groupBy === 'node' ? undefined : 'node')}
                   />
-                  <ChipToggleButton
-                    label={t('Cluster')}
-                    isActive={groupBy === 'cluster'}
-                    onClick={() => setGroupBy(groupBy === 'cluster' ? undefined : 'cluster')}
-                  />
                 </ChipGroup>
                 <ChipToggleButton
                   label={t('Status: Error or Warning')}

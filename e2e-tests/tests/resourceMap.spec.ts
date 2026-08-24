@@ -134,7 +134,7 @@ async function mockResourceMapCollections(page: Page, cluster: string, podItems:
 }
 
 test('keeps a simplified namespace expanded while resizing', async ({ page }) => {
-  test.setTimeout(90_000);
+  test.setTimeout(60_000);
   const cluster = process.env.HEADLAMP_TEST_CLUSTER || 'test';
   const headlampPage = new HeadlampPage(page);
   const mockedResources = await mockResourceMapCollections(page, cluster);
@@ -144,25 +144,16 @@ test('keeps a simplified namespace expanded while resizing', async ({ page }) =>
 
   await expect.poll(() => [...mockedResources].sort()).toEqual(['namespaces', 'pods']);
 
-  const namespaceNode = page.locator(
-    `.react-flow__node[data-id*="${namespace.metadata.uid}"], .react-flow__node[data-id*="${namespace.metadata.name}"]`
-  );
-
-  await page.waitForSelector('.react-flow', { timeout: 30_000 });
-  await page.waitForSelector('.react-flow__nodes', { timeout: 30_000 });
-  await expect(namespaceNode.first()).toBeVisible({ timeout: 30_000 });
-  await namespaceNode.first().getByRole('button').click();
+  const namespaceNode = page.locator(`[data-id="${namespace.metadata.uid}"]`);
+  await expect(namespaceNode).toBeVisible({ timeout: 30_000 });
+  await namespaceNode.getByRole('button').click();
 
   const assertExpandedTopology = async () => {
-    const parent = page.locator(
-      `.react-flow__node.parent[data-id*="${namespace.metadata.uid}"], .react-flow__node.parent[data-id*="${namespace.metadata.name}"]`
-    );
-    const children = page.locator(`.react-flow__node[data-id*="resize-test-pod-"]:not(.parent)`);
+    const parent = page.locator(`.react-flow__node.parent[data-id="${namespace.metadata.uid}"]`);
+    const children = page.locator(`.react-flow__node[data-id^="resize-test-pod-"]:not(.parent)`);
 
     await expect(parent).toHaveCount(1);
-
-    const childrenCount = await children.count();
-    expect(childrenCount).toBeGreaterThanOrEqual(500);
+    await expect(children).toHaveCount(500);
   };
 
   await assertExpandedTopology();
@@ -190,8 +181,8 @@ test('groups scheduled and unscheduled pods by node', async ({ page }) => {
   await expect.poll(() => [...mockedResources].sort()).toEqual(['namespaces', 'pods']);
   await page.getByRole('button', { name: 'Node', exact: true }).click();
 
-  await expect(page.locator('[data-id*="Node-worker-1"]')).toBeVisible({ timeout: 30_000 });
-  await expect(page.locator('[data-id*="Node-Unscheduled"]')).toBeVisible();
+  await expect(page.locator('[data-id="Node-worker-1"]')).toBeVisible({ timeout: 30_000 });
+  await expect(page.locator('[data-id="Node-Unscheduled"]')).toBeVisible();
 });
 
 test('reflows long resource labels without clipping', async ({ page }) => {

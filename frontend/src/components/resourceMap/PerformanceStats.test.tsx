@@ -15,7 +15,6 @@
  */
 
 import { act, render, screen } from '@testing-library/react';
-import { groupGraph } from './graph/graphGrouping';
 import {
   addPerformanceMetric,
   clearPerformanceMetrics,
@@ -55,58 +54,5 @@ describe('PerformanceStats subscriptions', () => {
 
     expect(screen.getAllByText('filterGraph')).toHaveLength(2);
     expect(screen.getByText('1 operations')).toBeInTheDocument();
-  });
-
-  it('runs multi-cluster grouping within performance budgets (simulates 500+ nodes over 3 clusters)', () => {
-    // Generate 600 nodes across 3 clusters
-    const clusters = ['cluster-A', 'cluster-B', 'cluster-C'];
-    const mockNodes = Array.from({ length: 600 }).map((_, i) => ({
-      id: `node-${i}`,
-      kubeObject: {
-        metadata: { uid: `node-${i}`, name: `pod-${i}`, namespace: 'default' },
-        cluster: clusters[i % 3],
-        kind: 'Pod',
-      } as any,
-    }));
-
-    // Generate some cross-cluster edges
-    const mockEdges = Array.from({ length: 300 }).map((_, i) => ({
-      id: `edge-${i}`,
-      source: `node-${i}`,
-      target: `node-${i + 1}`,
-      data: { isCrossCluster: i % 3 !== (i + 1) % 3 },
-    }));
-
-    // Simulate what groupGraph does internally
-    const result = groupGraph(mockNodes, mockEdges, {
-      groupBy: 'cluster',
-      namespaces: [],
-      k8sNodes: [],
-    });
-    // Wait for the simulated operation to complete
-    performance.now();
-
-    expect(result.nodes).toBeDefined();
-    expect(result.nodes).toHaveLength(3);
-
-    const clusterLabels = result.nodes!.map(n => n.label);
-    expect(clusterLabels).toContain('cluster-A');
-    expect(clusterLabels).toContain('cluster-B');
-    expect(clusterLabels).toContain('cluster-C');
-
-    // Assert that each group only contains members from its cluster
-    result.nodes!.forEach(groupNode => {
-      const cluster = groupNode.label;
-      const assertMembership = (nodes: any[]) => {
-        nodes.forEach(n => {
-          if (n.nodes) {
-            assertMembership(n.nodes);
-          } else {
-            expect(n.kubeObject.cluster).toBe(cluster);
-          }
-        });
-      };
-      assertMembership(groupNode.nodes!);
-    });
   });
 });
