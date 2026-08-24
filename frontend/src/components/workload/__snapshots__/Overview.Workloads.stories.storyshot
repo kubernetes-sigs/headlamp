@@ -76,7 +76,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -102,12 +104,15 @@
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
                                   >
-                                    <path
-                                      aria-label="50 %"
-                                      class="recharts-sector"
-                                      cx="61"
-                                      cy="61"
-                                      d="M 61,16.199999999999996
+                                    <g
+                                      class="recharts-layer recharts-active-shape"
+                                    >
+                                      <path
+                                        aria-label="healthy: 1 (50%)"
+                                        class="recharts-sector"
+                                        cx="61"
+                                        cy="61"
+                                        d="M 61,16.199999999999996
     A 44.800000000000004,44.800000000000004,0,
     0,1,
     61,105.80000000000001
@@ -115,12 +120,11 @@
             A 33.800000000000004,33.800000000000004,0,
             0,0,
             61,27.199999999999996 Z"
-                                      fill="#2e7d32"
-                                      name="healthy"
-                                      role="img"
-                                      stroke="#e0e0e0"
-                                      tabindex="-1"
-                                    />
+                                        fill="#2e7d32"
+                                        role="img"
+                                        stroke="#e0e0e0"
+                                      />
+                                    </g>
                                   </g>
                                   <g
                                     class="recharts-layer recharts-pie-sector"
@@ -130,12 +134,15 @@
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
                                   >
-                                    <path
-                                      aria-label="50 %"
-                                      class="recharts-sector"
-                                      cx="61"
-                                      cy="61"
-                                      d="M 61,105.80000000000001
+                                    <g
+                                      class="recharts-layer recharts-active-shape"
+                                    >
+                                      <path
+                                        aria-label="transitional: 1 (50%)"
+                                        class="recharts-sector"
+                                        cx="61"
+                                        cy="61"
+                                        d="M 61,105.80000000000001
     A 44.800000000000004,44.800000000000004,0,
     0,1,
     60.99999999999999,16.199999999999996
@@ -143,12 +150,11 @@
             A 33.800000000000004,33.800000000000004,0,
             0,0,
             61,94.80000000000001 Z"
-                                      fill="#9e9e9e"
-                                      name="transitional"
-                                      role="img"
-                                      stroke="#e0e0e0"
-                                      tabindex="-1"
-                                    />
+                                        fill="#9e9e9e"
+                                        role="img"
+                                        stroke="#e0e0e0"
+                                      />
+                                    </g>
                                   </g>
                                   <g
                                     class="recharts-layer recharts-pie-sector"
@@ -232,7 +238,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -258,12 +266,15 @@
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
                                   >
-                                    <path
-                                      aria-label="0 %"
-                                      class="recharts-sector"
-                                      cx="61"
-                                      cy="61"
-                                      d="M 61,16.199999999999996
+                                    <g
+                                      class="recharts-layer recharts-active-shape"
+                                    >
+                                      <path
+                                        aria-label="failed: 1 (100%)"
+                                        class="recharts-sector"
+                                        cx="61"
+                                        cy="61"
+                                        d="M 61,16.199999999999996
     A 44.800000000000004,44.800000000000004,0,
     1,1,
     60.99921809249515,16.20000000682343
@@ -271,12 +282,11 @@
             A 33.800000000000004,33.800000000000004,0,
             1,0,
             61,27.199999999999996 Z"
-                                      fill="#c62828"
-                                      name="failed"
-                                      role="img"
-                                      stroke="#e0e0e0"
-                                      tabindex="-1"
-                                    />
+                                        fill="#c62828"
+                                        role="img"
+                                        stroke="#e0e0e0"
+                                      />
+                                    </g>
                                   </g>
                                   <g
                                     class="recharts-layer recharts-pie-sector"
@@ -356,7 +366,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -386,12 +398,15 @@
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
                                   >
-                                    <path
-                                      aria-label="100 %"
-                                      class="recharts-sector"
-                                      cx="61"
-                                      cy="61"
-                                      d="M 61,16.199999999999996
+                                    <g
+                                      class="recharts-layer recharts-active-shape"
+                                    >
+                                      <path
+                                        aria-label="total: 1 (100%)"
+                                        class="recharts-sector"
+                                        cx="61"
+                                        cy="61"
+                                        d="M 61,16.199999999999996
     A 44.800000000000004,44.800000000000004,0,
     1,1,
     60.99921809249515,16.20000000682343
@@ -399,12 +414,11 @@
             A 33.800000000000004,33.800000000000004,0,
             1,0,
             61,27.199999999999996 Z"
-                                      fill="#000"
-                                      name="total"
-                                      role="img"
-                                      stroke="#e0e0e0"
-                                      tabindex="-1"
-                                    />
+                                        fill="#000"
+                                        role="img"
+                                        stroke="#e0e0e0"
+                                      />
+                                    </g>
                                   </g>
                                   <text
                                     class="recharts-text recharts-label"
@@ -480,7 +494,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -510,12 +526,15 @@
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
                                   >
-                                    <path
-                                      aria-label="100 %"
-                                      class="recharts-sector"
-                                      cx="61"
-                                      cy="61"
-                                      d="M 61,16.199999999999996
+                                    <g
+                                      class="recharts-layer recharts-active-shape"
+                                    >
+                                      <path
+                                        aria-label="total: 1 (100%)"
+                                        class="recharts-sector"
+                                        cx="61"
+                                        cy="61"
+                                        d="M 61,16.199999999999996
     A 44.800000000000004,44.800000000000004,0,
     1,1,
     60.99921809249515,16.20000000682343
@@ -523,12 +542,11 @@
             A 33.800000000000004,33.800000000000004,0,
             1,0,
             61,27.199999999999996 Z"
-                                      fill="#000"
-                                      name="total"
-                                      role="img"
-                                      stroke="#e0e0e0"
-                                      tabindex="-1"
-                                    />
+                                        fill="#000"
+                                        role="img"
+                                        stroke="#e0e0e0"
+                                      />
+                                    </g>
                                   </g>
                                   <text
                                     class="recharts-text recharts-label"
@@ -604,7 +622,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -630,12 +650,15 @@
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
                                   >
-                                    <path
-                                      aria-label="0 %"
-                                      class="recharts-sector"
-                                      cx="61"
-                                      cy="61"
-                                      d="M 61,16.199999999999996
+                                    <g
+                                      class="recharts-layer recharts-active-shape"
+                                    >
+                                      <path
+                                        aria-label="failed: 1 (100%)"
+                                        class="recharts-sector"
+                                        cx="61"
+                                        cy="61"
+                                        d="M 61,16.199999999999996
     A 44.800000000000004,44.800000000000004,0,
     1,1,
     60.99921809249515,16.20000000682343
@@ -643,12 +666,11 @@
             A 33.800000000000004,33.800000000000004,0,
             1,0,
             61,27.199999999999996 Z"
-                                      fill="#c62828"
-                                      name="failed"
-                                      role="img"
-                                      stroke="#e0e0e0"
-                                      tabindex="-1"
-                                    />
+                                        fill="#c62828"
+                                        role="img"
+                                        stroke="#e0e0e0"
+                                      />
+                                    </g>
                                   </g>
                                   <g
                                     class="recharts-layer recharts-pie-sector"
@@ -733,7 +755,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -767,12 +791,15 @@
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
                                   >
-                                    <path
-                                      aria-label="0 %"
-                                      class="recharts-sector"
-                                      cx="61"
-                                      cy="61"
-                                      d="M 61,16.199999999999996
+                                    <g
+                                      class="recharts-layer recharts-active-shape"
+                                    >
+                                      <path
+                                        aria-label="transitional: 1 (100%)"
+                                        class="recharts-sector"
+                                        cx="61"
+                                        cy="61"
+                                        d="M 61,16.199999999999996
     A 44.800000000000004,44.800000000000004,0,
     1,1,
     60.99921809249515,16.20000000682343
@@ -780,12 +807,11 @@
             A 33.800000000000004,33.800000000000004,0,
             1,0,
             61,27.199999999999996 Z"
-                                      fill="#9e9e9e"
-                                      name="transitional"
-                                      role="img"
-                                      stroke="#e0e0e0"
-                                      tabindex="-1"
-                                    />
+                                        fill="#9e9e9e"
+                                        role="img"
+                                        stroke="#e0e0e0"
+                                      />
+                                    </g>
                                   </g>
                                   <g
                                     class="recharts-layer recharts-pie-sector"
@@ -869,7 +895,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -895,12 +923,15 @@
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
                                   >
-                                    <path
-                                      aria-label="100 %"
-                                      class="recharts-sector"
-                                      cx="61"
-                                      cy="61"
-                                      d="M 61,16.199999999999996
+                                    <g
+                                      class="recharts-layer recharts-active-shape"
+                                    >
+                                      <path
+                                        aria-label="healthy: 1 (100%)"
+                                        class="recharts-sector"
+                                        cx="61"
+                                        cy="61"
+                                        d="M 61,16.199999999999996
     A 44.800000000000004,44.800000000000004,0,
     1,1,
     60.99921809249515,16.20000000682343
@@ -908,12 +939,11 @@
             A 33.800000000000004,33.800000000000004,0,
             1,0,
             61,27.199999999999996 Z"
-                                      fill="#2e7d32"
-                                      name="healthy"
-                                      role="img"
-                                      stroke="#e0e0e0"
-                                      tabindex="-1"
-                                    />
+                                        fill="#2e7d32"
+                                        role="img"
+                                        stroke="#e0e0e0"
+                                      />
+                                    </g>
                                   </g>
                                   <g
                                     class="recharts-layer recharts-pie-sector"
@@ -1005,7 +1035,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -1031,12 +1063,15 @@
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
                                   >
-                                    <path
-                                      aria-label="0%"
-                                      class="recharts-sector"
-                                      cx="61"
-                                      cy="61"
-                                      d="M 61,16.199999999999996
+                                    <g
+                                      class="recharts-layer recharts-active-shape"
+                                    >
+                                      <path
+                                        aria-label="total: 0 (100%)"
+                                        class="recharts-sector"
+                                        cx="61"
+                                        cy="61"
+                                        d="M 61,16.199999999999996
     A 44.800000000000004,44.800000000000004,0,
     1,1,
     60.99921809249515,16.20000000682343
@@ -1044,12 +1079,11 @@
             A 33.800000000000004,33.800000000000004,0,
             1,0,
             61,27.199999999999996 Z"
-                                      fill="#e0e0e0"
-                                      name="total"
-                                      role="img"
-                                      stroke="#e0e0e0"
-                                      tabindex="-1"
-                                    />
+                                        fill="#e0e0e0"
+                                        role="img"
+                                        stroke="#e0e0e0"
+                                      />
+                                    </g>
                                   </g>
                                   <text
                                     class="recharts-text recharts-label"
@@ -1123,7 +1157,9 @@
                                 cx="70"
                                 cy="70"
                                 height="112"
+                                role="application"
                                 style="width: 100%; height: 100%;"
+                                tabindex="0"
                                 viewBox="0 0 112 112"
                                 width="112"
                               >
@@ -1149,12 +1185,15 @@
                                     class="recharts-layer recharts-pie-sector"
                                     tabindex="-1"
                                   >
-                                    <path
-                                      aria-label="0%"
-                                      class="recharts-sector"
-                                      cx="61"
-                                      cy="61"
-                                      d="M 61,16.199999999999996
+                                    <g
+                                      class="recharts-layer recharts-active-shape"
+                                    >
+                                      <path
+                                        aria-label="total: 0 (100%)"
+                                        class="recharts-sector"
+                                        cx="61"
+                                        cy="61"
+                                        d="M 61,16.199999999999996
     A 44.800000000000004,44.800000000000004,0,
     1,1,
     60.99921809249515,16.20000000682343
@@ -1162,12 +1201,11 @@
             A 33.800000000000004,33.800000000000004,0,
             1,0,
             61,27.199999999999996 Z"
-                                      fill="#e0e0e0"
-                                      name="total"
-                                      role="img"
-                                      stroke="#e0e0e0"
-                                      tabindex="-1"
-                                    />
+                                        fill="#e0e0e0"
+                                        role="img"
+                                        stroke="#e0e0e0"
+                                      />
+                                    </g>
                                   </g>
                                   <text
                                     class="recharts-text recharts-label"
