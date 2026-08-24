@@ -46,6 +46,14 @@ export interface ShortcutConfig {
 // t('Toggle column filters in tables')
 // t('Log Viewer Search')
 // t('Toggle search in log viewer')
+// t('Close Details Drawer')
+// t('Close the active details drawer')
+// t('Navigate to Pods')
+// t('Go to the Pods list page')
+// t('Navigate to Deployments')
+// t('Go to the Deployments list page')
+// t('Show Shortcuts Help')
+// t('Show the keyboard shortcuts cheat sheet')
 export const DEFAULT_SHORTCUTS: Record<string, ShortcutConfig> = {
   GLOBAL_SEARCH: {
     id: 'GLOBAL_SEARCH',
@@ -81,32 +89,32 @@ export const DEFAULT_SHORTCUTS: Record<string, ShortcutConfig> = {
   },
   CLOSE_DETAILS_DRAWER: {
     id: 'CLOSE_DETAILS_DRAWER',
-    name: i18next.t('Close Details Drawer'),
-    description: i18next.t('Close the active details drawer'),
+    labelKey: 'Close Details Drawer',
+    descriptionKey: 'Close the active details drawer',
     key: 'escape',
     defaultKey: 'escape',
     category: 'general',
   },
   NAVIGATE_TO_PODS: {
     id: 'NAVIGATE_TO_PODS',
-    name: i18next.t('Navigate to Pods'),
-    description: i18next.t('Go to the Pods list page'),
+    labelKey: 'Navigate to Pods',
+    descriptionKey: 'Go to the Pods list page',
     key: 'alt+shift+p',
     defaultKey: 'alt+shift+p',
     category: 'navigation',
   },
   NAVIGATE_TO_DEPLOYMENTS: {
     id: 'NAVIGATE_TO_DEPLOYMENTS',
-    name: i18next.t('Navigate to Deployments'),
-    description: i18next.t('Go to the Deployments list page'),
+    labelKey: 'Navigate to Deployments',
+    descriptionKey: 'Go to the Deployments list page',
     key: 'alt+shift+d',
     defaultKey: 'alt+shift+d',
     category: 'navigation',
   },
   SHORTCUTS_HELP: {
     id: 'SHORTCUTS_HELP',
-    name: i18next.t('Show Shortcuts Help'),
-    description: i18next.t('Show the keyboard shortcuts cheat sheet'),
+    labelKey: 'Show Shortcuts Help',
+    descriptionKey: 'Show the keyboard shortcuts cheat sheet',
     key: 'shift+/',
     defaultKey: 'shift+/',
     category: 'general',
