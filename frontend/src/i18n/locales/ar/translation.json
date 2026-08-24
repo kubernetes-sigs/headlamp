@@ -431,6 +431,7 @@
   "Are you sure?": "هل أنت متأكد؟",
   "This will discard your changes in the editor. Do you want to proceed?": "سيؤدي هذا إلى تجاهل التغييرات في المحرر، هل تريد المتابعة؟",
   "Undo Changes": "التراجع عن التغييرات",
+  "You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?": "",
   "Dry Run": "تجربة جافة",
   "Invalid Secret Reference": "مرجع Secret غير صالح",
   "Invalid Config Map Reference": "مرجع Config Map غير صالح",

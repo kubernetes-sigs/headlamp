@@ -423,6 +423,7 @@
   "Are you sure?": "உறுதியாகவா?",
   "This will discard your changes in the editor. Do you want to proceed?": "இது எடிட்டரில் உங்கள் மாற்றங்களை நிராகரிக்கும். தொடர விரும்புகிறீர்களா?",
   "Undo Changes": "மாற்றங்களை செயல்தவிர்",
+  "You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?": "",
   "Dry Run": "",
   "Invalid Secret Reference": "",
   "Invalid Config Map Reference": "",

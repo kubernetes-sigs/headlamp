@@ -15,7 +15,7 @@
  */
 
 import Button from '@mui/material/Button';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import React from 'react';
 import { TestContext } from '../../../test';
 import EditorDialog, { EditorDialogProps, ViewDialog } from './EditorDialog';
@@ -150,17 +150,20 @@ vi.mock('../ConfirmButton', () => ({
     disabled,
     'aria-label': ariaLabel,
     'aria-controls': ariaControls,
+    confirmDescription,
   }: {
     children: React.ReactNode;
     onConfirm: () => void;
     disabled?: boolean;
     'aria-label'?: string;
     'aria-controls'?: string;
+    confirmDescription?: string;
   }) => (
     <Button
       aria-label={ariaLabel}
       disabled={disabled}
       aria-controls={ariaControls}
+      data-confirm-description={confirmDescription}
       onClick={() => {
         if (!disabled) {
           onConfirm();
@@ -569,6 +572,9 @@ describe('EditorDialog', () => {
 
     const saveApplyButton = screen.getByRole('button', { name: /save & apply/i });
     expect(saveApplyButton).toHaveAttribute('aria-controls', textareaId);
+
+    const closeButton = screen.getByRole('button', { name: /^close$/i });
+    expect(closeButton).toHaveAttribute('aria-controls', textareaId);
   });
 
   it('configures the dialog content to scroll with a minimum height', () => {
@@ -598,6 +604,11 @@ describe('EditorDialog', () => {
     );
 
     expect(screen.getByRole('button', { name: /save & apply/i })).toHaveAttribute(
+      'aria-controls',
+      textareaId
+    );
+
+    expect(screen.getByRole('button', { name: /^close$/i })).toHaveAttribute(
       'aria-controls',
       textareaId
     );
@@ -878,6 +889,120 @@ describe('EditorDialog', () => {
       );
     });
     expect(screen.getByText('Failed to create Node node-1 in v1.')).toBeInTheDocument();
+  });
+
+  describe('close confirmation', () => {
+    const confirmText =
+      'You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?';
+
+    function makeEdit() {
+      fireEvent.change(screen.getByRole('textbox', { name: /code$/i }), {
+        target: { value: 'user-edited-content' },
+      });
+    }
+
+    // The title-bar X is also an accessible "Close" button, so scope footer
+    // queries to the action bar.
+    function getFooterCloseButton() {
+      const actionBar = document.querySelector('.MuiDialogActions-root') as HTMLElement;
+      return within(actionBar).getByRole('button', { name: /^close$/i });
+    }
+
+    it('closes immediately from the Close button when there are no unsaved changes', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+
+      fireEvent.click(getFooterCloseButton());
+
+      expect(screen.queryByText(confirmText)).not.toBeInTheDocument();
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('asks for confirmation from the Close button and closes on confirm', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+
+      fireEvent.click(getFooterCloseButton());
+
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByTestId('confirm-button'));
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('keeps the editor open with its edits when the confirmation is cancelled', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+
+      fireEvent.click(getFooterCloseButton());
+      fireEvent.click(screen.getByTestId('cancel-button'));
+
+      act(() => {
+        vi.advanceTimersByTime(1000); // let the confirm dialog's exit transition finish
+      });
+
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.queryByText(confirmText)).not.toBeInTheDocument();
+      expect(screen.getByRole('textbox', { name: /code$/i })).toHaveValue('user-edited-content');
+    });
+
+    it('guards the Escape key when there are unsaved changes', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('closes on Escape without confirmation when there are no unsaved changes', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+
+      fireEvent.keyDown(screen.getByRole('dialog'), { key: 'Escape' });
+
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('guards backdrop clicks when there are unsaved changes', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+
+      fireEvent.click(document.querySelector('.MuiBackdrop-root') as HTMLElement);
+
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('guards the title-bar close button when there are unsaved changes', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+
+      const titleBar = document.querySelector('.MuiDialogTitle-root') as HTMLElement;
+      fireEvent.click(within(titleBar).getByRole('button', { name: /^close$/i }));
+
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+    });
+
+    it('closes without confirmation again after Undo restores the original content', () => {
+      const onClose = vi.fn();
+      renderEditorDialog({ noDialog: false, onClose });
+      makeEdit();
+      fireEvent.click(screen.getByRole('button', { name: /undo/i }));
+
+      fireEvent.click(getFooterCloseButton());
+
+      expect(screen.queryByText(confirmText)).not.toBeInTheDocument();
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
   });
 
   it('disables form actions when validation fails and opens the upload dialog', () => {

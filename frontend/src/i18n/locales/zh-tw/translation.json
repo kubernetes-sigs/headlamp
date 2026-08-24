@@ -421,6 +421,7 @@
   "Are you sure?": "您確定嗎？",
   "This will discard your changes in the editor. Do you want to proceed?": "這將放棄您在編輯器中的更改。您要繼續嗎？",
   "Undo Changes": "撤銷更改",
+  "You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?": "",
   "Dry Run": "",
   "Invalid Secret Reference": "",
   "Invalid Config Map Reference": "",

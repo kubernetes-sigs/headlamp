@@ -423,6 +423,7 @@
   "Are you sure?": "Weet je het zeker?",
   "This will discard your changes in the editor. Do you want to proceed?": "Hiermee worden uw wijzigingen in de editor verwijderd. Wilt u doorgaan?",
   "Undo Changes": "Wijzigingen ongedaan maken",
+  "You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?": "",
   "Dry Run": "",
   "Invalid Secret Reference": "Ongeldige geheime verwijzing",
   "Invalid Config Map Reference": "Ongeldige verwijzing naar configuratietoewijzing",
