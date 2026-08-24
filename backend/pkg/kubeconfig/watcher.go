@@ -124,7 +124,7 @@ func addFilesToWatcher(watcher *fsnotify.Watcher, paths []string) {
 // syncContexts synchronizes the contexts in the store with the ones in the kubeconfig files.
 func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignoreFunc shouldBeSkippedFunc) error {
 	// First read all kubeconfig files to get new contexts
-	newContexts, _, err := LoadContextsFromMultipleFiles(paths, source)
+	newContexts, contextLoadErrors, err := LoadContextsFromMultipleFiles(paths, source)
 	if err != nil {
 		return fmt.Errorf("error reading kubeconfig files: %w", err)
 	}
@@ -135,11 +135,68 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 		return fmt.Errorf("error getting existing contexts: %w", err)
 	}
 
-	// Find and remove contexts that no longer exist in the kubeconfig
-	// but only for contexts that came from KubeConfig source
+	removeStaleContexts(kubeConfigStore, existingContexts, newContexts, contextLoadErrors)
+
+	// Now store the contexts read above. Reusing that read instead of loading the
+	// files again keeps the removals and the additions based on the same view of
+	// the kubeconfig.
+	if err := storeContexts(kubeConfigStore, newContexts, contextLoadErrors, ignoreFunc); err != nil {
+		return fmt.Errorf("error storing contexts: %w", err)
+	}
+
+	return nil
+}
+
+// failedContextIDs indexes the contexts that failed to load, by both the ClusterID
+// they would have been given and their plain name.
+//
+// A stored context is keyed by its custom name once it has been renamed in
+// Headlamp, so its name no longer matches the one the kubeconfig reports for the
+// failure. ClusterID keeps the original file-and-context identity through a
+// rename, so it is what recognises those. The plain name is only there for
+// contexts read from somewhere other than a file, which have no ClusterID.
+func failedContextIDs(contextLoadErrors []ContextLoadError) map[string]bool {
+	failed := make(map[string]bool, len(contextLoadErrors)*2)
+
+	for _, contextLoadError := range contextLoadErrors {
+		if contextLoadError.ContextName == "" {
+			continue
+		}
+
+		failed[MakeDNSFriendly(contextLoadError.ContextName)] = true
+
+		if contextLoadError.KubeConfigPath != "" {
+			failed[ContextClusterID(contextLoadError.KubeConfigPath, contextLoadError.ContextName)] = true
+		}
+	}
+
+	return failed
+}
+
+// removeStaleContexts removes the contexts that no longer exist in the kubeconfig
+// files, but only the ones that came from the KubeConfig source.
+//
+// Contexts that failed to load are kept. Such a context is still in the kubeconfig,
+// it just could not be parsed this time around: kubectl and friends rewrite
+// kubeconfig files in place rather than atomically, so a reload landing mid-write
+// can see a context whose cluster or user entry has not been written back yet.
+// Removing it would leave it missing from the store until the next change event or
+// a restart, and every request for it would fail meanwhile as if the cluster needed
+// a token. Keep it and let the next reload correct it instead.
+func removeStaleContexts(kubeConfigStore ContextStore, existingContexts []*Context,
+	newContexts []Context, contextLoadErrors []ContextLoadError,
+) {
+	failedToLoad := failedContextIDs(contextLoadErrors)
+
 	for _, existingCtx := range existingContexts {
-		// Skip contexts from other sources
-		if existingCtx.Source != KubeConfig {
+		// Skip contexts from other sources, and the ones that just failed to load.
+		// A context read from a file is matched by its ClusterID, which is
+		// qualified by that file: two kubeconfigs may hold a context of the same
+		// name, and matching on the name alone would let a failure in one of them
+		// keep a context the other one really did remove. The name is only used
+		// for entries that have no ClusterID to match on.
+		if existingCtx.Source != KubeConfig || failedToLoad[existingCtx.ClusterID] ||
+			(existingCtx.ClusterID == "" && failedToLoad[MakeDNSFriendly(existingCtx.Name)]) {
 			continue
 		}
 
@@ -160,12 +217,4 @@ func syncContexts(kubeConfigStore ContextStore, paths string, source int, ignore
 			}
 		}
 	}
-
-	// Now load and store the new configurations
-	err = LoadAndStoreKubeConfigs(kubeConfigStore, paths, source, ignoreFunc)
-	if err != nil {
-		return fmt.Errorf("error loading kubeconfig files: %w", err)
-	}
-
-	return nil
 }
