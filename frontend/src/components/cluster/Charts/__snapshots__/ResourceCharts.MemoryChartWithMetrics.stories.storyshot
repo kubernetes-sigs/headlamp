@@ -99,7 +99,7 @@
                       class="recharts-layer recharts-active-shape"
                     >
                       <path
-                        aria-label="total: 8 (75%)"
+                        aria-label="total: 6 (75%)"
                         class="recharts-sector"
                         cx="61"
                         cy="61"

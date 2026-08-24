@@ -15,7 +15,12 @@
             <p
               class="MuiTypography-root MuiTypography-body1 MuiTypography-gutterBottom css-16da70x-MuiTypography-root"
             >
-              Nodes
+              <a
+                class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                href="/c/story-cluster/nodes"
+              >
+                Nodes
+              </a>
             </p>
           </div>
           <p
@@ -76,12 +81,18 @@
                     <g
                       class="recharts-layer recharts-active-shape"
                     >
-                      <path
-                        aria-label="ready: 1 (33%)"
-                        class="recharts-sector"
-                        cx="61"
-                        cy="61"
-                        d="M 61,16.199999999999996
+                      <g
+                        aria-label="Ready: 1 (33%)"
+                        role="button"
+                        style="cursor: pointer;"
+                        tabindex="0"
+                      >
+                        <path
+                          aria-label="Ready: 1 (33%)"
+                          class="recharts-sector"
+                          cx="61"
+                          cy="61"
+                          d="M 61,16.199999999999996
     A 44.800000000000004,44.800000000000004,0,
     0,1,
     99.79793808954287,83.4
@@ -89,10 +100,11 @@
             A 33.800000000000004,33.800000000000004,0,
             0,0,
             61,27.199999999999996 Z"
-                        fill="#000"
-                        role="img"
-                        stroke="#e0e0e0"
-                      />
+                          fill="#2e7d32"
+                          role="img"
+                          stroke="#e0e0e0"
+                        />
+                      </g>
                     </g>
                   </g>
                   <g
@@ -102,12 +114,18 @@
                     <g
                       class="recharts-layer recharts-active-shape"
                     >
-                      <path
-                        aria-label="cordoned: 1 (33%)"
-                        class="recharts-sector"
-                        cx="61"
-                        cy="61"
-                        d="M 99.79793808954287,83.4
+                      <g
+                        aria-label="Cordoned: 1 (33%)"
+                        role="button"
+                        style="cursor: pointer;"
+                        tabindex="0"
+                      >
+                        <path
+                          aria-label="Cordoned: 1 (33%)"
+                          class="recharts-sector"
+                          cx="61"
+                          cy="61"
+                          d="M 99.79793808954287,83.4
     A 44.800000000000004,44.800000000000004,0,
     0,1,
     22.20206191045714,83.4
@@ -115,10 +133,11 @@
             A 33.800000000000004,33.800000000000004,0,
             0,0,
             90.27165864791402,77.9 Z"
-                        fill="rgb(196, 69, 0)"
-                        role="img"
-                        stroke="#e0e0e0"
-                      />
+                          fill="rgb(196, 69, 0)"
+                          role="img"
+                          stroke="#e0e0e0"
+                        />
+                      </g>
                     </g>
                   </g>
                   <g
@@ -129,7 +148,7 @@
                       class="recharts-layer recharts-active-shape"
                     >
                       <path
-                        aria-label="drained: 1 (33%)"
+                        aria-label="Drained: 1 (33%)"
                         class="recharts-sector"
                         cx="61"
                         cy="61"
