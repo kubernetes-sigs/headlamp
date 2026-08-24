@@ -42,7 +42,11 @@ export interface OurDialogTitleProps extends Omit<DialogTitleProps, 'component' 
 /**
  * This is like Material-ui DialogTitle but fixes some a11y issues.
  *
- * First, it needs a h1 because other page content is aria-diable=true'd
+ * The title renders as an h1 because other page content is aria-hidden="true"'d
+ * when the dialog is open, so the dialog title should be the top-level heading.
+ *
+ * Note: with disableTypography, the title renders as a plain div with no
+ * heading element, so the caller is responsible for providing the heading.
  *
  * Additionally, it also focuses the title text as that is where
  * reading can begin.
