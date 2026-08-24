@@ -86,6 +86,7 @@ type HeadlampCFG struct {
 	BaseURL                string
 	ProxyURLs              []string
 	BackstageOrigin        string
+	AllowedFrameAncestors  []string
 
 	TLSCertPath                  string
 	TLSKeyPath                   string
