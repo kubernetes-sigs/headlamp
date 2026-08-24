@@ -27,6 +27,7 @@ export default defineConfig({
   testDir: './tests',
   testMatch: [
     'backendToken.spec.ts',
+    'clusterProviderCapabilities.spec.ts',
     'clusterRename.spec.ts',
     'namespaces.spec.ts',
     'clusterAutoConnect.spec.ts',
