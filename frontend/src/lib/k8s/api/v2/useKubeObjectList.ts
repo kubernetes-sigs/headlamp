@@ -31,7 +31,7 @@ import type { KubeListUpdateEvent } from './KubeList';
 import { KubeList } from './KubeList';
 import { KubeObjectEndpoint } from './KubeObjectEndpoint';
 import { makeUrl } from './makeUrl';
-import { WebSocketManager } from './multiplexer';
+import { isWatchExpiredError, WebSocketManager } from './multiplexer';
 import { kubeRequestRetry } from './retry';
 import { BASE_WS_URL, useWebSockets } from './webSocket';
 
@@ -433,16 +433,49 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
     // Create subscriptions for each connection
     connections.forEach(({ url, cluster, namespace }) => {
       const parsedUrl = new URL(url, BASE_WS_URL);
+      let isUnmounted = false;
+      let unsubscribeFn: (() => void) | null = null;
 
       // Subscribe to WebSocket updates
       WebSocketManager.subscribe(
         cluster,
         parsedUrl.pathname,
         parsedUrl.search.slice(1),
-        update => handleUpdate(update, cluster, namespace),
-        error => console.error(`WebSocket subscription error for cluster ${cluster}:`, error)
+        update => {
+          if (isWatchExpiredError(update)) {
+            const queryKey = kubeObjectListQuery<K>(
+              kubeObjectClass,
+              endpoint,
+              namespace,
+              cluster,
+              stableQueryParams ?? {}
+            ).queryKey;
+            client.invalidateQueries({ queryKey });
+            return;
+          }
+          handleUpdate(update, cluster, namespace);
+        },
+        error => {
+          console.error(`WebSocket subscription error for cluster ${cluster}:`, error);
+          if (isWatchExpiredError(error)) {
+            const queryKey = kubeObjectListQuery<K>(
+              kubeObjectClass,
+              endpoint,
+              namespace,
+              cluster,
+              stableQueryParams ?? {}
+            ).queryKey;
+            client.invalidateQueries({ queryKey });
+          }
+        }
       ).then(
-        cleanup => cleanups.push(cleanup),
+        cleanup => {
+          if (isUnmounted) {
+            cleanup();
+          } else {
+            unsubscribeFn = cleanup;
+          }
+        },
         error => {
           // Track retry count in the URL's searchParams
           const retryCount = parseInt(parsedUrl.searchParams.get('retryCount') || '0');
@@ -453,13 +486,20 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
           }
         }
       );
+
+      cleanups.push(() => {
+        isUnmounted = true;
+        if (unsubscribeFn) {
+          unsubscribeFn();
+        }
+      });
     });
 
     // Cleanup subscriptions when effect re-runs or unmounts
     return () => {
       cleanups.forEach(cleanup => cleanup());
     };
-  }, [connections, enabled, endpoint, handleUpdate]);
+  }, [client, connections, enabled, endpoint, handleUpdate, kubeObjectClass, stableQueryParams]);
 }
 
 /**
@@ -525,6 +565,12 @@ function useWatchKubeObjectListsLegacy<K extends KubeObject>({
             cluster,
             stableQueryParams ?? {}
           ).queryKey;
+
+          if (isWatchExpiredError(update)) {
+            client.invalidateQueries({ queryKey: key });
+            return;
+          }
+
           client.setQueryData(key, (oldResponse: ListResponse<any> | undefined | null) => {
             if (!oldResponse) return oldResponse;
 
