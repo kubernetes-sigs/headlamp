@@ -39,6 +39,9 @@ config:
   # -- session token TTL in seconds (default is 24 hours)
   sessionTTL: 86400
 
+  # -- Comma-separated list of origins allowed to embed Headlamp in an iframe (e.g., 'https://example.com,https://app.example.com'). If set, emits Content-Security-Policy with frame-ancestors and skips X-Frame-Options.
+  allowedFrameAncestors: ""
+
   # -- UNSAFE: authenticate every Headlamp user as the pod's service account when running in-cluster.
   # This disables per-user authentication and is only safe behind an auth proxy (e.g. OIDC proxy).
   unsafeUseServiceAccountToken: false
