@@ -44,6 +44,7 @@ vi.mock('./patchUtils', () => ({
 }));
 
 import { KubeObject } from './KubeObject';
+import { computePatchOperations, computeRawPatchCount } from './patchUtils';
 
 describe('KubeObject', () => {
   it('returns no API group when the class does not define an API version', () => {
@@ -61,5 +62,90 @@ describe('KubeObject', () => {
         new MyResource({ kind: 'MyResourceKind', metadata: { name: 'my-test-resource' } })
       )
     ).toBe(true);
+  });
+});
+
+describe('KubeObject write requests', () => {
+  // Every write must carry fieldValidation=Strict, otherwise the apiserver defaults to
+  // Warn and silently drops unknown fields, so a typo applies successfully and does
+  // nothing. See https://github.com/kubernetes-sigs/headlamp/issues/7147.
+  const STRICT = { fieldValidation: 'Strict' };
+  const original = { kind: 'X', apiVersion: 'v1', metadata: { name: 'n', namespace: 'ns' } } as any;
+  const modified = { ...original, spec: { replicas: 2 } };
+
+  beforeEach(() => {
+    vi.mocked(computePatchOperations).mockReturnValue([
+      { op: 'replace', path: '/spec/replicas', value: 2 },
+    ] as any);
+    vi.mocked(computeRawPatchCount).mockReturnValue(1);
+  });
+
+  afterEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('patchUpdate sends strict field validation for namespaced resources', () => {
+    const jsonPatch = vi.fn().mockResolvedValue({});
+    class Namespaced extends KubeObject {
+      static kind = 'Namespaced';
+      static isNamespaced = true;
+    }
+    Namespaced.apiEndpoint = { jsonPatch } as any;
+
+    new Namespaced(original, 'my-cluster').patchUpdate(original, modified);
+
+    expect(jsonPatch).toHaveBeenCalledWith(expect.anything(), 'ns', 'n', STRICT, 'my-cluster');
+  });
+
+  it('patchUpdate sends strict field validation for cluster-scoped resources', () => {
+    const jsonPatch = vi.fn().mockResolvedValue({});
+    class ClusterScoped extends KubeObject {
+      static kind = 'ClusterScoped';
+      static isNamespaced = false;
+    }
+    ClusterScoped.apiEndpoint = { jsonPatch } as any;
+
+    new ClusterScoped(original, 'my-cluster').patchUpdate(original, modified);
+
+    expect(jsonPatch).toHaveBeenCalledWith(expect.anything(), 'n', STRICT, 'my-cluster');
+  });
+
+  it('update sends strict field validation', () => {
+    const put = vi.fn().mockResolvedValue({});
+    class Puttable extends KubeObject {
+      static kind = 'Puttable';
+      static isNamespaced = true;
+    }
+    Puttable.apiEndpoint = { put } as any;
+
+    new Puttable(original, 'my-cluster').update(modified);
+
+    expect(put).toHaveBeenCalledWith(modified, STRICT, 'my-cluster');
+  });
+
+  it('static put sends strict field validation', () => {
+    const put = vi.fn().mockResolvedValue({});
+    class StaticPuttable extends KubeObject {
+      static kind = 'StaticPuttable';
+      static isNamespaced = true;
+    }
+    StaticPuttable.apiEndpoint = { put } as any;
+
+    StaticPuttable.put(modified);
+
+    expect(put).toHaveBeenCalledWith(modified, STRICT);
+  });
+
+  it('patch sends strict field validation', () => {
+    const patch = vi.fn().mockResolvedValue({});
+    class Patchable extends KubeObject {
+      static kind = 'Patchable';
+      static isNamespaced = true;
+    }
+    Patchable.apiEndpoint = { patch } as any;
+
+    new Patchable(original, 'my-cluster').patch({ spec: { replicas: 2 } } as any);
+
+    expect(patch).toHaveBeenCalledWith({ spec: { replicas: 2 } }, 'ns', 'n', STRICT, 'my-cluster');
   });
 });
