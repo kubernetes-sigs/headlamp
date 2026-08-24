@@ -86,6 +86,7 @@ import {
   isTrayIconEnabled,
   setTrayIconEnabled,
 } from './tray';
+import { isSafeExternalUrl } from './urlSafety';
 import windowSize from './windowSize';
 import {
   clampZoom,
@@ -1192,6 +1193,7 @@ function setMenu(appWindow: BrowserWindow | null, newAppMenu: AppMenu[] = []) {
   try {
     const menuTemplate: (MenuItemConstructorOptions | MenuItem)[] =
       menusToTemplate(appWindow, appMenu, loadFullMenu, {
+        startUrl,
         openExternal: url => shell.openExternal(url),
         openAboutDialog: () => appWindow?.webContents.send('open-about-dialog'),
         adjustZoom,
@@ -1619,8 +1621,11 @@ function startElectron() {
       if (url.startsWith(startUrl)) {
         return { action: 'allow' };
       }
-      // otherwise open url in a browser and prevent default
-      shell.openExternal(url);
+      // otherwise open url in a browser and prevent default, but only for
+      // safe schemes; renderer-supplied custom schemes never reach the OS.
+      if (isSafeExternalUrl(url)) {
+        shell.openExternal(url);
+      }
       return { action: 'deny' };
     });
 
@@ -1714,7 +1719,10 @@ function startElectron() {
         return;
       }
       event.preventDefault();
-      shell.openExternal(url);
+      // Only safe schemes reach the OS shell opener.
+      if (isSafeExternalUrl(url)) {
+        shell.openExternal(url);
+      }
     });
 
     i18n.on('languageChanged', () => {
