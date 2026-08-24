@@ -519,6 +519,23 @@ class PluginManagerEventListeners {
 
     // If a specific folder is requested, list only from that folder
     if (destinationFolder) {
+      // destinationFolder comes from the renderer; contain it to the known
+      // plugin roots so an arbitrary directory cannot be listed and its
+      // contents disclosed to the renderer.
+      const allowedPluginRoots = [
+        defaultPluginsDir(),
+        defaultUserPluginsDir(),
+        path.join(__dirname, '.plugins'),
+        path.join(process.resourcesPath, '.plugins'),
+      ];
+      if (!isPathInsideRoots(destinationFolder, allowedPluginRoots)) {
+        console.error('plugin-manager list: destination folder outside plugin roots', {
+          destinationFolder,
+        });
+
+        return;
+      }
+
       PluginManager.list(destinationFolder, progress => {
         event.sender.send(
           'plugin-manager',
@@ -868,6 +885,30 @@ function getAcceleratorForPlatform(navigation: 'left' | 'right') {
 
 function getZoomInAccelerator() {
   return platform() === 'darwin' ? 'CmdOrCtrl+Plus' : 'CmdOrCtrl+=';
+}
+
+/**
+ * Returns true when folderName is a single safe path segment. Renderer-supplied
+ * folder names are untrusted input: without this check a name like '..\..\..'
+ * resolves outside the plugin directories when joined with the base path.
+ */
+function isValidPluginFolderName(folderName: string): boolean {
+  return typeof folderName === 'string' && folderName.length > 0 && !/[\/\\]|\.\./.test(folderName);
+}
+
+/**
+ * Returns true when candidate resolves inside one of the given root
+ * directories (or equals one), so filesystem operations on renderer-supplied
+ * paths cannot escape the intended plugin roots.
+ */
+function isPathInsideRoots(candidate: string, roots: string[]): boolean {
+  const resolved = path.resolve(candidate);
+
+  return roots.some(root => {
+    const resolvedRoot = path.resolve(root);
+
+    return resolved === resolvedRoot || resolved.startsWith(resolvedRoot + path.sep);
+  });
 }
 
 function getDefaultAppMenu(): AppMenu[] {
@@ -1854,6 +1895,16 @@ function startElectron() {
         pluginInfo: { folderName: string; type: 'development' | 'user' | 'shipped' }
       ) => {
         let folderPath: string | null = null;
+
+        // folderName is renderer-supplied and untrusted; reject anything that
+        // could traverse out of the plugin directories.
+        if (!isValidPluginFolderName(pluginInfo?.folderName)) {
+          console.error('open-plugin-folder: invalid folder name', {
+            type: pluginInfo?.type,
+          });
+
+          return;
+        }
 
         if (pluginInfo.type === 'user') {
           folderPath = path.join(defaultUserPluginsDir(), pluginInfo.folderName);
