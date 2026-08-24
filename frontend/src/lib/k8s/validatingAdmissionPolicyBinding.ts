@@ -42,7 +42,7 @@ export interface KubeValidatingAdmissionPolicyBinding extends KubeObjectInterfac
 class ValidatingAdmissionPolicyBinding extends KubeObject<KubeValidatingAdmissionPolicyBinding> {
   static kind = 'ValidatingAdmissionPolicyBinding';
   static apiName = 'validatingadmissionpolicybindings';
-  static apiVersion = 'admissionregistration.k8s.io/v1';
+  static apiVersion = ['admissionregistration.k8s.io/v1', 'admissionregistration.k8s.io/v1beta1'];
   static isNamespaced = false;
 
   get spec() {
