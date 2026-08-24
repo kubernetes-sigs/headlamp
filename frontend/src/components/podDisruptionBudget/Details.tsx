@@ -17,9 +17,10 @@
 import { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import { labelSelectorToQuery } from '../../lib/k8s';
 import PDB from '../../lib/k8s/podDisruptionBudget';
 import { StatusLabel } from '../common/Label';
-import { DetailsGrid } from '../common/Resource';
+import { DetailsGrid, TargetedPodsSection } from '../common/Resource';
 
 export default function PDBDetails(props: { name?: string; namespace?: string; cluster?: string }) {
   const params = useParams<{ namespace: string; name: string }>();
@@ -86,6 +87,30 @@ export default function PDBDetails(props: { name?: string; namespace?: string; c
           },
         ]
       }
+      extraSections={item => {
+        if (!item) {
+          return [];
+        }
+
+        const selectorQuery = labelSelectorToQuery(item.spec.selector);
+
+        return [
+          ...(selectorQuery
+            ? [
+                {
+                  id: 'headlamp.pdb-targeted-pods',
+                  section: (
+                    <TargetedPodsSection
+                      namespace={item.metadata.namespace}
+                      labelSelector={selectorQuery}
+                      cluster={item.cluster}
+                    />
+                  ),
+                },
+              ]
+            : []),
+        ];
+      }}
     />
   );
 }

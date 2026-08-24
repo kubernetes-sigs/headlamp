@@ -27,7 +27,7 @@ export interface KubePDB extends KubeObjectInterface {
         key: string;
         operator: string;
         values: string[];
-      };
+      }[];
     };
     minAvailable?: number;
     maxUnavailable?: number;

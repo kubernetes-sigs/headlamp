@@ -27,6 +27,10 @@ vi.mock('../../lib/k8s/podDisruptionBudget', () => ({
   default: { kind: 'PodDisruptionBudget' },
 }));
 
+vi.mock('../../lib/k8s', () => ({
+  labelSelectorToQuery: vi.fn(() => ''),
+}));
+
 vi.mock('../common/Label', () => ({
   StatusLabel: ({ children }: any) => children,
 }));
@@ -36,6 +40,7 @@ vi.mock('../common/Resource', () => ({
     mockDetailsGrid(props);
     return null;
   },
+  TargetedPodsSection: () => null,
 }));
 
 const pdb = {
