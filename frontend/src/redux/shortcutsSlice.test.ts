@@ -144,8 +144,8 @@ describe('shortcutsSlice', () => {
     it('should register a plugin shortcut', () => {
       const config: ShortcutConfig = {
         id: 'MY_PLUGIN_SHORTCUT',
-        name: 'My Plugin Shortcut',
-        description: 'Does something cool',
+        labelKey: 'My Plugin Shortcut',
+        descriptionKey: 'Does something cool',
         key: 'ctrl+alt+p',
         defaultKey: 'ctrl+alt+p',
         category: 'plugin',
@@ -159,8 +159,8 @@ describe('shortcutsSlice', () => {
     it('should register a plugin shortcut defaulting category to plugin', () => {
       const config: ShortcutConfig = {
         id: 'MY_PLUGIN_SHORTCUT',
-        name: 'My Plugin Shortcut',
-        description: 'Does something cool',
+        labelKey: 'My Plugin Shortcut',
+        descriptionKey: 'Does something cool',
         key: 'ctrl+alt+p',
         defaultKey: 'ctrl+alt+p',
       };
@@ -171,14 +171,14 @@ describe('shortcutsSlice', () => {
     it('should not overwrite built-in shortcuts', () => {
       const config: ShortcutConfig = {
         id: 'GLOBAL_SEARCH',
-        name: 'Malicious Overwrite',
-        description: 'Trying to overwrite core shortcut',
+        labelKey: 'Malicious Overwrite',
+        descriptionKey: 'Trying to overwrite core shortcut',
         key: 'ctrl+alt+x',
         defaultKey: 'ctrl+alt+x',
         category: 'plugin',
       };
       const newState = reducer(initialState, registerShortcut(config));
-      expect(newState.shortcuts.GLOBAL_SEARCH.name).toBe('Global Search');
+      expect(newState.shortcuts.GLOBAL_SEARCH.labelKey).toBe('Global Search');
       expect(newState.shortcuts.GLOBAL_SEARCH.key).toBe('/');
     });
 
@@ -188,8 +188,8 @@ describe('shortcutsSlice', () => {
 
       const config: ShortcutConfig = {
         id: 'MY_PLUGIN_SHORTCUT',
-        name: 'My Plugin Shortcut',
-        description: 'Does something cool',
+        labelKey: 'My Plugin Shortcut',
+        descriptionKey: 'Does something cool',
         key: 'ctrl+alt+p',
         defaultKey: 'ctrl+alt+p',
         category: 'plugin',
@@ -204,8 +204,8 @@ describe('shortcutsSlice', () => {
     it('should deregister a registered shortcut', () => {
       const config: ShortcutConfig = {
         id: 'MY_PLUGIN_SHORTCUT',
-        name: 'My Plugin Shortcut',
-        description: 'Does something cool',
+        labelKey: 'My Plugin Shortcut',
+        descriptionKey: 'Does something cool',
         key: 'ctrl+alt+p',
         defaultKey: 'ctrl+alt+p',
         category: 'plugin',
@@ -228,8 +228,8 @@ describe('shortcutsSlice', () => {
     it('should reset plugin shortcut key to default key but keep it registered', () => {
       const config: ShortcutConfig = {
         id: 'MY_PLUGIN_SHORTCUT',
-        name: 'My Plugin Shortcut',
-        description: 'Does something cool',
+        labelKey: 'My Plugin Shortcut',
+        descriptionKey: 'Does something cool',
         key: 'ctrl+alt+p',
         defaultKey: 'ctrl+alt+p',
         category: 'plugin',
