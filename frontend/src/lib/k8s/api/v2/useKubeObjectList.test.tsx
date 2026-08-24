@@ -1483,6 +1483,44 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
     expect(spy).toHaveBeenCalledWith({ enabled: false, connections: [] });
   });
 
+  it('unsubscribes when unmounted before subscribe resolves', async () => {
+    let resolveSubscribe: (cleanup: () => void) => void = () => {};
+    const cleanupSpy = vi.fn();
+    mockSubscribe.mockImplementationOnce(
+      () =>
+        new Promise<() => void>(resolve => {
+          resolveSubscribe = resolve;
+        })
+    );
+
+    const { unmount } = renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          endpoint: { version: 'v1', resource: 'pods' },
+          lists: [{ cluster: 'cluster-a', namespace: 'namespace-a', resourceVersion: '1' }],
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    // The subscription is established but its cleanup has not resolved yet.
+    expect(mockSubscribe).toHaveBeenCalledTimes(1);
+
+    // Unmount while subscribe() is still pending, then let it resolve.
+    unmount();
+    resolveSubscribe(cleanupSpy);
+
+    // The late cleanup must run immediately instead of leaking the
+    // subscription.
+    await vi.waitFor(() => {
+      expect(cleanupSpy).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('should omit pagination query params after loading all pages', async () => {
     const queryClient = new QueryClient();
     mockClusterFetch

@@ -429,6 +429,10 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
     }
 
     const cleanups: (() => void)[] = [];
+    // The effect may be torn down before subscribe() resolves (e.g. under
+    // StrictMode's mount-cleanup-mount cycle); without this flag the late
+    // cleanup lands in a captured-empty array and never runs.
+    let cancelled = false;
 
     // Create subscriptions for each connection
     connections.forEach(({ url, cluster, namespace }) => {
@@ -442,21 +446,22 @@ function useWatchKubeObjectListsMultiplexed<K extends KubeObject>({
         update => handleUpdate(update, cluster, namespace),
         error => console.error(`WebSocket subscription error for cluster ${cluster}:`, error)
       ).then(
-        cleanup => cleanups.push(cleanup),
-        error => {
-          // Track retry count in the URL's searchParams
-          const retryCount = parseInt(parsedUrl.searchParams.get('retryCount') || '0');
-          if (retryCount < 3) {
-            // Only log and allow retry if under threshold
-            console.error('WebSocket subscription failed:', error);
-            parsedUrl.searchParams.set('retryCount', (retryCount + 1).toString());
+        cleanup => {
+          if (cancelled) {
+            cleanup();
+          } else {
+            cleanups.push(cleanup);
           }
+        },
+        error => {
+          console.error('WebSocket subscription failed:', error);
         }
       );
     });
 
     // Cleanup subscriptions when effect re-runs or unmounts
     return () => {
+      cancelled = true;
       cleanups.forEach(cleanup => cleanup());
     };
   }, [connections, enabled, endpoint, handleUpdate]);
