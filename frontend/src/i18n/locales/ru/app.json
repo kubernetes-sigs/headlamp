@@ -52,6 +52,8 @@
   "Failed to start": "Не удалось запустить",
   "Could not start the server even after terminating existing processes.": "Не удалось запустить сервер даже после завершения существующих процессов.",
   "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "Не удалось найти свободный порт в диапазоне {{startPort}}-{{endPort}}. Освободите порт и повторите попытку.",
+  "Headlamp failed to start": "",
+  "The backend server could not be started:\n\n{{ error }}": "",
   "Invalid URL": "Некорректный URL",
   "Application opened with an invalid URL: {{ url }}": "Приложение было открыто с некорректным URL: {{ url }}",
   "OAuth callback failed": "",

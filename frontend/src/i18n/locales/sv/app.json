@@ -52,6 +52,8 @@
   "Failed to start": "Det gick inte att starta",
   "Could not start the server even after terminating existing processes.": "Det gick inte att starta servern även efter att befintliga processer avslutats.",
   "Could not find an available port in the range {{startPort}}-{{endPort}}. Please free up a port and try again.": "Det gick inte att hitta en tillgänglig port inom intervallet {{startPort}} till {{endPort}}. Frigör en port och försök igen.",
+  "Headlamp failed to start": "",
+  "The backend server could not be started:\n\n{{ error }}": "",
   "Invalid URL": "Ogiltig webbadress",
   "Application opened with an invalid URL: {{ url }}": "Programmet har öppnats med en ogiltig webbadress: {{ url }}",
   "OAuth callback failed": "",
