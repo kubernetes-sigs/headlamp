@@ -21,7 +21,7 @@ import { findKubeconfigByClusterName } from '../../../../stateless/findKubeconfi
 import { getUserIdFromLocalStorage } from '../../../../stateless/getUserIdFromLocalStorage';
 import { getCluster } from '../../../cluster';
 import type { KubeObjectInterface } from '../../KubeObject';
-import type { ApiError } from '../v2/ApiError';
+import { ApiError } from '../v2/ApiError';
 import { clusterRequest } from './clusterRequests';
 import { CLUSTERS_PREFIX } from './constants';
 import { asQuery, combinePath } from './formatUrl';
@@ -42,6 +42,53 @@ export type StreamUpdate<T = any> = {
 export type StreamResultsCb<T = any> = (data: T) => void;
 export type StreamUpdatesCb<T = any> = (data: T | StreamUpdate<T>) => void;
 export type StreamErrCb = (err: Error & { status?: number }, cancelStreamFunc?: () => void) => void;
+
+/**
+ * Normalizes a watch ERROR object (typically a Kubernetes Status object)
+ * into an ApiError with a numeric status code and Error prototype.
+ */
+export function toApiError(object: unknown): ApiError {
+  if (object instanceof ApiError) {
+    if (typeof (object as any).code === 'number' && typeof object.status !== 'number') {
+      object.status = (object as any).code;
+    }
+    return object;
+  }
+
+  const raw = (typeof object === 'object' && object !== null ? object : {}) as Record<string, any>;
+  const message =
+    raw.message ||
+    (typeof raw.reason === 'string'
+      ? raw.reason
+      : object instanceof Error
+      ? object.message
+      : typeof object === 'string'
+      ? object
+      : 'Watch error');
+
+  const statusCode =
+    typeof raw.code === 'number'
+      ? raw.code
+      : typeof raw.status === 'number'
+      ? raw.status
+      : typeof raw.code === 'string' && !isNaN(parseInt(raw.code, 10))
+      ? parseInt(raw.code, 10)
+      : undefined;
+
+  const error = new ApiError(message, { status: statusCode });
+
+  if (typeof statusCode === 'number') {
+    (error as any).code = statusCode;
+  }
+  if (raw.reason) {
+    (error as any).reason = raw.reason;
+  }
+  if (raw.details) {
+    (error as any).details = raw.details;
+  }
+
+  return error;
+}
 
 /**
  * Fetches the data and watches for changes to the data.
@@ -92,13 +139,44 @@ export function streamResult<T extends KubeObjectInterface>(
         url +
         asQuery({ ...queryParams, ...{ watch: '1', fieldSelector: `metadata.name=${name}` } });
 
-      socket = stream(watchUrl, (x: any) => cb(x.object), { isJson: true, cluster: clusterName });
+      socket = stream(watchUrl, update, { isJson: true, cluster: clusterName });
     } catch (err) {
       console.error('Error in api request', { err, url });
       // @todo: sometimes errCb is {}, the typing for apiProxy needs improving.
       //        See https://github.com/kinvolk/headlamp/pull/833
       if (errCb && typeof errCb === 'function') errCb(err as ApiError, cancel);
     }
+  }
+
+  function update({ type, object }: StreamUpdate) {
+    // An ERROR event carries a Status object rather than the watched resource,
+    // so it must never reach cb as if the object itself had changed.
+    if (type === 'ERROR') {
+      const statusCode = (object as { code?: number })?.code;
+
+      // 410 Gone means the version this watch started from has expired (etcd
+      // compaction, proxy restart). Re-fetch the object and start a fresh
+      // watch rather than reconnecting to a version the server no longer has.
+      if (statusCode === 410) {
+        console.error('Watch resourceVersion expired, refetching', { url, name });
+
+        if (socket) socket.cancel();
+
+        run();
+
+        return;
+      }
+
+      console.error('Error in update', { type, object });
+
+      if (errCb && typeof errCb === 'function') {
+        errCb(toApiError(object), cancel);
+      }
+
+      return;
+    }
+
+    cb(object as T);
   }
 
   function cancel() {
@@ -243,9 +321,27 @@ export function streamResultsForCluster(
       case 'DELETED':
         delete results[object.metadata.uid];
         break;
-      case 'ERROR':
+      case 'ERROR': {
+        // 410 Gone means the resourceVersion the watch was started from has
+        // expired (etcd compaction, proxy restarts). Reconnects to the same
+        // URL would keep failing forever, so relist and restart the watch
+        // from a fresh resourceVersion instead.
+        const statusCode = (object as { code?: number })?.code;
+        if (statusCode === 410) {
+          console.error('Watch resourceVersion expired, relisting', { url });
+          socket?.cancel();
+          Object.keys(results).forEach(uid => delete results[uid]);
+          run();
+
+          return;
+        }
+
         console.error('Error in update', { type, object });
-        break;
+        if (errCb && typeof errCb === 'function') {
+          errCb(toApiError(object), cancel);
+        }
+        return;
+      }
       default:
         console.error('Unknown update type', type);
     }
