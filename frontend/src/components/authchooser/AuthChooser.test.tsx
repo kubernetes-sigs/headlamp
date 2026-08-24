@@ -75,16 +75,11 @@ function LocationDisplay() {
   );
 }
 
-/**
- * Renders the auth chooser for a cluster whose auth check has just failed, which is
- * the state the dialog is left in when a cluster's connection or token goes away.
- *
- * The location is reported from outside the cluster route, so it survives the
- * navigation the back button triggers.
- */
-async function renderFailedAuthChooser() {
-  testAuthMock.mockRejectedValue(Object.assign(new Error('Bad Gateway'), { status: 502 }));
+function failAuthWith(status: number, statusText: string) {
+  testAuthMock.mockRejectedValue(Object.assign(new Error(statusText), { status }));
+}
 
+function renderAuthChooser() {
   render(
     <ThemeProvider theme={createMuiTheme({ name: 'light', base: 'light' })}>
       <Provider store={store}>
@@ -102,6 +97,11 @@ async function renderFailedAuthChooser() {
       </Provider>
     </ThemeProvider>
   );
+}
+
+async function renderFailedAuthChooser() {
+  failAuthWith(502, 'Bad Gateway');
+  renderAuthChooser();
 
   // The back button only appears once the auth check has settled.
   await waitFor(() => expect(screen.getByRole('button', { name: /back/i })).toBeVisible());
@@ -109,6 +109,7 @@ async function renderFailedAuthChooser() {
 
 describe('AuthChooser', () => {
   beforeEach(() => {
+    testAuthMock.mockReset();
     for (const name of Object.keys(clusters)) {
       delete clusters[name];
     }
@@ -136,5 +137,49 @@ describe('AuthChooser', () => {
     expect(location.dataset.pathname).toBe('/');
     expect(location.dataset.fromAuthChooser).toBe('true');
     expect(screen.getByTestId('home')).toBeVisible();
+  });
+
+  describe('authentication probe', () => {
+    beforeEach(() => {
+      clusters.main = { name: 'main', auth_type: '' };
+    });
+
+    it.each([
+      [401, 'Unauthorized'],
+      [403, 'Forbidden'],
+    ])('asks for a token when the cluster returns %s', async (status, statusText) => {
+      failAuthWith(status, statusText);
+      renderAuthChooser();
+
+      await waitFor(() => expect(clusters.main.useToken).toBe(true));
+      expect(
+        screen.queryByText(/Failed to get authentication information/)
+      ).not.toBeInTheDocument();
+    });
+
+    it('shows the error when the backend cannot find the cluster', async () => {
+      failAuthWith(404, 'Not Found');
+      renderAuthChooser();
+
+      expect(
+        await screen.findByText(/Failed to get authentication information/)
+      ).toBeInTheDocument();
+      expect(clusters.main.useToken).toBeUndefined();
+    });
+
+    it('does not cache a token requirement when the cluster is unreachable', async () => {
+      failAuthWith(502, 'Bad Gateway');
+      renderAuthChooser();
+
+      expect(await screen.findByText(/Failed to connect/)).toBeInTheDocument();
+      expect(clusters.main.useToken).toBeUndefined();
+    });
+
+    it('goes straight through when the auth test succeeds', async () => {
+      testAuthMock.mockResolvedValue({});
+      renderAuthChooser();
+
+      await waitFor(() => expect(clusters.main.useToken).toBe(false));
+    });
   });
 });
