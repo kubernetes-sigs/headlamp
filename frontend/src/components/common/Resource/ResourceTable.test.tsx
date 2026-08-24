@@ -226,4 +226,79 @@ describe('ResourceTable Column Visibility', () => {
 
     expect(lastTablePropsHolder.current.enableFacetedValues).toBe(true);
   });
+
+  it('uses searchFilter boolean result directly in kubeObjectSearch to bypass fuzzy matching', () => {
+    const columns = [
+      {
+        id: 'name',
+        label: 'Name',
+        getValue: (item: any) => item.metadata.name,
+      },
+    ];
+
+    const mockSearchFilter = vi.fn((item: any, search: string) => {
+      if (search === 'Ready') {
+        return item.isReady === true;
+      }
+      return undefined;
+    });
+
+    renderTable({
+      id: 'structured-filter-table',
+      columns,
+      data: mockData,
+      searchFilter: mockSearchFilter,
+    });
+
+    const kubeObjectSearch = lastTablePropsHolder.current.filterFns.kubeObjectSearch;
+
+    // Row contains "ready" in name/column, but searchFilter returned false (item is not ready)
+    const mockRowNotReady = {
+      original: { metadata: { name: 'ready-worker' }, isReady: false },
+      getValue: () => 'ready-worker',
+      _valuesCache: { name: 'ready-worker' },
+    };
+
+    // When structured query returns false, it should bypass fuzzy matching and return false
+    expect(kubeObjectSearch(mockRowNotReady, 'name', 'Ready')).toBe(false);
+
+    // When structured query returns true, it should return true
+    const mockRowReady = {
+      original: { metadata: { name: 'unready-named-pod' }, isReady: true },
+      getValue: () => 'unready-named-pod',
+      _valuesCache: { name: 'unready-named-pod' },
+    };
+    expect(kubeObjectSearch(mockRowReady, 'name', 'Ready')).toBe(true);
+
+    // When searchFilter returns undefined (non-structured query), it falls back to fuzzy match
+    expect(kubeObjectSearch(mockRowNotReady, 'name', 'ready-worker')).toBe(true);
+    expect(kubeObjectSearch(mockRowNotReady, 'name', 'non-existent')).toBe(false);
+  });
+
+  it('keeps fuzzy column matching when a legacy filterFunction returns false', () => {
+    const columns = [
+      {
+        id: 'name',
+        label: 'Name',
+        getValue: (item: any) => item.metadata.name,
+      },
+    ];
+
+    renderTable({
+      id: 'legacy-filter-table',
+      columns,
+      data: mockData,
+      filterFunction: () => false,
+    });
+
+    const kubeObjectSearch = lastTablePropsHolder.current.filterFns.kubeObjectSearch;
+    const mockRow = {
+      original: { metadata: { name: 'ready-worker' } },
+      getValue: () => 'ready-worker',
+      _valuesCache: { name: 'ready-worker' },
+    };
+
+    expect(kubeObjectSearch(mockRow, 'name', 'worker')).toBe(true);
+    expect(kubeObjectSearch(mockRow, 'name', 'non-existent')).toBe(false);
+  });
 });
