@@ -114,3 +114,18 @@ export function findProtocolUrl(
 ): string | undefined {
   return commandLine.find(value => isProtocolUrl(value, protocolScheme));
 }
+
+/**
+ * Builds the in-app hash route a protocol URL points to.
+ *
+ * Custom protocol URLs carry their first route segment in the URL host:
+ * `headlamp://c/mycluster/pods` parses with hostname `c` and pathname
+ * `/mycluster/pods`. The route keeps both parts and the query string, so that
+ * example maps to `c/mycluster/pods`.
+ *
+ * @param url - A URL already validated with {@link isProtocolUrl}.
+ * @returns The hash route, without the leading `#/`.
+ */
+export function getRouteFromProtocolUrl(url: URL): string {
+  return `${url.hostname}${url.pathname}${url.search}`;
+}

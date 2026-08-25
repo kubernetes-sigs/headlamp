@@ -18,7 +18,13 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { findProtocolUrl, getProtocolScheme, isProtocolUrl, readProtocolScheme } from './protocol';
+import {
+  findProtocolUrl,
+  getProtocolScheme,
+  getRouteFromProtocolUrl,
+  isProtocolUrl,
+  readProtocolScheme,
+} from './protocol';
 
 /**
  * Builds a manifest whose product metadata declares the given protocol schemes.
@@ -142,5 +148,25 @@ describe('findProtocolUrl', () => {
     expect(
       findProtocolUrl(['electron', '.', 'not a URL', 'headlamp://cluster'], 'my-desktop')
     ).toBeUndefined();
+  });
+});
+
+describe('getRouteFromProtocolUrl', () => {
+  it('keeps the path segments after the host', () => {
+    expect(getRouteFromProtocolUrl(new URL('headlamp://c/mycluster/pods'))).toBe(
+      'c/mycluster/pods'
+    );
+  });
+
+  it('keeps the query string', () => {
+    expect(
+      getRouteFromProtocolUrl(new URL('headlamp://c/mycluster/pods?namespace=kube-system'))
+    ).toBe('c/mycluster/pods?namespace=kube-system');
+  });
+
+  it('routes host-only URLs unchanged', () => {
+    expect(getRouteFromProtocolUrl(new URL('headlamp://cluster?name=local'))).toBe(
+      'cluster?name=local'
+    );
   });
 });
