@@ -26,7 +26,10 @@ import { getAppUrl } from '../../helpers/getAppUrl';
 import { getCluster, getClusterPrefixedPath } from '../../lib/cluster';
 import { useClustersConf } from '../../lib/k8s';
 import { testAuth } from '../../lib/k8s/api/v1/clusterApi';
-import { NAMESPACE_DISCOVERY_QUERY_KEY } from '../../lib/k8s/useDiscoveredNamespaces';
+import {
+  getNamespaceDiscoveryAuthQueryKey,
+  NAMESPACE_DISCOVERY_QUERY_KEY,
+} from '../../lib/k8s/useDiscoveredNamespaces';
 import { queryClient } from '../../lib/queryClient';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { getRoute } from '../../lib/router/getRoute';
@@ -228,6 +231,10 @@ function AuthChooser({ children }: AuthChooserProps) {
             // sessionStorage unavailable (e.g. private browsing with strict settings).
           }
           queryClient.invalidateQueries({ queryKey: ['auth', clusterName], exact: true });
+          queryClient.invalidateQueries({
+            queryKey: getNamespaceDiscoveryAuthQueryKey(clusterName),
+            exact: true,
+          });
           queryClient.invalidateQueries({ queryKey: ['clusterMe', clusterName], exact: true });
           queryClient.invalidateQueries({
             queryKey: [NAMESPACE_DISCOVERY_QUERY_KEY, clusterName],
