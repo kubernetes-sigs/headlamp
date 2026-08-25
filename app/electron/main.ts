@@ -60,7 +60,12 @@ import {
   PluginManager,
   setAppConfigDirName,
 } from './plugin-management';
-import { findProtocolUrl, isProtocolUrl, readProtocolScheme } from './protocol';
+import {
+  findProtocolUrl,
+  getRouteFromProtocolUrl,
+  isProtocolUrl,
+  readProtocolScheme,
+} from './protocol';
 import {
   addRunCmdConsent,
   environmentOverrides,
@@ -1365,17 +1370,6 @@ function startElectron() {
   const pendingProtocolUrls: string[] = [];
 
   function routeProtocolUrl(protocolUrl: string) {
-    let urlObj: URL;
-    try {
-      urlObj = new URL(protocolUrl);
-    } catch {
-      dialog.showErrorBox(
-        i18n.t('Invalid URL'),
-        i18n.t('Application opened with an invalid URL: {{ url }}', { url: protocolUrl })
-      );
-      return;
-    }
-
     if (!isProtocolUrl(protocolUrl, protocolScheme)) {
       dialog.showErrorBox(
         i18n.t('Invalid URL'),
@@ -1392,10 +1386,13 @@ function startElectron() {
     if (mainWindow.isMinimized()) {
       mainWindow.restore();
     }
+    if (!mainWindow.isVisible()) {
+      mainWindow.show();
+    }
     mainWindow.focus();
 
     const baseUrl = startUrl.endsWith('/') ? startUrl.slice(0, -1) : startUrl;
-    mainWindow.loadURL(baseUrl + '#' + urlObj.hostname + urlObj.search);
+    mainWindow.loadURL(baseUrl + '#' + getRouteFromProtocolUrl(protocolUrl));
   }
 
   function routeProtocolUrlFromCommandLine(commandLine: readonly string[]) {
