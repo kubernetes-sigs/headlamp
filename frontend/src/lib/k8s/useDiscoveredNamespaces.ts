@@ -25,7 +25,10 @@
 import { useQueries, useQuery } from '@tanstack/react-query';
 import type { TFunction } from 'i18next';
 import { useMemo } from 'react';
-import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
+import {
+  getCombinedAllowedNamespaces,
+  hasAllowedNamespacesRestriction,
+} from '../../helpers/clusterSettings';
 import { getCluster } from '../cluster';
 import { testAuth } from './api/v1/clusterApi';
 import { ApiError } from './api/v2/ApiError';
@@ -77,6 +80,11 @@ export function getManualAllowedNamespaces(cluster: string | null = getCluster()
   }
 
   return getCombinedAllowedNamespaces(cluster);
+}
+
+/** True when Settings manual list or label selector restricts namespace access. */
+function shouldSkipNamespaceDiscovery(cluster: string | null): boolean {
+  return !!cluster && hasAllowedNamespacesRestriction(cluster);
 }
 
 /**
@@ -132,8 +140,8 @@ export function getNamespaceListConfig(
     return { namespaces: getDiscoveredNamespaces(discovery) };
   }
 
-  // Legacy: Settings → Allowed namespaces (exact upstream behavior).
-  if (manualAllowed.length > 0) {
+  // Legacy: Settings override or label selector (fail-closed when selector resolves empty).
+  if (cluster && hasAllowedNamespacesRestriction(cluster)) {
     return { namespaces: manualAllowed };
   }
 
@@ -250,7 +258,7 @@ function useClusterAuthReady(cluster: string | null) {
   return useQuery({
     queryKey: getNamespaceDiscoveryAuthQueryKey(cluster!),
     queryFn: () => testAuth(cluster!),
-    enabled: !!cluster && getManualAllowedNamespaces(cluster).length === 0,
+    enabled: !!cluster && !shouldSkipNamespaceDiscovery(cluster),
     ...authProbeQueryOptions,
   });
 }
@@ -276,7 +284,7 @@ export function isNamespaceDiscoveryPending(query: {
 }
 
 export function useDiscoveredNamespaces(cluster: string | null = getCluster()) {
-  const manualOverride = getManualAllowedNamespaces(cluster).length > 0;
+  const manualOverride = shouldSkipNamespaceDiscovery(cluster);
   const authQuery = useClusterAuthReady(cluster);
 
   const discoveryQuery = useQuery({
@@ -307,7 +315,7 @@ export function useDiscoveredNamespacesMap(clusters: string[]) {
     queries: clusters.map(cluster => ({
       queryKey: getNamespaceDiscoveryAuthQueryKey(cluster),
       queryFn: () => testAuth(cluster),
-      enabled: !!cluster && getManualAllowedNamespaces(cluster).length === 0,
+      enabled: !!cluster && !shouldSkipNamespaceDiscovery(cluster),
       ...authProbeQueryOptions,
     })),
   });
@@ -319,7 +327,7 @@ export function useDiscoveredNamespacesMap(clusters: string[]) {
       enabled:
         !!cluster &&
         (authQueries[index]?.isSuccess ?? false) &&
-        getManualAllowedNamespaces(cluster).length === 0,
+        !shouldSkipNamespaceDiscovery(cluster),
       staleTime: 5 * 60 * 1000,
       retry: false,
     })),
@@ -330,7 +338,7 @@ export function useDiscoveredNamespacesMap(clusters: string[]) {
     const isLoadingByCluster: Record<string, boolean> = {};
     const isErrorByCluster: Record<string, boolean> = {};
     clusters.forEach((cluster, index) => {
-      const manualOverride = getManualAllowedNamespaces(cluster).length > 0;
+      const manualOverride = shouldSkipNamespaceDiscovery(cluster);
       const authQuery = authQueries[index];
       const authPending = isAuthProbePending(cluster, manualOverride, {
         isLoading: authQuery?.isLoading ?? false,
@@ -367,7 +375,7 @@ export function getEffectiveNamespaces(
   const manualAllowed = getManualAllowedNamespaces(cluster);
   const discovered = getDiscoveredNamespaces(discovery);
 
-  if (manualAllowed.length > 0) {
+  if (hasAllowedNamespacesRestriction(cluster)) {
     return manualAllowed;
   }
 
