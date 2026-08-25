@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/repo"
 )
 
 var settings = cli.New()
@@ -112,4 +113,43 @@ func TestListChartContentType(t *testing.T) {
 
 	// Verify Content-Type header is correctly set.
 	assert.Equal(t, "application/json", rr.Header().Get("Content-Type"))
+}
+
+func TestListChartsWithInvalidRepoCacheGraceful(t *testing.T) {
+	ch := cache.New[interface{}]()
+	require.NotNil(t, ch)
+
+	helmHandler, err := helm.NewHandlerWithSettings(ch, settings)
+	require.NoError(t, err)
+
+	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
+
+	// Add an un-cached / broken repository entry to repositories.yaml directly
+	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
+	require.NoError(t, err)
+
+	repoFile.Add(&repo.Entry{
+		Name: "broken_repo",
+		URL:  "https://example.com/charts",
+	})
+	err = repoFile.WriteFile(settings.RepositoryConfig, 0o644)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		rf, err := repo.LoadFile(settings.RepositoryConfig)
+		if err == nil {
+			rf.Remove("broken_repo")
+			_ = rf.WriteFile(settings.RepositoryConfig, 0o644)
+		}
+	})
+
+	listChartsRequest, err := http.NewRequestWithContext(context.Background(),
+		"GET", "/clusters/minikube/helm/repositories/charts", nil)
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	helmHandler.ListCharts(rr, listChartsRequest)
+
+	assert.Equal(t, http.StatusOK, rr.Code)
+	assert.Contains(t, rr.Body.String(), "headlamp_test_repo/headlamp")
 }
