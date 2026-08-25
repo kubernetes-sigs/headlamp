@@ -149,6 +149,8 @@ export default function NamespacesList() {
       )}
       <ResourceListView
         title={t('Namespaces')}
+        enableRowActions={!useDiscoveredTable}
+        enableRowSelection={!useDiscoveredTable}
         headerProps={{
           titleSideActions: [<CreateNamespaceButton />],
           noNamespaceFilter: true,

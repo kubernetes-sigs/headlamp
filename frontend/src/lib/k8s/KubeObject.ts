@@ -384,6 +384,8 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
         return;
       }
 
+      setObjs({});
+
       const cancellables = listCalls.map(func => func());
 
       return function cleanup() {

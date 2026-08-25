@@ -18,7 +18,10 @@ import Typography from '@mui/material/Typography';
 import { useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useLocation } from 'react-router-dom';
-import { NAMESPACE_DISCOVERY_QUERY_KEY } from '../../lib/k8s/useDiscoveredNamespaces';
+import {
+  getNamespaceDiscoveryAuthQueryKey,
+  NAMESPACE_DISCOVERY_QUERY_KEY,
+} from '../../lib/k8s/useDiscoveredNamespaces';
 import { queryClient } from '../../lib/queryClient';
 import { AUTH_STATUS_KEY } from './constants';
 
@@ -32,6 +35,10 @@ function OIDCAuth() {
     if (cluster) {
       localStorage.setItem(AUTH_STATUS_KEY, 'success');
       queryClient.invalidateQueries({ queryKey: ['auth', cluster], exact: true });
+      queryClient.invalidateQueries({
+        queryKey: getNamespaceDiscoveryAuthQueryKey(cluster),
+        exact: true,
+      });
       queryClient.invalidateQueries({ queryKey: ['clusterMe', cluster], exact: true });
       queryClient.invalidateQueries({
         queryKey: [NAMESPACE_DISCOVERY_QUERY_KEY, cluster],
