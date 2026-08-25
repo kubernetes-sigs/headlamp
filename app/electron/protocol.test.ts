@@ -121,6 +121,14 @@ describe('isProtocolUrl', () => {
   ])('rejects malformed URLs, other protocols, and hostless URLs: %s', value => {
     expect(isProtocolUrl(value, 'my-desktop')).toBe(false);
   });
+
+  it.each([
+    'my-desktop://user:pass@cluster/pods',
+    'my-desktop://user@cluster/pods',
+    'my-desktop://cluster:123/pods',
+  ])('rejects URLs with credentials or a port: %s', value => {
+    expect(isProtocolUrl(value, 'my-desktop')).toBe(false);
+  });
 });
 
 describe('findProtocolUrl', () => {

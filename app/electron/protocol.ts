@@ -77,14 +77,25 @@ export function readProtocolScheme(manifestPath: string): string {
  * from the host component, so an empty host would silently navigate to the
  * app root instead of the requested route.
  *
+ * URLs carrying credentials or a port are rejected too. Routing only uses the
+ * host, path, and query, so `headlamp://user:pass@c/pods` would silently drop
+ * the userinfo and navigate to `c/pods`, and the visible authority would not
+ * be the one that was acted on.
+ *
  * @param value - Candidate deep-link URL.
  * @param protocolScheme - Expected protocol scheme without a trailing colon.
- * @returns Whether the URL uses the configured protocol scheme and has a host.
+ * @returns Whether the URL uses the configured protocol scheme and has a bare host.
  */
 export function isProtocolUrl(value: string, protocolScheme: string): boolean {
   try {
     const url = new URL(value);
-    return url.protocol === `${protocolScheme}:` && url.hostname !== '';
+    return (
+      url.protocol === `${protocolScheme}:` &&
+      url.hostname !== '' &&
+      url.username === '' &&
+      url.password === '' &&
+      url.port === ''
+    );
   } catch {
     return false;
   }
