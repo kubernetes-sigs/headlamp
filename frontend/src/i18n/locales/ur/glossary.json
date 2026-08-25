@@ -32,6 +32,7 @@
   "Ephemeral Containers": "عارضی کنٹینرز",
   "Owner": "مالک",
   "Container": "کنٹینر",
+  "Pod": "",
   "Config Maps": "کنفیگ میپس",
   "Definition": "تعریف",
   "CRD: {{ crdName }}": "CRD: {{ crdName }}",
