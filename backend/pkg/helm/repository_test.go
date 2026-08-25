@@ -25,6 +25,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
@@ -565,37 +566,84 @@ func TestAddRepoRequestFieldsOverrideExisting(t *testing.T) {
 }
 
 func TestCreateFileIfNotThere(t *testing.T) {
-	t.Run("creates_missing_file_and_directories", func(t *testing.T) {
-		dir := t.TempDir()
+	dir := t.TempDir()
 
-		customSettings := cli.New()
-		customSettings.RepositoryConfig = filepath.Join(dir, "nonexistent", "subdir", "repositories.yaml")
+	customSettings := cli.New()
+	customSettings.RepositoryConfig = filepath.Join(dir, "nonexistent", "subdir", "repositories.yaml")
 
-		ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			w.Header().Set("Content-Type", "application/json")
-			w.WriteHeader(http.StatusOK)
-			_, _ = w.Write([]byte(`{"apiVersion":"v1","entries":{},"generated":"2025-01-01T00:00:00Z"}`))
-		}))
-		defer ts.Close()
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"apiVersion":"v1","entries":{},"generated":"2025-01-01T00:00:00Z"}`))
+	}))
+	defer ts.Close()
 
-		c := cache.New[interface{}]()
-		helmHandler, err := helm.NewHandlerWithSettings(c, customSettings)
-		require.NoError(t, err)
+	c := cache.New[interface{}]()
+	helmHandler, err := helm.NewHandlerWithSettings(c, customSettings)
+	require.NoError(t, err)
 
-		addRepo := helm.AddUpdateRepoRequest{
-			Name: "file_create_test_repo",
-			URL:  ts.URL,
-		}
+	addRepo := helm.AddUpdateRepoRequest{
+		Name: "file_create_test_repo",
+		URL:  ts.URL,
+	}
 
-		req, err := http.NewRequestWithContext(context.Background(), "POST",
-			"/clusters/minikube/helm/repositories/charts", mustJSONBody(t, addRepo))
-		require.NoError(t, err)
+	req, err := http.NewRequestWithContext(context.Background(), "POST",
+		"/clusters/minikube/helm/repositories/charts", mustJSONBody(t, addRepo))
+	require.NoError(t, err)
 
-		rr := httptest.NewRecorder()
-		helmHandler.AddRepo(rr, req)
-		assert.Equal(t, http.StatusOK, rr.Code)
+	rr := httptest.NewRecorder()
+	helmHandler.AddRepo(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
 
-		_, statErr := os.Stat(customSettings.RepositoryConfig)
-		assert.NoError(t, statErr, "repository config file should have been created by createFileIfNotThere")
-	})
+	fileInfo, statErr := os.Stat(customSettings.RepositoryConfig)
+	require.NoError(t, statErr, "repository config file should have been created by createFileIfNotThere")
+
+	if runtime.GOOS != "windows" {
+		assert.Equal(t, os.FileMode(0o600), fileInfo.Mode().Perm(), "repository config file should have 0o600 permissions")
+	}
+}
+
+func TestRepositoryConfigFilePermissionsMigration(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("file permissions not applicable on Windows")
+	}
+
+	dir := t.TempDir()
+	configFile := filepath.Join(dir, "repositories.yaml")
+
+	seedContent := []byte("apiVersion: \"\"\ngenerated: \"0001-01-01T00:00:00Z\"\nrepositories: []\n")
+	require.NoError(t, os.WriteFile(configFile, seedContent, 0o644)) //nolint:gosec
+	require.NoError(t, os.Chmod(configFile, 0o644))                  //nolint:gosec
+
+	customSettings := cli.New()
+	customSettings.RepositoryConfig = configFile
+
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"apiVersion":"v1","entries":{},"generated":"2025-01-01T00:00:00Z"}`))
+	}))
+	defer ts.Close()
+
+	c := cache.New[interface{}]()
+	helmHandler, err := helm.NewHandlerWithSettings(c, customSettings)
+	require.NoError(t, err)
+
+	addRepo := helm.AddUpdateRepoRequest{
+		Name: "tighten_perm_repo",
+		URL:  ts.URL,
+	}
+
+	req, err := http.NewRequestWithContext(context.Background(), "POST",
+		"/clusters/minikube/helm/repositories/charts", mustJSONBody(t, addRepo))
+	require.NoError(t, err)
+
+	rr := httptest.NewRecorder()
+	helmHandler.AddRepo(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+
+	fileInfo, statErr := os.Stat(configFile)
+	require.NoError(t, statErr)
+	assert.Equal(t, os.FileMode(0o600), fileInfo.Mode().Perm(),
+		"existing repository config file should have been tightened to 0o600")
 }
