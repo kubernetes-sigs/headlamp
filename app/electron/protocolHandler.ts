@@ -150,7 +150,7 @@ export function createProtocolHandler(options: ProtocolHandlerOptions): Protocol
     options.getMainWindow()?.loadURL(baseUrl + '#/' + getRouteFromProtocolUrl(callbackUrl));
   }
 
-  /** Restores and focuses the current window when one is available. */
+  /** Restores, shows, and focuses the current window when one is available. */
   function focusMainWindow(): void {
     const mainWindow = options.getMainWindow();
     if (!mainWindow) {
@@ -158,6 +158,10 @@ export function createProtocolHandler(options: ProtocolHandlerOptions): Protocol
     }
     if (mainWindow.isMinimized()) {
       mainWindow.restore();
+    }
+    // A window hidden to the tray stays invisible after restore() and focus().
+    if (!mainWindow.isVisible()) {
+      mainWindow.show();
     }
     mainWindow.focus();
   }
