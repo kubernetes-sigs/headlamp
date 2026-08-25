@@ -586,6 +586,11 @@ func attemptReconnect(
 	return false
 }
 
+// storeReconnecting persists the RECONNECTING status to the cache.
+func storeReconnecting(cache cache.Cache[interface{}], pfDetails *portForward) {
+	portforwardstore(cache, pfDetails.setStatusAndSnapshot(RECONNECTING, ""))
+}
+
 // tryReconnectOnce resolves a new pod for the service, initialises a fresh
 // port-forwarder, swaps closeChan safely, and starts monitoring.
 // It returns (true, false) on success, (false, true) to abort retries,
@@ -602,9 +607,7 @@ func tryReconnectOnce(
 		clientset, pfDetails.ServiceNamespace, pfDetails.Service)
 	if err != nil {
 		logger.Log(logger.LevelError, logParams, err, "resolving service endpoint for reconnect")
-
-		pfSnapshot := pfDetails.setStatusAndSnapshot(RECONNECTING, "")
-		portforwardstore(cache, pfSnapshot)
+		storeReconnecting(cache, pfDetails)
 
 		return false, false
 	}
@@ -621,18 +624,12 @@ func tryReconnectOnce(
 	)
 	if err != nil {
 		logger.Log(logger.LevelError, logParams, err, "re-initializing port forwarder")
-
-		pfSnapshot := pfDetails.setStatusAndSnapshot(RECONNECTING, "")
-		portforwardstore(cache, pfSnapshot)
+		storeReconnecting(cache, pfDetails)
 
 		return false, false
 	}
 
-	// Swap closeChan and pod name under lock.
-	// handlePodCheck already closed the old closeChan and allocated a
-	// fresh one for attemptReconnect's backoff select. Replace it with
-	// the new forwarder's stopChan so user-initiated stops signal the
-	// correct forwarder.
+	// Swap closeChan to the new forwarder's stopChan and update pod info.
 	pfDetails.mu.Lock()
 	oldCloseChan := pfDetails.closeChan
 	pfDetails.closeChan = stopChan
@@ -640,24 +637,17 @@ func tryReconnectOnce(
 	pfDetails.Namespace = podNamespace
 	pfDetails.mu.Unlock()
 
-	// Close the intermediate channel (created by handlePodCheck) so
-	// nothing leaks.
 	safeCloseChan(oldCloseChan)
 
 	err = runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut)
 	if err != nil {
 		logger.Log(logger.LevelError, logParams, err, "reconnected forwarder failed readiness")
-
-		// handlePortForwardError (called inside runAndMonitorPortForward)
-		// closed pfDetails.closeChan. Allocate a fresh one so the next
-		// backoff select in attemptReconnect doesn't fire immediately
-		// on the closed channel, which would abort remaining retries.
+		// handlePortForwardError closed closeChan; allocate a fresh one
+		// so the next backoff select doesn't abort remaining retries.
 		pfDetails.mu.Lock()
 		pfDetails.closeChan = make(chan struct{})
 		pfDetails.mu.Unlock()
-
-		pfSnapshot := pfDetails.setStatusAndSnapshot(RECONNECTING, "")
-		portforwardstore(cache, pfSnapshot)
+		storeReconnecting(cache, pfDetails)
 
 		return false, false
 	}
@@ -988,19 +978,29 @@ func GetPortForwardByID(cache cache.Cache[interface{}], contextKey string,
 	}
 
 	type payload struct {
-		ID        string `json:"id"`
-		Pod       string `json:"pod"`
-		Service   string `json:"service"`
-		Cluster   string `json:"cluster"`
-		Namespace string `json:"namespace"`
+		ID               string `json:"id"`
+		Pod              string `json:"pod"`
+		Service          string `json:"service"`
+		ServiceNamespace string `json:"serviceNamespace"`
+		Cluster          string `json:"cluster"`
+		Namespace        string `json:"namespace"`
+		Port             string `json:"port"`
+		TargetPort       string `json:"targetPort"`
+		Status           string `json:"status"`
+		Error            string `json:"error"`
 	}
 
 	portForwardStruct := payload{
-		ID:        p.ID,
-		Pod:       p.Pod,
-		Namespace: p.Namespace,
-		Cluster:   cluster,
-		Service:   p.Service,
+		ID:               p.ID,
+		Pod:              p.Pod,
+		Namespace:        p.Namespace,
+		Cluster:          cluster,
+		Service:          p.Service,
+		ServiceNamespace: p.ServiceNamespace,
+		Port:             p.Port,
+		TargetPort:       p.TargetPort,
+		Status:           p.Status,
+		Error:            p.Error,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
