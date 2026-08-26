@@ -134,6 +134,7 @@
     "bin",
     "config",
     "template",
+    "template-claude",
     "lib",
     "types",
     ".storybook",
