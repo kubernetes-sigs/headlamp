@@ -43,6 +43,7 @@ import {
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
 import { AppDispatch } from '../../../redux/stores/store';
+import { Activity, useActivity } from '../../activity/Activity';
 import { useCurrentAppTheme } from '../../App/themeSlice';
 import { useLocalStorageState } from '../../globalSearch/useLocalStorageState';
 import ConfirmButton from '../ConfirmButton';
@@ -692,6 +693,27 @@ export default function EditorDialog(props: EditorDialogProps) {
       onClose();
     }
   }
+
+  // In noDialog mode the editor is hosted inside an Activity, whose own
+  // title-bar/taskbar close buttons never reach this component. Register
+  // handleCloseRequest as the Activity's close guard so those routes get the
+  // same unsaved-changes confirmation. Registered once via a ref so the
+  // handler the Activity stores always sees the current editor state.
+  const [hostActivity] = useActivity();
+  const closeGuardActivityId = noDialog ? hostActivity?.id : undefined;
+  const handleCloseRequestRef = React.useRef(handleCloseRequest);
+  handleCloseRequestRef.current = handleCloseRequest;
+  React.useEffect(() => {
+    if (!closeGuardActivityId) {
+      return;
+    }
+    Activity.update(closeGuardActivityId, {
+      onCloseRequest: () => handleCloseRequestRef.current(),
+    });
+    return () => {
+      Activity.update(closeGuardActivityId, { onCloseRequest: undefined });
+    };
+  }, [closeGuardActivityId]);
 
   let dialogTitle = title;
   if (!dialogTitle && item) {

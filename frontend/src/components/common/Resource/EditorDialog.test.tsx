@@ -18,6 +18,7 @@ import Button from '@mui/material/Button';
 import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import React from 'react';
 import { TestContext } from '../../../test';
+import { ActivitiesRenderer, Activity } from '../../activity/Activity';
 import EditorDialog, { EditorDialogProps, ViewDialog } from './EditorDialog';
 
 const {
@@ -999,6 +1000,64 @@ describe('EditorDialog', () => {
       fireEvent.click(screen.getByRole('button', { name: /undo/i }));
 
       fireEvent.click(getFooterCloseButton());
+
+      expect(screen.queryByText(confirmText)).not.toBeInTheDocument();
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('activity close guard', () => {
+    const confirmText =
+      'You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?';
+
+    afterEach(() => {
+      Activity.reset();
+    });
+
+    function launchEditorActivity(onClose: () => void) {
+      Activity.launch({
+        id: 'edit-activity',
+        title: 'Edit: node-1',
+        location: 'full',
+        content: (
+          <EditorDialog
+            open
+            noDialog
+            item={{ apiVersion: 'v1', kind: 'Node', metadata: { name: 'node-1' } }}
+            onClose={onClose}
+          />
+        ),
+      });
+
+      return render(
+        <TestContext>
+          <ActivitiesRenderer />
+        </TestContext>
+      );
+    }
+
+    it('guards the activity title-bar X when there are unsaved changes', () => {
+      const onClose = vi.fn();
+      launchEditorActivity(onClose);
+
+      fireEvent.change(screen.getByRole('textbox', { name: /code$/i }), {
+        target: { value: 'user-edited-content' },
+      });
+
+      fireEvent.click(screen.getByTitle('Close'));
+
+      expect(screen.getByText(confirmText)).toBeInTheDocument();
+      expect(onClose).not.toHaveBeenCalled();
+
+      fireEvent.click(screen.getByTestId('confirm-button'));
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('closes the activity immediately from the X when there are no unsaved changes', () => {
+      const onClose = vi.fn();
+      launchEditorActivity(onClose);
+
+      fireEvent.click(screen.getByTitle('Close'));
 
       expect(screen.queryByText(confirmText)).not.toBeInTheDocument();
       expect(onClose).toHaveBeenCalledTimes(1);
