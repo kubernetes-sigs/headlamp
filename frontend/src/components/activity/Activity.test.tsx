@@ -146,5 +146,12 @@ describe('activitySlice', () => {
       const nextState = reducer(stateWithActivity, update(updatedActivity));
       expect(nextState.history).toEqual([]);
     });
+
+    it('should ignore updates for activities that do not exist', () => {
+      const emptyState: ActivityState = { history: [], activities: {} };
+      const nextState = reducer(emptyState, update({ id: 'ghost', title: 'Ghost' }));
+      expect(nextState.activities['ghost']).toBeUndefined();
+      expect(nextState.history).toEqual([]);
+    });
   });
 });
