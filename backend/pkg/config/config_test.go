@@ -116,7 +116,6 @@ func TestParseBasic(t *testing.T) {
 				"--pod-debug-image=registry.example.com/debug:latest",
 				"--node-shell-image=registry.example.com/shell:latest",
 				"--node-shell-namespace=custom-ns",
-				"--trusted-proxy-cidrs=10.0.0.0/8,192.168.1.0/24",
 			},
 			verify: func(t *testing.T, conf *config.Config) {
 				assert.Equal(t, uint(3456), conf.Port)
@@ -124,7 +123,6 @@ func TestParseBasic(t *testing.T) {
 				assert.Equal(t, "registry.example.com/shell:latest", conf.NodeShellImage)
 				assert.Equal(t, "custom-ns", conf.NodeShellNamespace)
 				assert.Equal(t, config.DefaultMeUsernamePath, conf.MeUsernamePath)
-				assert.Equal(t, "10.0.0.0/8,192.168.1.0/24", conf.TrustedProxyCIDRs)
 			},
 		},
 		{
@@ -146,6 +144,16 @@ func TestParseBasic(t *testing.T) {
 			tt.verify(t, conf)
 		})
 	}
+}
+
+func TestParseTrustedProxyCIDRs(t *testing.T) {
+	conf, err := config.Parse([]string{
+		"go run ./cmd",
+		"--trusted-proxy-cidrs=10.0.0.0/8,192.168.1.0/24",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "10.0.0.0/8,192.168.1.0/24", conf.TrustedProxyCIDRs)
 }
 
 func TestParseAppName(t *testing.T) {
@@ -507,6 +515,16 @@ var parseFlagTests = []parseFlagTest{
 		verify: func(t *testing.T, conf *config.Config) {
 			assert.Equal(t, true, conf.UnsafeUseServiceAccountToken)
 			assert.Equal(t, "/custom/token/path", conf.ServiceAccountTokenPath)
+		},
+	},
+	{
+		name: "trusted_proxy_cidrs_flag",
+		args: []string{
+			"go run ./cmd",
+			"--trusted-proxy-cidrs=10.0.0.0/8,192.168.1.0/24",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, "10.0.0.0/8,192.168.1.0/24", conf.TrustedProxyCIDRs)
 		},
 	},
 }

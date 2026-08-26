@@ -4628,10 +4628,19 @@ func TestAuthLimiterCleanup(t *testing.T) {
 		wg.Add(1)
 		go func(i int) {
 			defer wg.Done()
+
 			getAuthLimiter(fmt.Sprintf("10.0.0.%d", i%10))
 		}(i)
 	}
+
 	wg.Wait()
+}
+
+func resetAuthLimiters() {
+	authLimiterMu.Lock()
+	defer authLimiterMu.Unlock()
+
+	authLimiters = make(map[string]*authLimiterEntry)
 }
 
 func TestAuthRateLimitMiddleware_XForwardedFor(t *testing.T) {
@@ -4640,22 +4649,21 @@ func TestAuthRateLimitMiddleware_XForwardedFor(t *testing.T) {
 	})
 
 	t.Run("untrusted proxy ignores X-Forwarded-For", func(t *testing.T) {
-		authLimiterMu.Lock()
-		authLimiters = make(map[string]*authLimiterEntry)
-		authLimiterMu.Unlock()
+		resetAuthLimiters()
 
 		middleware := authRateLimitMiddleware(
 			[]string{"10.0.0.0/8"},
 			dummyHandler,
 		)
 
-		req := httptest.NewRequest("GET", "/auth", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/auth", nil)
 		req.RemoteAddr = "192.168.1.100:12345"
 		req.Header.Set("X-Forwarded-For", "10.0.0.1")
 
 		// Exhaust the bucket for the actual remote IP.
 		for i := 0; i < 10; i++ {
 			rr := httptest.NewRecorder()
+
 			middleware.ServeHTTP(rr, req)
 			assert.Equal(t, http.StatusOK, rr.Code)
 		}
@@ -4663,6 +4671,7 @@ func TestAuthRateLimitMiddleware_XForwardedFor(t *testing.T) {
 		// The peer is not trusted, so changing X-Forwarded-For
 		// must not create a new rate-limit bucket.
 		req.Header.Set("X-Forwarded-For", "10.0.0.2")
+
 		rr := httptest.NewRecorder()
 		middleware.ServeHTTP(rr, req)
 
@@ -4670,22 +4679,21 @@ func TestAuthRateLimitMiddleware_XForwardedFor(t *testing.T) {
 	})
 
 	t.Run("trusted proxy uses X-Forwarded-For", func(t *testing.T) {
-		authLimiterMu.Lock()
-		authLimiters = make(map[string]*authLimiterEntry)
-		authLimiterMu.Unlock()
+		resetAuthLimiters()
 
 		middleware := authRateLimitMiddleware(
 			[]string{"192.168.1.0/24"},
 			dummyHandler,
 		)
 
-		req := httptest.NewRequest("GET", "/auth", nil)
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/auth", nil)
 		req.RemoteAddr = "192.168.1.100:12345"
 		req.Header.Set("X-Forwarded-For", "10.0.0.1")
 
 		// Exhaust the bucket for client 10.0.0.1.
 		for i := 0; i < 10; i++ {
 			rr := httptest.NewRecorder()
+
 			middleware.ServeHTTP(rr, req)
 			assert.Equal(t, http.StatusOK, rr.Code)
 		}
@@ -4693,12 +4701,14 @@ func TestAuthRateLimitMiddleware_XForwardedFor(t *testing.T) {
 		// The proxy is trusted, so a different forwarded client
 		// should get a separate rate-limit bucket.
 		req.Header.Set("X-Forwarded-For", "10.0.0.2")
+
 		rr := httptest.NewRecorder()
 		middleware.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
 	})
 }
+
 func TestAuthRateLimitMiddleware_BurstAnd429(t *testing.T) {
 	// Reset state
 	authLimiterMu.Lock()
@@ -4710,7 +4720,7 @@ func TestAuthRateLimitMiddleware_BurstAnd429(t *testing.T) {
 	})
 	middleware := authRateLimitMiddleware(nil, dummyHandler)
 
-	req := httptest.NewRequest("GET", "/auth", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/auth", nil)
 	req.RemoteAddr = "10.1.1.1:12345"
 
 	// Exhaust the burst of 10
@@ -4737,7 +4747,7 @@ func TestAuthRateLimitMiddleware_Refill(t *testing.T) {
 	})
 	middleware := authRateLimitMiddleware(nil, dummyHandler)
 
-	req := httptest.NewRequest("GET", "/auth", nil)
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/auth", nil)
 	req.RemoteAddr = "10.2.2.2:12345"
 
 	// Exhaust the burst of 10
@@ -4767,21 +4777,23 @@ func TestAuthRateLimitMiddleware_Isolation(t *testing.T) {
 	})
 	middleware := authRateLimitMiddleware(nil, dummyHandler)
 
-	reqA := httptest.NewRequest("GET", "/auth", nil)
+	reqA := httptest.NewRequestWithContext(context.Background(), "GET", "/auth", nil)
 	reqA.RemoteAddr = "10.3.3.3:12345"
 
 	// Exhaust burst for Client A
 	for i := 0; i < 10; i++ {
 		rr := httptest.NewRecorder()
+
 		middleware.ServeHTTP(rr, reqA)
 		assert.Equal(t, http.StatusOK, rr.Code)
 	}
+
 	rrA := httptest.NewRecorder()
 	middleware.ServeHTTP(rrA, reqA)
 	assert.Equal(t, http.StatusTooManyRequests, rrA.Code)
 
 	// Client B should still be allowed
-	reqB := httptest.NewRequest("GET", "/auth", nil)
+	reqB := httptest.NewRequestWithContext(context.Background(), "GET", "/auth", nil)
 	reqB.RemoteAddr = "10.4.4.4:12345"
 	rrB := httptest.NewRecorder()
 	middleware.ServeHTTP(rrB, reqB)

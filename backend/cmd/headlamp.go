@@ -671,6 +671,7 @@ var (
 	authLimiterOnce sync.Once
 )
 
+//nolint:wsl_v5
 func getAuthLimiter(ip string) *rate.Limiter {
 	authLimiterOnce.Do(func() {
 		go func() {
@@ -745,6 +746,7 @@ func clientIP(r *http.Request, trustedProxyCIDRs []string) string {
 	return remoteIP.String()
 }
 
+//nolint:wsl_v5
 func authRateLimitMiddleware(trustedProxyCIDRs []string, next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		ip := clientIP(r, trustedProxyCIDRs)
@@ -754,7 +756,6 @@ func authRateLimitMiddleware(trustedProxyCIDRs []string, next http.HandlerFunc) 
 			return
 		}
 		next.ServeHTTP(w, r)
-
 	}
 }
 
@@ -1233,121 +1234,122 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(
 			config.handleNodeDrainStatus))).Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
 
-	r.HandleFunc("/oidc-callback", authRateLimitMiddleware(config.TrustedProxyCIDRs, func(w http.ResponseWriter, r *http.Request) {
-		// Shadow createHeadlampHandler's outer-scope err so any log call in
-		// this handler is guaranteed to reference this closure's err and
-		// never the startup kubeconfig-load error. See issue #4839.
-		var err error
+	r.HandleFunc("/oidc-callback",
+		authRateLimitMiddleware(config.TrustedProxyCIDRs, func(w http.ResponseWriter, r *http.Request) {
+			// Shadow createHeadlampHandler's outer-scope err so any log call in
+			// this handler is guaranteed to reference this closure's err and
+			// never the startup kubeconfig-load error. See issue #4839.
+			var err error
 
-		state := r.URL.Query().Get("state")
+			state := r.URL.Query().Get("state")
 
-		if state == "" {
-			logger.Log(logger.LevelError, nil, nil, "invalid request state is empty")
-			http.Error(w, "invalid request state is empty", http.StatusBadRequest)
+			if state == "" {
+				logger.Log(logger.LevelError, nil, nil, "invalid request state is empty")
+				http.Error(w, "invalid request state is empty", http.StatusBadRequest)
 
-			return
-		}
+				return
+			}
 
-		oauthMu.Lock()
+			oauthMu.Lock()
 
-		oauthConfig, ok := oauthRequestMap[state]
-		if ok {
-			// We have a copy of the oauthConfig, we can delete the map entry now
-			delete(oauthRequestMap, state)
-		}
+			oauthConfig, ok := oauthRequestMap[state]
+			if ok {
+				// We have a copy of the oauthConfig, we can delete the map entry now
+				delete(oauthRequestMap, state)
+			}
 
-		oauthMu.Unlock()
+			oauthMu.Unlock()
 
-		if !ok {
-			http.Error(w, "invalid request", http.StatusBadRequest)
-			return
-		}
+			if !ok {
+				http.Error(w, "invalid request", http.StatusBadRequest)
+				return
+			}
 
-		var oauth2Token *oauth2.Token
+			var oauth2Token *oauth2.Token
 
-		// Exchange authorization code for token, with or without PKCE
-		if config.OidcUsePKCE && oauthConfig.CodeVerifier != "" {
-			// Use PKCE code verifier for token exchange
-			oauth2Token, err = oauthConfig.Config.Exchange(
-				oauthConfig.Ctx,
-				r.URL.Query().Get("code"),
-				oauth2.SetAuthURLParam("code_verifier", oauthConfig.CodeVerifier),
-			)
-		} else {
-			// Standard token exchange without PKCE
-			oauth2Token, err = oauthConfig.Config.Exchange(
-				oauthConfig.Ctx,
-				r.URL.Query().Get("code"),
-			)
-		}
+			// Exchange authorization code for token, with or without PKCE
+			if config.OidcUsePKCE && oauthConfig.CodeVerifier != "" {
+				// Use PKCE code verifier for token exchange
+				oauth2Token, err = oauthConfig.Config.Exchange(
+					oauthConfig.Ctx,
+					r.URL.Query().Get("code"),
+					oauth2.SetAuthURLParam("code_verifier", oauthConfig.CodeVerifier),
+				)
+			} else {
+				// Standard token exchange without PKCE
+				oauth2Token, err = oauthConfig.Config.Exchange(
+					oauthConfig.Ctx,
+					r.URL.Query().Get("code"),
+				)
+			}
 
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to exchange token")
-			http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
+			if err != nil {
+				logger.Log(logger.LevelError, nil, err, "failed to exchange token")
+				http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
 
-			return
-		}
+				return
+			}
 
-		tokenType := "id_token"
-		if config.OidcUseAccessToken {
-			tokenType = "access_token"
-		}
+			tokenType := "id_token"
+			if config.OidcUseAccessToken {
+				tokenType = "access_token"
+			}
 
-		rawUserToken, ok := oauth2Token.Extra(tokenType).(string)
-		if !ok {
-			logger.Log(logger.LevelError, nil, err, fmt.Sprintf("no %s field in oauth2 token", tokenType))
-			http.Error(w, fmt.Sprintf("No %s field in oauth2 token.", tokenType), http.StatusInternalServerError)
+			rawUserToken, ok := oauth2Token.Extra(tokenType).(string)
+			if !ok {
+				logger.Log(logger.LevelError, nil, err, fmt.Sprintf("no %s field in oauth2 token", tokenType))
+				http.Error(w, fmt.Sprintf("No %s field in oauth2 token.", tokenType), http.StatusInternalServerError)
 
-			return
-		}
+				return
+			}
 
-		if err := config.Cache.Set(context.Background(),
-			fmt.Sprintf("oidc-token-%s", rawUserToken), oauth2Token.RefreshToken); err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to cache refresh token")
-			http.Error(w, "Failed to cache refresh token: "+err.Error(), http.StatusInternalServerError)
+			if err := config.Cache.Set(context.Background(),
+				fmt.Sprintf("oidc-token-%s", rawUserToken), oauth2Token.RefreshToken); err != nil {
+				logger.Log(logger.LevelError, nil, err, "failed to cache refresh token")
+				http.Error(w, "Failed to cache refresh token: "+err.Error(), http.StatusInternalServerError)
 
-			return
-		}
+				return
+			}
 
-		idToken, err := oauthConfig.Verifier.Verify(oauthConfig.Ctx, rawUserToken)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to verify ID Token")
-			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
+			idToken, err := oauthConfig.Verifier.Verify(oauthConfig.Ctx, rawUserToken)
+			if err != nil {
+				logger.Log(logger.LevelError, nil, err, "failed to verify ID Token")
+				http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
 
-			return
-		}
+				return
+			}
 
-		resp := struct {
-			OAuth2Token   *oauth2.Token
-			IDTokenClaims *json.RawMessage // ID Token payload is just JSON.
-		}{oauth2Token, new(json.RawMessage)}
+			resp := struct {
+				OAuth2Token   *oauth2.Token
+				IDTokenClaims *json.RawMessage // ID Token payload is just JSON.
+			}{oauth2Token, new(json.RawMessage)}
 
-		if err := idToken.Claims(&resp.IDTokenClaims); err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to get id token claims")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			if err := idToken.Claims(&resp.IDTokenClaims); err != nil {
+				logger.Log(logger.LevelError, nil, err, "failed to get id token claims")
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 
-			return
-		}
+				return
+			}
 
-		var redirectURL string
-		if config.DevMode {
-			redirectURL = "http://localhost:3000/"
-		} else {
-			redirectURL = "/"
-		}
+			var redirectURL string
+			if config.DevMode {
+				redirectURL = "http://localhost:3000/"
+			} else {
+				redirectURL = "/"
+			}
 
-		baseURL := strings.Trim(config.BaseURL, "/")
-		if baseURL != "" {
-			redirectURL += baseURL + "/"
-		}
+			baseURL := strings.Trim(config.BaseURL, "/")
+			if baseURL != "" {
+				redirectURL += baseURL + "/"
+			}
 
-		// Set auth cookie
-		auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
+			// Set auth cookie
+			auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
 
-		redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
+			redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
 
-		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
-	}))
+			http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+		}))
 
 	// Serve the frontend if needed
 	if spa.UseEmbeddedFiles {
