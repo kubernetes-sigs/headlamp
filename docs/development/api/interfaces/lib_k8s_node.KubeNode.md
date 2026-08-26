@@ -107,7 +107,7 @@ ___
 | `capacity.hugepages_2Mi` | `any` |
 | `capacity.memory` | `any` |
 | `capacity.pods` | `any` |
-| `conditions` | `Omit`<[`KubeCondition`](lib_k8s_cluster.KubeCondition.md), ``"lastProbeTime"`` \| ``"lastUpdateTime"``\> & { `lastHeartbeatTime`: `string`  }[] |
+| `conditions` | [`NodeCondition`](lib_k8s_cluster.NodeCondition.md)[] |
 | `nodeInfo` | { `architecture`: `string` ; `bootID`: `string` ; `containerRuntimeVersion`: `string` ; `kernelVersion`: `string` ; `kubeProxyVersion`: `string` ; `kubeletVersion`: `string` ; `machineID`: `string` ; `operatingSystem`: `string` ; `osImage`: `string` ; `systemUUID`: `string`  } |
 | `nodeInfo.architecture` | `string` |
 | `nodeInfo.bootID` | `string` |

@@ -696,7 +696,11 @@ export function ConditionsTable(props: ConditionsTableProps) {
       {
         label: t('Last Update'),
         getter: condition =>
-          condition.lastUpdateTime ? <DateLabel date={condition.lastUpdateTime as string} /> : '-',
+          condition.lastUpdateTime !== null && condition.lastUpdateTime !== undefined ? (
+            <DateLabel date={condition.lastUpdateTime} />
+          ) : (
+            '-'
+          ),
         hide: !showLastUpdate,
       },
       {

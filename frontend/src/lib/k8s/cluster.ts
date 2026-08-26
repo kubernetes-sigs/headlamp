@@ -162,17 +162,9 @@ export type KubeObjectIface = any;
 
 export type Time = number | string | null;
 
-// @todo: There are different Condition types, including PodCondition, NodeCondition, etc.
-// We should have appropriate types for each of them, because they can be slightly different.
-// eg. DaemonSetCondition does not have lastProbeTime.
-// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podcondition-v1-core
-// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#nodecondition-v1-core
-
-export interface KubeCondition {
-  /** Last time we probed the condition. */
-  lastProbeTime: Time;
+/** Fields shared by Kubernetes resource conditions. */
+export interface BaseCondition {
   lastTransitionTime?: Time;
-  lastUpdateTime?: Time;
   message?: string;
   /** Unique, one-word, CamelCase reason for the condition's last transition. */
   reason?: string;
@@ -180,6 +172,28 @@ export interface KubeCondition {
   status: string;
   type: string;
 }
+
+export interface PodCondition extends BaseCondition {
+  lastProbeTime: Time;
+}
+
+export interface NodeCondition extends BaseCondition {
+  lastHeartbeatTime: string;
+}
+
+/** Conditions on workloads that report when their state was last updated. */
+export interface WorkloadCondition extends BaseCondition {
+  lastUpdateTime?: Time;
+}
+
+// @todo: Migrate condition-bearing models for Gateway, Namespace, Service, PodGroup, Deployment,
+// DaemonSet, StatefulSet, and Job away from the generic KubeCondition union as they need precise types.
+/** A pod, node, or workload condition with resource-specific timestamp fields preserved. */
+export type KubeCondition = (PodCondition | NodeCondition | WorkloadCondition) & {
+  lastProbeTime?: Time;
+  lastUpdateTime?: Time;
+  lastHeartbeatTime?: string;
+};
 
 /**
  *

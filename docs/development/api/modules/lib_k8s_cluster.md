@@ -28,6 +28,12 @@ Re-exports [Cluster](../interfaces/lib_k8s_cluster.Cluster.md)
 
 ___
 
+### BaseCondition
+
+Re-exports [BaseCondition](../interfaces/lib_k8s_cluster.BaseCondition.md)
+
+___
+
 ### ContainerState
 
 Re-exports [ContainerState](../interfaces/lib_k8s_cluster.ContainerState.md)
@@ -43,6 +49,24 @@ ___
 ### KubeCondition
 
 Re-exports [KubeCondition](../interfaces/lib_k8s_cluster.KubeCondition.md)
+
+___
+
+### NodeCondition
+
+Re-exports [NodeCondition](../interfaces/lib_k8s_cluster.NodeCondition.md)
+
+___
+
+### PodCondition
+
+Re-exports [PodCondition](../interfaces/lib_k8s_cluster.PodCondition.md)
+
+___
+
+### WorkloadCondition
+
+Re-exports [WorkloadCondition](../interfaces/lib_k8s_cluster.WorkloadCondition.md)
 
 ___
 

@@ -18,7 +18,7 @@ import { ThemeProvider } from '@mui/material/styles';
 import { render, screen, within } from '@testing-library/react';
 import React from 'react';
 import { describe, expect, it, vi } from 'vitest';
-import { KubeCondition } from '../../lib/k8s/cluster';
+import { KubeCondition, PodCondition, WorkloadCondition } from '../../lib/k8s/cluster';
 import { createMuiTheme } from '../../lib/themes';
 import { TestContext } from '../../test';
 import { ConditionList, getReadyCondition } from './ConditionList';
@@ -34,15 +34,21 @@ const theme = createMuiTheme({ base: 'light', name: 'light' });
 
 /**
  * Factory helper for constructing mock KubeCondition objects.
- * `lastProbeTime` is required by the KubeCondition type contract but never rendered by ConditionList.
+ * Pod conditions include a required probe timestamp that is not rendered by ConditionList.
  */
 function createMockCondition(
-  overrides: Partial<KubeCondition> & { type: string; status: string }
-): KubeCondition {
+  overrides: Partial<PodCondition> & { type: string; status: string }
+): PodCondition {
   return {
     lastProbeTime: null,
     ...overrides,
   };
+}
+
+function createMockWorkloadCondition(
+  overrides: Partial<WorkloadCondition> & { type: string; status: string }
+): WorkloadCondition {
+  return overrides;
 }
 
 /**
@@ -63,6 +69,28 @@ function renderConditionList(
 }
 
 describe('getReadyCondition', () => {
+  it('keeps generic lastProbeTime access compatible with node conditions', () => {
+    const condition: KubeCondition = {
+      type: 'Ready',
+      status: 'True',
+      lastHeartbeatTime: '2026-01-01T00:00:00Z',
+    };
+
+    expect(condition.lastProbeTime).toBeUndefined();
+  });
+
+  it('keeps legacy generic condition fields assignable', () => {
+    const condition: KubeCondition = {
+      type: 'Ready',
+      status: 'True',
+      lastProbeTime: null,
+      lastUpdateTime: 0,
+    };
+
+    expect(condition.lastProbeTime).toBeNull();
+    expect(condition.lastUpdateTime).toBe(0);
+  });
+
   it('returns the condition whose type is Ready from a multi-condition list', () => {
     const conditions: KubeCondition[] = [
       createMockCondition({ type: 'PodScheduled', status: 'True' }),
@@ -116,7 +144,7 @@ describe('ConditionList', () => {
 
   describe('Column visibility and toggling', () => {
     const mockConditions: KubeCondition[] = [
-      createMockCondition({
+      createMockWorkloadCondition({
         type: 'Ready',
         status: 'True',
         lastTransitionTime: '2026-01-01T00:00:00Z',
@@ -151,22 +179,22 @@ describe('ConditionList', () => {
   describe('Status color mapping', () => {
     it('maps status="True" to success label, "False" to error label, and "Unknown" to neutral label', () => {
       const conditions: KubeCondition[] = [
-        createMockCondition({
+        createMockWorkloadCondition({
           type: 'Ready',
           status: 'True',
           reason: 'PodReady',
         }),
-        createMockCondition({
+        createMockWorkloadCondition({
           type: 'ContainersReady',
           status: 'False',
           reason: 'ContainersNotReady',
         }),
-        createMockCondition({
+        createMockWorkloadCondition({
           type: 'DisruptionAllowed',
           status: 'Unknown',
           reason: 'Calculating',
         }),
-        createMockCondition({
+        createMockWorkloadCondition({
           type: 'CustomCondition',
           status: 'CustomStatus',
           reason: 'CustomReason',
@@ -253,7 +281,7 @@ describe('ConditionList', () => {
   describe('Cell formatters and fallback handling', () => {
     it('renders formatted DateLabel when timestamps are provided', () => {
       const conditions: KubeCondition[] = [
-        createMockCondition({
+        createMockWorkloadCondition({
           type: 'Ready',
           status: 'True',
           lastTransitionTime: '2026-01-01T12:00:00Z',
@@ -284,7 +312,7 @@ describe('ConditionList', () => {
 
     it('renders hyphen fallback "-" when timestamps are null or undefined', () => {
       const conditions: KubeCondition[] = [
-        createMockCondition({
+        createMockWorkloadCondition({
           type: 'Ready',
           status: 'True',
           lastTransitionTime: null as any,
@@ -300,6 +328,23 @@ describe('ConditionList', () => {
       expect(cells[2].textContent).toBe('-');
       // Last Update cell should render '-'
       expect(cells[3].textContent).toBe('-');
+    });
+
+    it('renders numeric timestamp zero instead of the missing-value fallback', () => {
+      const conditions: KubeCondition[] = [
+        createMockWorkloadCondition({
+          type: 'Ready',
+          status: 'True',
+          lastTransitionTime: 0,
+          lastUpdateTime: 0,
+        }),
+      ];
+
+      renderConditionList(conditions, true);
+
+      const cells = screen.getAllByRole('cell');
+      expect(cells[2].querySelector('p')).toHaveAttribute('aria-label', '1970-01-01T00:00:00.000Z');
+      expect(cells[3].querySelector('p')).toHaveAttribute('aria-label', '1970-01-01T00:00:00.000Z');
     });
 
     it('renders reason text with tooltip icon and message when reason is present', () => {

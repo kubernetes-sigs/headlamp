@@ -18,7 +18,7 @@ import { Base64 } from 'js-base64';
 import { patch, post } from './api/v1/clusterRequests';
 import type { StreamArgs, StreamResultsCb } from './api/v1/streamingApi';
 import { stream } from './api/v1/streamingApi';
-import type { KubeCondition, KubeContainer, KubeContainerStatus, Time } from './cluster';
+import type { KubeContainer, KubeContainerStatus, PodCondition, Time } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 import type { WorkloadHealthCategory } from './Workload';
@@ -107,7 +107,7 @@ export interface KubePodSpec {
 export interface KubePod extends KubeObjectInterface {
   spec: KubePodSpec;
   status: {
-    conditions: KubeCondition[];
+    conditions: PodCondition[];
     containerStatuses: KubeContainerStatus[];
     initContainerStatuses?: KubeContainerStatus[];
     ephemeralContainerStatuses?: KubeContainerStatus[];
@@ -473,7 +473,7 @@ class Pod extends KubeObject<KubePod> {
     return false;
   }
 
-  private hasPodReadyCondition(conditions: KubeCondition[]): boolean {
+  private hasPodReadyCondition(conditions: PodCondition[]): boolean {
     for (const condition of conditions) {
       if (condition.type === 'Ready' && condition.status === 'True') {
         return true;
