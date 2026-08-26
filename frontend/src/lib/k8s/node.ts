@@ -64,6 +64,51 @@ export interface KubeNode extends KubeObjectInterface {
   };
 }
 
+/**
+ * Hook to fetch metrics for nodes.
+ */
+export function useNodeMetrics(cluster?: string): [KubeMetrics[] | null, ApiError | null] {
+  const [nodeMetrics, setNodeMetrics] = React.useState<KubeMetrics[] | null>(null);
+  const [error, setError] = useErrorState(setNodeMetrics);
+
+  function setMetrics(metrics: KubeMetrics[]) {
+    setNodeMetrics(metrics);
+
+    if (metrics !== null) {
+      setError(null);
+    }
+  }
+
+  useConnectApi(
+    metrics.bind(null, '/apis/metrics.k8s.io/v1beta1/nodes', setMetrics, setError, cluster)
+  );
+
+  return [nodeMetrics, error];
+}
+
+/**
+ * Hook to fetch summary stats for a node.
+ */
+export function useNodeSummaryStats(
+  nodeName?: string,
+  cluster?: string
+): [KubeNodeSummaryStats | null, ApiError | null] {
+  const [summaryStats, setSummaryStats] = React.useState<KubeNodeSummaryStats | null>(null);
+  const [error, setError] = useErrorState(setSummaryStats);
+
+  function setStats(stats: KubeNodeSummaryStats) {
+    setSummaryStats(stats);
+
+    if (stats !== null) {
+      setError(null);
+    }
+  }
+
+  useConnectApi(nodeSummaryStats.bind(null, nodeName || '', setStats, setError, cluster));
+
+  return [summaryStats, error];
+}
+
 class Node extends KubeObject<KubeNode> {
   static kind = 'Node';
   static apiName = 'nodes';
@@ -78,50 +123,9 @@ class Node extends KubeObject<KubeNode> {
     return this.jsonData.spec;
   }
 
-  static useMetrics(cluster?: string): [KubeMetrics[] | null, ApiError | null] {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [nodeMetrics, setNodeMetrics] = React.useState<KubeMetrics[] | null>(null);
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [error, setError] = useErrorState(setNodeMetrics);
+  static useMetrics = useNodeMetrics;
 
-    function setMetrics(metrics: KubeMetrics[]) {
-      setNodeMetrics(metrics);
-
-      if (metrics !== null) {
-        setError(null);
-      }
-    }
-
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(
-      metrics.bind(null, '/apis/metrics.k8s.io/v1beta1/nodes', setMetrics, setError, cluster)
-    );
-
-    return [nodeMetrics, error];
-  }
-
-  static useNodeSummaryStats(
-    nodeName?: string,
-    cluster?: string
-  ): [KubeNodeSummaryStats | null, ApiError | null] {
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [summaryStats, setSummaryStats] = React.useState<KubeNodeSummaryStats | null>(null);
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    const [error, setError] = useErrorState(setSummaryStats);
-
-    function setStats(stats: KubeNodeSummaryStats) {
-      setSummaryStats(stats);
-
-      if (stats !== null) {
-        setError(null);
-      }
-    }
-
-    // eslint-disable-next-line react-hooks/rules-of-hooks
-    useConnectApi(nodeSummaryStats.bind(null, nodeName || '', setStats, setError, cluster));
-
-    return [summaryStats, error];
-  }
+  static useNodeSummaryStats = useNodeSummaryStats;
 
   getExternalIP(): string {
     return this.status.addresses?.find(address => address.type === 'ExternalIP')?.address || '';

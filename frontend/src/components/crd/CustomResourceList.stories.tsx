@@ -22,7 +22,6 @@ import CustomResourceList from './CustomResourceList';
 import { mockCRD, mockCRList } from './storyHelper';
 
 interface MockerStory {
-  useApiGet?: KubeObjectClass['useApiGet'];
   useGet?: KubeObjectClass['useGet'];
   routerParams?: TestContextProps['routerMap'];
 }

@@ -569,6 +569,8 @@
         "cluster.x-k8s.io/deployment-name",
       ],
       "default": [Function],
+      "useNodeMetrics": [Function],
+      "useNodeSummaryStats": [Function],
     },
     "persistentVolume": {
       "PV_SOURCE_TYPES": [
@@ -640,6 +642,10 @@
     "useClustersConf": [Function],
     "useClustersVersion": [Function],
     "useConnectApi": [Function],
+    "useKubeGet": [Function],
+    "useKubeList": [Function],
+    "useNodeMetrics": [Function],
+    "useNodeSummaryStats": [Function],
     "useSelectedClusters": [Function],
     "volumeAttributesClass": {
       "default": [Function],
