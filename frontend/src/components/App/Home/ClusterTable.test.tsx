@@ -28,6 +28,7 @@ import ClusterTable from './ClusterTable';
 
 const theme = createMuiTheme({ name: 'light', base: 'light' });
 let ClusterEmptyState: ComponentType<{ defaultContent: ReactNode }> | null = null;
+let ClusterMenuItems: ComponentType<any>[] = [];
 const { dispatchMock } = vi.hoisted(() => ({ dispatchMock: vi.fn() }));
 
 function renderWithTheme(ui: ReactNode) {
@@ -68,7 +69,7 @@ vi.mock('../../../redux/hooks', () => ({
       clusterProvider: {
         clusterStatuses: [],
         dialogs: [],
-        menuItems: [],
+        menuItems: ClusterMenuItems,
         clusterEmptyState: ClusterEmptyState,
       },
       config: {
@@ -433,6 +434,32 @@ describe('ClusterTable', () => {
 describe('ClusterContextMenu', () => {
   afterEach(() => {
     vi.clearAllMocks();
+    ClusterMenuItems = [];
+  });
+
+  it('keeps Delete when a plugin registers an additive cluster action', () => {
+    ClusterMenuItems = [() => <div role="menuitem">Start proxy</div>];
+
+    render(
+      <SnackbarProvider>
+        <MemoryRouter>
+          <ClusterContextMenu
+            cluster={
+              {
+                name: 'spoke-a',
+                auth_type: '',
+                meta_data: { source: 'dynamic_cluster' },
+              } as Cluster
+            }
+          />
+        </MemoryRouter>
+      </SnackbarProvider>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+
+    expect(screen.getByText('Start proxy')).toBeInTheDocument();
+    expect(screen.getByText('Delete')).toBeInTheDocument();
   });
 
   it('updates the config before notifying the page after deleting a cluster', async () => {
