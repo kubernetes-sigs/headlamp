@@ -1,16 +1,16 @@
-[API](../API.md) / [lib/k8s/apiProxy](../modules/lib_k8s_apiProxy.md) / ClusterRequestParams
+[API](../API.md) / [lib/k8s/apiProxy](../modules/lib_k8s_apiProxy.md) / ClusterRequestOptions
 
-# Interface: ClusterRequestParams
+# Interface: ClusterRequestOptions
 
-[lib/k8s/apiProxy](../modules/lib_k8s_apiProxy.md).ClusterRequestParams
+[lib/k8s/apiProxy](../modules/lib_k8s_apiProxy.md).ClusterRequestOptions
 
 The options for `clusterRequest`.
 
 ## Hierarchy
 
-- [`RequestParams`](lib_k8s_apiProxy.RequestParams.md)
+- [`RequestOptions`](lib_k8s_apiProxy.RequestOptions.md)
 
-  ↳ **`ClusterRequestParams`**
+  ↳ **`ClusterRequestOptions`**
 
 ## Properties
 
@@ -22,7 +22,7 @@ Whether to automatically log out the user if there is an authentication error.
 
 #### Overrides
 
-[RequestParams](lib_k8s_apiProxy.RequestParams.md).[autoLogoutOnAuthError](lib_k8s_apiProxy.RequestParams.md#autologoutonautherror)
+[RequestOptions](lib_k8s_apiProxy.RequestOptions.md).[autoLogoutOnAuthError](lib_k8s_apiProxy.RequestOptions.md#autologoutonautherror)
 
 #### Defined in
 
@@ -38,7 +38,7 @@ Cluster context name.
 
 #### Overrides
 
-[RequestParams](lib_k8s_apiProxy.RequestParams.md).[cluster](lib_k8s_apiProxy.RequestParams.md#cluster)
+[RequestOptions](lib_k8s_apiProxy.RequestOptions.md).[cluster](lib_k8s_apiProxy.RequestOptions.md#cluster)
 
 #### Defined in
 
@@ -54,7 +54,7 @@ Is the request expected to receive JSON data?
 
 #### Inherited from
 
-[RequestParams](lib_k8s_apiProxy.RequestParams.md).[isJSON](lib_k8s_apiProxy.RequestParams.md#isjson)
+[RequestOptions](lib_k8s_apiProxy.RequestOptions.md).[isJSON](lib_k8s_apiProxy.RequestOptions.md#isjson)
 
 #### Defined in
 
@@ -70,7 +70,7 @@ Number of milliseconds to wait for a response.
 
 #### Inherited from
 
-[RequestParams](lib_k8s_apiProxy.RequestParams.md).[timeout](lib_k8s_apiProxy.RequestParams.md#timeout)
+[RequestOptions](lib_k8s_apiProxy.RequestOptions.md).[timeout](lib_k8s_apiProxy.RequestOptions.md#timeout)
 
 #### Defined in
 
