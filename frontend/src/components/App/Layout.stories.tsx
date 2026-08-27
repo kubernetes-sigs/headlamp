@@ -14,13 +14,18 @@
  * limitations under the License.
  */
 
+import { configureStore } from '@reduxjs/toolkit';
 import { Meta, StoryFn } from '@storybook/react';
 import { delay, http, HttpResponse } from 'msw';
 import { Provider } from 'react-redux';
 import { MemoryRouter } from 'react-router-dom';
-import store from '../../redux/stores/store';
+import { pluginsLoaded } from '../../plugin/pluginsSlice';
+import reducers from '../../redux/reducers/reducers';
 import { API_BASE, TestContext } from '../../test';
 import Layout from './Layout';
+
+const layoutStore = configureStore({ reducer: reducers });
+layoutStore.dispatch(pluginsLoaded());
 
 export default {
   title: 'App/Layout',
@@ -95,14 +100,17 @@ export default {
             metadata: {},
           })
         ),
+        http.all(`${API_BASE}/clusters/:cluster/*`, () =>
+          HttpResponse.json({ kind: 'List', items: [], metadata: {} })
+        ),
       ],
     },
   },
   decorators: [
     Story => (
-      <Provider store={store}>
+      <Provider store={layoutStore}>
         <MemoryRouter initialEntries={['/']}>
-          <TestContext>
+          <TestContext store={layoutStore}>
             <Story />
           </TestContext>
         </MemoryRouter>
@@ -125,9 +133,13 @@ Default.parameters = {
 export const WithClusterRoute = Template.bind({});
 WithClusterRoute.decorators = [
   Story => (
-    <Provider store={store}>
+    <Provider store={layoutStore}>
       <MemoryRouter initialEntries={['/c/minikube/pods']}>
-        <TestContext routerMap={{ cluster: 'minikube' }}>
+        <TestContext
+          store={layoutStore}
+          routerMap={{ cluster: 'minikube', route: 'pods' }}
+          urlPrefix="/c"
+        >
           <Story />
         </TestContext>
       </MemoryRouter>
@@ -217,9 +229,13 @@ ErrorState.parameters = {
 export const MultiCluster = Template.bind({});
 MultiCluster.decorators = [
   Story => (
-    <Provider store={store}>
+    <Provider store={layoutStore}>
       <MemoryRouter initialEntries={['/c/minikube+production/pods']}>
-        <TestContext routerMap={{ cluster: 'minikube+production' }}>
+        <TestContext
+          store={layoutStore}
+          routerMap={{ cluster: 'minikube+production', route: 'pods' }}
+          urlPrefix="/c"
+        >
           <Story />
         </TestContext>
       </MemoryRouter>
@@ -266,6 +282,9 @@ MultiCluster.parameters = {
           items: [],
           metadata: {},
         })
+      ),
+      http.all(`${API_BASE}/clusters/:cluster/*`, () =>
+        HttpResponse.json({ kind: 'List', items: [], metadata: {} })
       ),
     ],
   },
