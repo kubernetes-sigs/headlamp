@@ -696,6 +696,7 @@
   "Unable to load owned pods for diagnostics": "",
   "Loading diagnostics": "",
   "Addresses": "ایڈریسز",
+  "Not Ready Addresses": "",
   "Address Type": "ایڈریس کی قسم",
   "Hostname": "ہوسٹ نام",
   "Zone": "زون",

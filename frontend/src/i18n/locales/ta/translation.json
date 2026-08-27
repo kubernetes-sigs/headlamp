@@ -696,6 +696,7 @@
   "Unable to load owned pods for diagnostics": "",
   "Loading diagnostics": "",
   "Addresses": "முகவரிகள்",
+  "Not Ready Addresses": "",
   "Address Type": "",
   "Hostname": "ஹோஸ்ட்நேம்",
   "Zone": "",

@@ -696,6 +696,7 @@
   "Unable to load owned pods for diagnostics": "",
   "Loading diagnostics": "",
   "Addresses": "Címek",
+  "Not Ready Addresses": "",
   "Address Type": "Cím típusa",
   "Hostname": "Állomásnév",
   "Zone": "Zóna",

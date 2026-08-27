@@ -701,6 +701,7 @@
   "Unable to load owned pods for diagnostics": "",
   "Loading diagnostics": "",
   "Addresses": "",
+  "Not Ready Addresses": "",
   "Address Type": "",
   "Hostname": "",
   "Zone": "",

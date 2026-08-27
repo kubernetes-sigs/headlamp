@@ -691,6 +691,7 @@
   "Unable to load owned pods for diagnostics": "",
   "Loading diagnostics": "",
   "Addresses": "地址",
+  "Not Ready Addresses": "",
   "Address Type": "地址类型",
   "Hostname": "主机名称",
   "Zone": "可用区",

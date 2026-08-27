@@ -706,6 +706,7 @@
   "Unable to load owned pods for diagnostics": "Не удалось загрузить Поды для диагностики",
   "Loading diagnostics": "Загрузка диагностики",
   "Addresses": "Адреса",
+  "Not Ready Addresses": "",
   "Address Type": "Тип адреса",
   "Hostname": "Имя хоста",
   "Zone": "Зона",
