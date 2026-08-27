@@ -17,6 +17,7 @@
 
 - [AppLogoProps](../interfaces/plugin_registry.AppLogoProps.md)
 - [ClusterChooserProps](../interfaces/plugin_registry.ClusterChooserProps.md)
+- [ClusterPreOpenContext](../interfaces/plugin_registry.ClusterPreOpenContext.md)
 - [CreateResourceEvent](../interfaces/plugin_registry.CreateResourceEvent.md)
 - [DeleteResourceEvent](../interfaces/plugin_registry.DeleteResourceEvent.md)
 - [DetailsViewSectionProps](../interfaces/plugin_registry.DetailsViewSectionProps.md)
@@ -80,6 +81,36 @@ ___
 #### Defined in
 
 [components/cluster/ClusterChooser.tsx:10](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/components/cluster/ClusterChooser.tsx#L10)
+
+___
+
+### ClusterPreOpenHook
+
+Ƭ **ClusterPreOpenHook**: (`context`: [`ClusterPreOpenContext`](../interfaces/plugin_registry.ClusterPreOpenContext.md)) => `Promise`<`void`>
+
+A hook run once, before a cluster's views are rendered.
+
+Use it to perform asynchronous preparation such as starting a proxy, refreshing
+credentials, or writing a kubeconfig context. Hooks run for each single-cluster
+open; combined multi-cluster views currently skip preparation.
+
+#### Type declaration
+
+▸ (`context`): `Promise`<`void`>
+
+##### Parameters
+
+| Name | Type |
+| :------ | :------ |
+| `context` | [`ClusterPreOpenContext`](../interfaces/plugin_registry.ClusterPreOpenContext.md) |
+
+##### Returns
+
+`Promise`<`void`>
+
+#### Defined in
+
+[redux/clusterProviderSlice.ts:94](https://github.com/kubernetes-sigs/headlamp/blob/1079044ed/frontend/src/redux/clusterProviderSlice.ts#L94)
 
 ___
 
@@ -376,6 +407,44 @@ registerClusterEmptyState(({ defaultContent }) => (
 #### Defined in
 
 [plugin/registry.tsx:972](https://github.com/kubernetes-sigs/headlamp/blob/558672b5a/frontend/src/plugin/registry.tsx#L972)
+
+___
+
+### registerClusterProviderPreOpen
+
+▸ **registerClusterProviderPreOpen**(`hook`): `void`
+
+Register a hook that runs once, before a cluster's views are rendered.
+
+The returned promise gates entry to the cluster. While it is pending the app
+shows a connecting state, and if it rejects the error is shown with a retry
+affordance. Multiple hooks run sequentially in registration order.
+
+**`example`**
+
+```ts
+import { registerClusterProviderPreOpen } from '@kinvolk/headlamp-plugin/lib';
+
+registerClusterProviderPreOpen(async ({ clusterConf, reportProgress, signal }) => {
+  if (!isMyCluster(clusterConf)) return;
+  reportProgress?.('Preparing cluster connection...');
+  await prepareClusterConnection({ clusterConf, signal });
+});
+```
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `hook` | [`ClusterPreOpenHook`](plugin_registry.md#clusterpreopenhook) | The hook to run before a cluster is opened. |
+
+#### Returns
+
+`void`
+
+#### Defined in
+
+[plugin/registry.tsx:1102](https://github.com/kubernetes-sigs/headlamp/blob/1079044ed/frontend/src/plugin/registry.tsx#L1102)
 
 ___
 
