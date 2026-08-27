@@ -19,10 +19,25 @@ import {
   beforePluginStartupDeadline,
   fetchAndExecutePlugins,
   initializePlugins,
+  isPluginDevelopmentMode,
   permissionSecretsFromApp,
 } from './index';
 import { PluginInfo } from './pluginsSlice';
 import Registry from './registry';
+
+describe('isPluginDevelopmentMode', () => {
+  it('uses Electron development mode for a production renderer build', () => {
+    expect(isPluginDevelopmentMode(true, 'production')).toBe(true);
+  });
+
+  it('does not trust renderer development mode in a packaged Electron host', () => {
+    expect(isPluginDevelopmentMode(false, 'development')).toBe(false);
+  });
+
+  it('uses renderer development mode outside Electron', () => {
+    expect(isPluginDevelopmentMode(undefined, 'development')).toBe(true);
+  });
+});
 
 describe('beforePluginStartupDeadline', () => {
   afterEach(() => {
