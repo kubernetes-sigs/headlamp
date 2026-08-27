@@ -52,6 +52,23 @@ describe('desktop preload API', () => {
     expect(desktopApi.platform).toBe(process.platform);
   });
 
+  it('requires the renderer to provide the scoped cluster proxy capability', async () => {
+    electronMocks.invoke.mockResolvedValue({ success: true });
+    const target = {
+      cluster: 'cluster-a',
+      subscriptionId: '00000000-0000-0000-0000-000000000000',
+      resourceGroup: 'valid-rg',
+    };
+
+    await expect(
+      desktopApi.startClusterProxy(target, '0123456789abcdef0123456789abcdef')
+    ).resolves.toEqual({ success: true });
+    expect(electronMocks.invoke).toHaveBeenCalledWith('start-cluster-proxy', {
+      ...target,
+      capabilitySecret: '0123456789abcdef0123456789abcdef',
+    });
+  });
+
   it('sends messages only on allowed channels', () => {
     desktopApi.send('locale', 'en');
     desktopApi.send('not-allowed', 'ignored');
