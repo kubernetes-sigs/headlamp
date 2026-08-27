@@ -297,6 +297,7 @@
   "Dismiss": "Rejeter",
   "Lost connection to the cluster.": "Connexion perdue avec le cluster.",
   "Check cluster settings": "Vérifier les paramètres du cluster",
+  "Loading data for {{title}}": "",
   "No": "Non",
   "Yes": "Oui",
   "Create {{ name }}": "Créer {{ name }}",
