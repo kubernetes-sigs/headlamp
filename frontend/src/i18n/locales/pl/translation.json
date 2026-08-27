@@ -289,6 +289,7 @@
   "Dismiss": "Odrzuć",
   "Lost connection to the cluster.": "Utracono połączenie z klastrem.",
   "Check cluster settings": "",
+  "Loading data for {{title}}": "",
   "No": "Nie",
   "Yes": "Tak",
   "Create {{ name }}": "Utwórz {{ name }}",

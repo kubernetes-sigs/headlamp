@@ -286,6 +286,7 @@
   "Dismiss": "忽略",
   "Lost connection to the cluster.": "與叢集的連線遺失。",
   "Check cluster settings": "",
+  "Loading data for {{title}}": "",
   "No": "否",
   "Yes": "是",
   "Create {{ name }}": "新增 {{ name }}",

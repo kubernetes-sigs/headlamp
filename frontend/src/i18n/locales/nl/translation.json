@@ -287,6 +287,7 @@
   "Dismiss": "Negeren",
   "Lost connection to the cluster.": "Verbinding met het cluster verbroken.",
   "Check cluster settings": "",
+  "Loading data for {{title}}": "",
   "No": "Nee",
   "Yes": "Ja",
   "Create {{ name }}": "{{ name }} maken",

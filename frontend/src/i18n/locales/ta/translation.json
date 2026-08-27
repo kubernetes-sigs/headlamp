@@ -287,6 +287,7 @@
   "Dismiss": "நிராகரி",
   "Lost connection to the cluster.": "க்ளஸ்டருக்கான இணைப்பு துண்டிக்கப்பட்டது.",
   "Check cluster settings": "",
+  "Loading data for {{title}}": "",
   "No": "இல்லை",
   "Yes": "ஆம்",
   "Create {{ name }}": "{{ name }} உருவாக்கு",

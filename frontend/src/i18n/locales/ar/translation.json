@@ -291,6 +291,7 @@
   "Dismiss": "إغلاق",
   "Lost connection to the cluster.": "فُقد الاتصال بالكتلة.",
   "Check cluster settings": "",
+  "Loading data for {{title}}": "",
   "No": "لا",
   "Yes": "نعم",
   "Create {{ name }}": "إنشاء {{ name }}",

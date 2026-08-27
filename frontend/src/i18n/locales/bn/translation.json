@@ -287,6 +287,7 @@
   "Dismiss": "বরখাস্ত",
   "Lost connection to the cluster.": "Cluster এর সাথে সংযোগ হারিয়েছে।",
   "Check cluster settings": "",
+  "Loading data for {{title}}": "",
   "No": "না",
   "Yes": "হ্যাঁ",
   "Create {{ name }}": "Create করুন {{ name }}",

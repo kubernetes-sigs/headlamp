@@ -288,6 +288,7 @@
   "Dismiss": "Dismiss",
   "Lost connection to the cluster.": "Lost connection to the cluster.",
   "Check cluster settings": "",
+  "Loading data for {{title}}": "",
   "No": "No",
   "Yes": "Yes",
   "Create {{ name }}": "Create {{ name }}",

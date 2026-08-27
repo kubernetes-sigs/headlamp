@@ -286,6 +286,7 @@
   "Dismiss": "Tutup",
   "Lost connection to the cluster.": "Koneksi terputus ke kluster.",
   "Check cluster settings": "",
+  "Loading data for {{title}}": "",
   "No": "Tidak",
   "Yes": "Ya",
   "Create {{ name }}": "Buat {{ name }}",
