@@ -33,6 +33,7 @@ import {
   defaultPluginsDir,
   defaultUserPluginsDir,
   getExtraFiles,
+  getPluginBinDirectories,
   PluginManager,
   setAppConfigDirName,
 } from './plugin-management';
@@ -90,6 +91,25 @@ describe('default plugin directories', () => {
       expect(existsSync).not.toHaveBeenCalled();
     }
   );
+});
+
+describe('plugin bin directories', () => {
+  it('allows aks-desktop only for bundled plugins', () => {
+    const pluginsDir = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugin-bins-'));
+    const aksDesktopBin = path.join(pluginsDir, 'aks-desktop', 'bin');
+    const oldAzureAksBin = path.join(pluginsDir, 'azure-aks', 'bin');
+    const minikubeBin = path.join(pluginsDir, 'headlamp_minikube', 'bin');
+    fs.mkdirSync(aksDesktopBin, { recursive: true });
+    fs.mkdirSync(oldAzureAksBin, { recursive: true });
+    fs.mkdirSync(minikubeBin, { recursive: true });
+
+    try {
+      expect(getPluginBinDirectories(pluginsDir, 'bundled')).toEqual([aksDesktopBin, minikubeBin]);
+      expect(getPluginBinDirectories(pluginsDir, 'user')).toEqual([minikubeBin]);
+    } finally {
+      fs.rmSync(pluginsDir, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('plugin management loading', () => {

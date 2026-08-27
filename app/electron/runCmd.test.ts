@@ -15,6 +15,7 @@
  */
 
 import { EventEmitter } from 'events';
+import fs from 'fs';
 import path from 'path';
 import { afterEach, beforeEach, describe, expect, it, Mock, vi } from 'vitest';
 
@@ -496,6 +497,86 @@ describe('handleRunCommand', () => {
     }
   });
 
+  it('resolves the AKS Desktop script from the shipped plugin root', async () => {
+    const { loadSettings } = await import('./settings');
+    const originalResourcesPath = process.resourcesPath;
+    // @ts-ignore Electron defines this at runtime.
+    process.resourcesPath = '/resources';
+    vi.mocked(loadSettings).mockReturnValueOnce({
+      confirmedCommands: { 'scriptjs azure-aks/azure-api.js': true },
+    });
+    const existsSync = vi
+      .spyOn(fs, 'existsSync')
+      .mockImplementation(filePath =>
+        [
+          path.join('/plugins/user', 'azure-aks/azure-api.js'),
+          path.join('/resources', '.plugins', 'azure-aks/azure-api.js'),
+        ].includes(String(filePath))
+      );
+    const eventData = {
+      id: 'aks-desktop-script-id',
+      command: 'scriptjs',
+      args: ['azure-aks/azure-api.js'],
+      options: {},
+      permissionSecrets: { 'runCmd-scriptjs-azure-aks/azure-api.js': 99 },
+    };
+
+    try {
+      await handleRunCommand(fakeEvent, eventData, { id: 1 } as any, {
+        'runCmd-scriptjs-azure-aks/azure-api.js': 99,
+      });
+
+      expect(spawnMock).toHaveBeenCalledWith(
+        process.execPath,
+        [path.join('/resources', '.plugins', 'azure-aks/azure-api.js')],
+        expect.objectContaining({
+          env: expect.objectContaining({ HEADLAMP_RUN_SCRIPT: 'true' }),
+        })
+      );
+      expect(existsSync).not.toHaveBeenCalledWith(
+        path.join('/plugins/user', 'azure-aks/azure-api.js')
+      );
+    } finally {
+      existsSync.mockRestore();
+      // @ts-ignore Electron defines this at runtime.
+      process.resourcesPath = originalResourcesPath;
+    }
+  });
+
+  it('resolves the AKS Desktop script from the development plugin root in development', async () => {
+    const { loadSettings } = await import('./settings');
+    vi.stubEnv('NODE_ENV', 'development');
+    vi.mocked(loadSettings).mockReturnValueOnce({
+      confirmedCommands: { 'scriptjs azure-aks/azure-api.js': true },
+    });
+    const existsSync = vi.spyOn(fs, 'existsSync').mockReturnValue(true);
+    const eventData = {
+      id: 'aks-desktop-development-script-id',
+      command: 'scriptjs',
+      args: ['azure-aks/azure-api.js'],
+      options: {},
+      permissionSecrets: { 'runCmd-scriptjs-azure-aks/azure-api.js': 99 },
+    };
+
+    try {
+      await handleRunCommand(fakeEvent, eventData, { id: 1 } as any, {
+        'runCmd-scriptjs-azure-aks/azure-api.js': 99,
+      });
+
+      expect(spawnMock).toHaveBeenCalledWith(
+        process.execPath,
+        [path.join('/plugins/default', 'azure-aks/azure-api.js')],
+        expect.objectContaining({
+          env: expect.objectContaining({ HEADLAMP_RUN_SCRIPT: 'true' }),
+        })
+      );
+      expect(existsSync).not.toHaveBeenCalled();
+    } finally {
+      existsSync.mockRestore();
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('initializes consent settings for a new command', async () => {
     const { loadSettings, saveSettings } = await import('./settings');
     vi.mocked(loadSettings).mockReturnValueOnce({});
@@ -603,12 +684,12 @@ describe('addRunCmdConsent', () => {
     }
   });
 
-  it('pre-populates the Azure AKS script command', async () => {
+  it('pre-populates the AKS Desktop script command', async () => {
     const { loadSettings, saveSettings } = await import('./settings');
     vi.mocked(loadSettings).mockReturnValueOnce({ confirmedCommands: {} });
     vi.mocked(saveSettings).mockClear();
 
-    addRunCmdConsent({ name: 'azure-aks' });
+    addRunCmdConsent({ name: 'aks-desktop' });
 
     expect(saveSettings).toHaveBeenCalledWith(
       '/fake/settings.json',
@@ -711,6 +792,12 @@ describe('setupRunCmdHandlers', () => {
       on: vi.fn((channel: string, handler: (...args: any[]) => void) => {
         ipcHandlers.set(channel, handler);
       }),
+      handle: vi.fn((channel: string, handler: (...args: any[]) => void) => {
+        ipcHandlers.set(channel, handler);
+      }),
+      removeHandler: vi.fn((channel: string) => {
+        ipcHandlers.delete(channel);
+      }),
     } as any;
 
     setupRunCmdHandlers(mainWindow, ipcMain);
@@ -724,6 +811,8 @@ describe('setupRunCmdHandlers', () => {
 
     expect(send).toHaveBeenCalledTimes(2);
     expect(ipcHandlers.has('run-command')).toBe(true);
+    const permissionSecrets = send.mock.calls[0][1];
+    expect(permissionSecrets.startClusterProxy).toMatch(/^[0-9a-f]{32}$/);
   });
 });
 
