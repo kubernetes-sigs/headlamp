@@ -15,44 +15,27 @@
  */
 
 import { describe, expect, it, vi } from 'vitest';
-import { createAksDesktopRunCommand, getClusterProxyArgValues } from './clusterProxy';
+import { getClusterProxyArgValues, isTrustedClusterProxyPlugin } from './clusterProxy';
 
-describe('createAksDesktopRunCommand', () => {
-  it('captures the legacy command secret only for trusted AKS Desktop', () => {
-    const internalRunCommand = vi.fn();
-    const send = vi.fn();
-    const receive = vi.fn();
-    const secrets = { 'runCmd-scriptjs-azure-aks/azure-api.js': 731 };
-    const pluginRunCommand = createAksDesktopRunCommand(
-      true,
-      internalRunCommand,
-      secrets,
-      send,
-      receive
-    );
-
-    pluginRunCommand?.('scriptjs', ['azure-aks/azure-api.js'], {});
-
-    expect(internalRunCommand).toHaveBeenCalledWith(
-      'scriptjs',
-      ['azure-aks/azure-api.js'],
-      {},
-      secrets,
-      send,
-      receive
-    );
-    expect(
-      createAksDesktopRunCommand(false, internalRunCommand, {}, send, receive)
-    ).toBeUndefined();
+describe('isTrustedClusterProxyPlugin', () => {
+  it('allows shipped AKS Desktop and development builds, but rejects user-installed spoofing', () => {
+    expect(isTrustedClusterProxyPlugin(true, 'shipped', false)).toBe(true);
+    expect(isTrustedClusterProxyPlugin(true, 'development', true)).toBe(true);
+    expect(isTrustedClusterProxyPlugin(true, 'development', false)).toBe(false);
+    expect(isTrustedClusterProxyPlugin(true, 'user', false)).toBe(false);
+    expect(isTrustedClusterProxyPlugin(true, undefined, false)).toBe(false);
+    expect(isTrustedClusterProxyPlugin(false, 'shipped', false)).toBe(false);
   });
 });
 
 describe('getClusterProxyArgValues', () => {
-  it('injects a proxy starter with the private capability for Azure AKS', async () => {
+  it('injects a proxy starter with the private capability for AKS Desktop', async () => {
     const invokeProxy = vi.fn().mockResolvedValue({ success: true });
-    const [args, values] = getClusterProxyArgValues(true, invokeProxy, {
-      startClusterProxy: 731,
-    });
+    const [args, values] = getClusterProxyArgValues(
+      true,
+      invokeProxy,
+      '0123456789abcdef0123456789abcdef'
+    );
 
     expect(args).toEqual(['startClusterProxy']);
     await expect(
@@ -68,22 +51,25 @@ describe('getClusterProxyArgValues', () => {
         subscriptionId: '00000000-0000-0000-0000-000000000000',
         resourceGroup: 'valid-rg',
       },
-      731
+      '0123456789abcdef0123456789abcdef'
     );
   });
 
   it('does not expose proxy startup to another plugin', () => {
     const invokeProxy = vi.fn();
 
-    expect(getClusterProxyArgValues(false, invokeProxy, { startClusterProxy: 731 })).toEqual([
-      [],
-      [],
-    ]);
+    expect(
+      getClusterProxyArgValues(false, invokeProxy, '0123456789abcdef0123456789abcdef')
+    ).toEqual([[], []]);
     expect(invokeProxy).not.toHaveBeenCalled();
   });
 
   it('does not create a capability without a preload bridge or secret', () => {
-    expect(getClusterProxyArgValues(true, undefined, { startClusterProxy: 731 })).toEqual([[], []]);
-    expect(getClusterProxyArgValues(true, vi.fn(), {})).toEqual([[], []]);
+    expect(getClusterProxyArgValues(true, undefined, '0123456789abcdef0123456789abcdef')).toEqual([
+      [],
+      [],
+    ]);
+    expect(getClusterProxyArgValues(true, vi.fn(), undefined)).toEqual([[], []]);
+    expect(getClusterProxyArgValues(true, vi.fn(), 731 as any)).toEqual([[], []]);
   });
 });
