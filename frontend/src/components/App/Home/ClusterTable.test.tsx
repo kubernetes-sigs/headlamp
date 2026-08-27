@@ -633,6 +633,28 @@ describe('ClusterContextMenu', () => {
     errorSpy.mockRestore();
   });
 
+  it('keeps Delete when a plugin registers an additive cluster action', () => {
+    ClusterMenuItems = [() => <div role="menuitem">Start proxy</div>];
+    render(
+      <SnackbarProvider>
+        <MemoryRouter>
+          <ClusterContextMenu
+            cluster={
+              {
+                name: 'spoke-a',
+                auth_type: '',
+                meta_data: { source: 'dynamic_cluster' },
+              } as Cluster
+            }
+          />
+        </MemoryRouter>
+      </SnackbarProvider>
+    );
+    fireEvent.click(screen.getByRole('button', { name: 'Actions' }));
+    expect(screen.getByText('Start proxy')).toBeInTheDocument();
+    expect(screen.getByText('Delete')).toBeInTheDocument();
+  });
+
   it('updates the config before notifying the page after deleting a cluster', async () => {
     vi.mocked(deleteCluster).mockResolvedValue({} as Awaited<ReturnType<typeof deleteCluster>>);
     const onClusterRemoved = vi.fn();
