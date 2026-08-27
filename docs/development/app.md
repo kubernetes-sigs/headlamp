@@ -255,6 +255,21 @@ The optional `platforms` array accepts `linux`, `mac`, and `win`. An entry witho
 is missing, escapes the resources directory, is a directory or symbolic link,
 or does not match its declared digest.
 
+#### Command environment callback
+
+A custom application can set `commandEnvironment` to the resource-relative path
+of a CommonJS module, for example `runtime/environment.cjs`. The module exports
+`configureEnvironment(environment, manifest, resourcesDirectory)` and returns an
+environment object synchronously. Headlamp calls it after login-shell setup for
+plugin commands and managed proxies. Without it, environment behavior is unchanged.
+
+This is trusted application code, not a plugin API. The module must remain within
+app resources and outside `.plugins`; development builds load it from `app/resources`.
+The product must package the module using `resources`. Callback errors prevent
+command execution instead of silently reverting to a different environment.
+Existing command authorization, consent, and plugin PATH filtering still apply.
+Products own any tool selection or verification policy implemented by the callback.
+
 ## Development workflow
 
 The typical development workflow for the desktop app:
