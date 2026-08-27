@@ -31,9 +31,9 @@ const (
 
 // GetCookiePath returns the full cookie path including baseURL.
 func GetCookiePath(baseURL, cluster string) string {
-	if baseURL != "" {
-		baseURL = "/" + strings.Trim(baseURL, "/")
-		return baseURL + "/clusters/" + cluster
+	trimmedBaseURL := strings.Trim(baseURL, "/")
+	if trimmedBaseURL != "" {
+		return "/" + trimmedBaseURL + "/clusters/" + cluster
 	}
 
 	return "/clusters/" + cluster

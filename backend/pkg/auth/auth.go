@@ -67,8 +67,8 @@ func DecodeBase64JSON(base64JSON string) (map[string]interface{}, error) {
 	return payloadMap, nil
 }
 
-// clusterPathRegex matches /clusters/<cluster>/...
-var clusterPathRegex = regexp.MustCompile(`^/clusters/([^/]+)/.*`)
+// clusterPathRegex matches (optional baseURL)/clusters/<cluster>(/optional subpath).
+var clusterPathRegex = regexp.MustCompile(`^.*?/clusters/([^/?#]+)(?:/.*)?$`)
 
 // bearerTokenRegex matches valid bearer tokens as specified by RFC 6750:
 // https://datatracker.ietf.org/doc/html/rfc6750#section-2.1
@@ -89,16 +89,31 @@ func BearerTokenValue(token string) string {
 	return strings.TrimSpace(token)
 }
 
-// ParseClusterAndToken extracts the cluster name from the URL path and
-// the Bearer token from the Authorization header of the HTTP request, falling
-// back to the cluster cookie when the header is missing.
-func ParseClusterAndToken(r *http.Request) (string, string) {
-	cluster := ""
+// ExtractClusterFromPathWithBaseURL extracts the cluster name from a URL path,
+// taking into account the configured baseURL.
+func ExtractClusterFromPathWithBaseURL(path, baseURL string) string {
+	prefix := clusterURLPrefix(baseURL)
+	if strings.HasPrefix(path, prefix) {
+		trimmed := strings.TrimPrefix(path, prefix)
+		if idx := strings.IndexAny(trimmed, "/?#"); idx != -1 {
+			return trimmed[:idx]
+		}
 
-	matches := clusterPathRegex.FindStringSubmatch(r.URL.Path)
-	if len(matches) > 1 {
-		cluster = matches[1]
+		return trimmed
 	}
+
+	matches := clusterPathRegex.FindStringSubmatch(path)
+	if len(matches) > 1 {
+		return matches[1]
+	}
+
+	return ""
+}
+
+// ParseClusterAndTokenWithBaseURL extracts the cluster name from the URL path relative
+// to the optional baseURL, and the Bearer token from the Authorization header or cookie.
+func ParseClusterAndTokenWithBaseURL(r *http.Request, baseURL string) (string, string) {
+	cluster := ExtractClusterFromPathWithBaseURL(r.URL.Path, baseURL)
 
 	// Try Authorization header first (for backward compatibility)
 	token := BearerTokenValue(r.Header.Get("Authorization"))
@@ -118,6 +133,13 @@ func ParseClusterAndToken(r *http.Request) (string, string) {
 	}
 
 	return cluster, token
+}
+
+// ParseClusterAndToken extracts the cluster name from the URL path and
+// the Bearer token from the Authorization header of the HTTP request, falling
+// back to the cluster cookie when the header is missing.
+func ParseClusterAndToken(r *http.Request) (string, string) {
+	return ParseClusterAndTokenWithBaseURL(r, "")
 }
 
 // GetExpiryUnixTimeUTC expiration unix time UTC from a token payload map exp field.
@@ -323,6 +345,7 @@ func RefreshAndCacheNewToken(ctx context.Context, oidcAuthConfig *kubeconfig.Oid
 }
 
 type MeHandlerOptions struct {
+	BaseURL string
 	// UsernamePaths is a list of JMESPath expressions to resolve the username claim.
 	UsernamePaths string
 	// EmailPaths is a list of JMESPath expressions to resolve the email claim.
@@ -361,7 +384,7 @@ func HandleMe(opts MeHandlerOptions) http.HandlerFunc {
 			return
 		}
 
-		requestCluster, token := ParseClusterAndToken(r)
+		requestCluster, token := ParseClusterAndTokenWithBaseURL(r, opts.BaseURL)
 
 		if requestCluster == "" {
 			requestCluster = clusterName
