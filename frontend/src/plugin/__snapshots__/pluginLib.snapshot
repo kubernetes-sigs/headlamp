@@ -835,5 +835,6 @@
     "storeStatelessClusterKubeconfig": [Function],
     "toStatelessConfigState": [Function],
   },
+  "useLayoutBreakpoints": [Function],
   "useTranslation": [Function],
 }

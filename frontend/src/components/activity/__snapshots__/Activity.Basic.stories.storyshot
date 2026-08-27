@@ -24,7 +24,7 @@
               class="MuiBox-root css-1ww6zew"
             />
             <p
-              class="MuiTypography-root MuiTypography-body1 css-1bfo8fe-MuiTypography-root"
+              class="MuiTypography-root MuiTypography-body1 css-1gb1y1o-MuiTypography-root"
             />
             <div
               class="MuiBox-root css-1po99kh"
@@ -83,7 +83,7 @@
               class="MuiBox-root css-1ww6zew"
             />
             <p
-              class="MuiTypography-root MuiTypography-body1 css-1bfo8fe-MuiTypography-root"
+              class="MuiTypography-root MuiTypography-body1 css-1gb1y1o-MuiTypography-root"
             />
             <div
               class="MuiBox-root css-1po99kh"
@@ -138,13 +138,13 @@
         </div>
       </div>
       <div
-        class="MuiBox-root css-124lm9m"
+        class="MuiBox-root css-o4qep2"
       >
         <div
           class="MuiBox-root css-1mw5uhz"
         >
           <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-yxr1gy-MuiButtonBase-root-MuiButton-root"
+            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-80uxhj-MuiButtonBase-root-MuiButton-root"
             tabindex="0"
             type="button"
           >
@@ -179,7 +179,7 @@
           class="MuiBox-root css-1oygo4f"
         >
           <button
-            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-yxr1gy-MuiButtonBase-root-MuiButton-root"
+            class="MuiButtonBase-root MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation MuiButton-root MuiButton-text MuiButton-textPrimary MuiButton-sizeMedium MuiButton-textSizeMedium MuiButton-colorPrimary MuiButton-disableElevation css-80uxhj-MuiButtonBase-root-MuiButton-root"
             tabindex="0"
             type="button"
           >

@@ -23,7 +23,7 @@
     >
       <div
         aria-labelledby=":mock-test-id:"
-        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthLg MuiDialog-paperFullWidth css-kl791l-MuiPaper-root-MuiDialog-paper"
+        class="MuiPaper-root MuiPaper-outlined MuiPaper-rounded MuiDialog-paper MuiDialog-paperScrollPaper MuiDialog-paperWidthLg MuiDialog-paperFullWidth css-7loes6-MuiPaper-root-MuiDialog-paper"
         role="dialog"
       >
         <h2
@@ -348,7 +348,7 @@
               </div>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-1z0dvx8-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-1vd824g-MuiGrid-root"
             >
               <button
                 aria-label="Find"
@@ -363,7 +363,7 @@
               </button>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-1z0dvx8-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-1vd824g-MuiGrid-root"
             >
               <button
                 aria-label="Clear"
@@ -378,7 +378,7 @@
               </button>
             </div>
             <div
-              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-1z0dvx8-MuiGrid-root"
+              class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-true css-1vd824g-MuiGrid-root"
             >
               <button
                 aria-label="Download"
