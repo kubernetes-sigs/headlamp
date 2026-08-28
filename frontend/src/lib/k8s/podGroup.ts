@@ -150,6 +150,35 @@ export function getDisruptionMode(
   return undefined;
 }
 
+/**
+ * Whether a cluster serves one of the scheduling.k8s.io resources.
+ *
+ * This asks for each candidate version directly instead of using apiDiscovery, because
+ * discovery only reports the first version of each group and scheduling.k8s.io also
+ * serves v1.
+ * @param cluster - The cluster to check.
+ * @param apiVersions - The group versions the resource may be served by, newest first.
+ * @param apiName - The plural name of the resource to look for.
+ * @returns true when one of the versions serves the resource.
+ */
+export async function isSchedulingResourceServed(
+  cluster: string,
+  apiVersions: string[],
+  apiName: string
+): Promise<boolean> {
+  for (const version of apiVersions) {
+    try {
+      const response = await request(`/apis/${version}`, { cluster });
+      if (response?.resources?.some((resource: { name?: string }) => resource.name === apiName)) {
+        return true;
+      }
+    } catch {
+      continue;
+    }
+  }
+  return false;
+}
+
 class PodGroup extends KubeObject<KubePodGroup> {
   static kind = 'PodGroup';
   static apiName = 'podgroups';
@@ -163,30 +192,11 @@ class PodGroup extends KubeObject<KubePodGroup> {
   /**
    * Whether the cluster serves the workload aware scheduling APIs, which requires the
    * GenericWorkload feature gate to be enabled.
-   *
-   * This asks for each candidate version directly instead of using apiDiscovery, because
-   * discovery only reports the first version of each group and scheduling.k8s.io also
-   * serves v1.
-   *
    * @param cluster - The cluster to check.
    * @returns true when the PodGroup resource is served.
    */
-  static async isEnabled(cluster: string): Promise<boolean> {
-    for (const version of PodGroup.apiVersion) {
-      try {
-        const response = await request(`/apis/${version}`, { cluster });
-        if (
-          response?.resources?.some(
-            (resource: { name?: string }) => resource.name === PodGroup.apiName
-          )
-        ) {
-          return true;
-        }
-      } catch {
-        continue;
-      }
-    }
-    return false;
+  static isEnabled(cluster: string): Promise<boolean> {
+    return isSchedulingResourceServed(cluster, PodGroup.apiVersion, PodGroup.apiName);
   }
 
   get spec() {

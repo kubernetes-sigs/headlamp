@@ -23,6 +23,7 @@
  * file names would collide on case insensitive filesystems.
  */
 
+import type { CompositePodGroupSchedulingPolicy } from './compositePodGroup';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
 import type {
@@ -31,6 +32,13 @@ import type {
   PodGroupSchedulingConstraints,
   PodGroupSchedulingPolicy,
 } from './podGroup';
+
+/**
+ * Re-exported from ./compositePodGroup, where the composite types now live. Plugins have
+ * imported these from here since they were introduced, so they stay available.
+ */
+export type { CompositePodGroupSchedulingPolicy };
+export { getCompositeDisruptionMode } from './compositePodGroup';
 
 export interface PodGroupTemplate {
   name: string;
@@ -48,18 +56,6 @@ export interface PodGroupTemplate {
 }
 
 /**
- * How the child groups of a composite template are scheduled. Mirrors
- * PodGroupSchedulingPolicy, except that the gang policy counts child groups rather
- * than pods.
- */
-export interface CompositePodGroupSchedulingPolicy {
-  basic?: Record<string, never>;
-  gang?: {
-    minGroupCount: number;
-  };
-}
-
-/**
  * A group of pod group templates scheduled together. Served by v1alpha3 and v1beta1,
  * and may nest further composite templates.
  */
@@ -74,24 +70,6 @@ export interface CompositePodGroupTemplate {
   preemptionPolicy?: 'PreemptLowerPriority' | 'Never';
   podGroupTemplates?: PodGroupTemplate[];
   compositePodGroupTemplates?: CompositePodGroupTemplate[];
-}
-
-/**
- * Human readable disruption mode of a composite template. The API describes it as one
- * of Single or All: disrupt one child group at a time, or the whole composite together.
- * @param mode - The disruptionMode field of a composite template.
- * @returns 'Single', 'All', or undefined when no mode is set.
- */
-export function getCompositeDisruptionMode(
-  mode: PodGroupDisruptionMode | undefined
-): 'Single' | 'All' | undefined {
-  if (mode?.single) {
-    return 'Single';
-  }
-  if (mode?.all) {
-    return 'All';
-  }
-  return undefined;
 }
 
 export interface WorkloadSpec {
