@@ -1016,5 +1016,13 @@
   "Toggle Table Filters": "Hidupkan/Matikan Filter Tabel",
   "Toggle column filters in tables": "Hidupkan/matikan filter kolom dalam tabel",
   "Log Viewer Search": "Pencarian Penampil Log",
-  "Toggle search in log viewer": "Hidupkan/matikan pencarian di penampil log"
+  "Toggle search in log viewer": "Hidupkan/matikan pencarian di penampil log",
+  "Close Details Drawer": "",
+  "Close the active details drawer": "",
+  "Navigate to Pods": "",
+  "Go to the Pods list page": "",
+  "Navigate to Deployments": "",
+  "Go to the Deployments list page": "",
+  "Show Shortcuts Help": "",
+  "Show the keyboard shortcuts cheat sheet": ""
 }

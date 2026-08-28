@@ -1026,5 +1026,13 @@
   "Toggle Table Filters": "Växla tabellfilter",
   "Toggle column filters in tables": "Växla kolumnfilter i tabeller",
   "Log Viewer Search": "Sök i loggvisningsprogram",
-  "Toggle search in log viewer": "Växla sökning i loggvisningsprogram"
+  "Toggle search in log viewer": "Växla sökning i loggvisningsprogram",
+  "Close Details Drawer": "",
+  "Close the active details drawer": "",
+  "Navigate to Pods": "",
+  "Go to the Pods list page": "",
+  "Navigate to Deployments": "",
+  "Go to the Deployments list page": "",
+  "Show Shortcuts Help": "",
+  "Show the keyboard shortcuts cheat sheet": ""
 }
