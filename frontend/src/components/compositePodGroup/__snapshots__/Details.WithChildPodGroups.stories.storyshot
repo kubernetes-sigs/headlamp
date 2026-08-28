@@ -33,7 +33,7 @@
             <h1
               class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
             >
-              CompositePodGroup: llm-serving-root
+              CompositePodGroup: llm-serving-prefill
             </h1>
             <div
               class="MuiBox-root css-ldp2l3"
@@ -139,7 +139,7 @@
                     <span
                       class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
                     >
-                      llm-serving-root
+                      llm-serving-prefill
                     </span>
                   </dd>
                   <dt
@@ -221,27 +221,13 @@
                     <span
                       class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
                     >
-                      serving
+                      prefill
                     </span>
                   </dd>
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
                   >
-                    Disruption Mode
-                  </dt>
-                  <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
-                  >
-                    <span
-                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
-                    >
-                      All
-                    </span>
-                  </dd>
-                  <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
-                  >
-                    Priority Class
+                    Parent
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
@@ -250,37 +236,13 @@
                       class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                       href="/"
                     >
-                      high-priority
+                      llm-serving-root
                     </a>
-                  </dd>
-                  <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
-                  >
-                    Priority
-                  </dt>
-                  <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
-                  >
-                    1000
-                  </dd>
-                  <dt
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-9i4s51-MuiGrid-root"
-                  >
-                    Preemption Policy
-                  </dt>
-                  <dd
-                    class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-1dbzfsd-MuiGrid-root"
-                  >
-                    <span
-                      class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
-                    >
-                      PreemptLowerPriority
-                    </span>
                   </dd>
                   <dt
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-3 MuiGrid-grid-md-2 css-1hrqr1q-MuiGrid-root"
                   >
-                    Topology Keys
+                    Disruption Mode
                   </dt>
                   <dd
                     class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 MuiGrid-grid-sm-9 MuiGrid-grid-md-10 css-ui3itl-MuiGrid-root"
@@ -288,7 +250,7 @@
                     <span
                       class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
                     >
-                      topology.kubernetes.io/zone
+                      All
                     </span>
                   </dd>
                 </dl>
@@ -318,7 +280,7 @@
                   <h2
                     class="MuiTypography-root MuiTypography-h2 MuiTypography-noWrap css-m5vcfd-MuiTypography-root"
                   >
-                    Composite Pod Groups
+                    Pod Groups
                   </h2>
                   <div
                     class="MuiBox-root css-ldp2l3"
@@ -364,7 +326,7 @@
                         class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
                         scope="col"
                       >
-                        Min Group Count
+                        Min Count
                       </th>
                       <th
                         class="MuiTableCell-root MuiTableCell-head MuiTableCell-sizeSmall css-l4jzay-MuiTableCell-root"
@@ -387,7 +349,7 @@
                           class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                           href="/"
                         >
-                          llm-serving-prefill
+                          llm-serving-prefill-0
                         </a>
                       </td>
                       <td
@@ -420,24 +382,26 @@
                           class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
                           href="/"
                         >
-                          llm-serving-decode
+                          llm-serving-prefill-1
                         </a>
                       </td>
                       <td
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
-                        Basic
+                        Gang
                       </td>
                       <td
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
-                      />
+                      >
+                        2
+                      </td>
                       <td
                         class="MuiTableCell-root MuiTableCell-body MuiTableCell-sizeSmall css-oh2q4q-MuiTableCell-root"
                       >
                         <span
-                          class="MuiTypography-root MuiTypography-body1 css-1dablfr-MuiTypography-root"
+                          class="MuiTypography-root MuiTypography-body1 css-1aajmzw-MuiTypography-root"
                         >
-                          Unschedulable
+                          Scheduled
                         </span>
                       </td>
                     </tr>

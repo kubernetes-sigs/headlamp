@@ -18,18 +18,61 @@ import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
 import { API_BASE, TestContext } from '../../test';
 import Details from './Details';
-import { COMPOSITE_POD_GROUP_DUMMY_DATA } from './storyHelper';
+import { CHILD_POD_GROUP_DUMMY_DATA, COMPOSITE_POD_GROUP_DUMMY_DATA } from './storyHelper';
 
-const compositePodGroup = COMPOSITE_POD_GROUP_DUMMY_DATA[1];
-const name = compositePodGroup.metadata.name;
-const namespace = compositePodGroup.metadata.namespace ?? 'default';
+const [root, prefill, decode] = COMPOSITE_POD_GROUP_DUMMY_DATA;
+const namespace = root.metadata.namespace ?? 'default';
 
 const SERVED_VERSION = 'scheduling.k8s.io/v1alpha3';
-const basePath = `${API_BASE}/apis/${SERVED_VERSION}/namespaces/${namespace}/compositepodgroups`;
-const detailsUrl = `${basePath}/${name}`;
+const compositesPath = `${API_BASE}/apis/${SERVED_VERSION}/namespaces/${namespace}/compositepodgroups`;
+const podGroupsPath = (apiVersion: string) =>
+  `${API_BASE}/apis/${apiVersion}/namespaces/${namespace}/podgroups`;
 
-/** The details view also watches the collection for the object it shows. */
-const collectionWatch = http.get(basePath, () => HttpResponse.error());
+const POD_GROUP_VERSIONS = [
+  'scheduling.k8s.io/v1beta1',
+  'scheduling.k8s.io/v1alpha3',
+  'scheduling.k8s.io/v1alpha2',
+];
+
+/**
+ * A cluster on v1alpha3 does not answer for the other versions PodGroup offers. The
+ * links to the child pod groups also probe the collection itself, to find out which
+ * version to address them by.
+ */
+const podGroupVersionProbes = POD_GROUP_VERSIONS.map(apiVersion =>
+  http.get(`${API_BASE}/apis/${apiVersion}/podgroups`, () =>
+    apiVersion === SERVED_VERSION
+      ? HttpResponse.json({ kind: 'PodGroupList', items: [], metadata: {} })
+      : HttpResponse.error()
+  )
+);
+
+const otherPodGroupVersionsUnavailable = POD_GROUP_VERSIONS.filter(
+  apiVersion => apiVersion !== SERVED_VERSION
+).map(apiVersion => http.get(podGroupsPath(apiVersion), () => HttpResponse.error()));
+
+/**
+ * The details view watches the collections it needs: its own, for the object it shows
+ * and for the child composite groups, and the pod groups for the child leaves.
+ */
+const collections = [
+  http.get(compositesPath, () =>
+    HttpResponse.json({
+      kind: 'CompositePodGroupList',
+      items: COMPOSITE_POD_GROUP_DUMMY_DATA,
+      metadata: {},
+    })
+  ),
+  http.get(podGroupsPath(SERVED_VERSION), () =>
+    HttpResponse.json({
+      kind: 'PodGroupList',
+      items: CHILD_POD_GROUP_DUMMY_DATA,
+      metadata: {},
+    })
+  ),
+  ...otherPodGroupVersionsUnavailable,
+  ...podGroupVersionProbes,
+];
 
 const emptyEvents = http.get(`${API_BASE}/api/v1/namespaces/${namespace}/events`, () =>
   HttpResponse.json({
@@ -39,71 +82,72 @@ const emptyEvents = http.get(`${API_BASE}/api/v1/namespaces/${namespace}/events`
   })
 );
 
+const storyFor = (composite: (typeof COMPOSITE_POD_GROUP_DUMMY_DATA)[number]) => ({
+  msw: {
+    handlers: {
+      story: [
+        http.get(`${compositesPath}/${composite.metadata.name}`, () =>
+          HttpResponse.json(composite)
+        ),
+        ...collections,
+        emptyEvents,
+      ],
+    },
+  },
+});
+
 export default {
   title: 'CompositePodGroup/Details',
   component: Details,
   argTypes: {},
-  decorators: [
-    Story => {
-      return (
-        <TestContext routerMap={{ namespace, name }}>
-          <Story />
-        </TestContext>
-      );
-    },
-  ],
 } as Meta;
 
-const Template: StoryFn = () => {
-  return <Details />;
-};
+const Template: StoryFn<{ name: string }> = args => (
+  <TestContext routerMap={{ namespace, name: args.name }}>
+    <Details />
+  </TestContext>
+);
 
+/** A hierarchy root, whose children are the two stage groups below it. */
 export const CompositePodGroupDetails = Template.bind({});
-CompositePodGroupDetails.parameters = {
-  msw: {
-    handlers: {
-      story: [
-        http.get(detailsUrl, () => HttpResponse.json(compositePodGroup)),
-        collectionWatch,
-        emptyEvents,
-      ],
-    },
-  },
-};
+CompositePodGroupDetails.args = { name: root.metadata.name };
+CompositePodGroupDetails.parameters = storyFor(root);
 
+/** A stage group, whose children are the pod groups that hold the pods. */
+export const WithChildPodGroups = Template.bind({});
+WithChildPodGroups.args = { name: prefill.metadata.name };
+WithChildPodGroups.parameters = storyFor(prefill);
+
+/** A group whose subtree never met its scheduling requirement. */
 export const Unschedulable = Template.bind({});
-Unschedulable.parameters = {
-  msw: {
-    handlers: {
-      story: [
-        http.get(detailsUrl, () =>
-          HttpResponse.json({
-            ...COMPOSITE_POD_GROUP_DUMMY_DATA[2],
-            metadata: { ...COMPOSITE_POD_GROUP_DUMMY_DATA[2].metadata, name },
-          })
-        ),
-        collectionWatch,
-        emptyEvents,
-      ],
-    },
-  },
-};
+Unschedulable.args = { name: decode.metadata.name };
+Unschedulable.parameters = storyFor(decode);
 
 export const Loading = Template.bind({});
+Loading.args = { name: root.metadata.name };
 Loading.parameters = {
   storyshots: { disable: true },
   msw: {
     handlers: {
-      story: [http.get(detailsUrl, () => new Promise(() => {})), collectionWatch, emptyEvents],
+      story: [
+        http.get(`${compositesPath}/${root.metadata.name}`, () => new Promise(() => {})),
+        ...collections,
+        emptyEvents,
+      ],
     },
   },
 };
 
 export const Error = Template.bind({});
+Error.args = { name: root.metadata.name };
 Error.parameters = {
   msw: {
     handlers: {
-      story: [http.get(detailsUrl, () => HttpResponse.error()), collectionWatch, emptyEvents],
+      story: [
+        http.get(`${compositesPath}/${root.metadata.name}`, () => HttpResponse.error()),
+        ...collections,
+        emptyEvents,
+      ],
     },
   },
 };

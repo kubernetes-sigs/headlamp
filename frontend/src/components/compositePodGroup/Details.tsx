@@ -19,6 +19,7 @@ import { useParams } from 'react-router-dom';
 import CompositePodGroup from '../../lib/k8s/compositePodGroup';
 import Link from '../common/Link';
 import { ConditionsSection, DetailsGrid } from '../common/Resource';
+import ChildGroupsSection from './ChildGroups';
 
 export default function CompositePodGroupDetails(props: {
   name?: string;
@@ -119,7 +120,18 @@ export default function CompositePodGroupDetails(props: {
           },
         ]
       }
-      extraSections={item => item && [<ConditionsSection resource={item?.jsonData} />]}
+      extraSections={item =>
+        item && [
+          {
+            id: 'headlamp.compositepodgroup-children',
+            section: <ChildGroupsSection parent={item} />,
+          },
+          {
+            id: 'headlamp.compositepodgroup-conditions',
+            section: <ConditionsSection resource={item.jsonData} />,
+          },
+        ]
+      }
     />
   );
 }

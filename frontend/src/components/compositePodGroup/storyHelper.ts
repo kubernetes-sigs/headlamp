@@ -15,6 +15,7 @@
  */
 
 import type { KubeCompositePodGroup } from '../../lib/k8s/compositePodGroup';
+import type { KubePodGroup } from '../../lib/k8s/podGroup';
 
 const creationTimestamp = new Date('2022-01-01').toISOString();
 
@@ -112,3 +113,35 @@ export const COMPOSITE_POD_GROUP_DUMMY_DATA: KubeCompositePodGroup[] = [
     },
   } as KubeCompositePodGroup,
 ];
+
+/** The pod groups nested under the prefill stage of the hierarchy above. */
+export const CHILD_POD_GROUP_DUMMY_DATA: KubePodGroup[] = [0, 1].map(
+  index =>
+    ({
+      apiVersion: 'scheduling.k8s.io/v1alpha3',
+      kind: 'PodGroup',
+      metadata: {
+        name: `llm-serving-prefill-${index}`,
+        namespace: 'inference',
+        creationTimestamp,
+        uid: `pod-group-uid-${index + 1}`,
+      },
+      spec: {
+        schedulingPolicy: { gang: { minCount: 2 } },
+        workloadRef: { workloadName: 'llm-serving', templateName: 'prefill-workers' },
+        parentCompositePodGroupName: 'llm-serving-prefill',
+      },
+      status: {
+        conditions: [
+          {
+            type: 'PodGroupInitiallyScheduled',
+            status: 'True',
+            reason: 'Scheduled',
+            message: 'All pods of the group were scheduled.',
+            lastProbeTime: creationTimestamp,
+            lastTransitionTime: creationTimestamp,
+          },
+        ],
+      },
+    } as KubePodGroup)
+);
