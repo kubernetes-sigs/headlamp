@@ -594,6 +594,7 @@ type RefreshAndSetTokenParams struct {
 	OIDCValidatorIdpIssuerURL string
 	BaseURL                   string
 	SessionTTL                int
+	OnTokenRefreshed          func(oldToken, newToken string)
 }
 
 // RefreshAndSetToken refreshes an expiring token, updates the auth cookie,
@@ -644,9 +645,16 @@ func RefreshAndSetToken(params RefreshAndSetTokenParams) {
 			return
 		}
 
-		// Set refreshed token in cookie
-		SetTokenCookie(params.Writer, params.Request, params.Cluster, newTokenString, params.BaseURL, params.SessionTTL)
-
-		params.TelemetryHandler.RecordEvent(params.Span, "Token refreshed successfully")
+		completeTokenRefresh(params, newTokenString)
 	}
+}
+
+func completeTokenRefresh(params RefreshAndSetTokenParams, newToken string) {
+	SetTokenCookie(params.Writer, params.Request, params.Cluster, newToken, params.BaseURL, params.SessionTTL)
+
+	if params.OnTokenRefreshed != nil {
+		params.OnTokenRefreshed(params.Token, newToken)
+	}
+
+	params.TelemetryHandler.RecordEvent(params.Span, "Token refreshed successfully")
 }
