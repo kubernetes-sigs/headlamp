@@ -975,6 +975,7 @@
   "No pod group templates in this workload.": "",
   "Composite Pod Group Templates": "",
   "Min Group Count": "",
+  "Unable to list the child groups.": "",
   "No data in this secret": "Nincs adat ebben a titkos kódban",
   "Hide Helm Secrets": "Helm titkos kódok elrejtése",
   "Shrink sidebar": "Oldalsáv zsugorítása",

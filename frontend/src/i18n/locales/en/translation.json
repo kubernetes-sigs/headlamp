@@ -975,6 +975,7 @@
   "No pod group templates in this workload.": "No pod group templates in this workload.",
   "Composite Pod Group Templates": "Composite Pod Group Templates",
   "Min Group Count": "Min Group Count",
+  "Unable to list the child groups.": "Unable to list the child groups.",
   "No data in this secret": "No data in this secret",
   "Hide Helm Secrets": "Hide Helm Secrets",
   "Shrink sidebar": "Shrink sidebar",

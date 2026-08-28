@@ -33,7 +33,7 @@
             <h1
               class="MuiTypography-root MuiTypography-h1 MuiTypography-noWrap css-yeaech-MuiTypography-root"
             >
-              CompositePodGroup: llm-serving-prefill
+              CompositePodGroup: llm-serving-decode
             </h1>
             <div
               class="MuiBox-root css-ldp2l3"
@@ -139,7 +139,7 @@
                     <span
                       class="MuiTypography-root MuiTypography-body1 css-e06lsu-MuiTypography-root"
                     >
-                      llm-serving-prefill
+                      llm-serving-decode
                     </span>
                   </dd>
                   <dt
@@ -248,6 +248,13 @@
             </div>
           </div>
         </div>
+      </div>
+      <div
+        class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"
+      >
+        <div
+          class="MuiBox-root css-p0cik4"
+        />
       </div>
       <div
         class="MuiGrid-root MuiGrid-item MuiGrid-grid-xs-12 css-49904w-MuiGrid-root"

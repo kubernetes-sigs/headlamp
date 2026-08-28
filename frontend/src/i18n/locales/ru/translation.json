@@ -995,6 +995,7 @@
   "No pod group templates in this workload.": "В этой рабочей нагрузке нет шаблонов группы подов.",
   "Composite Pod Group Templates": "Шаблоны составных групп подов",
   "Min Group Count": "",
+  "Unable to list the child groups.": "",
   "No data in this secret": "В этом секрете нет данных",
   "Hide Helm Secrets": "Скрыть секреты Helm",
   "Shrink sidebar": "Свернуть боковую панель",

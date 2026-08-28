@@ -985,6 +985,7 @@
   "No pod group templates in this workload.": "Nenhum modelo de grupo de Pods nesta carga de trabalho.",
   "Composite Pod Group Templates": "",
   "Min Group Count": "",
+  "Unable to list the child groups.": "",
   "No data in this secret": "Sem dados neste secret",
   "Hide Helm Secrets": "Ocultar Segredos do Helm",
   "Shrink sidebar": "Encolher barra lateral",

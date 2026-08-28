@@ -965,6 +965,7 @@
   "No pod group templates in this workload.": "このワークロードにはPodグループテンプレートがありません。",
   "Composite Pod Group Templates": "",
   "Min Group Count": "",
+  "Unable to list the child groups.": "",
   "No data in this secret": "このシークレットにデータがありません",
   "Hide Helm Secrets": "",
   "Shrink sidebar": "サイドバーを縮小",

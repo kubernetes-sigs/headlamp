@@ -995,6 +995,7 @@
   "No pod group templates in this workload.": "",
   "Composite Pod Group Templates": "",
   "Min Group Count": "",
+  "Unable to list the child groups.": "",
   "No data in this secret": "Brak danych w tym wpisie tajnym",
   "Hide Helm Secrets": "Ukryj wpisy tajne programu Helm",
   "Shrink sidebar": "Zmniejsz pasek boczny",

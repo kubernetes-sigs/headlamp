@@ -985,6 +985,7 @@
   "No pod group templates in this workload.": "אין תבניות קבוצת Pod בעומס עבודה זה.",
   "Composite Pod Group Templates": "תבניות קבוצת Pod מורכבת",
   "Min Group Count": "",
+  "Unable to list the child groups.": "",
   "No data in this secret": "No data in this secret",
   "Hide Helm Secrets": "Hide Helm Secrets",
   "Shrink sidebar": "Shrink sidebar",

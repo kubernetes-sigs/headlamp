@@ -975,6 +975,7 @@
   "No pod group templates in this workload.": "",
   "Composite Pod Group Templates": "",
   "Min Group Count": "",
+  "Unable to list the child groups.": "",
   "No data in this secret": "Bu gizli dizide veri yok",
   "Hide Helm Secrets": "Helm Gizli Dizilerini Gizle",
   "Shrink sidebar": "Kenar çubuğunu küçült",

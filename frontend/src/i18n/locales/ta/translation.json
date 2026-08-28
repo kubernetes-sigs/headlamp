@@ -975,6 +975,7 @@
   "No pod group templates in this workload.": "இந்த பணிச்சுமையில் பாட் குழு டெம்ப்ளேட்கள் இல்லை.",
   "Composite Pod Group Templates": "",
   "Min Group Count": "",
+  "Unable to list the child groups.": "",
   "No data in this secret": "இந்த சீக்ரெட்டில் டேட்டா இல்லை",
   "Hide Helm Secrets": "",
   "Shrink sidebar": "சைட்பாரை சுருக்கு",
