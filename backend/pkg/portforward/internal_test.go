@@ -709,7 +709,7 @@ func TestStopOrDeletePortForwardHandler_UserIDKeyIsolation(t *testing.T) {
 	portforwardstore(c, pf)
 
 	// Try to stop with a user-specific context key — should fail because the key is different.
-	payload, err := json.Marshal(map[string]interface{}{"id": "pf-5", "stopOrDelete": true})
+	payload, err := json.Marshal(map[string]interface{}{"id": "pf-5", "justStop": true})
 	require.NoError(t, err)
 
 	w := httptest.NewRecorder()
