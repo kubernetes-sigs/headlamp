@@ -1276,15 +1276,24 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		})
 		methods := handlers.AllowedMethods([]string{"GET", "POST", "PUT", "HEAD", "DELETE", "PATCH", "OPTIONS"})
 
-		return handlers.CORS(
+		return securityHeadersMiddleware(handlers.CORS(
 			headers,
 			methods,
 			handlers.AllowCredentials(),
 			handlers.AllowedOriginValidator(func(s string) bool { return true }),
-		)(r)
+		)(r))
 	}
 
-	return r
+	return securityHeadersMiddleware(r)
+}
+
+// securityHeadersMiddleware sets security headers to prevent clickjacking and framing attacks.
+func securityHeadersMiddleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Content-Security-Policy", "frame-ancestors 'none'")
+		next.ServeHTTP(w, r)
+	})
 }
 
 func clearRequestAuthorization(r *http.Request) {
