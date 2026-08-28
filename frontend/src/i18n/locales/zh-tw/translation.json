@@ -827,6 +827,8 @@
   "Min Count": "最小數量",
   "Pod Group Template Name": "Pod 群組範本名稱",
   "Composite Pod Group": "複合 Pod 群組",
+  "Parent": "",
+  "Composite Pod Group Template Name": "",
   "Disruption Mode": "中斷模式",
   "Preemption Policy": "搶佔策略",
   "Topology Keys": "拓撲金鑰",

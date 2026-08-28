@@ -207,6 +207,7 @@
   "Pod Disruption Budget": "Pod 中斷預算",
   "Workload": "工作負載",
   "Pod Groups": "Pod 群組",
+  "Composite Pod Groups": "",
   "Port Forwarding": "Port 轉發",
   "PriorityClass": "優先順序",
   "Replica Sets": "副本集",
