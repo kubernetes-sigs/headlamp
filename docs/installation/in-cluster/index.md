@@ -81,6 +81,21 @@ scoped to the Headlamp pod's namespace. This follows the namespaced consumer
 model for ClusterProfile: each Headlamp instance reads the profiles published
 for that consumer's namespace.
 
+When a matching `ClusterProfile` publishes connection metadata without
+credentials, Headlamp can use its configured OIDC login for Kubernetes API
+requests:
+
+```yaml
+config:
+  clusterInventory:
+    accessProvidersConfig:
+      providers:
+        - name: oidc
+          credentialSource: oidc
+```
+
+Do not configure `credentialSource` and `execConfig` on the same provider.
+
 To watch specific namespaces, set:
 
 ```yaml
