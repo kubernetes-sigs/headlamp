@@ -1093,7 +1093,7 @@ func TestRefreshAndSetToken_DefaultsToIDToken(t *testing.T) {
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster, nil)
 	rr := httptest.NewRecorder()
 
-	auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
+	err := auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
 		Ctx:              context.Background(),
 		OIDCAuthConfig:   &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret", IdpIssuerURL: srv.URL},
 		Cache:            fc,
@@ -1105,6 +1105,7 @@ func TestRefreshAndSetToken_DefaultsToIDToken(t *testing.T) {
 		OIDCIdpIssuerURL: "",
 		BaseURL:          "",
 	})
+	require.NoError(t, err)
 
 	resp := rr.Result()
 
@@ -1147,7 +1148,7 @@ func TestRefreshAndSetToken_UsesAccessToken(t *testing.T) {
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster, nil)
 	rr := httptest.NewRecorder()
 
-	auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
+	err := auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
 		Ctx:                context.Background(),
 		OIDCAuthConfig:     &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"},
 		Cache:              fc,
@@ -1161,6 +1162,7 @@ func TestRefreshAndSetToken_UsesAccessToken(t *testing.T) {
 		BaseURL:            "",
 		SessionTTL:         90,
 	})
+	require.NoError(t, err)
 
 	resp := rr.Result()
 
@@ -1208,7 +1210,7 @@ func TestRefreshAndSetToken_AccessTokenWithoutIDTokenPreservesLogoutCookie(t *te
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster, nil)
 	rr := httptest.NewRecorder()
 
-	auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
+	err := auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
 		Ctx:                context.Background(),
 		OIDCAuthConfig:     &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"},
 		Cache:              fc,
@@ -1221,6 +1223,7 @@ func TestRefreshAndSetToken_AccessTokenWithoutIDTokenPreservesLogoutCookie(t *te
 		OIDCIdpIssuerURL:   srv.URL,
 		BaseURL:            "",
 	})
+	require.NoError(t, err)
 
 	resp := rr.Result()
 
@@ -1314,7 +1317,7 @@ func TestRefreshAndSetToken_ErrorDoesNotSetCookie(t *testing.T) {
 	req := httptest.NewRequestWithContext(context.Background(), http.MethodGet, "/clusters/"+cluster, nil)
 	rr := httptest.NewRecorder()
 
-	auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
+	err := auth.RefreshAndSetToken(auth.RefreshAndSetTokenParams{
 		Ctx:              context.Background(),
 		OIDCAuthConfig:   &kubeconfig.OidcConfig{ClientID: "cid", ClientSecret: "secret"},
 		Cache:            fc,
@@ -1326,6 +1329,7 @@ func TestRefreshAndSetToken_ErrorDoesNotSetCookie(t *testing.T) {
 		OIDCIdpIssuerURL: srv.URL,
 		BaseURL:          "",
 	})
+	require.Error(t, err)
 
 	resp := rr.Result()
 
