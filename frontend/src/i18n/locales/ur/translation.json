@@ -833,6 +833,8 @@
   "Min Count": "کم از کم تعداد",
   "Pod Group Template Name": "پوڈ گروپ ٹیمپلیٹ کا نام",
   "Composite Pod Group": "مرکب پوڈ گروپ",
+  "Parent": "",
+  "Composite Pod Group Template Name": "",
   "Disruption Mode": "خلل موڈ",
   "Preemption Policy": "پری ایمپشن پالیسی",
   "Topology Keys": "ٹوپولوجی کیز",

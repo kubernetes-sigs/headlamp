@@ -833,6 +833,8 @@
   "Min Count": "न्यूनतम संख्या",
   "Pod Group Template Name": "पॉड ग्रुप टेम्पलेट नाम",
   "Composite Pod Group": "समग्र पॉड ग्रुप",
+  "Parent": "",
+  "Composite Pod Group Template Name": "",
   "Disruption Mode": "डिसरप्शन मोड",
   "Preemption Policy": "",
   "Topology Keys": "टोपोलॉजी कीज़",

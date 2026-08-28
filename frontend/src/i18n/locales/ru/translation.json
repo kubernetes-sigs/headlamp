@@ -845,6 +845,8 @@
   "Min Count": "Минимальное количество",
   "Pod Group Template Name": "Имя шаблона группы подов",
   "Composite Pod Group": "Составная группа подов",
+  "Parent": "",
+  "Composite Pod Group Template Name": "",
   "Disruption Mode": "Режим прерывания",
   "Preemption Policy": "Политика преимущественного права",
   "Topology Keys": "Ключи топологии",

@@ -46,11 +46,19 @@ export function getSchedulingStatusText(
   return condition.status === 'False' ? t('translation|Pending') : t('translation|Unknown');
 }
 
-function getSchedulingStatusSeverity(condition: KubeCondition): StatusLabelProps['status'] {
-  if (condition.status === 'True') {
-    return 'success';
+/**
+ * Severity of a scheduling condition, for the status label.
+ * @param condition - The scheduling condition of a group.
+ * @returns The label status: warning for a failed or invalid group, success for a
+ * scheduled one, and none while the API has not decided.
+ */
+export function getSchedulingStatusSeverity(condition: KubeCondition): StatusLabelProps['status'] {
+  // An invalid layout is reported as Invalid with a True status, so the reason is read
+  // before the status to keep such a group from showing as scheduled.
+  if (condition.reason === 'Invalid' || condition.status === 'False') {
+    return 'warning';
   }
-  return condition.status === 'False' ? 'warning' : '';
+  return condition.status === 'True' ? 'success' : '';
 }
 
 /** Shows whether a group met its scheduling requirement, from its scheduling condition. */

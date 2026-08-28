@@ -845,6 +845,8 @@
   "Min Count": "",
   "Pod Group Template Name": "",
   "Composite Pod Group": "",
+  "Parent": "",
+  "Composite Pod Group Template Name": "",
   "Disruption Mode": "",
   "Preemption Policy": "Zásada přerušení",
   "Topology Keys": "",

@@ -839,6 +839,8 @@
   "Min Count": "Recuento mínimo",
   "Pod Group Template Name": "Nombre de la plantilla de grupo de Pods",
   "Composite Pod Group": "Grupo compuesto de Pods",
+  "Parent": "",
+  "Composite Pod Group Template Name": "",
   "Disruption Mode": "Modo de interrupción",
   "Preemption Policy": "Política de \"Preemption\"",
   "Topology Keys": "Claves de topología",

@@ -207,6 +207,7 @@
   "Pod Disruption Budget": "Rozpočet na přerušení podu",
   "Workload": "",
   "Pod Groups": "",
+  "Composite Pod Groups": "",
   "Port Forwarding": "Přesměrování portů",
   "PriorityClass": "PriorityClass",
   "Replica Sets": "Sady replik",
