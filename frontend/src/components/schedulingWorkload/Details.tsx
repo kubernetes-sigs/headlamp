@@ -16,9 +16,10 @@
 
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import { getCompositeDisruptionMode } from '../../lib/k8s/compositePodGroup';
 import { getDisruptionMode, getSchedulingPolicyKind } from '../../lib/k8s/podGroup';
 import type { CompositePodGroupTemplate, PodGroupTemplate } from '../../lib/k8s/schedulingWorkload';
-import Workload, { getCompositeDisruptionMode } from '../../lib/k8s/schedulingWorkload';
+import Workload from '../../lib/k8s/schedulingWorkload';
 import { DetailsGrid } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
