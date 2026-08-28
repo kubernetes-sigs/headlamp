@@ -513,6 +513,16 @@ func TestParseFlags(t *testing.T) {
 	runParseFlagTests(t, parseFlagTests)
 }
 
+func TestParseSettingsFlag(t *testing.T) {
+	conf, err := config.Parse([]string{"-in-cluster", "-settings", "/etc/headlamp/settings.json"})
+	require.NoError(t, err)
+	assert.Equal(t, "/etc/headlamp/settings.json", conf.SettingsPath)
+
+	conf, err = config.Parse([]string{"-in-cluster"})
+	require.NoError(t, err)
+	assert.Empty(t, conf.SettingsPath)
+}
+
 func runParseFlagTests(t *testing.T, tests []parseFlagTest) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

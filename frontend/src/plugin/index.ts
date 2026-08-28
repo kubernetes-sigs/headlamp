@@ -52,6 +52,7 @@ import * as Router from '../lib/router';
 import * as Utils from '../lib/util';
 import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
 import store from '../redux/stores/store';
+import { PluginSettingsAPI } from '../settings/pluginSettings';
 import * as stateless from '../stateless/index';
 import { Headlamp, Plugin } from './lib';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
@@ -107,6 +108,7 @@ window.pluginLib = {
   ...registryToExport,
   Activity,
   stateless,
+  Settings: PluginSettingsAPI,
 };
 
 // backwards compat.
