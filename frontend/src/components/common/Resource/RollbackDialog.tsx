@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import { Icon } from '@iconify/react';
 import Alert from '@mui/material/Alert';
 import Box from '@mui/material/Box';
 import Button from '@mui/material/Button';
@@ -24,9 +25,9 @@ import DialogActions from '@mui/material/DialogActions';
 import DialogContent from '@mui/material/DialogContent';
 import DialogTitle from '@mui/material/DialogTitle';
 import List from '@mui/material/List';
+import ListItem from '@mui/material/ListItem';
 import ListItemButton from '@mui/material/ListItemButton';
 import ListItemText from '@mui/material/ListItemText';
-import Radio from '@mui/material/Radio';
 import Typography from '@mui/material/Typography';
 import { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
@@ -126,6 +127,62 @@ export default function RollbackDialog(props: RollbackDialogProps) {
     setPreviewOpen(false);
   }, [selectedRevision]);
 
+  const selectableRevisions = revisions.filter(rev => !rev.isCurrent);
+  const revisionRefs = useRef(new Map<number, HTMLElement>());
+  const pendingFocus = useRef<number | null>(null);
+
+  // In a radio group focus follows selection, so an arrow key has to move the focus too.
+  // Leaving it behind would strand assistive technology on an option that is no longer
+  // checked and no longer the group's tab stop. Only keyboard moves queue a focus change,
+  // so clicking an option or auto-selecting one on load does not pull focus into the list.
+  useEffect(() => {
+    if (pendingFocus.current === null) {
+      return;
+    }
+
+    revisionRefs.current.get(pendingFocus.current)?.focus();
+    pendingFocus.current = null;
+  });
+
+  function moveSelection(event: React.KeyboardEvent, step: number) {
+    if (selectableRevisions.length === 0) {
+      return;
+    }
+
+    event.preventDefault();
+
+    const current = selectableRevisions.findIndex(rev => rev.revision === selectedRevision);
+    const next =
+      current === -1
+        ? 0
+        : (current + step + selectableRevisions.length) % selectableRevisions.length;
+
+    const target = selectableRevisions[next].revision;
+
+    // With a single selectable revision every arrow lands back on it. React can skip the
+    // re-render for a same-value update, which would leave the queued focus to fire on some
+    // later unrelated render and pull focus out of whatever the user moved on to.
+    if (target === selectedRevision) {
+      return;
+    }
+
+    pendingFocus.current = target;
+    setSelectedRevision(target);
+  }
+
+  function handleRevisionKeyDown(event: React.KeyboardEvent) {
+    if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+      moveSelection(event, 1);
+    } else if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+      moveSelection(event, -1);
+    }
+  }
+
+  // A radio group is one tab stop: the checked option, or the first selectable one when
+  // nothing is checked yet. Arrow keys move the selection within it.
+  const rovingTabStop =
+    selectableRevisions.find(rev => rev.revision === selectedRevision) ?? selectableRevisions[0];
+
   function handleConfirm() {
     previewRequestId.current++;
     onConfirm(selectedRevision);
@@ -202,72 +259,96 @@ export default function RollbackDialog(props: RollbackDialogProps) {
                 </Typography>
               ) : (
                 <>
-                  <List sx={{ maxHeight: 320, overflow: 'auto' }}>
+                  <List
+                    role="radiogroup"
+                    aria-label={t('translation|Revision History')}
+                    sx={{ maxHeight: 320, overflow: 'auto' }}
+                  >
                     {revisions.map(rev => (
-                      <ListItemButton
-                        key={rev.revision}
-                        selected={selectedRevision === rev.revision}
-                        onClick={() => {
-                          if (!rev.isCurrent) {
-                            setSelectedRevision(rev.revision);
-                          }
-                        }}
-                        disabled={rev.isCurrent}
-                        sx={{
-                          borderRadius: 1,
-                          mb: 0.5,
-                          border: '1px solid',
-                          borderColor:
-                            selectedRevision === rev.revision ? 'primary.main' : 'divider',
-                        }}
-                      >
-                        <Radio
-                          checked={selectedRevision === rev.revision}
+                      <ListItem key={rev.revision} role="none" disablePadding sx={{ mb: 0.5 }}>
+                        <ListItemButton
+                          role="radio"
+                          ref={(node: HTMLElement | null) => {
+                            if (node) {
+                              revisionRefs.current.set(rev.revision, node);
+                            } else {
+                              revisionRefs.current.delete(rev.revision);
+                            }
+                          }}
+                          aria-checked={selectedRevision === rev.revision}
+                          tabIndex={rovingTabStop?.revision === rev.revision ? 0 : -1}
+                          onKeyDown={handleRevisionKeyDown}
+                          selected={selectedRevision === rev.revision}
+                          onClick={() => {
+                            if (!rev.isCurrent) {
+                              setSelectedRevision(rev.revision);
+                            }
+                          }}
                           disabled={rev.isCurrent}
-                          size="small"
-                          sx={{ mr: 1 }}
-                        />
-                        <ListItemText
-                          primary={
-                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                              <Typography variant="body2" fontWeight="medium">
-                                {t('translation|Revision {{ revision }}', {
-                                  revision: rev.revision,
-                                })}
-                              </Typography>
-                              {rev.isCurrent && (
-                                <Chip
-                                  label={t('translation|Current')}
-                                  size="small"
-                                  color="primary"
-                                  variant="outlined"
-                                />
-                              )}
-                            </Box>
-                          }
-                          secondary={
-                            <Box component="span">
-                              <Typography variant="caption" color="text.secondary" component="span">
-                                <DateLabel date={rev.createdAt} />
-                              </Typography>
-                              {rev.images.length > 0 && (
+                          sx={{
+                            borderRadius: 1,
+                            border: '1px solid',
+                            borderColor:
+                              selectedRevision === rev.revision ? 'primary.main' : 'divider',
+                          }}
+                        >
+                          <Icon
+                            icon={
+                              selectedRevision === rev.revision
+                                ? 'mdi:radiobox-marked'
+                                : 'mdi:radiobox-blank'
+                            }
+                            width="20"
+                            style={{ marginRight: 8, flexShrink: 0 }}
+                            aria-hidden
+                          />
+                          <ListItemText
+                            primaryTypographyProps={{ component: 'div' }}
+                            secondaryTypographyProps={{ component: 'div' }}
+                            primary={
+                              <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                                <Typography variant="body2" fontWeight="medium">
+                                  {t('translation|Revision {{ revision }}', {
+                                    revision: rev.revision,
+                                  })}
+                                </Typography>
+                                {rev.isCurrent && (
+                                  <Chip
+                                    label={t('translation|Current')}
+                                    size="small"
+                                    color="primary"
+                                    variant="outlined"
+                                  />
+                                )}
+                              </Box>
+                            }
+                            secondary={
+                              <Box>
                                 <Typography
                                   variant="caption"
                                   color="text.secondary"
-                                  component="span"
-                                  sx={{ display: 'block' }}
+                                  component="div"
                                 >
-                                  {rev.images.map((img, i) => (
-                                    <Box key={i} component="span" sx={{ display: 'block' }}>
-                                      {img}
-                                    </Box>
-                                  ))}
+                                  <DateLabel date={rev.createdAt} />
                                 </Typography>
-                              )}
-                            </Box>
-                          }
-                        />
-                      </ListItemButton>
+                                {rev.images.length > 0 && (
+                                  <Typography
+                                    variant="caption"
+                                    color="text.secondary"
+                                    component="div"
+                                  >
+                                    {rev.images.map((img, i) => (
+                                      <Box key={i} sx={{ display: 'block' }}>
+                                        {img}
+                                      </Box>
+                                    ))}
+                                  </Typography>
+                                )}
+                              </Box>
+                            }
+                          />
+                        </ListItemButton>
+                      </ListItem>
                     ))}
                   </List>
 
