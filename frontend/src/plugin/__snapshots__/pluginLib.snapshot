@@ -398,6 +398,10 @@
     "SETTINGS": "SETTINGS",
     "USER": "USER",
   },
+  "DefaultCreateProject": {
+    "FROM_YAML": "headlamp.projects.from-yaml",
+    "NEW_PROJECT": "headlamp.projects.new-project",
+  },
   "DefaultDetailsViewSection": {
     "BACK_LINK": "BACK_LINK",
     "CHILDREN": "CHILDREN",

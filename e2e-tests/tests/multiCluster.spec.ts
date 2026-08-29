@@ -29,6 +29,10 @@ test.describe('multi-cluster setup', () => {
     await expect(page.locator('h1:has-text("Home")')).toBeVisible();
   });
 
+  test('document title should include the route and product names', async ({ page }) => {
+    await expect(page).toHaveTitle('Choose a cluster - Headlamp');
+  });
+
   test("table should contain 'Name' and 'Status' column headers", async ({ page }) => {
     await expect(page.locator('th', { hasText: 'Name' })).toBeVisible();
     await expect(page.locator('th', { hasText: 'Status' })).toBeVisible();

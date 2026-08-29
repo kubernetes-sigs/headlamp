@@ -28,6 +28,14 @@ export interface ProjectDefinition {
   clusters: string[];
 }
 
+/** IDs plugins can register to replace Headlamp's built-in project creation options. */
+export const DefaultCreateProject = {
+  /** Replace the built-in project form that uses existing or new namespaces. */
+  NEW_PROJECT: 'headlamp.projects.new-project',
+  /** Replace the built-in YAML project creation flow. */
+  FROM_YAML: 'headlamp.projects.from-yaml',
+} as const;
+
 /** Define custom way to create new Projects */
 export interface CustomCreateProject {
   id: string;
@@ -51,10 +59,14 @@ export interface ProjectOverviewSection {
   /**
    * Component rendered in the project overview.
    *
+   * Return `null` when the section has nothing to show: the surrounding card is then hidden so no
+   * blank space is left behind. Returning a wrapper element that renders no visible content keeps
+   * the card on screen.
+   *
    * @param props - Properties supplied to the section component.
    * @param props.project - Project currently displayed.
    * @param props.projectResources - Kubernetes resources loaded for the project.
-   * @returns Content to render in the section.
+   * @returns Content to render in the section, or `null` to hide it.
    */
   component: (props: { project: ProjectDefinition; projectResources: KubeObject[] }) => ReactNode;
   /**
