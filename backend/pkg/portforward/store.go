@@ -20,6 +20,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"sync"
 
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/cache"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -52,8 +53,9 @@ func portforwardKeyGenerator(p portForward) string {
 	return key
 }
 
-// portforwardstore stores a port forward in the cache.
-func portforwardstore(cache cache.Cache[interface{}], p portForward) {
+var portForwardMu sync.Mutex
+
+func portforwardstoreLocked(cache cache.Cache[interface{}], p portForward) {
 	key := portforwardKeyGenerator(p)
 
 	err := cache.Set(context.Background(), key, p)
@@ -62,11 +64,50 @@ func portforwardstore(cache cache.Cache[interface{}], p portForward) {
 	}
 }
 
+// portforwardstore stores a port forward in the cache.
+func portforwardstore(cache cache.Cache[interface{}], p portForward) {
+	portForwardMu.Lock()
+	defer portForwardMu.Unlock()
+
+	portforwardstoreLocked(cache, p)
+}
+
+// updatePortForwardStatus updates a port-forward's status in the cache only if
+// the cached entry currently exists and belongs to the same lifecycle instance.
+// This prevents background routines on shutdown/error from resurrecting a deleted
+// port-forward or overwriting a replacement lifecycle that reused the ID.
+func updatePortForwardStatus(cache cache.Cache[interface{}], p portForward) {
+	portForwardMu.Lock()
+	defer portForwardMu.Unlock()
+
+	clusterKey := p.cacheKey
+	if clusterKey == "" {
+		clusterKey = p.Cluster
+	}
+
+	current, err := getPortForwardByID(cache, clusterKey, p.ID)
+	if err != nil {
+		// Entry was deleted from cache, do not resurrect it.
+		return
+	}
+
+	// Verify that the cached entry belongs to this exact lifecycle instance.
+	if current.closeChan != p.closeChan {
+		// Entry was replaced by a new lifecycle instance, do not overwrite it.
+		return
+	}
+
+	portforwardstoreLocked(cache, p)
+}
+
 // stopOrDeletePortForward stops or deletes a port forward by its cluster and id.
 // It takes three parameters: cluster is the name of the cluster, id is the unique identifier of the port forward,
 // isStopRequest is a boolean value indicating whether to stop or delete the port forward.
 // It returns an error value indicating whether the operation is successful or not.
 func stopOrDeletePortForward(cache cache.Cache[interface{}], cluster string, id string, isStopRequest bool) error {
+	portForwardMu.Lock()
+	defer portForwardMu.Unlock()
+
 	portforward, err := getPortForwardByID(cache, cluster, id)
 	if err != nil {
 		//nolint:goconst
@@ -82,7 +123,7 @@ func stopOrDeletePortForward(cache cache.Cache[interface{}], cluster string, id 
 
 	if isStopRequest {
 		portforward.Status = STOPPED
-		portforwardstore(cache, portforward)
+		portforwardstoreLocked(cache, portforward)
 	} else {
 		err := cache.Delete(context.Background(), portforwardKeyGenerator(portforward))
 		if err != nil {
