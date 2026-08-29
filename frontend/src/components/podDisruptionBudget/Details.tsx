@@ -92,23 +92,26 @@ export default function PDBDetails(props: { name?: string; namespace?: string; c
           return [];
         }
 
-        const selectorQuery = labelSelectorToQuery(item.spec.selector);
+        // policy/v1 distinguishes a null/omitted selector (matches no pods)
+        // from an empty selector (matches every pod in the namespace). Only
+        // skip the section when the selector is absent; otherwise render it,
+        // including for an empty selector that yields an empty query.
+        const selector = item.spec.selector;
+        if (selector === null || selector === undefined) {
+          return [];
+        }
 
         return [
-          ...(selectorQuery
-            ? [
-                {
-                  id: 'headlamp.pdb-targeted-pods',
-                  section: (
-                    <TargetedPodsSection
-                      namespace={item.metadata.namespace}
-                      labelSelector={selectorQuery}
-                      cluster={item.cluster}
-                    />
-                  ),
-                },
-              ]
-            : []),
+          {
+            id: 'headlamp.pdb-targeted-pods',
+            section: (
+              <TargetedPodsSection
+                namespace={item.metadata.namespace}
+                labelSelector={labelSelectorToQuery(selector)}
+                cluster={item.cluster}
+              />
+            ),
+          },
         ];
       }}
     />

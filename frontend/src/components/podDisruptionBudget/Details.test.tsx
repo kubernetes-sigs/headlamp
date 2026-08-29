@@ -99,4 +99,41 @@ describe('PDBDetails', () => {
     const props = mockDetailsGrid.mock.calls[0][0];
     expect(props.extraInfo(null)).toBeFalsy();
   });
+
+  it('returns no targeted-pods section when there is no item', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'my-pdb' }}>
+        <PDBDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    expect(props.extraSections(null)).toEqual([]);
+  });
+
+  it('does not render the targeted-pods section for a null selector', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'my-pdb' }}>
+        <PDBDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const item = { metadata: { namespace: 'default' }, spec: { selector: null } };
+    expect(props.extraSections(item)).toEqual([]);
+  });
+
+  it('renders the targeted-pods section for an empty selector', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'my-pdb' }}>
+        <PDBDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+    const item = { metadata: { namespace: 'default' }, spec: { selector: {} } };
+    const sections = props.extraSections(item);
+    expect(sections).toHaveLength(1);
+    expect(sections[0].id).toBe('headlamp.pdb-targeted-pods');
+  });
 });

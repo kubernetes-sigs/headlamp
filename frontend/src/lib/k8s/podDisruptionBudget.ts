@@ -19,8 +19,8 @@ import { KubeObject } from './KubeObject';
 
 export interface KubePDB extends KubeObjectInterface {
   spec: {
-    selector: {
-      matchLabels: {
+    selector?: {
+      matchLabels?: {
         [key: string]: string;
       };
       matchExpressions?: {
@@ -28,7 +28,7 @@ export interface KubePDB extends KubeObjectInterface {
         operator: string;
         values: string[];
       }[];
-    };
+    } | null;
     minAvailable?: number;
     maxUnavailable?: number;
   };
