@@ -1095,7 +1095,7 @@ describe('EditorDialog', () => {
         target: { value: 'user-edited-content' },
       });
 
-      fireEvent.click(screen.getByTitle('Close'));
+      fireEvent.click(screen.getByRole('button', { name: 'Close Edit: node-1' }));
 
       expect(screen.getByText(confirmText)).toBeInTheDocument();
       expect(onClose).not.toHaveBeenCalled();
@@ -1135,7 +1135,7 @@ describe('EditorDialog', () => {
       const onClose = vi.fn();
       launchEditorActivity(onClose);
 
-      fireEvent.click(screen.getByTitle('Close'));
+      fireEvent.click(screen.getByRole('button', { name: 'Close Edit: node-1' }));
 
       expect(screen.queryByText(confirmText)).not.toBeInTheDocument();
       expect(onClose).toHaveBeenCalledTimes(1);
