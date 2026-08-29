@@ -206,10 +206,11 @@ test.describe('portforward auto-reconnect', () => {
 
       // --- Step 5: Assert reconnection succeeded ---
       expect(finalPf).not.toBeNull();
-      // The pod name must have changed to the replacement pod.
+      // The pod name and local port must be preserved across the replacement.
       expect(finalPf!.pod).not.toBe(initialPod);
+      expect(finalPf!.port).toBe(pfData.port);
       // Status should be Running (or at least not Stopped).
-      expect(['Running']).toContain(finalPf!.status);
+      expect(finalPf!.status).toBe('Running');
 
       // --- Cleanup: stop and delete the port-forward ---
       await page.request.delete(pfBaseURL(), {
