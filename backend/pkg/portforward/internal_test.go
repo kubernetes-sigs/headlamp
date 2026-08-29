@@ -63,7 +63,7 @@ func TestHandlePortForwardReadiness(t *testing.T) {
 		forwardErrChan := make(chan error, 1)
 		close(forwardErrChan)
 
-		err := handlePortForwardReadiness(c, pfDetails, readyChan, errOut, logParams, forwardErrChan)
+		err := handlePortForwardReadiness(c, pfDetails, readyChan, errOut, logParams, forwardErrChan, false)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "stopped before ready")
 		assert.Equal(t, STOPPED, pfDetails.Status)
@@ -81,7 +81,7 @@ func TestHandlePortForwardReadiness(t *testing.T) {
 		forwardErrChan := make(chan error, 1)
 		forwardErrChan <- nil
 
-		err := handlePortForwardReadiness(c, pfDetails, readyChan, errOut, logParams, forwardErrChan)
+		err := handlePortForwardReadiness(c, pfDetails, readyChan, errOut, logParams, forwardErrChan, false)
 		assert.Error(t, err)
 		assert.Contains(t, err.Error(), "nil error received")
 		assert.Equal(t, STOPPED, pfDetails.Status)
@@ -99,7 +99,7 @@ func TestHandlePortForwardReadiness(t *testing.T) {
 		forwardErrChan := make(chan error, 1)
 		forwardErrChan <- fmt.Errorf("some error")
 
-		err := handlePortForwardReadiness(c, pfDetails, readyChan, errOut, logParams, forwardErrChan)
+		err := handlePortForwardReadiness(c, pfDetails, readyChan, errOut, logParams, forwardErrChan, false)
 		assert.Error(t, err)
 		assert.Equal(t, "some error", err.Error())
 		assert.Equal(t, STOPPED, pfDetails.Status)
@@ -545,7 +545,7 @@ func TestHandlePortForwardError(t *testing.T) {
 	logParams := map[string]string{"id": "err-test"}
 	errMsg := "something went wrong"
 
-	err := handlePortForwardError(c, pfDetails, logParams, errMsg)
+	err := handlePortForwardError(c, pfDetails, logParams, errMsg, false)
 
 	assert.Error(t, err)
 	assert.Equal(t, errMsg, err.Error())
@@ -585,7 +585,7 @@ func TestHandlePortForwardSuccess(t *testing.T) {
 
 	logParams := map[string]string{"id": "success-test"}
 
-	handlePortForwardSuccess(c, pfDetails, logParams)
+	handlePortForwardSuccess(c, pfDetails, logParams, false)
 
 	assert.Equal(t, RUNNING, pfDetails.Status)
 	assert.Empty(t, pfDetails.Error)
@@ -1118,4 +1118,292 @@ func TestStartPortForward_OpenChunkedBodyTimeout(t *testing.T) {
 	defer func() { _ = resp.Body.Close() }()
 
 	assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
+}
+
+func TestUpdatePortForwardStatus_DoesNotResurrectDeleted(t *testing.T) {
+	c := cache.New[interface{}]()
+	defer func() { _ = c.Close() }()
+
+	cluster := "test-cluster"
+	id := "test-id-resurrect"
+	stopChan := make(chan struct{})
+
+	pf := portForward{
+		mu:        &sync.Mutex{},
+		ID:        id,
+		Cluster:   cluster,
+		cacheKey:  cluster,
+		closeChan: stopChan,
+		Status:    RUNNING,
+	}
+
+	portforwardstore(c, pf)
+
+	// Verify it exists in cache
+	stored, err := getPortForwardByID(c, cluster, id)
+	require.NoError(t, err)
+	assert.Equal(t, RUNNING, stored.Status)
+
+	// Delete the port-forward
+	err = stopOrDeletePortForward(c, cluster, id, false)
+	require.NoError(t, err)
+
+	// Verify deleted
+	_, err = getPortForwardByID(c, cluster, id)
+	assert.ErrorIs(t, err, cache.ErrNotFound)
+
+	// Simulate background shutdown routine attempting to update status to STOPPED
+	pfStopped := pf
+	pfStopped.Status = STOPPED
+	updatePortForwardStatus(c, pfStopped)
+
+	// Must NOT be resurrected
+	_, err = getPortForwardByID(c, cluster, id)
+	assert.ErrorIs(t, err, cache.ErrNotFound)
+}
+
+func TestUpdatePortForwardStatus_DoesNotOverwriteNewLifecycle(t *testing.T) {
+	c := cache.New[interface{}]()
+	defer func() { _ = c.Close() }()
+
+	cluster := "test-cluster"
+	id := "test-id-lifecycle"
+
+	stopChanA := make(chan struct{})
+	pfA := portForward{
+		mu:        &sync.Mutex{},
+		ID:        id,
+		Cluster:   cluster,
+		cacheKey:  cluster,
+		closeChan: stopChanA,
+		Status:    RUNNING,
+	}
+
+	// Old lifecycle A stored
+	portforwardstore(c, pfA)
+
+	// Replace with new lifecycle B (reusing same ID)
+	stopChanB := make(chan struct{})
+	pfB := portForward{
+		mu:        &sync.Mutex{},
+		ID:        id,
+		Cluster:   cluster,
+		cacheKey:  cluster,
+		closeChan: stopChanB,
+		Status:    RUNNING,
+	}
+	portforwardstore(c, pfB)
+
+	// Old lifecycle A attempts to save STOPPED
+	pfAStopped := pfA
+	pfAStopped.Status = STOPPED
+	updatePortForwardStatus(c, pfAStopped)
+
+	// Must retain lifecycle B with RUNNING status
+	current, err := getPortForwardByID(c, cluster, id)
+	require.NoError(t, err)
+	assert.Equal(t, RUNNING, current.Status)
+	assert.Same(t, pfB.mu, current.mu)
+}
+
+func TestUpdatePortForwardStatus_UpdatesExistingLifecycle(t *testing.T) {
+	c := cache.New[interface{}]()
+	defer func() { _ = c.Close() }()
+
+	cluster := "test-cluster"
+	id := "test-id-update"
+	stopChan := make(chan struct{})
+
+	pf := portForward{
+		mu:        &sync.Mutex{},
+		ID:        id,
+		Cluster:   cluster,
+		cacheKey:  cluster,
+		closeChan: stopChan,
+		Status:    RUNNING,
+	}
+
+	portforwardstore(c, pf)
+
+	// Update status of active lifecycle to STOPPED
+	pfStopped := pf
+	pfStopped.Status = STOPPED
+	pfStopped.Error = "Stopped by test"
+	updatePortForwardStatus(c, pfStopped)
+
+	current, err := getPortForwardByID(c, cluster, id)
+	require.NoError(t, err)
+	assert.Equal(t, STOPPED, current.Status)
+	assert.Equal(t, "Stopped by test", current.Error)
+}
+
+func TestUpdatePortForwardStatus_UpdatesAfterReconnect(t *testing.T) {
+	c := cache.New[interface{}]()
+	defer func() { _ = c.Close() }()
+
+	cluster := "test-cluster"
+	id := "test-id-reconnect"
+
+	pf := portForward{
+		mu:        &sync.Mutex{},
+		ID:        id,
+		Cluster:   cluster,
+		cacheKey:  cluster,
+		closeChan: make(chan struct{}),
+		Status:    RUNNING,
+	}
+	portforwardstore(c, pf)
+
+	// A service-backed reconnect swaps closeChan on the same lifecycle.
+	reconnected := pf
+	reconnected.closeChan = make(chan struct{})
+	reconnected.Status = RECONNECTING
+	updatePortForwardStatus(c, reconnected)
+
+	current, err := getPortForwardByID(c, cluster, id)
+	require.NoError(t, err)
+	assert.Equal(t, RECONNECTING, current.Status)
+}
+
+func TestUpdatePortForwardStatus_ConcurrentStopOrDeleteRace(t *testing.T) {
+	const iterations = 50
+
+	for i := 0; i < iterations; i++ {
+		c := cache.New[interface{}]()
+		cluster := "test-cluster"
+		id := fmt.Sprintf("test-id-race-%d", i)
+		stopChan := make(chan struct{})
+
+		pf := portForward{
+			mu:        &sync.Mutex{},
+			ID:        id,
+			Cluster:   cluster,
+			cacheKey:  cluster,
+			closeChan: stopChan,
+			Status:    RUNNING,
+		}
+		portforwardstore(c, pf)
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+
+		// Goroutine 1: simulates background worker updating to STOPPED on shutdown
+		go func() {
+			defer wg.Done()
+
+			pfStopped := pf
+			pfStopped.Status = STOPPED
+			updatePortForwardStatus(c, pfStopped)
+		}()
+
+		// Goroutine 2: simulates HTTP request deleting the port-forward
+		go func() {
+			defer wg.Done()
+
+			_ = stopOrDeletePortForward(c, cluster, id, false)
+		}()
+
+		wg.Wait()
+
+		// Once delete has finished, the entry must NEVER remain in cache as STOPPED.
+		// If stopOrDeletePortForward executed, it deleted it.
+		// If updatePortForwardStatus executed before stopOrDeletePortForward,
+		// stopOrDeletePortForward subsequently deleted it.
+		// If stopOrDeletePortForward executed first, updatePortForwardStatus skipped it.
+		_, err := getPortForwardByID(c, cluster, id)
+		assert.ErrorIs(t, err, cache.ErrNotFound, "deleted port-forward must not exist in cache")
+
+		_ = c.Close()
+	}
+}
+
+// TestHandlePortForwardReadiness_ReconnectKeepsDeletedEntryAbsent checks that
+// when a port-forward is deleted while a service-backed reconnect is waiting
+// for readiness, neither readiness outcome puts the entry back in the cache.
+func TestHandlePortForwardReadiness_ReconnectKeepsDeletedEntryAbsent(t *testing.T) {
+	outcomes := []struct {
+		name    string
+		trigger func(readyChan chan struct{}, forwardErrChan chan error)
+		wantErr bool
+	}{
+		{
+			name:    "ready",
+			trigger: func(readyChan chan struct{}, _ chan error) { close(readyChan) },
+		},
+		{
+			name:    "forward_error",
+			trigger: func(_ chan struct{}, forwardErrChan chan error) { forwardErrChan <- errors.New("lost pod") },
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range outcomes {
+		t.Run(tt.name, func(t *testing.T) {
+			c := cache.New[interface{}]()
+			defer func() { _ = c.Close() }()
+
+			cluster := "test-cluster"
+			id := "test-id-reconnect-" + tt.name
+
+			pfDetails := &portForward{
+				mu:        &sync.Mutex{},
+				ID:        id,
+				Cluster:   cluster,
+				cacheKey:  cluster,
+				closeChan: make(chan struct{}),
+				Status:    RECONNECTING,
+			}
+
+			portforwardstore(c, *pfDetails)
+			require.NoError(t, stopOrDeletePortForward(c, cluster, id, false))
+
+			// The reconnect swaps in a fresh stop channel for the new forwarder.
+			pfDetails.closeChan = make(chan struct{})
+
+			readyChan := make(chan struct{})
+			forwardErrChan := make(chan error, 1)
+			tt.trigger(readyChan, forwardErrChan)
+
+			err := handlePortForwardReadiness(
+				c, pfDetails, readyChan, &bytes.Buffer{}, map[string]string{"id": id}, forwardErrChan, true)
+			if tt.wantErr {
+				assert.Error(t, err)
+			} else {
+				assert.NoError(t, err)
+			}
+
+			_, err = getPortForwardByID(c, cluster, id)
+			assert.ErrorIs(t, err, cache.ErrNotFound, "deleted port-forward must stay absent after reconnect")
+		})
+	}
+}
+
+// TestHandlePortForwardReadiness_InitialStartStoresEntry checks that the first
+// start of a port-forward still inserts the entry into the cache.
+func TestHandlePortForwardReadiness_InitialStartStoresEntry(t *testing.T) {
+	c := cache.New[interface{}]()
+	defer func() { _ = c.Close() }()
+
+	cluster := "test-cluster"
+	id := "test-id-initial"
+
+	pfDetails := &portForward{
+		mu:        &sync.Mutex{},
+		ID:        id,
+		Cluster:   cluster,
+		cacheKey:  cluster,
+		closeChan: make(chan struct{}),
+		Status:    RUNNING,
+	}
+
+	readyChan := make(chan struct{})
+	close(readyChan)
+
+	err := handlePortForwardReadiness(
+		c, pfDetails, readyChan, &bytes.Buffer{}, map[string]string{"id": id}, make(chan error, 1), false)
+	require.NoError(t, err)
+
+	stored, err := getPortForwardByID(c, cluster, id)
+	require.NoError(t, err)
+	assert.Equal(t, RUNNING, stored.Status)
 }

@@ -582,7 +582,7 @@ func handlePodCheck(
 			"pod unavailable, attempting reconnect via service")
 
 		pfSnapshot := pfDetails.setStatusAndSnapshot(RECONNECTING, "")
-		portforwardstore(cache, pfSnapshot)
+		updatePortForwardStatus(cache, pfSnapshot)
 
 		// Close the old forwarder's stop channel so its goroutine
 		// exits, then allocate a fresh one. attemptReconnect's
@@ -605,7 +605,7 @@ func handlePodCheck(
 	logger.Log(logger.LevelError, logParams, errors.New(errMsg), "stopping port-forward due to pod status")
 
 	pfSnapshot := pfDetails.setStatusAndSnapshot(STOPPED, errMsg)
-	portforwardstore(cache, pfSnapshot)
+	updatePortForwardStatus(cache, pfSnapshot)
 	safeCloseChan(pfDetails.closeChan)
 
 	return true
@@ -693,7 +693,7 @@ func attemptReconnect(
 
 // storeReconnecting persists the RECONNECTING status to the cache.
 func storeReconnecting(cache cache.Cache[interface{}], pfDetails *portForward) {
-	portforwardstore(cache, pfDetails.setStatusAndSnapshot(RECONNECTING, ""))
+	updatePortForwardStatus(cache, pfDetails.setStatusAndSnapshot(RECONNECTING, ""))
 }
 
 // tryReconnectOnce resolves a new pod for the service, initialises a fresh
@@ -744,7 +744,7 @@ func tryReconnectOnce(
 
 	safeCloseChan(oldCloseChan)
 
-	err = runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut)
+	err = runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut, true)
 	if err != nil {
 		logger.Log(logger.LevelError, logParams, err, "reconnected forwarder failed readiness")
 		// handlePortForwardError closed closeChan; allocate a fresh one
@@ -763,17 +763,32 @@ func tryReconnectOnce(
 	return true, false
 }
 
+// storeReadinessOutcome persists the result of a readiness wait. The first
+// start of a port-forward inserts the entry. A reconnect only updates an entry
+// that still exists and belongs to the same lifecycle, so a port-forward
+// deleted while it was reconnecting stays deleted.
+func storeReadinessOutcome(cache cache.Cache[interface{}], p portForward, isReconnect bool) {
+	if isReconnect {
+		updatePortForwardStatus(cache, p)
+
+		return
+	}
+
+	portforwardstore(cache, p)
+}
+
 func handlePortForwardError(
 	cache cache.Cache[interface{}],
 	pfDetails *portForward,
 	logParams map[string]string,
 	errMsg string,
+	isReconnect bool,
 ) error {
 	logger.Log(logger.LevelError, logParams, errors.New(errMsg), "portforward error")
 
 	pfSnapshot := pfDetails.setStatusAndSnapshot(STOPPED, errMsg)
 
-	portforwardstore(cache, pfSnapshot)
+	storeReadinessOutcome(cache, pfSnapshot, isReconnect)
 	safeCloseChan(pfDetails.closeChan)
 
 	return errors.New(errMsg)
@@ -784,9 +799,10 @@ func handlePortForwardSuccess(
 	cache cache.Cache[interface{}],
 	pfDetails *portForward,
 	logParams map[string]string,
+	isReconnect bool,
 ) {
 	pfSnapshot := pfDetails.setStatusAndSnapshot(RUNNING, "")
-	portforwardstore(cache, pfSnapshot)
+	storeReadinessOutcome(cache, pfSnapshot, isReconnect)
 	logger.Log(logger.LevelInfo, logParams, nil, "Port forward ready and running.")
 }
 
@@ -800,27 +816,31 @@ func handlePortForwardReadiness(
 	errOut *bytes.Buffer,
 	logParams map[string]string,
 	forwardErrChan <-chan error,
+	isReconnect bool,
 ) error {
 	select {
 	case <-readyChan:
 		if errOut.String() != "" {
 			return handlePortForwardError(cache, pfDetails, logParams,
-				fmt.Sprintf("portforward failed, stderr: %s", errOut.String()))
+				fmt.Sprintf("portforward failed, stderr: %s", errOut.String()), isReconnect)
 		}
 
-		handlePortForwardSuccess(cache, pfDetails, logParams)
+		handlePortForwardSuccess(cache, pfDetails, logParams, isReconnect)
 	case err, ok := <-forwardErrChan:
 		if !ok {
-			return handlePortForwardError(cache, pfDetails, logParams, "portforward stopped before ready")
+			return handlePortForwardError(cache, pfDetails, logParams,
+				"portforward stopped before ready", isReconnect)
 		}
 
 		if err == nil {
-			return handlePortForwardError(cache, pfDetails, logParams, "portforward failed: nil error received")
+			return handlePortForwardError(cache, pfDetails, logParams,
+				"portforward failed: nil error received", isReconnect)
 		}
 
-		return handlePortForwardError(cache, pfDetails, logParams, err.Error())
+		return handlePortForwardError(cache, pfDetails, logParams, err.Error(), isReconnect)
 	case <-time.After(PortForwardReadinessTimeout):
-		return handlePortForwardError(cache, pfDetails, logParams, "timeout waiting for portforward to be ready")
+		return handlePortForwardError(cache, pfDetails, logParams,
+			"timeout waiting for portforward to be ready", isReconnect)
 	case <-pfDetails.closeChan:
 		msg := "portforward stopped before becoming ready"
 
@@ -842,7 +862,7 @@ func handlePortForwardReadiness(
 			pfDetails.mu.Unlock()
 		}
 
-		portforwardstore(cache, pfSnapshot)
+		storeReadinessOutcome(cache, pfSnapshot, isReconnect)
 		logger.Log(logger.LevelInfo, logParams, nil, msg)
 
 		return errors.New(msg)
@@ -891,6 +911,7 @@ func runAndMonitorPortForward(
 	forwarder *portforward.PortForwarder,
 	readyChan chan struct{},
 	errOut *bytes.Buffer,
+	isReconnect bool,
 ) error {
 	logParams := map[string]string{
 		"id": pfDetails.ID, "pod": pfDetails.Pod, "port": pfDetails.Port, "targetPort": pfDetails.TargetPort,
@@ -899,7 +920,8 @@ func runAndMonitorPortForward(
 
 	forwardPortsAsync(forwarder, forwardErrChan, logParams)
 
-	err := handlePortForwardReadiness(cache, pfDetails, readyChan, errOut, logParams, forwardErrChan)
+	err := handlePortForwardReadiness(
+		cache, pfDetails, readyChan, errOut, logParams, forwardErrChan, isReconnect)
 	if err != nil {
 		return err
 	}
@@ -958,7 +980,7 @@ func startPortForward(kContext *kubeconfig.Context, cache cache.Cache[interface{
 		rConf:            rConf,
 	}
 
-	return runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut)
+	return runAndMonitorPortForward(clientset, cache, pfDetails, forwarder, readyChan, errOut, false)
 }
 
 func checkIfPodIsRunning(clientset *kubernetes.Clientset, namespace string, pod string) error {
