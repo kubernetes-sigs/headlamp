@@ -1230,10 +1230,9 @@ export function ContainerEnvironmentVariables(props: EnvironmentVariablesProps) 
               {data.key}
             </StatusLabel>
             {data.isOutOfSync && (
-              <Box aria-label="hidden" display="flex" alignItems="center" px={1}>
+              <Box display="flex" alignItems="center" px={1}>
                 <HoverInfoLabel
                   label=""
-                  aria-label="error"
                   icon="mdi:alert-outline"
                   hoverInfo={t(
                     'translation|This value may differ in the container, since the pod is older than {{from}}',
@@ -1530,8 +1529,8 @@ export function ContainerInfo(props: ContainerInfoProps) {
           </StatusLabel>
           {!!stateDetails && stateDetails.message && (
             <LightTooltip role="tooltip" title={stateDetails.message} interactive id={tooltipID}>
-              <Box aria-label="hidden" display="inline" px={1} style={{ verticalAlign: 'bottom' }}>
-                <Icon icon="mdi:alert-outline" width="1.3rem" height="1.3rem" aria-label="hidden" />
+              <Box display="inline" px={1} style={{ verticalAlign: 'bottom' }}>
+                <Icon icon="mdi:alert-outline" width="1.3rem" height="1.3rem" />
               </Box>
             </LightTooltip>
           )}
