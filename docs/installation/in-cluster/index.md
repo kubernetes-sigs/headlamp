@@ -8,25 +8,42 @@ set up an ingress server for having it available to users.
 
 ## Using Helm
 
-The easiest way to install headlamp in your existing cluster is to
-use [helm](https://helm.sh/docs/intro/quickstart/) with our [helm chart](https://github.com/kubernetes-sigs/headlamp/tree/main/charts/headlamp).
+The easiest way to install Headlamp in your existing cluster is to
+use [Helm](https://helm.sh/docs/intro/quickstart/) with our [Helm chart](https://github.com/kubernetes-sigs/headlamp/tree/main/charts/headlamp).
 
 ```bash
 # first add our custom repo to your local helm repositories
 helm repo add headlamp https://kubernetes-sigs.github.io/headlamp/
+helm repo update
 
-# now you should be able to install headlamp via helm
-helm install my-headlamp headlamp/headlamp --namespace kube-system
+# install headlamp in a dedicated namespace (recommended)
+helm install my-headlamp headlamp/headlamp \
+  --namespace headlamp \
+  --create-namespace
 ```
+
+:::info Choosing a Namespace
+Deploying Headlamp into its own dedicated namespace (e.g. `headlamp` via `--namespace headlamp --create-namespace`) is recommended for production environments:
+- **Security & RBAC isolation:** Keeps Headlamp's ServiceAccount, RoleBindings, and plugins isolated without cluttering core Kubernetes system components.
+- **Lifecycle management:** Simplifies applying NetworkPolicies, ResourceQuotas, and managing clean uninstalls or upgrades.
+
+Installing into `kube-system` (e.g. `--namespace kube-system`) is also supported and was historically common in simple test setups or Minikube addons, but is not required.
+:::
 
 As usual, it is possible to configure the helm release via the [values file](https://github.com/kubernetes-sigs/headlamp/blob/main/charts/headlamp/values.yaml) or setting your preferred values directly.
 
 ```bash
 # install headlamp with your own values.yaml
-helm install my-headlamp headlamp/headlamp --namespace kube-system -f values.yaml
+helm install my-headlamp headlamp/headlamp \
+  --namespace headlamp \
+  --create-namespace \
+  -f values.yaml
 
 # install headlamp by setting your values directly
-helm install my-headlamp headlamp/headlamp --namespace kube-system --set replicaCount=2
+helm install my-headlamp headlamp/headlamp \
+  --namespace headlamp \
+  --create-namespace \
+  --set replicaCount=2
 ```
 
 ### Cluster Inventory
