@@ -296,6 +296,7 @@ export function ResourceSearch({
             ]}
             data={deferredResults.items.slice(0, maxResults) ?? []}
             hideColumns={selectedClusters.length > 1 ? undefined : ['cluster']}
+            noNamespaceFilter
           />
         )}
       </Box>

@@ -380,6 +380,7 @@ function ProjectAccess({ project }: { project: ProjectDefinition }) {
           columns={['type', 'name', 'age']}
           namespaces={project.namespaces}
           enableRowActions
+          noNamespaceFilter
         />
         <Typography variant="h6">{t('Role Bindings')}</Typography>
         <ResourceTable
@@ -387,6 +388,7 @@ function ProjectAccess({ project }: { project: ProjectDefinition }) {
           columns={['type', 'name', 'age']}
           namespaces={project.namespaces}
           enableRowActions
+          noNamespaceFilter
         />
       </SelectedClustersContext.Provider>
     </Box>
