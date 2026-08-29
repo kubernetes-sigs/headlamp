@@ -736,7 +736,7 @@
   "(Current/Target)": "(Geçerli/Hedef)",
   "MinReplicas": "MinReplicas",
   "MaxReplicas": "MaxReplicas",
-  "Deployment pods": "Dağıtım podları",
+  "{{ kind }} pods": "",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} mevcut / {{ desiredReplicas }} istenen",
   "Last Scale Time": "",
   "Targets": "Hedefler",

@@ -731,7 +731,7 @@
   "(Current/Target)": "（當前/目標）",
   "MinReplicas": "最小副本",
   "MaxReplicas": "最大副本",
-  "Deployment pods": "部署 pod",
+  "{{ kind }} pods": "",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} 當前 / {{ desiredReplicas }} 期望",
   "Last Scale Time": "",
   "Targets": "目標",

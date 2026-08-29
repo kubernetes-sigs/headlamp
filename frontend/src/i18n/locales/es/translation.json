@@ -741,7 +741,7 @@
   "(Current/Target)": "(Actual/Objetivo)",
   "MinReplicas": "MinReplicas",
   "MaxReplicas": "MaxReplicas",
-  "Deployment pods": "Pods de despliegue",
+  "{{ kind }} pods": "",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} actuales / {{ desiredReplicas }} deseados",
   "Last Scale Time": "",
   "Targets": "Objetivos",

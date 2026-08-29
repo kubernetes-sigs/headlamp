@@ -736,7 +736,7 @@
   "(Current/Target)": "(Aktuális/Cél)",
   "MinReplicas": "MinReplicas",
   "MaxReplicas": "MaxReplicas",
-  "Deployment pods": "Üzembe helyezési podok",
+  "{{ kind }} pods": "",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} aktuális/{{ desiredReplicas }} kívánt",
   "Last Scale Time": "",
   "Targets": "Tárolók",

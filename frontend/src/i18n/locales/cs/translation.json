@@ -746,7 +746,7 @@
   "(Current/Target)": "(Aktuální/cíl)",
   "MinReplicas": "MinReplicas",
   "MaxReplicas": "MaxReplicas",
-  "Deployment pods": "Pody nasazení",
+  "{{ kind }} pods": "",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "aktuální: {{ currentReplicas }} / požadováno: {{ desiredReplicas }}",
   "Last Scale Time": "",
   "Targets": "Cíle",

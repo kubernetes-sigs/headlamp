@@ -736,7 +736,7 @@
   "(Current/Target)": "(বর্তমান/লক্ষ্য)",
   "MinReplicas": "মিন্রিপ্লিকাস",
   "MaxReplicas": "ম্যাক্সরেপ্লিকাস",
-  "Deployment pods": "Deployment pod",
+  "{{ kind }} pods": "",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} বর্তমান / {{ desiredReplicas }} কাঙ্ক্ষিত",
   "Last Scale Time": "সর্বশেষ Scale সময়",
   "Targets": "লক্ষ্য",

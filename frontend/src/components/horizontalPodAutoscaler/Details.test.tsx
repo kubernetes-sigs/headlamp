@@ -43,12 +43,34 @@ vi.mock('../common/Resource', () => ({
   ConditionsSection: () => null,
 }));
 
+// Interpolates {{ placeholders }} like real i18next, so tests can assert on
+// the substituted value rather than just the raw translation key.
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({
+    t: (key: string, opts?: Record<string, any>) => {
+      const resolved = opts
+        ? Object.entries(opts).reduce(
+            (str, [name, value]) => str.replaceAll(`{{ ${name} }}`, String(value)),
+            key
+          )
+        : key;
+      return resolved.split('|').pop() ?? resolved;
+    },
+  }),
+}));
+
 const hpa = {
   referenceObject: { kind: 'Deployment', metadata: { name: 'web' } },
   metrics: () => [{ definition: 'cpu', value: '50%/80%' }],
-  spec: { minReplicas: 1, maxReplicas: 5 },
+  spec: { minReplicas: 1, maxReplicas: 5, scaleTargetRef: { kind: 'Deployment', name: 'web' } },
   status: { currentReplicas: 2, desiredReplicas: 3, lastScaleTime: undefined },
   jsonData: {},
+} as any;
+
+const statefulSetHpa = {
+  ...hpa,
+  referenceObject: { kind: 'StatefulSet', metadata: { name: 'db' } },
+  spec: { ...hpa.spec, scaleTargetRef: { kind: 'StatefulSet', name: 'db' } },
 } as any;
 
 describe('HpaDetails', () => {
@@ -78,9 +100,7 @@ describe('HpaDetails', () => {
     );
 
     const props = mockDetailsGrid.mock.calls[0][0];
-    const byName = Object.fromEntries(
-      props.extraInfo(hpa).map((f: any) => [String(f.name).split('|').pop(), f.value])
-    );
+    const byName = Object.fromEntries(props.extraInfo(hpa).map((f: any) => [f.name, f.value]));
 
     expect(byName['MinReplicas']).toBe(1);
     expect(byName['MaxReplicas']).toBe(5);
@@ -96,5 +116,20 @@ describe('HpaDetails', () => {
     const props = mockDetailsGrid.mock.calls[0][0];
     const lastScale = props.extraInfo(hpa).find((f: any) => f.name.includes('Last Scale Time'));
     expect(lastScale.hide).toBe(true);
+  });
+
+  it('labels the pods row with the scale target kind', () => {
+    render(
+      <TestContext routerMap={{ namespace: 'default', name: 'my-hpa' }}>
+        <HpaDetails />
+      </TestContext>
+    );
+
+    const props = mockDetailsGrid.mock.calls[0][0];
+
+    expect(props.extraInfo(hpa).some((f: any) => f.name === 'Deployment pods')).toBe(true);
+    expect(props.extraInfo(statefulSetHpa).some((f: any) => f.name === 'StatefulSet pods')).toBe(
+      true
+    );
   });
 });

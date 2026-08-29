@@ -746,7 +746,7 @@
   "(Current/Target)": "Bieżąca wartość docelowa",
   "MinReplicas": "MinReplicas",
   "MaxReplicas": "MaxReplicas",
-  "Deployment pods": "Zasobniki wdrożenia",
+  "{{ kind }} pods": "",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} bieżące/ {{ desiredReplicas }} żądane",
   "Last Scale Time": "",
   "Targets": "Miejsca docelowe",

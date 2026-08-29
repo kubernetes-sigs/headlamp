@@ -731,7 +731,7 @@
   "(Current/Target)": "(현재/목표)",
   "MinReplicas": "최소 레플리카",
   "MaxReplicas": "최대 레플리카",
-  "Deployment pods": "배포된 포드",
+  "{{ kind }} pods": "",
   "{{ currentReplicas }} current / {{ desiredReplicas }} desired": "{{ currentReplicas }} 현재 / {{ desiredReplicas }} 원하는",
   "Last Scale Time": "",
   "Targets": "대상",
