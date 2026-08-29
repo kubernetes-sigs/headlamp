@@ -15,13 +15,16 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
+import { configureStore } from '@reduxjs/toolkit';
 import { act, render } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadTableSettings, storeTableSettings } from '../../../helpers/tableSettings';
 import { createMuiTheme } from '../../../lib/themes';
+import reducers from '../../../redux/reducers/reducers';
 import { TestContext } from '../../../test';
 import ResourceTable from './ResourceTable';
+import { addResourceTableColumnsProcessor } from './resourceTableSlice';
 
 vi.mock('react-i18next', () => ({
   useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
@@ -30,6 +33,23 @@ vi.mock('react-i18next', () => ({
 
 vi.mock('../../../lib/k8s', () => ({
   useSelectedClusters: vi.fn(() => ['test-cluster']),
+}));
+
+// Column-visibility tests don't exercise plugin cluster-scoping and rely on this file's
+// narrow `lib/k8s` mock (above), which doesn't cover useCluster/useClustersConf -- so the
+// real hook can't run here. Mock it with a controllable map instead of a fixed `true`, so
+// the cluster-scoping tests below can prove a non-matching plugin's processor is actually
+// skipped, not just that the mock always lets everything through.
+const { mockApplicabilityMap } = vi.hoisted(() => ({
+  mockApplicabilityMap: new Map<string, boolean>(),
+}));
+
+vi.mock('../../../plugin/useIsPluginApplicableToCluster', () => ({
+  usePluginApplicabilityMap: () => mockApplicabilityMap,
+  isPluginApplicable: (map: Map<string, boolean>, plugin?: string | null) => {
+    if (!plugin) return true;
+    return map.get(plugin) !== false;
+  },
 }));
 
 // Capture the props passed to Table using a hoisted holder object
@@ -225,5 +245,71 @@ describe('ResourceTable Column Visibility', () => {
     );
 
     expect(lastTablePropsHolder.current.enableFacetedValues).toBe(true);
+  });
+});
+
+describe('ResourceTable cluster-scoped column processors', () => {
+  beforeEach(() => {
+    lastTablePropsHolder.current = null;
+    mockApplicabilityMap.clear();
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const columns = [
+    {
+      id: 'name',
+      label: 'Name',
+      getValue: (item: any) => item.metadata.name,
+    },
+  ];
+
+  const injectExtraColumn = ({ columns: currentColumns }: { columns: typeof columns }) => [
+    ...currentColumns,
+    { id: 'injected', label: 'Injected' },
+  ];
+
+  const renderTableWithProcessor = (pluginName: string) => {
+    const store = configureStore({ reducer: reducers });
+    store.dispatch(
+      addResourceTableColumnsProcessor({
+        id: 'test-processor',
+        processor: injectExtraColumn,
+        plugin: pluginName,
+      } as any)
+    );
+
+    const ResourceTableAny = ResourceTable as any;
+    return render(
+      <TestContext store={store}>
+        <ThemeProvider theme={theme}>
+          <ResourceTableAny id="test-table-id" columns={columns} data={mockData} />
+        </ThemeProvider>
+      </TestContext>
+    );
+  };
+
+  it('does not apply a column processor from a plugin the cluster selector excludes', () => {
+    mockApplicabilityMap.set('blocked-plugin', false);
+
+    renderTableWithProcessor('blocked-plugin');
+
+    expect(lastTablePropsHolder.current).not.toBeNull();
+    expect(lastTablePropsHolder.current.columns.some((col: any) => col.id === 'injected')).toBe(
+      false
+    );
+  });
+
+  it('applies a column processor from a plugin the cluster selector allows', () => {
+    mockApplicabilityMap.set('allowed-plugin', true);
+
+    renderTableWithProcessor('allowed-plugin');
+
+    expect(lastTablePropsHolder.current).not.toBeNull();
+    expect(lastTablePropsHolder.current.columns.some((col: any) => col.id === 'injected')).toBe(
+      true
+    );
   });
 });

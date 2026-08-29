@@ -29,7 +29,7 @@ import Typography from '@mui/material/Typography';
 import useMediaQuery from '@mui/material/useMediaQuery';
 import { useQueries } from '@tanstack/react-query';
 import { has } from 'lodash';
-import React, { memo, useCallback } from 'react';
+import React, { memo, useCallback, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
@@ -38,6 +38,10 @@ import { logout } from '../../lib/auth';
 import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import { ClusterUserInfo, getClusterUserInfo } from '../../lib/k8s/api/v1/clusterApi';
 import { createRouteURL } from '../../lib/router/createRouteURL';
+import {
+  isPluginApplicable,
+  usePluginApplicabilityMap,
+} from '../../plugin/useIsPluginApplicableToCluster';
 import {
   AppBarAction,
   AppBarActionsProcessor,
@@ -62,8 +66,19 @@ export function useAppBarActionsProcessed() {
   const appBarActionsProcessors = useTypedSelector(
     state => state.actionButtons.appBarActionsProcessors
   );
+  const pluginApplicabilityMap = usePluginApplicabilityMap();
 
-  return { appBarActions, appBarActionsProcessors };
+  return useMemo(
+    () => ({
+      appBarActions: appBarActions.filter(action =>
+        isPluginApplicable(pluginApplicabilityMap, action.plugin)
+      ),
+      appBarActionsProcessors: appBarActionsProcessors.filter(processor =>
+        isPluginApplicable(pluginApplicabilityMap, processor.plugin)
+      ),
+    }),
+    [appBarActions, appBarActionsProcessors, pluginApplicabilityMap]
+  );
 }
 
 export function processAppBarActions(

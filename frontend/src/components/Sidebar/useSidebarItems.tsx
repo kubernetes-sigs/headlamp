@@ -26,6 +26,10 @@ import CRD from '../../lib/k8s/crd';
 import { useGatewayL4RouteAvailability } from '../../lib/k8s/gatewayL4RouteAvailability';
 import PodGroup from '../../lib/k8s/podGroup';
 import { createRouteURL } from '../../lib/router/createRouteURL';
+import {
+  isPluginApplicable,
+  usePluginApplicabilityMap,
+} from '../../plugin/useIsPluginApplicableToCluster';
 import { useTypedSelector } from '../../redux/hooks';
 import { DefaultSidebars, SidebarEntryProps, SidebarItemProps } from '.';
 import ClusterBadge from './ClusterBadge';
@@ -61,6 +65,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
   const customSidebarEntries = useTypedSelector(state => state.sidebar.entries);
   const customSidebarFilters = useTypedSelector(state => state.sidebar.filters);
   const customHomeSidebarFilters = useTypedSelector(state => state.sidebar.homeFilters);
+  const pluginApplicabilityMap = usePluginApplicabilityMap();
   const shouldShowHomeItem = isElectron() || Object.keys(clusters).length !== 1;
   const selectedClusters = useSelectedClusters();
   const allClustersConf = useClustersConf();
@@ -528,8 +533,12 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
       { name: DefaultSidebars.IN_CLUSTER, subList: inClusterItems, label: '' },
     ];
 
-    // Create a copy of all the custom entries so we don't accidentaly mutate them
-    const customEntries = _.cloneDeep(Object.values(customSidebarEntries));
+    // Create a copy of all the custom entries so we don't accidentally mutate them,
+    // excluding any plugin's entries that don't apply to the active cluster (per the
+    // plugin manifest's `headlamp.clusterSelector`).
+    const customEntries = _.cloneDeep(Object.values(customSidebarEntries)).filter(entry =>
+      isPluginApplicable(pluginApplicabilityMap, entry.plugin)
+    );
 
     // Lookup map of every sidebar entry
     const entryLookup = new Map<string, SidebarItemProps>();
@@ -609,6 +618,7 @@ export const useSidebarItems = (sidebarName: string = DefaultSidebars.IN_CLUSTER
     shouldShowHomeItem,
     customSidebarFilters,
     customHomeSidebarFilters,
+    pluginApplicabilityMap,
     // eslint-disable-next-line react-hooks/exhaustive-deps
     Object.keys(clusters).join(','),
     // eslint-disable-next-line react-hooks/exhaustive-deps
