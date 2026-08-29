@@ -8,6 +8,7 @@ const isDev = process.argv.includes('--dev');
 // CJS bundling would otherwise inline these dynamic imports into main.js.
 // Separate entries keep their module graphs out of startup memory until first use.
 const mcpAdapterEntry = path.resolve(__dirname, '../electron/mcp/MCPAdapter.ts');
+const buildManifestEntry = path.resolve(__dirname, './build-manifest.ts');
 const lazyDependencies = {
   'find-process': './lazy/find-process.js',
   semver: './lazy/semver.js',
@@ -59,6 +60,11 @@ const entryPoints = [
   {
     entryPoints: [mcpAdapterEntry],
     outfile: path.resolve(__dirname, '../build/mcp/MCPAdapter.js'),
+  },
+  {
+    entryPoints: [buildManifestEntry],
+    format: 'esm',
+    outfile: path.resolve(__dirname, '../build/build-manifest.mjs'),
   },
   {
     entryPoints: [require.resolve('find-process')],

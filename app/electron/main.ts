@@ -47,6 +47,7 @@ import {
 } from './legal-documents';
 import { runListPluginsCommand } from './list-plugins';
 import MCPClient from './mcp/MCPClient';
+import { AppMenu, menusToTemplate } from './menu';
 import { filterUserOwnedPids } from './ownedProcesses';
 import {
   addToPath,
@@ -67,8 +68,10 @@ import {
   runScript,
   setupRunCmdHandlers,
 } from './runCmd';
+import { setupSecureStorageHandlers } from './secureStorage';
 import { loadSettings, SETTINGS_PATH } from './settings';
 import { getShellEnv } from './shellEnv';
+import { shouldCheckForAppUpdates } from './shouldCheckForAppUpdates';
 import {
   cleanupHeadlampTray,
   createHeadlampTray,
@@ -201,11 +204,11 @@ let actualPort = defaultPort; // Will be updated when backend starts
 const MAX_PORT_ATTEMPTS = Math.abs(Number(process.env.HEADLAMP_MAX_PORT_ATTEMPTS) || 100); // Maximum number of ports to try
 
 const useExternalServer = process.env.EXTERNAL_SERVER || false;
-const shouldCheckForUpdates = process.env.HEADLAMP_CHECK_FOR_UPDATES !== 'false';
 const legalDocumentsResourcePath = getLegalDocumentsResourcePath(isDev, process.resourcesPath);
 const appBuildManifestPath = path.join(legalDocumentsResourcePath, 'app-build-manifest.json');
 const legalDocuments = loadLegalDocuments(appBuildManifestPath);
 const protocolScheme = readProtocolScheme(appBuildManifestPath);
+const shouldCheckForUpdates = shouldCheckForAppUpdates(appBuildManifestPath);
 
 // make it global so that it doesn't get garbage collected
 let mainWindow: BrowserWindow | null;
@@ -731,7 +734,12 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
 
   actualPort = await findAvailablePort(defaultPort);
 
-  let serverArgs: string[] = ['--listen-addr=localhost', `--port=${actualPort}`];
+  let serverArgs: string[] = [
+    '--listen-addr=localhost',
+    `--port=${actualPort}`,
+    '--app-name',
+    app.getName(),
+  ];
   if (!!args.kubeconfig) {
     serverArgs = serverArgs.concat(['--kubeconfig', args.kubeconfig]);
   }
@@ -1145,7 +1153,12 @@ function setMenu(appWindow: BrowserWindow | null, newAppMenu: AppMenu[] = []) {
   let menu: Electron.Menu;
   try {
     const menuTemplate: (MenuItemConstructorOptions | MenuItem)[] =
-      menusToTemplate(appWindow, appMenu) || [];
+      menusToTemplate(appWindow, appMenu, loadFullMenu, {
+        openExternal: url => shell.openExternal(url),
+        openAboutDialog: () => appWindow?.webContents.send('open-about-dialog'),
+        adjustZoom,
+        setZoom,
+      }) || [];
     menu = Menu.buildFromTemplate(menuTemplate);
   } catch (e) {
     console.error(`Failed to build menus from template ${appMenu}:`, e);
@@ -1194,55 +1207,6 @@ function updateMenuLabels(menus: AppMenu[]) {
       menu.label = defaultMenusObj[menu.id].label;
     }
   });
-}
-
-export interface AppMenu extends Omit<Partial<MenuItemConstructorOptions>, 'click'> {
-  /** A URL to open (if not starting with http, then it'll be opened in the external browser) */
-  url?: string;
-  /** The submenus of this menu */
-  submenu?: AppMenu[];
-  /** A string identifying this menu */
-  id: string;
-  /** Whether to render this menu only after plugins are loaded (to give it time for the plugins
-   * to override the menu) */
-  afterPlugins?: boolean;
-}
-
-function menusToTemplate(mainWindow: BrowserWindow | null, menusFromPlugins: AppMenu[]) {
-  const menusToDisplay: MenuItemConstructorOptions[] = [];
-  menusFromPlugins.forEach(appMenu => {
-    const { url, afterPlugins = false, ...otherProps } = appMenu;
-    const menu: MenuItemConstructorOptions = otherProps;
-
-    if (!loadFullMenu && !!afterPlugins) {
-      return;
-    }
-
-    // Handle the "About" menu item from the Help menu specially
-    if (appMenu.id === 'original-about-help') {
-      menu.click = () => {
-        mainWindow?.webContents.send('open-about-dialog');
-      };
-    } else if (!!url) {
-      menu.click = async () => {
-        // Open external links in the external browser.
-        if (!!mainWindow && !url.startsWith('http')) {
-          mainWindow.webContents.loadURL(url);
-        } else {
-          await shell.openExternal(url);
-        }
-      };
-    }
-
-    // If the menu has a submenu, then recursively convert it.
-    if (Array.isArray(otherProps.submenu)) {
-      menu.submenu = menusToTemplate(mainWindow, otherProps.submenu);
-    }
-
-    menusToDisplay.push(menu);
-  });
-
-  return menusToDisplay;
 }
 
 async function getRunningHeadlampPIDs() {
@@ -1843,6 +1807,7 @@ function startElectron() {
     });
 
     setupRunCmdHandlers(mainWindow, ipcMain);
+    setupSecureStorageHandlers(mainWindow, startUrl);
 
     new PluginManagerEventListeners().setupEventHandlers();
 

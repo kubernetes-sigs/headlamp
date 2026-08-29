@@ -2319,7 +2319,7 @@ func TestFileExists(t *testing.T) {
 }
 
 //nolint:funlen
-func TestBaseURLReplace(t *testing.T) {
+func TestRewriteIndexHTML(t *testing.T) {
 	// Create a temporary directory for testing
 	tempDir, err := os.MkdirTemp("", "baseurl_test")
 	require.NoError(t, err)
@@ -2330,6 +2330,7 @@ func TestBaseURLReplace(t *testing.T) {
 	indexContent := []byte(`<!DOCTYPE html>
 <html>
 <head>
+    <title data-headlamp-product-name></title>
     <script>var headlampBaseUrl = __baseUrl__;</script>
     <link rel="stylesheet" href="./styles.css">
 </head>
@@ -2358,6 +2359,7 @@ func TestBaseURLReplace(t *testing.T) {
 			expectedOutput: `<!DOCTYPE html>
 <html>
 <head>
+    <title>Branded &amp; Headlamp</title>
     <script>var headlampBaseUrl = '/';</script>
     <link rel="stylesheet" href="/styles.css">
 </head>
@@ -2372,6 +2374,7 @@ func TestBaseURLReplace(t *testing.T) {
 			expectedOutput: `<!DOCTYPE html>
 <html>
 <head>
+    <title>Branded &amp; Headlamp</title>
     <script>var headlampBaseUrl = '/custom';</script>
     <link rel="stylesheet" href="/custom/styles.css">
 </head>
@@ -2384,7 +2387,7 @@ func TestBaseURLReplace(t *testing.T) {
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			baseURLReplace(tempDir, tc.baseURL)
+			rewriteIndexHTML(tempDir, tc.baseURL, "Branded & Headlamp")
 
 			// Read the modified index.html
 			modifiedContent, err := os.ReadFile(filepath.Join(tempDir, "index.html")) //nolint:gosec

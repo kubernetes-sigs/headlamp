@@ -49,6 +49,7 @@ import { GraphView } from '../resourceMap/GraphView';
 import { ResourceQuotaTable } from '../resourceQuota/Details';
 import { ProjectDeleteButton } from './ProjectDeleteButton';
 import { useProject } from './ProjectList';
+import { ProjectOverviewSectionCard } from './ProjectOverviewSectionCard';
 import { getEnabledProjectOverviewSections } from './projectOverviewSections';
 import { ProjectResourcesTab, useResourceCategoriesList } from './ProjectResourcesTab';
 import { getHealthIcon, getResourcesHealth } from './projectUtils';
@@ -332,13 +333,12 @@ function ProjectOverview({
       </Grid>
 
       {projectSections.map(section => (
-        <Grid key={section.id} item xs={12} md={4}>
-          <Card sx={{ height: '100%' }}>
-            <CardContent>
-              <section.component project={project} projectResources={projectResources} />
-            </CardContent>
-          </Card>
-        </Grid>
+        <ProjectOverviewSectionCard
+          key={section.id}
+          project={project}
+          projectResources={projectResources}
+          section={section}
+        />
       ))}
     </Grid>
   );
@@ -602,7 +602,12 @@ export function ProjectDetailsContent({ project }: { project: ProjectDefinition 
   return (
     <ProjectDetailsContext.Provider value={contextValue}>
       <Box
-        sx={{ display: 'flex', flexDirection: 'column', height: '100%', alignItems: 'flex-start' }}
+        sx={{
+          display: 'flex',
+          flexDirection: 'column',
+          minHeight: '100%',
+          alignItems: 'flex-start',
+        }}
       >
         <SectionBox
           outterBoxProps={{

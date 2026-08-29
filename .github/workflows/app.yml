@@ -47,6 +47,13 @@ jobs:
     - name: App linux
       run: |
         make app-linux
+    - name: Install desktop e2e dependencies
+      run: |
+        cd app/e2e-tests
+        npm ci
+        npx playwright install --with-deps chromium
+    - name: Test desktop listener cleanup
+      run: xvfb-run --auto-servernum npm run app:test:e2e -- tests/listenerCleanup.spec.ts
     - name: Verify Linux build
       run: npm run app:verify-build-linux
     - name: Start Minikube

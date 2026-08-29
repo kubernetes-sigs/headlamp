@@ -59,6 +59,7 @@ import { useTranslation } from './pluginI18n';
 import { PluginInfo } from './pluginsSlice';
 import Registry, * as registryToExport from './registry';
 import { getInfoForRunningPlugins, identifyPackages, runPlugin, runPluginProps } from './runPlugin';
+import { createPluginSecureStorage, getPluginSecureStorageNamespace } from './secureStorage';
 
 window.pluginLib = {
   ApiProxy,
@@ -447,6 +448,7 @@ export async function fetchAndExecutePlugins(
   interface PluginMetadata {
     path: string;
     type: 'development' | 'user' | 'shipped';
+    source: 'development' | 'user' | 'shipped';
     name: string;
   }
 
@@ -485,6 +487,7 @@ export async function fetchAndExecutePlugins(
               author: 'unknown',
               description: '',
               type: pluginMetadataList[index].type,
+              source: pluginMetadataList[index].source,
               folderName: pluginMetadataList[index].name,
             };
           }
@@ -492,6 +495,7 @@ export async function fetchAndExecutePlugins(
         return resp.json().then(json => ({
           ...json,
           type: pluginMetadataList[index].type,
+          source: pluginMetadataList[index].source,
           folderName: pluginMetadataList[index].name,
         }));
       })
@@ -572,6 +576,13 @@ export async function fetchAndExecutePlugins(
   const sourcesToExecute = indicesToExecute.map(index => sources[index]);
   const pluginPathsToExecute = indicesToExecute.map(index => pluginPaths[index]);
   const packageInfosToExecute = indicesToExecute.map(index => packageInfos[index]);
+  const secureStorageBridge = window?.desktopApi?.secureStorage;
+  const secureStorageNamespaces = packageInfosToExecute.map(getPluginSecureStorageNamespace);
+  const secureStorageCapabilities: Record<string, string> = secureStorageBridge
+    ? await secureStorageBridge.register(
+        secureStorageNamespaces.filter((namespace): namespace is string => Boolean(namespace))
+      )
+    : {};
 
   // Save references to the pluginRunCommand and desktopApiSend/Receive.
   // Plugins can use without worrying about modified global window.desktopApi.
@@ -634,6 +645,8 @@ export async function fetchAndExecutePlugins(
           return secretsToReturn;
         },
         getArgValues: (pluginName, pluginPath, allowedPermissions) => {
+          const argumentNames: string[] = [];
+          const argumentValues: unknown[] = [];
           // allowedPermissions is the return value of getAllowedPermissions
           const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
           if (isPackage['@headlamp-k8s/minikube']) {
@@ -654,10 +667,8 @@ export async function fetchAndExecutePlugins(
                 pluginDesktopApiReceive
               );
             }
-            return [
-              ['pluginRunCommand', 'pluginPath'],
-              [pluginRunCommand, pluginPath],
-            ];
+            argumentNames.push('pluginRunCommand', 'pluginPath');
+            argumentValues.push(pluginRunCommand, pluginPath);
           }
 
           if (isPackage['@headlamp-k8s/ai-assistant']) {
@@ -675,10 +686,8 @@ export async function fetchAndExecutePlugins(
                 pluginDesktopApiReceive
               );
             }
-            return [
-              ['pluginRunCommand', 'pluginPath'],
-              [pluginRunCommand, pluginPath],
-            ];
+            argumentNames.push('pluginRunCommand', 'pluginPath');
+            argumentValues.push(pluginRunCommand, pluginPath);
           }
 
           if (isPackage['azure-aks']) {
@@ -696,13 +705,20 @@ export async function fetchAndExecutePlugins(
                 pluginDesktopApiReceive
               );
             }
-            return [
-              ['pluginRunCommand', 'pluginPath'],
-              [pluginRunCommand, pluginPath],
-            ];
+            argumentNames.push('pluginRunCommand', 'pluginPath');
+            argumentValues.push(pluginRunCommand, pluginPath);
           }
 
-          return [[], []];
+          const storageNamespace = secureStorageNamespaces[index];
+          const storageCapability = storageNamespace
+            ? secureStorageCapabilities[storageNamespace]
+            : undefined;
+          if (storageCapability && secureStorageBridge) {
+            argumentNames.push('pluginSecureStorage');
+            argumentValues.push(createPluginSecureStorage(storageCapability, secureStorageBridge));
+          }
+
+          return [argumentNames, argumentValues];
         },
         PrivateFunction,
         internalRunPlugin,

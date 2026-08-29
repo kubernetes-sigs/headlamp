@@ -131,6 +131,8 @@ import {
   setPluginSettingsComponent,
 } from './pluginsSlice';
 
+export { DefaultCreateProject } from '../redux/projectsSlice';
+
 export interface SectionFuncProps {
   title: string;
   component: (props: { resource: any }) => ReactNode;
@@ -1143,17 +1145,23 @@ export function registerUIPanel(panel: UIPanel) {
  *
  * @example
  * ```tsx
+ * import {
+ *   DefaultCreateProject,
+ *   registerCustomCreateProject,
+ * } from '@kinvolk/headlamp-plugin/lib';
+ *
  * registerCustomCreateProject({
- *   id: "custom-create",
- *   name: "Create Helm Project",
- *   description: "Create new project from Helm chart",
- *   Component: ({onBack}) => <div>
- *     Create project
- *     <input name="helm-chart-id" />
- *     <button>Create</button>
- *     <button onClick={onBack}>Back</button>
- *   </div>,
- * })
+ *   id: DefaultCreateProject.NEW_PROJECT,
+ *   name: 'Create Managed Project',
+ *   description: 'Create a project managed by the platform',
+ *   icon: 'mdi:folder-plus',
+ *   component: ({ onBack }) => (
+ *     <div>
+ *       Create project
+ *       <button onClick={onBack}>Back</button>
+ *     </div>
+ *   ),
+ * });
  * ```
  */
 export function registerCustomCreateProject(customCreateProject: CustomCreateProject) {
@@ -1194,7 +1202,7 @@ export function registerProjectDetailsTab(projectDetailsTab: ProjectDetailsTab) 
  *
  * @param projectOverviewSection - The section configuration to register
  * @param projectOverviewSection.id - Unique identifier for the section
- * @param projectOverviewSection.component - React component receiving the current project and its loaded resources
+ * @param projectOverviewSection.component - React component receiving the current project and its loaded resources. Return `null` to hide the section's card; a wrapper element that renders nothing still shows an empty card.
  * @param projectOverviewSection.isEnabled - Optional asynchronous predicate receiving the project being evaluated
  * @returns void
  *
