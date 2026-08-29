@@ -988,6 +988,7 @@
   "Use default StorageClass": "",
   "No StorageClass (static provisioning)": "",
   "Specify StorageClass": "",
+  "Expression": "",
   "Controlled Resources": "Kontrollerade resurser",
   "Controlled Values": "Kontrollerade värden",
   "Min Allowed": "Minsta tillåtna",

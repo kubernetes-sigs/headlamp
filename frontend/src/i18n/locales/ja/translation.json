@@ -978,6 +978,7 @@
   "Use default StorageClass": "",
   "No StorageClass (static provisioning)": "",
   "Specify StorageClass": "",
+  "Expression": "",
   "Controlled Resources": "制御されたリソース",
   "Controlled Values": "制御された値",
   "Min Allowed": "最大許可",

@@ -988,6 +988,7 @@
   "Use default StorageClass": "",
   "No StorageClass (static provisioning)": "",
   "Specify StorageClass": "",
+  "Expression": "",
   "Controlled Resources": "Denetimli Kaynaklar",
   "Controlled Values": "Denetimli Değerler",
   "Min Allowed": "İzin Verilen Minimum",
