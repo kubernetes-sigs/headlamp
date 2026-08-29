@@ -28,28 +28,18 @@ import {
   MRT_Cell,
   MRT_ColumnDef as MaterialTableColumn,
   MRT_Header,
-  MRT_Localization,
   MRT_TableBodyCell,
   MRT_TableHeadCell,
   MRT_TableInstance,
   MRT_TableOptions as MaterialTableOptions,
+  MRT_ToggleDensePaddingButton,
+  MRT_ToggleFiltersButton,
+  MRT_ToggleFullScreenButton,
+  MRT_ToggleGlobalFilterButton,
   MRT_TopToolbar,
   useMaterialReactTable,
   useMRT_Rows,
 } from 'material-react-table';
-import { MRT_Localization_AR } from 'material-react-table/locales/ar';
-import { MRT_Localization_DE } from 'material-react-table/locales/de';
-import { MRT_Localization_EN } from 'material-react-table/locales/en';
-import { MRT_Localization_ES } from 'material-react-table/locales/es';
-import { MRT_Localization_FR } from 'material-react-table/locales/fr';
-import { MRT_Localization_HE } from 'material-react-table/locales/he';
-import { MRT_Localization_IT } from 'material-react-table/locales/it';
-import { MRT_Localization_JA } from 'material-react-table/locales/ja';
-import { MRT_Localization_KO } from 'material-react-table/locales/ko';
-import { MRT_Localization_PT } from 'material-react-table/locales/pt';
-import { MRT_Localization_RU } from 'material-react-table/locales/ru';
-import { MRT_Localization_ZH_HANS } from 'material-react-table/locales/zh-Hans';
-import { MRT_Localization_ZH_HANT } from 'material-react-table/locales/zh-Hant';
 import { memo, ReactNode, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { getTablesRowsPerPage, setTablesRowsPerPage } from '../../../helpers/tablesRowsPerPage';
@@ -59,6 +49,8 @@ import { useSettings } from '../../App/Settings/hook';
 import { useQueryParamsState } from '../../resourceMap/useQueryParamsState';
 import Empty from '../EmptyContent';
 import Loader from '../Loader';
+import { ColumnVisibilityButton } from './ColumnVisibilityButton';
+import { getTableLocalization } from './tableLocalization';
 
 /**
  * Column definition
@@ -163,23 +155,6 @@ function usePageURLState(
 
   return [zeroIndexPage, setZeroIndexPage];
 }
-
-const tableLocalizationMap: Partial<Record<string, MRT_Localization>> = {
-  ar: MRT_Localization_AR,
-  de: MRT_Localization_DE,
-  en: MRT_Localization_EN,
-  es: MRT_Localization_ES,
-  fr: MRT_Localization_FR,
-  he: MRT_Localization_HE,
-  it: MRT_Localization_IT,
-  ja: MRT_Localization_JA,
-  'pt-PT': MRT_Localization_PT,
-  'pt-BR': MRT_Localization_PT,
-  ko: MRT_Localization_KO,
-  ru: MRT_Localization_RU,
-  zh: MRT_Localization_ZH_HANS,
-  'zh-TW': MRT_Localization_ZH_HANT,
-};
 
 const StyledHeadRow = styled('tr')(({ theme }) => ({
   display: 'contents',
@@ -390,7 +365,7 @@ export default function Table<RowItem extends Record<string, any>>({
     enableDensityToggle: tableProps.enableDensityToggle ?? false,
     enableFullScreenToggle: tableProps.enableFullScreenToggle ?? false,
     enableColumnActions: false,
-    localization: tableLocalizationMap[i18n.resolvedLanguage || i18n.language],
+    localization: getTableLocalization(i18n.resolvedLanguage || i18n.language),
     autoResetAll: false,
     icons: {
       ...tableProps.icons,
@@ -407,16 +382,41 @@ export default function Table<RowItem extends Record<string, any>>({
     },
     onGlobalFilterChange: setGlobalFilter,
     onColumnVisibilityChange: setColumnVisibility,
-    renderToolbarInternalActions: props => {
+    renderToolbarInternalActions: ({ table: tbl }) => {
       const isSomeRowsSelected =
-        tableProps.enableRowSelection && props.table.getSelectedRowModel().rows.length !== 0;
-      if (isSomeRowsSelected) {
-        const renderRowSelectionToolbar = tableProps.renderRowSelectionToolbar;
-        if (renderRowSelectionToolbar !== undefined) {
-          return renderRowSelectionToolbar(props);
-        }
+        tableProps.enableRowSelection && tbl.getSelectedRowModel().rows.length !== 0;
+      if (isSomeRowsSelected && tableProps.renderRowSelectionToolbar) {
+        return tableProps.renderRowSelectionToolbar({ table: tbl });
       }
-      return null;
+
+      const {
+        enableFilters = true,
+        enableGlobalFilter = true,
+        enableColumnFilters = true,
+        enableHiding = true,
+        enableColumnOrdering,
+        enableColumnPinning,
+        enableDensityToggle,
+        enableFullScreenToggle,
+        columnFilterDisplayMode,
+        initialState: initState,
+      } = tbl.options;
+
+      return (
+        <>
+          {enableFilters && enableGlobalFilter && !initState?.showGlobalFilter && (
+            <MRT_ToggleGlobalFilterButton table={tbl} />
+          )}
+          {enableFilters && enableColumnFilters && columnFilterDisplayMode !== 'popover' && (
+            <MRT_ToggleFiltersButton table={tbl} />
+          )}
+          {(enableHiding || enableColumnOrdering || enableColumnPinning) && (
+            <ColumnVisibilityButton table={tbl} />
+          )}
+          {enableDensityToggle && <MRT_ToggleDensePaddingButton table={tbl} />}
+          {enableFullScreenToggle && <MRT_ToggleFullScreenButton table={tbl} />}
+        </>
+      );
     },
     initialState: useMemo(
       () => ({
@@ -566,7 +566,7 @@ export default function Table<RowItem extends Record<string, any>>({
 
   // Handle shift+click range selection
   const handleRowClick = (e: React.MouseEvent, clickedIndex: number) => {
-    if (!table || !table.getRowModel) {
+    if (!table || !table.getRowModel || tableProps.enableRowSelection === false) {
       return;
     }
 
@@ -637,7 +637,7 @@ export default function Table<RowItem extends Record<string, any>>({
 
     content = (
       <>
-        <MRT_TopToolbar table={table} />
+        {(tableProps.enableTopToolbar ?? true) && <MRT_TopToolbar table={table} />}
         <MuiTable
           sx={{
             display: 'grid',

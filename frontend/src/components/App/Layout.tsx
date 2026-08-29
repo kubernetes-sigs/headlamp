@@ -26,9 +26,10 @@ import { useQuery } from '@tanstack/react-query';
 import { useEffect } from 'react';
 import { Trans, useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
+import { useLocation } from 'react-router-dom';
 import { getCluster } from '../../lib/cluster';
 import { getSelectedClusters } from '../../lib/cluster';
-import { useCluster, useClustersConf } from '../../lib/k8s';
+import { useCluster, useClustersConf, useSelectedClusters } from '../../lib/k8s';
 import { request } from '../../lib/k8s/api/v1/clusterRequests';
 import { Cluster } from '../../lib/k8s/cluster';
 import { getSavedNamespaces } from '../../lib/storage';
@@ -45,6 +46,7 @@ import ActionsNotifier from '../common/ActionsNotifier';
 import AlertNotification from '../common/AlertNotification';
 import DetailsDrawer from '../common/Resource/DetailsDrawer';
 import Sidebar, { NavigationTabs } from '../Sidebar';
+import AllowedNamespacesSelectorGate from './AllowedNamespacesSelectorGate';
 import RouteSwitcher from './RouteSwitcher';
 import ShortcutsSettings from './Settings/ShortcutsSettings';
 import { applyBackendThemeConfig } from './themeSlice';
@@ -235,6 +237,13 @@ export default function Layout({}: LayoutProps) {
     }
   }, [cluster, dispatch]);
 
+  const selectedClusters = useSelectedClusters();
+  const { pathname } = useLocation();
+  const configuredClusters = pathname.startsWith('/project/') ? Object.keys(allClusters || {}) : [];
+  const clustersToResolve = [
+    ...new Set([...configuredClusters, cluster || '', ...selectedClusters].filter(Boolean)),
+  ];
+
   const urlClusters = getSelectedClusters();
   const clustersNotInURL =
     allClusters && urlClusters.length !== 0
@@ -350,15 +359,26 @@ export default function Layout({}: LayoutProps) {
                 <Div />
                 <Container {...containerProps} sx={{ height: '100%' }}>
                   <NavigationTabs />
-                  {arePluginsLoaded && (
-                    <RouteSwitcher
-                      requiresToken={() => {
-                        const clusterName = getCluster() || '';
-                        const cluster = clusters ? clusters[clusterName] : undefined;
-                        return cluster?.useToken === undefined || cluster?.useToken;
-                      }}
-                    />
-                  )}
+                  {arePluginsLoaded &&
+                    (clustersToResolve.length > 0 ? (
+                      <AllowedNamespacesSelectorGate clusters={clustersToResolve}>
+                        <RouteSwitcher
+                          requiresToken={() => {
+                            const clusterName = getCluster() || '';
+                            const cluster = clusters ? clusters[clusterName] : undefined;
+                            return cluster?.useToken === undefined || cluster?.useToken;
+                          }}
+                        />
+                      </AllowedNamespacesSelectorGate>
+                    ) : (
+                      <RouteSwitcher
+                        requiresToken={() => {
+                          const clusterName = getCluster() || '';
+                          const cluster = clusters ? clusters[clusterName] : undefined;
+                          return cluster?.useToken === undefined || cluster?.useToken;
+                        }}
+                      />
+                    ))}
                 </Container>
               </Box>
             </Main>

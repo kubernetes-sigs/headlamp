@@ -262,7 +262,7 @@
                 tabindex="0"
               >
                 <table
-                  class="MuiTable-root css-qzmaqi-MuiTable-root"
+                  class="MuiTable-root css-fekg5f-MuiTable-root"
                 >
                   <thead
                     class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
@@ -373,7 +373,7 @@
                 tabindex="0"
               >
                 <table
-                  class="MuiTable-root css-bv8t57-MuiTable-root"
+                  class="MuiTable-root css-14jq1ex-MuiTable-root"
                 >
                   <thead
                     class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
@@ -728,6 +728,7 @@
                           />
                         </button>
                         <button
+                          aria-haspopup="menu"
                           aria-label="Show/Hide columns"
                           class="MuiButtonBase-root MuiIconButton-root MuiIconButton-sizeMedium css-whz9ym-MuiButtonBase-root-MuiIconButton-root"
                           data-mui-internal-clone-element="true"

@@ -110,6 +110,10 @@ function checkCommandConsent(command: string, args: string[], mainWindow: Browse
     }
     settings.confirmedCommands[consentKey] = commandChoice;
     saveSettings(SETTINGS_PATH, settings);
+    if (!commandChoice) {
+      console.error(`Invalid command: ${consentKey}, command not allowed by users choice`);
+    }
+    return commandChoice;
   }
   return true;
 }
@@ -129,6 +133,7 @@ const COMMANDS_WITH_CONSENT = {
     'scriptjs minikube/manage-minikube.js',
   ],
   headlamp_ai_assistant: ['gh auth', 'az account', 'az cognitiveservices'],
+  azure_aks: ['scriptjs azure-aks/azure-api.js'],
 };
 
 /**
@@ -165,6 +170,10 @@ export function addRunCmdConsent(pluginInfo: { name: string }): void {
     (process.env.NODE_ENV === 'development' && pluginInfo.name === 'ai-assistant');
   if (pluginIsAiAssistant) {
     commands = COMMANDS_WITH_CONSENT.headlamp_ai_assistant;
+  }
+
+  if (pluginInfo.name === 'azure-aks') {
+    commands = COMMANDS_WITH_CONSENT.azure_aks;
   }
 
   for (const command of commands) {
@@ -272,13 +281,22 @@ export async function handleRunCommand(
   mainWindow: BrowserWindow | null,
   permissionSecrets: Record<string, number>
 ): Promise<void> {
+  const commandId = typeof eventData?.id === 'string' ? eventData.id : undefined;
+  const sendRejectedExit = (exitCode = -1) => {
+    if (commandId) {
+      event.sender.send('command-exit', commandId, exitCode);
+    }
+  };
+
   if (mainWindow === null) {
     console.error('Main window is null, cannot run command');
+    sendRejectedExit();
     return;
   }
   const [isValid, errorMessage] = validateCommandData(eventData);
   if (!isValid) {
     console.error(errorMessage);
+    sendRejectedExit();
     return;
   }
   const commandData = eventData as CommandData;
@@ -286,10 +304,12 @@ export async function handleRunCommand(
   const [permissionsValid, permissionError] = checkPermissionSecret(commandData, permissionSecrets);
   if (!permissionsValid) {
     console.error(permissionError);
+    sendRejectedExit(-2);
     return;
   }
 
   if (!checkCommandConsent(commandData.command, commandData.args, mainWindow)) {
+    sendRejectedExit(-3);
     return;
   }
 
@@ -336,13 +356,22 @@ export async function handleRunCommand(
     event.sender.send('command-stderr', commandData.id, data.toString());
   });
 
+  let terminalEventSent = false;
+  const sendTerminalEvent = (code: number | null) => {
+    if (terminalEventSent) {
+      return;
+    }
+    terminalEventSent = true;
+    event.sender.send('command-exit', commandData.id, code);
+  };
+
   child.on('error', (err: Error) => {
     event.sender.send('command-stderr', commandData.id, err.message);
-    event.sender.send('command-exit', commandData.id, -1);
+    sendTerminalEvent(-1);
   });
 
-  child.on('exit', (code: number | null) => {
-    event.sender.send('command-exit', commandData.id, code);
+  child.on('close', (code: number | null) => {
+    sendTerminalEvent(code);
   });
 }
 
@@ -406,6 +435,7 @@ export function setupRunCmdHandlers(mainWindow: BrowserWindow | null, ipcMain: E
     'runCmd-scriptjs-headlamp_minikubeprerelease/manage-minikube.js': cryptoRandom(),
     'runCmd-gh': cryptoRandom(),
     'runCmd-az': cryptoRandom(),
+    'runCmd-scriptjs-azure-aks/azure-api.js': cryptoRandom(),
   };
 
   ipcMain.on('request-plugin-permission-secrets', function giveSecrets() {
@@ -438,6 +468,9 @@ type CommandDataPartial = Partial<CommandData>;
 export function validateCommandData(eventData: CommandDataPartial): [boolean, string] {
   if (!eventData || typeof eventData !== 'object' || eventData === null) {
     return [false, `Invalid eventData data received: ${eventData}`];
+  }
+  if (typeof eventData.id !== 'string' || !eventData.id) {
+    return [false, `Invalid eventData.id: ${eventData.id}`];
   }
   if (typeof eventData.command !== 'string' || !eventData.command) {
     return [false, `Invalid eventData.command: ${eventData.command}`];

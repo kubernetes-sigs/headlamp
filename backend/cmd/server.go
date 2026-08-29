@@ -50,13 +50,14 @@ func main() {
 		return
 	}
 
-	conf, err := config.Parse(os.Args)
+	conf, err := config.ParseWithAppNameDefault(os.Args, kubeconfig.AppName)
 	if err != nil {
 		logger.Log(logger.LevelError, nil, err, "fetching config:%v")
 		os.Exit(1)
 	}
 
 	logger.Init(conf.LogLevel)
+	kubeconfig.AppName = conf.AppName
 
 	if conf.Version {
 		fmt.Printf("%s %s (%s/%s)\n", kubeconfig.AppName, kubeconfig.Version, runtime.GOOS, runtime.GOARCH)
@@ -81,9 +82,11 @@ func main() {
 // buildHeadlampCFG maps the parsed config into the struct the backend uses.
 func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextStore) *headlampconfig.HeadlampCFG {
 	return &headlampconfig.HeadlampCFG{
+		AppName:                conf.AppName,
 		UseInCluster:           conf.InCluster,
 		InClusterContextName:   conf.InClusterContextName,
 		KubeConfigPath:         conf.KubeConfigPath,
+		KubeConfigDir:          conf.KubeConfigDir,
 		SkippedKubeContexts:    conf.SkippedKubeContexts,
 		ListenAddr:             conf.ListenAddr,
 		CacheEnabled:           conf.CacheEnabled,
@@ -109,6 +112,7 @@ func buildHeadlampCFG(conf *config.Config, kubeConfigStore kubeconfig.ContextSto
 		}(),
 		ClusterInventoryProviderFile:          conf.ClusterInventoryProviderFile,
 		ClusterInventoryLabelSelector:         conf.ClusterInventoryLabelSelector,
+		ClusterInventoryNamespaces:            conf.ClusterInventoryNamespaces,
 		ClusterInventoryRootReconcileInterval: conf.ClusterInventoryRootReconcileInterval,
 		ClusterInventoryNoCRDCacheTTL:         conf.ClusterInventoryNoCRDCacheTTL,
 		TLSCertPath:                           conf.TLSCertPath,
@@ -260,7 +264,7 @@ func GetContextKeyAndKContext(w http.ResponseWriter,
 		return nil, nil, "", nil, err
 	}
 
-	kContext, err := c.KubeConfigStore.GetContext(contextKey)
+	contextKey, kContext, err := c.getContextWithWebSocketFallback(r, contextKey)
 	if err != nil {
 		c.handleError(w, ctx, span, err, "failed to get context", http.StatusNotFound)
 		return nil, nil, "", nil, err

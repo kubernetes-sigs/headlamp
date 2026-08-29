@@ -253,7 +253,7 @@ api.example.com"
                     tabindex="0"
                   >
                     <table
-                      class="MuiTable-root css-qzmaqi-MuiTable-root"
+                      class="MuiTable-root css-fekg5f-MuiTable-root"
                     >
                       <thead
                         class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
@@ -337,7 +337,7 @@ api.example.com"
                     tabindex="0"
                   >
                     <table
-                      class="MuiTable-root css-1t02l4h-MuiTable-root"
+                      class="MuiTable-root css-15jmevm-MuiTable-root"
                     >
                       <thead
                         class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
@@ -444,7 +444,7 @@ api.example.com"
                     tabindex="0"
                   >
                     <table
-                      class="MuiTable-root css-d21jum-MuiTable-root"
+                      class="MuiTable-root css-4d0x9t-MuiTable-root"
                     >
                       <thead
                         class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
@@ -499,7 +499,7 @@ api.example.com"
                     tabindex="0"
                   >
                     <table
-                      class="MuiTable-root css-1t02l4h-MuiTable-root"
+                      class="MuiTable-root css-15jmevm-MuiTable-root"
                     >
                       <thead
                         class="MuiTableHead-root css-15wwp11-MuiTableHead-root"
@@ -637,7 +637,7 @@ api.example.com"
                 tabindex="0"
               >
                 <table
-                  class="MuiTable-root css-1t02l4h-MuiTable-root"
+                  class="MuiTable-root css-15jmevm-MuiTable-root"
                 >
                   <thead
                     class="MuiTableHead-root css-15wwp11-MuiTableHead-root"

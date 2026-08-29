@@ -40,6 +40,7 @@ import Namespace from '../../lib/k8s/namespace';
 import { createRouteURL } from '../../lib/router/createRouteURL';
 import { EventStatus, HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { useTypedSelector } from '../../redux/hooks';
+import { DefaultCreateProject } from '../../redux/projectsSlice';
 import { PROJECT_ID_LABEL, toKubernetesName } from './projectUtils';
 /**
  * A styled button for selecting a project type.
@@ -365,6 +366,15 @@ export function NewProjectPopup({ open, onClose }: { open: boolean; onClose: () 
   const customCreateProject = Object.values(
     useTypedSelector(state => state.projects.customCreateProject)
   );
+  const customNewProject = customCreateProject.find(
+    it => it.id === DefaultCreateProject.NEW_PROJECT
+  );
+  const customProjectFromYaml = customCreateProject.find(
+    it => it.id === DefaultCreateProject.FROM_YAML
+  );
+  const additionalCreateProjects = customCreateProject.filter(
+    it => it.id !== DefaultCreateProject.NEW_PROJECT && it.id !== DefaultCreateProject.FROM_YAML
+  );
 
   const [projectStep, setProjectStep] = useState<string | undefined>();
   const selectedCustomProject = customCreateProject.find(it => it.id === projectStep);
@@ -391,43 +401,84 @@ export function NewProjectPopup({ open, onClose }: { open: boolean; onClose: () 
               </Trans>
             </Typography>
             <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-              <ProjectTypeButton
-                index={index++}
-                icon={
-                  <Icon
-                    icon="mdi:folder-add"
-                    width="100%"
-                    height="100%"
-                    color={theme.palette.text.secondary}
-                  />
-                }
-                title={<Trans>New Project</Trans>}
-                description={<Trans>Create a new project</Trans>}
-                onClick={() => {
-                  setProjectStep('new-project');
-                }}
-              />
-
-              <ProjectTypeButton
-                index={index++}
-                icon={
-                  <Icon
-                    icon="mdi:file-document-add"
-                    width="100%"
-                    height="100%"
-                    color={theme.palette.text.secondary}
-                  />
-                }
-                title={<Trans>New Project from YAML</Trans>}
-                description={<Trans>Deploy a new application from YAML</Trans>}
-                onClick={() => {
-                  onClose();
-                  history.push(createRouteURL('projectCreateYaml'));
-                }}
-              />
-
-              {customCreateProject.map(it => (
+              {customNewProject ? (
                 <ProjectTypeButton
+                  index={index++}
+                  icon={
+                    typeof customNewProject.icon === 'string' ? (
+                      <Icon
+                        icon={customNewProject.icon}
+                        width="100%"
+                        height="100%"
+                        color={theme.palette.text.secondary}
+                      />
+                    ) : (
+                      <customNewProject.icon />
+                    )
+                  }
+                  title={customNewProject.name}
+                  description={customNewProject.description}
+                  onClick={() => setProjectStep(customNewProject.id)}
+                />
+              ) : (
+                <ProjectTypeButton
+                  index={index++}
+                  icon={
+                    <Icon
+                      icon="mdi:folder-add"
+                      width="100%"
+                      height="100%"
+                      color={theme.palette.text.secondary}
+                    />
+                  }
+                  title={<Trans>New Project</Trans>}
+                  description={<Trans>Create a new project</Trans>}
+                  onClick={() => setProjectStep(DefaultCreateProject.NEW_PROJECT)}
+                />
+              )}
+
+              {customProjectFromYaml ? (
+                <ProjectTypeButton
+                  index={index++}
+                  icon={
+                    typeof customProjectFromYaml.icon === 'string' ? (
+                      <Icon
+                        icon={customProjectFromYaml.icon}
+                        width="100%"
+                        height="100%"
+                        color={theme.palette.text.secondary}
+                      />
+                    ) : (
+                      <customProjectFromYaml.icon />
+                    )
+                  }
+                  title={customProjectFromYaml.name}
+                  description={customProjectFromYaml.description}
+                  onClick={() => setProjectStep(customProjectFromYaml.id)}
+                />
+              ) : (
+                <ProjectTypeButton
+                  index={index++}
+                  icon={
+                    <Icon
+                      icon="mdi:file-document-add"
+                      width="100%"
+                      height="100%"
+                      color={theme.palette.text.secondary}
+                    />
+                  }
+                  title={<Trans>New Project from YAML</Trans>}
+                  description={<Trans>Deploy a new application from YAML</Trans>}
+                  onClick={() => {
+                    onClose();
+                    history.push(createRouteURL('projectCreateYaml'));
+                  }}
+                />
+              )}
+
+              {additionalCreateProjects.map(it => (
+                <ProjectTypeButton
+                  key={it.id}
                   index={index++}
                   icon={
                     typeof it.icon === 'string' ? (
@@ -455,7 +506,9 @@ export function NewProjectPopup({ open, onClose }: { open: boolean; onClose: () 
           </DialogActions>
         </>
       )}
-      {projectStep === 'new-project' && <ProjectFromExistingNamespace onBack={handleBack} />}
+      {projectStep === DefaultCreateProject.NEW_PROJECT && !selectedCustomProject && (
+        <ProjectFromExistingNamespace onBack={handleBack} />
+      )}
       {selectedCustomProject && <selectedCustomProject.component onBack={handleBack} />}
     </Dialog>
   );
