@@ -68,26 +68,31 @@ export function formatShortcutKey(key: string): string {
   }
 
   return key
-    .split('+')
-    .map(part => {
-      const lowerPart = part.toLowerCase();
-      if (lowerPart === 'ctrl') return 'Ctrl';
-      if (lowerPart === 'shift') return 'Shift';
-      if (lowerPart === 'alt') return 'Alt';
-      if (lowerPart === 'meta' || lowerPart === 'cmd') return '⌘';
-      if (lowerPart === 'arrowup') return '↑';
-      if (lowerPart === 'arrowdown') return '↓';
-      if (lowerPart === 'arrowleft') return '←';
-      if (lowerPart === 'arrowright') return '→';
-      if (lowerPart === 'enter') return 'Enter';
-      if (lowerPart === 'escape' || lowerPart === 'esc') return 'Esc';
-      if (lowerPart === 'space') return 'Space';
-      if (lowerPart === 'tab') return 'Tab';
-      if (lowerPart === 'backspace') return 'Backspace';
-      if (lowerPart === 'delete') return 'Delete';
-      return part.toUpperCase();
-    })
-    .join(' + ');
+    .split(' ')
+    .map(seq =>
+      seq
+        .split('+')
+        .map(part => {
+          const lowerPart = part.toLowerCase();
+          if (lowerPart === 'ctrl') return 'Ctrl';
+          if (lowerPart === 'shift') return 'Shift';
+          if (lowerPart === 'alt') return 'Alt';
+          if (lowerPart === 'meta' || lowerPart === 'cmd') return '⌘';
+          if (lowerPart === 'arrowup') return '↑';
+          if (lowerPart === 'arrowdown') return '↓';
+          if (lowerPart === 'arrowleft') return '←';
+          if (lowerPart === 'arrowright') return '→';
+          if (lowerPart === 'enter') return 'Enter';
+          if (lowerPart === 'escape' || lowerPart === 'esc') return 'Esc';
+          if (lowerPart === 'space') return 'Space';
+          if (lowerPart === 'tab') return 'Tab';
+          if (lowerPart === 'backspace') return 'Backspace';
+          if (lowerPart === 'delete') return 'Delete';
+          return part.toUpperCase();
+        })
+        .join(' + ')
+    )
+    .join(' then ');
 }
 
 /**

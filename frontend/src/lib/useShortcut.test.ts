@@ -160,5 +160,10 @@ describe('formatShortcutKey', () => {
     it('should handle lowercase modifiers', () => {
       expect(formatShortcutKey('ctrl+k')).toBe('Ctrl + K');
     });
+
+    it('should handle sequential shortcuts', () => {
+      expect(formatShortcutKey('g d')).toBe('G then D');
+      expect(formatShortcutKey('ctrl+k d')).toBe('Ctrl + K then D');
+    });
   });
 });

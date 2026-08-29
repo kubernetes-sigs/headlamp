@@ -135,7 +135,7 @@ describe('shortcutsSlice', () => {
 
     it('should have NAVIGATE_TO_DEPLOYMENTS shortcut with correct defaults', () => {
       expect(DEFAULT_SHORTCUTS.NAVIGATE_TO_DEPLOYMENTS).toBeDefined();
-      expect(DEFAULT_SHORTCUTS.NAVIGATE_TO_DEPLOYMENTS.key).toBe('alt+shift+d');
+      expect(DEFAULT_SHORTCUTS.NAVIGATE_TO_DEPLOYMENTS.key).toBe('g d');
       expect(DEFAULT_SHORTCUTS.NAVIGATE_TO_DEPLOYMENTS.category).toBe('navigation');
     });
 

@@ -107,8 +107,8 @@ export const DEFAULT_SHORTCUTS: Record<string, ShortcutConfig> = {
     id: 'NAVIGATE_TO_DEPLOYMENTS',
     labelKey: 'Navigate to Deployments',
     descriptionKey: 'Go to the Deployments list page',
-    key: 'alt+shift+d',
-    defaultKey: 'alt+shift+d',
+    key: 'g d',
+    defaultKey: 'g d',
     category: 'navigation',
   },
   SHORTCUTS_HELP: {

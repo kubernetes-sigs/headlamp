@@ -109,11 +109,24 @@ function ShortcutEditor({
       else if (key === 'arrowleft') keyName = 'ArrowLeft';
       else if (key === 'arrowright') keyName = 'ArrowRight';
 
+      if (key === 'backspace') {
+        setRecordedKey(prev => {
+          const prevParts = prev.split(' ');
+          prevParts.pop();
+          return prevParts.join(' ');
+        });
+        return;
+      }
+
+      if (key === 'enter') {
+        setIsRecording(false);
+        return;
+      }
+
       parts.push(keyName);
       const newKey = parts.join('+');
 
-      setRecordedKey(newKey);
-      setIsRecording(false);
+      setRecordedKey(prev => (prev ? `${prev} ${newKey}` : newKey));
     },
     [isRecording, onCancel]
   );
