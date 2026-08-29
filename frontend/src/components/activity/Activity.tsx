@@ -140,6 +140,7 @@ export function SingleActivityRenderer({
   onClick: React.PointerEventHandler<HTMLDivElement>;
 }) {
   const { id, minimized, location, content, title, hideTitleInHeader, icon, cluster } = activity;
+  const titleText = typeof title === 'string' ? title : undefined;
   const { t } = useTranslation();
   const activityElementRef = useRef<HTMLDivElement>(null);
   const containerElementRef = useRef(document.getElementById('main'));
@@ -521,7 +522,7 @@ export function SingleActivityRenderer({
                 <>
                   <IconButton
                     size="small"
-                    title={t('Window')}
+                    aria-label={t('Window')}
                     aria-haspopup="menu"
                     aria-expanded={isSnapMenuOpen}
                     aria-controls={isSnapMenuOpen ? 'snap-menu' : undefined}
@@ -724,18 +725,26 @@ export function SingleActivityRenderer({
                       </Paper>
                     </ClickAwayListener>
                   </Popper>
-                  <IconButton
-                    onClick={() => {
-                      Activity.update(id, { minimized: true });
-                    }}
-                    size="small"
-                    title={t('Minimize')}
-                  >
-                    <Icon icon="mdi:minimize" />
-                  </IconButton>
-                  <IconButton onClick={() => Activity.close(id)} size="small" title={t('Close')}>
-                    <Icon icon="mdi:close" />
-                  </IconButton>
+                  <Tooltip title={titleText ? `${t('Minimize')} ${titleText}` : t('Minimize')}>
+                    <IconButton
+                      onClick={() => {
+                        Activity.update(id, { minimized: true });
+                      }}
+                      size="small"
+                      aria-label={titleText ? `${t('Minimize')} ${titleText}` : t('Minimize')}
+                    >
+                      <Icon icon="mdi:minimize" />
+                    </IconButton>
+                  </Tooltip>
+                  <Tooltip title={titleText ? `${t('Close')} ${titleText}` : t('Close')}>
+                    <IconButton
+                      onClick={() => Activity.close(id)}
+                      size="small"
+                      aria-label={titleText ? `${t('Close')} ${titleText}` : t('Close')}
+                    >
+                      <Icon icon="mdi:close" />
+                    </IconButton>
+                  </Tooltip>
                 </>
               )}
             </Box>
