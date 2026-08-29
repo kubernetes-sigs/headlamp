@@ -114,37 +114,48 @@ function logAggregatedUnusable(
   );
 }
 
+/** Outcome of one legacy discovery fetch. */
+type LegacyDiscoveryOutcome =
+  /** The body parsed as an object. It may still lack the list the caller wants. */
+  | { ok: true; body: Record<string, unknown> }
+  /** The fetch or the parse failed, or the body was not an object. */
+  | { ok: false; status?: number };
+
 /**
- * Fetches one side of legacy discovery and logs/swallows any failure.
+ * Fetches one side of legacy discovery, logging any failure and reporting it back.
  * `clusterFetch` is not bare `fetch`: it already throws an `ApiError` on any
  * non-ok response (see `fetch.ts`), so non-2xx HTTP responses surface as
  * rejected promises and reach this `.catch` the same way a network failure
  * does. A `res.json()` parse rejection lands here too, so the log says
  * "fetch or parse" rather than just "fetch".
+ *
+ * A total discovery failure reports an HTTP status only when every unusable source
+ * agreed on one, so the caller has to see the failure itself. A swallowed rejection
+ * would leave the sources that remain to agree among themselves.
  */
-function fetchLegacyOrLogFailure(
+function fetchLegacyDiscovery(
   path: '/api' | '/apis',
   cluster: string
-): Promise<Record<string, unknown> | null> {
+): Promise<LegacyDiscoveryOutcome> {
   return clusterFetch(path, { cluster })
     .then(res => res.json())
-    .then(parsed => {
+    .then((parsed): LegacyDiscoveryOutcome => {
       // `res.json()` can return any JSON value (object, array, string,
       // number, boolean, null). Legacy discovery callers only care about
-      // the `versions`/`groups` properties on an object body, so coerce
-      // non-object bodies to null up front. We return a plain
+      // the `versions`/`groups` properties on an object body, so treat
+      // non-object bodies as unusable up front. We return a plain
       // `Record<string, unknown>` rather than typing `versions`/`groups` as
       // `unknown[]` so the type doesn't over-promise arrayness for fields
       // the helper itself never validates; callers `Array.isArray` to
       // narrow.
       if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        return null;
+        return { ok: false };
       }
-      return parsed as Record<string, unknown>;
+      return { ok: true, body: parsed as Record<string, unknown> };
     })
-    .catch(err => {
+    .catch((err): LegacyDiscoveryOutcome => {
       console.debug(`Legacy ${path} discovery fetch or parse failed for cluster ${cluster}:`, err);
-      return null;
+      return { ok: false, status: httpStatusOf(err) };
     });
 }
 
@@ -261,10 +272,33 @@ function processLegacyApiResourceList(
  * for a cluster they never reached.
  */
 export class ApiDiscoveryUnavailableError extends Error {
-  constructor(clusters: string[]) {
+  /**
+   * HTTP status shared by every failure that produced this error, when they agreed on one.
+   *
+   * Retry policies key off `status`, so leaving it unset makes a permanent failure look
+   * transient and earns three pointless retries. It stays unset when the failures disagreed
+   * or carried no status, since there is then no single answer to report.
+   */
+  readonly status?: number;
+
+  constructor(clusters: string[], status?: number) {
     super(`API discovery failed for every requested cluster: ${clusters.join(', ')}`);
     this.name = 'ApiDiscoveryUnavailableError';
+    this.status = status;
   }
+}
+
+/** Reads a numeric HTTP status off a rejected discovery error, when it carries one. */
+function httpStatusOf(error: unknown): number | undefined {
+  if (error !== null && typeof error === 'object' && 'status' in error) {
+    const { status } = error as { status?: unknown };
+
+    if (typeof status === 'number' && Number.isFinite(status)) {
+      return status;
+    }
+  }
+
+  return undefined;
 }
 
 /**
@@ -288,6 +322,12 @@ export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
   // groups: an empty answer from a reachable cluster is information, whereas a
   // failed fetch is not.
   let anyClusterAnswered = false;
+  // Statuses of the sources that could not answer, so a total failure can report one
+  // when they all agree. Every unusable source has to add an entry, `undefined`
+  // included, for a source that failed without a status or replied with a body that
+  // was not discovery. Leaving those out would let the sources that did carry a status
+  // agree by default and report a mixed failure as a single one.
+  const failureStatuses = new Set<number | undefined>();
 
   for (const cluster of clusters) {
     let useFallback = false;
@@ -314,8 +354,13 @@ export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
         apiAggregatedResult.value &&
         Array.isArray(apiAggregatedResult.value.items)
       ) {
-        processAggregatedDiscoveryItems(apiAggregatedResult.value.items, resultMap);
+        // The `items` array is itself the answer, so record it before processing. A
+        // payload whose nested shape is malformed can make the processor throw, and
+        // that must not retract an answer the cluster already gave, nor discard what
+        // the other source collected before it.
         apiAggregatedOk = true;
+        anyClusterAnswered = true;
+        processAggregatedDiscoveryItems(apiAggregatedResult.value.items, resultMap);
       }
 
       let apisAggregatedOk = false;
@@ -324,19 +369,26 @@ export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
         apisAggregatedResult.value &&
         Array.isArray(apisAggregatedResult.value.items)
       ) {
-        processAggregatedDiscoveryItems(apisAggregatedResult.value.items, resultMap);
         apisAggregatedOk = true;
-      }
-
-      if (apiAggregatedOk || apisAggregatedOk) {
         anyClusterAnswered = true;
+        processAggregatedDiscoveryItems(apisAggregatedResult.value.items, resultMap);
       }
 
       if (!apiAggregatedOk) {
         logAggregatedUnusable('/api', cluster, apiAggregatedResult);
+        failureStatuses.add(
+          apiAggregatedResult.status === 'rejected'
+            ? httpStatusOf(apiAggregatedResult.reason)
+            : undefined
+        );
       }
       if (!apisAggregatedOk) {
         logAggregatedUnusable('/apis', cluster, apisAggregatedResult);
+        failureStatuses.add(
+          apisAggregatedResult.status === 'rejected'
+            ? httpStatusOf(apisAggregatedResult.reason)
+            : undefined
+        );
       }
       if (!apiAggregatedOk || !apisAggregatedOk) {
         useFallback = true;
@@ -346,21 +398,37 @@ export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
         `Aggregated API discovery threw for cluster ${cluster}; falling back to legacy:`,
         error
       );
+      failureStatuses.add(httpStatusOf(error));
       useFallback = true;
     }
 
     if (useFallback) {
       try {
-        const [coreApiVersionsData, apiGroupsData] = await Promise.all([
-          fetchLegacyOrLogFailure('/api', cluster),
-          fetchLegacyOrLogFailure('/apis', cluster),
+        const [coreApiOutcome, apiGroupsOutcome] = await Promise.all([
+          fetchLegacyDiscovery('/api', cluster),
+          fetchLegacyDiscovery('/apis', cluster),
         ]);
+
+        const coreApiVersionsData = coreApiOutcome.ok ? coreApiOutcome.body : null;
+        const apiGroupsData = apiGroupsOutcome.ok ? apiGroupsOutcome.body : null;
 
         // Symmetric with the aggregated check above, which requires an `items`
         // array: a body that carries the expected list is an answer even when the
         // list is empty, whereas a failed fetch or an unrecognisable body is not.
-        if (Array.isArray(coreApiVersionsData?.versions) || Array.isArray(apiGroupsData?.groups)) {
+        const coreApiAnswered = Array.isArray(coreApiVersionsData?.versions);
+        const apiGroupsAnswered = Array.isArray(apiGroupsData?.groups);
+
+        if (coreApiAnswered || apiGroupsAnswered) {
           anyClusterAnswered = true;
+        }
+
+        // A body that parsed but carried no list came back over a successful request,
+        // so there is no status to report for it.
+        if (!coreApiAnswered) {
+          failureStatuses.add(coreApiOutcome.ok ? undefined : coreApiOutcome.status);
+        }
+        if (!apiGroupsAnswered) {
+          failureStatuses.add(apiGroupsOutcome.ok ? undefined : apiGroupsOutcome.status);
         }
 
         if (coreApiVersionsData && Array.isArray(coreApiVersionsData.versions)) {
@@ -430,6 +498,7 @@ export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
         }
       } catch (legacyError) {
         console.debug(`Failed to fetch legacy API resources for cluster ${cluster}:`, legacyError);
+        failureStatuses.add(httpStatusOf(legacyError));
       }
     }
   }
@@ -437,7 +506,12 @@ export async function apiDiscovery(clusters: string[]): Promise<ApiResource[]> {
   // Only the total-failure case throws. Anything that was discovered is returned,
   // so one unreachable cluster in a multi-cluster call still yields the others.
   if (clusters.length > 0 && !anyClusterAnswered) {
-    throw new ApiDiscoveryUnavailableError(clusters);
+    const [onlyStatus] = failureStatuses;
+
+    throw new ApiDiscoveryUnavailableError(
+      clusters,
+      failureStatuses.size === 1 ? onlyStatus : undefined
+    );
   }
 
   return Array.from(resultMap.values());
