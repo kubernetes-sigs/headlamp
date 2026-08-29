@@ -20,6 +20,7 @@ import { TestContext } from '../../test';
 import CronJobDetails from './Details';
 
 const OWNER_CLUSTER = 'owner-cluster';
+const OTHER_CLUSTER = 'other-cluster';
 
 const { mockApply, capturedAction, mockUseGet } = vi.hoisted(() => ({
   mockApply: vi.fn().mockResolvedValue({}),
@@ -72,7 +73,7 @@ vi.mock('./List', () => ({
   getLastScheduleTime: () => '',
 }));
 
-function makeCronJob() {
+function makeCronJob(cluster = OWNER_CLUSTER) {
   const jsonData = {
     kind: 'CronJob',
     apiVersion: 'batch/v1',
@@ -102,7 +103,7 @@ function makeCronJob() {
     jsonData,
     // The cluster the CronJob was actually loaded from. getCluster() would report
     // whatever the URL says, which is not necessarily this one.
-    cluster: OWNER_CLUSTER,
+    cluster,
     getName: () => jsonData.metadata.name,
     getNamespace: () => jsonData.metadata.namespace,
   };
@@ -127,6 +128,29 @@ describe('CronJobDetails: Spawn Job', () => {
 
     // clusterAction defers the callback by CLUSTER_ACTION_GRACE_PERIOD, so the
     // cluster has to be resolved before then rather than inside apply().
+    expect(capturedAction.current).not.toBeNull();
+    await capturedAction.current!();
+
+    expect(mockApply).toHaveBeenCalledTimes(1);
+    expect(mockApply.mock.calls[0][1]).toBe(OWNER_CLUSTER);
+  });
+
+  it('prefers the cluster prop over the one on a rebuilt CronJob object', async () => {
+    // A watched object can come back rebuilt without its cluster, in which case
+    // KubeObject falls back to getCluster() — the URL cluster, which is not the
+    // owner when the details view was opened with an explicit cluster (resource
+    // map, or a `/c/a+b` URL where only the first cluster is reported).
+    mockUseGet.mockReturnValue([makeCronJob(OTHER_CLUSTER), null]);
+
+    render(
+      <TestContext>
+        <CronJobDetails name="test-cronjob" namespace="default" cluster={OWNER_CLUSTER} />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByLabelText('translation|Spawn Job'));
+    fireEvent.click(screen.getByRole('button', { name: 'translation|Spawn' }));
+
     expect(capturedAction.current).not.toBeNull();
     await capturedAction.current!();
 
