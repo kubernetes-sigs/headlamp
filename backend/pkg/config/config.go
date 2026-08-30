@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
+	"net/url"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -67,6 +68,7 @@ type Config struct {
 	NodeShellImage         string `koanf:"node-shell-image"`
 	NodeShellNamespace     string `koanf:"node-shell-namespace"`
 	ProxyURLs              string `koanf:"proxy-urls"`
+	AllowedFrameAncestors  string `koanf:"allowed-frame-ancestors"`
 
 	ClusterInventoryProviderFile          string        `koanf:"cluster-inventory-provider-file"`
 	ClusterInventoryLabelSelector         string        `koanf:"cluster-inventory-label-selector"`
@@ -156,6 +158,26 @@ func (c *Config) Validate() error {
 		return errors.New("base-url needs to start with a '/' or be empty")
 	}
 
+	if err := c.validateSessionTTL(); err != nil {
+		return err
+	}
+
+	if err := c.validateTracing(); err != nil {
+		return err
+	}
+
+	if err := c.validateClusterInventory(); err != nil {
+		return err
+	}
+
+	if err := c.validateAllowedFrameAncestors(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Config) validateSessionTTL() error {
 	if c.SessionTTL <= 0 {
 		return errors.New("session-ttl cannot be negative or equal to zero")
 	}
@@ -165,25 +187,27 @@ func (c *Config) Validate() error {
 		return errors.New("session-ttl cannot be greater than 1 year")
 	}
 
-	if c.TracingEnabled != nil && *c.TracingEnabled {
-		if c.ServiceName == "" {
-			return errors.New("service-name is required when tracing is enabled")
-		}
+	return nil
+}
 
-		if (c.JaegerEndpoint != nil && *c.JaegerEndpoint == "") &&
-			(c.OTLPEndpoint != nil && *c.OTLPEndpoint == "") &&
-			(c.StdoutTraceEnabled != nil && *c.StdoutTraceEnabled) {
-			return errors.New("at least one tracing exporter (jaeger, otlp, or stdout) must be configured")
-		}
-
-		if (c.UseOTLPHTTP != nil && *c.UseOTLPHTTP) &&
-			(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") {
-			return errors.New("otlp-endpoint must be configured when use-otlp-http is enabled")
-		}
+func (c *Config) validateTracing() error {
+	if c.TracingEnabled == nil || !*c.TracingEnabled {
+		return nil
 	}
 
-	if err := c.validateClusterInventory(); err != nil {
-		return err
+	if c.ServiceName == "" {
+		return errors.New("service-name is required when tracing is enabled")
+	}
+
+	if (c.JaegerEndpoint != nil && *c.JaegerEndpoint == "") &&
+		(c.OTLPEndpoint != nil && *c.OTLPEndpoint == "") &&
+		(c.StdoutTraceEnabled != nil && *c.StdoutTraceEnabled) {
+		return errors.New("at least one tracing exporter (jaeger, otlp, or stdout) must be configured")
+	}
+
+	if (c.UseOTLPHTTP != nil && *c.UseOTLPHTTP) &&
+		(c.OTLPEndpoint == nil || *c.OTLPEndpoint == "") {
+		return errors.New("otlp-endpoint must be configured when use-otlp-http is enabled")
 	}
 
 	return nil
@@ -266,6 +290,71 @@ func (c *Config) validateServiceAccountTokenFlags() error {
 	if c.ServiceAccountTokenPath != "" && !c.UnsafeUseServiceAccountToken {
 		return errors.New("--service-account-token-path requires " +
 			"--unsafe-use-service-account-token to be enabled")
+	}
+
+	return nil
+}
+
+func validateCSPOrigin(origin string) error {
+	if origin == "'self'" || origin == "'none'" {
+		return nil
+	}
+
+	if strings.ContainsAny(origin, " \t\r\n;\"'<>\\") {
+		return errors.New("contains unallowed characters")
+	}
+
+	if origin == "http:" || origin == "https:" {
+		return nil
+	}
+
+	if strings.Contains(origin, "://") {
+		u, err := url.Parse(origin)
+		if err != nil {
+			return err
+		}
+
+		if u.Scheme != "http" && u.Scheme != "https" {
+			return fmt.Errorf("unsupported scheme %q", u.Scheme)
+		}
+
+		if u.Host == "" {
+			return errors.New("missing host")
+		}
+
+		if u.User != nil {
+			return errors.New("userinfo is not allowed")
+		}
+
+		if u.RawQuery != "" || u.Fragment != "" {
+			return errors.New("query and fragment components are not allowed")
+		}
+
+		return nil
+	}
+
+	if strings.Contains(origin, "/") {
+		return errors.New("paths without scheme are not allowed")
+	}
+
+	return nil
+}
+
+func (c *Config) validateAllowedFrameAncestors() error {
+	if c.AllowedFrameAncestors == "" {
+		return nil
+	}
+
+	entries := strings.Split(c.AllowedFrameAncestors, ",")
+	for _, entry := range entries {
+		t := strings.TrimSpace(entry)
+		if t == "" {
+			continue
+		}
+
+		if err := validateCSPOrigin(t); err != nil {
+			return fmt.Errorf("invalid allowed-frame-ancestors entry %q: %w", t, err)
+		}
 	}
 
 	return nil
@@ -582,6 +671,7 @@ func flagset(appName string) *flag.FlagSet {
 	f := flag.NewFlagSet("config", flag.ContinueOnError)
 
 	addGeneralFlags(f, appName)
+	addSecurityFlags(f)
 	addOIDCFlags(f)
 	addProxyAuthFlags(f)
 	addTelemetryFlags(f)
@@ -651,6 +741,12 @@ func addGeneralFlags(f *flag.FlagSet, appName string) {
 	f.String("service-account-token-path", "",
 		"Path to the service account token. "+
 			"Only used when --unsafe-use-service-account-token is set and in-cluster")
+}
+
+func addSecurityFlags(f *flag.FlagSet) {
+	f.String("allowed-frame-ancestors", "", "Comma-separated list of origins allowed to embed Headlamp "+
+		"in an iframe (e.g., 'https://example.com,https://app.example.com'). If set, emits Content-Security-Policy "+
+		"with frame-ancestors and skips X-Frame-Options.")
 }
 
 func addOIDCFlags(f *flag.FlagSet) {

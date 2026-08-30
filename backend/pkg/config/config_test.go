@@ -1216,3 +1216,90 @@ func TestGetDefaultKubeConfigPath(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, filepath.Join(tmpDir, ".kube", "config"), path)
 }
+
+func TestValidateAllowedFrameAncestors_Valid(t *testing.T) {
+	tests := []struct {
+		name      string
+		ancestors string
+	}{
+		{name: "empty", ancestors: ""},
+		{name: "valid_origins", ancestors: "http://localhost:3000, https://example.com, https://*.example.com"},
+		{name: "valid_special_keywords", ancestors: "'self'"},
+		{name: "valid_schemes", ancestors: "https:, http:"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf := &config.Config{
+				SessionTTL:            86400,
+				AllowedFrameAncestors: tt.ancestors,
+			}
+
+			err := conf.Validate()
+			require.NoError(t, err)
+		})
+	}
+}
+
+func TestValidateAllowedFrameAncestors_Invalid(t *testing.T) {
+	tests := []struct {
+		name      string
+		ancestors string
+		errmsg    string
+	}{
+		{
+			name:      "invalid_internal_space",
+			ancestors: "http://localhost:3000 script-src 'unsafe-inline'",
+			errmsg:    "contains unallowed characters",
+		},
+		{
+			name:      "invalid_semicolon",
+			ancestors: "http://localhost:3000; default-src 'none'",
+			errmsg:    "contains unallowed characters",
+		},
+		{
+			name:      "invalid_unsupported_scheme",
+			ancestors: "ftp://example.com",
+			errmsg:    "unsupported scheme",
+		},
+		{
+			name:      "invalid_missing_host",
+			ancestors: "https://",
+			errmsg:    "missing host",
+		},
+		{
+			name:      "invalid_userinfo",
+			ancestors: "https://user:pass@example.com",
+			errmsg:    "userinfo is not allowed",
+		},
+		{
+			name:      "invalid_userinfo_without_pass",
+			ancestors: "http://user@localhost:3000",
+			errmsg:    "userinfo is not allowed",
+		},
+		{
+			name:      "invalid_query",
+			ancestors: "https://example.com?query=1",
+			errmsg:    "query and fragment components are not allowed",
+		},
+		{
+			name:      "invalid_fragment",
+			ancestors: "https://example.com#fragment",
+			errmsg:    "query and fragment components are not allowed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conf := &config.Config{
+				SessionTTL:            86400,
+				AllowedFrameAncestors: tt.ancestors,
+			}
+
+			err := conf.Validate()
+			require.Error(t, err)
+
+			assert.Contains(t, err.Error(), tt.errmsg)
+		})
+	}
+}
