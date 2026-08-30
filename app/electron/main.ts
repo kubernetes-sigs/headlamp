@@ -80,7 +80,7 @@ import {
   isTrayIconEnabled,
   setTrayIconEnabled,
 } from './tray';
-import { isSafeExternalUrl } from './urlSafety';
+import { isAppUrl, isSafeExternalUrl } from './urlSafety';
 import windowSize from './windowSize';
 import {
   clampZoom,
@@ -1569,8 +1569,8 @@ function startElectron() {
     setMenu(mainWindow, currentMenu);
 
     mainWindow.webContents.setWindowOpenHandler(({ url }) => {
-      // allow all urls starting with app startUrl to open in electron
-      if (url.startsWith(startUrl)) {
+      // allow urls belonging to the app's own frontend to open in electron
+      if (isAppUrl(url, startUrl)) {
         return { action: 'allow' };
       }
       // otherwise open url in a browser and prevent default, but only for
@@ -1667,7 +1667,7 @@ function startElectron() {
     */
     mainWindow.webContents.on('will-navigate', (event, encodedUrl) => {
       const url = decodeURI(encodedUrl);
-      if (url.startsWith(startUrl)) {
+      if (isAppUrl(url, startUrl)) {
         return;
       }
       event.preventDefault();
