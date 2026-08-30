@@ -310,6 +310,8 @@ const notNamespacedClasses = [
   'RuntimeClass',
   'StorageClass',
   'VolumeAttributesClass',
+  'ValidatingAdmissionPolicy',
+  'ValidatingAdmissionPolicyBinding',
 ];
 
 const namespacedClasses = [

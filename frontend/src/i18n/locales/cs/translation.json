@@ -1008,6 +1008,7 @@
   "Use default StorageClass": "",
   "No StorageClass (static provisioning)": "",
   "Specify StorageClass": "",
+  "Expression": "",
   "Controlled Resources": "Řízené prostředky",
   "Controlled Values": "Řízené hodnoty",
   "Min Allowed": "Minimální povolený počet",

@@ -978,6 +978,7 @@
   "Use default StorageClass": "",
   "No StorageClass (static provisioning)": "",
   "Specify StorageClass": "",
+  "Expression": "",
   "Controlled Resources": "Sumber Daya Terkontrol",
   "Controlled Values": "Nilai Terkontrol",
   "Min Allowed": "Menit Diizinkan",

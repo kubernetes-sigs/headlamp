@@ -1028,6 +1028,7 @@
   "Use default StorageClass": "",
   "No StorageClass (static provisioning)": "",
   "Specify StorageClass": "",
+  "Expression": "",
   "Controlled Resources": "الموارد المتحكم بها",
   "Controlled Values": "القيم المتحكم بها",
   "Min Allowed": "الحد الأدنى المسموح",
