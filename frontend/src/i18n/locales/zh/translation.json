@@ -259,6 +259,7 @@
   "{{count}} clusters_other": "",
   "Current//context:cluster": "当前",
   "Choose cluster": "选择集群",
+  "Headlamp is requesting resources across the whole cluster. If you only have access to some namespaces, list them under Allowed namespaces in the cluster settings.": "",
   "Failed to load resources": "无法读取资源",
   "You don't have permissions to view this resource": "您没有权限查看此资源",
   "Resource not found": "资源未找到",

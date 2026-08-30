@@ -515,6 +515,32 @@ describe('useKubeObjectList', () => {
     expect(error).toMatchObject({ cluster: 'restricted', namespace: 'team-a', status: 403 });
   });
 
+  // Whoever shows a forbidden list needs to know whether asking for fewer namespaces could
+  // help, and a page may mix kinds of both scopes, so the scope travels with the error.
+  it.each([
+    { scope: 'namespaced', isNamespaced: true },
+    { scope: 'cluster scoped', isNamespaced: false },
+  ])('records on a failed list that the resource is $scope', async ({ isNamespaced }) => {
+    const error = new ApiError('Forbidden', { status: 403 });
+    mockClusterFetch.mockRejectedValueOnce(error);
+
+    const query = kubeObjectListQuery(
+      class {
+        static apiVersion = 'v1';
+        static apiName = 'things';
+        static kind = 'Thing';
+        static isNamespaced = isNamespaced;
+      } as any,
+      { version: 'v1', resource: 'things' },
+      undefined,
+      'cluster-a',
+      {}
+    );
+
+    await expect((query.queryFn as any)()).rejects.toBe(error);
+    expect(error).toMatchObject({ cluster: 'cluster-a', namespacedResource: isNamespaced });
+  });
+
   it('preserves non-ApiError failures from allowed namespace requests', async () => {
     localStorage.setItem(
       'cluster_settings.restricted',
