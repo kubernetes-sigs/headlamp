@@ -57,6 +57,7 @@ import {
   DefaultHeaderAction,
   HeaderActionsProcessor,
   HeaderActionType,
+  NewHeaderActionType,
   setAppBarAction,
   setAppBarActionsProcessor,
   setDetailsViewHeaderAction,
@@ -195,7 +196,7 @@ export type sectionFunc = (resource: KubeObject) => SectionFuncProps | null | un
 //        Maybe in a ResourceAction component? That is used by Headlamp too.
 // @todo: these should also have a *Props
 // @todo: HeaderActionType should be deprecated.
-export type DetailsViewHeaderActionType = HeaderActionType;
+export type DetailsViewHeaderActionType = HeaderActionType | NewHeaderActionType;
 export type DetailsViewHeaderActionsProcessor = HeaderActionsProcessor;
 
 export default class Registry {

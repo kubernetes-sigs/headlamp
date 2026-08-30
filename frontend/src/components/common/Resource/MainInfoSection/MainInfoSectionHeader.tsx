@@ -24,6 +24,7 @@ import {
   HeaderActionType,
 } from '../../../../redux/actionButtonsSlice';
 import { useTypedSelector } from '../../../../redux/hooks';
+import ActionButton from '../../ActionButton';
 import ErrorBoundary from '../../ErrorBoundary';
 import SectionHeader, { HeaderStyle } from '../../SectionHeader';
 import CopyButton from '../CopyButton';
@@ -45,6 +46,16 @@ export interface MainInfoHeaderProps<T extends KubeObject> {
   noDefaultActions?: boolean;
   /** The route or location to go to. If it's an empty string, then the "browser back" function is used. If null, no back button will be shown. */
   backLink?: string | ReturnType<typeof useLocation> | null;
+}
+
+function ActionWrapper({ Action, resource }: { Action: any; resource: any }) {
+  const actionResult = Action({ item: resource }) as any;
+  if (isValidElement(actionResult)) {
+    return actionResult;
+  } else if (actionResult !== null && typeof actionResult === 'object') {
+    return <ActionButton {...actionResult} />;
+  }
+  return null;
 }
 
 export function MainInfoHeader<T extends KubeObject>(props: MainInfoHeaderProps<T>) {
@@ -86,7 +97,7 @@ export function MainInfoHeader<T extends KubeObject>(props: MainInfoHeaderProps<
     } else if (typeof Action === 'function' && resource) {
       return (
         <ErrorBoundary>
-          <Action item={resource} />
+          <ActionWrapper Action={Action} resource={resource} />
         </ErrorBoundary>
       );
     }
