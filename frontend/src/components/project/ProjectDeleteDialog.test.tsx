@@ -112,6 +112,7 @@ describe('ProjectDeleteDialog', () => {
           project={mockProject}
           onClose={mockOnClose}
           namespaces={makeMockNamespaces()}
+          canDeleteNamespaces
         />
       </TestContext>
     );
@@ -131,6 +132,7 @@ describe('ProjectDeleteDialog', () => {
           project={mockProject}
           onClose={mockOnClose}
           namespaces={makeMockNamespaces()}
+          canDeleteNamespaces
         />
       </TestContext>
     );
@@ -155,6 +157,7 @@ describe('ProjectDeleteDialog', () => {
           project={mockProject}
           onClose={mockOnClose}
           namespaces={namespaces}
+          canDeleteNamespaces
         />
       </TestContext>
     );
@@ -197,6 +200,7 @@ describe('ProjectDeleteDialog', () => {
           project={mockProject}
           onClose={mockOnClose}
           namespaces={namespaces}
+          canDeleteNamespaces
         />
       </TestContext>
     );
@@ -229,6 +233,7 @@ describe('ProjectDeleteDialog', () => {
           project={mockProject}
           onClose={mockOnClose}
           namespaces={makeMockNamespaces()}
+          canDeleteNamespaces
         />
       </TestContext>
     );
@@ -257,6 +262,7 @@ describe('ProjectDeleteDialog', () => {
           project={mockProject}
           onClose={mockOnClose}
           namespaces={makeMockNamespaces()}
+          canDeleteNamespaces
         />
       </TestContext>
     );
@@ -284,6 +290,7 @@ describe('ProjectDeleteDialog', () => {
           project={mockProject}
           onClose={mockOnClose}
           namespaces={makeMockNamespaces()}
+          canDeleteNamespaces
         />
       </TestContext>
     );
@@ -293,5 +300,70 @@ describe('ProjectDeleteDialog', () => {
     fireEvent.click(screen.getByRole('checkbox', { name: /also delete the namespaces/i }));
 
     expect(screen.getByText(/This action cannot be undone/i)).toBeInTheDocument();
+  });
+
+  test('hides namespace deletion option when not authorized for every namespace', () => {
+    render(
+      <TestContext>
+        <ProjectDeleteDialog
+          open
+          project={mockProject}
+          onClose={mockOnClose}
+          namespaces={makeMockNamespaces()}
+          canDeleteNamespaces={false}
+        />
+      </TestContext>
+    );
+
+    expect(
+      screen.queryByRole('checkbox', { name: /also delete the namespaces/i })
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Delete Project' })).toBeInTheDocument();
+  });
+
+  test('does not delete namespaces when delete authorization is lost before confirmation', async () => {
+    let capturedActionFn: (() => Promise<void>) | null = null;
+    mockClusterAction.mockImplementation((actionFn: () => Promise<void>) => {
+      capturedActionFn = actionFn;
+      return { type: 'clusterAction/mock' };
+    });
+
+    const namespaces = makeMockNamespaces();
+    const { rerender } = render(
+      <TestContext>
+        <ProjectDeleteDialog
+          open
+          project={mockProject}
+          onClose={mockOnClose}
+          namespaces={namespaces}
+          canDeleteNamespaces
+        />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByRole('checkbox', { name: /also delete the namespaces/i }));
+
+    rerender(
+      <TestContext>
+        <ProjectDeleteDialog
+          open
+          project={mockProject}
+          onClose={mockOnClose}
+          namespaces={namespaces}
+          canDeleteNamespaces={false}
+        />
+      </TestContext>
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Delete Project' }));
+
+    if (capturedActionFn) {
+      await (capturedActionFn as () => Promise<void>)();
+    }
+
+    expect(namespaces[0].update).toHaveBeenCalled();
+    expect(namespaces[1].update).toHaveBeenCalled();
+    expect(namespaces[0].delete).not.toHaveBeenCalled();
+    expect(namespaces[1].delete).not.toHaveBeenCalled();
   });
 });
