@@ -262,6 +262,7 @@
   "{{count}} clusters_other": "",
   "Current//context:cluster": "Aktuální",
   "Choose cluster": "Zvolte cluster.",
+  "Headlamp is requesting resources across the whole cluster. If you only have access to some namespaces, list them under Allowed namespaces in the cluster settings.": "",
   "Failed to load resources": "Nepovedlo se načíst prostředky.",
   "You don't have permissions to view this resource": "Nemáte oprávnění k zobrazení tohoto prostředku.",
   "Resource not found": "Prostředek se nenašel",

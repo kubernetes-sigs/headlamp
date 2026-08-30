@@ -15,8 +15,11 @@
  */
 
 import Grid from '@mui/material/Grid';
+import { uniqBy } from 'lodash';
 import React, { useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
+import type { ApiError } from '../../lib/k8s/api/v2/ApiError';
+import { hasListResults } from '../../lib/k8s/api/v2/useKubeObjectList';
 import CronJob from '../../lib/k8s/cronJob';
 import DaemonSet from '../../lib/k8s/daemonSet';
 import Deployment from '../../lib/k8s/deployment';
@@ -28,10 +31,13 @@ import ReplicaSet from '../../lib/k8s/replicaSet';
 import StatefulSet from '../../lib/k8s/statefulSet';
 import type { Workload, WorkloadClass } from '../../lib/k8s/Workload';
 import { getReadyReplicas, getTotalReplicas } from '../../lib/util';
+import { useNamespaces } from '../../redux/filterSlice';
+import { ClusterGroupErrorMessage } from '../cluster/ClusterGroupErrorMessage';
 import Link from '../common/Link';
 import { PageGrid } from '../common/Resource';
 import ResourceListView from '../common/Resource/ResourceListView';
 import { SectionBox } from '../common/SectionBox';
+import TileChart from '../common/TileChart';
 import { WorkloadCircleChart } from './Charts';
 
 interface WorkloadDict {
@@ -39,15 +45,86 @@ interface WorkloadDict {
 }
 
 export default function Overview() {
-  const [pods] = Pod.useList();
-  const [deployments] = Deployment.useList();
-  const [statefulSets] = StatefulSet.useList();
-  const [daemonSets] = DaemonSet.useList();
-  const [replicaSets] = ReplicaSet.useList();
-  const [jobs] = Job.useList();
-  const [cronJobs] = CronJob.useList();
-  const [jobSets] = JobSet.useList();
-  const [leaderWorkerSets] = LeaderWorkerSet.useList();
+  const namespaces = useNamespaces();
+
+  const listOptions = { namespace: namespaces };
+  // A list fans out over the namespaces and clusters it was asked for and reports an error
+  // for each request that failed, so every query is kept whole. Reading only the first error
+  // hides a later failure with another status, and with it the hint its status would raise.
+  const podsQuery = Pod.useList(listOptions);
+  const deploymentsQuery = Deployment.useList(listOptions);
+  const statefulSetsQuery = StatefulSet.useList(listOptions);
+  const daemonSetsQuery = DaemonSet.useList(listOptions);
+  const replicaSetsQuery = ReplicaSet.useList(listOptions);
+  const jobsQuery = Job.useList(listOptions);
+  const cronJobsQuery = CronJob.useList(listOptions);
+  const jobSetsQuery = JobSet.useList(listOptions);
+  const leaderWorkerSetsQuery = LeaderWorkerSet.useList(listOptions);
+
+  const pods = podsQuery.items;
+  const deployments = deploymentsQuery.items;
+  const statefulSets = statefulSetsQuery.items;
+  const daemonSets = daemonSetsQuery.items;
+  const replicaSets = replicaSetsQuery.items;
+  const jobs = jobsQuery.items;
+  const cronJobs = cronJobsQuery.items;
+  const jobSets = jobSetsQuery.items;
+  const leaderWorkerSets = leaderWorkerSetsQuery.items;
+
+  // A namespace that answered with nothing contributes a real zero, so the charts go by
+  // whether any request answered rather than by whether the answer holds an item.
+  const workloadHasData: Record<string, boolean> = {
+    [Pod.className]: hasListResults(podsQuery),
+    [Deployment.className]: hasListResults(deploymentsQuery),
+    [StatefulSet.className]: hasListResults(statefulSetsQuery),
+    [DaemonSet.className]: hasListResults(daemonSetsQuery),
+    [ReplicaSet.className]: hasListResults(replicaSetsQuery),
+    [Job.className]: hasListResults(jobsQuery),
+    [CronJob.className]: hasListResults(cronJobsQuery),
+    [JobSet.className]: hasListResults(jobSetsQuery),
+    [LeaderWorkerSet.className]: hasListResults(leaderWorkerSetsQuery),
+  };
+
+  const workloadErrors: Record<string, ApiError[] | null> = {
+    [Pod.className]: podsQuery.errors,
+    [Deployment.className]: deploymentsQuery.errors,
+    [StatefulSet.className]: statefulSetsQuery.errors,
+    [DaemonSet.className]: daemonSetsQuery.errors,
+    [ReplicaSet.className]: replicaSetsQuery.errors,
+    [Job.className]: jobsQuery.errors,
+    [CronJob.className]: cronJobsQuery.errors,
+    [JobSet.className]: jobSetsQuery.errors,
+    [LeaderWorkerSet.className]: leaderWorkerSetsQuery.errors,
+  };
+
+  const listErrors = useMemo(
+    () =>
+      uniqBy(
+        [
+          podsQuery.errors,
+          deploymentsQuery.errors,
+          statefulSetsQuery.errors,
+          daemonSetsQuery.errors,
+          replicaSetsQuery.errors,
+          jobsQuery.errors,
+          cronJobsQuery.errors,
+          jobSetsQuery.errors,
+          leaderWorkerSetsQuery.errors,
+        ].flatMap(errors => errors ?? []),
+        error => error.status
+      ),
+    [
+      podsQuery.errors,
+      deploymentsQuery.errors,
+      statefulSetsQuery.errors,
+      daemonSetsQuery.errors,
+      replicaSetsQuery.errors,
+      jobsQuery.errors,
+      cronJobsQuery.errors,
+      jobSetsQuery.errors,
+      leaderWorkerSetsQuery.errors,
+    ]
+  );
 
   const workloadsData: WorkloadDict = useMemo(
     () => ({
@@ -156,26 +233,39 @@ export default function Overview() {
   return (
     <PageGrid>
       <SectionBox py={2} mt={1}>
+        <ClusterGroupErrorMessage errors={listErrors} namespacedResource />
         <Grid container justifyContent="flex-start" alignItems="flex-start" spacing={2}>
-          {workloads.map(workload => (
-            <Grid item lg={3} md={4} xs={6} key={workload.className} style={{ minWidth: 0 }}>
-              <WorkloadCircleChart
-                workloadData={workloadsData[workload.className] || null}
-                title={<ChartLink workload={workload} />}
-                partialLabel={t('translation|Failed')}
-                totalLabel={
-                  workload === Pod || perItemHealth[workload.className]
-                    ? t('translation|Healthy')
-                    : t('translation|Running')
-                }
-                categorize={
-                  workload === Pod
-                    ? item => (item as Pod).getHealth()
-                    : perItemHealth[workload.className]
-                }
-              />
-            </Grid>
-          ))}
+          {workloads.map(workload => {
+            const items = workloadsData[workload.className];
+            const errors = workloadErrors[workload.className];
+
+            return (
+              <Grid item lg={3} md={4} xs={6} key={workload.className} style={{ minWidth: 0 }}>
+                {!!errors?.length && !workloadHasData[workload.className] ? (
+                  <TileChart
+                    title={workloadLabel[workload.className]}
+                    legend={t('translation|Unavailable')}
+                  />
+                ) : (
+                  <WorkloadCircleChart
+                    workloadData={items || null}
+                    title={<ChartLink workload={workload} />}
+                    partialLabel={t('translation|Failed')}
+                    totalLabel={
+                      workload === Pod || perItemHealth[workload.className]
+                        ? t('translation|Healthy')
+                        : t('translation|Running')
+                    }
+                    categorize={
+                      workload === Pod
+                        ? item => (item as Pod).getHealth()
+                        : perItemHealth[workload.className]
+                    }
+                  />
+                )}
+              </Grid>
+            );
+          })}
         </Grid>
       </SectionBox>
       <ResourceListView

@@ -260,6 +260,7 @@
   "{{count}} clusters_other": "",
   "Current//context:cluster": "Nuvarande",
   "Choose cluster": "Välj kluster",
+  "Headlamp is requesting resources across the whole cluster. If you only have access to some namespaces, list them under Allowed namespaces in the cluster settings.": "",
   "Failed to load resources": "Det gick inte att läsa in resurserna",
   "You don't have permissions to view this resource": "Du har inte behörighet att visa den här resursen",
   "Resource not found": "Det gick inte att hitta resursen",

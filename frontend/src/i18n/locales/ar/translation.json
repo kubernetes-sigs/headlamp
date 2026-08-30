@@ -264,6 +264,7 @@
   "{{count}} clusters_other": "{{count}} كتل",
   "Current//context:cluster": "الحالي",
   "Choose cluster": "اختر كتلة",
+  "Headlamp is requesting resources across the whole cluster. If you only have access to some namespaces, list them under Allowed namespaces in the cluster settings.": "",
   "Failed to load resources": "فشل تحميل الموارد",
   "You don't have permissions to view this resource": "ليس لديك صلاحية لعرض هذا المورد",
   "Resource not found": "المورد غير موجود",
