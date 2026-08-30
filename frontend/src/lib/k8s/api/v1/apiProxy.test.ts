@@ -1073,7 +1073,7 @@ describe('apiProxy', () => {
         const response = await apiProxy.stopOrDeletePortForward(
           clusterName,
           mockId,
-          /* stopOnly */ true
+          /* stopOnly */ false
         );
         const data = JSON.parse(response);
         expect(data).toEqual(mockStopResponse);
