@@ -2,6 +2,7 @@ package helm
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -13,6 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
+	"helm.sh/helm/v3/pkg/release"
+	"helm.sh/helm/v3/pkg/storage"
+	"helm.sh/helm/v3/pkg/storage/driver"
 )
 
 func TestGetActionStatus_NilErr(t *testing.T) {
@@ -73,4 +77,51 @@ func TestGetChart_InvalidType(t *testing.T) {
 	assert.Equal(t, "failed", statusMap.Status)
 	assert.NotNil(t, statusMap.Err)
 	assert.Contains(t, *statusMap.Err, "chart type \"library\" is not installable")
+}
+
+func TestReleaseExistence_FailedAndNonDeployedStatus(t *testing.T) {
+	memDriver := driver.NewMemory()
+	store := storage.Init(memDriver)
+	actionConfig := &action.Configuration{
+		Releases: store,
+	}
+
+	statuses := []release.Status{
+		release.StatusFailed,
+		release.StatusPendingInstall,
+		release.StatusPendingUpgrade,
+		release.StatusPendingRollback,
+		release.StatusUninstalling,
+		release.StatusUninstalled,
+		release.StatusSuperseded,
+	}
+
+	for _, status := range statuses {
+		relName := "rel-" + string(status)
+		rel := &release.Release{
+			Name:      relName,
+			Namespace: "default",
+			Version:   1,
+			Info: &release.Info{
+				Status: status,
+			},
+		}
+
+		err := store.Create(rel)
+		require.NoError(t, err)
+
+		// Releases.Deployed fails on non-deployed statuses
+		_, err = actionConfig.Releases.Deployed(relName)
+		assert.Error(t, err, "Deployed() should fail for status %s", status)
+
+		// Releases.Last successfully returns the release across all lifecycle statuses
+		lastRel, err := actionConfig.Releases.Last(relName)
+		require.NoError(t, err, "Last() should succeed for status %s", status)
+		assert.Equal(t, relName, lastRel.Name)
+		assert.Equal(t, status, lastRel.Info.Status)
+	}
+
+	// Truly non-existent release still returns ErrReleaseNotFound
+	_, err := actionConfig.Releases.Last("does-not-exist")
+	assert.True(t, errors.Is(err, driver.ErrReleaseNotFound))
 }
