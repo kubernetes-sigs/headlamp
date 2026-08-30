@@ -6,6 +6,7 @@ import (
 	"flag"
 	"fmt"
 	"io/fs"
+	"net/netip"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -187,6 +188,27 @@ func (c *Config) Validate() error {
 		return err
 	}
 
+	if err := c.validateTrustedProxyCIDRs(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (c *Config) validateTrustedProxyCIDRs() error {
+	if c.TrustedProxyCIDRs == "" {
+		return nil
+	}
+
+	for _, cidr := range strings.Split(c.TrustedProxyCIDRs, ",") {
+		cidr = strings.TrimSpace(cidr)
+		if cidr == "" {
+			continue
+		}
+		if _, err := netip.ParsePrefix(cidr); err != nil {
+			return fmt.Errorf("invalid trusted-proxy-cidrs entry %q: %w", cidr, err)
+		}
+	}
 	return nil
 }
 

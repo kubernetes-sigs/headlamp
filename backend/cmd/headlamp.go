@@ -720,26 +720,35 @@ func clientIP(r *http.Request, trustedProxyCIDRs []string) string {
 		return strings.TrimSpace(remoteHost)
 	}
 
-	for _, cidr := range trustedProxyCIDRs {
-		prefix, err := netip.ParsePrefix(strings.TrimSpace(cidr))
-		if err != nil {
-			continue
+	isTrusted := func(ip netip.Addr) bool {
+		for _, cidr := range trustedProxyCIDRs {
+			prefix, err := netip.ParsePrefix(strings.TrimSpace(cidr))
+			if err == nil && prefix.Contains(ip) {
+				return true
+			}
 		}
+		return false
+	}
 
-		if prefix.Contains(remoteIP) {
-			forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-For"))
-			if forwarded == "" {
-				break
+	if isTrusted(remoteIP) {
+		forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-For"))
+		if forwarded != "" {
+			ips := strings.Split(forwarded, ",")
+			for i := len(ips) - 1; i >= 0; i-- {
+				ipStr := strings.TrimSpace(ips[i])
+				if ipStr == "" {
+					continue
+				}
+
+				parsed, err := netip.ParseAddr(ipStr)
+				if err != nil {
+					return remoteIP.String()
+				}
+
+				if !isTrusted(parsed) {
+					return parsed.String()
+				}
 			}
-
-			// X-Forwarded-For is a comma-separated list.
-			// The first address is the original client.
-			client := strings.TrimSpace(strings.Split(forwarded, ",")[0])
-			if parsed, err := netip.ParseAddr(client); err == nil {
-				return parsed.String()
-			}
-
-			break
 		}
 	}
 
@@ -1070,8 +1079,16 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		http.HandlerFunc(config.getConfig))).Methods("GET")
 
 	// Auth token management
-	r.Handle("/auth/set-token", auth.NewBackendTokenMiddleware(config.UseInCluster)(
-		authRateLimitMiddleware(config.TrustedProxyCIDRs, config.handleSetToken))).Methods("POST")
+	setTokenHandler := auth.NewBackendTokenMiddleware(config.UseInCluster)(
+		http.HandlerFunc(config.handleSetToken),
+	)
+
+	r.Handle("/auth/set-token",
+		authRateLimitMiddleware(
+			config.TrustedProxyCIDRs,
+			setTokenHandler.ServeHTTP,
+		),
+	).Methods("POST")
 
 	// Websocket connections
 	if config.Multiplexer != nil {
@@ -2125,9 +2142,16 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 // It parses the request and creates a proxy request to the cluster.
 // That proxy is saved in the cache with the context key.
 func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
+	setTokenHandler := auth.NewBackendTokenMiddleware(c.UseInCluster)(
+		http.HandlerFunc(c.handleSetToken),
+	)
+
 	router.Handle("/clusters/{clusterName}/set-token",
-		auth.NewBackendTokenMiddleware(c.UseInCluster)(
-			authRateLimitMiddleware(c.TrustedProxyCIDRs, c.handleSetToken))).Methods("POST")
+		authRateLimitMiddleware(
+			c.TrustedProxyCIDRs,
+			setTokenHandler.ServeHTTP,
+		),
+	).Methods("POST")
 
 	handler := clusterRequestHandler(c)
 	if c.CacheEnabled {

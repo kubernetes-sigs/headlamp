@@ -156,6 +156,50 @@ func TestParseTrustedProxyCIDRs(t *testing.T) {
 	assert.Equal(t, "10.0.0.0/8,192.168.1.0/24", conf.TrustedProxyCIDRs)
 }
 
+func TestValidateTrustedProxyCIDRs(t *testing.T) {
+	tests := []struct {
+		name        string
+		cidrs       string
+		expectError bool
+	}{
+		{
+			name:        "empty trusted-proxy-cidrs is valid",
+			cidrs:       "",
+			expectError: false,
+		},
+		{
+			name:        "valid single CIDR is valid",
+			cidrs:       "192.168.1.0/24",
+			expectError: false,
+		},
+		{
+			name:        "valid comma-separated CIDRs are valid",
+			cidrs:       "10.0.0.0/8, 192.168.1.0/24",
+			expectError: false,
+		},
+		{
+			name:        "invalid CIDR causes validation to fail",
+			cidrs:       "10.0.0.0/8, invalid-cidr",
+			expectError: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := config.Parse([]string{
+				"headlamp-server",
+				"--trusted-proxy-cidrs=" + tt.cidrs,
+			})
+			if tt.expectError {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "invalid trusted-proxy-cidrs entry")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestParseAppName(t *testing.T) {
 	tests := []struct {
 		name           string

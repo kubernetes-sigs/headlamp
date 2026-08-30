@@ -1771,6 +1771,55 @@ func assertRouteRequiresBackendToken(t *testing.T, method, path string, body int
 	}
 }
 
+func TestSetTokenInvalidRequestsAreRateLimited(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+	}{
+		{
+			name: "auth set-token",
+			path: "/auth/set-token",
+		},
+		{
+			name: "cluster set-token",
+			path: "/clusters/" + minikubeName + "/set-token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetAuthLimiters()
+
+			const validToken = "valid-token-for-test"
+			t.Setenv("HEADLAMP_BACKEND_TOKEN", validToken)
+
+			handler := newRestrictedEndpointsHandler(t)
+
+			for i := 0; i < 10; i++ {
+				req, err := makeJSONReq(http.MethodPost, tt.path, nil)
+				require.NoError(t, err)
+
+				req.Header.Set("X-HEADLAMP-BACKEND-TOKEN", "invalid-token")
+
+				rr := httptest.NewRecorder()
+				handler.ServeHTTP(rr, req)
+
+				assert.Equal(t, http.StatusForbidden, rr.Code)
+			}
+
+			req, err := makeJSONReq(http.MethodPost, tt.path, nil)
+			require.NoError(t, err)
+
+			req.Header.Set("X-HEADLAMP-BACKEND-TOKEN", "invalid-token")
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusTooManyRequests, rr.Code)
+		})
+	}
+}
+
 // TestRestrictedEndpointsBypassedWithoutConfiguredToken preserves standalone
 // development and test servers where backend-token enforcement is not configured.
 func TestRestrictedEndpointsBypassedWithoutConfiguredToken(t *testing.T) {
@@ -4706,6 +4755,35 @@ func TestAuthRateLimitMiddleware_XForwardedFor(t *testing.T) {
 		middleware.ServeHTTP(rr, req)
 
 		assert.Equal(t, http.StatusOK, rr.Code)
+	})
+
+	t.Run("spoofed leftmost X-Forwarded-For does not bypass rate limit", func(t *testing.T) {
+		resetAuthLimiters()
+
+		middleware := authRateLimitMiddleware(
+			[]string{"192.168.1.0/24", "10.0.0.0/8"},
+			dummyHandler,
+		)
+
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/auth", nil)
+		req.RemoteAddr = "192.168.1.100:12345"
+		req.Header.Set("X-Forwarded-For", "8.8.8.8, 203.0.113.1, 10.0.0.5")
+
+		// Exhaust the bucket for actual client 203.0.113.1
+		for i := 0; i < 10; i++ {
+			rr := httptest.NewRecorder()
+			middleware.ServeHTTP(rr, req)
+			assert.Equal(t, http.StatusOK, rr.Code)
+		}
+
+		// Changing the spoofed leftmost IP should not bypass the rate limit,
+		// because the actual client IP (first untrusted from right) is still 203.0.113.1.
+		req.Header.Set("X-Forwarded-For", "9.9.9.9, 203.0.113.1, 10.0.0.5")
+
+		rr := httptest.NewRecorder()
+		middleware.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusTooManyRequests, rr.Code)
 	})
 }
 
