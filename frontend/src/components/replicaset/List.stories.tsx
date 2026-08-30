@@ -310,7 +310,8 @@ TooltipInteractionKeyboard.play = async ({ canvasElement }) => {
   moreText.parentElement?.focus();
 
   // Assert that the tooltip's full content is visible
-  const fullTooltipText = await canvas.findByText(content => {
+  const body = within(canvasElement.ownerDocument.body);
+  const fullTooltipText = await body.findByText(content => {
     return (
       content.includes('app.kubernetes.io/instance: headlamp-release') &&
       content.includes('pod-template-hash: b123456')
@@ -322,6 +323,6 @@ TooltipInteractionKeyboard.play = async ({ canvasElement }) => {
   // Unfocus to close the tooltip
   await userEvent.tab();
   await waitFor(() =>
-    expect(canvas.queryByText(/pod-template-hash: b123456/i)).not.toBeInTheDocument()
+    expect(body.queryByText(/pod-template-hash: b123456/i)).not.toBeInTheDocument()
   );
 };
