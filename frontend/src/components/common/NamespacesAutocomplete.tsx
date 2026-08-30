@@ -77,7 +77,7 @@ function addQuery(
 export interface PureNamespacesAutocompleteProps {
   namespaceNames: string[];
   onChange: (event: React.ChangeEvent<{}>, newValue: string[]) => void;
-  filter: { namespaces: Set<string> };
+  filter: { namespaces: string[] };
 }
 
 export function PureNamespacesAutocomplete({
@@ -117,7 +117,7 @@ export function PureNamespacesAutocomplete({
       inputValue={namespaceInput}
       // We reverse the namespaces so the last chosen appear as the first in the label. This
       // is useful since the label is ellipsized and this we get to see it change.
-      value={[...filter.namespaces.values()].reverse()}
+      value={[...filter.namespaces].reverse()}
       renderOption={(props, option, { selected }) => (
         <li {...props} key={props.key}>
           <Checkbox
@@ -185,7 +185,7 @@ export function PureNamespacesAutocomplete({
             fullWidth
             InputLabelProps={{ shrink: true }}
             style={{ marginTop: 0 }}
-            placeholder={[...filter.namespaces.values()].length > 0 ? '' : t('Filter')}
+            placeholder={filter.namespaces.length > 0 ? '' : t('Filter')}
           />
         </Box>
       )}
@@ -249,7 +249,7 @@ const useDefaultNamespaceFallback = (
       allClustersConfigs &&
       isNamespaceError &&
       (!namespacesList || namespacesList?.length === 0) &&
-      selectedNamespaces.size === 0
+      selectedNamespaces.length === 0
     ) {
       const defaultNamespaceFromKubeconfig =
         allClustersConfigs[currentCluster]?.meta_data.namespace;

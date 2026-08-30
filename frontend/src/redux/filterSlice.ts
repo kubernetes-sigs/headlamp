@@ -25,11 +25,11 @@ import { getSavedNamespaces, saveNamespaces } from '../lib/storage';
 
 export interface FilterState {
   /** The namespaces to filter on. */
-  namespaces: Set<string>;
+  namespaces: string[];
 }
 
 export const initialState: FilterState = {
-  namespaces: new Set(getSavedNamespaces()),
+  namespaces: getSavedNamespaces(),
 };
 
 /**
@@ -49,8 +49,8 @@ export function filterResource(
 ) {
   let matches: boolean = true;
 
-  if (item.metadata.namespace && filter.namespaces.size > 0) {
-    matches = filter.namespaces.has(item.metadata.namespace);
+  if (item.metadata.namespace && filter.namespaces.length > 0) {
+    matches = filter.namespaces.includes(item.metadata.namespace);
   }
 
   if (!matches) {
@@ -144,16 +144,16 @@ const filterSlice = createSlice({
         .map(ns => (typeof ns === 'string' ? ns.trim() : ''))
         .filter(Boolean);
 
-      const namespacesSet = new Set(namespaces);
-      state.namespaces = namespacesSet;
+      const uniqueNamespaces = [...new Set(namespaces)];
+      state.namespaces = uniqueNamespaces;
 
-      saveNamespaces([...namespacesSet]);
+      saveNamespaces(uniqueNamespaces);
     },
     /**
      * Resets the filter state.
      */
     resetFilter(state) {
-      state.namespaces = new Set();
+      state.namespaces = [];
       saveNamespaces([]);
     },
   },
@@ -169,6 +169,6 @@ export default filterSlice.reducer;
  * @returns An array of selected namespaces, empty means all namespaces are visible
  */
 export const useNamespaces = () => {
-  const namespacesSet = useSelector(({ filter }: { filter: FilterState }) => filter.namespaces);
-  return useMemo(() => [...namespacesSet], [namespacesSet]);
+  const namespaces = useSelector(({ filter }: { filter: FilterState }) => filter.namespaces);
+  return useMemo(() => namespaces.slice(), [namespaces]);
 };

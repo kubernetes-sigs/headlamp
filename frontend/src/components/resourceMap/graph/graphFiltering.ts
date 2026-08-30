@@ -25,7 +25,7 @@ export type GraphFilter =
     }
   | {
       type: 'namespace';
-      namespaces: Set<string>;
+      namespaces: string[];
     };
 
 /**
@@ -39,9 +39,9 @@ export function matchesAllFilters(node: GraphNode, filters: GraphFilter[]): bool
     if (filter.type === 'hasErrors') {
       return getGraphNodeStatus(node) !== 'success';
     }
-    if (filter.type === 'namespace' && filter.namespaces.size > 0) {
+    if (filter.type === 'namespace' && filter.namespaces.length > 0) {
       const namespace = node.kubeObject?.metadata?.namespace;
-      return !!namespace && filter.namespaces.has(namespace);
+      return !!namespace && filter.namespaces.includes(namespace);
     }
     return true;
   });

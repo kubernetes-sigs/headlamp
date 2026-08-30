@@ -217,7 +217,7 @@ export default function Sidebar() {
 
   const items = useSidebarItems(sidebar?.selected?.sidebar ?? undefined);
 
-  const search = namespaces.size !== 0 ? `?namespace=${[...namespaces].join('+')}` : '';
+  const search = namespaces.length !== 0 ? `?namespace=${namespaces.join('+')}` : '';
 
   const handleToggleOpen = useCallback(() => {
     dispatch(setWhetherSidebarOpen(!sidebar.isSidebarOpen));

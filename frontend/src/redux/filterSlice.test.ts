@@ -33,7 +33,7 @@ describe('filterSlice', () => {
   const STORAGE_KEY = 'headlamp-selected-namespace_test-cluster';
 
   beforeEach(() => {
-    state = { ...initialState, namespaces: new Set() };
+    state = { ...initialState, namespaces: [] };
     localStorage.clear();
     vi.clearAllMocks();
   });
@@ -43,7 +43,7 @@ describe('filterSlice', () => {
     state = filterReducer(state, setNamespaceFilter(namespaces));
 
     // Verify state update
-    expect(state.namespaces).toEqual(new Set(namespaces));
+    expect(state.namespaces).toEqual(namespaces);
 
     // Verify localStorage write
     const stored = localStorage.getItem(STORAGE_KEY);
@@ -54,11 +54,11 @@ describe('filterSlice', () => {
   it('should handle resetFilter and clear namespaces', () => {
     state = {
       ...state,
-      namespaces: new Set(['default']),
+      namespaces: ['default'],
     };
 
     state = filterReducer(state, resetFilter());
-    expect(state.namespaces).toEqual(new Set());
+    expect(state.namespaces).toEqual([]);
   });
 
   describe('getSavedNamespaces (Persistence Logic)', () => {
@@ -91,7 +91,7 @@ describe('filterSlice', () => {
   });
 
   describe('filterResource search', () => {
-    const filter: FilterState = { ...initialState, namespaces: new Set() };
+    const filter: FilterState = { ...initialState, namespaces: [] };
 
     const makeItem = (metadata: object) => ({ kind: 'Pod', apiVersion: 'v1', metadata } as any);
 
