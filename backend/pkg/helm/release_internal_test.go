@@ -13,6 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"helm.sh/helm/v3/pkg/action"
 	"helm.sh/helm/v3/pkg/cli"
+	"k8s.io/apimachinery/pkg/api/meta"
+	"k8s.io/cli-runtime/pkg/genericclioptions"
+	"k8s.io/client-go/discovery"
+	"k8s.io/client-go/rest"
+	"k8s.io/client-go/tools/clientcmd"
 )
 
 func TestGetActionStatus_NilErr(t *testing.T) {
@@ -73,4 +78,53 @@ func TestGetChart_InvalidType(t *testing.T) {
 	assert.Equal(t, "failed", statusMap.Status)
 	assert.NotNil(t, statusMap.Err)
 	assert.Contains(t, *statusMap.Err, "chart type \"library\" is not installable")
+}
+
+type staticRESTGetterInternal struct{ cfg *rest.Config }
+
+var _ genericclioptions.RESTClientGetter = (*staticRESTGetterInternal)(nil)
+
+func (s *staticRESTGetterInternal) ToRESTConfig() (*rest.Config, error) {
+	return s.cfg, nil
+}
+
+func (s *staticRESTGetterInternal) ToDiscoveryClient() (discovery.CachedDiscoveryInterface, error) {
+	return nil, nil
+}
+
+func (s *staticRESTGetterInternal) ToRESTMapper() (meta.RESTMapper, error) {
+	return nil, nil
+}
+
+func (s *staticRESTGetterInternal) ToRawKubeConfigLoader() clientcmd.ClientConfig {
+	return nil
+}
+
+func TestInstallRelease_VerifyUserFailure(t *testing.T) {
+	h := &Handler{
+		Cache:       cache.New[interface{}](),
+		EnvSettings: cli.New(),
+	}
+
+	actionConfig := &action.Configuration{
+		RESTClientGetter: &staticRESTGetterInternal{
+			cfg: &rest.Config{Host: ""},
+		},
+	}
+
+	req := InstallRequest{
+		CommonInstallUpdateRequest: CommonInstallUpdateRequest{
+			Name: "test-release-verify-fail",
+		},
+	}
+
+	h.installRelease(req, actionConfig)
+
+	statusVal, err := h.Cache.Get(context.Background(), "helm_install_test-release-verify-fail")
+	require.NoError(t, err)
+
+	statusMap := statusVal.(stat)
+	assert.Equal(t, "failed", statusMap.Status)
+	require.NotNil(t, statusMap.Err)
+	assert.NotEmpty(t, *statusMap.Err)
 }
