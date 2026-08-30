@@ -21,18 +21,22 @@ import ListItemText from '@mui/material/ListItemText';
 import Menu from '@mui/material/Menu';
 import MenuItem from '@mui/material/MenuItem';
 import Tooltip from '@mui/material/Tooltip';
+import * as yaml from 'js-yaml';
 import { useSnackbar } from 'notistack';
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import { useHistory } from 'react-router-dom';
 import helpers from '../../../helpers';
+import { decodeBase64 } from '../../../helpers/base64';
 import { deleteCluster } from '../../../lib/k8s/api/v1/clusterApi';
 import { Cluster } from '../../../lib/k8s/cluster';
+import { KubeconfigObject } from '../../../lib/k8s/kubeconfig';
 import { createRouteURL } from '../../../lib/router/createRouteURL';
 import { useId } from '../../../lib/util';
 import { setConfig } from '../../../redux/configSlice';
 import { useTypedSelector } from '../../../redux/hooks';
+import { findKubeconfigByClusterName } from '../../../stateless/findKubeconfigByClusterName';
 import { ConfirmDialog } from '../../common/ConfirmDialog';
 import ErrorBoundary from '../../common/ErrorBoundary/ErrorBoundary';
 
@@ -60,7 +64,33 @@ export default function ClusterContextMenu({
   const menuItems = useTypedSelector(state => state.clusterProvider.menuItems);
   const isDynamicClusterEnabled = useTypedSelector(state => state.config.isDynamicClusterEnabled);
   const allowKubeconfigChanges = useTypedSelector(state => state.config.allowKubeconfigChanges);
+  const statelessClusters = useTypedSelector(state => state.config.statelessClusters);
   const { enqueueSnackbar } = useSnackbar();
+
+  const isStatelessCluster = cluster.name in (statelessClusters ?? {});
+
+  async function getClusterKubeconfigYaml(): Promise<string | null> {
+    const b64 = await findKubeconfigByClusterName(cluster.name, cluster.meta_data?.clusterID);
+    if (!b64) {
+      return null;
+    }
+    const full = yaml.load(decodeBase64(b64)) as KubeconfigObject;
+    const context = full.contexts?.find(c => c.name === cluster.name);
+    if (!context) {
+      return null;
+    }
+    const matchedCluster = full.clusters?.find(c => c.name === context.context.cluster);
+    const matchedUser = full.users?.find(u => u.name === context.context.user);
+    const filtered: KubeconfigObject = {
+      apiVersion: full.apiVersion ?? 'v1',
+      kind: full.kind ?? 'Config',
+      'current-context': cluster.name,
+      clusters: matchedCluster ? [matchedCluster] : [],
+      users: matchedUser ? [matchedUser] : [],
+      contexts: [context],
+    };
+    return yaml.dump(filtered);
+  }
 
   const kubeconfigOrigin = cluster.meta_data?.origin?.kubeconfig;
   const deleteFromKubeconfig = cluster.meta_data?.source === 'kubeconfig';
@@ -164,6 +194,49 @@ export default function ClusterContextMenu({
         >
           <ListItemText>{t('translation|Settings')}</ListItemText>
         </MenuItem>
+        {isStatelessCluster && [
+          <MenuItem
+            key="copy-kubeconfig"
+            onClick={async () => {
+              handleMenuClose();
+              const kubeconfigYaml = await getClusterKubeconfigYaml();
+              if (kubeconfigYaml) {
+                try {
+                  await navigator.clipboard.writeText(kubeconfigYaml);
+                  enqueueSnackbar(t('translation|Kubeconfig copied to clipboard'), {
+                    variant: 'success',
+                  });
+                } catch {
+                  enqueueSnackbar(t('translation|Failed to copy kubeconfig to clipboard'), {
+                    variant: 'error',
+                  });
+                }
+              }
+            }}
+          >
+            <ListItemText>{t('translation|Copy kubeconfig')}</ListItemText>
+          </MenuItem>,
+          <MenuItem
+            key="download-kubeconfig"
+            onClick={async () => {
+              handleMenuClose();
+              const kubeconfigYaml = await getClusterKubeconfigYaml();
+              if (kubeconfigYaml) {
+                const blob = new Blob([kubeconfigYaml], { type: 'text/yaml' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `${cluster.name}-kubeconfig.yaml`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+              }
+            }}
+          >
+            <ListItemText>{t('translation|Download kubeconfig')}</ListItemText>
+          </MenuItem>,
+        ]}
         {(!menuItems || menuItems.length === 0) &&
           ((cluster.meta_data?.source === 'dynamic_cluster' &&
             (helpers.isElectron() || isDynamicClusterEnabled)) ||

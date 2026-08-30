@@ -279,7 +279,36 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
             <Loader title={t('translation|Setting up clusters')} />
           </Box>
         );
-      case Step.Success:
+      case Step.Success: {
+        const filtered = configWithSelectedClusters(fileContent, selectedClusters);
+        const currentContext =
+          selectedClusters.find(name => filtered.contexts.some(c => c.name === name)) ?? '';
+        const kubeconfigYaml = yaml.dump({
+          apiVersion: 'v1',
+          kind: 'Config',
+          preferences: {},
+          clusters: filtered.clusters,
+          users: filtered.users,
+          contexts: filtered.contexts,
+          'current-context': currentContext,
+        });
+
+        function handleCopy() {
+          navigator.clipboard.writeText(kubeconfigYaml);
+        }
+
+        function handleDownload() {
+          const blob = new Blob([kubeconfigYaml], { type: 'text/yaml' });
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = 'kubeconfig.yaml';
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+        }
+
         return (
           <Box
             sx={{
@@ -288,16 +317,32 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
               justifyContent: 'center',
               textAlign: 'center',
               alignItems: 'center',
+              gap: 2,
             }}
           >
             <Box style={{ padding: '32px' }}>
               <Typography>{t('translation|Clusters successfully set up!')}</Typography>
             </Box>
+            <WideButton
+              variant="outlined"
+              startIcon={<InlineIcon icon="mdi:content-copy" />}
+              onClick={handleCopy}
+            >
+              {t('translation|Copy kubeconfig to clipboard')}
+            </WideButton>
+            <WideButton
+              variant="outlined"
+              startIcon={<InlineIcon icon="mdi:file-download-outline" />}
+              onClick={handleDownload}
+            >
+              {t('translation|Download kubeconfig')}
+            </WideButton>
             <WideButton variant="contained" onClick={onFinish}>
               {t('translation|Finish')}
             </WideButton>
           </Box>
         );
+      }
     }
   }
 
