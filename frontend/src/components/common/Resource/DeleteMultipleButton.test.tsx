@@ -39,8 +39,9 @@ const { MockKubeObject, MockNamespace } = vi.hoisted(() => {
     get kind() {
       return this.jsonData?.kind ?? (this.constructor as any).kind;
     }
+    clusterValue = '';
     get cluster() {
-      return '';
+      return this.clusterValue;
     }
     getName() {
       return this.jsonData?.metadata?.name ?? '';
@@ -87,13 +88,15 @@ vi.mock('../../../lib/k8s/pod', () => ({
 import { TestContext } from '../../../test';
 import DeleteMultipleButton from './DeleteMultipleButton';
 
-function makeNamespace(metadata: Record<string, any>) {
-  return new (MockNamespace as any)({
+function makeNamespace(metadata: Record<string, any>, cluster = '') {
+  const ns = new (MockNamespace as any)({
     kind: 'Namespace',
     apiVersion: 'v1',
-    metadata: { uid: `uid-${metadata.name}`, ...metadata },
+    metadata: { uid: `uid-${metadata.name}-${cluster}`, ...metadata },
     status: { phase: 'Active' },
   });
+  ns.clusterValue = cluster;
+  return ns;
 }
 
 function renderButton(items: any) {
@@ -172,5 +175,30 @@ describe('DeleteMultipleButton', () => {
       '../../../lib/k8s/namespace'
     );
     expect(MockNamespace.PROTECTED_NAMESPACES).toEqual(RealNamespace.PROTECTED_NAMESPACES);
+  });
+
+  it('renders item list as sibling to prompt and only shows cluster label across multiple clusters', async () => {
+    renderButton([makeNamespace({ name: 'my-app' }), makeNamespace({ name: 'team-b' })]);
+    const dialog = await openDialog();
+
+    const prompt = within(dialog).getByText('Are you sure you want to delete the following items?');
+    expect(prompt.tagName).toBe('P');
+    expect(prompt.querySelector('ul')).toBeNull();
+
+    // Single cluster items do not show cluster label
+    expect(within(dialog).getByText('Namespace: my-app')).toBeInTheDocument();
+    expect(within(dialog).getByText('Namespace: team-b')).toBeInTheDocument();
+    expect(within(dialog).queryByText(/cluster:/)).not.toBeInTheDocument();
+  });
+
+  it('displays cluster label when items span multiple clusters', async () => {
+    renderButton([
+      makeNamespace({ name: 'app-a' }, 'cluster-1'),
+      makeNamespace({ name: 'app-b' }, 'cluster-2'),
+    ]);
+    const dialog = await openDialog();
+
+    expect(within(dialog).getByText('Namespace: app-a (cluster: cluster-1)')).toBeInTheDocument();
+    expect(within(dialog).getByText('Namespace: app-b (cluster: cluster-2)')).toBeInTheDocument();
   });
 });
