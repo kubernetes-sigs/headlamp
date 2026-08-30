@@ -160,27 +160,39 @@ func TestValidateTrustedProxyCIDRs(t *testing.T) {
 	tests := []struct {
 		name        string
 		cidrs       string
-		expectError bool
+		expectError string
 	}{
 		{
-			name:        "empty trusted-proxy-cidrs is valid",
-			cidrs:       "",
-			expectError: false,
+			name:  "empty trusted-proxy-cidrs is valid",
+			cidrs: "",
 		},
 		{
-			name:        "valid single CIDR is valid",
-			cidrs:       "192.168.1.0/24",
-			expectError: false,
+			name:  "valid single CIDR is valid",
+			cidrs: "192.168.1.0/24",
 		},
 		{
-			name:        "valid comma-separated CIDRs are valid",
-			cidrs:       "10.0.0.0/8, 192.168.1.0/24",
-			expectError: false,
+			name:  "valid comma-separated CIDRs are valid",
+			cidrs: "10.0.0.0/8, 192.168.1.0/24",
 		},
 		{
 			name:        "invalid CIDR causes validation to fail",
 			cidrs:       "10.0.0.0/8, invalid-cidr",
-			expectError: true,
+			expectError: "invalid trusted-proxy-cidrs entry",
+		},
+		{
+			name:        "trailing empty CIDR entry causes validation to fail",
+			cidrs:       "10.0.0.0/8,",
+			expectError: "trusted-proxy-cidrs cannot contain empty entries",
+		},
+		{
+			name:        "leading empty CIDR entry causes validation to fail",
+			cidrs:       ",10.0.0.0/8",
+			expectError: "trusted-proxy-cidrs cannot contain empty entries",
+		},
+		{
+			name:        "empty CIDR entry between CIDRs causes validation to fail",
+			cidrs:       "10.0.0.0/8,,192.168.1.0/24",
+			expectError: "trusted-proxy-cidrs cannot contain empty entries",
 		},
 	}
 
@@ -190,9 +202,10 @@ func TestValidateTrustedProxyCIDRs(t *testing.T) {
 				"headlamp-server",
 				"--trusted-proxy-cidrs=" + tt.cidrs,
 			})
-			if tt.expectError {
+
+			if tt.expectError != "" {
 				require.Error(t, err)
-				assert.Contains(t, err.Error(), "invalid trusted-proxy-cidrs entry")
+				assert.Contains(t, err.Error(), tt.expectError)
 			} else {
 				require.NoError(t, err)
 			}

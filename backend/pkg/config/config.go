@@ -203,7 +203,7 @@ func (c *Config) validateTrustedProxyCIDRs() error {
 	for _, cidr := range strings.Split(c.TrustedProxyCIDRs, ",") {
 		cidr = strings.TrimSpace(cidr)
 		if cidr == "" {
-			continue
+			return errors.New("trusted-proxy-cidrs cannot contain empty entries")
 		}
 		if _, err := netip.ParsePrefix(cidr); err != nil {
 			return fmt.Errorf("invalid trusted-proxy-cidrs entry %q: %w", cidr, err)
