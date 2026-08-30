@@ -68,12 +68,20 @@ export default function RoleBindingList() {
     return function (r1: RoleBinding, r2: RoleBinding) {
       const groups1 = r1?.subjects
         ?.filter(subject => subject.kind === kind)
-        .map(subject => subject.name);
+        ?.map(subject =>
+          kind === 'ServiceAccount' && subject.namespace && subject.namespace !== r1.getNamespace()
+            ? `${subject.namespace}/${subject.name}`
+            : subject.name
+        );
       const groups2 = r2?.subjects
         ?.filter(subject => subject.kind === kind)
-        .map(subject => subject.name);
+        ?.map(subject =>
+          kind === 'ServiceAccount' && subject.namespace && subject.namespace !== r2.getNamespace()
+            ? `${subject.namespace}/${subject.name}`
+            : subject.name
+        );
       if (groups1 && groups2) {
-        return groups1.join('').localeCompare(groups2.join(''));
+        return JSON.stringify(groups1).localeCompare(JSON.stringify(groups2));
       } else if (groups1) {
         return 1;
       } else if (groups2) {
@@ -134,7 +142,7 @@ export default function RoleBindingList() {
               labels={
                 item?.subjects
                   ?.filter(subject => subject.kind === 'User')
-                  .map(subject => subject.name) || []
+                  ?.map(subject => subject.name) ?? []
               }
             />
           ),
@@ -153,7 +161,7 @@ export default function RoleBindingList() {
               labels={
                 item?.subjects
                   ?.filter(subject => subject.kind === 'Group')
-                  .map(subject => subject.name) || []
+                  ?.map(subject => subject.name) ?? []
               }
             />
           ),
@@ -165,18 +173,26 @@ export default function RoleBindingList() {
           getValue: item =>
             item?.subjects
               ?.filter(subject => subject.kind === 'ServiceAccount')
-              ?.map(subject => subject.name)
+              ?.map(subject =>
+                subject.namespace && subject.namespace !== item.getNamespace()
+                  ? `${subject.namespace}/${subject.name}`
+                  : subject.name
+              )
               ?.join(' '),
           render: item => (
             <LabelListItem
               labels={
                 item?.subjects
                   ?.filter(subject => subject.kind === 'ServiceAccount')
-                  .map(subject => subject.name) || []
+                  ?.map(subject =>
+                    subject.namespace && subject.namespace !== item.getNamespace()
+                      ? `${subject.namespace}/${subject.name}`
+                      : subject.name
+                  ) ?? []
               }
             />
           ),
-          sort: sortBindings('Service Accounts'),
+          sort: sortBindings('ServiceAccount'),
         },
         'labels',
         'age',
