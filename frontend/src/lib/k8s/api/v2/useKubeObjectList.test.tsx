@@ -1147,6 +1147,53 @@ describe('useKubeObjectList', () => {
     });
   });
 
+  it('fetches every cluster and namespace immediately with a one-item API page', async () => {
+    mockClusterFetch.mockResolvedValue({
+      json: () => Promise.resolve(makeListResponse()),
+    } as Response);
+
+    const result = renderHook(
+      () =>
+        useKubeObjectList({
+          fetchAllRequests: true,
+          kubeObjectClass: mockClass,
+          requests: [
+            { cluster: 'cluster-a', namespaces: ['team-a', 'team-b'] },
+            { cluster: 'cluster-b', namespaces: ['team-c', 'team-d'] },
+          ],
+          queryParams: { labelSelector: 'app=nginx', limit: 1 },
+        }),
+      {
+        wrapper: queryClientWrapper(new QueryClient()),
+      }
+    );
+
+    await waitFor(() => expect(result.result.current.isFetching).toBe(false));
+
+    expect(mockClusterFetch).toHaveBeenCalledTimes(4);
+    expect(mockClusterFetch.mock.calls).toEqual(
+      expect.arrayContaining([
+        [
+          'api/v1/namespaces/team-a/pods?labelSelector=app%3Dnginx&limit=1',
+          { cluster: 'cluster-a' },
+        ],
+        [
+          'api/v1/namespaces/team-b/pods?labelSelector=app%3Dnginx&limit=1',
+          { cluster: 'cluster-a' },
+        ],
+        [
+          'api/v1/namespaces/team-c/pods?labelSelector=app%3Dnginx&limit=1',
+          { cluster: 'cluster-b' },
+        ],
+        [
+          'api/v1/namespaces/team-d/pods?labelSelector=app%3Dnginx&limit=1',
+          { cluster: 'cluster-b' },
+        ],
+      ])
+    );
+    expect(result.result.current.loadMore).toBeUndefined();
+  });
+
   it('should normalize unexpected page processing errors to ApiError', async () => {
     mockClusterFetch
       .mockResolvedValueOnce({

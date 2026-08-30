@@ -26,58 +26,22 @@ import { uniq } from 'lodash';
 import React, { useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
-import { useHistory, useLocation } from 'react-router-dom';
 import { getCombinedAllowedNamespaces } from '../../helpers/clusterSettings';
 import { useCluster, useClustersConf } from '../../lib/k8s';
 import Namespace from '../../lib/k8s/namespace';
+import { useQueryParamsState } from '../../lib/useQueryParamsState';
 import { setNamespaceFilter } from '../../redux/filterSlice';
 import { useTypedSelector } from '../../redux/hooks';
-
-/**
- * addQuery will add a query parameter to the URL using history API.
- *
- * It will also remove the parameter if the value is the same as the default value.
- * If the tableName is provided, it will be added to the query string.
- * @param queryObj The query object to add to the URL.
- * @param queryParamDefaultObj The default query object to compare with.
- * @param history The history object from react-router.
- * @param location The location object from react-router.
- * @param tableName The table name to add to the query string.
- * @returns void
- */
-function addQuery(
-  queryObj: { [key: string]: string },
-  queryParamDefaultObj: { [key: string]: string } = {},
-  history: any,
-  location: any,
-  tableName = ''
-) {
-  const pathname = location.pathname;
-  const searchParams = new URLSearchParams(location.search);
-
-  if (!!tableName) {
-    searchParams.set('tableName', tableName);
-  }
-  // Ensure that default values will not show up in the URL
-  for (const key in queryObj) {
-    const value = queryObj[key];
-    if (value !== queryParamDefaultObj[key]) {
-      searchParams.set(key, value);
-    } else {
-      searchParams.delete(key);
-    }
-  }
-
-  history.push({
-    pathname: pathname,
-    search: searchParams.toString(),
-  });
-}
 
 export interface PureNamespacesAutocompleteProps {
   namespaceNames: string[];
   onChange: (event: React.ChangeEvent<{}>, newValue: string[]) => void;
   filter: { namespaces: Set<string> };
+}
+
+export interface NamespacesAutocompleteProps {
+  /** Called after a namespace selection is applied. */
+  onApply?: () => void;
 }
 
 export function PureNamespacesAutocomplete({
@@ -88,7 +52,6 @@ export function PureNamespacesAutocomplete({
   const theme = useTheme();
   const { t } = useTranslation(['glossary', 'translation']);
   const [namespaceInput, setNamespaceInput] = React.useState<string>('');
-  const maxNamespacesChars = 12;
 
   const onInputChange = (event: object, value: string, reason: string) => {
     // For some reason, the AutoComplete component resets the text after a short
@@ -108,6 +71,19 @@ export function PureNamespacesAutocomplete({
     <Autocomplete
       multiple
       id="namespaces-filter"
+      sx={{
+        '& .MuiAutocomplete-inputRoot': {
+          flexWrap: 'nowrap',
+          minHeight: '40px',
+        },
+        ...(filter.namespaces.size > 0 && {
+          '& .MuiAutocomplete-input': {
+            minWidth: '0 !important',
+            padding: '0 !important',
+            width: '0 !important',
+          },
+        }),
+      }}
       autoComplete
       openOnFocus
       disableCloseOnSelect
@@ -136,47 +112,18 @@ export function PureNamespacesAutocomplete({
           return <Typography variant="body2">{t('translation|All namespaces')}</Typography>;
         }
 
-        let namespacesToShow = tags[0];
-        const joiner = ', ';
-        const joinerLength = joiner.length;
-        let joinnedNamespaces = 1;
-        const remainingTags = tags.slice(1);
-
-        tags.slice(1).forEach(tag => {
-          if (namespacesToShow.length + tag.length + joinerLength <= maxNamespacesChars) {
-            namespacesToShow += joiner + tag;
-            joinnedNamespaces++;
-          }
-        });
+        const selectedNamespaces = tags.join(', ');
 
         return (
-          <Typography style={{ overflowWrap: 'anywhere' }} ml={1}>
-            {namespacesToShow.length > maxNamespacesChars
-              ? namespacesToShow.slice(0, maxNamespacesChars) + '…'
-              : namespacesToShow}
-            {tags.length > joinnedNamespaces && (
-              <>
-                <span>,&nbsp;</span>
-                <Tooltip
-                  title={
-                    <ul style={{ margin: 0, padding: 10, listStyle: 'none' }}>
-                      {remainingTags.map((tag, key) => (
-                        <li key={key}>{tag}</li>
-                      ))}
-                    </ul>
-                  }
-                  arrow
-                  placement="top"
-                >
-                  <b style={{ cursor: 'pointer' }}>{`+${tags.length - joinnedNamespaces}`}</b>
-                </Tooltip>
-              </>
-            )}
-          </Typography>
+          <Tooltip title={selectedNamespaces} arrow placement="top">
+            <Typography ml={1} noWrap>
+              {selectedNamespaces}
+            </Typography>
+          </Tooltip>
         );
       }}
       renderInput={params => (
-        <Box width="15rem">
+        <Box sx={{ maxWidth: '100%', width: { xs: '100%', sm: '48rem' } }}>
           <TextField
             {...params}
             variant="outlined"
@@ -193,9 +140,8 @@ export function PureNamespacesAutocomplete({
   );
 }
 
-export function NamespacesAutocomplete() {
-  const history = useHistory();
-  const location = useLocation();
+export function NamespacesAutocomplete({ onApply }: NamespacesAutocompleteProps = {}) {
+  const [, setNamespaceInURL] = useQueryParamsState<string | undefined>('namespace', undefined);
   const dispatch = useDispatch();
   const filter = useTypedSelector(state => state.filter);
   const cluster = useCluster();
@@ -209,8 +155,9 @@ export function NamespacesAutocomplete() {
   }, [cluster]);
 
   const onChange = (event: React.ChangeEvent<{}>, newValue: string[]) => {
-    addQuery({ namespace: newValue.join(' ') }, { namespace: '' }, history, location, '');
+    setNamespaceInURL(newValue.length > 0 ? newValue.join(' ') : undefined);
     dispatch(setNamespaceFilter(newValue));
+    onApply?.();
   };
 
   return namespaceNames.length > 0 ? (

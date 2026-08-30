@@ -15,7 +15,7 @@
  */
 
 import { ThemeProvider } from '@mui/material/styles';
-import { act, render } from '@testing-library/react';
+import { act, render, waitFor } from '@testing-library/react';
 import React from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadTableSettings, storeTableSettings } from '../../../helpers/tableSettings';
@@ -94,6 +94,27 @@ describe('ResourceTable Column Visibility', () => {
       </TestContext>
     );
   };
+
+  it('reports sorted unique label keys from loaded resources', async () => {
+    const onLabelKeysChange = vi.fn();
+    const resourceClass = {
+      className: 'Pod',
+      pluralName: 'pods',
+      useList: () => ({
+        errors: null,
+        items: [
+          { metadata: { labels: { tier: 'frontend', app: 'checkout' } } },
+          { metadata: { labels: { app: 'payments', environment: 'production' } } },
+        ],
+      }),
+    };
+
+    renderTable({ columns: [], onLabelKeysChange, resourceClass });
+
+    await waitFor(() =>
+      expect(onLabelKeysChange).toHaveBeenCalledWith(['app', 'environment', 'tier'])
+    );
+  });
 
   it('initializes column visibility with default settings if none stored', async () => {
     const columns = [

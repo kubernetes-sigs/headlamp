@@ -22,7 +22,12 @@ import { useTypedSelector } from '../../redux/hooks';
 import { getCluster } from '../cluster';
 import { clusterRequest } from './api/v1/clusterRequests';
 import { ApiError } from './api/v2/ApiError';
-import { Cluster, LabelSelector, StringDict } from './cluster';
+import { Cluster, StringDict } from './cluster';
+export {
+  labelSelectorToQuery,
+  matchExpressionSimplifier,
+  matchLabelsSimplifier,
+} from './labelSelector';
 import ClusterRole from './clusterRole';
 import ClusterRoleBinding from './clusterRoleBinding';
 import ConfigMap from './configMap';
@@ -156,132 +161,6 @@ export type { CancellablePromise } from './api/v1/hooks';
  */
 export function getVersion(clusterName: string = ''): Promise<StringDict> {
   return clusterRequest('/version', { cluster: clusterName || getCluster() });
-}
-
-/**
- * See {@link https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#list-and-watch-filtering|Label selector examples},
- * {@link https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#resources-that-support-set-based-requirements|deployment selector example},
- * {@link https://github.com/kubernetes/apimachinery/blob/be3a79b26814a8d7637d70f4d434a4626ee1c1e7/pkg/selection/operator.go#L24|possible operators}, and
- * {@link https://github.com/kubernetes/apimachinery/blob/be3a79b26814a8d7637d70f4d434a4626ee1c1e7/pkg/labels/selector.go#L305|Format rule for expressions}.
- */
-export function labelSelectorToQuery(labelSelector: LabelSelector) {
-  const segments: string[] = [];
-
-  segments.push(...(matchLabelsSimplifier(labelSelector.matchLabels, true) || []));
-
-  const matchExpressions = labelSelector.matchExpressions ?? [];
-
-  segments.push(...matchExpressionSimplifier(matchExpressions));
-  if (segments.length === 0) {
-    return '';
-  }
-
-  return segments.join(',');
-}
-
-/**
- * Simplifies a matchLabels object into an array of string expressions.
- *
- * @param matchLabels - the matchLabels object from a LabelSelector.
- * @param isEqualSeperator - whether to use "=" as the separator instead of ":".
- * @returns an array of simplified label strings, or an empty string.
- */
-export function matchLabelsSimplifier(
-  matchLabels: LabelSelector['matchLabels'],
-  isEqualSeperator = false
-): string[] | '' {
-  if (!matchLabels) {
-    return '';
-  }
-
-  const segments: string[] = [];
-  for (const k in matchLabels) {
-    if (isEqualSeperator) {
-      segments.push(`${k}=${matchLabels[k]}`);
-      continue;
-    }
-    segments.push(`${k}: ${matchLabels[k]}`);
-  }
-
-  return segments;
-}
-
-/**
- * Simplifies a matchExpressions array into an array of string representations.
- *
- * @param matchExpressions - the matchExpressionss array from a LabelSelector.
- * @returns an array of simplified expression strings, or an empty string.
- */
-export function matchExpressionSimplifier(
-  matchExpressions: LabelSelector['matchExpressions']
-): string[] | '' {
-  if (!matchExpressions) {
-    return '';
-  }
-
-  const segments: string[] = [];
-  for (const expr of matchExpressions) {
-    let segment = '';
-    if (expr.operator === 'DoesNotExist') {
-      segment += '!';
-    }
-
-    let needsParensWrap = false;
-    const NoLengthLimits = -1;
-    let expectedValuesLength = NoLengthLimits;
-
-    segment += expr.key;
-    switch (expr.operator) {
-      case 'Equals':
-        segment += '=';
-        expectedValuesLength = 1;
-        break;
-      case 'DoubleEquals':
-        segment += '==';
-        expectedValuesLength = 1;
-        break;
-      case 'NotEquals':
-        segment += '!=';
-        expectedValuesLength = 1;
-        break;
-      case 'In':
-        segment += ' in ';
-        needsParensWrap = true;
-        break;
-      case 'NotIn':
-        segment += ' notin ';
-        needsParensWrap = true;
-        break;
-      case 'GreaterThan':
-        segment += '>';
-        expectedValuesLength = 1;
-        break;
-      case 'LessThan':
-        segment += '<';
-        expectedValuesLength = 1;
-        break;
-      case 'Exists':
-      case 'DoesNotExist':
-        expectedValuesLength = 0;
-        break;
-    }
-
-    let values = '';
-
-    if (expectedValuesLength === 1) {
-      values = expr.values[0] ?? '';
-    } else if (expectedValuesLength === NoLengthLimits) {
-      values = [...(expr.values ?? [])].sort().join(',');
-      if (needsParensWrap) {
-        values = '(' + values + ')';
-      }
-    }
-
-    segment += values;
-    segments.push(segment);
-  }
-
-  return segments;
 }
 
 const versionFetchInterval = 10000; // ms

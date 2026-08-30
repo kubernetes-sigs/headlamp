@@ -23,6 +23,7 @@ import {
   hasAllowedNamespacesRestriction,
 } from '../../helpers/clusterSettings';
 import { formatClusterPathParam, getCluster, getSelectedClusters } from '../cluster';
+import type { RouteURLProps } from '../router/createRouteURL';
 import { createRouteURL } from '../router/createRouteURL';
 import { timeAgo } from '../util';
 import { AllowedNamespacesResolutionContext } from './allowedNamespacesContext';
@@ -50,6 +51,14 @@ function getAllowedNamespaces(cluster: string | null = getCluster()): string[] {
   }
 
   return getCombinedAllowedNamespaces(cluster);
+}
+
+/** Navigation target for a resource's list page. */
+export interface KubeObjectListRouteDescriptor {
+  /** Registered route name. */
+  routeName: string;
+  /** Parameters required to build the route. */
+  params?: RouteURLProps;
 }
 
 export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
@@ -180,6 +189,18 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
   get listRoute(): string {
     return this._class().listRoute;
+  }
+
+  /**
+   * Returns the registered list route used for metadata filtering.
+   *
+   * Resources with parameterized list routes should override this method.
+   * Resources without a list page should return `null`.
+   *
+   * @returns The list route descriptor, or `null` when no list page exists.
+   */
+  getListRouteDescriptor(): KubeObjectListRouteDescriptor | null {
+    return { routeName: this.listRoute };
   }
 
   static get listRoute(): string {
@@ -382,12 +403,15 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       cluster,
       clusters,
       namespace,
+      fetchAllRequests,
       refetchInterval,
       ...queryParams
     }: {
       cluster?: string;
       clusters?: string[];
       namespace?: string | string[];
+      /** Fetch every cluster/namespace request immediately, independently of the API page limit. */
+      fetchAllRequests?: boolean;
       /** How often to refetch the list. Won't refetch by default. Disables watching if set. */
       refetchInterval?: number;
     } & QueryParameters = {}
@@ -440,6 +464,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       kubeObjectClass: this,
       requests,
       emptyWhenNoRequests,
+      fetchAllRequests,
       refetchInterval,
     });
 

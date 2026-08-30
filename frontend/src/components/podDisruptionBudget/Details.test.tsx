@@ -19,8 +19,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { TestContext } from '../../test';
 import PDBDetails from './Details';
 
-const { mockDetailsGrid } = vi.hoisted(() => ({
+const { mockDetailsGrid, mockMetadataDictGrid } = vi.hoisted(() => ({
   mockDetailsGrid: vi.fn(),
+  mockMetadataDictGrid: vi.fn(),
 }));
 
 vi.mock('../../lib/k8s/podDisruptionBudget', () => ({
@@ -36,10 +37,16 @@ vi.mock('../common/Resource', () => ({
     mockDetailsGrid(props);
     return null;
   },
+  MetadataDictGrid: (props: any) => {
+    mockMetadataDictGrid(props);
+    return null;
+  },
 }));
 
 const pdb = {
-  spec: { minAvailable: 2, maxUnavailable: 1 },
+  cluster: 'main',
+  metadata: { name: 'my-pdb', namespace: 'default' },
+  spec: { minAvailable: 2, maxUnavailable: 1, selector: { matchLabels: { app: 'nginx' } } },
   selectors: ['app=nginx'],
   status: {
     disruptionsAllowed: 3,
@@ -52,6 +59,7 @@ const pdb = {
 describe('PDBDetails', () => {
   beforeEach(() => {
     mockDetailsGrid.mockReset();
+    mockMetadataDictGrid.mockReset();
   });
 
   it('passes the route params and withEvents to DetailsGrid', () => {
@@ -76,12 +84,21 @@ describe('PDBDetails', () => {
     );
 
     const props = mockDetailsGrid.mock.calls[0][0];
-    const names = props.extraInfo(pdb).map((f: any) => String(f.name).split('|').pop());
+    const extraInfo = props.extraInfo(pdb);
+    const names = extraInfo.map((f: any) => String(f.name).split('|').pop());
+    const selector = extraInfo.find((f: any) => String(f.name).endsWith('Selector'));
 
     expect(names).toContain('Max Unavailable');
     expect(names).toContain('Min Available');
     expect(names).toContain('Selector');
     expect(names).toContain('Status');
+    expect(selector.value.props).toEqual({
+      activeCluster: 'main',
+      dict: { app: 'nginx' },
+      labelFilterNamespace: 'default',
+      labelFilterRoute: 'pods',
+      labelSelector: 'app=nginx',
+    });
   });
 
   it('returns nothing from extraInfo when there is no item', () => {
