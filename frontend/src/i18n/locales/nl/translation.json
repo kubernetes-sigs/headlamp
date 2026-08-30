@@ -941,6 +941,8 @@
   "Zoom in": "Inzoomen",
   "Zoom out": "Uitzoomen",
   "No data to be shown. Try to change filters or select a different namespace.": "Er zijn geen gegevens om weer te geven. Probeer filters te wijzigen of selecteer een andere naamruimte.",
+  "Resource Types": "",
+  "Labels (e.g. app=nginx)": "",
   "Group By": "Groeperen op",
   "Instance": "Exemplaar",
   "Status: Error or Warning": "Status: fout of waarschuwing",

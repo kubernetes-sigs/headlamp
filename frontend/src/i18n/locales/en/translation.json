@@ -941,6 +941,8 @@
   "Zoom in": "Zoom in",
   "Zoom out": "Zoom out",
   "No data to be shown. Try to change filters or select a different namespace.": "No data to be shown. Try to change filters or select a different namespace.",
+  "Resource Types": "Resource Types",
+  "Labels (e.g. app=nginx)": "Labels (e.g. app=nginx)",
   "Group By": "Group By",
   "Instance": "Instance",
   "Status: Error or Warning": "Status: Error or Warning",

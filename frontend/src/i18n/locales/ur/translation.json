@@ -941,6 +941,8 @@
   "Zoom in": "زوم اِن",
   "Zoom out": "زوم آؤٹ",
   "No data to be shown. Try to change filters or select a different namespace.": "دکھانے کے لیے کوئی ڈیٹا نہیں فلٹر تبدیل کریں یا دوسرا نیم اسپیس منتخب کریں",
+  "Resource Types": "",
+  "Labels (e.g. app=nginx)": "",
   "Group By": "گروپ کریں",
   "Instance": "انسٹینس",
   "Status: Error or Warning": "حالت: خرابی یا انتباہ",
