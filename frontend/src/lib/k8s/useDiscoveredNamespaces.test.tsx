@@ -79,6 +79,24 @@ describe('useDiscoveredNamespaces', () => {
     expect(clusterApi.testAuth).not.toHaveBeenCalled();
   });
 
+  it('masks cached discovery data after manual override is enabled', async () => {
+    const { result, rerender } = renderHook(() => useDiscoveredNamespaces('test-cluster'), {
+      wrapper: createWrapper(),
+    });
+
+    await waitFor(() => {
+      expect(result.current.data).toEqual(discoveryResult);
+    });
+
+    storeClusterSettings('test-cluster', { allowedNamespaces: ['manual-ns'] });
+    rerender();
+
+    await waitFor(() => {
+      expect(result.current.data).toBeUndefined();
+      expect(result.current.isLoading).toBe(false);
+    });
+  });
+
   it('reports loading while auth probe is pending', () => {
     vi.spyOn(clusterApi, 'testAuth').mockReturnValue(new Promise(() => {}));
 
@@ -156,6 +174,25 @@ describe('useDiscoveredNamespacesMap', () => {
     expect(namespaceDiscovery.discoverAccessibleNamespaces).not.toHaveBeenCalledWith(
       'override-cluster'
     );
+  });
+
+  it('masks cached discovery data for clusters with manual override', async () => {
+    const { result, rerender } = renderHook(
+      () => useDiscoveredNamespacesMap(['override-cluster', 'auto-cluster']),
+      { wrapper: createWrapper() }
+    );
+
+    await waitFor(() => {
+      expect(result.current.map['auto-cluster']).toEqual(discoveryResult);
+    });
+
+    storeClusterSettings('auto-cluster', { allowedNamespaces: ['manual-ns'] });
+    rerender();
+
+    await waitFor(() => {
+      expect(result.current.map['auto-cluster']).toBeUndefined();
+      expect(result.current.isLoadingByCluster['auto-cluster']).toBe(false);
+    });
   });
 
   it('reports isErrorByCluster when auth probe fails after retries', async () => {

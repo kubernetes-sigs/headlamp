@@ -44,6 +44,7 @@ import {
   getNamespaceListConfig,
   useDiscoveredNamespaces,
   useDiscoveredNamespacesMap,
+  usesDiscoveredNamespaceRouting,
 } from './useDiscoveredNamespaces';
 
 export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
@@ -337,7 +338,10 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       this.isNamespaced ? activeCluster : null
     );
 
-    if (!!opts?.namespace) {
+    if (
+      (typeof opts?.namespace === 'string' && opts.namespace.length > 0) ||
+      (Array.isArray(opts?.namespace) && opts.namespace.length > 0)
+    ) {
       if (typeof opts.namespace === 'string') {
         namespaces = [opts.namespace];
       } else if (Array.isArray(opts.namespace)) {
@@ -352,7 +356,10 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
       namespaces = getNamespaceListConfig(activeCluster, discovery, false).namespaces;
     }
 
-    const waitingForDiscovery = this.isNamespaced && discoveryLoading && !opts?.namespace;
+    const hasExplicitNamespace =
+      (typeof opts?.namespace === 'string' && opts.namespace.length > 0) ||
+      (Array.isArray(opts?.namespace) && opts.namespace.length > 0);
+    const waitingForDiscovery = this.isNamespaced && discoveryLoading && !hasExplicitNamespace;
 
     if (namespaces.length > 0) {
       // If we have a namespace set, then we have to make an API call for each
@@ -490,7 +497,10 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
         emptyWhenNoRequests:
           !anyDiscoveryPending &&
           requests.length === 0 &&
-          clustersForRequests.some(hasAllowedNamespacesRestriction),
+          (clustersForRequests.some(hasAllowedNamespacesRestriction) ||
+            clustersForRequests.some(currentCluster =>
+              usesDiscoveredNamespaceRouting(discoveryMap[currentCluster ?? ''])
+            )),
       };
       // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [
