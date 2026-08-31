@@ -303,6 +303,9 @@ spec:
             {{- with $clusterInventory.labelSelector }}
             - "-cluster-inventory-label-selector={{ . }}"
             {{- end }}
+            {{- with $clusterInventory.namespaces }}
+            - "-cluster-inventory-namespaces={{ join "," . }}"
+            {{- end }}
             {{- with $clusterInventory.rootReconcileInterval }}
             - "-cluster-inventory-root-reconcile-interval={{ . }}"
             {{- end }}

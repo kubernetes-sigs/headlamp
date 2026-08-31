@@ -175,6 +175,25 @@ ___
 
 ## Variables
 
+### DefaultCreateProject
+
+• `Const` **DefaultCreateProject**: `Object`
+
+IDs plugins can register to replace Headlamp's built-in project creation options.
+
+#### Type declaration
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `FROM_YAML` | ``"headlamp.projects.from-yaml"`` | Replace the built-in YAML project creation flow. |
+| `NEW_PROJECT` | ``"headlamp.projects.new-project"`` | Replace the built-in project form that uses existing or new namespaces. |
+
+#### Defined in
+
+[redux/projectsSlice.ts:32](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/redux/projectsSlice.ts#L32)
+
+___
+
 ### DefaultHeadlampEvents
 
 • **DefaultHeadlampEvents**: typeof `HeadlampEventType` = `HeadlampEventType`
@@ -319,6 +338,88 @@ registerClusterChooser(({ clickHandler, cluster }: ClusterChooserProps) => {
 #### Defined in
 
 [plugin/registry.tsx:573](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/plugin/registry.tsx#L573)
+
+___
+
+### registerClusterEmptyState
+
+▸ **registerClusterEmptyState**(`component`): `void`
+
+Replace the empty state shown on the Home page when no clusters are configured.
+
+The component receives Headlamp's default content so a product can wrap it.
+Registering another component replaces the previous registration.
+
+**`example`**
+
+```tsx
+import { registerClusterEmptyState } from '@kinvolk/headlamp-plugin/lib';
+
+registerClusterEmptyState(({ defaultContent }) => (
+  <section>
+    <p>Choose how to connect your first cluster.</p>
+    {defaultContent}
+  </section>
+));
+```
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `component` | `ClusterEmptyStateComponent` | Product-owned empty state component. |
+
+#### Returns
+
+`void`
+
+#### Defined in
+
+[plugin/registry.tsx:972](https://github.com/kubernetes-sigs/headlamp/blob/558672b5a/frontend/src/plugin/registry.tsx#L972)
+
+___
+
+### registerCustomCreateProject
+
+▸ **registerCustomCreateProject**(`customCreateProject`): `void`
+
+Register a new way to create Headlamp 'Projects'.
+
+**`example`**
+
+```tsx
+import {
+  DefaultCreateProject,
+  registerCustomCreateProject,
+} from '@kinvolk/headlamp-plugin/lib';
+
+registerCustomCreateProject({
+  id: DefaultCreateProject.NEW_PROJECT,
+  name: 'Create Managed Project',
+  description: 'Create a project managed by the platform',
+  icon: 'mdi:folder-plus',
+  component: ({ onBack }) => (
+    <div>
+      Create project
+      <button onClick={onBack}>Back</button>
+    </div>
+  ),
+});
+```
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `customCreateProject` | `CustomCreateProject` | Definition for custom creator |
+
+#### Returns
+
+`void`
+
+#### Defined in
+
+[plugin/registry.tsx:1167](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/plugin/registry.tsx#L1167)
 
 ___
 

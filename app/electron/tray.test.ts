@@ -17,8 +17,8 @@
 import fs from 'node:fs';
 import os from 'node:os';
 import path from 'path';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { isTrayIconEnabled, setTrayIconEnabled } from './tray';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { getClusterStatuses, isTrayIconEnabled, setTrayIconEnabled } from './tray';
 
 function tmpPath(): string {
   return path.join(os.tmpdir(), `tray-test-${Date.now()}-${Math.random()}.json`);
@@ -89,5 +89,41 @@ describe('tray icon setting', () => {
     const unwritable = path.join(os.tmpdir(), `tray-test-${Date.now()}`, 'nope', 'settings.json');
     expect(() => setTrayIconEnabled(false, unwritable)).not.toThrow();
     expect(fs.existsSync(unwritable)).toBe(false);
+  });
+});
+
+describe('tray cluster status requests', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('uses the backend token header for config and cluster health requests', async () => {
+    const fetchMock = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ clusters: [{ name: 'test-cluster' }] }),
+      })
+      .mockResolvedValueOnce({ ok: true });
+    vi.stubGlobal('fetch', fetchMock);
+
+    await getClusterStatuses({
+      backendToken: 'desktop-token',
+      createWindow: vi.fn(),
+      getBackendPort: () => 4466,
+      getMainWindow: () => null,
+      isDev: true,
+      quit: vi.fn(),
+    });
+
+    const expectedHeaders = { 'X-HEADLAMP_BACKEND-TOKEN': 'desktop-token' };
+    expect(fetchMock).toHaveBeenNthCalledWith(1, 'http://localhost:4466/config', {
+      headers: expectedHeaders,
+    });
+    expect(fetchMock).toHaveBeenNthCalledWith(
+      2,
+      'http://localhost:4466/clusters/test-cluster/healthz',
+      { headers: expectedHeaders }
+    );
   });
 });

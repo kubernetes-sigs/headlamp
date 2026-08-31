@@ -133,6 +133,60 @@ npm run app:package:mac      # macOS
 npm run app:package:win:msi  # Windows MSI installer
 ```
 
+### Build manifest resources
+
+Set `HEADLAMP_BUILD_MANIFEST` to package Headlamp with a product-specific build
+manifest. Relative environment paths use the current working directory, while
+resource `from` paths use the directory containing the selected manifest.
+
+The `resources` field appends common or platform-specific files and directories
+to Electron Builder's existing `extraResources`:
+
+```json
+{
+  "resources": {
+    "common": [{ "from": "./shared", "to": "shared" }],
+    "linux": [{ "from": "./tools/linux", "to": "tools" }],
+    "mac": [{ "from": "./tools/mac", "to": "tools", "filter": ["**/*"] }],
+    "win": [{ "from": "./tools/windows.exe", "to": "tools/tool.exe" }]
+  }
+}
+```
+
+Only `common`, `linux`, `mac`, and `win` resource groups are supported. Each
+group must be an array of objects with a `from` string and optional `to` string
+or `filter` string array. Invalid resource configuration stops packaging before
+Electron Builder runs.
+
+For example, from the repository root:
+
+```bash
+HEADLAMP_BUILD_MANIFEST=./product/app-build-manifest.json npm run app:package
+```
+
+#### Packaged resource verification
+
+The `verify` field checks selected files after Electron Builder copies them into
+the package. Each entry declares a path relative to the packaged resources
+directory and its expected SHA-256 digest:
+
+```json
+{
+  "verify": [
+    {
+      "path": "tools/helper",
+      "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      "platforms": ["linux", "mac"]
+    }
+  ]
+}
+```
+
+The optional `platforms` array accepts `linux`, `mac`, and `win`. An entry without
+`platforms` applies to every package. Verification stops packaging when a file
+is missing, escapes the resources directory, is a directory or symbolic link,
+or does not match its declared digest.
+
 ## Development workflow
 
 The typical development workflow for the desktop app:

@@ -39,6 +39,7 @@ import { Activity } from '../components/activity/Activity';
 import { runCommand } from '../components/App/runCommand';
 import { applyBackendThemeConfig, ensureValidThemeName } from '../components/App/themeSlice';
 import * as CommonComponents from '../components/common';
+import * as ResourceMap from '../components/resourceMap';
 import { addBackstageAuthHeaders } from '../helpers/addBackstageAuthHeaders';
 import { getAppUrl } from '../helpers/getAppUrl';
 import { isElectron } from '../helpers/isElectron';
@@ -58,6 +59,7 @@ import { useTranslation } from './pluginI18n';
 import { PluginInfo } from './pluginsSlice';
 import Registry, * as registryToExport from './registry';
 import { getInfoForRunningPlugins, identifyPackages, runPlugin, runPluginProps } from './runPlugin';
+import { createPluginSecureStorage, getPluginSecureStorageNamespace } from './secureStorage';
 
 window.pluginLib = {
   ApiProxy,
@@ -74,6 +76,7 @@ window.pluginLib = {
     __esModule: true,
   },
   CommonComponents,
+  ResourceMap,
   MuiMaterial: {
     ...MuiMaterial,
     styles: MuiMaterialStyles,
@@ -282,8 +285,9 @@ export function applyPluginPriority(plugins: PluginInfo[]): PluginInfo[] {
 /**
  * Updates settings packages based on what the backend provides.
  *
- * - For new plugins (not in settings), includes them with isEnabled=true
- * - For existing plugins (in settings), preserves their isEnabled preference
+ * - Newly discovered shipped plugins use an explicit false enabledByDefault value
+ * - Development and user-installed plugins remain enabled when first discovered
+ * - Existing settings always win, including entries automatically persisted by earlier releases
  * - Returns only plugins that exist in the backend list (automatically removing any that are gone)
  * - Treats plugins with the same name but different types as separate entries
  * - Each plugin is identified by name + type combination
@@ -315,10 +319,10 @@ export function updateSettingsPackages(
     const index = settingsPlugins.findIndex(x => x.name === plugin.name && x.type === plugin.type);
 
     if (index === -1) {
-      // It's a new one settings doesn't know about, enable it by default
       return {
         ...plugin,
-        isEnabled: true,
+        isEnabled:
+          (plugin.type ?? 'shipped') !== 'shipped' || plugin.headlamp?.enabledByDefault !== false,
       };
     }
 
@@ -444,6 +448,7 @@ export async function fetchAndExecutePlugins(
   interface PluginMetadata {
     path: string;
     type: 'development' | 'user' | 'shipped';
+    source: 'development' | 'user' | 'shipped';
     name: string;
   }
 
@@ -482,6 +487,7 @@ export async function fetchAndExecutePlugins(
               author: 'unknown',
               description: '',
               type: pluginMetadataList[index].type,
+              source: pluginMetadataList[index].source,
               folderName: pluginMetadataList[index].name,
             };
           }
@@ -489,6 +495,7 @@ export async function fetchAndExecutePlugins(
         return resp.json().then(json => ({
           ...json,
           type: pluginMetadataList[index].type,
+          source: pluginMetadataList[index].source,
           folderName: pluginMetadataList[index].name,
         }));
       })
@@ -569,6 +576,13 @@ export async function fetchAndExecutePlugins(
   const sourcesToExecute = indicesToExecute.map(index => sources[index]);
   const pluginPathsToExecute = indicesToExecute.map(index => pluginPaths[index]);
   const packageInfosToExecute = indicesToExecute.map(index => packageInfos[index]);
+  const secureStorageBridge = window?.desktopApi?.secureStorage;
+  const secureStorageNamespaces = packageInfosToExecute.map(getPluginSecureStorageNamespace);
+  const secureStorageCapabilities: Record<string, string> = secureStorageBridge
+    ? await secureStorageBridge.register(
+        secureStorageNamespaces.filter((namespace): namespace is string => Boolean(namespace))
+      )
+    : {};
 
   // Save references to the pluginRunCommand and desktopApiSend/Receive.
   // Plugins can use without worrying about modified global window.desktopApi.
@@ -602,6 +616,10 @@ export async function fetchAndExecutePlugins(
         getAllowedPermissions: (pluginName, pluginPath, secrets): Record<string, number> => {
           const secretsToReturn: Record<string, number> = {};
           const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
+          if (isPackage['az-auth']) {
+            secretsToReturn['runCmd-scriptjs-az-auth/azure-api.js'] =
+              +secrets['runCmd-scriptjs-az-auth/azure-api.js'];
+          }
           if (isPackage['@headlamp-k8s/minikube']) {
             secretsToReturn['runCmd-minikube'] = secrets['runCmd-minikube'];
             if (isDevelopmentMode) {
@@ -619,9 +637,16 @@ export async function fetchAndExecutePlugins(
             secretsToReturn['runCmd-az'] = secrets['runCmd-az'];
           }
 
+          if (isPackage['azure-aks']) {
+            secretsToReturn['runCmd-scriptjs-azure-aks/azure-api.js'] =
+              secrets['runCmd-scriptjs-azure-aks/azure-api.js'];
+          }
+
           return secretsToReturn;
         },
         getArgValues: (pluginName, pluginPath, allowedPermissions) => {
+          const argumentNames: string[] = [];
+          const argumentValues: unknown[] = [];
           // allowedPermissions is the return value of getAllowedPermissions
           const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
           if (isPackage['@headlamp-k8s/minikube']) {
@@ -642,10 +667,8 @@ export async function fetchAndExecutePlugins(
                 pluginDesktopApiReceive
               );
             }
-            return [
-              ['pluginRunCommand', 'pluginPath'],
-              [pluginRunCommand, pluginPath],
-            ];
+            argumentNames.push('pluginRunCommand', 'pluginPath');
+            argumentValues.push(pluginRunCommand, pluginPath);
           }
 
           if (isPackage['@headlamp-k8s/ai-assistant']) {
@@ -663,13 +686,39 @@ export async function fetchAndExecutePlugins(
                 pluginDesktopApiReceive
               );
             }
-            return [
-              ['pluginRunCommand', 'pluginPath'],
-              [pluginRunCommand, pluginPath],
-            ];
+            argumentNames.push('pluginRunCommand', 'pluginPath');
+            argumentValues.push(pluginRunCommand, pluginPath);
           }
 
-          return [[], []];
+          if (isPackage['azure-aks']) {
+            function pluginRunCommand(
+              command: 'scriptjs',
+              args: string[],
+              options: {}
+            ): ReturnType<typeof internalRunCommand> {
+              return internalRunCommand(
+                command,
+                args,
+                options,
+                allowedPermissions,
+                pluginDesktopApiSend,
+                pluginDesktopApiReceive
+              );
+            }
+            argumentNames.push('pluginRunCommand', 'pluginPath');
+            argumentValues.push(pluginRunCommand, pluginPath);
+          }
+
+          const storageNamespace = secureStorageNamespaces[index];
+          const storageCapability = storageNamespace
+            ? secureStorageCapabilities[storageNamespace]
+            : undefined;
+          if (storageCapability && secureStorageBridge) {
+            argumentNames.push('pluginSecureStorage');
+            argumentValues.push(createPluginSecureStorage(storageCapability, secureStorageBridge));
+          }
+
+          return [argumentNames, argumentValues];
         },
         PrivateFunction,
         internalRunPlugin,

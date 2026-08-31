@@ -10,6 +10,9 @@ var BuildUserAgent = buildUserAgent
 
 var DeriveInClusterName = deriveInClusterName
 
+// ResolveKubeconfigPaths is exported for testing.
+var ResolveKubeconfigPaths = resolveKubeconfigPaths
+
 // UserAgentRoundTripper is exported for testing.
 type UserAgentRoundTripper struct {
 	Base      roundTripperInterface

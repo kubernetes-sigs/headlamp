@@ -42,6 +42,14 @@ export type PluginSettingsComponentType =
   | ReactElement
   | null;
 
+/** Headlamp-specific fields stored in a plugin package.json. */
+export interface PluginPackageHeadlampConfig {
+  /** Whether a shipped plugin is enabled when first discovered. */
+  enabledByDefault?: boolean;
+  /** Array of supported locales for i18n. */
+  i18n?: string[];
+}
+
 /**
  * PluginInfo is the shape of the metadata information for individual plugin objects.
  */
@@ -83,9 +91,12 @@ export type PluginInfo = {
   isEnabled?: boolean;
 
   /**
-   * type indicates the source of the plugin: "development", "user", or "shipped"
+   * type controls plugin priority and migration behavior.
    */
   type?: 'development' | 'user' | 'shipped';
+
+  /** Inventory root containing the plugin, independently of migration behavior. */
+  source?: 'development' | 'user' | 'shipped';
 
   /**
    * isLoaded indicates if this plugin version is actually loaded and executed.
@@ -103,6 +114,9 @@ export type PluginInfo = {
    * isCompatible is true when the plugin is compatible with this version of Headlamp.
    */
   isCompatible?: boolean;
+
+  /** Headlamp-specific plugin package configuration. */
+  headlamp?: PluginPackageHeadlampConfig;
 
   version?: string; // unused by PluginSettings
   author?: string; // unused by PluginSettings

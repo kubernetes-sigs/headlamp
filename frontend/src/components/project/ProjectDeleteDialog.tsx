@@ -29,6 +29,7 @@ import { useTranslation } from 'react-i18next';
 import { useDispatch } from 'react-redux';
 import Namespace from '../../lib/k8s/namespace';
 import { clusterAction } from '../../redux/clusterActionSlice';
+import { EventStatus, HeadlampEventType, useEventCallback } from '../../redux/headlampEventSlice';
 import { ProjectDefinition } from '../../redux/projectsSlice';
 import { AppDispatch } from '../../redux/stores/store';
 import { DialogTitle } from '../common/Dialog';
@@ -51,11 +52,18 @@ export function ProjectDeleteDialog({
   const { t } = useTranslation();
   const dispatch: AppDispatch = useDispatch();
   const [deleteNamespaces, setDeleteNamespaces] = useState(false);
+  const dispatchDeleteProjectEvent = useEventCallback(HeadlampEventType.DELETE_PROJECT);
 
   const handleDelete = () => {
     const projectNamespaces = namespaces.filter(ns =>
       project.namespaces.includes(ns.metadata.name)
     );
+
+    dispatchDeleteProjectEvent({
+      project,
+      deleteNamespaces,
+      status: EventStatus.CONFIRMED,
+    });
 
     dispatch(
       clusterAction(

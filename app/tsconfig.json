@@ -10,10 +10,18 @@
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "node",
+    "allowImportingTsExtensions": true,
+    "moduleDetection": "force",
     "noFallthroughCasesInSwitch": true,
     "outDir": "electron/",
     "noEmit": true
   },
-  "include": ["electron/**/*"],
+  "include": [
+    "electron/**/*",
+    "electron-builder.config.ts",
+    "scripts/package-verification-name.ts",
+    "scripts/build-manifest.ts",
+    "scripts/setup-plugins.ts"
+  ],
   "exclude": []
 }

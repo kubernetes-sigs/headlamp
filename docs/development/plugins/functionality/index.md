@@ -93,6 +93,17 @@ Change the Cluster Chooser button in the top right of the app bar with
 - Example plugin: [How To Register Cluster Chooser button](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/cluster-chooser)
 - API reference: [registerClusterChooser](../../api/plugin/registry/functions/registerclusterchooser)
 
+### Cluster Empty State
+
+Customize the Home page shown when no clusters are configured with
+[registerClusterEmptyState](../../api/plugin/registry/functions/registerclusteremptystate).
+The registered component receives Headlamp's standard empty state as
+`defaultContent`. Render it to extend the default onboarding, or omit it to
+replace the empty state completely.
+
+- Example plugin: [How To Customize The Cluster Empty State](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/cluster-chooser)
+- API reference: [registerClusterEmptyState](../../api/plugin/registry/functions/registerclusteremptystate)
+
 ### Details View Header Action
 
 Show a component in the top right of a detail view with
@@ -124,6 +135,56 @@ Set a cluster dynamically, instead of from a configuration file, with
 
 - Example plugin: [How To Dynamically Set a Cluster](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/dynamic-clusters)
 - API reference: [Headlamp.setCluster](../../api/plugin/lib/classes/Headlamp.md#setcluster)
+
+### Secure Storage
+
+Desktop plugins can save small local credentials with the `pluginSecureStorage`
+argument that Headlamp injects when it runs the plugin. Values are encrypted by
+Electron `safeStorage` and scoped to the plugin's trusted installation identity.
+The plugin chooses only a key within its own storage area; it cannot choose or
+name another plugin's namespace.
+
+Declare the injected argument in TypeScript and check every operation result:
+
+```ts
+interface PluginSecureStorage {
+  save(key: string, value: string): Promise<{ success: boolean; error?: string }>;
+  load(key: string): Promise<{ success: boolean; value?: string | null; error?: string }>;
+  delete(key: string): Promise<{ success: boolean; error?: string }>;
+}
+
+declare const pluginSecureStorage: PluginSecureStorage;
+
+const saved = await pluginSecureStorage.save('oauth-token', token);
+if (!saved.success) {
+  throw new Error(saved.error);
+}
+
+const loaded = await pluginSecureStorage.load('oauth-token');
+if (!loaded.success) {
+  throw new Error(loaded.error);
+}
+const tokenOrNull = loaded.value ?? null;
+
+const deleted = await pluginSecureStorage.delete('oauth-token');
+if (!deleted.success) {
+  throw new Error(deleted.error);
+}
+```
+
+`load` returns `value: null` when the key does not exist. A failed operation
+returns `success: false` and an `error`; plugins should not treat a failure as a
+missing value. Headlamp may reject an operation when the operating-system key
+store is unavailable, when persisted data cannot be read safely, or when an
+input or storage limit is exceeded.
+
+This API is available only in the Headlamp desktop app. Check
+`Headlamp.isRunningAsApp()` before registering UI that uses it. It stores data
+on the computer running Headlamp and does not synchronize across computers or
+create a Kubernetes Secret. Use the Kubernetes API when a credential needs to
+be shared with workloads or other cluster users.
+
+- Example plugin: [How To Use Plugin Secure Storage](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/secure-storage)
 
 ### Route
 
@@ -164,6 +225,39 @@ This lets you add, remove, update, or move table columns.
 
 - Example plugin: [How to add a context menu to each row in the pods list table](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/tables)
 - API reference: [registerResourceTableColumnsProcessor](../../api/plugin/registry/functions/registerresourcetablecolumnsprocessor)
+
+### Project Creation
+
+Add a project creation choice with
+[registerCustomCreateProject](../../api/plugin/registry/functions/registercustomcreateproject).
+To replace one of Headlamp's built-in choices in the same position, use its ID
+from `DefaultCreateProject`:
+
+```tsx
+import { DefaultCreateProject, registerCustomCreateProject } from '@kinvolk/headlamp-plugin/lib';
+
+registerCustomCreateProject({
+  id: DefaultCreateProject.NEW_PROJECT,
+  name: 'Create Managed Project',
+  description: 'Create a project managed by the platform',
+  icon: 'mdi:folder-plus',
+  component: ManagedProjectForm,
+});
+```
+
+Use `DefaultCreateProject.NEW_PROJECT` to replace the namespace-based project
+form, or `DefaultCreateProject.FROM_YAML` to replace the YAML creation flow.
+Use a unique ID to append another choice without replacing either built-in
+choice. The custom component receives an `onBack` callback for returning to the
+project creation menu.
+
+**Mobile (375 x 812)**
+
+| Default choices                                                                                                 | Plugin replacements                                                                                                           |
+| --------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| ![Default project creation choices on a mobile viewport](../images/project-creation/default-choices-mobile.png) | ![Project creation choices replaced by a plugin on a mobile viewport](../images/project-creation/replaced-choices-mobile.png) |
+
+- API reference: [registerCustomCreateProject](../../api/plugin/registry/functions/registercustomcreateproject)
 
 ### Headlamp Events
 
@@ -225,6 +319,53 @@ Check the
 [example plugin](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/ui-panels)
 for the full code.
 
+### Resource Map Relations
+
+Register a custom relation provider for the Resource Map graph with
+`registerResourceRelationProvider`. This enables plugins to define custom edges
+and surface implicit dependencies between resources. Each relation needs a
+globally unique `id`, a `fromSource` graph source ID, and a `predicate` that
+returns whether two graph nodes should be connected. Use a plugin-prefixed
+relation ID to avoid colliding with Headlamp's built-in relations.
+
+```tsx
+import { registerResourceRelationProvider } from '@kinvolk/headlamp-plugin/lib';
+
+registerResourceRelationProvider({
+  id: 'my-plugin.deployment-secret',
+  fromSource: 'apps/Deployment',
+  toSource: 'Secret',
+  label: 'Uses Secret',
+  predicate: (from, to) => {
+    // predicate receives GraphNode objects; access K8s data via kubeObject.
+    return (
+      from.kubeObject?.jsonData.metadata.name === 'my-deployment' &&
+      to.kubeObject?.jsonData.metadata.name === 'my-secret'
+    );
+  },
+});
+
+registerResourceRelationProvider({
+  id: 'my-plugin.custom-source-deployment',
+  fromSource: 'my-source',
+  toSource: 'apps/Deployment',
+  label: 'Depends On',
+  predicate: (from, to) => {
+    // `my-source` is the ID passed to registerMapSource.
+    return (
+      from.kubeObject?.jsonData.metadata.name === 'my-test-resource' &&
+      to.kubeObject?.jsonData.metadata.name === 'my-deployment'
+    );
+  },
+});
+```
+
+See the
+[customizing-map example](https://github.com/kubernetes-sigs/headlamp/blob/main/plugins/examples/customizing-map/src/index.tsx)
+for a complete relation provider registration.
+
+![Custom resource relation in the Resource Map](./images/resource-relation-provider.png)
+
 ### Projects customization
 
 Customize Headlamp's Projects feature with several registration functions:
@@ -235,7 +376,40 @@ Each tab needs a unique ID, a label, and a React component that receives the pro
 
 Add custom sections to the project overview page with
 [registerProjectOverviewSection](../../api/plugin/registry/functions/registerProjectOverviewSection).
-These sections appear in the project's main overview area.
+Each section needs a unique `id` and a component. The component receives the current
+`project` and its loaded `projectResources`.
+
+Use the optional asynchronous `isEnabled` callback to display a section only for
+matching projects. The callback receives `{ project }` and returns a `Promise<boolean>`.
+Sections without the callback are displayed by default. A section is hidden when the
+callback resolves to `false`, rejects, or throws, and eligibility is checked again when
+the project changes.
+
+```tsx
+registerProjectOverviewSection({
+  id: 'multi-cluster-summary',
+  component: ({ project, projectResources }) => (
+    <MultiClusterSummary project={project} resources={projectResources} />
+  ),
+  isEnabled: async ({ project }) => project.clusters.length > 1,
+});
+```
+
+Add action buttons to the project details header with
+[registerProjectHeaderAction](../../api/plugin/registry/functions/registerProjectHeaderAction).
+The action component receives the current project and an optional
+`setSelectedTab?: (tabId: string) => void` callback. Call it with the ID of a
+registered, enabled tab to select that tab. Unknown tabs and tabs without a
+component are ignored.
+
+```tsx
+registerProjectHeaderAction({
+  id: 'view-metrics',
+  component: ({ setSelectedTab }) => (
+    <Button onClick={() => setSelectedTab?.('my-plugin.metrics')}>View metrics</Button>
+  ),
+});
+```
 
 Register custom API resources (e.g. CRDs) for project resource tracking with
 [registerProjectApiResource](../../api/plugin/registry/functions/registerProjectApiResource).
@@ -243,7 +417,8 @@ Once registered, the CRD resources will appear in the project's resource count,
 health status, and Resources tab. Only namespaced resources can be registered,
 since Projects are scoped to namespaces.
 
-Example plugin: [How to customize projects](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/projects)
+Example plugin: [How to customize projects](https://github.com/kubernetes-sigs/headlamp/tree/main/plugins/examples/projects),
+including conditionally displayed overview sections.
 
 ### Activities
 
