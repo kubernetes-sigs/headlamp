@@ -32,7 +32,7 @@ Then open http://localhost:8080 in your browser.
 
 ### Namespace Choice
 
-Deploying Headlamp into its own dedicated namespace (e.g. `headlamp` via `--namespace headlamp --create-namespace`) is recommended for production environments for security isolation and clean lifecycle management. Installing into `kube-system` (e.g. `--namespace kube-system`) is also supported for simple test clusters or addon setups.
+Deploying Headlamp into its own dedicated namespace (e.g. `headlamp` via `--namespace headlamp --create-namespace`) is recommended for production environments for security isolation and clean lifecycle management. While default chart values create a `ClusterRoleBinding` to `cluster-admin`, a dedicated namespace isolates Headlamp's namespaced objects (ServiceAccount, ConfigMaps, Secrets, plugins) from system components. Installing into `kube-system` (e.g. `--namespace kube-system`) is also supported for simple test clusters or addon setups.
  
 ### Basic Installation
 ```console
@@ -67,7 +67,7 @@ This means the release can show a newer chart/app version while still running an
 To ensure the running image matches the chart version during upgrade, set the tag explicitly to the chart's appVersion-derived format.
 ```console
 $ helm upgrade my-headlamp headlamp/headlamp \
-  --namespace kube-system \
+  --namespace headlamp \
   --reuse-values \
   --set image.tag=v<appVersion>
 ```
@@ -81,7 +81,8 @@ $ helm upgrade my-headlamp headlamp/headlamp \
 
 ```console
 $ helm install my-headlamp headlamp/headlamp \
-  --namespace kube-system \
+  --namespace headlamp \
+  --create-namespace \
   --values cluster-inventory-values.yaml
 ```
 
