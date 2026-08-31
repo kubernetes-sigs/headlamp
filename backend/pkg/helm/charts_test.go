@@ -20,6 +20,7 @@ import (
 	"context"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -116,32 +117,32 @@ func TestListChartContentType(t *testing.T) {
 }
 
 func TestListChartsWithInvalidRepoCacheGraceful(t *testing.T) {
+	tempDir := t.TempDir()
+	customSettings := cli.New()
+	customSettings.RepositoryConfig = filepath.Join(tempDir, "repositories.yaml")
+	customSettings.RepositoryCache = filepath.Join(tempDir, "cache")
+
+	err := os.MkdirAll(customSettings.RepositoryCache, 0o755)
+	require.NoError(t, err)
+
 	ch := cache.New[interface{}]()
 	require.NotNil(t, ch)
 
-	helmHandler, err := helm.NewHandlerWithSettings(ch, settings)
+	helmHandler, err := helm.NewHandlerWithSettings(ch, customSettings)
 	require.NoError(t, err)
 
 	testAddRepo(t, helmHandler, "headlamp_test_repo", "https://kubernetes-sigs.github.io/headlamp/")
 
 	// Add an un-cached / broken repository entry to repositories.yaml directly
-	repoFile, err := repo.LoadFile(settings.RepositoryConfig)
+	repoFile, err := repo.LoadFile(customSettings.RepositoryConfig)
 	require.NoError(t, err)
 
 	repoFile.Add(&repo.Entry{
 		Name: "broken_repo",
 		URL:  "https://example.com/charts",
 	})
-	err = repoFile.WriteFile(settings.RepositoryConfig, 0o644)
+	err = repoFile.WriteFile(customSettings.RepositoryConfig, 0o644)
 	require.NoError(t, err)
-
-	t.Cleanup(func() {
-		rf, err := repo.LoadFile(settings.RepositoryConfig)
-		if err == nil {
-			rf.Remove("broken_repo")
-			_ = rf.WriteFile(settings.RepositoryConfig, 0o644)
-		}
-	})
 
 	listChartsRequest, err := http.NewRequestWithContext(context.Background(),
 		"GET", "/clusters/minikube/helm/repositories/charts", nil)
