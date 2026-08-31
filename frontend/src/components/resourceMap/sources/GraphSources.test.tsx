@@ -110,6 +110,10 @@ describe('GraphSources helpers', () => {
 describe('GraphSourceManager', () => {
   let context: ReturnType<typeof useSources>;
 
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
   const Probe = () => {
     const value = useSources();
     useEffect(() => {
@@ -395,5 +399,123 @@ describe('GraphSourceManager', () => {
         label: undefined,
       },
     ]);
+  });
+
+  it('persists selection to localStorage and loads it on initialization', async () => {
+    const first = source('first', { nodes: [] });
+    const second = source('second', { nodes: [] });
+    const group: GraphSource = { id: 'group', label: 'Group', sources: [first, second] };
+
+    // Initially all are selected
+    const { unmount } = render(
+      <GraphSourceManager sources={[group]} relations={[]}>
+        <Probe />
+      </GraphSourceManager>
+    );
+    await waitFor(() => expect(context.isLoading).toBe(false));
+    expect(context.selectedSources).toEqual(new Set(['group', 'first', 'second']));
+
+    // Deselect 'first'
+    act(() => context.toggleSelection(first));
+    expect(context.selectedSources).toEqual(new Set(['group', 'second']));
+
+    // Check localStorage contains the per-source overrides
+    const stored = JSON.parse(
+      localStorage.getItem('headlamp_resource_map_source_overrides') || '{}'
+    );
+    expect(stored['first']).toBe(false);
+
+    unmount();
+
+    // Re-render and check that selection was restored
+    render(
+      <GraphSourceManager sources={[group]} relations={[]}>
+        <Probe />
+      </GraphSourceManager>
+    );
+    await waitFor(() => expect(context.isLoading).toBe(false));
+    expect(context.selectedSources).toEqual(new Set(['group', 'second']));
+  });
+
+  it('respects isEnabledByDefault: false on groups and preserves enabled state across reloads', async () => {
+    const item1 = source('item1', { nodes: [] });
+    const item2 = source('item2', { nodes: [] });
+    const disabledGroup: GraphSource = {
+      id: 'disabled-group',
+      label: 'Disabled Group',
+      isEnabledByDefault: false,
+      sources: [item1, item2],
+    };
+
+    // On fresh visit without localStorage, disabled group and its children are NOT selected
+    const { unmount } = render(
+      <GraphSourceManager sources={[disabledGroup]} relations={[]}>
+        <Probe />
+      </GraphSourceManager>
+    );
+    await waitFor(() => expect(context.isLoading).toBe(false));
+    expect(context.selectedSources).toEqual(new Set([]));
+
+    // Enable the disabled group
+    act(() => context.toggleSelection(disabledGroup));
+    expect(context.selectedSources).toEqual(new Set(['disabled-group', 'item1', 'item2']));
+
+    unmount();
+
+    // Re-render and check that enabled state of default-disabled group persists
+    render(
+      <GraphSourceManager sources={[disabledGroup]} relations={[]}>
+        <Probe />
+      </GraphSourceManager>
+    );
+    await waitFor(() => expect(context.isLoading).toBe(false));
+    expect(context.selectedSources).toEqual(new Set(['disabled-group', 'item1', 'item2']));
+  });
+
+  it('handles invalid or corrupted localStorage data gracefully', async () => {
+    localStorage.setItem('headlamp_resource_map_source_overrides', '{"invalid": 123}');
+    const first = source('first', { nodes: [] });
+
+    render(
+      <GraphSourceManager sources={[first]} relations={[]}>
+        <Probe />
+      </GraphSourceManager>
+    );
+    await waitFor(() => expect(context.isLoading).toBe(false));
+    // Falls back safely to default selection
+    expect(context.selectedSources).toEqual(new Set(['first']));
+  });
+  it('restores child override when parent group is disabled by default', async () => {
+    const item1 = source('item1', { nodes: [] });
+    const item2 = source('item2', { nodes: [] });
+    const disabledGroup: GraphSource = {
+      id: 'disabled-group',
+      label: 'Disabled Group',
+      isEnabledByDefault: false,
+      sources: [item1, item2],
+    };
+
+    const { unmount } = render(
+      <GraphSourceManager sources={[disabledGroup]} relations={[]}>
+        <Probe />
+      </GraphSourceManager>
+    );
+    await waitFor(() => expect(context.isLoading).toBe(false));
+    expect(context.selectedSources).toEqual(new Set([]));
+
+    // Toggle only item1 on
+    act(() => context.toggleSelection(item1));
+    expect(context.selectedSources).toEqual(new Set(['item1']));
+
+    unmount();
+
+    // Re-render: child item1 should be restored as selected even with disabled parent
+    render(
+      <GraphSourceManager sources={[disabledGroup]} relations={[]}>
+        <Probe />
+      </GraphSourceManager>
+    );
+    await waitFor(() => expect(context.isLoading).toBe(false));
+    expect(context.selectedSources).toEqual(new Set(['item1']));
   });
 });
