@@ -98,7 +98,8 @@ func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.Response
 		timeoutCtx, http.MethodGet, freshURL.String(), nil,
 	)
 	if err != nil {
-		return err
+		logger.Log(logger.LevelWarn, nil, err, "could not create repopulation request")
+		return ErrHandled
 	}
 
 	freshReq.Header = freshHeader
@@ -108,11 +109,13 @@ func HandleNonGETCacheInvalidation(k8scache cache.Cache[string], w http.Response
 	next.ServeHTTP(freshRcw, freshReq)
 
 	if timeoutCtx.Err() != nil {
-		return timeoutCtx.Err()
+		logger.Log(logger.LevelWarn, nil, timeoutCtx.Err(), "cache repopulation request timed out")
+		return ErrHandled
 	}
 
 	if err := StoreK8sResponseInCache(k8scache, freshReq.URL, freshRcw, key); err != nil {
-		return err
+		logger.Log(logger.LevelWarn, nil, err, "failed to store repopulated response in cache")
+		return ErrHandled
 	}
 
 	return ErrHandled
