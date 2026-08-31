@@ -136,6 +136,10 @@ func (c *contextStore) GetContextKeys() ([]string, error) {
 		return nil, err
 	}
 
+	if len(contextMap) == 0 {
+		return nil, nil
+	}
+
 	keys := make([]string, 0, len(contextMap))
 
 	for key := range contextMap {
