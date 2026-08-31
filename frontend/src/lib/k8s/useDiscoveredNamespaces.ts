@@ -301,9 +301,10 @@ export function useDiscoveredNamespaces(cluster: string | null = getCluster()) {
 
   return {
     ...discoveryQuery,
-    isLoading: authPending || discoveryPending,
-    isFetching: authPending || discoveryQuery.isFetching,
-    isError: authFailed || discoveryQuery.isError,
+    data: manualOverride ? undefined : discoveryQuery.data,
+    isLoading: manualOverride ? false : authPending || discoveryPending,
+    isFetching: manualOverride ? false : authPending || discoveryQuery.isFetching,
+    isError: authFailed || (!manualOverride && discoveryQuery.isError),
   };
 }
 
@@ -346,10 +347,11 @@ export function useDiscoveredNamespacesMap(clusters: string[]) {
       });
       const discoveryPending = isNamespaceDiscoveryPending(queries[index] ?? {});
 
-      map[cluster] = queries[index]?.data;
-      isLoadingByCluster[cluster] = authPending || discoveryPending;
+      map[cluster] = manualOverride ? undefined : queries[index]?.data;
+      isLoadingByCluster[cluster] = manualOverride ? false : authPending || discoveryPending;
       isErrorByCluster[cluster] =
-        (!manualOverride && !!authQuery?.isError) || (queries[index]?.isError ?? false);
+        (!manualOverride && !!authQuery?.isError) ||
+        (!manualOverride && (queries[index]?.isError ?? false));
     });
     return {
       map,
