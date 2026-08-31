@@ -554,6 +554,7 @@
   "Loading table data": "テーブルデータを読み込み中",
   "Refresh": "更新",
   "No data matching the filter criteria.": "フィルター条件に一致するデータがありません。",
+  "Too many values to filter": "",
   "No results found": "結果が見つかりません",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "このコンテナーのプロセスの新しい出力は以下に表示されます。表示されない場合は、Enter キーを押してください…",
   "Failed to run \"{{command}}\"…": "\"{{command}}\" の実行に失敗しました…",

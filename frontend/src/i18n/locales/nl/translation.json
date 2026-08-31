@@ -559,6 +559,7 @@
   "Loading table data": "Tabelgegevens laden...",
   "Refresh": "Vernieuwen",
   "No data matching the filter criteria.": "Er zijn geen gegevens die overeenkomen met de filtercriteria.",
+  "Too many values to filter": "",
   "No results found": "Geen resultaten gevonden",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "Alle nieuwe uitvoer voor het proces van deze container wordt hieronder weergegeven. Druk op Enter als het niet verschijnt...",
   "Failed to run \"{{command}}\"…": "Kan \"{{command}}\" niet uitvoeren…",

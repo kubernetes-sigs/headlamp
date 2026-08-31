@@ -564,6 +564,7 @@
   "Loading table data": "Cargando datos de la tabla",
   "Refresh": "Recargar",
   "No data matching the filter criteria.": "Sin datos que correspondan a los criterios de filtrado",
+  "Too many values to filter": "",
   "No results found": "No se encontraron resultados",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "Cualquier nuevo output para el proceso de este contenedor debería mostrarse abajo. En caso de que no aparezca, pulse intro…",
   "Failed to run \"{{command}}\"…": "Fallor al ejecutar \"{{command}}\"…",

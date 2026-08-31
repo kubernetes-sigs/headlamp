@@ -564,6 +564,7 @@
   "Loading table data": "",
   "Refresh": "",
   "No data matching the filter criteria.": "",
+  "Too many values to filter": "",
   "No results found": "",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "",
   "Failed to run \"{{command}}\"…": "",
