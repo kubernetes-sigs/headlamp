@@ -569,7 +569,7 @@
   "Loading table data": "Načítají se data tabulky.",
   "Refresh": "Aktualizovat",
   "No data matching the filter criteria.": "Kritériím filtru neodpovídají žádná data.",
-  "Too many values to filter": "",
+  "Showing the {{max}} most common values": "",
   "No results found": "Nenašly se žádné výsledky.",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "Níže by se měl zobrazit jakýkoli nový výstup procesu tohoto kontejneru. Pokud se nezobrazí, stiskněte Enter...",
   "Failed to run \"{{command}}\"…": "Nepodařilo se spustit {{command}}...",

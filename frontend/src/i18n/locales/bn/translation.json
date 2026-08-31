@@ -559,7 +559,7 @@
   "Loading table data": "টেবিল Data লোড হচ্ছে",
   "Refresh": "Refresh",
   "No data matching the filter criteria.": "ফিল্টার মানদণ্ডের সাথে মেলে কোনও Data নেই।",
-  "Too many values to filter": "",
+  "Showing the {{max}} most common values": "",
   "No results found": "কোনও result পাওয়া যায় নি",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "এই container process এর জন্য যে কোনও নতুন output নীচে দেখানো উচিত। যদি এটি প্রদর্শিত না হয় তবে Enter টিপুন…",
   "Failed to run \"{{command}}\"…": "Run করতে Failed \"{{command}}\"…",

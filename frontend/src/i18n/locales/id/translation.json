@@ -554,7 +554,7 @@
   "Loading table data": "Memuat data tabel",
   "Refresh": "Refresh",
   "No data matching the filter criteria.": "Tidak ada data yang cocok dengan kriteria filter.",
-  "Too many values to filter": "",
+  "Showing the {{max}} most common values": "",
   "No results found": "Hasil tidak ditemukan",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "Output baru untuk proses kontainer ini harus ditampilkan di bawah ini. Jika tidak muncul, tekan Enter…",
   "Failed to run \"{{command}}\"…": "Gagal menjalankan \"{{command}}\"…",

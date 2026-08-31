@@ -28,10 +28,15 @@ import { ThemeProvider } from '@mui/material/styles';
 import { fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import { createMuiTheme } from '../../../lib/themes';
-import Table from './Table';
+import Table, { TableColumn, TableProps } from './Table';
 
 vi.mock('react-i18next', () => ({
-  useTranslation: () => ({ t: (key: string) => key, i18n: { language: 'en' } }),
+  useTranslation: () => ({
+    // Keys stand in for their translation, with the interpolation i18next would do.
+    t: (key: string, values?: Record<string, unknown>) =>
+      key.replace(/{{(\w+)}}/g, (_match, name) => String(values?.[name])),
+    i18n: { language: 'en' },
+  }),
 }));
 
 vi.mock('../../../lib/useShortcut', () => ({ useShortcut: vi.fn() }));
@@ -51,22 +56,26 @@ const theme = createMuiTheme({ base: 'light', name: 'light' });
 
 interface StatusRow {
   status: unknown;
+  tier?: string;
 }
 
 /** Enough rows that ResourceTable-style callers turn faceted values off. */
 const largeData: StatusRow[] = Array.from({ length: 501 }, (_, index) => ({
   status: index % 2 === 0 ? 'Running' : 'Completed',
+  tier: index % 2 === 0 ? 'gold' : 'silver',
 }));
 
-/** The page-size selector is a combobox too, so take the one in the table head. */
-function statusFilterInput() {
-  const combobox = screen.getAllByRole('combobox').find(element => element.closest('th') !== null);
-  expect(combobox).toBeDefined();
-  return combobox!;
+/** The page-size selector is a combobox too, so take the ones in the table head. */
+function statusFilterInput(index = 0) {
+  const comboboxes = screen
+    .getAllByRole('combobox')
+    .filter(element => element.closest('th') !== null);
+  expect(comboboxes.length).toBeGreaterThan(index);
+  return comboboxes[index];
 }
 
-function openStatusFilterDropdown() {
-  fireEvent.mouseDown(statusFilterInput());
+function openStatusFilterDropdown(index = 0) {
+  fireEvent.mouseDown(statusFilterInput(index));
 }
 
 /** One distinct value per row, far past MAX_FILTER_OPTIONS. */
@@ -76,32 +85,40 @@ const highCardinalityData: StatusRow[] = Array.from({ length: 1500 }, (_, index)
 
 function statusTable({
   accessorFn = (row: StatusRow) => row.status,
+  columns,
   data = largeData,
   enableColumnFilterModes,
+  enableFacetedValues = false,
   filterVariant = 'multi-select' as 'multi-select' | 'select' | 'autocomplete',
+  initialState,
   showColumnFilters = true,
 }: {
   accessorFn?: (row: StatusRow) => unknown;
+  columns?: TableColumn<StatusRow>[];
   data?: StatusRow[];
   enableColumnFilterModes?: boolean;
+  enableFacetedValues?: boolean;
   filterVariant?: 'multi-select' | 'select' | 'autocomplete';
+  initialState?: TableProps<StatusRow>['initialState'];
   showColumnFilters?: boolean;
 } = {}) {
   return (
     <ThemeProvider theme={theme}>
       <Table<StatusRow>
-        columns={[
-          {
-            id: 'status',
-            header: 'Status',
-            filterVariant,
-            accessorFn,
-          },
-        ]}
+        columns={
+          columns ?? [
+            {
+              id: 'status',
+              header: 'Status',
+              filterVariant,
+              accessorFn,
+            },
+          ]
+        }
         data={data}
         enableColumnFilterModes={enableColumnFilterModes}
-        enableFacetedValues={false}
-        initialState={showColumnFilters ? { showColumnFilters } : undefined}
+        enableFacetedValues={enableFacetedValues}
+        initialState={{ ...(showColumnFilters ? { showColumnFilters } : {}), ...initialState }}
       />
     </ThemeProvider>
   );
@@ -150,21 +167,28 @@ describe('Table select filter options with real MRT', () => {
     });
   });
 
-  it('explains the empty dropdown of a column above the option cap', () => {
-    // Rendering a menu item per value is what would freeze the tab, so the values
-    // are replaced by a notice.
-    renderStatusTable({ data: highCardinalityData });
+  it('serves only the most common options for a column past the cap', () => {
+    // Ported from #7226 by @simonepri. Plain DOM queries: computing accessible names for
+    // 1000 options is too slow for jsdom, and the "value (count)" shape drops MRT's
+    // placeholder item.
+    // The common value comes last, so keeping it proves the list is cut by frequency.
+    const data: StatusRow[] = [
+      ...Array.from({ length: 1000 }, (_, index) => ({ status: `rare-${index}` })),
+      ...Array.from({ length: 500 }, () => ({ status: 'common' })),
+    ];
+    renderStatusTable({ data });
 
     openStatusFilterDropdown();
 
-    const listbox = screen.getByRole('listbox');
-    expect(listbox.textContent).not.toContain('node-');
-
-    // The notice replaces the values and cannot be picked as a filter.
-    const options = within(listbox).getAllByRole('option');
-    expect(options).toHaveLength(1);
-    expect(options[0]).toHaveTextContent('Too many values to filter');
-    expect(options[0]).toHaveAttribute('aria-disabled', 'true');
+    const options = Array.from(
+      screen.getByRole('listbox').querySelectorAll('[role="option"]'),
+      option => option.textContent?.trim()
+    ).filter(text => / \(\d+\)$/.test(text ?? ''));
+    expect(options).toHaveLength(1000);
+    expect(options).toContain('common (500)');
+    expect(options).not.toContain('rare-999 (1)');
+    // The shortened list says so, so nobody hunts for a value that is not offered.
+    expect(screen.getByText('Showing the 1000 most common values')).toBeVisible();
   });
 
   it('follows the data while the dropdown stays open', () => {
@@ -175,17 +199,19 @@ describe('Table select filter options with real MRT', () => {
     // A background refresh pushes the column past the cap while the viewer is looking at it.
     rendered.rerender(statusTable({ data: highCardinalityData }));
 
-    expect(dropdownOptions()).toEqual(['Too many values to filter']);
+    expect(dropdownOptions()).toHaveLength(1000);
+    expect(screen.getByText('Showing the 1000 most common values')).toBeVisible();
   });
 
   it('restores the options when the data drops back under the cap', () => {
     const rendered = renderStatusTable({ data: highCardinalityData });
     openStatusFilterDropdown();
-    expect(dropdownOptions()).toEqual(['Too many values to filter']);
+    expect(dropdownOptions()).toHaveLength(1000);
 
     rendered.rerender(statusTable({ data: largeData }));
 
     expect(dropdownOptions()).toEqual(['Completed (250)', 'Running (251)']);
+    expect(screen.queryByText('Showing the 1000 most common values')).not.toBeInTheDocument();
   });
 
   it('serves no options for a column MRT cannot sort', () => {
@@ -202,33 +228,87 @@ describe('Table select filter options with real MRT', () => {
     expect(screen.getByRole('listbox').textContent).not.toContain('Too many values');
   });
 
-  it('tells an autocomplete filter why it has no options, and takes it back', () => {
+  it('tells an autocomplete filter that its list is shortened, and takes it back', () => {
     // The autocomplete variant renders a MUI Autocomplete, whose no-options popup stays
-    // hidden under freeSolo, so the notice belongs under the input.
+    // hidden under freeSolo, so the note belongs under the input for every variant.
     const rendered = renderStatusTable({
       data: highCardinalityData,
       filterVariant: 'autocomplete',
     });
 
-    expect(screen.getByText('Too many values to filter')).toBeVisible();
+    expect(screen.getByText('Showing the 1000 most common values')).toBeVisible();
 
     rendered.rerender(statusTable({ data: largeData, filterVariant: 'autocomplete' }));
 
-    expect(screen.queryByText('Too many values to filter')).not.toBeInTheDocument();
+    expect(screen.queryByText('Showing the 1000 most common values')).not.toBeInTheDocument();
     fireEvent.keyDown(statusFilterInput(), { key: 'ArrowDown' });
     expect(dropdownOptions()).toEqual(['Completed', 'Running']);
   });
 
-  it('yields the input to MRT filter mode label on a capped autocomplete column', () => {
+  it('yields the input to MRT filter mode label on a truncated autocomplete column', () => {
     renderStatusTable({
       data: highCardinalityData,
       filterVariant: 'autocomplete',
       enableColumnFilterModes: true,
     });
 
-    // MRT owns the helper text with filter modes enabled; the notice must not replace it.
-    expect(screen.queryByText('Too many values to filter')).not.toBeInTheDocument();
+    // MRT owns the helper text with filter modes enabled; the note must not replace it.
+    expect(screen.queryByText('Showing the 1000 most common values')).not.toBeInTheDocument();
     expect(screen.getByText(/Filter Mode:/i)).toBeVisible();
+  });
+
+  it('keeps the full faceting contract for non-dropdown columns while faceting is on', () => {
+    // Ported from #7226 by @simonepri.
+    let uniqueCount = -1;
+    renderStatusTable({
+      data: largeData.slice(0, 100),
+      enableFacetedValues: true,
+      columns: [
+        {
+          id: 'status',
+          header: 'Status',
+          filterVariant: 'multi-select',
+          accessorFn: r => r.status,
+        },
+        {
+          id: 'tier',
+          header: 'Tier',
+          accessorFn: row => row.tier,
+          // A custom filter reading the faceted values directly, like a plugin could.
+          Filter: ({ column }) => {
+            uniqueCount = column.getFacetedUniqueValues().size;
+            return null;
+          },
+        },
+      ],
+    });
+
+    // Faceting is on, so a text column still gets its full unique-value map.
+    expect(uniqueCount).toBe(2);
+  });
+
+  it('keeps small-list options narrowing with other active filters', () => {
+    // Ported from #7226 by @simonepri.
+    renderStatusTable({
+      data: largeData.slice(0, 100),
+      enableFacetedValues: true,
+      columns: [
+        {
+          id: 'status',
+          header: 'Status',
+          filterVariant: 'multi-select',
+          accessorFn: r => r.status,
+        },
+        { id: 'tier', header: 'Tier', filterVariant: 'multi-select', accessorFn: row => row.tier },
+      ],
+      initialState: { columnFilters: [{ id: 'status', value: ['Running'] }] },
+    });
+
+    // Faceting is on, so the tier options should only reflect the Running rows.
+    openStatusFilterDropdown(1);
+    const listbox = screen.getByRole('listbox');
+    expect(within(listbox).getByRole('option', { name: /gold \(50\)/ })).toBeInTheDocument();
+    expect(within(listbox).queryByRole('option', { name: /silver/ })).toBeNull();
   });
 
   it('walks the rows only once the filter UI becomes visible', () => {

@@ -559,7 +559,7 @@
   "Loading table data": "Táblaadatok betöltése",
   "Refresh": "Frissítés",
   "No data matching the filter criteria.": "Nincsenek a szűrési feltételeknek megfelelő adatok.",
-  "Too many values to filter": "",
+  "Showing the {{max}} most common values": "",
   "No results found": "Nincs találat",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "A tárolófolyamat minden új kimenetének meg kell jelennie alább. Ha nem jelenik meg, nyomja le az Enter billentyűt…",
   "Failed to run \"{{command}}\"…": "A(z) {{command}} futtatása nem sikerült…",

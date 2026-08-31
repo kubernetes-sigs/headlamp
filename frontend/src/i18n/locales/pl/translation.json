@@ -569,7 +569,7 @@
   "Loading table data": "Trwa ładowanie danych tabeli",
   "Refresh": "Odśwież",
   "No data matching the filter criteria.": "Brak danych spełniających kryteria filtru.",
-  "Too many values to filter": "",
+  "Showing the {{max}} most common values": "",
   "No results found": "Nie znaleziono wyników",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "Wszystkie nowe dane wyjściowe procesu tego kontenera powinny być wyświetlane poniżej. Jeśli nie pojawi się, naciśnij klawisz Enter...",
   "Failed to run \"{{command}}\"…": "Nie można uruchomić „{{command}}”...",

@@ -559,7 +559,7 @@
   "Loading table data": "டேபிள் டேட்டாவை ஏற்றுகிறது",
   "Refresh": "ரிஃப்ரெஷ்",
   "No data matching the filter criteria.": "ஃபில்டர் அளவுகோல்களுடன் பொருந்தும் டேட்டா இல்லை.",
-  "Too many values to filter": "",
+  "Showing the {{max}} most common values": "",
   "No results found": "முடிவுகள் எதுவும் காணப்படவில்லை",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "இந்த கண்டெய்னரின் ப்ராசஸுக்கான எந்தவொரு புதிய அவுட்புட்டும் கீழே காட்டப்பட வேண்டும். அது காட்டப்படாவிட்டால், என்டர் அழுத்தவும்...",
   "Failed to run \"{{command}}\"…": "\"{{command}}\"-ஐ இயக்குவதில் தோல்வி...",

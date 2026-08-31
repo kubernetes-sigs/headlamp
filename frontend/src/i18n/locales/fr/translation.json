@@ -564,7 +564,7 @@
   "Loading table data": "Chargement des données de la table",
   "Refresh": "Actualiser",
   "No data matching the filter criteria.": "Aucune donnée ne correspond aux critères de filtrage.",
-  "Too many values to filter": "",
+  "Showing the {{max}} most common values": "",
   "No results found": "Aucun résultat trouvé",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "Toute nouvelle sortie pour le processus de ce conteneur devrait être affichée ci-dessous. Si elle n'apparaît pas, appuyez sur Entrée…",
   "Failed to run \"{{command}}\"…": "Échec de l'exécution de \"{{command}}\"…",
