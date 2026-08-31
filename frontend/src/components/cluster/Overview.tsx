@@ -133,19 +133,22 @@ function EventsSection() {
     refetchInterval: OVERVIEW_REFETCH_INTERVAL_MS,
   });
 
-  const warningActionFilterFunc = (event: Event, search?: string) => {
-    if (!filterFunc(event, search)) {
-      return false;
-    }
+  const warningActionFilterFunc = React.useCallback(
+    (event: Event, search?: string) => {
+      if (!filterFunc(event, search)) {
+        return false;
+      }
 
-    if (isWarningEventSwitchChecked) {
-      return event.jsonData.type === 'Warning';
-    }
+      if (isWarningEventSwitchChecked) {
+        return event.jsonData.type === 'Warning';
+      }
 
-    // Return true because if we reach this point, it means we're only filtering by
-    // the default filterFunc (and its result was 'true').
-    return true;
-  };
+      // Return true because if we reach this point, it means we're only filtering by
+      // the default filterFunc (and its result was 'true').
+      return true;
+    },
+    [filterFunc, isWarningEventSwitchChecked]
+  );
 
   const numWarnings = React.useMemo(
     () => events?.filter(e => e.type === 'Warning').length ?? '?',
