@@ -480,6 +480,10 @@ describe('useGetAllRelations', () => {
     const mwcRelation = relationById(result.current, 'mwc-service');
 
     const targetService = service({ uid: 'svc-1', name: 'webhook-svc', namespace: 'default' }, {});
+    const differentNamespaceService = service(
+      { uid: 'svc-2', name: 'webhook-svc', namespace: 'other-namespace' },
+      {}
+    );
 
     const vwcEmpty = new ValidatingWebhookConfiguration(
       { metadata: { uid: 'vwc-1', name: 'vwc-empty' } } as any,
@@ -509,12 +513,31 @@ describe('useGetAllRelations', () => {
       { metadata: { uid: 'mwc-1', name: 'mwc-empty' } } as any,
       'cluster-a'
     );
+    const mwcWithMatchingService = new MutatingWebhookConfiguration(
+      {
+        metadata: { uid: 'mwc-2', name: 'mwc-match' },
+        webhooks: [
+          {
+            name: 'hook.example.com',
+            clientConfig: { service: { name: 'webhook-svc', namespace: 'default' } },
+          },
+        ],
+      } as any,
+      'cluster-a'
+    );
 
-    expect(vwcRelation.predicate(node(vwcEmpty), node(targetService))).toBe(false);
-    expect(vwcRelation.predicate(node(vwcWithUrl), node(targetService))).toBe(false);
-    expect(vwcRelation.predicate(node(vwcWithMatchingService), node(targetService))).toBe(true);
+    expect(vwcRelation.predicate(node(vwcEmpty), node(targetService))).toBeFalsy();
+    expect(vwcRelation.predicate(node(vwcWithUrl), node(targetService))).toBeFalsy();
+    expect(vwcRelation.predicate(node(vwcWithMatchingService), node(targetService))).toBeTruthy();
+    expect(
+      vwcRelation.predicate(node(vwcWithMatchingService), node(differentNamespaceService))
+    ).toBeFalsy();
 
-    expect(mwcRelation.predicate(node(mwcEmpty), node(targetService))).toBe(false);
+    expect(mwcRelation.predicate(node(mwcEmpty), node(targetService))).toBeFalsy();
+    expect(mwcRelation.predicate(node(mwcWithMatchingService), node(targetService))).toBeTruthy();
+    expect(
+      mwcRelation.predicate(node(mwcWithMatchingService), node(differentNamespaceService))
+    ).toBeFalsy();
   });
 
   it('handles role bindings with undefined subjects gracefully', () => {
