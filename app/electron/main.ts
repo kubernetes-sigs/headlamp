@@ -862,10 +862,27 @@ function quitServerProcess() {
     return;
   }
 
+  const pid = serverProcess.pid;
+
   serverProcess.stdin.destroy();
-  // @todo: should we try and end the process a bit more gracefully?
-  //       What happens if the kill signal doesn't kill it?
-  serverProcess.kill();
+
+  if (process.platform === 'win32') {
+    // On Windows, SIGTERM can leave the backend (and its children) running,
+    // so force-kill the whole process tree with taskkill instead.
+    if (pid !== undefined) {
+      try {
+        killProcess(pid);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error);
+        console.error(`Failed to kill server process with PID ${pid}: ${message}`);
+        serverProcess.kill();
+      }
+    } else {
+      serverProcess.kill();
+    }
+  } else {
+    serverProcess.kill();
+  }
 
   serverProcess = null;
 }
