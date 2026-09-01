@@ -68,6 +68,7 @@ const checkExports = [
   'ObjectEventList',
   'ConditionList',
   'PhaseLabel',
+  'UsedBy',
 ];
 
 const internalExports = ['useObjectEvents'];
