@@ -51,9 +51,33 @@ interface MCPServer {
    */
   enabled: boolean;
   /**
-   * Environment variables for the MCP tool command
+   * Environment variables to explicitly pass to the MCP tool command
    */
   env?: Record<string, string>;
+}
+
+/**
+ * Sanitize the explicit `env` a user configured for an MCP server.
+ *
+ * We deliberately do not build our own baseline/allowlist of inherited
+ * process env vars here: `StdioClientTransport` (from
+ * `@modelcontextprotocol/sdk`) already merges a per-platform allowlist
+ * (`getDefaultEnvironment`/`DEFAULT_INHERITED_ENV_VARS`) underneath whatever
+ * `env` we pass it, including filtering out Shellshock-style function
+ * exports. Re-implementing that here would duplicate upstream logic and can
+ * drift from it over time, so we only guard against obviously malformed
+ * settings (e.g. `env: null` from hand-edited JSON) and let the SDK own the
+ * baseline environment.
+ *
+ * @param serverEnv - The explicit env configured for an MCP server, if any.
+ * @returns The sanitized env to pass through, or undefined if none/invalid.
+ */
+function sanitizeServerEnv(serverEnv?: Record<string, string>): Record<string, string> | undefined {
+  if (!serverEnv || typeof serverEnv !== 'object' || Array.isArray(serverEnv)) {
+    return undefined;
+  }
+
+  return serverEnv;
 }
 
 /**
@@ -181,13 +205,11 @@ export function makeMcpServersFromSettings(
       console.log(`Expanded args for ${server.name}:`, expandedArgs);
     }
 
-    const serverEnv = server.env ? { ...process.env, ...server.env } : process.env;
-
     mcpServers[server.name] = {
       transport: 'stdio',
       command: server.command,
       args: expandedArgs,
-      env: serverEnv as Record<string, string>,
+      env: sanitizeServerEnv(server.env),
       restart: {
         enabled: true,
         maxAttempts: 3,
