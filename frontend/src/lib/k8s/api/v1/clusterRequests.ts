@@ -223,13 +223,16 @@ export async function clusterRequest(
         }
       }
     } catch (err) {
-      console.error(
-        'Unable to parse error json at url:',
-        url,
-        { err },
-        'with request data:',
-        requestData
-      );
+      // Log only non-sensitive metadata. requestData can carry the full
+      // kubeconfig header (client keys/tokens), and a JSON parse failure
+      // reports a fragment of the response body in its message, so neither
+      // the request data nor the error itself may reach the console.
+      console.error('Unable to parse error json at url:', url, {
+        errorType: err instanceof Error ? err.name : typeof err,
+        method: requestData.method,
+        status: response.status,
+        statusText: response.statusText,
+      });
     }
 
     const error = new Error(message) as ApiError;
