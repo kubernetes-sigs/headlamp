@@ -82,6 +82,8 @@
     "react-router-dom": "^5.3.0",
     "react-window": "^1.8.11",
     "recharts": "^2.1.4",
+    "rehype-raw": "^7.0.0",
+    "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "semver": "^7.3.5",
     "shx": "^0.4.0",
