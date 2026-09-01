@@ -485,8 +485,10 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [recent, results, query]);
 
+  const displayedOptions = !query ? recentItems : results;
+
   const autocomplete = useAutocomplete<SearchResult, false, false, true>({
-    options: !query ? recentItems : results,
+    options: displayedOptions,
     freeSolo: true, // free user input, not just autocomplete options
     autoHighlight: true, // highlight first option on open
     openOnFocus: true,
@@ -494,7 +496,7 @@ export function GlobalSearchContent(props: GlobalSearchContentProps) {
     filterOptions: options => options, // we handle filtering ourself
     onHighlightChange(_, option, reason) {
       if (reason === 'keyboard' && option) {
-        const index = results.indexOf(option);
+        const index = displayedOptions.indexOf(option);
         const list = listRef.current;
         list?.scrollToItem(index);
       }
