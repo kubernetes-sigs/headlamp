@@ -47,7 +47,9 @@ export const OkayName: StoryObj = {
   play: async () => {
     await userEvent.click(screen.getByLabelText('Create'));
 
-    await waitFor(() => expect(screen.getByLabelText('Dialog')).toBeVisible());
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: 'Create Namespace' })).toBeVisible()
+    );
 
     await waitFor(() => userEvent.type(screen.getByRole('textbox'), 'okay-name'), {
       timeout: 5000,
@@ -63,7 +65,9 @@ export const EmptyName: StoryObj = {
   play: async () => {
     await userEvent.click(screen.getByLabelText('Create'));
 
-    await waitFor(() => expect(screen.getByLabelText('Dialog')).toBeVisible());
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: 'Create Namespace' })).toBeVisible()
+    );
 
     await waitFor(() => userEvent.type(screen.getByRole('textbox'), ' '), { timeout: 5000 });
 
@@ -81,7 +85,9 @@ export const NotValidName: StoryObj = {
   play: async () => {
     await userEvent.click(screen.getByLabelText('Create'));
 
-    await waitFor(() => expect(screen.getByLabelText('Dialog')).toBeVisible());
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: 'Create Namespace' })).toBeVisible()
+    );
 
     await waitFor(() => userEvent.type(screen.getByRole('textbox'), 'not-valid-name-'), {
       timeout: 5000,
@@ -102,7 +108,9 @@ export const NotValidNameLong: StoryObj = {
     const longName = 'w'.repeat(64);
     await userEvent.click(screen.getByLabelText('Create'));
 
-    await waitFor(() => expect(screen.getByLabelText('Dialog')).toBeVisible());
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: 'Create Namespace' })).toBeVisible()
+    );
 
     await waitFor(() => userEvent.type(screen.getByRole('textbox'), longName), { timeout: 10000 });
 
@@ -128,7 +136,9 @@ export const NamespaceAlreadyExists: StoryObj = {
   play: async () => {
     await userEvent.click(screen.getByLabelText('Create'));
 
-    await waitFor(() => expect(screen.getByLabelText('Dialog')).toBeVisible());
+    await waitFor(() =>
+      expect(screen.getByRole('dialog', { name: 'Create Namespace' })).toBeVisible()
+    );
 
     await waitFor(() => userEvent.type(screen.getByRole('textbox'), 'existing-namespace'), {
       timeout: 5000,
