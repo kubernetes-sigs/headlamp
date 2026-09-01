@@ -226,7 +226,9 @@ export function ResourceSearch({
             <Trans>No resources selected</Trans>
           </Box>
         )}
-        {resources.length > 0 && isLoading && <CircularProgress size={18} />}
+        {resources.length > 0 && isLoading && (
+          <CircularProgress size={18} aria-label={t('Loading')} />
+        )}
         {resources.length > 0 && !isLoading && (
           <Box>{t('Loaded {{0}} items', { 0: allItems.length })}</Box>
         )}
