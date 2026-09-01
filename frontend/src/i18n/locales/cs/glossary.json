@@ -103,6 +103,7 @@
   "To": "Do",
   "Reference Grants": "Referenční oprávnění",
   "TCPRoutes": "",
+  "TLS Routes": "",
   "UDPRoutes": "",
   "Horizontal Pod Autoscalers": "Automatické horizontální škálování podů",
   "Ingress Classes": "Třídy příchozího přenosu dat",

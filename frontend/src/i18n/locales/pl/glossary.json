@@ -103,6 +103,7 @@
   "To": "Do",
   "Reference Grants": "Granty referencyjne",
   "TCPRoutes": "",
+  "TLS Routes": "",
   "UDPRoutes": "",
   "Horizontal Pod Autoscalers": "Poziome autoskalery podów",
   "Ingress Classes": "Klasy ruchu przychodzącego",
