@@ -154,17 +154,11 @@ export type KubeObjectIface = any;
 
 export type Time = number | string | null;
 
-// @todo: There are different Condition types, including PodCondition, NodeCondition, etc.
+// @todo: There are different Condition types, including DeploymentCondition, DaemonSetCondition, StatefulSetCondition, JobCondition, GatewayCondition, NamespaceCondition, ServiceCondition, and PodGroupCondition.
 // We should have appropriate types for each of them, because they can be slightly different.
-// eg. DaemonSetCondition does not have lastProbeTime.
-// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#podcondition-v1-core
-// https://kubernetes.io/docs/reference/generated/kubernetes-api/v1.27/#nodecondition-v1-core
-
 export interface KubeCondition {
-  /** Last time we probed the condition. */
-  lastProbeTime: Time;
+  lastProbeTime?: Time;
   lastTransitionTime?: Time;
-  lastUpdateTime?: Time;
   message?: string;
   /** Unique, one-word, CamelCase reason for the condition's last transition. */
   reason?: string;
