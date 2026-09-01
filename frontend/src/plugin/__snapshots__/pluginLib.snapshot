@@ -468,6 +468,7 @@
     "POD_DEBUG": "POD_DEBUG",
     "POD_LOGS": "POD_LOGS",
     "POD_TERMINAL": "POD_TERMINAL",
+    "PVC_EXPAND": "PVC_EXPAND",
     "RESTART": "RESTART",
     "SCALE": "SCALE",
     "VIEW": "VIEW",
