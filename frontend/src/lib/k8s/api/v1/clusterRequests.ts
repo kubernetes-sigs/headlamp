@@ -314,12 +314,12 @@ export function jsonPatch(
   return clusterRequest(url, opts);
 }
 
-export function put(
+export function put<T = KubeObjectInterface>(
   url: string,
-  json: Partial<KubeObjectInterface>,
+  json: Partial<T>,
   autoLogoutOnAuthError = true,
   requestOptions: ClusterRequestParams = {}
-) {
+): Promise<T> {
   const body = JSON.stringify(json);
   const { cluster: clusterName, ...restOptions } = requestOptions;
   const opts = {
@@ -340,4 +340,3 @@ export function remove(url: string, requestOptions: ClusterRequestParams = {}) {
   return clusterRequest(url, opts);
 }
 
-// @todo: apiEndpoint.put has a type of any, which needs improving.
