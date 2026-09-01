@@ -959,6 +959,7 @@
   "Hard": "Hard",
   "Request": "Request",
   "Limit": "Limit",
+  "Object Counts": "",
   "Users": "Users",
   "Handler": "Handler",
   "Pod Group Templates": "파드 그룹 템플릿",
