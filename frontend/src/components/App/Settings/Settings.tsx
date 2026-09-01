@@ -36,6 +36,7 @@ import { setTheme, useAppThemes } from '../themeSlice';
 import DrawerModeSettings from './DrawerModeSettings';
 import { useSettings } from './hook';
 import NumRowsInput from './NumRowsInput';
+import SettingsExportImport from './SettingsExportImport';
 import { ShortcutsList } from './ShortcutsSettings';
 import { ThemePreview } from './ThemePreview';
 
@@ -291,7 +292,7 @@ export default function Settings() {
             </Typography>
           )}
           <Box
-            sx={{
+            sx={theme => ({
               display: 'grid',
               gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))',
               gap: 2,
@@ -302,7 +303,7 @@ export default function Settings() {
               },
               opacity: forceTheme ? 0.5 : 1,
               pointerEvents: forceTheme ? 'none' : 'auto',
-            }}
+            })}
           >
             {appThemes.map(it => (
               <Box
@@ -355,6 +356,7 @@ export default function Settings() {
           <ShortcutsList />
         </SectionBox>
       </Box>
+      <SettingsExportImport />
     </SectionBox>
   );
 }
