@@ -270,9 +270,15 @@ func LoadFromCache(k8scache cache.Cache[string], isAllowed bool,
 			return false, writeErr
 		}
 
+		recordCacheHit(r.Context())
+
 		logger.Log(logger.LevelInfo, nil, nil, "serving from the cache with key "+redactCacheKey(key))
 
 		return true, nil
+	}
+
+	if isAllowed && (err == cache.ErrNotFound || (err == nil && strings.TrimSpace(k8Resource) == "")) {
+		recordCacheMiss(r.Context())
 	}
 
 	return false, nil
