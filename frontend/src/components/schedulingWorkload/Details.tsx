@@ -14,11 +14,13 @@
  * limitations under the License.
  */
 
+import Box from '@mui/material/Box';
 import { useTranslation } from 'react-i18next';
 import { useParams } from 'react-router-dom';
+import { getCompositeDisruptionMode } from '../../lib/k8s/compositePodGroup';
 import { getDisruptionMode, getSchedulingPolicyKind } from '../../lib/k8s/podGroup';
 import type { CompositePodGroupTemplate, PodGroupTemplate } from '../../lib/k8s/schedulingWorkload';
-import Workload, { getCompositeDisruptionMode } from '../../lib/k8s/schedulingWorkload';
+import Workload from '../../lib/k8s/schedulingWorkload';
 import { DetailsGrid } from '../common/Resource';
 import { SectionBox } from '../common/SectionBox';
 import SimpleTable from '../common/SimpleTable';
@@ -75,6 +77,31 @@ function PodGroupTemplatesSection({ templates }: { templates: PodGroupTemplate[]
   );
 }
 
+interface NestedCompositeTemplate {
+  template: CompositePodGroupTemplate;
+  depth: number;
+}
+
+/**
+ * The composite templates of a Workload in the order they nest, depth first.
+ *
+ * A composite template may hold further composite templates, up to the depth the API
+ * allows. They are part of the same Workload, so a table that only listed the outermost
+ * ones would leave most of a hierarchical workload out.
+ * @param templates - The composite templates at the current level.
+ * @param depth - How deep the current level is nested, for indenting the names.
+ * @returns One entry per template, at every level.
+ */
+function flattenCompositeTemplates(
+  templates: CompositePodGroupTemplate[],
+  depth = 0
+): NestedCompositeTemplate[] {
+  return templates.flatMap(template => [
+    { template, depth },
+    ...flattenCompositeTemplates(template.compositePodGroupTemplates ?? [], depth + 1),
+  ]);
+}
+
 /** The composite pod group templates a Workload is made of, when it has any. */
 function CompositePodGroupTemplatesSection({
   templates,
@@ -89,47 +116,51 @@ function CompositePodGroupTemplatesSection({
         columns={[
           {
             label: t('translation|Name'),
-            getter: (template: CompositePodGroupTemplate) => template.name,
+            getter: ({ template, depth }: NestedCompositeTemplate) => (
+              <Box sx={{ paddingLeft: theme => theme.spacing(depth * 2) }}>{template.name}</Box>
+            ),
           },
           {
             label: t('translation|Policy'),
-            getter: (template: CompositePodGroupTemplate) =>
+            getter: ({ template }: NestedCompositeTemplate) =>
               getSchedulingPolicyKind(template.schedulingPolicy) ?? '',
           },
           {
             label: t('translation|Min Group Count'),
-            getter: (template: CompositePodGroupTemplate) =>
+            getter: ({ template }: NestedCompositeTemplate) =>
               template.schedulingPolicy?.gang?.minGroupCount ?? '',
           },
           {
             label: t('translation|Topology Keys'),
-            getter: (template: CompositePodGroupTemplate) =>
+            getter: ({ template }: NestedCompositeTemplate) =>
               template.schedulingConstraints?.topology?.map(item => item.key).join(', ') ?? '',
           },
           {
             label: t('translation|Disruption Mode'),
-            getter: (template: CompositePodGroupTemplate) =>
+            getter: ({ template }: NestedCompositeTemplate) =>
               getCompositeDisruptionMode(template.disruptionMode) ?? '',
           },
           {
             label: t('glossary|Priority Class'),
-            getter: (template: CompositePodGroupTemplate) => template.priorityClassName ?? '',
+            getter: ({ template }: NestedCompositeTemplate) => template.priorityClassName ?? '',
           },
           {
             label: t('glossary|Priority'),
-            getter: (template: CompositePodGroupTemplate) => template.priority ?? '',
+            getter: ({ template }: NestedCompositeTemplate) => template.priority ?? '',
           },
           {
             label: t('translation|Preemption Policy'),
-            getter: (template: CompositePodGroupTemplate) => template.preemptionPolicy ?? '',
+            getter: ({ template }: NestedCompositeTemplate) => template.preemptionPolicy ?? '',
           },
           {
             label: t('translation|Pod Group Templates'),
-            getter: (template: CompositePodGroupTemplate) =>
-              template.podGroupTemplates?.length ?? 0,
+            getter: ({ template }: NestedCompositeTemplate) =>
+              template.podGroupTemplates
+                ?.map(podGroupTemplate => podGroupTemplate.name)
+                .join(', ') ?? '',
           },
         ]}
-        data={templates}
+        data={flattenCompositeTemplates(templates)}
         reflectInURL="compositePodGroupTemplates"
       />
     </SectionBox>

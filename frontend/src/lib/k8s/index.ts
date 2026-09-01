@@ -25,6 +25,7 @@ import { ApiError } from './api/v2/ApiError';
 import { Cluster, LabelSelector, StringDict } from './cluster';
 import ClusterRole from './clusterRole';
 import ClusterRoleBinding from './clusterRoleBinding';
+import CompositePodGroup from './compositePodGroup';
 import ConfigMap from './configMap';
 import ControllerRevision from './controllerRevision';
 import CustomResourceDefinition from './crd';
@@ -87,6 +88,7 @@ export const ResourceClasses = {
   HorizontalPodAutoscaler: HPA,
   PodDisruptionBudget,
   PodGroup,
+  CompositePodGroup,
   PriorityClass,
   Ingress,
   IngressClass,
@@ -370,6 +372,7 @@ export * as node from './node';
 export * as persistentVolume from './persistentVolume';
 export * as persistentVolumeClaim from './persistentVolumeClaim';
 export * as pod from './pod';
+export * as compositePodGroup from './compositePodGroup';
 export * as podGroup from './podGroup';
 export * as schedulingWorkload from './schedulingWorkload';
 export * as replicaSet from './replicaSet';

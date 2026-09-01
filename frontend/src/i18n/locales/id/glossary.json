@@ -207,6 +207,7 @@
   "Pod Disruption Budget": "Anggaran Gangguan Pod",
   "Workload": "",
   "Pod Groups": "",
+  "Composite Pod Groups": "",
   "Port Forwarding": "Penerusan Port",
   "PriorityClass": "PriorityClass",
   "Replica Sets": "Kumpulan Replika",

@@ -839,6 +839,8 @@
   "Min Count": "מספר מינימלי",
   "Pod Group Template Name": "שם תבנית קבוצת Pod",
   "Composite Pod Group": "קבוצת Pod מורכבת",
+  "Parent": "",
+  "Composite Pod Group Template Name": "",
   "Disruption Mode": "מצב שיבוש",
   "Preemption Policy": "Preemption Policy",
   "Topology Keys": "מפתחות טופולוגיה",

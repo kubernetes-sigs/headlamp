@@ -207,6 +207,7 @@
   "Pod Disruption Budget": "Störningsbudget för podd",
   "Workload": "",
   "Pod Groups": "",
+  "Composite Pod Groups": "",
   "Port Forwarding": "Portvidarebefordran",
   "PriorityClass": "PriorityClass",
   "Replica Sets": "Replikuppsättningar",
