@@ -3076,6 +3076,24 @@ func (c *HeadlampConfig) drainNodePods(
 			continue
 		}
 
+		// Skip mirror pods (static pods managed directly by the kubelet).
+		// Deleting them via the API server has no effect — the kubelet
+		// immediately recreates them — but generates spurious errors.
+		if isMirrorPod(pod) {
+			continue
+		}
+
+		// Skip pods that use emptyDir volumes to avoid silent data loss.
+		// kubectl drain also refuses to delete these unless
+		// --delete-emptydir-data is explicitly passed.
+		if hasEmptyDirVolume(pod) {
+			logger.Log(logger.LevelWarn, nil, nil,
+				fmt.Sprintf("node drain: skipping pod %s/%s: uses emptyDir volume",
+					pod.Namespace, pod.Name))
+
+			continue
+		}
+
 		if err := clientset.CoreV1().Pods(pod.Namespace).Delete(ctx,
 			pod.Name, v1.DeleteOptions{GracePeriodSeconds: &gracePeriod}); err != nil &&
 			!apierrors.IsNotFound(err) && !errors.Is(err, context.Canceled) && !errors.Is(err, context.DeadlineExceeded) {
@@ -3106,6 +3124,27 @@ func isDaemonSetPod(pod *corev1.Pod) bool {
 	}
 
 	return controllerRef.Kind == "DaemonSet"
+}
+
+// isMirrorPod reports whether the pod is a mirror pod (a static pod managed
+// directly by the kubelet). Mirror pods carry the annotation
+// kubernetes.io/config.mirror and cannot be deleted via the API server.
+func isMirrorPod(pod *corev1.Pod) bool {
+	_, ok := pod.Annotations["kubernetes.io/config.mirror"]
+	return ok
+}
+
+// hasEmptyDirVolume reports whether any of the pod's volumes use an emptyDir
+// source. Such pods risk data loss when deleted during a drain because
+// emptyDir contents are not persisted beyond the pod's lifetime.
+func hasEmptyDirVolume(pod *corev1.Pod) bool {
+	for _, vol := range pod.Spec.Volumes {
+		if vol.EmptyDir != nil {
+			return true
+		}
+	}
+
+	return false
 }
 
 /*
