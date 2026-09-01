@@ -18,10 +18,13 @@ package plugins_test
 
 import (
 	"context"
+	"fmt"
+	"net/http"
 	"net/http/httptest"
 	"os"
 	"path"
 	"path/filepath"
+	"slices"
 	"testing"
 	"time"
 
@@ -715,7 +718,7 @@ func TestDelete(t *testing.T) {
 			pluginName:    "../outside-plugin",
 			pluginType:    "user",
 			expectErr:     true,
-			errContains:   "not found in user-plugins or development directory",
+			errContains:   "invalid plugin name",
 			mustExist:     outsidePlugin,
 		},
 		{
@@ -796,6 +799,176 @@ func TestDelete(t *testing.T) {
 			default:
 				t.Fatalf("deletedFrom must be set for success cases, got %q", tt.deletedFrom)
 			}
+		})
+	}
+}
+
+func TestDeleteRejectsCatalogSymlinkEscape(t *testing.T) {
+	base := t.TempDir()
+	userDir := filepath.Join(base, "user-plugins")
+	devDir := filepath.Join(base, "plugins")
+	outsideDir := filepath.Join(base, "outside")
+	linkedPlugin := filepath.Join(devDir, "linked-plugin")
+
+	require.NoError(t, os.Mkdir(userDir, 0o750))
+	require.NoError(t, os.Mkdir(devDir, 0o750))
+	require.NoError(t, os.Mkdir(outsideDir, 0o750))
+	require.NoError(t, os.WriteFile(
+		filepath.Join(outsideDir, "package.json"),
+		[]byte(`{"isManagedByHeadlampPlugin":true}`),
+		0o600,
+	))
+
+	if err := os.Symlink(outsideDir, linkedPlugin); err != nil {
+		t.Skipf("symlinks unavailable: %v", err)
+	}
+
+	err := plugins.Delete(userDir, devDir, "linked-plugin", plugins.PluginTypeUser)
+	require.Error(t, err)
+	assert.Equal(t, http.StatusInternalServerError, plugins.DeleteHTTPStatus(err))
+
+	_, err = os.Lstat(linkedPlugin)
+	assert.NoError(t, err)
+	assert.FileExists(t, filepath.Join(outsideDir, "package.json"))
+}
+
+func TestDeleteHTTPStatus(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		wantStatus int
+	}{
+		{name: "nil", err: nil, wantStatus: http.StatusOK},
+		{name: "not found", err: plugins.ErrNotFound, wantStatus: http.StatusNotFound},
+		{
+			name:       "wrapped not found",
+			err:        fmt.Errorf("delete failed: %w", plugins.ErrNotFound),
+			wantStatus: http.StatusNotFound,
+		},
+		{name: "invalid type", err: plugins.ErrInvalidType, wantStatus: http.StatusBadRequest},
+		{
+			name:       "wrapped invalid type",
+			err:        fmt.Errorf("delete failed: %w", plugins.ErrInvalidType),
+			wantStatus: http.StatusBadRequest,
+		},
+		{name: "invalid name", err: plugins.ErrInvalidName, wantStatus: http.StatusBadRequest},
+		{
+			name:       "other error",
+			err:        fmt.Errorf("disk full"),
+			wantStatus: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.wantStatus, plugins.DeleteHTTPStatus(tt.err))
+		})
+	}
+}
+
+type deleteErrorTestCase struct {
+	name          string
+	userPluginDir string
+	devPluginDir  string
+	pluginName    string
+	pluginType    string
+	wantErr       error
+	wantMessage   string
+	wantStatus    int
+}
+
+func deleteErrorTestCases(userDir, devDir string) []deleteErrorTestCase {
+	return slices.Concat([]deleteErrorTestCase{
+		{
+			name:          "user plugin not found",
+			userPluginDir: userDir,
+			devPluginDir:  devDir,
+			pluginName:    "missing",
+			pluginType:    plugins.PluginTypeUser,
+			wantErr:       plugins.ErrNotFound,
+			wantMessage:   "plugin 'missing' not found in user-plugins or development directory",
+			wantStatus:    http.StatusNotFound,
+		},
+		{
+			name:          "development plugin not found",
+			userPluginDir: userDir,
+			devPluginDir:  devDir,
+			pluginName:    "missing",
+			pluginType:    plugins.PluginTypeDevelopment,
+			wantErr:       plugins.ErrNotFound,
+			wantMessage:   "plugin 'missing' not found in development directory",
+			wantStatus:    http.StatusNotFound,
+		},
+		{
+			name:          "plugin not found without type",
+			userPluginDir: userDir,
+			devPluginDir:  devDir,
+			pluginName:    "missing",
+			wantErr:       plugins.ErrNotFound,
+			wantMessage: "plugin 'missing' not found or cannot be deleted " +
+				"(shipped plugins cannot be deleted)",
+			wantStatus: http.StatusNotFound,
+		},
+	}, deleteInputErrorTestCases(userDir, devDir))
+}
+
+func deleteInputErrorTestCases(userDir, devDir string) []deleteErrorTestCase {
+	return []deleteErrorTestCase{
+		{
+			name:        "invalid plugin type",
+			pluginName:  "missing",
+			pluginType:  "invalid",
+			wantErr:     plugins.ErrInvalidType,
+			wantMessage: "invalid plugin type 'invalid': must be 'user' or 'development'",
+			wantStatus:  http.StatusBadRequest,
+		},
+		{
+			name:          "invalid plugin name",
+			userPluginDir: userDir,
+			devPluginDir:  devDir,
+			pluginName:    "../outside",
+			pluginType:    plugins.PluginTypeUser,
+			wantErr:       plugins.ErrInvalidName,
+			wantMessage:   "invalid plugin name",
+			wantStatus:    http.StatusBadRequest,
+		},
+		{
+			name:        "nested plugin name",
+			pluginName:  "nested/plugin",
+			wantErr:     plugins.ErrInvalidName,
+			wantMessage: "invalid plugin name",
+			wantStatus:  http.StatusBadRequest,
+		},
+		{
+			name:        "Windows nested plugin name",
+			pluginName:  `nested\plugin`,
+			wantErr:     plugins.ErrInvalidName,
+			wantMessage: "invalid plugin name",
+			wantStatus:  http.StatusBadRequest,
+		},
+	}
+}
+
+func TestDeleteSentinelErrors(t *testing.T) {
+	base := t.TempDir()
+	userDir := filepath.Join(base, "missing-user-plugins")
+	devDir := filepath.Join(base, "missing-dev-plugins")
+
+	for _, tt := range deleteErrorTestCases(userDir, devDir) {
+		t.Run(tt.name, func(t *testing.T) {
+			err := plugins.Delete(
+				tt.userPluginDir,
+				tt.devPluginDir,
+				tt.pluginName,
+				tt.pluginType,
+			)
+
+			require.Error(t, err)
+			assert.ErrorIs(t, err, tt.wantErr)
+			assert.EqualError(t, err, tt.wantMessage)
+			assert.Equal(t, tt.wantStatus, plugins.DeleteHTTPStatus(err))
 		})
 	}
 }
