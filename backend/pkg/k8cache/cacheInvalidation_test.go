@@ -882,3 +882,48 @@ func TestSyncWatchers(t *testing.T) {
 	assert.True(t, canceled["ctx2"], "ctx2 should be canceled")
 	assert.False(t, canceled["ctx3"], "ctx3 should not be canceled")
 }
+
+func TestHandleNonGETCacheInvalidation_StripsBodyHeaders(t *testing.T) {
+	mockCache := NewMockCache()
+
+	req := httptest.NewRequestWithContext(
+		context.Background(),
+		http.MethodPost,
+		"/api/v1/namespaces/default/pods",
+		nil,
+	)
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Content-Length", "1024")
+	req.Header.Set("Transfer-Encoding", "chunked")
+	req.Header.Set("Content-Encoding", "gzip")
+	req.Header.Set("Authorization", "Bearer test-token")
+
+	var refetchHeaders http.Header
+
+	next := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method == http.MethodGet {
+			refetchHeaders = r.Header.Clone()
+
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(`{"kind":"PodList"}`))
+		} else {
+			w.WriteHeader(http.StatusCreated)
+			_, _ = w.Write([]byte(`{"kind":"Pod"}`))
+		}
+	})
+
+	rec := httptest.NewRecorder()
+	err := k8cache.HandleNonGETCacheInvalidation(mockCache, rec, req, next, "test-context")
+	assert.ErrorIs(t, err, k8cache.ErrHandled)
+
+	assert.Empty(t, refetchHeaders.Get("Content-Length"),
+		"Content-Length should be stripped from GET refetch request")
+	assert.Empty(t, refetchHeaders.Get("Content-Type"),
+		"Content-Type should be stripped from GET refetch request")
+	assert.Empty(t, refetchHeaders.Get("Transfer-Encoding"),
+		"Transfer-Encoding should be stripped from GET refetch request")
+	assert.Empty(t, refetchHeaders.Get("Content-Encoding"),
+		"Content-Encoding should be stripped from GET refetch request")
+	assert.Equal(t, "Bearer test-token", refetchHeaders.Get("Authorization"),
+		"Authorization header should be preserved")
+}
