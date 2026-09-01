@@ -179,10 +179,14 @@ func filterImportantResources(gvrList []schema.GroupVersionResource) []schema.Gr
 	return filtered
 }
 
-// Corrected CheckForChanges.
+type watcherToken struct {
+	cancel context.CancelFunc
+}
+
 var (
 	watcherRegistry sync.Map
 	contextCancel   sync.Map
+	watcherMu       sync.Mutex
 )
 
 // CheckForChanges lets 1 go routine to run for a contextKey which prevents
@@ -191,17 +195,33 @@ var (
 func CheckForChanges(
 	k8scache cache.Cache[string],
 	contextKey string,
-	kContext kubeconfig.Context,
+	kContext *kubeconfig.Context,
+	isActive func() bool,
 ) {
-	if _, loaded := watcherRegistry.LoadOrStore(contextKey, struct{}{}); loaded {
+	if _, loaded := watcherRegistry.Load(contextKey); loaded {
 		return
 	}
 
+	watcherMu.Lock()
+	defer watcherMu.Unlock()
+
+	if _, loaded := watcherRegistry.Load(contextKey); loaded {
+		return
+	}
+
+	if isActive != nil && !isActive() {
+		return
+	}
+
+	token := &watcherToken{}
+
 	ctx, cancel := context.WithCancel(context.Background())
+	token.cancel = cancel
 
-	contextCancel.Store(contextKey, cancel)
+	watcherRegistry.Store(contextKey, token)
+	contextCancel.Store(contextKey, token)
 
-	go runWatcher(ctx, k8scache, contextKey, kContext)
+	go runWatcher(ctx, k8scache, contextKey, *kContext, token)
 }
 
 // SyncWatchers stops watchers for contexts that are no longer active and purges
@@ -215,6 +235,15 @@ func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
 		activeMap[ctx] = true
 	}
 
+	watcherMu.Lock()
+	cleaned := cleanupInactiveWatchers(k8scache, activeMap)
+	watcherMu.Unlock()
+
+	cleanupInactiveCacheContexts(k8scache, activeMap, cleaned)
+}
+
+// cleanupInactiveWatchers cancels and removes watchers for contexts no longer in activeMap.
+func cleanupInactiveWatchers(k8scache cache.Cache[string], activeMap map[string]bool) map[string]struct{} {
 	cleaned := make(map[string]struct{})
 
 	contextCancel.Range(func(key, value interface{}) bool {
@@ -224,12 +253,7 @@ func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
 		}
 
 		if !activeMap[contextKey] {
-			if cancel, ok := value.(context.CancelFunc); ok {
-				logger.Log(logger.LevelInfo, nil, nil, "canceling watcher for removed context: "+redactContextKey(contextKey))
-				cancel()
-				watcherRegistry.Delete(contextKey)
-				contextCancel.Delete(contextKey)
-				cleanupRemovedContext(k8scache, contextKey)
+			if cancelWatcherForContext(contextKey, value, k8scache) {
 				cleaned[contextKey] = struct{}{}
 			}
 		}
@@ -237,6 +261,51 @@ func SyncWatchers(k8scache cache.Cache[string], activeContexts []string) {
 		return true
 	})
 
+	return cleaned
+}
+
+// cancelWatcherForContext cancels and cleans up a watcher for an inactive context.
+func cancelWatcherForContext(contextKey string, value interface{}, k8scache cache.Cache[string]) bool {
+	var (
+		cancel context.CancelFunc
+		token  *watcherToken
+	)
+
+	switch v := value.(type) {
+	case *watcherToken:
+		token = v
+		cancel = v.cancel
+	case context.CancelFunc:
+		cancel = v
+	}
+
+	if cancel != nil {
+		logger.Log(logger.LevelInfo, nil, nil, "canceling watcher for removed context: "+redactContextKey(contextKey))
+
+		cancel()
+
+		if token != nil {
+			watcherRegistry.CompareAndDelete(contextKey, token)
+			contextCancel.CompareAndDelete(contextKey, token)
+		} else {
+			watcherRegistry.Delete(contextKey)
+			contextCancel.Delete(contextKey)
+		}
+
+		cleanupRemovedContext(k8scache, contextKey)
+
+		return true
+	}
+
+	return false
+}
+
+// cleanupInactiveCacheContexts removes cache entries for inactive contexts.
+func cleanupInactiveCacheContexts(
+	k8scache cache.Cache[string],
+	activeMap map[string]bool,
+	cleaned map[string]struct{},
+) {
 	for contextKey := range collectCachedContextKeys(k8scache) {
 		if activeMap[contextKey] {
 			continue
@@ -258,10 +327,13 @@ func runWatcher(
 	k8scache cache.Cache[string],
 	contextKey string,
 	kContext kubeconfig.Context,
+	token *watcherToken,
 ) {
 	defer func() {
-		watcherRegistry.Delete(contextKey)
-		contextCancel.Delete(contextKey)
+		if token != nil {
+			watcherRegistry.CompareAndDelete(contextKey, token)
+			contextCancel.CompareAndDelete(contextKey, token)
+		}
 	}()
 
 	logger.Log(logger.LevelInfo, nil, nil, "running runWatcher for watching k8s resource: "+redactContextKey(contextKey))
