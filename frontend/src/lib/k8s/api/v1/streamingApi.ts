@@ -225,13 +225,16 @@ export function streamResultsForCluster(
         const existing = results[object.metadata.uid];
 
         if (existing) {
-          if (!existing.metadata.resourceVersion || !object.metadata.resourceVersion) {
-            console.error('Missing resourceVersion in object', object);
-            break;
-          }
-          const currentVersion = parseInt(existing.metadata.resourceVersion, 10);
-          const newVersion = parseInt(object.metadata.resourceVersion, 10);
-          if (currentVersion < newVersion) {
+          // resourceVersion is an opaque string, so only skip the update when
+          // both versions are present and equal. Parsing it to a number is
+          // wrong: clients must not assume it is numeric or ordered, and large
+          // values exceed JS safe-integer precision, so two distinct versions
+          // can collapse to the same number and silently drop a genuinely newer
+          // event. When either version is missing we apply the update rather
+          // than drop it.
+          const existingRV = existing.metadata.resourceVersion;
+          const newRV = object.metadata.resourceVersion;
+          if (!existingRV || !newRV || existingRV !== newRV) {
             Object.assign(existing, object);
           }
         } else {
