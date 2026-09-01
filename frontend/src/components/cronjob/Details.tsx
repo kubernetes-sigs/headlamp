@@ -50,8 +50,8 @@ const uniqueString = () => {
 
 const maxNameLength = 63;
 
-function SpawnJobDialog(props: { cronJob: CronJob; onClose: () => void }) {
-  const { cronJob, onClose } = props;
+function SpawnJobDialog(props: { cronJob: CronJob; cluster?: string; onClose: () => void }) {
+  const { cronJob, cluster: clusterProp, onClose } = props;
   const { t } = useTranslation(['translation']);
   const dispatch: AppDispatch = useDispatch();
 
@@ -86,8 +86,17 @@ function SpawnJobDialog(props: { cronJob: CronJob; onClose: () => void }) {
       ];
     }
     onClose();
+    // Resolve the cluster at click time. The callback below does not run until
+    // CLUSTER_ACTION_GRACE_PERIOD has elapsed, and apply() without an explicit
+    // cluster falls back to whichever cluster the URL points at when it finally
+    // runs — so a cluster switch during the undo window, or a details panel
+    // opened from a multi-cluster view, would spawn the Job on another cluster.
+    // The caller's cluster wins over the object's: it is the one the CronJob was
+    // requested from, and stays correct even if the object is later rebuilt
+    // without one.
+    const cluster = clusterProp || cronJob.cluster;
     dispatch(
-      clusterAction(() => apply(job), {
+      clusterAction(() => apply(job, cluster), {
         startMessage: t('translation|Spawning Job {{ newItemName }}…', {
           newItemName: jobName,
         }),
@@ -147,8 +156,11 @@ export default function CronJobDetails(props: {
   const { t, i18n } = useTranslation('glossary');
   const dispatch: AppDispatch = useDispatch();
 
-  const [cronJob] = CronJob.useGet(name, namespace);
-  const { items: jobs, errors } = Job.useList({ namespace, cluster: cronJob?.cluster });
+  const [cronJob] = CronJob.useGet(name, namespace, { cluster });
+  const { items: jobs, errors } = Job.useList({
+    namespace,
+    cluster: cluster || cronJob?.cluster,
+  });
   const [isSpawnDialogOpen, setIsSpawnDialogOpen] = useState(false);
   const [isPendingSuspend, setIsPendingSuspend] = useState(false);
   const isCronSuspended = cronJob?.spec?.suspend ?? false;
@@ -210,7 +222,11 @@ export default function CronJobDetails(props: {
             icon="mdi:lightning-bolt-circle"
           />
           {isSpawnDialogOpen && (
-            <SpawnJobDialog cronJob={cronJob} onClose={() => setIsSpawnDialogOpen(false)} />
+            <SpawnJobDialog
+              cronJob={cronJob}
+              cluster={cluster}
+              onClose={() => setIsSpawnDialogOpen(false)}
+            />
           )}
         </AuthVisible>,
         <AuthVisible authVerb="update" item={cronJob}>
