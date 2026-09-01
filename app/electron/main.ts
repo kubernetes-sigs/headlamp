@@ -818,7 +818,10 @@ async function startServer(flags: string[] = []): Promise<ChildProcessWithoutNul
   const options = {
     detached: true,
     windowsHide: true,
-    env: withBackendMemoryDefaults(extendedEnv),
+    env: {
+      ...withBackendMemoryDefaults(extendedEnv),
+      HEADLAMP_ELECTRON: 'true',
+    },
   };
 
   return spawn(serverFilePath, serverArgs, options);
@@ -847,27 +850,56 @@ async function isWSL(): Promise<boolean> {
 
 let serverProcess: ChildProcessWithoutNullStreams | null;
 let intentionalQuit: boolean;
-let serverProcessQuit: boolean;
+function quitServerProcess(): Promise<void> {
+  return new Promise(resolve => {
+    if (!serverProcess || serverProcess.exitCode !== null || serverProcess.signalCode !== null) {
+      console.error('server process already not running');
+      resolve();
+      return;
+    }
 
-function quitServerProcess() {
-  if ((!serverProcess || serverProcessQuit) && process.platform !== 'win32') {
-    console.error('server process already not running');
-    return;
-  }
+    intentionalQuit = true;
+    console.info('stopping server process...');
 
-  intentionalQuit = true;
-  console.info('stopping server process...');
+    if (!serverProcess) {
+      resolve();
+      return;
+    }
 
-  if (!serverProcess) {
-    return;
-  }
+    serverProcess.stdin.destroy();
 
-  serverProcess.stdin.destroy();
-  // @todo: should we try and end the process a bit more gracefully?
-  //       What happens if the kill signal doesn't kill it?
-  serverProcess.kill();
+    const currentProcess = serverProcess;
+    // On Windows, SIGTERM acts like SIGKILL and terminates abruptly.
+    // Instead, we rely on destroying stdin above to trigger a graceful shutdown.
+    if (process.platform !== 'win32') {
+      currentProcess.kill('SIGTERM');
+    }
 
-  serverProcess = null;
+    let resolved = false;
+    const finish = () => {
+      if (resolved) return;
+      resolved = true;
+      resolve();
+    };
+
+    // Fallback: If the process hasn't exited after 15 seconds, forcefully kill it.
+    const killTimeout = setTimeout(() => {
+      try {
+        currentProcess.kill('SIGKILL');
+        console.info('Server process forcefully stopped.');
+      } catch (e) {
+        // Ignore errors if the process is already gone
+      }
+      finish();
+    }, 15000);
+
+    currentProcess.on('exit', () => {
+      clearTimeout(killTimeout);
+      finish();
+    });
+
+    serverProcess = null;
+  });
 }
 
 function getAcceleratorForPlatform(navigation: 'left' | 'right') {
@@ -1841,7 +1873,21 @@ function startElectron() {
     }
   });
 
-  app.once('before-quit', async () => {
+  let isShutdownComplete = false;
+  let isShutdownInProgress = false;
+
+  app.on('before-quit', async e => {
+    if (isShutdownComplete) {
+      return;
+    }
+
+    e.preventDefault();
+
+    if (isShutdownInProgress) {
+      return;
+    }
+
+    isShutdownInProgress = true;
     isQuitting = true;
     // Persist any zoom change still waiting on the debounced save.
     flushZoomFactorSave();
@@ -1854,17 +1900,30 @@ function startElectron() {
 
     if (mcpClient) {
       try {
-        await mcpClient.cleanup();
+        // Bound the MCP cleanup to 3 seconds to prevent it from hanging the quit process
+        await Promise.race([
+          mcpClient.cleanup(),
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('MCP cleanup timeout')), 3000)
+          ),
+        ]);
         mcpClient = null;
       } catch (err) {
         console.error('Failed to clean up mcpClient:', err);
       }
     }
-  });
-}
 
-if (!isRunningScript) {
-  app.on('quit', quitServerProcess);
+    if (!isRunningScript) {
+      try {
+        await quitServerProcess();
+      } catch (err) {
+        console.error('Failed to quit server process:', err);
+      }
+    }
+
+    isShutdownComplete = true;
+    app.quit();
+  });
 }
 
 /**
@@ -1914,7 +1973,6 @@ function attachServerEventHandlers(serverProcess: ChildProcessWithoutNullStreams
     } else {
       console.info(closeMessage);
     }
-    serverProcessQuit = true;
   });
 }
 
