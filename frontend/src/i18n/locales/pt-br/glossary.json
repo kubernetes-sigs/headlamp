@@ -120,6 +120,8 @@
   "Checking if JobSet is enabled…": "",
   "JobSet is not enabled. <1>Learn More</1>": "",
   "Leader Worker Sets": "",
+  "Checking if LeaderWorkerSet is enabled…": "",
+  "LeaderWorkerSet is not enabled. <1>Learn More</1>": "",
   "Lease": "Lease",
   "LimitRange": "LimitRange",
   "Ingress": "Ingress",
