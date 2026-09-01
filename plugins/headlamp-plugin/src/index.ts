@@ -43,6 +43,7 @@ import Registry, {
   DefaultDetailsViewSection,
   DefaultHeadlampEvents,
   DefaultSidebars,
+  deregisterShortcut,
   DetailsViewDefaultHeaderActions,
   DetailsViewSectionProps,
   getHeadlampAPIHeaders,
@@ -79,13 +80,14 @@ import Registry, {
   registerResourceTableColumnsProcessor,
   registerRoute,
   registerRouteFilter,
+  registerShortcut,
   registerSidebarEntry,
   registerSidebarEntryFilter,
   registerUIPanel,
   runCommand,
 } from './plugin/registry';
 import type { ClusterEmptyStateProps } from './redux/clusterProviderSlice';
-export type { ApiResource } from './plugin/registry';
+export type { ApiResource, ShortcutConfig } from './plugin/registry';
 
 // We export k8s (lowercase) since someone may use it as we do in the Headlamp source code.
 export {
@@ -123,6 +125,8 @@ export {
   registerResourceTableColumnsProcessor,
   registerOverviewChartsProcessor,
   registerPluginSettings,
+  registerShortcut,
+  deregisterShortcut,
   clusterAction,
   runCommand,
   registerAddClusterProvider,
