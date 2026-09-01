@@ -24,7 +24,13 @@ import {
   MockInstance,
   vi,
 } from 'vitest';
-import { apiDiscovery, MAX_SUMMARY_KEYS, type PayloadSummary } from './apiDiscovery';
+import { shouldRetryQuery } from '../../../queryClient';
+import {
+  apiDiscovery,
+  ApiDiscoveryUnavailableError,
+  MAX_SUMMARY_KEYS,
+  type PayloadSummary,
+} from './apiDiscovery';
 import { clusterFetch } from './fetch';
 
 // Reused across tests that need a Response whose body fails to parse as JSON.
@@ -246,8 +252,10 @@ const mockLegacyBatchV1Beta1Resources = {
 
 describe('apiDiscovery', () => {
   beforeEach(() => {
-    // Reset mocks before each test
-    mockClusterFetch.mockClear();
+    // Reset rather than clear: tests below install persistent implementations with
+    // `mockRejectedValue`, and `mockClear` would leave those in place for whichever
+    // test runs next, making the suite order-dependent.
+    mockClusterFetch.mockReset();
   });
 
   it('should return an empty array if cluster list is empty', async () => {
@@ -637,6 +645,175 @@ describe('apiDiscovery', () => {
     expect(sortedResult).toHaveLength(2);
   });
 
+  // A resolved empty array used to mean two different things: the cluster
+  // answered and listed nothing, or nothing answered at all. Consumers render
+  // the first as "no resources" and had no way to tell the second apart, so a
+  // cluster that was never reached looked like a cluster with no APIs.
+  describe('total discovery failure', () => {
+    let debugSpy: MockInstance<Console['debug']>;
+
+    beforeEach(() => {
+      debugSpy = vi.spyOn(console, 'debug').mockImplementation(() => {});
+    });
+
+    afterEach(() => {
+      debugSpy.mockRestore();
+    });
+
+    it('rejects when no discovery source answers for the only cluster', async () => {
+      // Every call rejects, which is what `clusterFetch` does in production for
+      // a non-OK response or a dropped connection.
+      mockClusterFetch
+        .mockRejectedValueOnce(new Error('agg /api'))
+        .mockRejectedValueOnce(new Error('agg /apis'))
+        .mockRejectedValueOnce(new Error('legacy /api'))
+        .mockRejectedValueOnce(new Error('legacy /apis'));
+
+      await expect(apiDiscovery(['cluster1'])).rejects.toThrow(ApiDiscoveryUnavailableError);
+    });
+
+    it('carries the status when every failure agreed on one', async () => {
+      // A user with no discovery access gets 403 from every endpoint. The status has to
+      // reach the thrown error, because retry policies read it to tell a permanent
+      // failure from a transient one.
+      const forbidden = Object.assign(new Error('forbidden'), { status: 403 });
+      mockClusterFetch.mockRejectedValue(forbidden);
+
+      await expect(apiDiscovery(['cluster1'])).rejects.toMatchObject({ status: 403 });
+    });
+
+    it('leaves the status unset when the failures disagreed', async () => {
+      // One endpoint refuses and another is simply unreachable. There is no single
+      // status to report, so the caller should treat the failure as retryable.
+      mockClusterFetch
+        .mockRejectedValueOnce(Object.assign(new Error('forbidden'), { status: 403 }))
+        .mockRejectedValueOnce(Object.assign(new Error('gateway'), { status: 502 }))
+        .mockRejectedValueOnce(Object.assign(new Error('forbidden'), { status: 403 }))
+        .mockRejectedValueOnce(Object.assign(new Error('gateway'), { status: 502 }));
+
+      await expect(apiDiscovery(['cluster1'])).rejects.toMatchObject({ status: undefined });
+    });
+
+    it('leaves the status unset when a failure carried none', async () => {
+      // A dropped connection rejects without a status, so nothing can be concluded
+      // about whether retrying is worthwhile.
+      mockClusterFetch.mockRejectedValue(new Error('network down'));
+
+      await expect(apiDiscovery(['cluster1'])).rejects.toMatchObject({ status: undefined });
+    });
+
+    // The four tests below pin the statuses of the sources the aggregated pair does not
+    // cover. Each one is a failure the caller should retry, and each would be reported as
+    // a terminal 403 if its source contributed nothing to the agreement check.
+    it('leaves the status unset when the legacy failures disagreed', async () => {
+      // Aggregated discovery is forbidden while legacy discovery hits a bad gateway. The
+      // 502 is worth retrying, so the 403 the aggregated pair agreed on must not stand as
+      // the status for the whole failure.
+      mockClusterFetch
+        .mockRejectedValueOnce(Object.assign(new Error('forbidden'), { status: 403 }))
+        .mockRejectedValueOnce(Object.assign(new Error('forbidden'), { status: 403 }))
+        .mockRejectedValueOnce(Object.assign(new Error('gateway'), { status: 502 }))
+        .mockRejectedValueOnce(Object.assign(new Error('gateway'), { status: 502 }));
+
+      await expect(apiDiscovery(['cluster1'])).rejects.toMatchObject({ status: undefined });
+    });
+
+    it('leaves the status unset when a legacy failure carried none', async () => {
+      // The legacy connection drops without a status. Once a statusless failure is in the
+      // mix the 403s no longer speak for every source.
+      mockClusterFetch
+        .mockRejectedValueOnce(Object.assign(new Error('forbidden'), { status: 403 }))
+        .mockRejectedValueOnce(Object.assign(new Error('forbidden'), { status: 403 }))
+        .mockRejectedValueOnce(new Error('legacy /api connection reset'))
+        .mockRejectedValueOnce(new Error('legacy /apis connection reset'));
+
+      await expect(apiDiscovery(['cluster1'])).rejects.toMatchObject({ status: undefined });
+    });
+
+    it('leaves the status unset when an aggregated source replied with something else', async () => {
+      // A 200 carrying anything but an APIGroupDiscoveryList is unusable, and it came back
+      // over a request that succeeded, so it has no status of its own to contribute.
+      mockClusterFetch
+        .mockResolvedValueOnce(mockJsonResponse({ message: 'not a discovery document' }))
+        .mockRejectedValueOnce(Object.assign(new Error('forbidden'), { status: 403 }))
+        .mockRejectedValueOnce(Object.assign(new Error('forbidden'), { status: 403 }))
+        .mockRejectedValueOnce(Object.assign(new Error('forbidden'), { status: 403 }));
+
+      await expect(apiDiscovery(['cluster1'])).rejects.toMatchObject({ status: undefined });
+    });
+
+    it('leaves the status unset when a legacy source replied with something else', async () => {
+      // Same on the legacy side: a parsed body with no `versions` list is not an answer,
+      // and the request behind it succeeded.
+      mockClusterFetch
+        .mockRejectedValueOnce(Object.assign(new Error('forbidden'), { status: 403 }))
+        .mockRejectedValueOnce(Object.assign(new Error('forbidden'), { status: 403 }))
+        .mockResolvedValueOnce(mockJsonResponse({ message: 'not a discovery document' }))
+        .mockRejectedValueOnce(Object.assign(new Error('forbidden'), { status: 403 }));
+
+      await expect(apiDiscovery(['cluster1'])).rejects.toMatchObject({ status: undefined });
+    });
+    it('names the clusters it could not reach', async () => {
+      mockClusterFetch.mockRejectedValue(new Error('unreachable'));
+
+      await expect(apiDiscovery(['cluster1', 'cluster2'])).rejects.toThrow(/cluster1, cluster2/);
+    });
+
+    it('resolves empty when the cluster answers and lists nothing', async () => {
+      // The aggregated endpoints are unavailable but legacy discovery replies,
+      // reporting no core versions and no groups. That is an answer, so it must
+      // stay a resolved empty list rather than becoming an error.
+      mockClusterFetch
+        .mockRejectedValueOnce(new Error('agg /api'))
+        .mockRejectedValueOnce(new Error('agg /apis'))
+        .mockResolvedValueOnce(mockJsonResponse({ versions: [] }))
+        .mockResolvedValueOnce(mockJsonResponse({ groups: [] }));
+
+      await expect(apiDiscovery(['cluster1'])).resolves.toEqual([]);
+    });
+
+    it('returns what it has when one cluster of several fails outright', async () => {
+      mockClusterFetch
+        // cluster1: nothing answers
+        .mockRejectedValueOnce(new Error('agg /api'))
+        .mockRejectedValueOnce(new Error('agg /apis'))
+        .mockRejectedValueOnce(new Error('legacy /api'))
+        .mockRejectedValueOnce(new Error('legacy /apis'))
+        // cluster2: aggregated discovery works
+        .mockResolvedValueOnce(mockJsonResponse(mockAggregatedApi))
+        .mockResolvedValueOnce(mockJsonResponse(mockAggregatedApis));
+
+      const result = await apiDiscovery(['cluster1', 'cluster2']);
+
+      expect(result.length).toBeGreaterThan(0);
+    });
+
+    it('keeps what one source collected when the other one throws while processing', async () => {
+      // `/apis` carries an `items` array, so the cluster answered, but a nested
+      // `resources` that is not an array makes the processor throw. The resources
+      // `/api` already contributed have to survive that, and the failed legacy
+      // fallback must not turn an answered cluster into a total failure.
+      mockClusterFetch
+        .mockResolvedValueOnce(mockJsonResponse(mockAggregatedApi))
+        .mockResolvedValueOnce(
+          mockJsonResponse({
+            items: [
+              {
+                metadata: { name: 'apps' },
+                versions: [{ version: 'v1', resources: 'not-an-array' }],
+              },
+            ],
+          })
+        )
+        .mockRejectedValueOnce(new Error('legacy /api down'))
+        .mockRejectedValueOnce(new Error('legacy /apis down'));
+
+      const result = await apiDiscovery(['cluster1']);
+
+      expect(result.map(resource => resource.pluralName)).toContain('pods');
+    });
+  });
+
   // #4840: critical network and parsing failures used to be swallowed without
   // logging, making "missing resources in the UI" extremely hard to debug.
   // These tests pin the discovery path to its debug logging contract.
@@ -923,5 +1100,28 @@ describe('apiDiscovery', () => {
       expect(booleanSummaries.length).toBeGreaterThan(0);
       expect(booleanSummaries[0].value).toBe(false);
     });
+  });
+});
+
+// The status exists so the shared client policy can tell a permanent discovery
+// failure from a transient one. These pin that wiring, so a change to either side
+// fails here rather than silently restoring the three pointless retries.
+describe('ApiDiscoveryUnavailableError and the shared retry policy', () => {
+  it('does not retry a failure every source reported as 403', () => {
+    expect(shouldRetryQuery(0, new ApiDiscoveryUnavailableError(['cluster1'], 403))).toBe(false);
+  });
+
+  it('retries a failure whose sources disagreed', () => {
+    expect(shouldRetryQuery(0, new ApiDiscoveryUnavailableError(['cluster1'], undefined))).toBe(
+      true
+    );
+  });
+
+  it('retries a 502, which is transient', () => {
+    expect(shouldRetryQuery(0, new ApiDiscoveryUnavailableError(['cluster1'], 502))).toBe(true);
+  });
+
+  it('gives up on a retryable failure once the attempts run out', () => {
+    expect(shouldRetryQuery(3, new ApiDiscoveryUnavailableError(['cluster1'], 502))).toBe(false);
   });
 });
