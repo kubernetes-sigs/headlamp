@@ -4,6 +4,7 @@
   "Cluster selector": "Pemilih kluster",
   "Namespace": "Namespace",
   "Git Commit": "Git Commit",
+  "Audit Logs": "",
   "Memory": "Memori",
   "CPU": "CPU",
   "Pods": "Pod",
