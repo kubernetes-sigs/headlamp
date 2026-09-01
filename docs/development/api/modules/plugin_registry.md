@@ -24,6 +24,7 @@
 - [EditResourceEvent](../interfaces/plugin_registry.EditResourceEvent.md)
 - [ErrorBoundaryEvent](../interfaces/plugin_registry.ErrorBoundaryEvent.md)
 - [EventListEvent](../interfaces/plugin_registry.EventListEvent.md)
+- [ExpandResourceEvent](../interfaces/plugin_registry.ExpandResourceEvent.md)
 - [HeadlampEvent](../interfaces/plugin_registry.HeadlampEvent.md)
 - [LogsEvent](../interfaces/plugin_registry.LogsEvent.md)
 - [PluginLoadingErrorEvent](../interfaces/plugin_registry.PluginLoadingErrorEvent.md)

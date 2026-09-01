@@ -437,6 +437,7 @@
     "DETAILS_VIEW": "headlamp.details-view",
     "EDIT_RESOURCE": "headlamp.edit-resource",
     "ERROR_BOUNDARY": "headlamp.error-boundary",
+    "EXPAND_RESOURCE": "headlamp.expand-resource",
     "LIST_VIEW": "headlamp.list-view",
     "LOGS": "headlamp.logs",
     "OBJECT_EVENTS": "headlamp.object-events",
