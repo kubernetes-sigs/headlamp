@@ -423,6 +423,7 @@
   "Are you sure?": "Yakin?",
   "This will discard your changes in the editor. Do you want to proceed?": "Tindakan ini akan membuang perubahan Anda di editor. Ingin melanjutkan?",
   "Undo Changes": "Batalkan Perubahan",
+  "You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?": "",
   "Dry Run": "",
   "Invalid Secret Reference": "Referensi Rahasia Tidak Valid",
   "Invalid Config Map Reference": "Referensi Peta Konfigurasi Tidak Valid",

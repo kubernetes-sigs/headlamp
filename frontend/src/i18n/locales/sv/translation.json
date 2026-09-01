@@ -425,6 +425,7 @@
   "Are you sure?": "Är du säker?",
   "This will discard your changes in the editor. Do you want to proceed?": "Det här raderar dina ändringar i redigeraren. Vill du fortsätta?",
   "Undo Changes": "Ångra ändringar",
+  "You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?": "",
   "Dry Run": "",
   "Invalid Secret Reference": "Ogiltig lösenordsreferens",
   "Invalid Config Map Reference": "Ogiltig referens till konfigurationsöversikt",

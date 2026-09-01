@@ -423,6 +423,7 @@
   "Are you sure?": "확실합니까?",
   "This will discard your changes in the editor. Do you want to proceed?": "편집기의 변경 사항이 삭제됩니다. 계속하시겠습니까?",
   "Undo Changes": "변경 사항 취소",
+  "You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?": "",
   "Dry Run": "",
   "Invalid Secret Reference": "",
   "Invalid Config Map Reference": "",

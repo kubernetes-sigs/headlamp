@@ -429,6 +429,7 @@
   "Are you sure?": "Jste si jistí?",
   "This will discard your changes in the editor. Do you want to proceed?": "Tím se zahodí vaše změny v editoru. Chcete pokračovat?",
   "Undo Changes": "Vrátit změny",
+  "You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?": "",
   "Dry Run": "",
   "Invalid Secret Reference": "Neplatný odkaz na tajný kód",
   "Invalid Config Map Reference": "Neplatný odkaz na konfigurační mapu",

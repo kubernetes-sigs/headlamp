@@ -425,6 +425,7 @@
   "Are you sure?": "তুমি কি নিশ্চিত?",
   "This will discard your changes in the editor. Do you want to proceed?": "এটি Editorটিতে আপনার পরিবর্তনগুলি বাতিল করবে। ",
   "Undo Changes": "পরিবর্তনগুলি পূর্বাবস্থায় ফিরিয়ে দেয়",
+  "You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?": "",
   "Dry Run": "ড্রাই রান",
   "Invalid Secret Reference": "অবৈধ Secret রেফারেন্স",
   "Invalid Config Map Reference": "অবৈধ Config Map রেফারেন্স",

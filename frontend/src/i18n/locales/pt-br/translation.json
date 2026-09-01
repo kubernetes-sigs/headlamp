@@ -427,6 +427,7 @@
   "Are you sure?": "Tem a certeza?",
   "This will discard your changes in the editor. Do you want to proceed?": "Irá descartar as suas modificações no editor. Deseja prosseguir?",
   "Undo Changes": "Desfazer modificações",
+  "You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?": "",
   "Dry Run": "",
   "Invalid Secret Reference": "Referência de Segredo Inválida",
   "Invalid Config Map Reference": "Referência de Mapa de Configuração Inválida",

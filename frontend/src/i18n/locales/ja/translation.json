@@ -423,6 +423,7 @@
   "Are you sure?": "よろしいですか？",
   "This will discard your changes in the editor. Do you want to proceed?": "エディターでの変更が破棄されます。続行しますか？",
   "Undo Changes": "変更を元に戻す",
+  "You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?": "",
   "Dry Run": "",
   "Invalid Secret Reference": "",
   "Invalid Config Map Reference": "",

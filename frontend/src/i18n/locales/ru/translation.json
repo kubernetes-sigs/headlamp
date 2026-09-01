@@ -429,6 +429,7 @@
   "Are you sure?": "Вы уверены?",
   "This will discard your changes in the editor. Do you want to proceed?": "Это приведёт к отмене ваших изменений в редакторе. Хотите продолжить?",
   "Undo Changes": "Отменить изменения",
+  "You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?": "",
   "Dry Run": "Пробный запуск",
   "Invalid Secret Reference": "Неверная секретная ссылка",
   "Invalid Config Map Reference": "Неверная ссылка на карту конфигурации",

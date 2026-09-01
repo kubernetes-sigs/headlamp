@@ -425,6 +425,7 @@
   "Are you sure?": "",
   "This will discard your changes in the editor. Do you want to proceed?": "",
   "Undo Changes": "",
+  "You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?": "",
   "Dry Run": "",
   "Invalid Secret Reference": "",
   "Invalid Config Map Reference": "",

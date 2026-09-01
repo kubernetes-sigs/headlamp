@@ -425,6 +425,7 @@
   "Are you sure?": "Emin misiniz?",
   "This will discard your changes in the editor. Do you want to proceed?": "Bu işlem düzenleyicideki değişikliklerinizi atar. Devam etmek istiyor musunuz?",
   "Undo Changes": "Değişiklikleri Geri Al",
+  "You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?": "",
   "Dry Run": "",
   "Invalid Secret Reference": "Geçersiz Gizli Dizi Başvurusu",
   "Invalid Config Map Reference": "Geçersiz Yapılandırma Eşlemesi Başvurusu",

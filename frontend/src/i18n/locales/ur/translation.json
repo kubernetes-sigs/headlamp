@@ -425,6 +425,7 @@
   "Are you sure?": "کیا آپ کو یقین ہے؟",
   "This will discard your changes in the editor. Do you want to proceed?": "اس سے ایڈیٹر میں کی گئی تبدیلیاں ختم ہو جائیں گی، کیا آپ آگے بڑھنا چاہتے ہیں؟",
   "Undo Changes": "تبدیلیاں واپس کریں",
+  "You have unsaved changes in the editor. Closing will discard them. Do you want to proceed?": "",
   "Dry Run": "ڈرائی رن",
   "Invalid Secret Reference": "غلط سیکرٹ ریفرنس",
   "Invalid Config Map Reference": "غلط کنفیگ میپ ریفرنس",
