@@ -47,6 +47,18 @@ describe('parseRam', () => {
     expect(parseRam('1e6')).toBe(1000000);
   });
 
+  it('should parse the lowercase decimal kilo suffix', () => {
+    expect(parseRam('1k')).toBe(1000);
+    expect(parseRam('64k')).toBe(64000);
+    expect(parseRam('1.5k')).toBe(1500);
+  });
+
+  it('should not treat the lowercase ki as a binary suffix', () => {
+    // Kubernetes binary suffixes are Ki, Mi, Gi and so on. There is no
+    // lowercase ki, so it must not be read as 1024.
+    expect(parseRam('1ki')).toBe(1);
+  });
+
   it('should parse decimal values with binary units', () => {
     expect(parseRam('1.5Ki')).toBe(1.5 * 1024);
     expect(parseRam('1.5Mi')).toBe(1.5 * 1024 * 1024);
@@ -58,6 +70,17 @@ describe('parseRam', () => {
     expect(parseRam('1.5K')).toBe(1500);
     expect(parseRam('2.5M')).toBe(2500000);
     expect(parseRam('0.5G')).toBe(500000000);
+  });
+
+  it('should parse the lowercase k suffix as kilo', () => {
+    // Kubernetes spells kilo with a lowercase k: 1000 = 1k, 1024 = 1Ki.
+    expect(parseRam('1k')).toBe(1000);
+    expect(parseRam('500k')).toBe(500000);
+    expect(parseRam('1.5k')).toBe(1500);
+    // The uppercase form is not valid Kubernetes, but stays accepted.
+    expect(parseRam('1K')).toBe(1000);
+    // Still distinct from the binary suffix.
+    expect(parseRam('1Ki')).toBe(1024);
   });
 
   it('should scale binary units by powers of 1024', () => {
