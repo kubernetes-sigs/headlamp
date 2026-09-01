@@ -1918,7 +1918,7 @@ func (c *HeadlampConfig) handleError(w http.ResponseWriter, ctx context.Context,
 	http.Error(w, err.Error(), status)
 }
 
-func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
+func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen,gocognit
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		ctx := r.Context()
@@ -1981,6 +1981,7 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 		// Process WebSocket protocol headers if present
 		processWebSocketProtocolHeader(r)
 
+		//nolint:nestif
 		if c.shouldUseUnsafeServiceAccountTokenForContext(kContext) {
 			clearRequestAuthorization(r)
 		} else {
@@ -1994,7 +1995,57 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 				token, _ = auth.GetTokenFromCookie(r, mux.Vars(r)["clusterName"])
 			}
 
+			if token == "" {
+				authHeader := r.Header.Get("Authorization")
+				if strings.HasPrefix(authHeader, "Bearer ") {
+					token = strings.TrimPrefix(authHeader, "Bearer ")
+				}
+			}
+
 			if token != "" {
+				if c.OidcStsEnabled {
+					stsOpts := auth.STSOptions{
+						Enabled:          c.OidcStsEnabled,
+						IssuerURL:        c.OidcStsIssuerURL,
+						ClientID:         c.OidcStsClientID,
+						ClientSecret:     c.OidcStsClientSecret,
+						SubjectTokenType: c.OidcStsSubjectTokenType,
+						AudienceMap:      auth.ParseAudienceMap(c.OidcStsAudienceMap),
+					}
+					if stsOpts.IssuerURL == "" {
+						stsOpts.IssuerURL = c.OidcIdpIssuerURL
+					}
+
+					if stsOpts.ClientID == "" {
+						stsOpts.ClientID = c.OidcClientID
+					}
+
+					if stsOpts.ClientSecret == "" && c.OidcStsClientID == "" {
+						stsOpts.ClientSecret = c.OidcClientSecret
+					}
+
+					ctxWithTLS := auth.ConfigureTLSContext(ctx, &c.OidcSkipTLSVerify, &c.OidcCACert)
+
+					exchangedToken, err := auth.ExchangeTokenForCluster(ctxWithTLS, stsOpts, token, mux.Vars(r)["clusterName"])
+					if err != nil {
+						logger.Log(logger.LevelError, map[string]string{
+							"cluster": mux.Vars(r)["clusterName"],
+						}, err, "STS token exchange failed")
+						c.TelemetryHandler.RecordError(span, err, "STS token exchange failed")
+						statusCode := auth.GetSTSErrorStatusCode(err)
+						c.handleError(
+							w, ctx, span,
+							errors.New("STS token exchange failed"),
+							"STS token exchange failed",
+							statusCode,
+						)
+
+						return
+					}
+
+					token = exchangedToken
+				}
+
 				r.Header.Set("Authorization", fmt.Sprintf("Bearer %s", token))
 			}
 		}
