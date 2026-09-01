@@ -68,33 +68,23 @@
           class="MuiDialogContent-root MuiDialogContent-dividers css-1t4vnk2-MuiDialogContent-root"
         >
           <div
-            class="MuiBox-root css-wicc6q"
+            class="MuiBox-root css-10e9614"
           >
             <h1>
               Release Notes
             </h1>
-            
-
             <h2>
               Hello
             </h2>
-            
-
             <h3>
               Sub-heading
             </h3>
-            
-
             <p>
               world
             </p>
-            
-
             <h2>
               Changes
             </h2>
-            
-
             <table>
               <thead>
                 <tr>
@@ -145,26 +135,18 @@
                 </tr>
               </tbody>
             </table>
-            
-
             <h2>
               Screenshot
             </h2>
-            
-
-            <p>
-              <img
-                alt="Example release screenshot"
-                src="https://github.com/user-attachments/assets/674137f5-99db-4d7f-ab50-d91b19202704"
-              />
-            </p>
-            
-
+            <img
+              alt="Example release screenshot"
+              height="352"
+              src="https://github.com/user-attachments/assets/674137f5-99db-4d7f-ab50-d91b19202704"
+              width="800"
+            />
             <h2>
               Code Example
             </h2>
-            
-
             <pre>
               <code
                 class="language-yaml"
@@ -174,8 +156,6 @@ kind: Pod
 
               </code>
             </pre>
-            
-
             <blockquote>
               
 
