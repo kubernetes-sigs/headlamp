@@ -350,9 +350,30 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
 
     // If the request itself has no namespaces set, we check whether to apply the
     // allowed namespaces.
+    let restrictedToNoNamespaces = false;
     if (namespaces.length === 0 && this.isNamespaced) {
-      namespaces = getAllowedNamespaces();
+      const restrictionCluster = cluster ?? getCluster();
+      namespaces = getAllowedNamespaces(restrictionCluster);
+
+      // An active allowed-namespaces restriction that currently resolves to no
+      // namespaces must fail closed: issue no request rather than falling back to an
+      // unrestricted cluster-wide list. This mirrors makeListRequests (see #7361, #7382).
+      // The restriction is checked against the same cluster used for the list request.
+      restrictedToNoNamespaces =
+        namespaces.length === 0 && hasAllowedNamespacesRestriction(restrictionCluster ?? '');
     }
+
+    // When restricted to zero namespaces, clear any accumulated state and notify
+    // the consumer with an empty list so stale objects are not left visible.
+    // eslint-disable-next-line react-hooks/rules-of-hooks
+    React.useEffect(() => {
+      if (restrictedToNoNamespaces) {
+        setObjs({});
+        listCallback([]);
+      }
+      // listCallback intentionally omitted: it's a new function reference every render.
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [restrictedToNoNamespaces]);
 
     if (namespaces.length > 0) {
       // If we have a namespace set, then we have to make an API call for each
@@ -366,7 +387,7 @@ export class KubeObject<T extends KubeObjectInterface | KubeEvent = any> {
           })
         );
       }
-    } else {
+    } else if (!restrictedToNoNamespaces) {
       // If we don't have a namespace set, then we only have one API call
       // response to set and we return it right away.
       listCalls.push(this.apiList(listCallback, onError, { queryParams, cluster }));
