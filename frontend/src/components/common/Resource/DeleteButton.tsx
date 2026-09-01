@@ -36,6 +36,7 @@ import {
   HeadlampEventType,
   useEventCallback,
 } from '../../../redux/headlampEventSlice';
+import { addOptimisticUpdate, removeOptimisticUpdate } from '../../../redux/optimisticUpdatesSlice';
 import { AppDispatch } from '../../../redux/stores/store';
 import { useSettings } from '../../App/Settings/hook';
 import ActionButton, { ButtonStyle } from '../ActionButton';
@@ -93,6 +94,16 @@ export default function DeleteButton(props: DeleteButtonProps) {
       }
 
       const itemName = item!.metadata.name;
+      const uid = item.metadata.uid;
+
+      if (uid) {
+        dispatch(
+          addOptimisticUpdate({
+            uid,
+            action: 'delete',
+          })
+        );
+      }
 
       callback &&
         dispatch(
@@ -113,9 +124,16 @@ export default function DeleteButton(props: DeleteButtonProps) {
             cancelUrl: location.pathname,
             startUrl: item!.getListLink(),
             errorUrl: item!.getListLink(),
+            cancelCallback: () => {
+              if (uid) dispatch(removeOptimisticUpdate(uid));
+            },
             ...options,
           })
-        );
+        ).finally(() => {
+          if (uid) {
+            setTimeout(() => dispatch(removeOptimisticUpdate(uid)), 2000);
+          }
+        });
     },
     // eslint-disable-next-line
     [item, forceDelete, action]

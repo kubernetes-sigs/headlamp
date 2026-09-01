@@ -464,12 +464,16 @@
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                   >
-                    <a
-                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                      href="/"
+                    <div
+                      class="MuiBox-root css-1rp7amx"
                     >
-                      vwc-test-0
-                    </a>
+                      <a
+                        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                        href="/"
+                      >
+                        vwc-test-0
+                      </a>
+                    </div>
                   </td>
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1wdlxm7-MuiTableCell-root"
@@ -540,12 +544,16 @@
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                   >
-                    <a
-                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                      href="/"
+                    <div
+                      class="MuiBox-root css-1rp7amx"
                     >
-                      vwc-test-1
-                    </a>
+                      <a
+                        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                        href="/"
+                      >
+                        vwc-test-1
+                      </a>
+                    </div>
                   </td>
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1wdlxm7-MuiTableCell-root"
@@ -616,12 +624,16 @@
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                   >
-                    <a
-                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                      href="/"
+                    <div
+                      class="MuiBox-root css-1rp7amx"
                     >
-                      vwc-test-2
-                    </a>
+                      <a
+                        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                        href="/"
+                      >
+                        vwc-test-2
+                      </a>
+                    </div>
                   </td>
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1wdlxm7-MuiTableCell-root"
@@ -692,12 +704,16 @@
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                   >
-                    <a
-                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                      href="/"
+                    <div
+                      class="MuiBox-root css-1rp7amx"
                     >
-                      vwc-test-with-service-0
-                    </a>
+                      <a
+                        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                        href="/"
+                      >
+                        vwc-test-with-service-0
+                      </a>
+                    </div>
                   </td>
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1wdlxm7-MuiTableCell-root"
@@ -768,12 +784,16 @@
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                   >
-                    <a
-                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                      href="/"
+                    <div
+                      class="MuiBox-root css-1rp7amx"
                     >
-                      vwc-test-with-service-1
-                    </a>
+                      <a
+                        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                        href="/"
+                      >
+                        vwc-test-with-service-1
+                      </a>
+                    </div>
                   </td>
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1wdlxm7-MuiTableCell-root"
@@ -844,12 +864,16 @@
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1adoll5-MuiTableCell-root"
                   >
-                    <a
-                      class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
-                      href="/"
+                    <div
+                      class="MuiBox-root css-1rp7amx"
                     >
-                      vwc-test-with-service-2
-                    </a>
+                      <a
+                        class="MuiTypography-root MuiTypography-inherit MuiLink-root MuiLink-underlineHover css-2ugbm1-MuiTypography-root-MuiLink-root"
+                        href="/"
+                      >
+                        vwc-test-with-service-2
+                      </a>
+                    </div>
                   </td>
                   <td
                     class="MuiTableCell-root MuiTableCell-alignLeft MuiTableCell-sizeMedium css-1wdlxm7-MuiTableCell-root"

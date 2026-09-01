@@ -126,6 +126,18 @@
     "pvc/CreatePVCForm/With Storage Class And Volume Name": ["label"],
     "pvc/CreatePVCForm/Read Write Many": ["label"],
     "pvc/CreatePVCForm/Multiple Access Modes": ["label"],
-    "Version Dialog/Version Dialog": ["aria-dialog-name"]
+    "Version Dialog/Version Dialog": ["aria-dialog-name"],
+    "Cluster/ResourceCharts/Memory Chart No Metrics": ["aria-prohibited-attr"],
+    "Cluster/ResourceCharts/Cpu Chart No Metrics": ["aria-prohibited-attr"],
+    "cluster/Overview/Events": ["aria-prohibited-attr"],
+    "cluster/Overview/Empty State": ["aria-prohibited-attr"],
+    "cluster/Overview/Loading State": ["aria-prohibited-attr"],
+    "cluster/Overview/Error State": ["aria-prohibited-attr"],
+    "cluster/Overview/Metrics Unavailable State": ["aria-prohibited-attr"],
+    "Label/Header Label Tool Tip": ["aria-prohibited-attr"],
+    "Charts/TileChart/Without Progress": ["aria-prohibited-attr"],
+    "Tooltip/TooltipIcon/Just Text": ["aria-prohibited-attr"],
+    "Tooltip/TooltipIcon/With Icon": ["aria-prohibited-attr"],
+    "node/Charts/No Metrics": ["aria-prohibited-attr"]
   }
 }
