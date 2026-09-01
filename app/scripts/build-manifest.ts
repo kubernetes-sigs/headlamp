@@ -18,6 +18,7 @@ import crypto from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parseRunCommandGrants, type RunCommandGrant } from '../electron/runCommandPolicy.ts';
 
 type ManifestEnvironment = {
   [key: string]: string | undefined;
@@ -28,14 +29,20 @@ export type BuildManifest = {
   /** URL glob patterns the packaged backend may proxy. */
   'proxy-urls'?: string[];
 
+  /** Reusable command grant arrays referenced by command policies. */
+  commandSets?: Record<string, RunCommandGrant[]>;
+
   /** Plugin declarations consumed by the app packaging scripts. */
-  plugins?: Array<Record<string, unknown>>;
+  plugins?: BuildPlugin[];
 
   /** Product identity fields consumed by Electron Builder. */
   product?: Record<string, unknown>;
 
   /** Common and per-platform resources copied into desktop packages. */
   resources?: Record<string, unknown>;
+
+  /** Product-owned local command policy selected for the current runtime. */
+  runCommands?: ProductPluginRunCommands[];
 
   /** Per-platform package targets consumed by Electron Builder. */
   targets?: Record<string, unknown>;
@@ -45,6 +52,74 @@ export type BuildManifest = {
 
   [key: string]: unknown;
 };
+
+/** A shipped plugin declaration owned by the product build manifest. */
+export type BuildPlugin = Record<string, unknown> & {
+  /** Bundle directory name used by plugin discovery. */
+  name?: string;
+  /** Package identity expected inside the shipped bundle. */
+  packageName?: string;
+};
+
+/** A native executable intentionally supplied by selected plugin bundles. */
+export interface ProductPluginExecutable {
+  /** Command identifier whose grants use the plugin-owned executable. */
+  tool: string;
+}
+
+/** Product command grants for one exact plugin origin and runtime environment. */
+export interface ProductPluginRunCommands {
+  /** Runtime in which this policy applies. */
+  environment: 'development' | 'production';
+  /** Inventory containing the plugin bundle. */
+  pluginLocation: 'development' | 'user' | 'shipped';
+  /** Exact bundle and package identities sharing these grants. */
+  plugins: Array<{
+    /** Bundle directory name reported by plugin discovery. */
+    bundleName: string;
+    /** Package identity read from the plugin bundle. */
+    packageName: string;
+    /** Artifact Hub repository and package names for a managed installation. */
+    artifactHubPackage?: string;
+    /** Optional immutable Artifact Hub package identifier expected for managed installations. */
+    artifactHubPackageId?: string;
+    /** Optional immutable Artifact Hub repository identifier expected for managed installations. */
+    artifactHubRepositoryId?: string;
+  }>;
+  /** Executables intentionally supplied by the selected plugin bundles. */
+  pluginExecutables?: ProductPluginExecutable[];
+  /** Local command grants enforced by the Electron main process. */
+  commands?: RunCommandGrant[];
+  /** Named command grant sets from the product manifest, combined in order. */
+  commandSets?: string[];
+}
+
+/** Validated command policy for one plugin identity and inventory. */
+export interface ProductPluginCommandPolicy {
+  /** Bundle directory name from the product manifest. */
+  bundleName: string;
+  /** Expected package name from the product manifest. */
+  packageName: string;
+  /** Inventory containing the authorized plugin. */
+  source: 'development' | 'user' | 'shipped';
+  /** App-owned installation provenance required for managed plugin inventories. */
+  artifactHub?: {
+    /** Artifact Hub repository name recorded by the installer. */
+    repository: string;
+    /** Artifact Hub package name within the repository. */
+    package: string;
+    /** Immutable Artifact Hub package identifier required by the product policy. */
+    packageId?: string;
+    /** Immutable Artifact Hub repository identifier required by the product policy. */
+    repositoryId?: string;
+  };
+  /** Reviewed command grants for the plugin. */
+  grants: RunCommandGrant[];
+}
+
+const COMMAND_POLICY_DOCS_FILE = 'docs/development/plugins/command-capabilities.md';
+const COMMAND_POLICY_DOCS_URL =
+  'https://headlamp.dev/docs/latest/development/plugins/command-capabilities/#product-manifest-policy';
 
 /** An Electron Builder target with an explicit architecture selection. */
 type BuildTargetDescriptor = {
@@ -104,7 +179,8 @@ function normalizeExtraResources(resources: unknown): unknown[] {
   return Array.isArray(resources) ? resources : [resources];
 }
 
-const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
+const scriptDirectory =
+  typeof __dirname === 'string' ? __dirname : path.dirname(fileURLToPath(import.meta.url));
 
 export const DEFAULT_MANIFEST_FILE = path.join(scriptDirectory, '../app-build-manifest.json');
 
@@ -297,10 +373,287 @@ export function validateBuildManifest(value: unknown): BuildManifest {
     }
   }
 
-  if (manifest.plugins !== undefined && !Array.isArray(manifest.plugins)) {
-    throw new Error('Build manifest plugins must be an array');
+  if (manifest.plugins !== undefined) {
+    if (!Array.isArray(manifest.plugins)) {
+      throw new Error('Build manifest plugins must be an array');
+    }
   }
+  productPluginCommandPolicies(manifest, 'development');
+  productPluginCommandPolicies(manifest, 'production');
+  warnAboutArtifactHubUuidPins(manifest);
   return manifest;
+}
+
+function warnAboutArtifactHubUuidPins(manifest: BuildManifest): void {
+  for (const [policyIndex, policy] of (manifest.runCommands ?? []).entries()) {
+    const recommendsUuidPins =
+      policy.environment === 'production' && policy.pluginLocation === 'user';
+
+    for (const [pluginIndex, plugin] of policy.plugins.entries()) {
+      const location = `runCommands[${policyIndex}].plugins[${pluginIndex}]`;
+      const hasUuidPins = plugin.artifactHubPackageId !== undefined;
+
+      if (recommendsUuidPins && !hasUuidPins) {
+        console.warn(
+          `Build manifest warning: ${location} should pin artifactHubPackageId and ` +
+            `artifactHubRepositoryId. Request ` +
+            `https://artifacthub.io/api/v1/packages/headlamp/${plugin.artifactHubPackage}, ` +
+            `then copy package_id to artifactHubPackageId and repository.repository_id to ` +
+            `artifactHubRepositoryId. See ${COMMAND_POLICY_DOCS_FILE} or ${COMMAND_POLICY_DOCS_URL}`
+        );
+      } else if (!recommendsUuidPins && hasUuidPins) {
+        console.warn(
+          `Build manifest warning: ${location} should omit artifactHubPackageId and ` +
+            `artifactHubRepositoryId because UUID pins apply only to production policies for ` +
+            `plugin-manager-installed user plugins. See ${COMMAND_POLICY_DOCS_FILE} or ` +
+            `${COMMAND_POLICY_DOCS_URL}`
+        );
+      }
+    }
+  }
+}
+
+/**
+ * Reads validated, product-owned command policy for plugins.
+ *
+ * @param manifest - Parsed application build manifest.
+ * @param environment - Runtime environment whose policies should be returned.
+ * @returns Validated command policies for the selected environment.
+ * @throws When a policy or plugin identity is malformed or ambiguous.
+ */
+export function productPluginCommandPolicies(
+  manifest: BuildManifest,
+  environment: 'development' | 'production'
+): ProductPluginCommandPolicy[] {
+  const policies: ProductPluginCommandPolicy[] = [];
+  const identities = new Set<string>();
+  const uuid = /^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
+  const commandSets = manifest.commandSets;
+
+  if (
+    commandSets !== undefined &&
+    (typeof commandSets !== 'object' || commandSets === null || Array.isArray(commandSets))
+  ) {
+    throw new Error('Build manifest commandSets must be an object');
+  }
+  if (commandSets && Object.keys(commandSets).length > 64) {
+    throw new Error('Build manifest commandSets exceeds 64 entries');
+  }
+  for (const [name, commands] of Object.entries(commandSets ?? {})) {
+    if (
+      !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name) ||
+      !Array.isArray(commands) ||
+      commands.some(
+        command =>
+          typeof command !== 'object' ||
+          command === null ||
+          Array.isArray(command) ||
+          Object.keys(command).some(key => !['tool', 'args', 'allowTrailingArgs'].includes(key))
+      )
+    ) {
+      throw new Error(`Invalid build manifest commandSets.${name}`);
+    }
+    parseRunCommandGrants(commands);
+  }
+
+  if (manifest.runCommands === undefined) {
+    return policies;
+  }
+  if (!Array.isArray(manifest.runCommands)) {
+    throw new Error('Build manifest runCommands must be an array');
+  }
+  for (const [index, policy] of manifest.runCommands.entries()) {
+    if (
+      typeof policy !== 'object' ||
+      policy === null ||
+      Array.isArray(policy) ||
+      Object.keys(policy).some(
+        key =>
+          ![
+            'environment',
+            'pluginLocation',
+            'plugins',
+            'pluginExecutables',
+            'commands',
+            'commandSets',
+          ].includes(key)
+      )
+    ) {
+      throw new Error(`Invalid build manifest runCommands[${index}]`);
+    }
+    if (!['development', 'production'].includes(policy.environment)) {
+      throw new Error(`Invalid build manifest runCommands[${index}].environment`);
+    }
+    if (!['development', 'user', 'shipped'].includes(policy.pluginLocation)) {
+      throw new Error(`Invalid build manifest runCommands[${index}].pluginLocation`);
+    }
+    if (
+      !Array.isArray(policy.plugins) ||
+      policy.plugins.length === 0 ||
+      policy.plugins.length > 64
+    ) {
+      throw new Error(`Invalid build manifest runCommands[${index}].plugins`);
+    }
+
+    const pluginExecutables = new Set<string>();
+    if (policy.pluginExecutables !== undefined) {
+      if (!Array.isArray(policy.pluginExecutables) || policy.pluginExecutables.length > 64) {
+        throw new Error(`Invalid build manifest runCommands[${index}].pluginExecutables`);
+      }
+      for (const [executableIndex, executable] of policy.pluginExecutables.entries()) {
+        if (
+          typeof executable !== 'object' ||
+          executable === null ||
+          Array.isArray(executable) ||
+          Object.keys(executable).some(key => key !== 'tool') ||
+          typeof executable.tool !== 'string' ||
+          executable.tool === 'scriptjs' ||
+          pluginExecutables.has(executable.tool)
+        ) {
+          throw new Error(
+            `Invalid build manifest runCommands[${index}].pluginExecutables[${executableIndex}]`
+          );
+        }
+        pluginExecutables.add(executable.tool);
+      }
+    }
+
+    const hasInlineCommands = policy.commands !== undefined;
+    const hasCommandSets = policy.commandSets !== undefined;
+    if (hasInlineCommands === hasCommandSets) {
+      throw new Error(
+        `Build manifest runCommands[${index}] must define exactly one of commands or commandSets`
+      );
+    }
+    if (
+      hasCommandSets &&
+      (!Array.isArray(policy.commandSets) ||
+        policy.commandSets.length === 0 ||
+        policy.commandSets.length > 64 ||
+        new Set(policy.commandSets).size !== policy.commandSets.length ||
+        policy.commandSets.some(
+          name =>
+            typeof name !== 'string' ||
+            !/^[A-Za-z0-9][A-Za-z0-9._-]*$/.test(name) ||
+            commandSets?.[name] === undefined
+        ))
+    ) {
+      throw new Error(`Invalid build manifest runCommands[${index}].commandSets`);
+    }
+    const commands = hasCommandSets
+      ? policy.commandSets?.flatMap(name => commandSets?.[name] ?? [])
+      : policy.commands;
+    if (
+      !Array.isArray(commands) ||
+      commands.length > 64 ||
+      commands.some(
+        command =>
+          typeof command !== 'object' ||
+          command === null ||
+          Array.isArray(command) ||
+          Object.keys(command).some(key => !['tool', 'args', 'allowTrailingArgs'].includes(key))
+      )
+    ) {
+      throw new Error(`Invalid build manifest runCommands[${index}].commands`);
+    }
+    const parsedGrants = parseRunCommandGrants(commands);
+    for (const tool of pluginExecutables) {
+      if (!parsedGrants.some(grant => grant.tool === tool)) {
+        throw new Error(`Unused build manifest runCommands[${index}] plugin executable ${tool}`);
+      }
+    }
+    const grants = parsedGrants.map(grant => {
+      return pluginExecutables.has(grant.tool)
+        ? {
+            ...grant,
+            executable: { source: 'plugin' as const, path: `bin/${grant.tool}` },
+          }
+        : grant;
+    });
+    for (const [pluginIndex, plugin] of policy.plugins.entries()) {
+      if (
+        typeof plugin !== 'object' ||
+        plugin === null ||
+        Array.isArray(plugin) ||
+        Object.keys(plugin).some(
+          key =>
+            ![
+              'bundleName',
+              'packageName',
+              'artifactHubPackage',
+              'artifactHubPackageId',
+              'artifactHubRepositoryId',
+            ].includes(key)
+        ) ||
+        typeof plugin.bundleName !== 'string' ||
+        plugin.bundleName === '' ||
+        plugin.bundleName.trim() !== plugin.bundleName ||
+        plugin.bundleName.includes('\0') ||
+        plugin.bundleName.includes('/') ||
+        plugin.bundleName.includes('\\') ||
+        typeof plugin.packageName !== 'string' ||
+        plugin.packageName === '' ||
+        plugin.packageName.trim() !== plugin.packageName ||
+        plugin.packageName.includes('\0')
+      ) {
+        throw new Error(`Invalid build manifest runCommands[${index}].plugins[${pluginIndex}]`);
+      }
+      const hasArtifactHubPackageId = plugin.artifactHubPackageId !== undefined;
+      const hasArtifactHubRepositoryId = plugin.artifactHubRepositoryId !== undefined;
+      const artifactHubPackage =
+        typeof plugin.artifactHubPackage === 'string' && plugin.artifactHubPackage.length <= 257
+          ? plugin.artifactHubPackage.match(
+              /^([A-Za-z0-9][A-Za-z0-9._-]*)\/([A-Za-z0-9][A-Za-z0-9._-]*)$/
+            )
+          : undefined;
+      if (
+        (plugin.artifactHubPackage !== undefined && !artifactHubPackage) ||
+        ((hasArtifactHubPackageId || hasArtifactHubRepositoryId) && !artifactHubPackage) ||
+        hasArtifactHubPackageId !== hasArtifactHubRepositoryId ||
+        (hasArtifactHubPackageId &&
+          (!uuid.test(plugin.artifactHubPackageId ?? '') ||
+            !uuid.test(plugin.artifactHubRepositoryId ?? '')))
+      ) {
+        throw new Error(
+          `Invalid Artifact Hub identity in build manifest runCommands[${index}].plugins[${pluginIndex}]`
+        );
+      }
+      /** @see ../../docs/development/plugins/command-capabilities.md#product-manifest-policy */
+      const requiresArtifactHubIdentity =
+        policy.environment === 'production' && policy.pluginLocation === 'user';
+      if (requiresArtifactHubIdentity && !artifactHubPackage) {
+        throw new Error(
+          `Missing Artifact Hub identity in build manifest runCommands[${index}].plugins[${pluginIndex}]`
+        );
+      }
+      const identity = `${policy.environment}\0${policy.pluginLocation}\0${plugin.bundleName}\0${plugin.packageName}`;
+      if (identities.has(identity)) {
+        throw new Error(
+          `Duplicate command policy identity in build manifest runCommands[${index}]`
+        );
+      }
+      identities.add(identity);
+      if (policy.environment === environment) {
+        policies.push({
+          bundleName: plugin.bundleName,
+          packageName: plugin.packageName,
+          source: policy.pluginLocation,
+          ...(artifactHubPackage && {
+            artifactHub: {
+              repository: artifactHubPackage[1],
+              package: artifactHubPackage[2],
+              ...(hasArtifactHubPackageId && {
+                packageId: plugin.artifactHubPackageId,
+                repositoryId: plugin.artifactHubRepositoryId,
+              }),
+            },
+          }),
+          grants,
+        });
+      }
+    }
+  }
+  return policies;
 }
 
 /**

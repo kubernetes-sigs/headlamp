@@ -26,8 +26,10 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import zlib from 'node:zlib';
 import * as tar from 'tar';
 import {
+  type BuildManifest,
   DEFAULT_MANIFEST_FILE,
   loadBuildManifest,
+  productPluginCommandPolicies,
   resolveBuildManifestPath,
 } from './build-manifest.ts';
 
@@ -57,12 +59,6 @@ type PluginSource = {
   enabledByDefault?: boolean;
 };
 
-/** Parsed subset of an app build manifest used during plugin setup. */
-type BuildManifest = {
-  /** Plugin archives to validate and install in declaration order. */
-  plugins?: PluginSource[];
-};
-
 export type ExtractionLimits = {
   maxEntries: number;
   maxBytes: number;
@@ -85,7 +81,9 @@ const DEFAULT_DOWNLOAD_LIMITS: DownloadLimits = {
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const PLUGIN_FOLDER = path.join(scriptDirectory, '../../.plugins');
 const MANIFEST_FILE = resolveBuildManifestPath();
-const manifest = loadBuildManifest(MANIFEST_FILE) as BuildManifest;
+const manifest = loadBuildManifest(MANIFEST_FILE) as Omit<BuildManifest, 'plugins'> & {
+  plugins?: PluginSource[];
+};
 // The reviewed in-repo manifest predates digest metadata; externally selected manifests are
 // untrusted and must pin every plugin source.
 const externalManifest = !pathsReferToSameFile(MANIFEST_FILE, DEFAULT_MANIFEST_FILE);
@@ -310,7 +308,8 @@ export async function extractArchive(
   archivePath: string,
   temporaryFolder: string = fs.mkdtempSync(path.join(os.tmpdir(), 'headlamp-plugins')),
   pluginRoot: string = PLUGIN_FOLDER,
-  limits: ExtractionLimits = DEFAULT_EXTRACTION_LIMITS
+  limits: ExtractionLimits = DEFAULT_EXTRACTION_LIMITS,
+  executablePaths: string[] = []
 ): Promise<void> {
   console.log('Extracting archive', archivePath, 'to', temporaryFolder, '...');
   let entryCount = 0;
@@ -352,7 +351,9 @@ export async function extractArchive(
 
   const mainLocations = globSync(path.join(temporaryFolder, '*', 'main.js').replace(/\\/g, '/'));
   const mainLocation = mainLocations[0];
+  let packageFolder: string;
   if (mainLocation && fs.existsSync(mainLocation)) {
+    packageFolder = path.dirname(mainLocation);
     copyExtractedRegularFile(mainLocation, path.join(pluginFolder, 'main.js'), temporaryFolder);
     copyExtractedRegularFile(
       path.join(path.dirname(mainLocation), 'package.json'),
@@ -360,6 +361,7 @@ export async function extractArchive(
       temporaryFolder
     );
   } else if (fs.existsSync(path.join(temporaryFolder, 'package', 'dist'))) {
+    packageFolder = path.join(temporaryFolder, 'package');
     copyExtractedRegularFile(
       path.join(temporaryFolder, 'package', 'dist', 'main.js'),
       path.join(pluginFolder, 'main.js'),
@@ -372,6 +374,13 @@ export async function extractArchive(
     );
   } else {
     throw new Error(`Failed to find plugin content within archive: ${archivePath}`);
+  }
+  for (const executablePath of executablePaths) {
+    const source = path.join(packageFolder, executablePath);
+    const platformSource =
+      process.platform === 'win32' && !fs.existsSync(source) ? `${source}.exe` : source;
+    const destination = path.join(pluginFolder, path.relative(packageFolder, platformSource));
+    copyExtractedRegularFile(platformSource, destination, temporaryFolder);
   }
 }
 
@@ -389,7 +398,38 @@ function copyExtractedRegularFile(
   if (!fs.lstatSync(source).isFile()) {
     throw new Error(`Extracted plugin file must be a regular file: ${source}`);
   }
+  fs.mkdirSync(path.dirname(destination), { recursive: true });
   fs.copyFileSync(realSource, destination);
+}
+
+/** Records trusted digests for declared executables in a shipped plugin bundle. */
+export async function recordBundledPluginExecutableIntegrity(
+  bundlePath: string,
+  executablePaths: string[]
+): Promise<void> {
+  if (executablePaths.length === 0) return;
+  const executables: Record<string, string> = Object.create(null);
+  for (const executablePath of executablePaths) {
+    const requested = path.join(bundlePath, executablePath);
+    const platformPath =
+      process.platform === 'win32' && !fs.existsSync(requested) ? `${requested}.exe` : requested;
+    const hash = crypto.createHash('sha256');
+    await pipeline(fs.createReadStream(platformPath), hash);
+    executables[executablePath.split(path.sep).join('/')] = hash.digest('hex');
+  }
+  const packageJsonPath = path.join(bundlePath, 'package.json');
+  const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8')) as Record<
+    string,
+    unknown
+  >;
+  const currentIntegrity =
+    typeof packageJson.headlampPluginIntegrity === 'object' &&
+    packageJson.headlampPluginIntegrity !== null &&
+    !Array.isArray(packageJson.headlampPluginIntegrity)
+      ? (packageJson.headlampPluginIntegrity as Record<string, unknown>)
+      : {};
+  packageJson.headlampPluginIntegrity = { ...currentIntegrity, version: 1, executables };
+  fs.writeFileSync(packageJsonPath, `${JSON.stringify(packageJson, null, 2)}\n`);
 }
 
 /**
@@ -545,7 +585,8 @@ export async function fetchArchive(
   name: string,
   url: string,
   sha256: string | undefined,
-  pluginRoot: string = PLUGIN_FOLDER
+  pluginRoot: string = PLUGIN_FOLDER,
+  executablePaths: string[] = []
 ): Promise<void> {
   const archiveName = getArchiveFileName(url);
   fs.mkdirSync(pluginRoot, { recursive: true });
@@ -555,7 +596,14 @@ export async function fetchArchive(
   try {
     await downloadFile(url, archivePath);
     verifyArchiveDigest(archivePath, sha256);
-    await extractArchive(name, archivePath, temporaryFolder, pluginRoot);
+    await extractArchive(
+      name,
+      archivePath,
+      temporaryFolder,
+      pluginRoot,
+      DEFAULT_EXTRACTION_LIMITS,
+      executablePaths
+    );
   } finally {
     fs.rmSync(temporaryFolder, { recursive: true, force: true });
   }
@@ -624,12 +672,23 @@ function replacePluginFolder(stagingFolder: string): void {
 export async function main(): Promise<void> {
   const plugins = manifest.plugins ?? [];
   plugins.forEach(plugin => validatePluginSource(plugin));
+  const shippedExecutablePaths = new Map<string, string[]>();
+  for (const policy of productPluginCommandPolicies(manifest, 'production')) {
+    if (policy.source !== 'shipped') continue;
+    const paths = policy.grants.flatMap(grant =>
+      grant.executable?.source === 'plugin' ? [grant.executable.path] : []
+    );
+    shippedExecutablePaths.set(policy.bundleName, [
+      ...new Set([...(shippedExecutablePaths.get(policy.bundleName) ?? []), ...paths]),
+    ]);
+  }
 
   const stagingFolder = fs.mkdtempSync(path.join(path.dirname(PLUGIN_FOLDER), '.plugins-stage-'));
   try {
     for (const { name, packageName, archive, file, sha256, enabledByDefault } of plugins) {
+      const executablePaths = shippedExecutablePaths.get(name) ?? [];
       if (archive) {
-        await fetchArchive(name, archive, sha256, stagingFolder);
+        await fetchArchive(name, archive, sha256, stagingFolder, executablePaths);
       }
       if (file) {
         const sourceArchive = resolveLocalPluginArchive(MANIFEST_FILE, file);
@@ -640,7 +699,9 @@ export async function main(): Promise<void> {
             name,
             privateArchive.archivePath,
             privateArchive.directory,
-            stagingFolder
+            stagingFolder,
+            DEFAULT_EXTRACTION_LIMITS,
+            executablePaths
           );
         } finally {
           fs.rmSync(privateArchive.directory, { recursive: true, force: true });
@@ -649,6 +710,7 @@ export async function main(): Promise<void> {
       const packageJsonPath = path.join(stagingFolder, name, 'package.json');
       verifyPluginIdentity(packageJsonPath, packageName);
       applyEnabledByDefault(stagingFolder, name, enabledByDefault);
+      await recordBundledPluginExecutableIntegrity(path.join(stagingFolder, name), executablePaths);
     }
     replacePluginFolder(stagingFolder);
   } finally {

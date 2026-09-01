@@ -1,0 +1,421 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "app-build-manifest.schema.json",
+  "title": "Headlamp Desktop app build manifest",
+  "description": "Configures product metadata, packaged plugins and resources, and runtime command policy for a Headlamp Desktop build.",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "JSON Schema used by editors to validate this manifest."
+    },
+    "$comment": {
+      "type": "string",
+      "description": "A note for people maintaining this manifest."
+    },
+    "proxy-urls": {
+      "type": "array",
+      "description": "HTTP(S) URL patterns the packaged backend may proxy. Only * wildcards are supported.",
+      "items": {
+        "type": "string",
+        "pattern": "^https?://[^/?#\\s]+(?:/[^?\\[\\]{}\\\\]*)?$"
+      }
+    },
+    "plugins": {
+      "type": "array",
+      "description": "Plugins downloaded and bundled into the desktop package.",
+      "items": { "$ref": "#/definitions/plugin" }
+    },
+    "commandSets": {
+      "type": "object",
+      "description": "Reusable named command grant arrays. A runCommands policy composes one or more with commandSets instead of repeating commands.",
+      "maxProperties": 64,
+      "propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$" },
+      "additionalProperties": { "$ref": "#/definitions/commandGrantList" }
+    },
+    "product": {
+      "type": "object",
+      "description": "Product identity applied to Electron Builder and generated frontend metadata.",
+      "properties": {
+        "name": { "type": "string" },
+        "productName": { "type": "string" },
+        "version": { "type": "string" },
+        "appId": { "type": "string" },
+        "artifactName": { "type": "string" },
+        "protocols": {
+          "type": "object",
+          "properties": {
+            "schemes": {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": "string", "minLength": 1 }
+            }
+          },
+          "required": ["schemes"],
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
+    },
+    "resources": {
+      "type": "object",
+      "description": "Files and directories appended to Electron Builder's extraResources.",
+      "properties": {
+        "common": { "$ref": "#/definitions/resources" },
+        "linux": { "$ref": "#/definitions/resources" },
+        "mac": { "$ref": "#/definitions/resources" },
+        "win": { "$ref": "#/definitions/resources" }
+      },
+      "additionalProperties": false
+    },
+    "runCommands": {
+      "type": "array",
+      "description": "Command policies for Headlamp Desktop plugins. Each entry selects an app runtime mode, a plugin installation location, one or more exact plugin identities, and the commands those plugins may request. Production policies for plugin-manager-installed user plugins should pin Artifact Hub UUIDs; development-mode, development-location, and shipped policies should omit them. See ../docs/development/plugins/command-capabilities.md or https://headlamp.dev/docs/latest/development/plugins/command-capabilities/#product-manifest-policy.",
+      "items": { "$ref": "#/definitions/pluginCommandPolicy" }
+    },
+    "targets": {
+      "type": "object",
+      "description": "Electron Builder package targets selected per platform.",
+      "properties": {
+        "linux": { "$ref": "#/definitions/linuxTargets" },
+        "mac": { "$ref": "#/definitions/macTargets" },
+        "win": { "$ref": "#/definitions/winTargets" }
+      },
+      "additionalProperties": false
+    },
+    "platforms": {
+      "type": "object",
+      "description": "Electron Builder metadata overrides selected per platform.",
+      "properties": {
+        "linux": { "$ref": "#/definitions/platformMetadata" },
+        "mac": { "$ref": "#/definitions/platformMetadata" },
+        "win": { "$ref": "#/definitions/platformMetadata" }
+      },
+      "additionalProperties": false
+    },
+    "verify": {
+      "type": "array",
+      "description": "Packaged resources whose SHA-256 digests must be verified after packaging.",
+      "items": { "$ref": "#/definitions/verification" }
+    },
+    "legalDocuments": {
+      "type": "array",
+      "description": "Legal documents exposed by the packaged desktop application.",
+      "items": { "$ref": "#/definitions/legalDocument" }
+    }
+  },
+  "additionalProperties": true,
+  "definitions": {
+    "plugin": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "minLength": 1 },
+        "packageName": { "type": "string", "minLength": 1 },
+        "archive": { "type": "string", "format": "uri" },
+        "sha256": { "$ref": "#/definitions/sha256" },
+        "disabled": { "type": "boolean" }
+      },
+      "required": ["name"],
+      "additionalProperties": true
+    },
+    "pluginCommandPolicy": {
+      "type": "object",
+      "description": "Commands granted to exact plugin identities for one Headlamp runtime mode and one plugin installation location.",
+      "properties": {
+        "environment": {
+          "description": "Headlamp app mode in which this policy applies. This selects the running app, not where the plugin is installed.",
+          "oneOf": [
+            {
+              "const": "development",
+              "description": "Apply when Headlamp Desktop is running in development mode."
+            },
+            {
+              "const": "production",
+              "description": "Apply in a packaged production build of Headlamp Desktop."
+            }
+          ]
+        },
+        "pluginLocation": {
+          "description": "Plugin installation location that must contain the authorized bundle. This selects the plugin files, not the Headlamp app mode.",
+          "oneOf": [
+            {
+              "const": "development",
+              "description": "The operator-controlled development plugin inventory exposed under plugins/. This can contain legacy catalog installations even in production builds. Plugins here have no plugin-manager provenance receipt; policy authors trust users with write access to this inventory. See ../docs/development/plugins/command-capabilities.md or https://headlamp.dev/docs/latest/development/plugins/command-capabilities/#security-considerations."
+            },
+            {
+              "const": "user",
+              "description": "The user-installed plugin inventory exposed under user-plugins/."
+            },
+            {
+              "const": "shipped",
+              "description": "The read-only plugin inventory bundled with the desktop application and exposed under static-plugins/."
+            }
+          ]
+        },
+        "plugins": {
+          "type": "array",
+          "description": "Exact bundle directory and package.json identities sharing these grants. For production policies in the user location, add artifactHubPackage, artifactHubPackageId, and artifactHubRepositoryId. Omit Artifact Hub identity from development-mode, development-location, and shipped policies because those bundles have no plugin-manager installation receipt. See ../docs/development/plugins/command-capabilities.md or https://headlamp.dev/docs/latest/development/plugins/command-capabilities/#product-manifest-policy.",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": { "$ref": "#/definitions/pluginIdentity" }
+        },
+        "pluginExecutables": {
+          "type": "array",
+          "description": "Tools supplied by these plugin bundles at the derived path bin/<tool> instead of resolved on the sanitized system PATH.",
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": { "$ref": "#/definitions/pluginExecutable" }
+        },
+        "commands": {
+          "description": "Command identifiers and argument sequences these plugins may request. Every request is matched against these entries in Electron before a process starts.",
+          "$ref": "#/definitions/commandGrantList"
+        },
+        "commandSets": {
+          "type": "array",
+          "description": "Names of reusable grant arrays in top-level commandSets, combined in order. Use this instead of commands when policies share grants.",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+          }
+        }
+      },
+      "required": ["environment", "pluginLocation", "plugins"],
+      "oneOf": [{ "required": ["commands"] }, { "required": ["commandSets"] }],
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "environment": { "const": "production" },
+              "pluginLocation": { "const": "user" }
+            },
+            "required": ["environment", "pluginLocation"]
+          },
+          "then": {
+            "properties": {
+              "plugins": {
+                "items": {
+                  "required": ["artifactHubPackage"]
+                }
+              }
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "pluginExecutable": {
+      "type": "object",
+      "description": "A plugin-owned native executable at the derived path bin/<tool>, confined to the verified bundle and integrity-checked before production execution.",
+      "properties": {
+        "tool": {
+          "type": "string",
+          "description": "Command identifier whose grants use this plugin-owned executable.",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$",
+          "not": { "const": "scriptjs" }
+        }
+      },
+      "required": ["tool"],
+      "additionalProperties": false
+    },
+    "pluginIdentity": {
+      "type": "object",
+      "properties": {
+        "bundleName": {
+          "type": "string",
+          "description": "Bundle directory name reported by plugin discovery.",
+          "minLength": 1,
+          "pattern": "^(?!\\s)(?!.*\\s$)[^/\\\\\\u0000]+$"
+        },
+        "packageName": {
+          "type": "string",
+          "description": "Exact package name expected in the bundle's package.json.",
+          "minLength": 1,
+          "pattern": "^(?!\\s)(?!.*\\s$)[^\\u0000]+$"
+        },
+        "artifactHubPackage": {
+          "type": "string",
+          "description": "Artifact Hub repository and package names in <repository>/<package> form, for example headlamp-plugins/headlamp_minikube. Required for production policies in the plugin-manager-installed user location. Omit from development and shipped locations, which have no installation receipt. See ../docs/development/plugins/command-capabilities.md or https://headlamp.dev/docs/latest/development/plugins/command-capabilities/#product-manifest-policy.",
+          "maxLength": 257,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*/[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "artifactHubPackageId": {
+          "type": "string",
+          "description": "Immutable package UUID pin from the package_id field returned by https://artifacthub.io/api/v1/packages/headlamp/<repository>/<package>. Recommended with artifactHubRepositoryId for production policies in the plugin-manager-installed user location; omit from development-mode, development-location, and shipped policies. See ../docs/development/plugins/command-capabilities.md or https://headlamp.dev/docs/latest/development/plugins/command-capabilities/#product-manifest-policy.",
+          "format": "uuid"
+        },
+        "artifactHubRepositoryId": {
+          "type": "string",
+          "description": "Immutable repository UUID pin from the repository.repository_id field returned by https://artifacthub.io/api/v1/packages/headlamp/<repository>/<package>. Recommended with artifactHubPackageId for production policies in the plugin-manager-installed user location; omit from development-mode, development-location, and shipped policies. See ../docs/development/plugins/command-capabilities.md or https://headlamp.dev/docs/latest/development/plugins/command-capabilities/#product-manifest-policy.",
+          "format": "uuid"
+        }
+      },
+      "required": ["bundleName", "packageName"],
+      "allOf": [
+        {
+          "if": {
+            "anyOf": [
+              { "required": ["artifactHubPackageId"] },
+              { "required": ["artifactHubRepositoryId"] }
+            ]
+          },
+          "then": {
+            "required": ["artifactHubPackage", "artifactHubPackageId", "artifactHubRepositoryId"]
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "commandGrant": {
+      "type": "object",
+      "properties": {
+        "tool": {
+          "type": "string",
+          "description": "Command identifier matched exactly against a plugin request. Most values name an executable, such as minikube or az. The special scriptjs value asks Headlamp to run an authorized plugin JavaScript file with Electron. Do not include a filesystem path.",
+          "maxLength": 128,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
+        },
+        "args": {
+          "type": "array",
+          "description": "Ordered arguments matched after tool. They are an exact sequence unless allowTrailingArgs is true, in which case they are the required prefix.",
+          "minItems": 1,
+          "maxItems": 16,
+          "items": {
+            "type": "string",
+            "maxLength": 256,
+            "pattern": "^(?=[^\\u0000]*\\S)[^\\u0000]*$"
+          }
+        },
+        "allowTrailingArgs": {
+          "type": "boolean",
+          "description": "When false or omitted, the request must have exactly args. When true, the request may append more arguments after that required prefix.",
+          "default": false
+        }
+      },
+      "required": ["tool", "args"],
+      "additionalProperties": false
+    },
+    "commandGrantList": {
+      "type": "array",
+      "maxItems": 64,
+      "uniqueItems": true,
+      "items": { "$ref": "#/definitions/commandGrant" }
+    },
+    "resource": {
+      "type": "object",
+      "properties": {
+        "from": { "type": "string" },
+        "to": { "type": "string" },
+        "filter": { "type": "array", "items": { "type": "string" } }
+      },
+      "required": ["from"],
+      "additionalProperties": false
+    },
+    "resources": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/resource" }
+    },
+    "targetDescriptor": {
+      "type": "object",
+      "properties": {
+        "target": { "type": "string", "minLength": 1, "pattern": ".*\\S.*" },
+        "arch": { "type": "array", "minItems": 1 }
+      },
+      "required": ["target", "arch"],
+      "additionalProperties": true
+    },
+    "linuxTargets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          { "type": "string", "minLength": 1, "pattern": ".*\\S.*" },
+          {
+            "allOf": [
+              { "$ref": "#/definitions/targetDescriptor" },
+              { "properties": { "arch": { "items": { "enum": ["arm64", "armv7l", "x64"] } } } }
+            ]
+          }
+        ]
+      }
+    },
+    "macTargets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          { "type": "string", "minLength": 1, "pattern": ".*\\S.*" },
+          {
+            "allOf": [
+              { "$ref": "#/definitions/targetDescriptor" },
+              { "properties": { "arch": { "items": { "enum": ["arm64", "universal", "x64"] } } } }
+            ]
+          }
+        ]
+      }
+    },
+    "winTargets": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "oneOf": [
+          { "type": "string", "minLength": 1, "pattern": ".*\\S.*" },
+          {
+            "allOf": [
+              { "$ref": "#/definitions/targetDescriptor" },
+              { "properties": { "arch": { "items": { "enum": ["arm64", "ia32", "x64"] } } } }
+            ]
+          }
+        ]
+      }
+    },
+    "platformMetadata": {
+      "type": "object",
+      "properties": {
+        "appId": { "type": "string" },
+        "bundleShortVersion": { "type": "string" },
+        "bundleVersion": { "type": "string" },
+        "executableName": { "type": "string" },
+        "icon": { "type": "string" },
+        "artifactName": { "type": "string" }
+      },
+      "additionalProperties": false
+    },
+    "verification": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string", "minLength": 1, "pattern": ".*\\S.*" },
+        "platforms": {
+          "type": "array",
+          "items": { "enum": ["linux", "mac", "win"] }
+        },
+        "sha256": { "$ref": "#/definitions/sha256" }
+      },
+      "required": ["path", "sha256"],
+      "additionalProperties": false
+    },
+    "sha256": {
+      "type": "string",
+      "description": "Hexadecimal SHA-256 digest.",
+      "pattern": "^[A-Fa-f0-9]{64}$"
+    },
+    "legalDocument": {
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9-]{0,63}$" },
+        "title": { "type": "string", "minLength": 1, "maxLength": 128 },
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255,
+          "pattern": "^(?!\\.{1,2}$)[^/\\\\]+$"
+        }
+      },
+      "required": ["id", "title", "file"],
+      "additionalProperties": false
+    }
+  }
+}

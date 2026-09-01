@@ -67,6 +67,7 @@ test.describe('desktop protocol scheme', () => {
         ...electronEnv,
         NODE_ENV: 'development',
         ELECTRON_DEV: 'true',
+        HEADLAMP_BUILD_MANIFEST: 'app-build-manifest.json',
         ELECTRON_START_URL: pathToFileURL(path.join(appPath, '../frontend/build/index.html')).href,
         EXTERNAL_SERVER: 'true',
       },
