@@ -458,6 +458,9 @@
   "Headlamp": [Function],
   "Iconify": "Present",
   "K8s": {
+    "DeviceClass": [Function],
+    "ResourceClaim": [Function],
+    "ResourceClaimTemplate": [Function],
     "ResourceClasses": {
       "ClusterRole": [Function],
       "ClusterRoleBinding": [Function],
@@ -506,6 +509,7 @@
       "VolumeAttributesClass": [Function],
       "Workload": [Function],
     },
+    "ResourceSlice": [Function],
     "cluster": {
       "HEADLAMP_ALLOWED_NAMESPACES": "headlamp.allowed-namespaces",
       "KubeObject": [Function],
@@ -534,6 +538,9 @@
       "default": [Function],
     },
     "deployment": {
+      "default": [Function],
+    },
+    "deviceClass": {
       "default": [Function],
     },
     "event": {
@@ -613,6 +620,15 @@
       "getSchedulingPolicyKind": [Function],
     },
     "replicaSet": {
+      "default": [Function],
+    },
+    "resourceClaim": {
+      "default": [Function],
+    },
+    "resourceClaimTemplate": {
+      "default": [Function],
+    },
+    "resourceSlice": {
       "default": [Function],
     },
     "role": {
