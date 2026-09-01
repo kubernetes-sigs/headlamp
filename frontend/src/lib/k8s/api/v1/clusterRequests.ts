@@ -111,6 +111,15 @@ export async function request(
 }
 
 /**
+ * Whether a rejected request was aborted, read off the thrown value rather than an Error.
+ */
+function isAbortError(err: unknown): boolean {
+  return (
+    typeof err === 'object' && err !== null && (err as { name?: unknown }).name === 'AbortError'
+  );
+}
+
+/**
  * Sends a request to the backend. If the cluster is required in the params parameter, it will
  * be used as a request to the respective Kubernetes server.
  *
@@ -164,29 +173,68 @@ export async function clusterRequest(
   }
 
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
+  let timedOut = false;
+  const id = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeout);
+
+  // The caller's signal is chained onto the timeout's rather than replacing it, so both
+  // can cancel the request and the two remain distinguishable afterwards.
+  const callerSignal = otherParams.signal;
+  const abortFromCaller = () => controller.abort();
+  if (callerSignal?.aborted) {
+    controller.abort();
+  } else {
+    callerSignal?.addEventListener('abort', abortFromCaller, { once: true });
+  }
 
   let url = combinePath(getAppUrl(), fullPath);
   url += asQuery(queryParams);
   const requestData = {
-    signal: controller.signal,
     credentials: 'include' as RequestCredentials,
     ...opts,
+    signal: controller.signal,
   };
   if (isBackstage()) {
     requestData.headers = addBackstageAuthHeaders(requestData.headers);
   }
-  let response: Response = new Response(undefined, { status: 502, statusText: 'Unreachable' });
+  let response: Response | undefined;
+  let caughtError: unknown;
+  let requestError: Error | undefined;
+
   try {
     response = await fetch(url, requestData);
   } catch (err) {
-    if (err instanceof Error) {
-      if (err.name === 'AbortError') {
-        response = new Response(undefined, { status: 408, statusText: 'Request timed-out' });
-      }
-    }
+    caughtError = err;
+    requestError = err instanceof Error ? err : new Error(String(err));
   } finally {
     clearTimeout(id);
+    callerSignal?.removeEventListener('abort', abortFromCaller);
+  }
+
+  // The request never reached the point of producing a response, so there is no body to
+  // read an error message from. Reject with what actually went wrong instead of standing
+  // in a placeholder Response, whose empty body would only fail to parse later on. The
+  // message reaches the UI, so the url stays in the log rather than in the message.
+  if (!response) {
+    // A caller cancelling through its own signal asked for this, so it is reported as the
+    // abort it is rather than as a failure of the request.
+    if (isAbortError(caughtError) && !timedOut && callerSignal?.aborted) {
+      return Promise.reject(caughtError);
+    }
+
+    const aborted = timedOut || isAbortError(caughtError);
+    const message = aborted
+      ? `Request timed-out after ${timeout}ms`
+      : `Network error: ${requestError?.message ?? 'unreachable'}`;
+
+    console.error(message, 'at url:', url, { err: requestError });
+
+    const error = new Error(message) as ApiError;
+    error.status = aborted ? 408 : 502;
+
+    return Promise.reject(error);
   }
 
   // The backend signals through this header that it wants a reload.
