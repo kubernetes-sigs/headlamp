@@ -14,12 +14,15 @@
  * limitations under the License.
  */
 
+import { ThemeProvider } from '@mui/material/styles';
 import { configureStore } from '@reduxjs/toolkit';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { SnackbarProvider } from 'notistack';
 import { PropsWithChildren } from 'react';
 import { Provider } from 'react-redux';
 import { MemoryRouter, Route } from 'react-router-dom';
-import { addEventCallback, HeadlampEvent } from '../redux/headlampEventSlice';
+import { lightTheme } from '../components/App/defaultAppThemes';
+import { createMuiTheme } from '../lib/themes';
 import defaultStore from '../redux/stores/store';
 
 /**
@@ -29,17 +32,16 @@ import defaultStore from '../redux/stores/store';
  */
 export const API_BASE = 'http://localhost:4466';
 
-/**
- * Collects the Headlamp events dispatched while a test runs, so tests can assert
- * on the plugin-facing event contract (type + payload).
- *
- * Event callbacks cannot be unregistered, so every call gets its own array.
- */
-export function recordHeadlampEvents(store: { dispatch: (action: any) => any } = defaultStore) {
-  const events: HeadlampEvent[] = [];
-  store.dispatch(addEventCallback(event => events.push(event)));
-  return events;
-}
+export const testQueryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      refetchOnMount: 'always',
+      staleTime: 0,
+      retry: false,
+      gcTime: 0,
+    },
+  },
+});
 
 export type TestContextProps = PropsWithChildren<{
   store?: ReturnType<typeof configureStore>;
@@ -73,11 +75,15 @@ export function TestContext(props: TestContextProps) {
 
   return (
     <Provider store={store || defaultStore}>
-      <SnackbarProvider>
-        <MemoryRouter initialEntries={url ? [url] : undefined}>
-          {routePath ? <Route path={routePath}>{children}</Route> : children}
-        </MemoryRouter>
-      </SnackbarProvider>
+      <QueryClientProvider client={testQueryClient}>
+        <ThemeProvider theme={createMuiTheme(lightTheme)}>
+          <SnackbarProvider>
+            <MemoryRouter initialEntries={url ? [url] : undefined}>
+              {routePath ? <Route path={routePath}>{children}</Route> : children}
+            </MemoryRouter>
+          </SnackbarProvider>
+        </ThemeProvider>
+      </QueryClientProvider>
     </Provider>
   );
 }
