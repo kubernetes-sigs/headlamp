@@ -14,6 +14,8 @@
  * limitations under the License.
  */
 
+import { DesktopApiReceiveChannel, DesktopApiSendChannel } from '../../plugin/lib';
+
 /**
  * Runs a shell command and returns an object that mimics the interface of a ChildProcess object returned by Node's spawn function.
  *
@@ -53,7 +55,7 @@ export function runCommand(
   options: {},
   permissionSecrets?: Record<string, number>,
   desktopApiSend?: (
-    channel: string,
+    channel: DesktopApiSendChannel,
     data: {
       id: string;
       command: string;
@@ -63,7 +65,7 @@ export function runCommand(
     }
   ) => void,
   desktopApiReceive?: (
-    channel: string,
+    channel: DesktopApiReceiveChannel,
     listener: (cmdId: string, data: string | number) => void
   ) => (() => void) | void
 ): {
