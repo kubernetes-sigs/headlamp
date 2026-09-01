@@ -31,6 +31,16 @@ type Metrics struct {
 	ErrorCounter metric.Int64Counter
 	// KubeconfigRefreshCounter tracks the number of kubeconfig refresh operations
 	KubeconfigRefreshCounter metric.Int64Counter
+	// CacheHitCount tracks the number of cache hits
+	CacheHitCount metric.Int64Counter
+	// CacheMissCount tracks the number of cache misses
+	CacheMissCount metric.Int64Counter
+	// CacheStoreCount tracks the number of responses stored in cache
+	CacheStoreCount metric.Int64Counter
+	// CacheEvictionCount tracks the number of TTL-based cache evictions
+	CacheEvictionCount metric.Int64Counter
+	// CacheInvalidationCount tracks the number of watcher-triggered cache invalidations
+	CacheInvalidationCount metric.Int64Counter
 }
 
 // NewMetrics creates and registers a set of common application metrics.
@@ -47,6 +57,10 @@ func NewMetrics() (*Metrics, error) {
 	}
 
 	if err := initApplicationMetrics(meter, metrics); err != nil {
+		return nil, err
+	}
+
+	if err := initCacheMetrics(meter, metrics); err != nil {
 		return nil, err
 	}
 
@@ -116,6 +130,53 @@ func initApplicationMetrics(meter metric.Meter, metrics *Metrics) error {
 	metrics.ErrorCounter, err = meter.Int64Counter(
 		"headlamp.errors",
 		metric.WithDescription("Count of errors"),
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// initCacheMetrics initializes cache-related metrics.
+func initCacheMetrics(meter metric.Meter, metrics *Metrics) error {
+	var err error
+
+	metrics.CacheHitCount, err = meter.Int64Counter(
+		"headlamp.cache.hit_count",
+		metric.WithDescription("Number of cache hits"),
+	)
+	if err != nil {
+		return err
+	}
+
+	metrics.CacheMissCount, err = meter.Int64Counter(
+		"headlamp.cache.miss_count",
+		metric.WithDescription("Number of cache misses"),
+	)
+	if err != nil {
+		return err
+	}
+
+	metrics.CacheStoreCount, err = meter.Int64Counter(
+		"headlamp.cache.store_count",
+		metric.WithDescription("Number of responses stored in cache"),
+	)
+	if err != nil {
+		return err
+	}
+
+	metrics.CacheEvictionCount, err = meter.Int64Counter(
+		"headlamp.cache.eviction_count",
+		metric.WithDescription("Number of TTL-based cache evictions"),
+	)
+	if err != nil {
+		return err
+	}
+
+	metrics.CacheInvalidationCount, err = meter.Int64Counter(
+		"headlamp.cache.invalidation_count",
+		metric.WithDescription("Number of watcher-triggered cache invalidations"),
 	)
 	if err != nil {
 		return err
