@@ -21,6 +21,7 @@ import type { ApiError } from '../v2/ApiError';
 import { getClusterDefaultNamespace } from './clusterApi';
 import { resourceDefToApiFactory } from './factories';
 import type { QueryParameters } from './queryParameters';
+import { STRICT_FIELD_VALIDATION } from './queryParameters';
 
 export interface ApplyOptions {
   dryRun?: boolean;
@@ -77,7 +78,13 @@ export async function apply<T extends KubeObjectInterface>(
   }
 
   const resourceVersion = bodyToApply.metadata.resourceVersion;
-  const queryParams: QueryParameters = options.dryRun ? { dryRun: 'All' } : {};
+  // Strict makes the apiserver reject unknown or duplicate fields instead of silently
+  // dropping them, which is what kubectl does. Without it a typo like "replics" applies
+  // successfully and does nothing.
+  const queryParams: QueryParameters = { ...STRICT_FIELD_VALIDATION };
+  if (options.dryRun) {
+    queryParams.dryRun = 'All';
+  }
 
   try {
     delete bodyToApply.metadata.resourceVersion;
