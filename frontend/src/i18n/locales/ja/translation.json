@@ -288,6 +288,7 @@
   "Dismiss": "却下",
   "Lost connection to the cluster.": "クラスターへの接続が失われました。",
   "Check cluster settings": "",
+  "Loading data for {{title}}": "",
   "No": "いいえ",
   "Yes": "はい",
   "Create {{ name }}": "{{ name }} の作成",

@@ -289,6 +289,7 @@
   "Dismiss": "Bezárás",
   "Lost connection to the cluster.": "Megszakadt a kapcsolat a fürttel.",
   "Check cluster settings": "",
+  "Loading data for {{title}}": "",
   "No": "Nem",
   "Yes": "Igen",
   "Create {{ name }}": "{{ name }} létrehozása",

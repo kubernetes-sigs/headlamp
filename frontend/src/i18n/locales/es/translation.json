@@ -290,6 +290,7 @@
   "Dismiss": "Descartar",
   "Lost connection to the cluster.": "Perdida de conexión al cluster.",
   "Check cluster settings": "",
+  "Loading data for {{title}}": "",
   "No": "No",
   "Yes": "Sí",
   "Create {{ name }}": "Crear {{ name }}",

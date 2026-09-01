@@ -288,6 +288,7 @@
   "Dismiss": "닫기",
   "Lost connection to the cluster.": "클러스터와의 연결이 끊겼습니다.",
   "Check cluster settings": "",
+  "Loading data for {{title}}": "",
   "No": "아니오",
   "Yes": "예",
   "Create {{ name }}": "{{ name }} 생성",

@@ -290,6 +290,7 @@
   "Dismiss": "Ignora",
   "Lost connection to the cluster.": "Connessione al cluster persa.",
   "Check cluster settings": "",
+  "Loading data for {{title}}": "",
   "No": "No",
   "Yes": "Sì",
   "Create {{ name }}": "Crea {{ name }}",
