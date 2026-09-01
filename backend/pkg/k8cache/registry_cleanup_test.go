@@ -23,7 +23,7 @@ func TestRunWatcherCleansUpRegistryOnFailure(t *testing.T) {
 
 	// An empty Context causes RESTConfig() to return an error,
 	// which makes runWatcher exit on its first error path.
-	k8cache.ExportedRunWatcher(ctx, nil, key, kubeconfig.Context{})
+	k8cache.ExportedRunWatcher(ctx, nil, key, kubeconfig.Context{}, 0)
 
 	// After the early return, both registry entries must be cleaned up
 	// so that a subsequent CheckForChanges call can start a new watcher.
