@@ -14,8 +14,11 @@
  * limitations under the License.
  */
 
+import type { KubeCondition } from './cluster';
 import type { KubeObjectInterface } from './KubeObject';
 import { KubeObject } from './KubeObject';
+
+const RESIZE_CONDITIONS = ['Resizing', 'FileSystemResizePending'];
 
 export interface KubePersistentVolumeClaim extends KubeObjectInterface {
   spec?: {
@@ -38,6 +41,10 @@ export interface KubePersistentVolumeClaim extends KubeObjectInterface {
     };
     phase?: string;
     accessModes?: string[];
+    conditions?: KubeCondition[];
+    allocatedResources?: {
+      storage?: string;
+    };
     [other: string]: any;
   };
 }
@@ -74,6 +81,39 @@ class PersistentVolumeClaim extends KubeObject<KubePersistentVolumeClaim> {
 
   get status() {
     return this.jsonData.status;
+  }
+
+  /** The size asked for in the spec, which the provider grows the volume towards. */
+  get requestedStorage(): string | undefined {
+    return this.spec?.resources?.requests?.storage;
+  }
+
+  /** Whether the volume, or the file system on it, is still growing towards the request. */
+  get resizeCondition(): KubeCondition | undefined {
+    return this.status?.conditions?.find(
+      condition => RESIZE_CONDITIONS.includes(condition.type) && condition.status === 'True'
+    );
+  }
+
+  /**
+   * Asks the storage provider for a larger volume.
+   *
+   * Only claims bound to a storage class that allows expansion can grow, and the API
+   * rejects a request that is smaller than the current one, because a volume cannot
+   * shrink.
+   * @param storage - The new size, as a Kubernetes quantity such as '20Gi'.
+   * @returns The patched claim.
+   */
+  expandTo(storage: string) {
+    return this.patch({
+      spec: {
+        resources: {
+          requests: {
+            storage,
+          },
+        },
+      },
+    });
   }
 }
 
