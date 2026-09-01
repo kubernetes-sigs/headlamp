@@ -146,6 +146,73 @@ func TestParseBasic(t *testing.T) {
 	}
 }
 
+func TestParseTrustedProxyCIDRs(t *testing.T) {
+	conf, err := config.Parse([]string{
+		"go run ./cmd",
+		"--trusted-proxy-cidrs=10.0.0.0/8,192.168.1.0/24",
+	})
+	require.NoError(t, err)
+
+	assert.Equal(t, "10.0.0.0/8,192.168.1.0/24", conf.TrustedProxyCIDRs)
+}
+
+func TestValidateTrustedProxyCIDRs(t *testing.T) {
+	tests := []struct {
+		name        string
+		cidrs       string
+		expectError string
+	}{
+		{
+			name:  "empty trusted-proxy-cidrs is valid",
+			cidrs: "",
+		},
+		{
+			name:  "valid single CIDR is valid",
+			cidrs: "192.168.1.0/24",
+		},
+		{
+			name:  "valid comma-separated CIDRs are valid",
+			cidrs: "10.0.0.0/8, 192.168.1.0/24",
+		},
+		{
+			name:        "invalid CIDR causes validation to fail",
+			cidrs:       "10.0.0.0/8, invalid-cidr",
+			expectError: "invalid trusted-proxy-cidrs entry",
+		},
+		{
+			name:        "trailing empty CIDR entry causes validation to fail",
+			cidrs:       "10.0.0.0/8,",
+			expectError: "trusted-proxy-cidrs cannot contain empty entries",
+		},
+		{
+			name:        "leading empty CIDR entry causes validation to fail",
+			cidrs:       ",10.0.0.0/8",
+			expectError: "trusted-proxy-cidrs cannot contain empty entries",
+		},
+		{
+			name:        "empty CIDR entry between CIDRs causes validation to fail",
+			cidrs:       "10.0.0.0/8,,192.168.1.0/24",
+			expectError: "trusted-proxy-cidrs cannot contain empty entries",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := config.Parse([]string{
+				"headlamp-server",
+				"--trusted-proxy-cidrs=" + tt.cidrs,
+			})
+
+			if tt.expectError != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.expectError)
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func TestParseAppName(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -505,6 +572,16 @@ var parseFlagTests = []parseFlagTest{
 		verify: func(t *testing.T, conf *config.Config) {
 			assert.Equal(t, true, conf.UnsafeUseServiceAccountToken)
 			assert.Equal(t, "/custom/token/path", conf.ServiceAccountTokenPath)
+		},
+	},
+	{
+		name: "trusted_proxy_cidrs_flag",
+		args: []string{
+			"go run ./cmd",
+			"--trusted-proxy-cidrs=10.0.0.0/8,192.168.1.0/24",
+		},
+		verify: func(t *testing.T, conf *config.Config) {
+			assert.Equal(t, "10.0.0.0/8,192.168.1.0/24", conf.TrustedProxyCIDRs)
 		},
 	},
 }

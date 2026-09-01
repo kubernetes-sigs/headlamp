@@ -30,6 +30,7 @@ import (
 	"io/fs"
 	"net"
 	"net/http"
+	"net/netip"
 	"net/url"
 	"os"
 	"os/signal"
@@ -75,6 +76,7 @@ import (
 	"k8s.io/client-go/tools/clientcmd/api"
 
 	"golang.org/x/oauth2"
+	"golang.org/x/time/rate"
 )
 
 type HeadlampConfig struct {
@@ -658,6 +660,114 @@ func loadDynamicClusters(config *HeadlampConfig, path string, skipFunc func(kube
 	}
 }
 
+type authLimiterEntry struct {
+	limiter  *rate.Limiter
+	lastSeen time.Time
+}
+
+var (
+	authLimiterMu   sync.Mutex
+	authLimiters    = make(map[string]*authLimiterEntry)
+	authLimiterOnce sync.Once
+)
+
+//nolint:wsl_v5
+func getAuthLimiter(ip string) *rate.Limiter {
+	authLimiterOnce.Do(func() {
+		go func() {
+			for {
+				time.Sleep(5 * time.Minute)
+				cleanupAuthLimiters(10 * time.Minute)
+			}
+		}()
+	})
+
+	authLimiterMu.Lock()
+	defer authLimiterMu.Unlock()
+
+	entry, exists := authLimiters[ip]
+	if !exists {
+		entry = &authLimiterEntry{
+			limiter: rate.NewLimiter(5, 10),
+		}
+		authLimiters[ip] = entry
+	}
+	entry.lastSeen = time.Now()
+	return entry.limiter
+}
+
+func cleanupAuthLimiters(ttl time.Duration) {
+	cutoff := time.Now().Add(-ttl)
+
+	authLimiterMu.Lock()
+	defer authLimiterMu.Unlock()
+
+	for ip, entry := range authLimiters {
+		if entry.lastSeen.Before(cutoff) {
+			delete(authLimiters, ip)
+		}
+	}
+}
+
+func clientIP(r *http.Request, trustedProxyCIDRs []string) string {
+	remoteHost, _, err := net.SplitHostPort(r.RemoteAddr)
+	if err != nil {
+		remoteHost = r.RemoteAddr
+	}
+
+	remoteIP, err := netip.ParseAddr(strings.TrimSpace(remoteHost))
+	if err != nil {
+		return strings.TrimSpace(remoteHost)
+	}
+
+	isTrusted := func(ip netip.Addr) bool {
+		for _, cidr := range trustedProxyCIDRs {
+			prefix, err := netip.ParsePrefix(strings.TrimSpace(cidr))
+			if err == nil && prefix.Contains(ip) {
+				return true
+			}
+		}
+		return false
+	}
+
+	if isTrusted(remoteIP) {
+		forwarded := strings.TrimSpace(r.Header.Get("X-Forwarded-For"))
+		if forwarded != "" {
+			ips := strings.Split(forwarded, ",")
+			for i := len(ips) - 1; i >= 0; i-- {
+				ipStr := strings.TrimSpace(ips[i])
+				if ipStr == "" {
+					continue
+				}
+
+				parsed, err := netip.ParseAddr(ipStr)
+				if err != nil {
+					return remoteIP.String()
+				}
+
+				if !isTrusted(parsed) {
+					return parsed.String()
+				}
+			}
+		}
+	}
+
+	return remoteIP.String()
+}
+
+//nolint:wsl_v5
+func authRateLimitMiddleware(trustedProxyCIDRs []string, next http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		ip := clientIP(r, trustedProxyCIDRs)
+
+		if !getAuthLimiter(ip).Allow() {
+			http.Error(w, "Too many requests", http.StatusTooManyRequests)
+			return
+		}
+		next.ServeHTTP(w, r)
+	}
+}
+
 //nolint:gocognit,funlen,gocyclo
 func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Handler {
 	kubeConfigPath := config.KubeConfigPath
@@ -969,8 +1079,16 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		http.HandlerFunc(config.getConfig))).Methods("GET")
 
 	// Auth token management
-	r.Handle("/auth/set-token", auth.NewBackendTokenMiddleware(config.UseInCluster)(
-		http.HandlerFunc(config.handleSetToken))).Methods("POST")
+	setTokenHandler := auth.NewBackendTokenMiddleware(config.UseInCluster)(
+		http.HandlerFunc(config.handleSetToken),
+	)
+
+	r.Handle("/auth/set-token",
+		authRateLimitMiddleware(
+			config.TrustedProxyCIDRs,
+			setTokenHandler.ServeHTTP,
+		),
+	).Methods("POST")
 
 	// Websocket connections
 	if config.Multiplexer != nil {
@@ -1003,7 +1121,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 	}()
 
-	r.HandleFunc("/oidc", func(w http.ResponseWriter, r *http.Request) {
+	r.HandleFunc("/oidc", authRateLimitMiddleware(config.TrustedProxyCIDRs, func(w http.ResponseWriter, r *http.Request) {
 		ctx := context.Background()
 		cluster := r.URL.Query().Get("cluster")
 
@@ -1125,7 +1243,7 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		oauthMu.Unlock()
 
 		http.Redirect(w, r, authURL, http.StatusFound)
-	}).Queries("cluster", "{cluster}")
+	})).Queries("cluster", "{cluster}")
 
 	r.Handle("/drain-node",
 		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(config.handleNodeDrain))).Methods("POST")
@@ -1133,121 +1251,122 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		auth.NewBackendTokenMiddleware(config.UseInCluster)(http.HandlerFunc(
 			config.handleNodeDrainStatus))).Methods("GET").Queries("cluster", "{cluster}", "nodeName", "{node}")
 
-	r.HandleFunc("/oidc-callback", func(w http.ResponseWriter, r *http.Request) {
-		// Shadow createHeadlampHandler's outer-scope err so any log call in
-		// this handler is guaranteed to reference this closure's err and
-		// never the startup kubeconfig-load error. See issue #4839.
-		var err error
+	r.HandleFunc("/oidc-callback",
+		authRateLimitMiddleware(config.TrustedProxyCIDRs, func(w http.ResponseWriter, r *http.Request) {
+			// Shadow createHeadlampHandler's outer-scope err so any log call in
+			// this handler is guaranteed to reference this closure's err and
+			// never the startup kubeconfig-load error. See issue #4839.
+			var err error
 
-		state := r.URL.Query().Get("state")
+			state := r.URL.Query().Get("state")
 
-		if state == "" {
-			logger.Log(logger.LevelError, nil, nil, "invalid request state is empty")
-			http.Error(w, "invalid request state is empty", http.StatusBadRequest)
+			if state == "" {
+				logger.Log(logger.LevelError, nil, nil, "invalid request state is empty")
+				http.Error(w, "invalid request state is empty", http.StatusBadRequest)
 
-			return
-		}
+				return
+			}
 
-		oauthMu.Lock()
+			oauthMu.Lock()
 
-		oauthConfig, ok := oauthRequestMap[state]
-		if ok {
-			// We have a copy of the oauthConfig, we can delete the map entry now
-			delete(oauthRequestMap, state)
-		}
+			oauthConfig, ok := oauthRequestMap[state]
+			if ok {
+				// We have a copy of the oauthConfig, we can delete the map entry now
+				delete(oauthRequestMap, state)
+			}
 
-		oauthMu.Unlock()
+			oauthMu.Unlock()
 
-		if !ok {
-			http.Error(w, "invalid request", http.StatusBadRequest)
-			return
-		}
+			if !ok {
+				http.Error(w, "invalid request", http.StatusBadRequest)
+				return
+			}
 
-		var oauth2Token *oauth2.Token
+			var oauth2Token *oauth2.Token
 
-		// Exchange authorization code for token, with or without PKCE
-		if config.OidcUsePKCE && oauthConfig.CodeVerifier != "" {
-			// Use PKCE code verifier for token exchange
-			oauth2Token, err = oauthConfig.Config.Exchange(
-				oauthConfig.Ctx,
-				r.URL.Query().Get("code"),
-				oauth2.SetAuthURLParam("code_verifier", oauthConfig.CodeVerifier),
-			)
-		} else {
-			// Standard token exchange without PKCE
-			oauth2Token, err = oauthConfig.Config.Exchange(
-				oauthConfig.Ctx,
-				r.URL.Query().Get("code"),
-			)
-		}
+			// Exchange authorization code for token, with or without PKCE
+			if config.OidcUsePKCE && oauthConfig.CodeVerifier != "" {
+				// Use PKCE code verifier for token exchange
+				oauth2Token, err = oauthConfig.Config.Exchange(
+					oauthConfig.Ctx,
+					r.URL.Query().Get("code"),
+					oauth2.SetAuthURLParam("code_verifier", oauthConfig.CodeVerifier),
+				)
+			} else {
+				// Standard token exchange without PKCE
+				oauth2Token, err = oauthConfig.Config.Exchange(
+					oauthConfig.Ctx,
+					r.URL.Query().Get("code"),
+				)
+			}
 
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to exchange token")
-			http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
+			if err != nil {
+				logger.Log(logger.LevelError, nil, err, "failed to exchange token")
+				http.Error(w, "Failed to exchange token: "+err.Error(), http.StatusInternalServerError)
 
-			return
-		}
+				return
+			}
 
-		tokenType := "id_token"
-		if config.OidcUseAccessToken {
-			tokenType = "access_token"
-		}
+			tokenType := "id_token"
+			if config.OidcUseAccessToken {
+				tokenType = "access_token"
+			}
 
-		rawUserToken, ok := oauth2Token.Extra(tokenType).(string)
-		if !ok {
-			logger.Log(logger.LevelError, nil, err, fmt.Sprintf("no %s field in oauth2 token", tokenType))
-			http.Error(w, fmt.Sprintf("No %s field in oauth2 token.", tokenType), http.StatusInternalServerError)
+			rawUserToken, ok := oauth2Token.Extra(tokenType).(string)
+			if !ok {
+				logger.Log(logger.LevelError, nil, err, fmt.Sprintf("no %s field in oauth2 token", tokenType))
+				http.Error(w, fmt.Sprintf("No %s field in oauth2 token.", tokenType), http.StatusInternalServerError)
 
-			return
-		}
+				return
+			}
 
-		if err := config.Cache.Set(context.Background(),
-			fmt.Sprintf("oidc-token-%s", rawUserToken), oauth2Token.RefreshToken); err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to cache refresh token")
-			http.Error(w, "Failed to cache refresh token: "+err.Error(), http.StatusInternalServerError)
+			if err := config.Cache.Set(context.Background(),
+				fmt.Sprintf("oidc-token-%s", rawUserToken), oauth2Token.RefreshToken); err != nil {
+				logger.Log(logger.LevelError, nil, err, "failed to cache refresh token")
+				http.Error(w, "Failed to cache refresh token: "+err.Error(), http.StatusInternalServerError)
 
-			return
-		}
+				return
+			}
 
-		idToken, err := oauthConfig.Verifier.Verify(oauthConfig.Ctx, rawUserToken)
-		if err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to verify ID Token")
-			http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
+			idToken, err := oauthConfig.Verifier.Verify(oauthConfig.Ctx, rawUserToken)
+			if err != nil {
+				logger.Log(logger.LevelError, nil, err, "failed to verify ID Token")
+				http.Error(w, "Failed to verify ID Token: "+err.Error(), http.StatusInternalServerError)
 
-			return
-		}
+				return
+			}
 
-		resp := struct {
-			OAuth2Token   *oauth2.Token
-			IDTokenClaims *json.RawMessage // ID Token payload is just JSON.
-		}{oauth2Token, new(json.RawMessage)}
+			resp := struct {
+				OAuth2Token   *oauth2.Token
+				IDTokenClaims *json.RawMessage // ID Token payload is just JSON.
+			}{oauth2Token, new(json.RawMessage)}
 
-		if err := idToken.Claims(&resp.IDTokenClaims); err != nil {
-			logger.Log(logger.LevelError, nil, err, "failed to get id token claims")
-			http.Error(w, err.Error(), http.StatusInternalServerError)
+			if err := idToken.Claims(&resp.IDTokenClaims); err != nil {
+				logger.Log(logger.LevelError, nil, err, "failed to get id token claims")
+				http.Error(w, err.Error(), http.StatusInternalServerError)
 
-			return
-		}
+				return
+			}
 
-		var redirectURL string
-		if config.DevMode {
-			redirectURL = "http://localhost:3000/"
-		} else {
-			redirectURL = "/"
-		}
+			var redirectURL string
+			if config.DevMode {
+				redirectURL = "http://localhost:3000/"
+			} else {
+				redirectURL = "/"
+			}
 
-		baseURL := strings.Trim(config.BaseURL, "/")
-		if baseURL != "" {
-			redirectURL += baseURL + "/"
-		}
+			baseURL := strings.Trim(config.BaseURL, "/")
+			if baseURL != "" {
+				redirectURL += baseURL + "/"
+			}
 
-		// Set auth cookie
-		auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
+			// Set auth cookie
+			auth.SetTokenCookie(w, r, oauthConfig.Cluster, rawUserToken, config.BaseURL, config.SessionTTL)
 
-		redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
+			redirectURL += fmt.Sprintf("auth?cluster=%1s", oauthConfig.Cluster)
 
-		http.Redirect(w, r, redirectURL, http.StatusSeeOther)
-	})
+			http.Redirect(w, r, redirectURL, http.StatusSeeOther)
+		}))
 
 	// Serve the frontend if needed
 	if spa.UseEmbeddedFiles {
@@ -2023,8 +2142,16 @@ func clusterRequestHandler(c *HeadlampConfig) http.Handler { //nolint:funlen
 // It parses the request and creates a proxy request to the cluster.
 // That proxy is saved in the cache with the context key.
 func handleClusterAPI(c *HeadlampConfig, router *mux.Router) {
+	setTokenHandler := auth.NewBackendTokenMiddleware(c.UseInCluster)(
+		http.HandlerFunc(c.handleSetToken),
+	)
+
 	router.Handle("/clusters/{clusterName}/set-token",
-		auth.NewBackendTokenMiddleware(c.UseInCluster)(http.HandlerFunc(c.handleSetToken))).Methods("POST")
+		authRateLimitMiddleware(
+			c.TrustedProxyCIDRs,
+			setTokenHandler.ServeHTTP,
+		),
+	).Methods("POST")
 
 	handler := clusterRequestHandler(c)
 	if c.CacheEnabled {

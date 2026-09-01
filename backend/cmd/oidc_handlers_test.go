@@ -166,6 +166,10 @@ func withStateReader(r io.Reader) oidcTestOption {
 func newOIDCTestHandler(t *testing.T, oidcSrv *oidcTestServer, opts ...oidcTestOption) (http.Handler, string) {
 	t.Helper()
 
+	authLimiterMu.Lock()
+	authLimiters = make(map[string]*authLimiterEntry)
+	authLimiterMu.Unlock()
+
 	const clusterName = "oidc-char-test"
 
 	kubeConfigStore := kubeconfig.NewContextStore()
@@ -253,6 +257,53 @@ func callOIDCCallback(t *testing.T, handler http.Handler, rawQuery string) *http
 	handler.ServeHTTP(rr, req)
 
 	return rr
+}
+
+func TestOIDCRoutesAreRateLimited(t *testing.T) {
+	tests := []struct {
+		name string
+		path func(cluster string) string
+	}{
+		{
+			name: "oidc",
+			path: func(cluster string) string {
+				return "/oidc?cluster=" + cluster
+			},
+		},
+		{
+			name: "oidc callback",
+			path: func(string) string {
+				return "/oidc-callback"
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			oidcSrv := newOIDCTestServer(t, nil)
+			handler, cluster := newOIDCTestHandler(t, oidcSrv)
+
+			path := tt.path(cluster)
+
+			for i := 0; i < 10; i++ {
+				req := httptest.NewRequest(http.MethodGet, path, nil)
+				req.RemoteAddr = "192.0.2.1:1234"
+
+				rr := httptest.NewRecorder()
+				handler.ServeHTTP(rr, req)
+
+				assert.NotEqual(t, http.StatusTooManyRequests, rr.Code)
+			}
+
+			req := httptest.NewRequest(http.MethodGet, path, nil)
+			req.RemoteAddr = "192.0.2.1:1234"
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusTooManyRequests, rr.Code)
+		})
+	}
 }
 
 // TestOIDCStart_StateIsRandom32Bytes covers target #1: each /oidc call

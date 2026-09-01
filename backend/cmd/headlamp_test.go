@@ -1771,6 +1771,55 @@ func assertRouteRequiresBackendToken(t *testing.T, method, path string, body int
 	}
 }
 
+func TestSetTokenInvalidRequestsAreRateLimited(t *testing.T) {
+	tests := []struct {
+		name string
+		path string
+	}{
+		{
+			name: "auth set-token",
+			path: "/auth/set-token",
+		},
+		{
+			name: "cluster set-token",
+			path: "/clusters/" + minikubeName + "/set-token",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			resetAuthLimiters()
+
+			const validToken = "valid-token-for-test"
+			t.Setenv("HEADLAMP_BACKEND_TOKEN", validToken)
+
+			handler := newRestrictedEndpointsHandler(t)
+
+			for i := 0; i < 10; i++ {
+				req, err := makeJSONReq(http.MethodPost, tt.path, nil)
+				require.NoError(t, err)
+
+				req.Header.Set("X-HEADLAMP-BACKEND-TOKEN", "invalid-token")
+
+				rr := httptest.NewRecorder()
+				handler.ServeHTTP(rr, req)
+
+				assert.Equal(t, http.StatusForbidden, rr.Code)
+			}
+
+			req, err := makeJSONReq(http.MethodPost, tt.path, nil)
+			require.NoError(t, err)
+
+			req.Header.Set("X-HEADLAMP-BACKEND-TOKEN", "invalid-token")
+
+			rr := httptest.NewRecorder()
+			handler.ServeHTTP(rr, req)
+
+			assert.Equal(t, http.StatusTooManyRequests, rr.Code)
+		})
+	}
+}
+
 // TestRestrictedEndpointsBypassedWithoutConfiguredToken preserves standalone
 // development and test servers where backend-token enforcement is not configured.
 func TestRestrictedEndpointsBypassedWithoutConfiguredToken(t *testing.T) {
@@ -4583,4 +4632,248 @@ func TestExternalProxyOversizeResponseGzip(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rr.Code)
 	assert.Equal(t, int(maxProxyResponseSize), rr.Body.Len())
+}
+
+func TestAuthLimiterCleanup(t *testing.T) {
+	// Reset state for test isolation
+	authLimiterMu.Lock()
+	authLimiters = make(map[string]*authLimiterEntry)
+	authLimiterMu.Unlock()
+
+	ip := "192.168.1.1"
+
+	// 1. A limiter is created for an IP.
+	limiter1 := getAuthLimiter(ip)
+	assert.NotNil(t, limiter1)
+
+	authLimiterMu.Lock()
+	assert.Contains(t, authLimiters, ip)
+	authLimiterMu.Unlock()
+
+	// 2. Repeated requests reuse the same limiter while active.
+	limiter2 := getAuthLimiter(ip)
+	assert.Equal(t, limiter1, limiter2)
+
+	// Simulate inactive entry by backdating lastSeen
+	authLimiterMu.Lock()
+	authLimiters[ip].lastSeen = time.Now().Add(-20 * time.Minute)
+	authLimiterMu.Unlock()
+
+	// 3. An inactive/expired limiter can eventually be removed.
+	cleanupAuthLimiters(10 * time.Minute)
+
+	authLimiterMu.Lock()
+	assert.NotContains(t, authLimiters, ip)
+	authLimiterMu.Unlock()
+
+	// 4. Creating a new request after cleanup creates a new limiter.
+	limiter3 := getAuthLimiter(ip)
+	assert.NotNil(t, limiter3)
+	assert.NotSame(t, limiter1, limiter3, "A new limiter should be created")
+
+	// 5. Concurrent access does not cause a race.
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+
+			getAuthLimiter(fmt.Sprintf("10.0.0.%d", i%10))
+		}(i)
+	}
+
+	wg.Wait()
+}
+
+func resetAuthLimiters() {
+	authLimiterMu.Lock()
+	defer authLimiterMu.Unlock()
+
+	authLimiters = make(map[string]*authLimiterEntry)
+}
+
+func TestAuthRateLimitMiddleware_XForwardedFor(t *testing.T) {
+	dummyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+
+	t.Run("untrusted proxy ignores X-Forwarded-For", func(t *testing.T) {
+		resetAuthLimiters()
+
+		middleware := authRateLimitMiddleware(
+			[]string{"10.0.0.0/8"},
+			dummyHandler,
+		)
+
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/auth", nil)
+		req.RemoteAddr = "192.168.1.100:12345"
+		req.Header.Set("X-Forwarded-For", "10.0.0.1")
+
+		// Exhaust the bucket for the actual remote IP.
+		for i := 0; i < 10; i++ {
+			rr := httptest.NewRecorder()
+
+			middleware.ServeHTTP(rr, req)
+			assert.Equal(t, http.StatusOK, rr.Code)
+		}
+
+		// The peer is not trusted, so changing X-Forwarded-For
+		// must not create a new rate-limit bucket.
+		req.Header.Set("X-Forwarded-For", "10.0.0.2")
+
+		rr := httptest.NewRecorder()
+		middleware.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusTooManyRequests, rr.Code)
+	})
+
+	t.Run("trusted proxy uses X-Forwarded-For", func(t *testing.T) {
+		resetAuthLimiters()
+
+		middleware := authRateLimitMiddleware(
+			[]string{"192.168.1.0/24"},
+			dummyHandler,
+		)
+
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/auth", nil)
+		req.RemoteAddr = "192.168.1.100:12345"
+		req.Header.Set("X-Forwarded-For", "10.0.0.1")
+
+		// Exhaust the bucket for client 10.0.0.1.
+		for i := 0; i < 10; i++ {
+			rr := httptest.NewRecorder()
+
+			middleware.ServeHTTP(rr, req)
+			assert.Equal(t, http.StatusOK, rr.Code)
+		}
+
+		// The proxy is trusted, so a different forwarded client
+		// should get a separate rate-limit bucket.
+		req.Header.Set("X-Forwarded-For", "10.0.0.2")
+
+		rr := httptest.NewRecorder()
+		middleware.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusOK, rr.Code)
+	})
+
+	t.Run("spoofed leftmost X-Forwarded-For does not bypass rate limit", func(t *testing.T) {
+		resetAuthLimiters()
+
+		middleware := authRateLimitMiddleware(
+			[]string{"192.168.1.0/24", "10.0.0.0/8"},
+			dummyHandler,
+		)
+
+		req := httptest.NewRequestWithContext(context.Background(), "GET", "/auth", nil)
+		req.RemoteAddr = "192.168.1.100:12345"
+		req.Header.Set("X-Forwarded-For", "8.8.8.8, 203.0.113.1, 10.0.0.5")
+
+		// Exhaust the bucket for actual client 203.0.113.1
+		for i := 0; i < 10; i++ {
+			rr := httptest.NewRecorder()
+			middleware.ServeHTTP(rr, req)
+			assert.Equal(t, http.StatusOK, rr.Code)
+		}
+
+		// Changing the spoofed leftmost IP should not bypass the rate limit,
+		// because the actual client IP (first untrusted from right) is still 203.0.113.1.
+		req.Header.Set("X-Forwarded-For", "9.9.9.9, 203.0.113.1, 10.0.0.5")
+
+		rr := httptest.NewRecorder()
+		middleware.ServeHTTP(rr, req)
+
+		assert.Equal(t, http.StatusTooManyRequests, rr.Code)
+	})
+}
+
+func TestAuthRateLimitMiddleware_BurstAnd429(t *testing.T) {
+	// Reset state
+	authLimiterMu.Lock()
+	authLimiters = make(map[string]*authLimiterEntry)
+	authLimiterMu.Unlock()
+
+	dummyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	middleware := authRateLimitMiddleware(nil, dummyHandler)
+
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/auth", nil)
+	req.RemoteAddr = "10.1.1.1:12345"
+
+	// Exhaust the burst of 10
+	for i := 0; i < 10; i++ {
+		rr := httptest.NewRecorder()
+		middleware.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code)
+	}
+
+	// 11th should be 429
+	rr := httptest.NewRecorder()
+	middleware.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusTooManyRequests, rr.Code)
+}
+
+func TestAuthRateLimitMiddleware_Refill(t *testing.T) {
+	// Reset state
+	authLimiterMu.Lock()
+	authLimiters = make(map[string]*authLimiterEntry)
+	authLimiterMu.Unlock()
+
+	dummyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	middleware := authRateLimitMiddleware(nil, dummyHandler)
+
+	req := httptest.NewRequestWithContext(context.Background(), "GET", "/auth", nil)
+	req.RemoteAddr = "10.2.2.2:12345"
+
+	// Exhaust the burst of 10
+	for i := 0; i < 10; i++ {
+		rr := httptest.NewRecorder()
+		middleware.ServeHTTP(rr, req)
+		assert.Equal(t, http.StatusOK, rr.Code)
+	}
+
+	// Wait for 1 token to refill (rate is 5/s -> 1 token every 200ms)
+	time.Sleep(250 * time.Millisecond)
+
+	// Next request should succeed
+	rr := httptest.NewRecorder()
+	middleware.ServeHTTP(rr, req)
+	assert.Equal(t, http.StatusOK, rr.Code)
+}
+
+func TestAuthRateLimitMiddleware_Isolation(t *testing.T) {
+	// Reset state
+	authLimiterMu.Lock()
+	authLimiters = make(map[string]*authLimiterEntry)
+	authLimiterMu.Unlock()
+
+	dummyHandler := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	})
+	middleware := authRateLimitMiddleware(nil, dummyHandler)
+
+	reqA := httptest.NewRequestWithContext(context.Background(), "GET", "/auth", nil)
+	reqA.RemoteAddr = "10.3.3.3:12345"
+
+	// Exhaust burst for Client A
+	for i := 0; i < 10; i++ {
+		rr := httptest.NewRecorder()
+
+		middleware.ServeHTTP(rr, reqA)
+		assert.Equal(t, http.StatusOK, rr.Code)
+	}
+
+	rrA := httptest.NewRecorder()
+	middleware.ServeHTTP(rrA, reqA)
+	assert.Equal(t, http.StatusTooManyRequests, rrA.Code)
+
+	// Client B should still be allowed
+	reqB := httptest.NewRequestWithContext(context.Background(), "GET", "/auth", nil)
+	reqB.RemoteAddr = "10.4.4.4:12345"
+	rrB := httptest.NewRecorder()
+	middleware.ServeHTTP(rrB, reqB)
+	assert.Equal(t, http.StatusOK, rrB.Code)
 }
