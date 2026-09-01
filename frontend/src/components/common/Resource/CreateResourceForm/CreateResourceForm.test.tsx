@@ -215,3 +215,93 @@ describe('CreateResourceForm – select field', () => {
     });
   });
 });
+
+// Regression coverage for container port range validation. The field previously
+// persisted out-of-range integers such as 99999, which Kubernetes rejected on
+// submit. It also used parseInt, so strings such as "65535.9" and "1e5" were
+// silently changed to 65535 and 1; the tests below ensure these inputs are not
+// persisted as different ports.
+describe('ContainerTextField container port validation', () => {
+  function renderContainersWithOnChange(value: unknown) {
+    const onChange = vi.fn();
+    const utils = render(<ContainerTextField value={value as any} onChange={onChange} />);
+    return { onChange, ...utils };
+  }
+
+  it('drops the port when the value exceeds the valid range (99999)', () => {
+    const { getByLabelText, onChange } = renderContainersWithOnChange([
+      { name: 'c1', image: 'nginx', ports: [{ containerPort: 80 }] },
+    ]);
+    fireEvent.change(getByLabelText('Container Port'), { target: { value: '99999' } });
+    const updated = onChange.mock.calls.at(-1)?.[0];
+    expect(updated[0].ports).toBeUndefined();
+    expect(updated[0].containerPort).toBeUndefined();
+  });
+
+  it('drops the port when the value is 0 or negative', () => {
+    const { getByLabelText, onChange } = renderContainersWithOnChange([
+      { name: 'c1', image: 'nginx', ports: [{ containerPort: 80 }] },
+    ]);
+    fireEvent.change(getByLabelText('Container Port'), { target: { value: '0' } });
+    let updated = onChange.mock.calls.at(-1)?.[0];
+    expect(updated[0].ports).toBeUndefined();
+
+    fireEvent.change(getByLabelText('Container Port'), { target: { value: '-1' } });
+    updated = onChange.mock.calls.at(-1)?.[0];
+    expect(updated[0].ports).toBeUndefined();
+  });
+
+  it('keeps a valid port at the upper boundary (65535)', () => {
+    const { getByLabelText, onChange } = renderContainersWithOnChange([
+      { name: 'c1', image: 'nginx', ports: [{ containerPort: 80 }] },
+    ]);
+    fireEvent.change(getByLabelText('Container Port'), { target: { value: '65535' } });
+    const updated = onChange.mock.calls.at(-1)?.[0];
+    expect(updated[0].ports).toEqual([{ containerPort: 65535 }]);
+  });
+
+  it('keeps a valid ordinary port (8080)', () => {
+    const { getByLabelText, onChange } = renderContainersWithOnChange([
+      { name: 'c1', image: 'nginx', ports: [{ containerPort: 80 }] },
+    ]);
+    fireEvent.change(getByLabelText('Container Port'), { target: { value: '8080' } });
+    const updated = onChange.mock.calls.at(-1)?.[0];
+    expect(updated[0].ports).toEqual([{ containerPort: 8080 }]);
+  });
+
+  it('drops the port for exponential notation input (1e5)', () => {
+    const { getByLabelText, onChange } = renderContainersWithOnChange([
+      { name: 'c1', image: 'nginx', ports: [{ containerPort: 80 }] },
+    ]);
+    fireEvent.change(getByLabelText('Container Port'), { target: { value: '1e5' } });
+    const updated = onChange.mock.calls.at(-1)?.[0];
+    expect(updated[0].ports).toBeUndefined();
+  });
+
+  it('drops the port for fractional input (65535.9)', () => {
+    const { getByLabelText, onChange } = renderContainersWithOnChange([
+      { name: 'c1', image: 'nginx', ports: [{ containerPort: 80 }] },
+    ]);
+    fireEvent.change(getByLabelText('Container Port'), { target: { value: '65535.9' } });
+    const updated = onChange.mock.calls.at(-1)?.[0];
+    expect(updated[0].ports).toBeUndefined();
+  });
+
+  it('drops the port when it is 1 above the max (65536)', () => {
+    const { getByLabelText, onChange } = renderContainersWithOnChange([
+      { name: 'c1', image: 'nginx', ports: [{ containerPort: 80 }] },
+    ]);
+    fireEvent.change(getByLabelText('Container Port'), { target: { value: '65536' } });
+    const updated = onChange.mock.calls.at(-1)?.[0];
+    expect(updated[0].ports).toBeUndefined();
+  });
+
+  it('keeps a valid port at the lower boundary (1)', () => {
+    const { getByLabelText, onChange } = renderContainersWithOnChange([
+      { name: 'c1', image: 'nginx', ports: [{ containerPort: 80 }] },
+    ]);
+    fireEvent.change(getByLabelText('Container Port'), { target: { value: '1' } });
+    const updated = onChange.mock.calls.at(-1)?.[0];
+    expect(updated[0].ports).toEqual([{ containerPort: 1 }]);
+  });
+});
