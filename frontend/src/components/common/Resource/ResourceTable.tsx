@@ -167,6 +167,14 @@ export interface ResourceTableProps<RowItem> {
   data: Array<RowItem> | null;
   /** Filter out rows from the table */
   filterFunction?: (item: RowItem) => boolean;
+  /**
+   * When true, the table's default row filtering ignores the global namespace
+   * filter, so a stale/unrelated namespace selection elsewhere in the app can't
+   * hide this table's rows. Textual/search filtering is unaffected. Has no effect
+   * on cluster-scoped rows (items without metadata.namespace), and is ignored if
+   * a custom filterFunction is provided.
+   */
+  noNamespaceFilter?: boolean;
   /** Display an error message. Table will be hidden even if data is present */
   errorMessage?: string | null;
   /** Display an errors */
@@ -322,6 +330,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
     noProcessing = false,
     hideColumns = [],
     filterFunction,
+    noNamespaceFilter,
     errorMessage,
     reflectInURL,
     data,
@@ -336,7 +345,7 @@ function ResourceTableContent<RowItem extends KubeObject>(props: ResourceTablePr
   const storeRowsPerPageOptions = useSettings('tableRowsPerPageOptions');
   const clusters = useSelectedClusters();
   const tableProcessors = useTypedSelector(state => state.resourceTable.tableColumnsProcessors);
-  const defaultFilterFunc = useFilterFunc();
+  const defaultFilterFunc = useFilterFunc(undefined, noNamespaceFilter);
   const [columnVisibility, setColumnVisibility] = useState(() =>
     initColumnVisibilityState(columns, id)
   );
