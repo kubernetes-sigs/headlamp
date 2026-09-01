@@ -29,18 +29,22 @@ import { useSelectedClusters } from '../../../lib/k8s';
 import CronJob from '../../../lib/k8s/cronJob';
 import DaemonSet from '../../../lib/k8s/daemonSet';
 import Deployment from '../../../lib/k8s/deployment';
+import Endpoints from '../../../lib/k8s/endpoints';
 import Job from '../../../lib/k8s/job';
 import PersistentVolumeClaim from '../../../lib/k8s/persistentVolumeClaim';
 import Pod from '../../../lib/k8s/pod';
 import ReplicaSet from '../../../lib/k8s/replicaSet';
+import Service from '../../../lib/k8s/service';
 import StatefulSet from '../../../lib/k8s/statefulSet';
 import { Activity } from '../../activity/Activity';
 import CreateCronJobForm from '../../cronjob/CreateCronJobForm';
 import CreateDaemonSetForm from '../../daemonset/CreateDaemonSetForm';
 import CreateDeploymentForm from '../../deployments/CreateDeploymentForm';
+import CreateEndpointsForm from '../../endpoints/CreateEndpointsForm';
 import CreateJobForm from '../../job/CreateJobForm';
 import CreatePodForm from '../../pod/CreatePodForm';
 import CreateReplicaSetForm from '../../replicaset/CreateReplicaSetForm';
+import CreateServiceForm from '../../service/CreateServiceForm';
 import CreateStatefulSetForm from '../../statefulset/CreateStatefulSetForm';
 import CreatePVCForm from '../../storage/CreatePVCForm';
 import ActionButton from '../ActionButton';
@@ -55,6 +59,8 @@ export const RESOURCE_DEFINITIONS = {
   CronJob: { class: CronJob, form: CreateCronJobForm },
   StatefulSet: { class: StatefulSet, form: CreateStatefulSetForm },
   PersistentVolumeClaim: { class: PersistentVolumeClaim, form: CreatePVCForm },
+  Service: { class: Service, form: CreateServiceForm },
+  Endpoints: { class: Endpoints, form: CreateEndpointsForm },
 };
 
 export type ResourceType = keyof typeof RESOURCE_DEFINITIONS;
