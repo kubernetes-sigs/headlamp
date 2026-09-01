@@ -1535,4 +1535,42 @@ describe('useWatchKubeObjectLists (Multiplexer)', () => {
       ).toBe(true)
     );
   });
+
+  it('should clean up subscription immediately if unmounted before subscribe promise resolves', async () => {
+    const mockCleanup = vi.fn();
+    let resolveSubscribe: (cleanup: () => void) => void;
+    const pendingPromise = new Promise<() => void>(resolve => {
+      resolveSubscribe = resolve;
+    });
+
+    mockSubscribe.mockReturnValueOnce(pendingPromise);
+
+    const lists = [{ cluster: 'cluster-a', namespace: 'namespace-a', resourceVersion: '1' }];
+
+    const { unmount } = renderHook(
+      () =>
+        useWatchKubeObjectLists({
+          kubeObjectClass: mockClass,
+          endpoint: { version: 'v1', resource: 'pods' },
+          lists,
+        }),
+      {
+        wrapper: ({ children }) => (
+          <QueryClientProvider client={new QueryClient()}>{children}</QueryClientProvider>
+        ),
+      }
+    );
+
+    // Unmount before subscribe resolves
+    unmount();
+
+    // Now resolve subscribe
+    await act(async () => {
+      resolveSubscribe!(mockCleanup);
+      await pendingPromise;
+    });
+
+    // Verify cleanup was invoked immediately upon resolution because component was unmounted
+    expect(mockCleanup).toHaveBeenCalledTimes(1);
+  });
 });

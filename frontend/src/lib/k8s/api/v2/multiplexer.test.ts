@@ -299,14 +299,50 @@ describe('WebSocket Multiplexer', () => {
       // Close the server to simulate connection failure
       await mockServer.close();
 
-      // Attempt to subscribe should fail
-      await expect(
-        WebSocketManager.subscribe(clusterName, '/api/v1/pods', 'watch=true', onMessage)
-      ).rejects.toThrow('WebSocket connection failed');
+      const path = '/api/v1/pods';
+      const query = 'watch=true';
 
-      // Verify error was handled
+      // Attempt to subscribe should fail
+      await expect(WebSocketManager.subscribe(clusterName, path, query, onMessage)).rejects.toThrow(
+        'WebSocket connection failed'
+      );
+
+      // Verify error was handled and listeners/subscriptions were cleaned up
       expect(WebSocketManager.socketMultiplexer).toBeNull();
       expect(WebSocketManager.connecting).toBe(false);
+      const key = WebSocketManager.createKey(clusterName, path, query);
+      expect(WebSocketManager.activeSubscriptions.has(key)).toBe(false);
+      expect(WebSocketManager.listeners.has(key)).toBe(false);
+
+      // No CLOSE should ever be sent for a subscription whose REQUEST was
+      // never delivered, so the debounced unsubscribe scheduled internally
+      // must have been cancelled rather than left pending.
+      expect(WebSocketManager.pendingUnsubscribes.has(key)).toBe(false);
+    });
+
+    it('should not send a spurious CLOSE after a failed subscribe once the socket reconnects', async () => {
+      // Close the server to simulate connection failure
+      await mockServer.close();
+
+      const path = '/api/v1/pods';
+      const query = 'watch=true';
+
+      // Attempt to subscribe should fail
+      await expect(WebSocketManager.subscribe(clusterName, path, query, onMessage)).rejects.toThrow(
+        'WebSocket connection failed'
+      );
+
+      // Reconnect with a fresh mock server, simulating a later, unrelated
+      // subscription opening the shared socket.
+      mockServer = new WS(`${BASE_WS_URL}${MULTIPLEXER_ENDPOINT}`);
+      await WebSocketManager.subscribe(clusterName, '/api/v1/services', 'watch=true', onMessage);
+      await mockServer.connected;
+
+      // The only message the server should see is the REQUEST for the new
+      // subscription -- never a CLOSE for the one that failed to connect.
+      const msg = JSON.parse((await mockServer.nextMessage) as string);
+      expect(msg.type).toBe('REQUEST');
+      expect(msg.path).toBe('/api/v1/services');
     });
 
     it('should handle duplicate subscriptions', async () => {
