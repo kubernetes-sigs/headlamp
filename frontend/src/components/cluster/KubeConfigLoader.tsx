@@ -154,7 +154,7 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
   } = props;
   const { t } = useTranslation(['translation']);
 
-  const { getRootProps, getInputProps, open } = useDropzone({
+  const { getRootProps, getInputProps } = useDropzone({
     onDrop: (acceptedFiles: File[]) => onDrop(acceptedFiles),
     multiple: false,
   });
@@ -166,14 +166,17 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
           <Box>
             <DropZoneBox border={1} borderColor="secondary.main" {...getRootProps()}>
               <FormControl>
-                <input {...getInputProps()} />
+                <input
+                  {...getInputProps()}
+                  aria-label={t('translation|Drag & drop or choose kubeconfig file here')}
+                />
                 <Tooltip
                   title={t('translation|Drag & drop or choose kubeconfig file here')}
                   placement="top"
                 >
+                  {/* The dropzone root already opens the file dialog on click. */}
                   <Button
                     variant="contained"
-                    onClick={() => open}
                     startIcon={<InlineIcon icon="mdi:upload" width={32} />}
                   >
                     {t('translation|Choose file')}
