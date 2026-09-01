@@ -703,6 +703,7 @@
   "Unable to load owned pods for diagnostics": "",
   "Loading diagnostics": "",
   "Addresses": "Indirizzi",
+  "Not Ready Addresses": "",
   "Address Type": "",
   "Hostname": "Nome host",
   "Zone": "",

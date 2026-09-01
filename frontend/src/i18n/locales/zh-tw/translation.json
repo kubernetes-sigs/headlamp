@@ -693,6 +693,7 @@
   "Unable to load owned pods for diagnostics": "",
   "Loading diagnostics": "",
   "Addresses": "位址",
+  "Not Ready Addresses": "",
   "Address Type": "位址類型",
   "Hostname": "主機名稱",
   "Zone": "區域",

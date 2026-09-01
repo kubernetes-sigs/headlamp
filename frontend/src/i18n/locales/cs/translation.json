@@ -708,6 +708,7 @@
   "Unable to load owned pods for diagnostics": "",
   "Loading diagnostics": "",
   "Addresses": "Adresy",
+  "Not Ready Addresses": "",
   "Address Type": "Typ adresy",
   "Hostname": "Název hostitele",
   "Zone": "Zóna",

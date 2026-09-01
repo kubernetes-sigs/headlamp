@@ -703,6 +703,7 @@
   "Unable to load owned pods for diagnostics": "",
   "Loading diagnostics": "",
   "Addresses": "Adresses",
+  "Not Ready Addresses": "",
   "Address Type": "Type d'adresse",
   "Hostname": "Nom d'hôte",
   "Zone": "Zone",

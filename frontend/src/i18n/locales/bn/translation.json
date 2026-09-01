@@ -698,6 +698,7 @@
   "Unable to load owned pods for diagnostics": "ডায়াগনস্টিকের জন্য মালিকানাধীন Pod লোড করতে অক্ষম",
   "Loading diagnostics": "ডায়াগনস্টিক লোড হচ্ছে",
   "Addresses": "ঠিকানা",
+  "Not Ready Addresses": "",
   "Address Type": "ঠিকানার ধরন",
   "Hostname": "হোস্টনাম",
   "Zone": "জোন",

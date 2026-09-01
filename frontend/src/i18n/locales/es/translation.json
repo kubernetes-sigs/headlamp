@@ -703,6 +703,7 @@
   "Unable to load owned pods for diagnostics": "",
   "Loading diagnostics": "",
   "Addresses": "Direcciones",
+  "Not Ready Addresses": "",
   "Address Type": "",
   "Hostname": "Nombre de host",
   "Zone": "",

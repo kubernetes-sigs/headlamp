@@ -718,6 +718,7 @@
   "Unable to load owned pods for diagnostics": "",
   "Loading diagnostics": "",
   "Addresses": "العناوين",
+  "Not Ready Addresses": "",
   "Address Type": "نوع العنوان",
   "Hostname": "اسم المضيف",
   "Zone": "المنطقة",

@@ -698,6 +698,7 @@
   "Unable to load owned pods for diagnostics": "",
   "Loading diagnostics": "",
   "Addresses": "Adresler",
+  "Not Ready Addresses": "",
   "Address Type": "Adres Türü",
   "Hostname": "Ana bilgisayar adı",
   "Zone": "Bölge",

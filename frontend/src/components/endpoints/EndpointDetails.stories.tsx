@@ -90,10 +90,47 @@ Default.parameters = {
                     },
                   },
                 ],
+                notReadyAddresses: [
+                  {
+                    ip: '127.0.0.3',
+                    nodeName: 'mynode',
+                    targetRef: {
+                      kind: 'Pod',
+                      namespace: 'MyNamespace',
+                      name: 'mypod-not-ready',
+                      uid: 'phony-pod-not-ready',
+                      resourceVersion: '1',
+                      apiVersion: 'v1',
+                    },
+                  },
+                ],
                 ports: [
                   {
                     name: 'myport',
                     port: 8080,
+                    protocol: 'TCP',
+                  },
+                ],
+              },
+              {
+                addresses: [
+                  {
+                    ip: '127.0.1.1',
+                    nodeName: 'mynode-2',
+                    targetRef: {
+                      kind: 'Pod',
+                      namespace: 'MyNamespace',
+                      name: 'mypod-2',
+                      uid: 'phony-pod-2',
+                      resourceVersion: '1',
+                      apiVersion: 'v1',
+                    },
+                  },
+                ],
+                ports: [
+                  {
+                    name: 'myport-2',
+                    port: 9090,
                     protocol: 'TCP',
                   },
                 ],

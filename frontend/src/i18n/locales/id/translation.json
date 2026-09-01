@@ -693,6 +693,7 @@
   "Unable to load owned pods for diagnostics": "",
   "Loading diagnostics": "",
   "Addresses": "Alamat",
+  "Not Ready Addresses": "",
   "Address Type": "Tipe Alamat",
   "Hostname": "Nama host",
   "Zone": "Zona",

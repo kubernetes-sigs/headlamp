@@ -698,6 +698,7 @@
   "Unable to load owned pods for diagnostics": "Unable to load owned pods for diagnostics",
   "Loading diagnostics": "Loading diagnostics",
   "Addresses": "Addresses",
+  "Not Ready Addresses": "Not Ready Addresses",
   "Address Type": "Address Type",
   "Hostname": "Hostname",
   "Zone": "Zone",

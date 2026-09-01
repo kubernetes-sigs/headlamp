@@ -698,6 +698,7 @@
   "Unable to load owned pods for diagnostics": "",
   "Loading diagnostics": "",
   "Addresses": "Adresser",
+  "Not Ready Addresses": "",
   "Address Type": "Adresstyp",
   "Hostname": "Namn på värddator",
   "Zone": "Zon",
