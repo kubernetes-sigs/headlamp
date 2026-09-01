@@ -57,7 +57,7 @@ export type KubePersistentVolumeSourceKey = (typeof PV_SOURCE_TYPES)[number];
 
 export interface KubePersistentVolume extends KubeObjectInterface {
   spec: {
-    capacity: {
+    capacity?: {
       storage: string;
     };
     accessModes?: string[];
