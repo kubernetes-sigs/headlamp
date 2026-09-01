@@ -262,6 +262,7 @@
   "{{count}} clusters_other": "{{count}} Cluster",
   "Current//context:cluster": "কারেন্ট",
   "Choose cluster": "Cluster চয়ন করুন",
+  "Headlamp is requesting resources across the whole cluster. If you only have access to some namespaces, list them under Allowed namespaces in the cluster settings.": "",
   "Failed to load resources": "resources লোড করতে Failed",
   "You don't have permissions to view this resource": "এই resourcesটি দেখার জন্য আপনার অনুমতি নেই",
   "Resource not found": "Resource পাওয়া যায় নি",

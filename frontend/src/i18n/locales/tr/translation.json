@@ -262,6 +262,7 @@
   "{{count}} clusters_other": "",
   "Current//context:cluster": "Geçerli",
   "Choose cluster": "Küme seçin",
+  "Headlamp is requesting resources across the whole cluster. If you only have access to some namespaces, list them under Allowed namespaces in the cluster settings.": "",
   "Failed to load resources": "Kaynaklar yüklenemedi",
   "You don't have permissions to view this resource": "Bu kaynağı görüntüleme izniniz yok",
   "Resource not found": "Kaynak bulunamadı",

@@ -262,6 +262,7 @@
   "{{count}} clusters_other": "",
   "Current//context:cluster": "Aktuális",
   "Choose cluster": "Fürt kiválasztása",
+  "Headlamp is requesting resources across the whole cluster. If you only have access to some namespaces, list them under Allowed namespaces in the cluster settings.": "",
   "Failed to load resources": "Nem sikerült betölteni az erőforrásokat",
   "You don't have permissions to view this resource": "Nem jogosult az erőforrás megtekintésére",
   "Resource not found": "Az erőforrás nem található",
