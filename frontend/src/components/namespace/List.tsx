@@ -25,7 +25,7 @@ export default function NamespacesList() {
   const { t } = useTranslation(['glossary', 'translation']);
 
   function makeStatusLabel(namespace: Namespace) {
-    const status = namespace.status.phase;
+    const status = namespace.status?.phase ?? t('translation|Unknown');
     return <StatusLabel status={status === 'Active' ? 'success' : 'error'}>{status}</StatusLabel>;
   }
 
@@ -45,7 +45,7 @@ export default function NamespacesList() {
           gridTemplate: 'auto',
           label: t('translation|Status'),
           filterVariant: 'multi-select',
-          getValue: ns => ns.status.phase,
+          getValue: ns => ns.status?.phase ?? t('translation|Unknown'),
           render: makeStatusLabel,
         },
         {
