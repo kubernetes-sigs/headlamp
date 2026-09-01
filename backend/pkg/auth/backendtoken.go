@@ -50,6 +50,21 @@ func CheckBackendToken(useInCluster bool, w http.ResponseWriter, r *http.Request
 	return nil
 }
 
+// HasValidBackendToken reports whether the request presents a token matching
+// HEADLAMP_BACKEND_TOKEN. Unlike CheckBackendToken, it makes no exception for
+// useInCluster or an unset token — it's a pure proof-of-possession check.
+func HasValidBackendToken(r *http.Request) bool {
+	backendTokenEnv := os.Getenv("HEADLAMP_BACKEND_TOKEN")
+	if backendTokenEnv == "" {
+		return false
+	}
+
+	backendTokens := r.Header.Values(backendTokenHeader)
+
+	return len(backendTokens) == 1 &&
+		subtle.ConstantTimeCompare([]byte(backendTokens[0]), []byte(backendTokenEnv)) == 1
+}
+
 // NewBackendTokenMiddleware protects API requests when the desktop app configures
 // a per-launch token and removes the private credential before forwarding.
 func NewBackendTokenMiddleware(useInCluster bool) func(http.Handler) http.Handler {
