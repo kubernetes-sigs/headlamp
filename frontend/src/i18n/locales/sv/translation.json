@@ -561,6 +561,7 @@
   "Loading table data": "Läser in tabelldata",
   "Refresh": "Uppdatera",
   "No data matching the filter criteria.": "Inga data matchar filtervillkoren.",
+  "Showing the {{max}} most common values": "",
   "No results found": "Inga resultat hittades",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "Alla nya utdata för den här containerprocessen bör visas nedan. Om de inte visas trycker du på Retur...",
   "Failed to run \"{{command}}\"…": "Det gick inte att köra {{command}}…",

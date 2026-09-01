@@ -561,6 +561,7 @@
   "Loading table data": "Tablo verileri yükleniyor",
   "Refresh": "Yenile",
   "No data matching the filter criteria.": "Filtre ölçütleriyle eşleşen veri yok.",
+  "Showing the {{max}} most common values": "",
   "No results found": "Sonuç bulunamadı",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "Bu kapsayıcının işlemi için tüm yeni çıktılar aşağıda gösterilmelidir. Gösterilmiyorsa Enter tuşuna basın…",
   "Failed to run \"{{command}}\"…": "\"{{command}}\" çalıştırılamadı…",

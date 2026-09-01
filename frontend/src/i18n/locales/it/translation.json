@@ -566,6 +566,7 @@
   "Loading table data": "Caricamento dati della tabella",
   "Refresh": "Aggiorna",
   "No data matching the filter criteria.": "Nessun dato corrispondente ai criteri di filtro.",
+  "Showing the {{max}} most common values": "",
   "No results found": "Nessun risultato trovato",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "Qualsiasi nuovo output per il processo di questo container verrà mostrato qui sotto. Nel caso in cui non appaia, premi invio…",
   "Failed to run \"{{command}}\"…": "Impossibile eseguire \"{{command}}\"…",

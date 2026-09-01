@@ -556,6 +556,7 @@
   "Loading table data": "读取表格信息",
   "Refresh": "更新",
   "No data matching the filter criteria.": "没有符合筛选条件的数据。",
+  "Showing the {{max}} most common values": "",
   "No results found": "未找到结果",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "此容器程序的任何新输出应显示在下方。如果未显示，请按 Enter…",
   "Failed to run \"{{command}}\"…": "执行 \"{{command}}\" 失败…",

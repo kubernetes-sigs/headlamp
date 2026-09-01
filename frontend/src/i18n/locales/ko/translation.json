@@ -556,6 +556,7 @@
   "Loading table data": "테이블 데이터 로딩 중",
   "Refresh": "Refresh",
   "No data matching the filter criteria.": "필터 기준과 일치하는 데이터가 없습니다.",
+  "Showing the {{max}} most common values": "",
   "No results found": "결과가 없습니다.",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "이 컨테이너 프로세스의 새로운 출력은 아래에 표시되어야 합니다. 표시되지 않으면 엔터 키를 눌러 주세요…",
   "Failed to run \"{{command}}\"…": "\"{{command}}\" 실행에 실패했습니다…",

@@ -566,6 +566,7 @@
   "Loading table data": "",
   "Refresh": "",
   "No data matching the filter criteria.": "",
+  "Showing the {{max}} most common values": "",
   "No results found": "",
   "Any new output for this container's process should be shown below. In case it doesn't show up, press enter…": "",
   "Failed to run \"{{command}}\"…": "",
