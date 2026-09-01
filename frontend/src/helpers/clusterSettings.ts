@@ -60,7 +60,14 @@ export function storeClusterSettings(clusterName: string, settings: ClusterSetti
   if (!clusterName) {
     return;
   }
-  localStorage.setItem(`cluster_settings.${clusterName}`, JSON.stringify(settings));
+  try {
+    localStorage.setItem(`cluster_settings.${clusterName}`, JSON.stringify(settings));
+  } catch (error) {
+    console.error(
+      'Failed to store cluster settings:',
+      error instanceof Error ? error.message : String(error)
+    );
+  }
 }
 
 /**
