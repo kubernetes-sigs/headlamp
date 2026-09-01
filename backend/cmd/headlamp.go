@@ -585,6 +585,7 @@ func setupInClusterContext(config *HeadlampConfig) {
 		strings.Join(config.OidcScopes, ","),
 		config.OidcSkipTLSVerify,
 		config.OidcCACert,
+		config.OidcAuthStyle,
 		config.UnsafeUseServiceAccountToken,
 		config.ServiceAccountTokenPath,
 	)
@@ -1080,10 +1081,14 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 		}
 
 		verifier := provider.Verifier(oidcConfig)
+
+		endpoint := provider.Endpoint()
+		endpoint.AuthStyle = auth.ParseAuthStyle(oidcAuthConfig.AuthStyle)
+
 		oauthConfig := &oauth2.Config{
 			ClientID:     oidcAuthConfig.ClientID,
 			ClientSecret: oidcAuthConfig.ClientSecret,
-			Endpoint:     provider.Endpoint(),
+			Endpoint:     endpoint,
 			RedirectURL:  getOidcCallbackURL(r, config),
 			Scopes:       append([]string{oidc.ScopeOpenID}, oidcAuthConfig.Scopes...),
 		}

@@ -216,6 +216,7 @@ func createHeadlampConfig(conf *config.Config) *HeadlampConfig {
 		OidcValidatorIdpIssuerURL: conf.OidcValidatorIdpIssuerURL,
 		OidcScopes:                strings.Split(conf.OidcScopes, ","),
 		OidcSkipTLSVerify:         conf.OidcSkipTLSVerify,
+		OidcAuthStyle:             conf.OidcAuthStyle,
 		OidcUseAccessToken:        conf.OidcUseAccessToken,
 		OidcUsePKCE:               conf.OidcUsePKCE,
 		MeUsernamePaths:           conf.MeUsernamePath,
