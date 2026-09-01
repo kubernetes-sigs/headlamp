@@ -80,17 +80,27 @@ export const KubeList = {
         }
         break;
       case 'ERROR':
+        // A watch ERROR carries a `Status`, not a resource, so it has no uid to match
+        // and no resourceVersion to adopt. Returning the list unchanged keeps the
+        // version we last saw: adopting the absent one would send the next watch a
+        // literal `resourceVersion=undefined`, which the API server rejects, and the
+        // list would stop receiving updates.
         console.error('Error in update', update);
-        break;
+        return list;
       default:
+        // Same reasoning for a type we do not recognise: nothing was applied, so
+        // nothing about the list has moved on.
         console.error('Unknown update type', update);
+        return list;
     }
 
     return {
       ...list,
       metadata: {
         ...list.metadata,
-        resourceVersion: update.object.metadata.resourceVersion!,
+        // Keep the version we already had when an event arrives without one, so a
+        // malformed message cannot blank the value the next watch is started from.
+        resourceVersion: update.object.metadata.resourceVersion ?? list.metadata.resourceVersion,
       },
       items: newItems,
     };
