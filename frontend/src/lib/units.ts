@@ -44,7 +44,7 @@ function parseUnitsOfBytes(value: string): number {
     return parseFloat(value.slice(0, -1)) / 1000;
   }
 
-  const groups = value.match(/(\d+(?:\.\d+)?)([BKMGTPEe])?(i)?(\d+)?/) || [];
+  const groups = value.match(/(\d+(?:\.\d+)?)(k(?!i)|[BKMGTPEe])?(i)?(\d+)?/) || [];
   const number = parseFloat(groups[1]);
 
   // number ex. 1000
@@ -57,7 +57,10 @@ function parseUnitsOfBytes(value: string): number {
     return number * 10 ** parseInt(groups[4], 10);
   }
 
-  const unitIndex = _.indexOf(UNITS, groups[2]);
+  // Per the Kubernetes quantity spec, decimal kilo is lowercase "k" while
+  // the other decimal suffixes (M, G, T, P, E) are uppercase.
+  const unit = groups[2] === 'k' ? 'K' : groups[2];
+  const unitIndex = _.indexOf(UNITS, unit);
 
   // Unit + i ex. 1Ki
   if (groups[3] !== undefined) {
