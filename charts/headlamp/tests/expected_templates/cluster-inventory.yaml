@@ -34,7 +34,7 @@ metadata:
     app.kubernetes.io/version: "0.45.0"
     app.kubernetes.io/managed-by: Helm
 data:
-  config.json: "{\"providers\":[{\"name\":\"static-provider\"}]}"
+  config.json: "{\"providers\":[{\"credentialSource\":\"oidc\",\"name\":\"static-provider\"}]}"
 ---
 # Source: headlamp/templates/clusterrolebinding.yaml
 apiVersion: rbac.authorization.k8s.io/v1
