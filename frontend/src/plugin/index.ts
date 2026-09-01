@@ -53,6 +53,12 @@ import * as Utils from '../lib/util';
 import { eventAction, HeadlampEventType } from '../redux/headlampEventSlice';
 import store from '../redux/stores/store';
 import * as stateless from '../stateless/index';
+import {
+  createPluginRunCommand,
+  findCommandCapability,
+  PluginCommandCapability,
+  preparePluginCommandCapabilities,
+} from './commandCapabilities';
 import { Headlamp, Plugin } from './lib';
 import { changePluginLanguage, initializePluginI18n } from './pluginI18n';
 import { useTranslation } from './pluginI18n';
@@ -583,6 +589,13 @@ export async function fetchAndExecutePlugins(
         secureStorageNamespaces.filter((namespace): namespace is string => Boolean(namespace))
       )
     : {};
+  const commandCapabilitiesBridge = window?.desktopApi?.commandCapabilities;
+  const commandCapabilities: PluginCommandCapability[] = await preparePluginCommandCapabilities(
+    commandCapabilitiesBridge,
+    packageInfosToExecute,
+    pluginPathsToExecute,
+    sourcesToExecute
+  );
 
   // Save references to the pluginRunCommand and desktopApiSend/Receive.
   // Plugins can use without worrying about modified global window.desktopApi.
@@ -647,68 +660,21 @@ export async function fetchAndExecutePlugins(
         getArgValues: (pluginName, pluginPath, allowedPermissions) => {
           const argumentNames: string[] = [];
           const argumentValues: unknown[] = [];
-          // allowedPermissions is the return value of getAllowedPermissions
-          const isPackage = identifyPackages(pluginPath, pluginName, isDevelopmentMode);
-          if (isPackage['@headlamp-k8s/minikube']) {
-            // We construct a pluginRunCommand that has private
-            //  - permission secrets
-            //  - stored desktopApiSend and desktopApiReceive functions that can't be modified
-            function pluginRunCommand(
-              command: 'minikube' | 'az' | 'scriptjs',
-              args: string[],
-              options: {}
-            ): ReturnType<typeof internalRunCommand> {
-              return internalRunCommand(
-                command,
-                args,
-                options,
-                allowedPermissions,
-                pluginDesktopApiSend,
-                pluginDesktopApiReceive
-              );
-            }
+          const commandCapability = findCommandCapability(
+            commandCapabilities,
+            packageInfosToExecute[index]
+          );
+          const productRunCommand = createPluginRunCommand(
+            commandCapability,
+            internalRunCommand,
+            allowedPermissions,
+            pluginDesktopApiSend,
+            pluginDesktopApiReceive
+          );
+          if (productRunCommand) {
             argumentNames.push('pluginRunCommand', 'pluginPath');
-            argumentValues.push(pluginRunCommand, pluginPath);
+            argumentValues.push(productRunCommand, pluginPath);
           }
-
-          if (isPackage['@headlamp-k8s/ai-assistant']) {
-            function pluginRunCommand(
-              command: 'gh' | 'az',
-              args: string[],
-              options: {}
-            ): ReturnType<typeof internalRunCommand> {
-              return internalRunCommand(
-                command,
-                args,
-                options,
-                allowedPermissions,
-                pluginDesktopApiSend,
-                pluginDesktopApiReceive
-              );
-            }
-            argumentNames.push('pluginRunCommand', 'pluginPath');
-            argumentValues.push(pluginRunCommand, pluginPath);
-          }
-
-          if (isPackage['azure-aks']) {
-            function pluginRunCommand(
-              command: 'scriptjs',
-              args: string[],
-              options: {}
-            ): ReturnType<typeof internalRunCommand> {
-              return internalRunCommand(
-                command,
-                args,
-                options,
-                allowedPermissions,
-                pluginDesktopApiSend,
-                pluginDesktopApiReceive
-              );
-            }
-            argumentNames.push('pluginRunCommand', 'pluginPath');
-            argumentValues.push(pluginRunCommand, pluginPath);
-          }
-
           const storageNamespace = secureStorageNamespaces[index];
           const storageCapability = storageNamespace
             ? secureStorageCapabilities[storageNamespace]
