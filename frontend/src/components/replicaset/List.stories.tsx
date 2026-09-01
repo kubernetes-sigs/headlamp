@@ -17,6 +17,7 @@
 import Container from '@mui/material/Container';
 import { Meta, StoryFn } from '@storybook/react';
 import { http, HttpResponse } from 'msw';
+import { expect, userEvent, waitFor, within } from 'storybook/test';
 import { API_BASE, TestContext } from '../../test';
 import List from './List';
 
@@ -272,4 +273,56 @@ ReplicaSets.parameters = {
       ],
     },
   },
+};
+
+export const TooltipInteraction = Template.bind({});
+TooltipInteraction.parameters = {
+  ...ReplicaSets.parameters,
+  storyshots: { disable: true },
+};
+TooltipInteraction.play = async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  // Wait for the data to load and the '+1 more' text to appear
+  const moreText = await canvas.findByText(/\+1 more/i, {}, { timeout: 3000 });
+  await userEvent.hover(moreText);
+  const body = within(canvasElement.ownerDocument.body);
+  const fullTooltipText = await body.findByText(/pod-template-hash: b123456/i);
+  expect(fullTooltipText).toBeVisible();
+  // Unhover to close the tooltip
+  await userEvent.unhover(moreText);
+  await waitFor(() =>
+    expect(body.queryByText(/pod-template-hash: b123456/i)).not.toBeInTheDocument()
+  );
+};
+
+export const TooltipInteractionKeyboard = Template.bind({});
+TooltipInteractionKeyboard.parameters = {
+  ...ReplicaSets.parameters,
+  storyshots: { disable: true },
+};
+TooltipInteractionKeyboard.play = async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  // Wait for the data to load and the '+1 more' text to appear
+  const moreText = await canvas.findByText(/\+1 more/i, {}, { timeout: 3000 });
+  expect(moreText).toBeVisible();
+
+  // Focus the truncated label indicator to open the tooltip (keyboard accessibility)
+  moreText.parentElement?.focus();
+
+  // Assert that the tooltip's full content is visible
+  const body = within(canvasElement.ownerDocument.body);
+  const fullTooltipText = await body.findByText(content => {
+    return (
+      content.includes('app.kubernetes.io/instance: headlamp-release') &&
+      content.includes('pod-template-hash: b123456')
+    );
+  });
+
+  expect(fullTooltipText).toBeVisible();
+
+  // Unfocus to close the tooltip
+  await userEvent.tab();
+  await waitFor(() =>
+    expect(body.queryByText(/pod-template-hash: b123456/i)).not.toBeInTheDocument()
+  );
 };

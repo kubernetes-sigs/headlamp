@@ -932,6 +932,7 @@
   "Selects which pods belong to this ReplicaSet. Entries are mirrored read-only into the pod template labels below; extra pod-template-only labels can be added there.": "",
   "Current//context:replicas": "現在",
   "Desired//context:replicas": "希望",
+  "more_count_other": "",
   "Graph controls": "",
   "Zoom in": "拡大",
   "Zoom out": "縮小",
