@@ -1020,6 +1020,7 @@
   "resource {{resourceName}} on pods": "பாட்களில் {{resourceName}} வளம்",
   "resource {{resourceName}} of container {{containerName}} on pods": "பாட்களில் {{containerName}} கண்டெய்னரின் {{resourceName}} வளம்",
   "Warning. Incompatible plugins disabled: ({{ pluginList }})": "எச்சரிக்கை: பொருந்தாத செருகுநிரல்கள் முடக்கப்பட்டுள்ளன ({{ pluginList }})",
+  "The following plugins failed to initialize: {{ pluginList }}": "",
   "Failed to load plugins. Please try reloading the app.": "",
   "Global Search": "",
   "Open the global search dialog": "",

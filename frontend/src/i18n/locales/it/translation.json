@@ -1030,6 +1030,7 @@
   "resource {{resourceName}} on pods": "risorsa {{resourceName}} su pod",
   "resource {{resourceName}} of container {{containerName}} on pods": "risorsa {{resourceName}} del container {{containerName}} su pod",
   "Warning. Incompatible plugins disabled: ({{ pluginList }})": "Attenzione. Estensioni incompatibili disabilitate: ({{ pluginList }})",
+  "The following plugins failed to initialize: {{ pluginList }}": "",
   "Failed to load plugins. Please try reloading the app.": "",
   "Global Search": "",
   "Open the global search dialog": "",
