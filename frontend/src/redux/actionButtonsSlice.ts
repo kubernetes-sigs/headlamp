@@ -39,6 +39,11 @@ export type RowAction = {
 export type AppBarAction = {
   id: string;
   action?: AppBarActionType;
+  /**
+   * Name of the plugin that registered this action, set automatically by
+   * `registerAppBarAction`. `null`/`undefined` for actions not attributed to a plugin.
+   */
+  plugin?: string | null;
 };
 
 export enum DefaultHeaderAction {
@@ -80,6 +85,11 @@ export type AppBarActionProcessorType = (info: AppBarActionsProcessorArgs) => Ap
 export type AppBarActionsProcessor = {
   id: string;
   processor: AppBarActionProcessorType;
+  /**
+   * Name of the plugin that registered this processor, set automatically by
+   * `registerAppBarAction`. `null`/`undefined` for processors not attributed to a plugin.
+   */
+  plugin?: string | null;
 };
 
 export interface HeaderActionState {

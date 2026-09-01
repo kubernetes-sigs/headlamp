@@ -37,6 +37,12 @@ export type TableColumnsProcessor = {
     id: string;
     columns: ResourceTableProps<T>['columns'];
   }) => ResourceTableProps<T>['columns'];
+  /**
+   * Name of the plugin that registered this processor, set automatically by
+   * `registerResourceTableColumnsProcessor`. `null`/`undefined` for processors not
+   * attributed to a plugin.
+   */
+  plugin?: string | null;
 };
 
 const initialState: ResourceTableState = {

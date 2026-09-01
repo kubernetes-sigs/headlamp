@@ -41,7 +41,9 @@ type Property struct {
 // Metadata contains non-sensitive ClusterProfile status metadata.
 //
 // The fields mirror the non-access-provider parts of the upstream
-// [ClusterProfileStatus] shape.
+// [ClusterProfileStatus] shape, plus the ClusterProfile's Labels (an ObjectMeta field,
+// not part of Status) which Headlamp forwards so the frontend can evaluate a plugin's
+// clusterSelector against them.
 //
 // [ClusterProfileStatus]: https://pkg.go.dev/sigs.k8s.io/cluster-inventory-api/apis/v1alpha1#ClusterProfileStatus
 type Metadata struct {
@@ -49,6 +51,9 @@ type Metadata struct {
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
 	Version    *Version           `json:"version,omitempty"`
 	Properties []Property         `json:"properties,omitempty"`
+	// Labels are the ClusterProfile's labels, forwarded so plugin clusterSelector
+	// matching can be done on the frontend.
+	Labels map[string]string `json:"labels,omitempty"`
 }
 
 // DeepCopy returns an independent copy of Metadata.
@@ -66,6 +71,15 @@ func (m *Metadata) DeepCopy() *Metadata {
 	if m.Version != nil {
 		version := *m.Version
 		copied.Version = &version
+	}
+
+	if m.Labels != nil {
+		labels := make(map[string]string, len(m.Labels))
+		for k, v := range m.Labels {
+			labels[k] = v
+		}
+
+		copied.Labels = labels
 	}
 
 	return copied

@@ -127,6 +127,7 @@ import { setRoute, setRouteFilter } from '../redux/routesSlice';
 import store from '../redux/stores/store';
 import { UIPanel, uiSlice } from '../redux/uiSlice';
 import { ConfigStore } from './configStore';
+import { currentPluginName } from './pluginContext';
 import {
   PluginSettingsComponentType,
   PluginSettingsDetailsProps,
@@ -346,6 +347,7 @@ export function registerSidebarEntry({
       sidebar,
       entryType,
       sx,
+      plugin: currentPluginName,
     })
   );
 }
@@ -469,7 +471,7 @@ export function registerRouteFilter(filterFunc: (entry: Route) => Route | null) 
  *
  */
 export function registerRoute(routeSpec: Route) {
-  store.dispatch(setRoute(routeSpec));
+  store.dispatch(setRoute({ ...routeSpec, plugin: currentPluginName }));
 }
 
 /**
@@ -556,7 +558,14 @@ export function registerDetailsViewHeaderActionsProcessor(
 export function registerResourceTableColumnsProcessor(
   processor: TableColumnsProcessor | TableColumnsProcessor['processor']
 ) {
-  store.dispatch(addResourceTableColumnsProcessor(processor));
+  const normalizedProcessor: TableColumnsProcessor =
+    typeof processor === 'function'
+      ? { id: `generated-id-${Date.now().toString(36)}`, processor }
+      : { ...processor };
+  normalizedProcessor.id = normalizedProcessor.id || `generated-id-${Date.now().toString(36)}`;
+  store.dispatch(
+    addResourceTableColumnsProcessor({ ...normalizedProcessor, plugin: currentPluginName })
+  );
 }
 
 function isProcessor(
@@ -599,9 +608,22 @@ export function registerAppBarAction(
   headerAction: AppBarActionType | AppBarAction | AppBarActionsProcessor | AppBarActionProcessorType
 ) {
   if (isProcessor(headerAction)) {
-    store.dispatch(setAppBarActionsProcessor(headerAction as AppBarActionsProcessor));
+    const processor: AppBarActionsProcessor =
+      typeof headerAction === 'function'
+        ? {
+            id: `generated-id-${Date.now().toString(36)}`,
+            processor: headerAction as AppBarActionProcessorType,
+          }
+        : { ...(headerAction as AppBarActionsProcessor) };
+    processor.id = processor.id || `generated-id-${Date.now().toString(36)}`;
+    store.dispatch(setAppBarActionsProcessor({ ...processor, plugin: currentPluginName }));
   }
-  store.dispatch(setAppBarAction(headerAction as AppBarAction));
+
+  const action: AppBarAction =
+    has(headerAction, 'action') || has(headerAction, 'id')
+      ? { ...(headerAction as AppBarAction) }
+      : { id: `generated-id-${Date.now().toString(36)}`, action: headerAction as AppBarActionType };
+  store.dispatch(setAppBarAction({ ...action, plugin: currentPluginName }));
 }
 
 /**

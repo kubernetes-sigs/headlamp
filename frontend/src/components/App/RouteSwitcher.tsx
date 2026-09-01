@@ -29,6 +29,10 @@ import { getDefaultRoutes } from '../../lib/router/getDefaultRoutes';
 import { getRoutePath } from '../../lib/router/getRoutePath';
 import { getRouteUseClusterURL } from '../../lib/router/getRouteUseClusterURL';
 import { Route as RouteType } from '../../lib/router/Route';
+import {
+  isPluginApplicable,
+  usePluginApplicabilityMap,
+} from '../../plugin/useIsPluginApplicableToCluster';
 import { useTypedSelector } from '../../redux/hooks';
 import { uiSlice } from '../../redux/uiSlice';
 import ErrorBoundary from '../common/ErrorBoundary';
@@ -41,6 +45,7 @@ export default function RouteSwitcher(props: { requiresToken: () => boolean }) {
   const routeFilters = useTypedSelector(state => state.routes.routeFilters);
   const defaultRoutes = Object.values(getDefaultRoutes()).concat(NotFoundRoute);
   const clusters = useClustersConf();
+  const pluginApplicabilityMap = usePluginApplicabilityMap();
   const filteredRoutes = Object.values(routes)
     .concat(defaultRoutes)
     .filter(
@@ -48,7 +53,9 @@ export default function RouteSwitcher(props: { requiresToken: () => boolean }) {
         !(
           routeFilters.length > 0 &&
           routeFilters.filter(f => f(route)).length !== routeFilters.length
-        ) && !route.disabled
+        ) &&
+        !route.disabled &&
+        isPluginApplicable(pluginApplicabilityMap, route.plugin)
     );
 
   return (
