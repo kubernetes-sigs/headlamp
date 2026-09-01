@@ -296,6 +296,11 @@ func cacheMiddlewareHandler(c *HeadlampConfig, next http.Handler, w http.Respons
 		return
 	}
 
+	if r.Method == http.MethodGet && k8cache.HasQueryParameters(r.URL) {
+		next.ServeHTTP(w, r)
+		return
+	}
+
 	ctx, span, contextKey, kContext, err := GetContextKeyAndKContext(w, r, c)
 	if err != nil {
 		return
