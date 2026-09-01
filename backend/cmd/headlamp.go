@@ -1112,12 +1112,23 @@ func createHeadlampHandler(ctx context.Context, config *HeadlampConfig) http.Han
 
 		var authURL string
 
+		var authOptions []oauth2.AuthCodeOption
+
 		if config.OidcUsePKCE {
 			entry.CodeVerifier = oauth2.GenerateVerifier()
-			authURL = oauthConfig.AuthCodeURL(state, oauth2.S256ChallengeOption(entry.CodeVerifier))
-		} else {
-			authURL = oauthConfig.AuthCodeURL(state)
+			authOptions = append(authOptions, oauth2.S256ChallengeOption(entry.CodeVerifier))
 		}
+
+		if config.OidcAuthURLParameters != "" {
+			for _, param := range strings.Split(config.OidcAuthURLParameters, ",") {
+				parts := strings.SplitN(param, "=", 2)
+				if len(parts) == 2 {
+					authOptions = append(authOptions, oauth2.SetAuthURLParam(strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])))
+				}
+			}
+		}
+
+		authURL = oauthConfig.AuthCodeURL(state, authOptions...)
 
 		// Store the request config keyed by state for callback handling
 		oauthMu.Lock()
