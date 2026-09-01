@@ -137,6 +137,18 @@ ___
 
 ___
 
+### PluginRunCommand
+
+Ƭ **PluginRunCommand**: (`command`: `string`, `args`: `string`[], `options`: `Record`<`string`, `never`>) => `ReturnType`<typeof `runCommand`\>
+
+Command-running function made available to a plugin authorized by the product manifest.
+
+#### Defined in
+
+[components/App/runCommand.ts](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/components/App/runCommand.ts)
+
+___
+
 ### PluginSettingsComponentType
 
 Ƭ **PluginSettingsComponentType**: `React.ComponentType`<[`PluginSettingsDetailsProps`](../interfaces/plugin_registry.PluginSettingsDetailsProps.md)\> \| `ReactElement` \| ``null``
@@ -1011,7 +1023,10 @@ This function uses the desktopApi.send and desktopApi.receive methods to communi
 **`example`**
 
 ```ts
-  const minikube = runCommand('minikube', ['status']);
+  import type { PluginRunCommand } from '@kinvolk/headlamp-plugin/lib';
+  declare const pluginRunCommand: PluginRunCommand;
+  const minikube = pluginRunCommand('minikube', ['status'], {});
+
   minikube.stdout.on('data', (data) => {
     console.log('stdout:', data);
   });
@@ -1027,7 +1042,7 @@ This function uses the desktopApi.send and desktopApi.receive methods to communi
 
 | Name | Type | Description |
 | :------ | :------ | :------ |
-| `command` | ``"minikube"`` \| ``"az"`` | The command to run. |
+| `command` | `string` | The command to run. |
 | `args` | `string`[] | An array of arguments to pass to the command. |
 | `options` | `Object` | - |
 
