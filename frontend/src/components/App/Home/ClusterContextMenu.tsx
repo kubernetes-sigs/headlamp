@@ -39,6 +39,8 @@ import { useTypedSelector } from '../../../redux/hooks';
 import { findKubeconfigByClusterName } from '../../../stateless/findKubeconfigByClusterName';
 import { ConfirmDialog } from '../../common/ConfirmDialog';
 import ErrorBoundary from '../../common/ErrorBoundary/ErrorBoundary';
+import CopyButton from '../../common/Resource/CopyButton';
+import { filterKubeconfigForCluster } from './clusterKubeconfigExport';
 
 interface ClusterContextMenuProps {
   /** The cluster for the context menu to act on. */
@@ -75,21 +77,7 @@ export default function ClusterContextMenu({
       return null;
     }
     const full = yaml.load(decodeBase64(b64)) as KubeconfigObject;
-    const context = full.contexts?.find(c => c.name === cluster.name);
-    if (!context) {
-      return null;
-    }
-    const matchedCluster = full.clusters?.find(c => c.name === context.context.cluster);
-    const matchedUser = full.users?.find(u => u.name === context.context.user);
-    const filtered: KubeconfigObject = {
-      apiVersion: full.apiVersion ?? 'v1',
-      kind: full.kind ?? 'Config',
-      'current-context': cluster.name,
-      clusters: matchedCluster ? [matchedCluster] : [],
-      users: matchedUser ? [matchedUser] : [],
-      contexts: [context],
-    };
-    return yaml.dump(filtered);
+    return filterKubeconfigForCluster(full, cluster.name, cluster.meta_data?.clusterID);
   }
 
   const kubeconfigOrigin = cluster.meta_data?.origin?.kubeconfig;
@@ -195,27 +183,23 @@ export default function ClusterContextMenu({
           <ListItemText>{t('translation|Settings')}</ListItemText>
         </MenuItem>
         {isStatelessCluster && [
-          <MenuItem
+          <CopyButton
             key="copy-kubeconfig"
-            onClick={async () => {
-              handleMenuClose();
-              const kubeconfigYaml = await getClusterKubeconfigYaml();
-              if (kubeconfigYaml) {
-                try {
-                  await navigator.clipboard.writeText(kubeconfigYaml);
-                  enqueueSnackbar(t('translation|Kubeconfig copied to clipboard'), {
-                    variant: 'success',
-                  });
-                } catch {
-                  enqueueSnackbar(t('translation|Failed to copy kubeconfig to clipboard'), {
-                    variant: 'error',
-                  });
-                }
-              }
-            }}
-          >
-            <ListItemText>{t('translation|Copy kubeconfig')}</ListItemText>
-          </MenuItem>,
+            buttonStyle="menu"
+            description={t('translation|Copy kubeconfig')}
+            text={getClusterKubeconfigYaml}
+            onClick={handleMenuClose}
+            onCopied={() =>
+              enqueueSnackbar(t('translation|Kubeconfig copied to clipboard'), {
+                variant: 'success',
+              })
+            }
+            onError={() =>
+              enqueueSnackbar(t('translation|Failed to copy kubeconfig to clipboard'), {
+                variant: 'error',
+              })
+            }
+          />,
           <MenuItem
             key="download-kubeconfig"
             onClick={async () => {

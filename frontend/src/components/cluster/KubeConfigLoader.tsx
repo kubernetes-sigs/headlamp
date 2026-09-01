@@ -39,6 +39,7 @@ import { mergeStatelessConfigState } from '../../stateless';
 import { DialogTitle } from '../common/Dialog';
 import { DropZoneBox } from '../common/DropZoneBox';
 import Loader from '../common/Loader';
+import CopyButton from '../common/Resource/CopyButton';
 import { ClusterDialog } from './Chooser';
 
 interface Cluster {
@@ -153,6 +154,7 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
     onCancel,
   } = props;
   const { t } = useTranslation(['translation']);
+  const [copyError, setCopyError] = useState(false);
 
   const { getRootProps, getInputProps, open } = useDropzone({
     onDrop: (acceptedFiles: File[]) => onDrop(acceptedFiles),
@@ -293,10 +295,6 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
           'current-context': currentContext,
         });
 
-        function handleCopy() {
-          navigator.clipboard.writeText(kubeconfigYaml);
-        }
-
         function handleDownload() {
           const blob = new Blob([kubeconfigYaml], { type: 'text/yaml' });
           const url = URL.createObjectURL(blob);
@@ -323,13 +321,19 @@ export function PureKubeConfigLoader(props: PureKubeConfigLoaderProps) {
             <Box style={{ padding: '32px' }}>
               <Typography>{t('translation|Clusters successfully set up!')}</Typography>
             </Box>
-            <WideButton
-              variant="outlined"
-              startIcon={<InlineIcon icon="mdi:content-copy" />}
-              onClick={handleCopy}
-            >
-              {t('translation|Copy kubeconfig to clipboard')}
-            </WideButton>
+            <CopyButton
+              buttonStyle="wide"
+              description={t('translation|Copy kubeconfig to clipboard')}
+              text={kubeconfigYaml}
+              buttonProps={{ sx: { width: '100%', maxWidth: '300px' } }}
+              onError={() => setCopyError(true)}
+              onCopied={() => setCopyError(false)}
+            />
+            {copyError && (
+              <Typography color="error">
+                {t('translation|Failed to copy kubeconfig to clipboard')}
+              </Typography>
+            )}
             <WideButton
               variant="outlined"
               startIcon={<InlineIcon icon="mdi:file-download-outline" />}
