@@ -171,6 +171,7 @@ DefaultDeployment.args = {
 
 export const LoadingWorkload = Template.bind({});
 LoadingWorkload.args = {
+  title: 'Deployments',
   workloadData: null,
   partialLabel: 'Loading',
   totalLabel: 'Total',

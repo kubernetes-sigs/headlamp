@@ -32,7 +32,22 @@ export interface TileChartProps extends Omit<PercentageCircleProps, 'data'> {
 }
 
 export function TileChart(props: TileChartProps) {
-  const { title, infoTooltip = '', legend, total, data, extraContent, ...others } = props;
+  const {
+    title,
+    infoTooltip = '',
+    legend,
+    total,
+    data,
+    extraContent,
+    loadingTitle,
+    label,
+    ...others
+  } = props;
+
+  const resolvedLoadingTitle =
+    loadingTitle ||
+    (typeof title === 'string' && title.trim() ? title.trim() : undefined) ||
+    (typeof label === 'string' && label.trim() && label !== '…' ? label.trim() : undefined);
 
   return (
     <Paper
@@ -82,7 +97,15 @@ export function TileChart(props: TileChartProps) {
         </Box>
         <Box>
           {!!data && (
-            <PercentageCircle data={data} total={total} size={140} thickness={11} {...others} />
+            <PercentageCircle
+              data={data}
+              total={total}
+              size={140}
+              thickness={11}
+              label={label}
+              loadingTitle={resolvedLoadingTitle}
+              {...others}
+            />
           )}
         </Box>
       </Box>
