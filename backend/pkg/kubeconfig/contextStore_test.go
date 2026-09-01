@@ -27,6 +27,8 @@ func TestContextStore(t *testing.T) {
 	contexts, err := store.GetContexts()
 	require.NoError(t, err)
 	require.Equal(t, 2, len(contexts))
+	require.Equal(t, "test", contexts[0].Name)
+	require.Equal(t, "test2", contexts[1].Name)
 
 	// Test GetContext
 	_, err = store.GetContext("non-existent-context")
@@ -132,9 +134,33 @@ func TestContextStoreGetContextKeys(t *testing.T) {
 
 	keys, err = store.GetContextKeys()
 	require.NoError(t, err)
-	require.Len(t, keys, 2)
-	require.Contains(t, keys, "test-key-1")
-	require.Contains(t, keys, "test-key-2")
+	require.Equal(t, []string{"test-key-1", "test-key-2"}, keys)
+}
+
+func TestContextStoreReturnsSortedContextsAndKeys(t *testing.T) {
+	store := kubeconfig.NewContextStore()
+
+	err := store.AddContext(&kubeconfig.Context{Name: "cluster-c"})
+	require.NoError(t, err)
+
+	err = store.AddContext(&kubeconfig.Context{Name: "cluster-a"})
+	require.NoError(t, err)
+
+	err = store.AddContext(&kubeconfig.Context{Name: "cluster-b"})
+	require.NoError(t, err)
+
+	contexts, err := store.GetContexts()
+	require.NoError(t, err)
+	require.Len(t, contexts, 3)
+	require.Equal(t, []string{"cluster-a", "cluster-b", "cluster-c"}, []string{
+		contexts[0].Name,
+		contexts[1].Name,
+		contexts[2].Name,
+	})
+
+	keys, err := store.GetContextKeys()
+	require.NoError(t, err)
+	require.Equal(t, []string{"cluster-a", "cluster-b", "cluster-c"}, keys)
 }
 
 func TestAddContextWithHeadlampInfo(t *testing.T) {
