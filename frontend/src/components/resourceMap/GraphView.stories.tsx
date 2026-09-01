@@ -517,10 +517,11 @@ export const PerformanceTest2000Pods = () => {
               fontSize: '12px',
               color: changePercentage > 20 ? '#d32f2f' : '#2e7d32',
               fontStyle: 'italic',
-              maxWidth: '900px',
+              width: '100%',
               padding: '8px',
               backgroundColor: changePercentage > 20 ? '#ffebee' : '#e8f5e9',
               borderRadius: '4px',
+              boxSizing: 'border-box',
             }}
           >
             💡 <strong>Change {changePercentage}%</strong>:{' '}
@@ -1163,6 +1164,8 @@ export const PerformanceTest5000Pods = () => {
               padding: '8px',
               backgroundColor: changePercentage > 20 ? '#ffebee' : '#e8f5e9',
               borderRadius: '4px',
+              width: '100%',
+              boxSizing: 'border-box',
             }}
           >
             💡 {changePercentage > 20 ? 'Full Processing' : 'Incremental Optimization'} mode. Open
@@ -1352,6 +1355,8 @@ export const PerformanceTest20000Pods = () => {
               padding: '8px',
               backgroundColor: '#ffebee',
               borderRadius: '4px',
+              width: '100%',
+              boxSizing: 'border-box',
             }}
           >
             ⚠️ EXTREME STRESS TEST with {allResources.length} resources (~60k edges). Initial render
@@ -1582,6 +1587,8 @@ export const PerformanceTest100000Pods = () => {
               padding: '8px',
               borderRadius: '4px',
               backgroundColor: '#ffebee',
+              width: '100%',
+              boxSizing: 'border-box',
             }}
           >
             🚨 ULTIMATE STRESS TEST: {allResources.length} resources (~{edges.length} edges).
