@@ -379,12 +379,12 @@ function eventDiagnostics(warningEvents: EventLike[], t: Translate): DiagnosticI
           })
         : '',
       count > 1 && firstOccurrence
-        ? t('{{ eventCount }} times since {{ age }}', {
-            eventCount: count,
+        ? t('{{ count }} times since {{ age }}', {
+            count,
             age: timeAgo(firstOccurrence),
           })
         : count > 1
-        ? t('{{ eventCount }} times', { eventCount: count })
+        ? t('{{ count }} times', { count })
         : '',
     ].filter(Boolean);
 
@@ -393,9 +393,9 @@ function eventDiagnostics(warningEvents: EventLike[], t: Translate): DiagnosticI
       severity: 'warning',
       title:
         count > 1
-          ? t('Warning event: {{ reason }} ({{ eventCount }} times)', {
+          ? t('Warning event: {{ reason }} ({{ count }} times)', {
               reason,
-              eventCount: count,
+              count,
             })
           : t('Warning event: {{ reason }}', { reason }),
       message: (event as Event).message ?? (event as KubeEvent).message,
