@@ -52,6 +52,7 @@ import (
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/clusterinventory"
 	cfg "github.com/kubernetes-sigs/headlamp/backend/pkg/config"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/headlampconfig"
+	"github.com/kubernetes-sigs/headlamp/backend/pkg/health"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/helm"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/kubeconfig"
 	"github.com/kubernetes-sigs/headlamp/backend/pkg/logger"
@@ -1553,6 +1554,16 @@ func StartHeadlampServer(config *HeadlampConfig) {
 
 	router := mux.NewRouter()
 
+	// Health and readiness endpoints are registered on the top-level
+	// router so they bypass auth middleware. Telemetry middleware (tracing,
+	// request counting) still applies, which is intentional — it lets
+	// operators observe probe traffic in dashboards.
+	healthChecker := health.NewChecker()
+	router.HandleFunc("/healthz", healthChecker.HandlerHealthz()).Methods(http.MethodGet)
+	router.HandleFunc("/readyz", healthChecker.HandlerReadyz()).Methods(http.MethodGet)
+
+	logger.Log(logger.LevelInfo, nil, nil, "health endpoints registered: /healthz, /readyz")
+
 	if config.Telemetry != nil && config.Metrics != nil {
 		router.Use(telemetry.TracingMiddleware("headlamp-server"))
 		router.Use(config.Metrics.RequestCounterMiddleware)
@@ -1574,12 +1585,21 @@ func StartHeadlampServer(config *HeadlampConfig) {
 		return
 	}
 
-	runServer(config, cancel, handler)
+	// Mount the main application handler under the top-level router so
+	// that health endpoints registered above are reachable alongside it.
+	router.PathPrefix("/").Handler(handler)
+
+	runServer(config, cancel, router, healthChecker)
 }
 
 // runServer creates the HTTP server, sets up graceful shutdown, starts
 // listening (TLS or plain), and handles the server completion and errors.
-func runServer(config *HeadlampConfig, cancel context.CancelFunc, handler http.Handler) {
+func runServer(
+	config *HeadlampConfig,
+	cancel context.CancelFunc,
+	handler http.Handler,
+	healthChecker *health.Checker,
+) {
 	listenHost := strings.TrimPrefix(strings.TrimSuffix(config.ListenAddr, "]"), "[")
 	addr := net.JoinHostPort(listenHost, fmt.Sprintf("%d", config.Port))
 
@@ -1591,7 +1611,7 @@ func runServer(config *HeadlampConfig, cancel context.CancelFunc, handler http.H
 	}
 
 	serverDone := make(chan struct{})
-	setupGracefulShutdown(server, cancel, serverDone)
+	setupGracefulShutdown(server, cancel, serverDone, healthChecker)
 
 	var err error
 
@@ -1656,7 +1676,12 @@ func copyStaticFiles(config *HeadlampConfig) error {
 // (SIGINT, SIGTERM) and gracefully shuts down the server. It cancels
 // the context to stop all watcher goroutines. The serverDone channel
 // is used to stop this goroutine if the server exits for a non-signal reason.
-func setupGracefulShutdown(server *http.Server, cancel context.CancelFunc, serverDone <-chan struct{}) {
+func setupGracefulShutdown(
+	server *http.Server,
+	cancel context.CancelFunc,
+	serverDone <-chan struct{},
+	healthChecker *health.Checker,
+) {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
 
@@ -1666,6 +1691,10 @@ func setupGracefulShutdown(server *http.Server, cancel context.CancelFunc, serve
 		select {
 		case <-sigChan:
 			logger.Log(logger.LevelInfo, nil, nil, "Received shutdown signal, stopping watchers...")
+
+			// Mark readiness as unavailable so the load balancer
+			// stops sending new traffic before we shut down.
+			healthChecker.SetShuttingDown()
 
 			cancel() // Cancel context to stop all watcher goroutines
 
