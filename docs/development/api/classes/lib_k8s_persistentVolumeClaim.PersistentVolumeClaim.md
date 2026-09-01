@@ -73,6 +73,38 @@ makeKubeObject<KubePersistentVolumeClaim\>(
 
 ## Accessors
 
+### requestedStorage
+
+• `get` **requestedStorage**(): `undefined` \| `string`
+
+The size asked for in the spec, which the provider grows the volume towards.
+
+#### Returns
+
+`undefined` \| `string`
+
+#### Defined in
+
+[lib/k8s/persistentVolumeClaim.ts:87](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/lib/k8s/persistentVolumeClaim.ts#L87)
+
+___
+
+### resizeCondition
+
+• `get` **resizeCondition**(): `undefined` \| [`KubeCondition`](../interfaces/lib_k8s_cluster.KubeCondition.md)
+
+Whether the volume, or the file system on it, is still growing towards the request.
+
+#### Returns
+
+`undefined` \| [`KubeCondition`](../interfaces/lib_k8s_cluster.KubeCondition.md)
+
+#### Defined in
+
+[lib/k8s/persistentVolumeClaim.ts:92](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/lib/k8s/persistentVolumeClaim.ts#L92)
+
+___
+
 ### spec
 
 • `get` **spec**(): `any`
@@ -126,6 +158,34 @@ makeKubeObject<KubePersistentVolumeClaim\>(
 #### Defined in
 
 [lib/k8s/cluster.ts:294](https://github.com/kubernetes-sigs/headlamp/blob/072d2509b/frontend/src/lib/k8s/cluster.ts#L294)
+
+___
+
+### expandTo
+
+▸ **expandTo**(`storage`): `Promise`<`any`\>
+
+Asks the storage provider for a larger volume.
+
+Only claims bound to a storage class that allows expansion can grow, and the API
+rejects a request that is smaller than the current one, because a volume cannot
+shrink.
+
+#### Parameters
+
+| Name | Type | Description |
+| :------ | :------ | :------ |
+| `storage` | `string` | The new size, as a Kubernetes quantity such as '20Gi'. |
+
+#### Returns
+
+`Promise`<`any`\>
+
+The patched claim.
+
+#### Defined in
+
+[lib/k8s/persistentVolumeClaim.ts:107](https://github.com/kubernetes-sigs/headlamp/blob/main/frontend/src/lib/k8s/persistentVolumeClaim.ts#L107)
 
 ___
 
